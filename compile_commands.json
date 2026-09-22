@@ -1,0 +1,176 @@
+[
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -D_CRT_SECURE_NO_WARNINGS -ID:/projects/njin/build/_deps/raylib-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=gnu99 -o _deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\raudio.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\raudio.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\raudio.c",
+  "output": "_deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\raudio.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -D_CRT_SECURE_NO_WARNINGS -ID:/projects/njin/build/_deps/raylib-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=gnu99 -o _deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rcore.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rcore.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rcore.c",
+  "output": "_deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rcore.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -D_CRT_SECURE_NO_WARNINGS -ID:/projects/njin/build/_deps/raylib-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=gnu99 -o _deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rmodels.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rmodels.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rmodels.c",
+  "output": "_deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rmodels.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -D_CRT_SECURE_NO_WARNINGS -ID:/projects/njin/build/_deps/raylib-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=gnu99 -o _deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rshapes.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rshapes.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rshapes.c",
+  "output": "_deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rshapes.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -D_CRT_SECURE_NO_WARNINGS -ID:/projects/njin/build/_deps/raylib-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=gnu99 -o _deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rtext.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rtext.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rtext.c",
+  "output": "_deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rtext.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -D_CRT_SECURE_NO_WARNINGS -ID:/projects/njin/build/_deps/raylib-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=gnu99 -o _deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rtextures.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rtextures.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\rtextures.c",
+  "output": "_deps\\raylib-build\\raylib\\CMakeFiles\\raylib.dir\\rtextures.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\context.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\context.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\context.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\context.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\init.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\init.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\init.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\init.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\input.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\input.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\input.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\input.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\monitor.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\monitor.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\monitor.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\monitor.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\platform.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\platform.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\platform.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\platform.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\vulkan.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\vulkan.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\vulkan.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\vulkan.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\window.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\window.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\window.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\window.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\egl_context.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\egl_context.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\egl_context.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\egl_context.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\osmesa_context.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\osmesa_context.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\osmesa_context.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\osmesa_context.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_init.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_init.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_init.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_init.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_monitor.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_monitor.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_monitor.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_monitor.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_window.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_window.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_window.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_window.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_joystick.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_joystick.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\null_joystick.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\null_joystick.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_module.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_module.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_module.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_module.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_time.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_time.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_time.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_time.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_thread.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_thread.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_thread.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_thread.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_init.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_init.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_init.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_init.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_joystick.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_joystick.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_joystick.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_joystick.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_monitor.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_monitor.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_monitor.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_monitor.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_window.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_window.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\win32_window.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\win32_window.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\cc.exe -DUNICODE -DWINVER=0x0501 -D_GLFW_WIN32 -D_UNICODE -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/include -ID:/projects/njin/build/_deps/raylib-src/src/external/glfw/src -ID:/projects/njin/build/_deps/raylib-build/raylib/external/glfw/src -fno-strict-aliasing -Werror=implicit-function-declaration -Werror=pointer-arith  -g -std=c99 -Wall -o _deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\wgl_context.c.obj -c D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\wgl_context.c",
+  "file": "D:\\projects\\njin\\build\\_deps\\raylib-src\\src\\external\\glfw\\src\\wgl_context.c",
+  "output": "_deps\\raylib-build\\raylib\\external\\glfw\\src\\CMakeFiles\\glfw.dir\\wgl_context.c.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin.cpp",
+  "file": "D:\\projects\\njin\\src\\engine\\runtime\\njin.cpp",
+  "output": "src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\games\\sandbox\\CMakeFiles\\njin_sandbox.dir\\main.cpp.obj -c D:\\projects\\njin\\src\\games\\sandbox\\main.cpp",
+  "file": "D:\\projects\\njin\\src\\games\\sandbox\\main.cpp",
+  "output": "src\\games\\sandbox\\CMakeFiles\\njin_sandbox.dir\\main.cpp.obj"
+}
+]
