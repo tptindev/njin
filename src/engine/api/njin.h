@@ -10,6 +10,7 @@ struct njin_cfg {
 };
 
 struct njin_ctx {
+  f32 dt; // delta time;
   njin_cfg cfg;
 };
 

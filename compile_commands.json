@@ -169,6 +169,24 @@
 },
 {
   "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin2rl.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin2rl.cpp",
+  "file": "D:\\projects\\njin\\src\\engine\\runtime\\njin2rl.cpp",
+  "output": "src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin2rl.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_info.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_info.cpp",
+  "file": "D:\\projects\\njin\\src\\engine\\runtime\\njin_info.cpp",
+  "output": "src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_info.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_input.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_input.cpp",
+  "file": "D:\\projects\\njin\\src\\engine\\runtime\\njin_input.cpp",
+  "output": "src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_input.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\games\\sandbox\\CMakeFiles\\njin_sandbox.dir\\main.cpp.obj -c D:\\projects\\njin\\src\\games\\sandbox\\main.cpp",
   "file": "D:\\projects\\njin\\src\\games\\sandbox\\main.cpp",
   "output": "src\\games\\sandbox\\CMakeFiles\\njin_sandbox.dir\\main.cpp.obj"

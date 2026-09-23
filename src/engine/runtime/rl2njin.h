@@ -1,0 +1,13 @@
+#pragma once
+
+#include "types.h"
+
+struct Vector2;
+struct Color;
+struct Camera2D;
+
+namespace njin {
+void from_raylib(Vector2 from, vec2 &to);
+void from_raylib(Color from, rgba &to);
+void from_raylib(Camera2D from, camera_2d &to);
+}

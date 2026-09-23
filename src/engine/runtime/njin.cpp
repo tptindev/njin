@@ -9,6 +9,8 @@ void njin::njin_init(njin_ctx &ctx, const njin_cfg &cfg) {
 }
 
 void njin::njin_run(njin_ctx &ctx) {
+  f32 delta = GetFrameTime();
+  ctx.dt = delta;
   while (!WindowShouldClose()) {
     BeginDrawing();
     ClearBackground(RAYWHITE);
