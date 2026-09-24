@@ -1,4 +1,5 @@
 #include <njin.h>
+#include "njin_ctx.h"
 
 int main() {
   njin::njin_ctx ctx{};
