@@ -8,6 +8,7 @@ struct njin_cfg {
   f32 width;
   f32 height;
   f32 target_fps;
+  rgba clear_bg_color = { .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 };
 };
 
 void get_fps(const njin_ctx &ctx, f32 &fps);

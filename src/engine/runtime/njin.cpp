@@ -1,4 +1,5 @@
 #include "njin.h"
+#include "njin2rl.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
 #include "njin_input.h"
@@ -12,17 +13,15 @@ void njin::njin_init(njin_ctx &ctx, const njin_cfg &cfg) {
 }
 
 void njin::njin_run(njin_ctx &ctx) {
-  ctx.dt = GetFrameTime();
-  ctx.elapsed = GetTime();
-
-  njin_input &input = *ctx.input;
+  Color clearbg = RAYWHITE;
+  to_raylib(ctx.cfg.clear_bg_color, clearbg);
   while (!WindowShouldClose()) {
-    input_key_poll(input);
-    if (input_key_held(input, key_a)) {
-      TraceLog(LOG_INFO, "HELLO");
-    }
+    ctx.dt = GetFrameTime();
+    ctx.elapsed = (f32)GetTime();
+    input_key_poll(*ctx.input);
+
     BeginDrawing();
-    ClearBackground(RAYWHITE);
+    ClearBackground(clearbg);
     EndDrawing();
   }
 }
