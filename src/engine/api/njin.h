@@ -1,9 +1,13 @@
 #pragma once
+#include "njin_cfg.h"
 
 namespace njin {
-struct njin_cfg;
+// Opaque engine handle. Created by njin_create, released by njin_destroy.
 struct njin_ctx;
-void njin_init(njin_ctx &ctx, const njin_cfg &cfg);
+
+// Opens the window and returns the engine context. Never returns nullptr.
+njin_ctx *njin_create(const njin_cfg &cfg);
 void njin_run(njin_ctx &ctx);
-void njin_shutdown(njin_ctx &ctx);
+// Releases every engine resource and closes the window. nullptr is ignored.
+void njin_destroy(njin_ctx *ctx);
 } // namespace njin

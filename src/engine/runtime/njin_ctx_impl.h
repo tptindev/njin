@@ -1,0 +1,36 @@
+#pragma once
+
+#include "njin_cfg.h"
+#include "njin_input.h"
+#include "njin_shader.h"
+#include "_types.h"
+#include <entt/entity/registry.hpp>
+#include <entt/signal/dispatcher.hpp>
+
+namespace njin {
+// Opens the window on construction and closes it on destruction.
+struct window_guard {
+  explicit window_guard(const njin_cfg &cfg);
+  ~window_guard();
+  window_guard(const window_guard &) = delete;
+  window_guard &operator=(const window_guard &) = delete;
+};
+
+// Definition of the opaque njin_ctx handle. Only the runtime sees this.
+//
+// Members are destroyed in reverse order, so `window` (declared before the
+// stores) closes last: GPU resources in `shader` are freed while the GL
+// context is still alive.
+struct njin_ctx {
+  explicit njin_ctx(const njin_cfg &config) : cfg(config), window(config) {}
+
+  f32 dt = 0.0f;
+  f32 elapsed = 0.0f;
+  njin_cfg cfg;
+  window_guard window;
+  input_store input;
+  shader_store shader;
+  entt::registry registry;
+  entt::dispatcher dispatcher;
+};
+} // namespace njin

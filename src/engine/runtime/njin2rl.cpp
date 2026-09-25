@@ -26,7 +26,7 @@ void njin::to_raylib(rgba from, Color &to) {
   to.a = (unsigned char)(from.a * 255.0f);
 }
 
-void njin::to_raylib(camera_2d from, Camera2D &to) {
+void njin::to_raylib(camera_view from, Camera2D &to) {
   to.zoom = from.zoom;
   to.rotation = from.rotation;
   to_raylib(from.offset, to.offset );

@@ -74,7 +74,7 @@ shader_store::~shader_store() {
     shader_store_unload(*this, shader_handle{.id = (u32)(i + 1)});
 }
 
-void shader_store_begin(shader_store &store, shader_handle handle) {
+void shader_store_begin(const shader_store &store, shader_handle handle) {
   const shader_slot *slot = shader_slot_of(store, handle);
   if (slot != nullptr)
     BeginShaderMode(slot->shader);

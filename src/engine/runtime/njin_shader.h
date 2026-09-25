@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.h"
+#include "_types.h"
 #include <raylib.h>
 #include <string>
 #include <unordered_map>
@@ -29,11 +29,17 @@ struct shader_store {
 
 // Handle id 0 is "invalid"; id N maps to slots[N - 1]. Slots are never reused,
 // so a stale handle can never alias a newer shader.
-inline shader_slot *shader_slot_of(shader_store &store, shader_handle handle) {
+inline const shader_slot *shader_slot_of(const shader_store &store,
+                                         shader_handle handle) {
   if (handle.id == 0 || handle.id > store.slots.size())
     return nullptr;
-  shader_slot &slot = store.slots[handle.id - 1];
+  const shader_slot &slot = store.slots[handle.id - 1];
   return slot.alive ? &slot : nullptr;
+}
+
+inline shader_slot *shader_slot_of(shader_store &store, shader_handle handle) {
+  return const_cast<shader_slot *>(
+      shader_slot_of(static_cast<const shader_store &>(store), handle));
 }
 
 // Either path may be nullptr to keep raylib's default stage. Returns an invalid
@@ -42,7 +48,7 @@ shader_handle shader_store_load(shader_store &store, const char *vspath,
                                 const char *fspath);
 void shader_store_unload(shader_store &store, shader_handle handle);
 
-void shader_store_begin(shader_store &store, shader_handle handle);
+void shader_store_begin(const shader_store &store, shader_handle handle);
 void shader_store_end();
 
 void shader_store_set_i32(shader_store &store, shader_handle handle,

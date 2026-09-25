@@ -9,8 +9,9 @@ endif()
 add_library(njin_rt STATIC ${NJIN_RT_SOURCES})
 add_library(njin::rt ALIAS njin_rt)
 
-# raylib is an implementation detail: it must not leak out of njin.h.
+# raylib and EnTT are implementation details: they must not leak out of the
+# public headers.
 target_link_libraries(
   njin_rt
   PUBLIC njin::api
-  PRIVATE raylib njin_warnings)
+  PRIVATE raylib EnTT::EnTT njin_warnings)

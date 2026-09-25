@@ -46,7 +46,7 @@ struct rgba {
   f32 a;
 };
 
-struct camera_2d {
+struct camera_view {
   f32 zoom;
   f32 rotation;
   vec2 offset;

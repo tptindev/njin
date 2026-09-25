@@ -1,21 +1,10 @@
 #pragma once
-#include "njin_cfg.h"
-#include "types.h"
-#include <entt/entity/registry.hpp>
-#include <entt/signal/dispatcher.hpp>
+#include "_types.h"
 
 namespace njin {
-struct input_store;
-struct shader_store;
-struct njin_ctx {
-  f32 dt;
-  f32 elapsed;
-  njin_cfg cfg;
-  input_store *input;
-  shader_store *shader;
-  entt::registry registry;
-  entt::dispatcher dispatcher;
-};
+// Opaque: created with njin_create (njin.h), only accessed through the
+// functions below.
+struct njin_ctx;
 
 // Time
 void get_delta(const njin_ctx &ctx, f32 &delta);
@@ -51,11 +40,11 @@ void shader_begin(const njin_ctx &ctx, shader_handle handle);
 void shader_end(const njin_ctx &ctx);
 
 // A uniform that does not exist is logged once and then skipped.
-void shader_set_i32(const njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_i32(njin_ctx &ctx, shader_handle handle, const char *name,
                     i32 value);
-void shader_set_f32(const njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_f32(njin_ctx &ctx, shader_handle handle, const char *name,
                     f32 value);
-void shader_set_vec2(const njin_ctx &ctx, shader_handle handle,
+void shader_set_vec2(njin_ctx &ctx, shader_handle handle,
                      const char *name, vec2 value);
-void shader_set_vec4(const njin_ctx &ctx, shader_handle handle, const char *name, vec4 value);
+void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name, vec4 value);
 } // namespace njin
