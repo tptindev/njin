@@ -64,6 +64,20 @@ struct ui_style {
   ui_look track{};  ///< Rãnh slider, thanh tiến độ, ô của toggle.
   ui_look fill{};   ///< Phần đã đầy của slider, thanh tiến độ, dấu tích của toggle.
   ui_look knob{};   ///< Núm kéo của slider.
+  ui_look toast{};  ///< Nền và màu chữ của toast (chỉ dùng `normal` và `text`).
+
+  /// Màu phủ làm tối nền phía sau popup.
+  rgba dim{0.0f, 0.0f, 0.0f, 0.6f};
+  /// Vạch màu bên trái toast theo loại: info, success, warning, error.
+  rgba toast_accent[4] = {{0.26f, 0.56f, 0.98f, 1.0f}, {0.25f, 0.75f, 0.42f, 1.0f},
+                          {0.96f, 0.72f, 0.20f, 1.0f}, {0.92f, 0.32f, 0.34f, 1.0f}};
+  /// Góc màn hình toast bám vào, theo tỉ lệ: `{1, 1}` là góc dưới phải, `{0.5, 0}`
+  /// là giữa cạnh trên. Toast xếp từ góc đó vào trong.
+  vec2 toast_anchor{1.0f, 1.0f};
+  vec2 toast_margin{24.0f, 24.0f}; ///< Khoảng từ mép màn hình, pixel (trước `scale`).
+  f32 toast_seconds = 2.5f;        ///< Thời gian hiện mặc định.
+  i32 toast_max = 5;               ///< Số toast tối đa cùng lúc. Cái cũ nhất bị bỏ.
+  f32 toast_width = 420.0f;        ///< Chiều rộng tối đa, pixel (trước `scale`). Chữ dài tự xuống dòng.
 
   sound_handle sound_move{};   ///< Phát khi chuyển lựa chọn. Có thể để trống.
   sound_handle sound_accept{}; ///< Phát khi bấm nút hoặc đổi giá trị.
@@ -204,5 +218,92 @@ void ui_focus(njin_ctx &ctx, const char *label);
 /// @param ctx Context của engine.
 /// @return `true` nếu UI đang hiện.
 bool ui_active(const njin_ctx &ctx);
+
+/// Loại toast: quyết định màu vạch bên trái (xem ui_style::toast_accent).
+enum ui_toast_kind {
+  ui_toast_info,    ///< Thông tin trung tính.
+  ui_toast_success, ///< Việc vừa làm thành công.
+  ui_toast_warning, ///< Cảnh báo.
+  ui_toast_error,   ///< Lỗi.
+};
+
+/// Cách hiện một toast.
+struct ui_toast_desc {
+  ui_toast_kind kind = ui_toast_info; ///< Loại.
+  f32 seconds = 0.0f; ///< Thời gian hiện. 0 là `ui_style::toast_seconds`.
+};
+
+/// Hiện một thông báo nhỏ ở góc màn hình, tự biến mất: "Đã lưu game", "Nhặt được
+/// 5 vàng".
+///
+/// Gọi từ bất cứ đâu, bất cứ phase nào, **không cần** ui_begin. Engine tự xếp
+/// hàng, trượt vào, mờ dần và vẽ đè lên mọi thứ trừ hiệu ứng chuyển scene. Chữ
+/// dài tự xuống dòng.
+///
+/// Toast chỉ để đọc, **không nuốt phím hay chuột** của game, khác với panel của
+/// UI. Thời gian tính theo giờ thật: vẫn chạy khi game đang pause hay hitstop.
+/// Diện mạo lấy từ ui_style::toast, nên có thể dùng ảnh, 9-slice và shader như
+/// mọi widget khác.
+/// @code
+/// njin::ui_toast(ctx, "Đã lưu game", {.kind = njin::ui_toast_success});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param text Nội dung (UTF-8).
+/// @param desc Loại và thời gian hiện.
+void ui_toast(njin_ctx &ctx, const char *text, const ui_toast_desc &desc = {});
+
+/// Xóa mọi toast đang hiện, ví dụ khi đổi scene. @param ctx Context của engine.
+void ui_toast_clear(njin_ctx &ctx);
+
+/// Mô tả một popup, dùng với ui_popup() và ui_popup_begin().
+struct ui_popup_desc {
+  const char *id = "popup";     ///< Tên duy nhất của popup.
+  const char *title = nullptr;  ///< Tiêu đề. Có thể null.
+  const char *message = nullptr; ///< Nội dung, tự xuống dòng. Chỉ dùng với ui_popup().
+  /// Nhãn các nút, tối đa 4, phần còn lại để null. Chỉ dùng với ui_popup().
+  /// Từ 1 đến 3 nút xếp thành một hàng, 4 nút xếp dọc.
+  const char *buttons[4] = {"OK", nullptr, nullptr, nullptr};
+  i32 default_button = 0; ///< Nút được chọn sẵn cho bàn phím và tay cầm. Nên là nút an toàn.
+  /// Số thứ tự trả về khi người chơi bấm quay lại (Esc, Backspace, B). -1 là
+  /// đóng popup mà không báo nút nào.
+  i32 cancel_button = -1;
+  f32 width = 0.0f; ///< Chiều rộng, pixel. 0 là `ui_style::width`.
+};
+
+/// Một popup xác nhận: nền tối, tiêu đề, nội dung và vài nút.
+///
+/// Gọi mỗi frame trong `phase_post_render` khi popup đang mở; `open` do game
+/// giữ. Popup tự đóng (đặt `open = false`) khi bấm một nút hay quay lại.
+/// @code
+/// if (want_quit) {
+///   const njin::i32 pick = njin::ui_popup(ctx, {.id = "quit", .title = "Thoát game?",
+///       .message = "Tiến trình chưa lưu sẽ mất.", .buttons = {"Ở lại", "Thoát"},
+///       .cancel_button = 0}, want_quit);
+///   if (pick == 1) njin::njin_quit(ctx);
+/// }
+/// @endcode
+/// Popup là **modal**: các panel khác vẫn được vẽ nhưng không nhận chuột, phím
+/// hay tay cầm cho đến khi popup đóng, và njin::ui_back() chỉ báo cho popup.
+/// Khi mở, nút `default_button` được chọn sẵn; khi đóng, lựa chọn trở lại chỗ
+/// cũ. Frame popup vừa mở bỏ qua nút quay lại, để cùng cú nhấn Esc vừa mở nó
+/// không đóng nó ngay.
+/// @param ctx Context của engine.
+/// @param desc Mô tả popup.
+/// @param open Popup đang mở. Được đặt `false` khi đóng.
+/// @return Số thứ tự nút vừa được bấm ở frame này (theo `desc.buttons`,
+/// `desc.cancel_button` nếu bấm quay lại), hoặc -1 nếu chưa có gì.
+i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open);
+
+/// Bắt đầu một popup có nội dung tùy ý: làm tối nền, mở panel modal. Gọi các
+/// widget bình thường (ui_button, ui_slider...), rồi ui_popup_end(). Đóng popup
+/// bằng cách không gọi nữa; dùng njin::ui_back() để bắt phím quay lại.
+///
+/// Chỉ dùng `id`, `title` và `width` của `desc`.
+/// @param ctx Context của engine.
+/// @param desc Mô tả popup.
+void ui_popup_begin(njin_ctx &ctx, const ui_popup_desc &desc);
+
+/// Kết thúc popup bắt đầu bằng ui_popup_begin(). @param ctx Context của engine.
+void ui_popup_end(njin_ctx &ctx);
 /// @}
 } // namespace njin

@@ -19,6 +19,15 @@ struct ui_widget_rec {
   u64 id = 0;
   rect area{};
   bool adjustable = false; // takes left/right itself (slider, choice)
+  u64 panel = 0;           // panel it was drawn in, for modal filtering
+};
+
+// One toast waiting on screen. Ages in real time.
+struct ui_toast_rec {
+  std::string text;
+  ui_toast_kind kind = ui_toast_info;
+  f32 age = 0.0f;
+  f32 life = 2.5f;
 };
 
 // One deferred draw inside a panel. Panels draw at ui_end, background first,
@@ -67,5 +76,19 @@ struct ui_state {
   const char *panel_title = nullptr;
   bool panel_background = true;
   std::unordered_map<u64, f32> heights; // measured panel heights, by id
+
+  // Modal popup. `modal` is the popup drawn this frame; `modal_last` the one
+  // drawn last frame, which is what input is filtered against (the widget
+  // list is a frame old too). Focus is saved when a popup opens and restored
+  // when it has gone.
+  u64 modal = 0;
+  u64 modal_last = 0;
+  u64 saved_focus = 0;
+
+  std::vector<ui_toast_rec> toasts;
 };
+
+// Draws and ages the toasts. Called by the main loop after post_render, so
+// they land over the game's UI.
+void ui_draw_toasts(njin_ctx &ctx);
 } // namespace njin

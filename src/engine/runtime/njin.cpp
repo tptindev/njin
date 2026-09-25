@@ -97,8 +97,9 @@ void njin_run(njin_ctx &ctx) {
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
     ecs_run(ctx, phase_post_render);
-    // Over everything, UI included: the screen flash, then the scene fade,
-    // which covers the whole frame.
+    // Over everything, UI included: toasts, the screen flash, then the scene
+    // fade, which covers the whole frame.
+    ui_draw_toasts(ctx);
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
     take_pending_screenshots(ctx);

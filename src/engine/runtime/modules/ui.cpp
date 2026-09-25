@@ -4,12 +4,15 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
+#include "_tween.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <raylib.h>
+#include <string>
+#include <vector>
 
 namespace njin {
 namespace {
@@ -213,6 +216,18 @@ void frame_begin(njin_ctx &ctx) {
   ui.last_panels = std::move(ui.panels);
   ui.panels.clear();
   ui.back_reported = false;
+  const u64 prev_modal = ui.modal_last;
+  ui.modal_last = ui.modal;
+  ui.modal = 0;
+  // While a popup is up, only its widgets can be reached.
+  if (ui.modal_last != 0) {
+    const u64 keep = ui.modal_last;
+    ui.last.erase(std::remove_if(ui.last.begin(), ui.last.end(),
+                                 [keep](const ui_widget_rec &w) { return w.panel != keep; }),
+                  ui.last.end());
+  } else if (prev_modal != 0) {
+    ui.focus = ui.saved_focus; // the popup is gone: back to where the player was
+  }
   const bool active = !ui.last_panels.empty();
 
   // Raw input, read before anything is consumed.
@@ -394,7 +409,10 @@ interaction interact(njin_ctx &ctx, const char *label, bool enabled, bool adjust
     it.state = state_disabled;
     return it;
   }
-  ui.current.push_back({it.id, it.area, adjustable});
+  ui.current.push_back({it.id, it.area, adjustable, ui.panel_id});
+  // Behind a popup: listed (so focus can come back to it) but inert.
+  if (ui.modal_last != 0 && ui.panel_id != ui.modal_last)
+    return it;
   it.hover = inside(ui.mouse, it.area);
   if (it.hover && ui.mouse_moved && ui.focus != it.id) {
     ui.focus = it.id;
@@ -446,6 +464,9 @@ ui_style ui_default_style() {
   s.knob.focused = s.knob.pressed = {.color = {1.0f, 1.0f, 1.0f, 1.0f}, .roundness = 1.0f,
                                      .outline = accent, .outline_width = 2.0f};
   s.knob.disabled = {.color = {0.4f, 0.42f, 0.48f, 1.0f}, .roundness = 1.0f};
+  s.toast.normal = {.color = {0.09f, 0.10f, 0.14f, 0.95f}, .roundness = 0.25f,
+                    .outline = {1.0f, 1.0f, 1.0f, 0.10f}, .outline_width = 1.0f};
+  s.toast.text = {0.93f, 0.95f, 1.0f, 1.0f};
   return s;
 }
 
@@ -696,6 +717,9 @@ bool ui_back(njin_ctx &ctx) {
   ui_state &ui = ctx.ui;
   if (!ui.back || ui.last_panels.empty())
     return false;
+  // With a popup up, back belongs to the popup alone.
+  if (ui.modal_last != 0 && !(ui.in_panel && ui.panel_id == ui.modal_last))
+    return false;
   if (!ui.back_reported) {
     ui.back_reported = true;
     play(ctx, ui.style.sound_back);
@@ -710,4 +734,204 @@ void ui_focus(njin_ctx &ctx, const char *label) {
 }
 
 bool ui_active(const njin_ctx &ctx) { return !ctx.ui.last_panels.empty(); }
+
+// --- popup ---
+
+namespace {
+// Greedy word wrap of `text` (which may hold newlines) to `max_w` pixels.
+// Breaks only at spaces, so UTF-8 sequences are never split; a word wider than
+// the line stays whole.
+std::vector<std::string> wrap_lines(const njin_ctx &ctx, const ui_state &ui, const char *text,
+                                    f32 max_w, f32 size) {
+  std::vector<std::string> lines;
+  std::string paragraph;
+  const auto flush_paragraph = [&]() {
+    std::string line;
+    usize i = 0;
+    while (i <= paragraph.size()) {
+      const usize end = std::min(paragraph.find(' ', i), paragraph.size());
+      const std::string word = paragraph.substr(i, end - i);
+      const std::string trial = line.empty() ? word : line + " " + word;
+      if (!line.empty() && measure(ctx, ui, trial, size).x > max_w) {
+        lines.push_back(line);
+        line = word;
+      } else {
+        line = trial;
+      }
+      i = end + 1;
+    }
+    lines.push_back(line);
+    paragraph.clear();
+  };
+  for (const char *c = text; *c != '\0'; c++) {
+    if (*c == '\n')
+      flush_paragraph();
+    else
+      paragraph.push_back(*c);
+  }
+  flush_paragraph();
+  return lines;
+}
+} // namespace
+
+void ui_popup_begin(njin_ctx &ctx, const ui_popup_desc &desc) {
+  ui_state &ui = ctx.ui;
+  const char *name = desc.id != nullptr ? desc.id : "popup";
+  const u64 id = hash_id(0, name);
+  // First frame of this popup: remember where the focus was, to give it back.
+  if (ui.modal_last != id && ui.modal != id)
+    ui.saved_focus = ui.focus;
+  ui.modal = id;
+  draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, ui.style.dim);
+  ui_begin(ctx, ui_panel_desc{.id = name, .title = desc.title, .width = desc.width});
+}
+
+void ui_popup_end(njin_ctx &ctx) { ui_end(ctx); }
+
+i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open) {
+  if (!open)
+    return -1;
+  ui_state &ui = ctx.ui;
+  const u64 id = hash_id(0, desc.id != nullptr ? desc.id : "popup");
+  const bool first = ui.modal_last != id;
+  ui_popup_begin(ctx, desc);
+
+  if (desc.message != nullptr) {
+    const f32 inner = sc(ui, desc.width > 0.0f ? desc.width : ui.style.width) -
+                      2.0f * sc(ui, ui.style.padding);
+    for (const std::string &line : wrap_lines(ctx, ui, desc.message, inner, font_px(ui)))
+      ui_label(ctx, line.c_str());
+    ui_space(ctx, 6.0f);
+  }
+
+  i32 count = 0;
+  while (count < 4 && desc.buttons[count] != nullptr)
+    count++;
+  // The number is part of the id, so two buttons with the same text still differ.
+  std::string labels[4];
+  for (i32 i = 0; i < count; i++)
+    labels[i] = std::string(desc.buttons[i]) + "##popup" + std::to_string(i);
+  if (count > 0 && count <= 3)
+    ui_row(ctx, count);
+  i32 pick = -1;
+  for (i32 i = 0; i < count; i++) {
+    if (ui_button(ctx, labels[i].c_str()))
+      pick = i;
+  }
+  if (first && count > 0) {
+    const i32 def = desc.default_button >= 0 && desc.default_button < count ? desc.default_button : 0;
+    ui.focus = hash_id(ui.panel_id, labels[def].c_str());
+  }
+
+  i32 result = -1;
+  bool close = false;
+  if (pick >= 0) {
+    close = true;
+    result = pick;
+  } else if (!first && ui_back(ctx)) {
+    // Not on the first frame: the press that opened the popup must not close it.
+    close = true;
+    result = desc.cancel_button >= 0 && desc.cancel_button < count ? desc.cancel_button : -1;
+  }
+  if (close)
+    open = false;
+  ui_popup_end(ctx);
+  return result;
+}
+
+// --- toast ---
+
+void ui_toast(njin_ctx &ctx, const char *text, const ui_toast_desc &desc) {
+  if (text == nullptr || *text == '\0')
+    return;
+  ui_state &ui = ctx.ui;
+  ui.toasts.push_back(ui_toast_rec{.text = text,
+                                   .kind = desc.kind,
+                                   .age = 0.0f,
+                                   .life = desc.seconds > 0.0f ? desc.seconds : ui.style.toast_seconds});
+  const usize cap = (usize)std::max(ui.style.toast_max, 1);
+  while (ui.toasts.size() > cap)
+    ui.toasts.erase(ui.toasts.begin());
+}
+
+void ui_toast_clear(njin_ctx &ctx) { ctx.ui.toasts.clear(); }
+
+void ui_draw_toasts(njin_ctx &ctx) {
+  ui_state &ui = ctx.ui;
+  if (ui.toasts.empty())
+    return;
+  const f32 dt = ctx.time.dt_real; // real time: toasts run while the game is paused
+  for (ui_toast_rec &t : ui.toasts)
+    t.age += dt;
+  std::erase_if(ui.toasts, [](const ui_toast_rec &t) { return t.age >= t.life; });
+
+  const ui_style &st = ui.style;
+  const vec2 screen = screen_size(ctx);
+  const vec2 margin = st.toast_margin * st.scale;
+  const f32 pad = sc(ui, 14.0f);
+  const f32 gap = sc(ui, 8.0f);
+  const f32 bar = sc(ui, 5.0f);
+  const f32 size = font_px(ui);
+  const f32 max_box = std::min(sc(ui, st.toast_width), screen.x - 2.0f * margin.x);
+  const bool from_bottom = st.toast_anchor.y >= 0.5f;
+  const bool centred_x = std::abs(st.toast_anchor.x - 0.5f) < 0.25f;
+  const f32 slide_dir = st.toast_anchor.x >= 0.5f ? 1.0f : -1.0f;
+  f32 y = from_bottom ? screen.y - margin.y : margin.y;
+
+  std::vector<ui_cmd> cmds;
+  // The newest sits at the anchor, older ones stack away from it.
+  for (usize n = ui.toasts.size(); n-- > 0;) {
+    const ui_toast_rec &t = ui.toasts[n];
+    const f32 text_w = max_box - 2.0f * pad - bar - pad * 0.6f;
+    const std::vector<std::string> lines = wrap_lines(ctx, ui, t.text.c_str(), text_w, size);
+    f32 widest = 0.0f;
+    f32 line_h = 0.0f;
+    for (const std::string &l : lines) {
+      const vec2 m = measure(ctx, ui, l, size);
+      widest = std::max(widest, m.x);
+      line_h = std::max(line_h, m.y);
+    }
+    const vec2 box_size{widest + 2.0f * pad + bar + pad * 0.6f,
+                        line_h * (f32)lines.size() + 2.0f * pad};
+
+    const f32 appear = ease_apply(ease::out_cubic, clamp(t.age / 0.25f, 0.0f, 1.0f));
+    const f32 fade = clamp((t.life - t.age) / 0.35f, 0.0f, 1.0f) * appear;
+    vec2 pos{lerp(margin.x, screen.x - margin.x - box_size.x, st.toast_anchor.x),
+             from_bottom ? y - box_size.y : y};
+    if (centred_x)
+      pos.y += (from_bottom ? 1.0f : -1.0f) * (1.0f - appear) * box_size.y * 0.6f;
+    else
+      pos.x += slide_dir * (1.0f - appear) * box_size.x * 0.5f;
+    y = from_bottom ? y - box_size.y - gap : y + box_size.y + gap;
+
+    ui_cmd back{};
+    back.kind = ui_cmd::skin;
+    back.area = {pos, box_size};
+    back.look = st.toast.normal;
+    back.look.color.a *= fade;
+    back.look.outline.a *= fade;
+    back.shader = st.toast.shader;
+    cmds.push_back(std::move(back));
+
+    ui_cmd stripe{};
+    stripe.kind = ui_cmd::skin;
+    stripe.area = {pos + vec2{pad * 0.6f, pad * 0.8f}, {bar, box_size.y - pad * 1.6f}};
+    stripe.look.color = st.toast_accent[std::clamp((i32)t.kind, 0, 3)];
+    stripe.look.color.a *= fade;
+    stripe.look.roundness = 1.0f;
+    cmds.push_back(std::move(stripe));
+
+    for (usize i = 0; i < lines.size(); i++) {
+      ui_cmd text{};
+      text.kind = ui_cmd::text;
+      text.str = lines[i];
+      text.size = size;
+      text.area.pos = pos + vec2{pad * 0.6f + bar + pad * 0.6f, pad + line_h * (f32)i};
+      text.color = st.toast.text;
+      text.color.a *= fade;
+      cmds.push_back(std::move(text));
+    }
+  }
+  flush(ctx, ui, cmds);
+}
 } // namespace njin
