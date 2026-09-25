@@ -27,15 +27,17 @@ nằm trong `runtime/njin_ctx_impl.h`:
 | `window` | Mở cửa sổ khi tạo, đóng khi hủy |
 | `input` | Trạng thái phím của frame trước và frame này, danh sách action |
 | `shader`, `texture`, `render_texture` | Các store tài nguyên GPU |
+| `audio` | Store âm thanh: sound và music |
 | `ecs` | Registry, dispatcher và lịch chạy system |
 
 Thứ tự khai báo quan trọng: thành viên bị hủy theo thứ tự **ngược**, và `window`
 được khai báo trước các store, nên nó đóng **sau cùng**. Các store giải phóng tài
-nguyên GPU trong lúc OpenGL context còn sống.
+nguyên GPU và bộ đệm âm thanh trong lúc OpenGL context và thiết bị âm thanh còn sống. Thiết
+bị âm thanh được mở cùng cửa sổ và đóng trong destructor của `window`.
 
 ## Store và handle
 
-`shader_store`, `texture_store` và `render_texture_store` cùng một khuôn:
+`shader_store`, `texture_store`, `render_texture_store` và `audio_store` cùng một khuôn:
 
 - Mỗi tài nguyên nằm trong một **slot** của một `std::vector`.
 - Handle có `id = chỉ số slot + 1`. Nên `id == 0` luôn là không hợp lệ.
@@ -75,10 +77,11 @@ và nối số còn lại theo thứ tự đăng ký.
 
 ## Module lõi
 
-njin_create() đăng ký sẵn các module lõi trước khi trả về (hiện là module camera,
-trong `runtime/modules/`). Vì chúng đăng ký **trước** module của game nên system của
+njin_create() đăng ký sẵn các module lõi trước khi trả về (hiện là module camera và
+module âm thanh, trong `runtime/modules/`). Vì chúng đăng ký **trước** module của game nên system của
 chúng chạy trước trong cùng phase. Module camera dựa vào điều này để bật camera
-trước mọi lệnh vẽ của game.
+trước mọi lệnh vẽ của game. Module âm thanh mỗi frame cấp dữ liệu cho các stream nhạc và
+phát lại các sound lặp (xem @ref audio).
 
 ## Thêm một module lõi
 

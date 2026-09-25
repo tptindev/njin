@@ -223,4 +223,82 @@ void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
                          vec2 pos, rgba tint) {
   render_texture_store_draw(ctx.render_texture, handle, pos, tint);
 }
+
+sound_handle sound_load(njin_ctx &ctx, const char *path) {
+  return sound_store_load(ctx.audio, path);
+}
+
+sound_handle sound_load_samples(njin_ctx &ctx, const f32 *samples, i32 count,
+                                i32 sample_rate) {
+  return sound_store_load_samples(ctx.audio, samples, count, sample_rate);
+}
+
+void sound_unload(njin_ctx &ctx, sound_handle handle) {
+  sound_store_unload(ctx.audio, handle);
+}
+
+void sound_set_volume(njin_ctx &ctx, sound_handle handle, f32 volume) {
+  sound_store_set_volume(ctx.audio, handle, volume);
+}
+
+void sound_set_muted(njin_ctx &ctx, sound_handle handle, bool muted) {
+  sound_store_set_muted(ctx.audio, handle, muted);
+}
+
+void sound_play_once(njin_ctx &ctx, sound_handle handle) {
+  sound_store_play_once(ctx.audio, handle, 1.0f, 1.0f);
+}
+
+void sound_play_once_at(njin_ctx &ctx, sound_handle handle, f32 pitch,
+                        f32 gain) {
+  sound_store_play_once(ctx.audio, handle, pitch, gain);
+}
+
+void sound_play_restart(njin_ctx &ctx, sound_handle handle) {
+  sound_store_play_restart(ctx.audio, handle);
+}
+
+void sound_play_loop(njin_ctx &ctx, sound_handle handle) {
+  sound_store_play_loop(ctx.audio, handle);
+}
+
+void sound_stop(njin_ctx &ctx, sound_handle handle) {
+  sound_store_stop(ctx.audio, handle);
+}
+
+music_handle music_load(njin_ctx &ctx, const char *path) {
+  return music_store_load(ctx.audio, path);
+}
+
+void music_unload(njin_ctx &ctx, music_handle handle) {
+  music_store_unload(ctx.audio, handle);
+}
+
+void music_set_volume(njin_ctx &ctx, music_handle handle, f32 volume) {
+  music_store_set_volume(ctx.audio, handle, volume);
+}
+
+void music_set_muted(njin_ctx &ctx, music_handle handle, bool muted) {
+  music_store_set_muted(ctx.audio, handle, muted);
+}
+
+void music_set_looping(njin_ctx &ctx, music_handle handle, bool looping) {
+  music_store_set_looping(ctx.audio, handle, looping);
+}
+
+void music_play(njin_ctx &ctx, music_handle handle) {
+  music_store_play(ctx.audio, handle);
+}
+
+void music_stop(njin_ctx &ctx, music_handle handle) {
+  music_store_stop(ctx.audio, handle);
+}
+
+void music_pause(njin_ctx &ctx, music_handle handle) {
+  music_store_pause(ctx.audio, handle);
+}
+
+void music_resume(njin_ctx &ctx, music_handle handle) {
+  music_store_resume(ctx.audio, handle);
+}
 } // namespace njin

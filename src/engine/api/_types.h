@@ -93,6 +93,20 @@ struct shader_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một âm thanh ngắn (sound), tạo bởi sound_load().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.
+struct sound_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một bản nhạc stream (music), tạo bởi music_load().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.
+struct music_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một texture, tạo bởi texture_load().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.

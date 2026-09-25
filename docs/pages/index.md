@@ -18,6 +18,7 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Xử lý phím và action | @subpage input |
 | Vẽ ảnh, dùng shader | @subpage rendering |
 | Làm hiệu ứng toàn màn hình | @subpage post_processing |
+| Phát tiếng động và nhạc nền | @subpage audio |
 | Ghi log | @subpage logging |
 | Hiểu cách engine được tổ chức bên trong | @subpage architecture |
 | Tra cứu từng hàm | [Nhóm API](topics.html) |

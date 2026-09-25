@@ -25,6 +25,12 @@
 /// @defgroup grp_render_texture Render texture
 /// Ảnh ngoài màn hình để vẽ vào, dùng cho post-processing.
 
+/// @defgroup grp_sound Sound
+/// Âm thanh ngắn nạp vào bộ nhớ: hiệu ứng, phát chồng, cao độ, lặp.
+
+/// @defgroup grp_music Music
+/// Nhạc stream từ đĩa: nhạc nền, âm thanh môi trường dài.
+
 /// @defgroup grp_log Log
 /// Ghi log theo mức độ, đổi nơi nhận log.
 

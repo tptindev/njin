@@ -1,6 +1,7 @@
 #pragma once
 
 #include "_types.h"
+#include "njin_audio.h"
 #include "njin_cfg.h"
 #include "njin_ecs.h"
 #include "njin_input.h"
@@ -20,7 +21,8 @@ struct window_guard {
 //
 // Members are destroyed in reverse order, so `window` (declared before the
 // stores) closes last: GPU resources in `shader`, `texture` and
-// `render_texture` are freed while the GL context is still alive.
+// `render_texture`, and the audio buffers in `audio`, are freed while the GL
+// context and the audio device are still alive.
 struct njin_ctx {
   explicit njin_ctx(const njin_cfg &config) : cfg(config), window(config) {}
 
@@ -32,6 +34,7 @@ struct njin_ctx {
   shader_store shader;
   texture_store texture;
   render_texture_store render_texture;
+  audio_store audio;
   ecs_store ecs;
 };
 } // namespace njin

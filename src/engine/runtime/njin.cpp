@@ -9,10 +9,17 @@ namespace njin {
 window_guard::window_guard(const njin_cfg &cfg) {
   log_capture_raylib();
   InitWindow((i32)cfg.width, (i32)cfg.height, cfg.title);
+  // Without a device (no speakers, driver problem) the game still runs; the
+  // audio calls just fail to load and say so in the log.
+  InitAudioDevice();
   SetTargetFPS((i32)cfg.target_fps);
 }
 
-window_guard::~window_guard() { CloseWindow(); }
+window_guard::~window_guard() {
+  if (IsAudioDeviceReady())
+    CloseAudioDevice();
+  CloseWindow();
+}
 
 njin_ctx *njin_create(const njin_cfg &cfg) {
   njin_ctx *ctx = new njin_ctx(cfg);
