@@ -8,22 +8,26 @@
 namespace njin {
 f32 delta(const njin_ctx &ctx) { return ctx.dt; }
 f32 elapsed(const njin_ctx &ctx) { return ctx.elapsed; }
-entt::registry &world(njin_ctx &ctx) { return ctx.registry; }
-entt::dispatcher &events(njin_ctx &ctx) { return ctx.dispatcher; }
-void world_to_screen(const njin_ctx &ctx, vec2 world, vec2 &screen) {
+entt::registry &world(njin_ctx &ctx) { return ctx.ecs.registry; }
+entt::dispatcher &events(njin_ctx &ctx) { return ctx.ecs.dispatcher; }
+vec2 w2scr(const njin_ctx &ctx, vec2 pos) {
   (void)ctx;
   const Camera2D camera{};
   Vector2 position{};
-  to_raylib(world, position);
-  from_raylib(GetWorldToScreen2D(position, camera), screen);
+  to_raylib(pos, position);
+  vec2 result{};
+  from_raylib(GetWorldToScreen2D(position, camera), result);
+  return result;
 }
 
-void screen_to_world(const njin_ctx &ctx, vec2 screen, vec2 &world) {
+vec2 scr2w(const njin_ctx &ctx, vec2 pos) {
   (void)ctx;
   const Camera2D camera{};
   Vector2 position{};
-  to_raylib(screen, position);
-  from_raylib(GetScreenToWorld2D(position, camera), world);
+  to_raylib(pos, position);
+  vec2 result{};
+  from_raylib(GetScreenToWorld2D(position, camera), result);
+  return result;
 }
 
 bool key_pressed(const njin_ctx &ctx, key_code key) {

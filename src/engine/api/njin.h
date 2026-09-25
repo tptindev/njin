@@ -1,5 +1,7 @@
 #pragma once
+#include "_comps.h"
 #include "njin_cfg.h"
+#include "njin_ctx.h"
 
 namespace njin {
 // Opaque engine handle. Created by njin_create, released by njin_destroy.

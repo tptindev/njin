@@ -9,9 +9,8 @@ endif()
 add_library(njin_rt STATIC ${NJIN_RT_SOURCES})
 add_library(njin::rt ALIAS njin_rt)
 
-# raylib and EnTT are implementation details: they must not leak out of the
-# public headers.
+# raylib stays private. EnTT is part of the public ECS API through njin::api.
 target_link_libraries(
   njin_rt
   PUBLIC njin::api
-  PRIVATE raylib EnTT::EnTT njin_warnings)
+  PRIVATE raylib njin_warnings)

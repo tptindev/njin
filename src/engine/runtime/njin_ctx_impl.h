@@ -1,11 +1,10 @@
 #pragma once
 
+#include "_types.h"
 #include "njin_cfg.h"
+#include "njin_ecs.h"
 #include "njin_input.h"
 #include "njin_shader.h"
-#include "_types.h"
-#include <entt/entity/registry.hpp>
-#include <entt/signal/dispatcher.hpp>
 
 namespace njin {
 // Opens the window on construction and closes it on destruction.
@@ -30,7 +29,6 @@ struct njin_ctx {
   window_guard window;
   input_store input;
   shader_store shader;
-  entt::registry registry;
-  entt::dispatcher dispatcher;
+  ecs_store ecs;
 };
 } // namespace njin

@@ -11,6 +11,6 @@ struct njin_cfg {
   rgba clear_bg_color = { .r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0 };
 };
 
-void get_fps(const njin_ctx &ctx, f32 &fps);
-void get_screen_size(const njin_ctx &ctx, vec2 &screen_size);
+f32 fps(const njin_ctx &ctx);
+vec2 screen_size(const njin_ctx &ctx);
 }
