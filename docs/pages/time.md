@@ -27,9 +27,9 @@ khớp thời gian thật.
 
 ```mermaid
 flowchart LR
-  A["tích lũy += delta()"] --> B{"tích lũy >= nhịp?"}
-  B -- có --> C["chạy phase_fixed_update<br/>tích lũy -= nhịp"] --> B
-  B -- không --> D["phase_update"]
+  A["tích lũy += delta()"]:::engine --> B{"tích lũy >= nhịp?"}:::decide
+  B -- có --> C["chạy phase_fixed_update<br/>tích lũy -= nhịp"]:::fixed --> B
+  B -- không --> D["phase_update"]:::update
 ```
 
 Trong phase này, njin::delta() trả về **đúng một nhịp**. Đặt **vật lý** ở đây: kết quả giống

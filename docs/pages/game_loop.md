@@ -4,21 +4,21 @@ njin_run() chạy vòng lặp sau:
 
 ```mermaid
 flowchart TD
-  S[phase_startup<br/>một lần] --> L{Cửa sổ còn mở?}
-  L -- có --> T[Cập nhật thời gian và đọc phím]
-  T --> SC[Chuyển scene nếu có yêu cầu]
-  SC --> U1[phase_pre_update]
-  U1 --> FX[phase_fixed_update<br/>0..n lần]
-  FX --> U2[phase_update]
-  U2 --> U3[phase_post_update]
-  U3 --> E[Phát event đã enqueue]
-  E --> B[Bắt đầu vẽ và xóa nền]
-  B --> R1[phase_pre_render]
-  R1 --> R2[phase_render]
-  R2 --> R3[phase_post_render]
-  R3 --> X[Kết thúc vẽ]
+  S([phase_startup<br/>một lần]):::once --> L{Cửa sổ còn mở?}:::decide
+  L -- có --> T[Cập nhật thời gian và đọc input]:::engine
+  T --> SC[Chuyển scene nếu có yêu cầu]:::engine
+  SC --> U1[phase_pre_update]:::update
+  U1 --> FX[phase_fixed_update<br/>0..n lần]:::fixed
+  FX --> U2[phase_update]:::update
+  U2 --> U3[phase_post_update]:::update
+  U3 --> E[Phát event đã enqueue]:::engine
+  E --> B[Bắt đầu vẽ và xóa nền]:::engine
+  B --> R1[phase_pre_render]:::render
+  R1 --> R2[phase_render]:::render
+  R2 --> R3[phase_post_render]:::render
+  R3 --> X[Kết thúc vẽ]:::engine
   X --> L
-  L -- không --> D[phase_shutdown<br/>một lần]
+  L -- không --> D([phase_shutdown<br/>một lần]):::once
 ```
 
 ## Đầu mỗi frame

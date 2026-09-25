@@ -22,7 +22,6 @@ nằm trong `runtime/njin_ctx_impl.h`:
 
 | Thành viên | Vai trò |
 |---|---|
-| `dt`, `elapsed` | Thời gian, cập nhật mỗi frame |
 | `cfg` | Cấu hình đã truyền vào njin_create() |
 | `time` | Thời gian, tốc độ, tạm dừng, bộ tích lũy fixed update |
 | `random` | Bộ sinh số ngẫu nhiên dùng chung |
@@ -55,10 +54,10 @@ bị âm thanh được mở cùng cửa sổ và đóng trong destructor của 
 
 ```mermaid
 flowchart LR
-  A["ecs_register()"] --> B["pending[phase]<br/>system của module đang setup"]
-  B --> C["sắp xếp theo after / before / order"]
-  C --> D["schedule[phase]<br/>thứ tự chạy cuối cùng"]
-  D --> E["ecs_run(phase)<br/>gọi lần lượt từng hàm"]
+  A["ecs_register()"]:::api --> B[("pending[phase]<br/>system của module đang setup")]:::data
+  B --> C["sắp xếp theo after / before / order"]:::engine
+  C --> D[("schedule[phase]<br/>thứ tự chạy cuối cùng")]:::data
+  D --> E["ecs_run(phase)<br/>gọi lần lượt từng hàm"]:::update
 ```
 
 `ecs_store` (file `runtime/njin_ecs.h`) giữ hai mảng theo phase:

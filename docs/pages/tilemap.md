@@ -24,9 +24,9 @@ mở rộng tới đó.
 
 ```mermaid
 flowchart LR
-  S["tilemap_set()"] --> C["chunk.version tăng"]
-  C --> B["post_update: bake lại<br/>chunk đó vào ảnh riêng"]
-  B --> D["render: mỗi chunk trong<br/>khung nhìn = 1 lệnh vẽ"]
+  S["tilemap_set()"]:::api --> C[("chunk.version tăng")]:::data
+  C --> B["post_update: bake lại<br/>chunk đó vào ảnh riêng"]:::update
+  B --> D["render: mỗi chunk trong<br/>khung nhìn = 1 lệnh vẽ"]:::render
 ```
 
 **Lưu trữ thưa.** Chỉ những chunk có ít nhất một ô mới tồn tại. Một bản đồ rộng hàng

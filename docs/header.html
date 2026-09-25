@@ -28,7 +28,124 @@ $treeview
 $search
 $mathjax
 $darkmode
-$mermaidjs
+<style>
+div.mermaidgraph, pre.mermaid {
+  background: none !important; border: none !important; box-shadow: none !important;
+  padding: 0 !important; margin: 1em 0 !important; text-align: center;
+}
+</style>
+<script type="module">
+// Mermaid for the njin wiki: colours that follow the page's light/dark mode,
+// and a shared set of node classes so diagrams only name a meaning.
+//
+// Replaces Doxygen's own mermaid setup, which always uses the "default"
+// theme: black lines that vanish on the dark page and every node the same
+// lavender.
+//
+// Node classes, used in a diagram as A[text]:::update
+//   once    runs a single time (startup, shutdown)
+//   engine  a step the engine does by itself
+//   update  update phases          fixed   phase_fixed_update
+//   render  render phases          decide  a branch
+//   data    stored state           api     an API call
+
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+// Mid-tone fills with white text read well on both page backgrounds, so the
+// node colours stay the same across modes; only lines and labels change.
+const node_classes = {
+  once: ['#64748b', '#475569'],
+  engine: ['#d97706', '#b45309'],
+  update: ['#2563eb', '#1d4ed8'],
+  fixed: ['#7c3aed', '#6d28d9'],
+  render: ['#059669', '#047857'],
+  decide: ['#e11d48', '#be123c'],
+  data: ['#0891b2', '#0e7490'],
+  api: ['#4f46e5', '#4338ca'],
+};
+
+const class_defs = Object.entries(node_classes)
+  .map(([name, [fill, stroke]]) =>
+    'classDef ' + name + ' fill:' + fill + ',stroke:' + stroke +
+    ',stroke-width:2px,color:#ffffff')
+  .join('\n');
+
+function is_dark() {
+  return document.documentElement.classList.contains('dark-mode');
+}
+
+function theme_variables(dark) {
+  const common = {
+    fontFamily: 'Roboto, "Segoe UI", sans-serif',
+    fontSize: '15px',
+  };
+  return dark
+    ? {
+        ...common,
+        darkMode: true,
+        background: '#1e1f22',
+        primaryColor: '#334155',
+        primaryBorderColor: '#64748b',
+        primaryTextColor: '#f1f5f9',
+        textColor: '#e2e8f0',
+        lineColor: '#94a3b8',
+        edgeLabelBackground: '#27303f',
+        clusterBkg: '#232a36',
+        clusterBorder: '#475569',
+      }
+    : {
+        ...common,
+        background: '#ffffff',
+        primaryColor: '#e2e8f0',
+        primaryBorderColor: '#94a3b8',
+        primaryTextColor: '#0f172a',
+        textColor: '#1e293b',
+        lineColor: '#64748b',
+        edgeLabelBackground: '#f1f5f9',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1',
+      };
+}
+
+// Doxygen writes each diagram as <pre class="mermaid">source</pre>. Keep the
+// source so the diagram can be drawn again when the mode changes.
+const diagrams = [...document.querySelectorAll('pre.mermaid')].map((el) => ({
+  el,
+  source: el.textContent,
+}));
+
+async function render() {
+  const dark = is_dark();
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    themeVariables: theme_variables(dark),
+    // Rounded corners on boxes and group frames. rx/ry as CSS properties are
+    // SVG 2, supported by every current browser.
+    themeCSS:
+      '.node rect { rx: 10px; ry: 10px; }' +
+      '.cluster rect { rx: 12px; ry: 12px; }',
+    flowchart: { curve: 'basis', padding: 14, nodeSpacing: 36, rankSpacing: 42 },
+  });
+  for (const d of diagrams) {
+    const is_flowchart = /^\s*(flowchart|graph)\b/.test(d.source);
+    d.el.removeAttribute('data-processed');
+    d.el.textContent = is_flowchart ? d.source + '\n' + class_defs : d.source;
+  }
+  await mermaid.run({ nodes: diagrams.map((d) => d.el) });
+}
+
+render();
+
+// The dark-mode toggle flips a class on <html>: draw again in the new colours.
+let last_dark = is_dark();
+new MutationObserver(() => {
+  if (is_dark() !== last_dark) {
+    last_dark = is_dark();
+    render();
+  }
+}).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+</script>
 <link href="$relpath^$stylesheet" rel="stylesheet" type="text/css" />
 $extrastylesheet
 <script type="text/javascript" src="$relpath^doxygen-awesome-darkmode-toggle.js"></script>

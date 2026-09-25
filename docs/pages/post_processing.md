@@ -7,7 +7,7 @@ Nguyên tắc:
 
 ```mermaid
 flowchart LR
-  A[Vẽ cảnh<br/>vào render texture] --> B[Vẽ render texture<br/>ra màn hình<br/>qua shader]
+  A[Vẽ cảnh<br/>vào render texture]:::render --> B[Vẽ render texture<br/>ra màn hình<br/>qua shader]:::engine
 ```
 
 Render texture là một ảnh ngoài màn hình. Bạn vẽ cảnh vào nó, rồi vẽ nó ra màn
