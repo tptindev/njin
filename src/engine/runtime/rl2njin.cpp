@@ -5,6 +5,20 @@ void njin::from_raylib(Vector2 from, vec2 &to) {
   to.x = from.x;
   to.y = from.y;
 }
+
+void njin::from_raylib(Vector4 from, vec4 &to) {
+  to.x = from.x;
+  to.y = from.y;
+  to.z = from.z;
+  to.w = from.w;
+}
+
+void njin::from_raylib(Color from, vec4 &to) {
+  to.x = from.r;
+  to.y = from.g;
+  to.z = from.b;
+  to.w = from.a;
+}
 void njin::from_raylib(Color from, rgba &to) {
   to.r = from.r;
   to.g = from.g;

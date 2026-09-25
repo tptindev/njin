@@ -6,11 +6,24 @@ void njin::to_raylib(vec2 from, Vector2 &to) {
   to.y = from.y;
 }
 
+void njin::to_raylib(vec4 from, Vector4 &to) {
+  to.x = from.x;
+  to.y = from.y;
+  to.z = from.z;
+  to.w = from.w;
+}
+
+void njin::to_raylib(vec4 from, Color &to) {
+  to.r = from.x;
+  to.g = from.y;
+  to.b = from.z;
+  to.a = from.w;
+}
 void njin::to_raylib(rgba from, Color &to) {
-  to.r = from.r;
-  to.g = from.g;
-  to.b = from.b;
-  to.a = from.a;
+  to.r = (unsigned char)(from.r * 255.0f);
+  to.g = (unsigned char)(from.g * 255.0f);
+  to.b = (unsigned char)(from.b * 255.0f);
+  to.a = (unsigned char)(from.a * 255.0f);
 }
 
 void njin::to_raylib(camera_2d from, Camera2D &to) {

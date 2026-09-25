@@ -1,7 +1,9 @@
 #include "njin_ctx.h"
 #include "njin2rl.h"
 #include "njin_input.h"
+#include "njin_shader.h"
 #include "rl2njin.h"
+#include "types.h"
 #include <raylib.h>
 
 namespace njin {
@@ -61,5 +63,50 @@ bool action_held(const njin_ctx &ctx, action_handle handle) {
 
 bool action_released(const njin_ctx &ctx, action_handle handle) {
   return ctx.input != nullptr && input_action_released(*ctx.input, handle);
+}
+
+shader_handle shader_load(njin_ctx &ctx, const char *vspath,
+                          const char *fspath) {
+  if (ctx.shader == nullptr)
+    return shader_handle{};
+  return shader_store_load(*ctx.shader, vspath, fspath);
+}
+
+void shader_unload(njin_ctx &ctx, shader_handle handle) {
+  if (ctx.shader != nullptr)
+    shader_store_unload(*ctx.shader, handle);
+}
+
+void shader_begin(const njin_ctx &ctx, shader_handle handle) {
+  if (ctx.shader != nullptr)
+    shader_store_begin(*ctx.shader, handle);
+}
+
+void shader_end(const njin_ctx &ctx) {
+  if (ctx.shader != nullptr)
+    shader_store_end();
+}
+
+void shader_set_i32(const njin_ctx &ctx, shader_handle handle, const char *name,
+                    i32 value) {
+  if (ctx.shader != nullptr)
+    shader_store_set_i32(*ctx.shader, handle, name, value);
+}
+
+void shader_set_f32(const njin_ctx &ctx, shader_handle handle, const char *name,
+                    f32 value) {
+  if (ctx.shader != nullptr)
+    shader_store_set_f32(*ctx.shader, handle, name, value);
+}
+
+void shader_set_vec2(const njin_ctx &ctx, shader_handle handle,
+                     const char *name, vec2 value) {
+  if (ctx.shader != nullptr)
+    shader_store_set_vec2(*ctx.shader, handle, name, value);
+}
+
+void shader_set_vec4(const njin_ctx &ctx, shader_handle handle, const char *name, vec4 value) {
+  if (ctx.shader != nullptr)
+    shader_store_set_rgba(*ctx.shader, handle, name, value);
 }
 } // namespace njin

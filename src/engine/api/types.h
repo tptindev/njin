@@ -30,6 +30,14 @@ struct vec2 {
   f32 y;
 };
 
+// Vector 4d
+struct vec4 {
+  f32 x;
+  f32 y;
+  f32 z;
+  f32 w;
+};
+
 // Color with RED, GREEN, BLUE, ALPHA
 struct rgba {
   f32 r;
@@ -46,6 +54,8 @@ struct camera_2d {
 };
 
 struct action_handle { u32 id = 0; };
+
+struct shader_handle { u32 id = 0; };
 
 enum key_code {
   key_none = 0,

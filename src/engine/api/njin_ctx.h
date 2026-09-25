@@ -1,15 +1,20 @@
 #pragma once
 #include "njin_cfg.h"
 #include "types.h"
+#include <entt/entity/registry.hpp>
+#include <entt/signal/dispatcher.hpp>
 
 namespace njin {
-struct njin_input;
-
+struct input_store;
+struct shader_store;
 struct njin_ctx {
   f32 dt;
   f32 elapsed;
   njin_cfg cfg;
-  njin_input *input;
+  input_store *input;
+  shader_store *shader;
+  entt::registry registry;
+  entt::dispatcher dispatcher;
 };
 
 // Time
@@ -32,4 +37,25 @@ void action_bind_key(njin_ctx &ctx, action_handle handle, key_code key);
 bool action_pressed(const njin_ctx &ctx, action_handle handle);
 bool action_held(const njin_ctx &ctx, action_handle handle);
 bool action_released(const njin_ctx &ctx, action_handle handle);
+
+// Shaders
+// Either path may be nullptr to keep the default stage. Returns a handle with
+// id 0 if a file is missing or the shader fails to compile. Handles that are
+// invalid or already unloaded are ignored by every call below.
+shader_handle shader_load(njin_ctx &ctx, const char *vspath,
+                          const char *fspath);
+void shader_unload(njin_ctx &ctx, shader_handle handle);
+
+// Must be called between frame begin/end. Set uniforms before shader_begin.
+void shader_begin(const njin_ctx &ctx, shader_handle handle);
+void shader_end(const njin_ctx &ctx);
+
+// A uniform that does not exist is logged once and then skipped.
+void shader_set_i32(const njin_ctx &ctx, shader_handle handle, const char *name,
+                    i32 value);
+void shader_set_f32(const njin_ctx &ctx, shader_handle handle, const char *name,
+                    f32 value);
+void shader_set_vec2(const njin_ctx &ctx, shader_handle handle,
+                     const char *name, vec2 value);
+void shader_set_vec4(const njin_ctx &ctx, shader_handle handle, const char *name, vec4 value);
 } // namespace njin

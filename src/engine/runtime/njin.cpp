@@ -3,11 +3,13 @@
 #include "njin_cfg.h"
 #include "njin_ctx.h"
 #include "njin_input.h"
+#include "njin_shader.h"
 #include <raylib.h>
 
 void njin::njin_init(njin_ctx &ctx, const njin_cfg &cfg) {
   ctx.cfg = cfg;
-  ctx.input = new njin_input();
+  ctx.input = new input_store();
+  ctx.shader = new shader_store();
   InitWindow((i32)ctx.cfg.width, (i32)ctx.cfg.height, ctx.cfg.title);
   SetTargetFPS((i32)ctx.cfg.target_fps);
 }
@@ -28,6 +30,8 @@ void njin::njin_run(njin_ctx &ctx) {
 
 void njin::njin_shutdown(njin_ctx &ctx) {
   delete ctx.input;
+  delete ctx.shader; // frees GPU programs, so it must precede CloseWindow()
   ctx.input = nullptr;
+  ctx.shader = nullptr;
   CloseWindow();
 }
