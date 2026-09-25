@@ -69,6 +69,11 @@ struct axis_slot {
 struct input_store {
   input_frame prev;
   input_frame cur;
+  // Consumed this frame: every query about them answers "not down". Kept
+  // apart from prev/cur so consuming a held key does not rewrite its history
+  // (which would make it read as a fresh press on every following frame).
+  bool key_hidden[key_count] = {};
+  bool mouse_hidden[mouse_button_count] = {};
   f32 pad_deadzone = pad_deadzone_default;
   i32 text[input_text_max] = {};
   i32 text_count = 0;

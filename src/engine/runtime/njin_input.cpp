@@ -1,5 +1,7 @@
 #include "njin_input.h"
+#include <algorithm>
 #include <array>
+#include <iterator>
 #include "njin2rl.h"
 #include "rl2njin.h"
 #include <raylib.h>
@@ -50,12 +52,12 @@ static_assert(same(gamepad_axis_count, GAMEPAD_AXIS_RIGHT_TRIGGER + 1));
 
 namespace {
 bool key_edge(const input_store &input, key_code key, edge e) {
-  return key_valid(key) &&
+  return key_valid(key) && !input.key_hidden[key] &&
          edge_match(e, input.prev.keys[key], input.cur.keys[key]);
 }
 
 bool mouse_edge(const input_store &input, mouse_button button, edge e) {
-  return mouse_valid(button) &&
+  return mouse_valid(button) && !input.mouse_hidden[button] &&
          edge_match(e, input.prev.mouse[button], input.cur.mouse[button]);
 }
 
@@ -111,6 +113,8 @@ bool action_edge(const input_store &input, action_handle handle, edge e) {
 // truth and every system in the frame reads the same answer.
 void input_key_poll(input_store &input) {
   input.prev = input.cur;
+  std::fill(std::begin(input.key_hidden), std::end(input.key_hidden), false);
+  std::fill(std::begin(input.mouse_hidden), std::end(input.mouse_hidden), false);
 
   // raylib key code -> njin key, built once.
   static const auto from_rl = [] {
@@ -249,16 +253,13 @@ i32 input_text_char(const input_store &input, i32 index) {
 void input_key_consume(input_store &input, key_code key) {
   if (!key_valid(key))
     return;
-  // prev too, or clearing a held key would read as a release this frame.
-  input.cur.keys[key] = false;
-  input.prev.keys[key] = false;
+  input.key_hidden[key] = true;
 }
 
 void input_mouse_consume(input_store &input, mouse_button button) {
   if (!mouse_valid(button))
     return;
-  input.cur.mouse[button] = false;
-  input.prev.mouse[button] = false;
+  input.mouse_hidden[button] = true;
 }
 
 void input_mouse_wheel_consume(input_store &input) { input.cur.wheel = 0.0f; }
@@ -390,8 +391,10 @@ f32 input_axis_value(const input_store &input, axis_handle handle) {
 
   f32 best = 0.0f;
   for (const axis_key_pair &pair : slot->key_pairs) {
-    const bool positive = key_valid(pair.positive) && input.cur.keys[pair.positive];
-    const bool negative = key_valid(pair.negative) && input.cur.keys[pair.negative];
+    const bool positive = key_valid(pair.positive) && input.cur.keys[pair.positive] &&
+                          !input.key_hidden[pair.positive];
+    const bool negative = key_valid(pair.negative) && input.cur.keys[pair.negative] &&
+                          !input.key_hidden[pair.negative];
     const f32 value = (positive ? 1.0f : 0.0f) - (negative ? 1.0f : 0.0f);
     if (std::fabs(value) > std::fabs(best))
       best = value;
