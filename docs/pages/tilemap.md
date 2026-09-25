@@ -63,5 +63,8 @@ Mọi ô không trống đều là vật cản.
 njin::tilemap_move() đi theo **trục ngang trước rồi đến trục dọc**, nên nhân vật trượt dọc
 tường thay vì dính vào. `hit_y && delta.y > 0` nghĩa là đang đứng trên mặt đất.
 
+Cần va chạm với cả tilemap lẫn các entity khác (thùng, cửa, quái) thì gắn collider
+`collider_tiles` lên tilemap và dùng njin::collision_move(), xem @ref collision.
+
 @note Mỗi lần gọi, mỗi trục nên dời không quá một ô. Vật đi quá nhanh có thể xuyên qua
 tường mỏng. Đặt vật lý trong `phase_fixed_update` để bước đi nhỏ và đều (xem @ref time).

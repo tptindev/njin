@@ -23,6 +23,7 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Nổ, bụi, tia lửa, rung camera, hitstop | @subpage particles |
 | Mẫu entity (prefab), gắn vũ khí vào nhân vật | @subpage prefabs |
 | Bản đồ ô vuông, va chạm với bản đồ | @subpage tilemap |
+| Đạn trúng quái, nhặt đồ, tường chắn, raycast | @subpage collision |
 | Làm hiệu ứng toàn màn hình: bloom, CRT, vignette | @subpage post_processing |
 | Phát tiếng động và nhạc nền | @subpage audio |
 | Chia game thành menu, màn chơi, game over; chuyển cảnh mờ dần | @subpage scenes |

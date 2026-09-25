@@ -93,6 +93,7 @@ theo thứ tự:
 | `njin.anim` | Chạy njin::animator: chuyển trạng thái, đổi frame (xem @ref animation) |
 | `njin.particles` | Sinh, di chuyển, xóa hạt (xem @ref particles) |
 | `njin.sprite` | Chạy njin::sprite_anim, nháy sprite, bake chunk tilemap, vẽ sprite, tilemap và particle theo lớp (xem @ref sprites, @ref tilemap) |
+| `njin.collision` | Tìm cặp collider chạm nhau, gửi event; vẽ khung khi bật dò lỗi (xem @ref collision) |
 
 Vì chúng đăng ký **trước** module của game nên system của chúng chạy trước trong cùng
 phase. Module camera dựa vào điều này để bật camera trước mọi lệnh vẽ của game;
