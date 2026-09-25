@@ -6,6 +6,7 @@
 #include "_tilemap.h"
 #include "_tween.h"
 #include "njin_cfg.h"
+#include "njin_collision.h"
 #include "njin_anim.h"
 #include "njin_ctx.h"
 #include "njin_draw.h"

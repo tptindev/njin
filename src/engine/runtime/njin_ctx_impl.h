@@ -3,6 +3,7 @@
 #include "_random.h"
 #include "_types.h"
 #include "modules/camera.h"
+#include "modules/collision.h"
 #include "modules/fx.h"
 #include "modules/post_fx.h"
 #include "modules/sprite.h"
@@ -69,6 +70,7 @@ struct njin_ctx {
   fx_state fx;
   post_chain postfx;
   sprite_cache sprites;
+  collision_state collision;
   scene_store scene;
   prefab_store prefab;
   anim_store anim;
