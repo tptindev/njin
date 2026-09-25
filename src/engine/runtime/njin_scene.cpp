@@ -4,6 +4,7 @@
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
 #include "njin_cfg.h"
+#include "njin_level_impl.h"
 #include "njin_log.h"
 #include <vector>
 
@@ -179,8 +180,11 @@ void scene_store_apply(njin_ctx &ctx) {
   if (const scene_slot *slot = slot_of(store, old);
       slot != nullptr && slot->on_exit != nullptr)
     slot->on_exit(ctx);
-  if (old.id != 0)
+  if (old.id != 0) {
     destroy_owned(ctx.ecs.registry, old);
+    // The level's entities went with the scene; free its textures too.
+    level_store_scene_exit(ctx, old);
+  }
 
   store.current = target;
   if (const scene_slot *slot = slot_of(store, target);

@@ -6,6 +6,8 @@
 #include "modules/collision.h"
 #include "modules/fx.h"
 #include "modules/post_fx.h"
+#include "modules/reload.h"
+#include "modules/ui.h"
 #include "modules/sprite.h"
 #include "njin_anim_impl.h"
 #include "njin_audio.h"
@@ -13,6 +15,7 @@
 #include "njin_ecs.h"
 #include "njin_font.h"
 #include "njin_input.h"
+#include "njin_level_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_shader.h"
@@ -69,11 +72,14 @@ struct njin_ctx {
   camera_post post;
   fx_state fx;
   post_chain postfx;
+  reload_state reload;
+  ui_state ui;
   sprite_cache sprites;
   collision_state collision;
   scene_store scene;
   prefab_store prefab;
   anim_store anim;
+  level_store level;
   ecs_store ecs;
 };
 // Saves every screenshot requested this frame. Called after post_render and

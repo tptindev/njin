@@ -13,6 +13,9 @@ struct shader_slot {
   // Uniform name -> location. Querying the driver every frame is slow, so
   // locations are looked up once and cached (-1 is cached too).
   std::unordered_map<std::string, i32> uniforms;
+  // Resolved stage paths, for hot reload. Empty for a stage raylib supplies.
+  std::string vs_path;
+  std::string fs_path;
 };
 
 // Owns the GPU programs of every live slot. The destructor frees them, so it
@@ -47,6 +50,9 @@ inline shader_slot *shader_slot_of(shader_store &store, shader_handle handle) {
 shader_handle shader_store_load(shader_store &store, const char *vspath,
                                 const char *fspath);
 void shader_store_unload(shader_store &store, shader_handle handle);
+// Recompiles a shader from its files into the same slot. On a compile error
+// the old program stays and false is returned.
+bool shader_store_reload(shader_store &store, shader_handle handle);
 
 void shader_store_begin(const shader_store &store, shader_handle handle);
 void shader_store_end();

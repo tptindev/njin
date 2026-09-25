@@ -38,17 +38,22 @@ rect chunk_rect(const tilemap &map, vec2 origin, u64 key) {
 // draw it directly so a stale image never reaches the screen.
 void draw_chunk_tiles(const texture_slot &tileset, const tilemap &map,
                       const tile_chunk &chunk, vec2 offset, Color tint) {
-  const i32 columns = (i32)((f32)tileset.texture.width / map.tile_size.x);
+  const vec2 step = map.tile_size + vec2{map.spacing, map.spacing};
+  const i32 columns =
+      (i32)(((f32)tileset.texture.width - 2.0f * map.margin + map.spacing) / step.x);
   if (columns <= 0)
     return;
   for (i32 y = 0; y < tile_chunk_size; y++) {
     for (i32 x = 0; x < tile_chunk_size; x++) {
-      const i32 id = chunk.tiles[(usize)(y * tile_chunk_size + x)];
-      if (id < 0)
+      const i32 value = chunk.tiles[(usize)(y * tile_chunk_size + x)];
+      if (value < 0)
         continue;
-      const Rectangle source{(f32)(id % columns) * map.tile_size.x,
-                             (f32)(id / columns) * map.tile_size.y,
-                             map.tile_size.x, map.tile_size.y};
+      const i32 id = tile_id(value);
+      // A negative source size flips the tile.
+      const Rectangle source{map.margin + (f32)(id % columns) * step.x,
+                             map.margin + (f32)(id / columns) * step.y,
+                             (value & tile_flip_x) != 0 ? -map.tile_size.x : map.tile_size.x,
+                             (value & tile_flip_y) != 0 ? -map.tile_size.y : map.tile_size.y};
       const Vector2 pos{offset.x + (f32)x * map.tile_size.x,
                         offset.y + (f32)y * map.tile_size.y};
       DrawTextureRec(tileset.texture, source, pos, tint);
@@ -77,6 +82,7 @@ void bake(chunk_image &image, const texture_slot &tileset, const tilemap &map,
   EndTextureMode();
   SetTextureFilter(image.target.texture, texture_filter_to_raylib(tileset.filter));
   image.version = chunk.version;
+  image.texture_version = tileset.version;
 }
 
 void animate(njin_ctx &ctx) {
@@ -130,7 +136,8 @@ void bake_tilemaps(njin_ctx &ctx) {
         continue;
       chunk_image &image = images[key];
       image.last_used = frame;
-      if (image.version != chunk.version || !IsRenderTextureValid(image.target))
+      if (image.version != chunk.version || image.texture_version != tileset->version ||
+          !IsRenderTextureValid(image.target))
         bake(image, *tileset, map, chunk);
     }
   }
@@ -170,6 +177,7 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
     if (cached != ctx.sprites.chunks.end()) {
       const auto it = cached->second.find(key);
       if (it != cached->second.end() && it->second.version == chunk.version &&
+          it->second.texture_version == tileset->version &&
           IsRenderTextureValid(it->second.target))
         image = &it->second;
     }

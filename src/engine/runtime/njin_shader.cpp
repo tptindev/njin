@@ -62,9 +62,29 @@ shader_handle shader_store_load(shader_store &store, const char *vspath,
     return shader_handle{};
   }
 
-  store.slots.push_back(
-      shader_slot{.shader = shader, .alive = true, .uniforms = {}});
+  store.slots.push_back(shader_slot{
+      .shader = shader, .alive = true, .uniforms = {}, .vs_path = vs, .fs_path = fs});
   return shader_handle{.id = (u32)store.slots.size()};
+}
+
+bool shader_store_reload(shader_store &store, shader_handle handle) {
+  shader_slot *slot = shader_slot_of(store, handle);
+  if (slot == nullptr || (slot->vs_path.empty() && slot->fs_path.empty()))
+    return false;
+  const char *vs = slot->vs_path.empty() ? nullptr : slot->vs_path.c_str();
+  const char *fs = slot->fs_path.empty() ? nullptr : slot->fs_path.c_str();
+  const Shader shader = LoadShader(vs, fs);
+  if (!IsShaderValid(shader)) {
+    // The compiler's message is already in the log (raylib reports it).
+    UnloadShader(shader);
+    NJIN_WARN("shader: reload failed, keeping the old shader: %s", fs != nullptr ? fs : vs);
+    return false;
+  }
+  UnloadShader(slot->shader);
+  slot->shader = shader;
+  // Locations belong to the old program.
+  slot->uniforms.clear();
+  return true;
 }
 
 void shader_store_unload(shader_store &store, shader_handle handle) {

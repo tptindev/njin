@@ -15,4 +15,12 @@ struct prefab_slot {
 struct prefab_store {
   std::vector<prefab_slot> prefabs;
 };
+
+// prefab_spawn with a hook that runs after the transform and scene_owned are
+// attached but before the build function, so loaders can hand the build
+// function data (the level loader attaches level_object here).
+entt::entity prefab_spawn_prepared(njin_ctx &ctx, prefab_handle prefab,
+                                   const transform &at,
+                                   void (*prepare)(njin_ctx &, entt::entity, void *),
+                                   void *user);
 } // namespace njin

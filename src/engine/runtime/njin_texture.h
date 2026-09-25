@@ -3,6 +3,7 @@
 #include "_types.h"
 #include "njin_draw.h"
 #include <raylib.h>
+#include <string>
 #include <vector>
 
 namespace njin {
@@ -15,6 +16,11 @@ struct texture_slot {
   bool alive = false;
   // Kept so derived images (tilemap chunks) can be sampled the same way.
   texture_filter filter = filter_linear;
+  // Resolved file path, for hot reload. Empty for textures not from a file.
+  std::string path;
+  // Bumped each time the texture is reloaded, so images derived from it
+  // (tilemap chunks) know to redraw.
+  u32 version = 0;
 };
 
 // Owns the GPU textures of every live slot. The destructor frees them, so it
@@ -64,6 +70,9 @@ render_texture_slot_of(const render_texture_store &store,
 // Returns an invalid handle if the file is missing or cannot be decoded.
 texture_handle texture_store_load(texture_store &store, const char *path);
 void texture_store_unload(texture_store &store, texture_handle handle);
+// Reloads a texture from its file into the same slot. On failure the old
+// texture stays and false is returned.
+bool texture_store_reload(texture_store &store, texture_handle handle);
 vec2 texture_store_size(const texture_store &store, texture_handle handle);
 void texture_store_draw(const texture_store &store, texture_handle handle,
                         vec2 pos, rgba tint);

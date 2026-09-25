@@ -130,7 +130,7 @@ anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path) {
   }
   json_value doc;
   std::string error;
-  if (!json_parse(text, doc, error)) {
+  if (!json_parse(text, doc, &error)) {
     NJIN_WARN("anim_sheet_load: %s: %s", json_path, error.c_str());
     return anim_sheet_handle{};
   }

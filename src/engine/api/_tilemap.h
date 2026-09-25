@@ -11,6 +11,18 @@ namespace njin {
 /// Số ô mỗi cạnh của một chunk. Một chunk có 32 x 32 ô.
 inline constexpr i32 tile_chunk_size = 32;
 
+/// Bit đánh dấu ô bị lật ngang, cộng vào số thứ tự ô: `id | tile_flip_x`.
+inline constexpr i32 tile_flip_x = 1 << 29;
+/// Bit đánh dấu ô bị lật dọc, cộng vào số thứ tự ô: `id | tile_flip_y`.
+inline constexpr i32 tile_flip_y = 1 << 30;
+
+/// Số thứ tự ô trong tileset, bỏ các bit lật.
+/// @param value Giá trị của ô, từ tilemap_get().
+/// @return Số thứ tự ô, hoặc -1 nếu ô trống.
+constexpr i32 tile_id(i32 value) {
+  return value < 0 ? -1 : value & ~(tile_flip_x | tile_flip_y);
+}
+
 /// Một khối 32 x 32 ô của tilemap.
 ///
 /// Tilemap chỉ giữ những chunk có ít nhất một ô không trống, nên bản đồ rộng
@@ -36,8 +48,10 @@ struct cell {
 /// (0, 0) trong thế giới. Góc xoay và tỉ lệ bị bỏ qua.
 ///
 /// Tileset là một ảnh gồm các ô cùng kích thước `tile_size`, đánh số từ 0 theo
-/// hàng từ trái sang phải rồi từ trên xuống. Mỗi ô của lưới giữ số thứ tự ô
-/// trong tileset, hoặc -1 là ô trống.
+/// hàng từ trái sang phải rồi từ trên xuống, có thể cách mép ảnh `margin` và
+/// cách nhau `spacing` pixel (như tileset của Tiled và LDtk). Mỗi ô của lưới
+/// giữ số thứ tự ô trong tileset, hoặc -1 là ô trống. Cộng thêm njin::tile_flip_x
+/// hoặc njin::tile_flip_y để lật ô khi vẽ; đọc số thứ tự bằng tile_id().
 ///
 /// **Chunking.** Ô được lưu theo khối 32 x 32 (njin::tile_chunk). Module sprite
 /// của engine vẽ sẵn mỗi chunk vào một ảnh riêng và chỉ vẽ lại chunk có ô vừa
@@ -49,6 +63,8 @@ struct cell {
 struct tilemap {
   texture_handle tileset{};     ///< Ảnh tileset.
   vec2 tile_size{16.0f, 16.0f}; ///< Kích thước một ô, tính bằng pixel.
+  f32 margin = 0.0f;  ///< Khoảng từ mép ảnh tileset đến ô đầu tiên, pixel.
+  f32 spacing = 0.0f; ///< Khoảng giữa hai ô liền nhau trong ảnh tileset, pixel.
   i32 layer = 0;                ///< Lớp vẽ, cùng thang với sprite::layer.
   rgba tint{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu nhân vào mọi ô.
   bool visible = true;          ///< Ẩn khi vẽ. Vẫn dùng được cho va chạm.

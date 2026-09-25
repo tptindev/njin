@@ -17,6 +17,7 @@ mod_desc sprite_module();
 struct chunk_image {
   RenderTexture2D target{};
   u32 version = 0;
+  u32 texture_version = 0; // tileset texture_slot::version it was drawn from
   u32 last_used = 0; // frame number it was last visible on
 };
 

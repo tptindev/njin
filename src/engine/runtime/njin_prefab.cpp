@@ -38,6 +38,13 @@ prefab_handle prefab_find(const njin_ctx &ctx, const char *name) {
 
 entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
                           const transform &at) {
+  return prefab_spawn_prepared(ctx, prefab, at, nullptr, nullptr);
+}
+
+entt::entity prefab_spawn_prepared(njin_ctx &ctx, prefab_handle prefab,
+                                   const transform &at,
+                                   void (*prepare)(njin_ctx &, entt::entity, void *),
+                                   void *user) {
   const prefab_slot *slot = slot_of(ctx.prefab, prefab);
   if (slot == nullptr) {
     NJIN_WARN("prefab_spawn: invalid prefab handle %u", prefab.id);
@@ -52,6 +59,8 @@ entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
   if (const scene_handle scene = scene_current(ctx);
       slot->scene_owned && scene.id != 0)
     registry.emplace<njin::scene_owned>(entity, njin::scene_owned{scene});
+  if (prepare != nullptr)
+    prepare(ctx, entity, user);
   build(ctx, entity);
   return entity;
 }

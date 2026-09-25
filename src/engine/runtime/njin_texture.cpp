@@ -42,7 +42,7 @@ texture_handle texture_store_load(texture_store &store, const char *path) {
   // default and leaves pixel art to opt in with texture_set_filter.
   SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
   store.slots.push_back(texture_slot{
-      .texture = texture, .alive = true, .filter = filter_linear});
+      .texture = texture, .alive = true, .filter = filter_linear, .path = resolved, .version = 0});
   return texture_handle{.id = (u32)store.slots.size()};
 }
 
@@ -52,6 +52,22 @@ void texture_store_unload(texture_store &store, texture_handle handle) {
     return;
   UnloadTexture(slot->texture);
   *slot = texture_slot{};
+}
+
+bool texture_store_reload(texture_store &store, texture_handle handle) {
+  texture_slot *slot = texture_slot_of(store, handle);
+  if (slot == nullptr || slot->path.empty())
+    return false;
+  const Texture2D texture = LoadTexture(slot->path.c_str());
+  if (!IsTextureValid(texture)) {
+    NJIN_WARN("texture: reload failed, keeping the old image: %s", slot->path.c_str());
+    return false;
+  }
+  UnloadTexture(slot->texture);
+  slot->texture = texture;
+  SetTextureFilter(slot->texture, texture_filter_to_raylib(slot->filter));
+  slot->version++;
+  return true;
 }
 
 texture_store::~texture_store() {

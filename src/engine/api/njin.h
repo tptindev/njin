@@ -12,11 +12,15 @@
 #include "njin_draw.h"
 #include "njin_file.h"
 #include "njin_fx.h"
+#include "njin_json.h"
+#include "njin_level.h"
 #include "njin_log.h"
 #include "njin_particles.h"
 #include "njin_post.h"
 #include "njin_prefab.h"
+#include "njin_reload.h"
 #include "njin_scene.h"
+#include "njin_ui.h"
 #include "njin_window.h"
 
 namespace njin {

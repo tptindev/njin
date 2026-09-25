@@ -1,4 +1,9 @@
 #include "njin_json.h"
+#include "njin_file.h"
+#include "njin_log.h"
+#include "njin_path.h"
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 
 namespace njin {
@@ -209,23 +214,172 @@ struct parser {
       out.kind = json_value::null;
       return literal("null");
     }
+    if (c != '-' && (c < '0' || c > '9'))
+      return fail("unexpected character");
     return number(out);
   }
 };
 } // namespace
 
+namespace {
+const json_value &missing() {
+  static const json_value value{};
+  return value;
+}
+
+void dump_string(std::string &out, const std::string &s) {
+  out.push_back('"');
+  for (const char ch : s) {
+    const unsigned char c = (unsigned char)ch;
+    switch (c) {
+    case '"': out += "\\\""; break;
+    case '\\': out += "\\\\"; break;
+    case '\b': out += "\\b"; break;
+    case '\f': out += "\\f"; break;
+    case '\n': out += "\\n"; break;
+    case '\r': out += "\\r"; break;
+    case '\t': out += "\\t"; break;
+    default:
+      if (c < 0x20) {
+        char buf[8];
+        std::snprintf(buf, sizeof buf, "\\u%04x", c);
+        out += buf;
+      } else {
+        out.push_back(ch); // UTF-8 passes through unchanged
+      }
+    }
+  }
+  out.push_back('"');
+}
+
+void dump_number(std::string &out, f64 v) {
+  if (!std::isfinite(v)) {
+    out += "null";
+    return;
+  }
+  char buf[32];
+  // Whole numbers in the exactly representable range print without a
+  // fraction, so counters and ids read back as the integers they were.
+  if (v == std::floor(v) && std::abs(v) < 9007199254740992.0) {
+    std::snprintf(buf, sizeof buf, "%.0f", v);
+  } else {
+    // The shortest form that reads back as the same double: 0.1, not
+    // 0.10000000000000001.
+    for (i32 digits = 15; digits <= 17; digits++) {
+      std::snprintf(buf, sizeof buf, "%.*g", digits, v);
+      if (std::strtod(buf, nullptr) == v)
+        break;
+    }
+  }
+  out += buf;
+}
+
+void dump(std::string &out, const json_value &v, bool pretty, i32 depth) {
+  const auto newline = [&](i32 d) {
+    if (!pretty)
+      return;
+    out.push_back('\n');
+    out.append((usize)d * 2, ' ');
+  };
+  switch (v.kind) {
+  case json_value::null: out += "null"; return;
+  case json_value::boolean: out += v.b ? "true" : "false"; return;
+  case json_value::number: dump_number(out, v.num); return;
+  case json_value::string: dump_string(out, v.str); return;
+  case json_value::array:
+    if (v.items.empty()) {
+      out += "[]";
+      return;
+    }
+    out.push_back('[');
+    for (usize i = 0; i < v.items.size(); i++) {
+      if (i > 0)
+        out.push_back(',');
+      newline(depth + 1);
+      dump(out, v.items[i], pretty, depth + 1);
+    }
+    newline(depth);
+    out.push_back(']');
+    return;
+  case json_value::object:
+    if (v.members.empty()) {
+      out += "{}";
+      return;
+    }
+    out.push_back('{');
+    for (usize i = 0; i < v.members.size(); i++) {
+      if (i > 0)
+        out.push_back(',');
+      newline(depth + 1);
+      dump_string(out, v.members[i].first);
+      out += pretty ? ": " : ":";
+      dump(out, v.members[i].second, pretty, depth + 1);
+    }
+    newline(depth);
+    out.push_back('}');
+    return;
+  }
+}
+} // namespace
+
 const json_value &json_value::operator[](std::string_view key) const {
-  static const json_value missing{};
   if (kind != object)
-    return missing;
+    return missing();
   for (const auto &[name, value] : members) {
     if (name == key)
       return value;
   }
-  return missing;
+  return missing();
 }
 
-bool json_parse(std::string_view text, json_value &out, std::string &error) {
+const json_value &json_value::operator[](usize index) const {
+  return kind == array && index < items.size() ? items[index] : missing();
+}
+
+json_value *json_value::find(std::string_view key) {
+  if (kind != object)
+    return nullptr;
+  for (auto &[name, value] : members) {
+    if (name == key)
+      return &value;
+  }
+  return nullptr;
+}
+
+bool json_value::has(std::string_view key) const {
+  return const_cast<json_value *>(this)->find(key) != nullptr;
+}
+
+usize json_value::size() const {
+  return kind == array ? items.size() : kind == object ? members.size() : 0;
+}
+
+json_value &json_value::set(std::string_view key, json_value value) {
+  if (kind == null)
+    kind = object;
+  if (kind != object) {
+    NJIN_WARN("json: set('%.*s') on a value that is not an object", (int)key.size(), key.data());
+    return *this;
+  }
+  if (json_value *existing = find(key))
+    *existing = std::move(value);
+  else
+    members.emplace_back(std::string(key), std::move(value));
+  return *this;
+}
+
+json_value &json_value::push(json_value value) {
+  if (kind == null)
+    kind = array;
+  if (kind != array) {
+    NJIN_WARN("json: push on a value that is not an array");
+    return *this;
+  }
+  items.push_back(std::move(value));
+  return *this;
+}
+
+bool json_parse(std::string_view text, json_value &out, std::string *error) {
   parser p;
   p.text = text;
   // A UTF-8 byte order mark is legal in files even if not in JSON proper.
@@ -238,8 +392,42 @@ bool json_parse(std::string_view text, json_value &out, std::string &error) {
     if (p.at != text.size())
       ok = p.fail("trailing characters");
   }
-  if (!ok)
-    error = p.error;
+  if (!ok && error != nullptr)
+    *error = p.error;
   return ok;
+}
+
+std::string json_dump(const json_value &value, bool pretty) {
+  std::string out;
+  dump(out, value, pretty, 0);
+  if (pretty)
+    out.push_back('\n');
+  return out;
+}
+
+bool json_load(const char *path, json_value &out) {
+  if (path == nullptr) {
+    NJIN_WARN("json_load: path is null");
+    return false;
+  }
+  std::string text;
+  if (!file_read(asset_path(path).c_str(), text)) {
+    NJIN_WARN("json_load: cannot read %s", path);
+    return false;
+  }
+  std::string error;
+  if (!json_parse(text, out, &error)) {
+    NJIN_WARN("json_load: %s: %s", path, error.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool json_save(const char *path, const json_value &value, bool pretty) {
+  if (path == nullptr) {
+    NJIN_WARN("json_save: path is null");
+    return false;
+  }
+  return file_write(path, json_dump(value, pretty));
 }
 } // namespace njin
