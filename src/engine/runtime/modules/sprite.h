@@ -7,8 +7,8 @@
 
 namespace njin {
 // Core module. Advances sprite_anim and bakes dirty tilemap chunks in
-// phase_post_update, then draws every sprite and tilemap in phase_render,
-// ordered by layer.
+// phase_post_update, then draws every sprite, tilemap and particle emitter
+// in phase_render, ordered by layer.
 mod_desc sprite_module();
 
 // One tilemap chunk drawn once into its own image. Redrawn only when the

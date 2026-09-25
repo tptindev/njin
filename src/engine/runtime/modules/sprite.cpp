@@ -4,6 +4,8 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "fx.h"
+#include "particles.h"
 #include <algorithm>
 #include <vector>
 
@@ -184,11 +186,12 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
   }
 }
 
-// One thing to draw this frame. Tilemaps sort before sprites on the same
-// layer, so a map is the ground under the sprites standing on it.
+// One thing to draw this frame. On the same layer tilemaps come first, so a
+// map is the ground under the sprites standing on it, and particles last, so
+// dust and sparks show over the sprite that made them.
 struct draw_item {
   i32 layer = 0;
-  i32 kind = 0; // 0 tilemap, 1 sprite
+  i32 kind = 0; // 0 tilemap, 1 sprite, 2 particle emitter
   entt::entity entity{};
 };
 
@@ -203,6 +206,11 @@ void draw(njin_ctx &ctx) {
     if (spr.visible)
       items.push_back({spr.layer, 1, entity});
   }
+  for (auto [entity, tr, em] :
+       registry.view<const transform, const particle_emitter>().each()) {
+    if (em.visible && !em.particles.empty())
+      items.push_back({em.layer, 2, entity});
+  }
   std::stable_sort(items.begin(), items.end(),
                    [](const draw_item &a, const draw_item &b) {
                      return a.layer != b.layer ? a.layer < b.layer
@@ -216,7 +224,13 @@ void draw(njin_ctx &ctx) {
       draw_tilemap(ctx, item.entity, tr, registry.get<tilemap>(item.entity), view);
       continue;
     }
+    if (item.kind == 2) {
+      particles_draw(ctx, tr, registry.get<particle_emitter>(item.entity));
+      continue;
+    }
     const sprite &spr = registry.get<sprite>(item.entity);
+    const flash_fx *flash = registry.try_get<flash_fx>(item.entity);
+    const bool flashing = flash != nullptr && fx_flash_begin(ctx, *flash);
     texture_store_draw_ex(ctx.texture, spr.texture,
                           texture_draw_desc{.pos = tr.pos,
                                             .source = spr.source,
@@ -226,11 +240,14 @@ void draw(njin_ctx &ctx) {
                                             .flip_x = spr.flip_x,
                                             .flip_y = spr.flip_y,
                                             .tint = spr.tint});
+    if (flashing)
+      fx_flash_end();
   }
 }
 
 void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_post_update, animate);
+  ecs_register(ctx, phase_post_update, fx_update_sprite_flashes);
   ecs_register(ctx, phase_post_update, bake_tilemaps);
   ecs_register(ctx, phase_render, draw);
 }

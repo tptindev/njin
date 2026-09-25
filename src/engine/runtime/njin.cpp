@@ -1,5 +1,6 @@
 #include "njin.h"
 #include "modules/core_modules.h"
+#include "modules/fx.h"
 #include "njin2rl.h"
 #include "njin_ctx_impl.h"
 #include "njin_log_impl.h"
@@ -78,6 +79,8 @@ void njin_run(njin_ctx &ctx) {
     time.dt_real = GetFrameTime();
     time.elapsed = (f32)GetTime();
     time.dt = time.paused ? 0.0f : time.dt_real * time.scale;
+    // Hitstop zeroes dt here, before any system (or fixed step) reads it.
+    fx_frame_begin(ctx);
     input_key_poll(ctx.input);
     // A scene switch requested last frame happens here, before any system
     // of the new frame runs.
@@ -94,6 +97,10 @@ void njin_run(njin_ctx &ctx) {
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
     ecs_run(ctx, phase_post_render);
+    // Over everything, UI included: the screen flash, then the scene fade,
+    // which covers the whole frame.
+    fx_draw_screen_flash(ctx);
+    scene_fade_draw(ctx);
     take_pending_screenshots(ctx);
     EndDrawing();
   }

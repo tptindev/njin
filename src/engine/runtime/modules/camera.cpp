@@ -1,5 +1,7 @@
 #include "camera.h"
 #include "_comps.h"
+#include "fx.h"
+#include "post_fx.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
@@ -35,15 +37,20 @@ bool ensure_post_target(camera_post &post) {
 
 void begin_world_space(njin_ctx &ctx) {
   camera_post &post = ctx.post;
-  post.drawing = shader_slot_of(ctx.shader, post.shader) != nullptr &&
-                 ensure_post_target(post);
+  const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
+                      post_chain_active(ctx.postfx);
+  post.drawing = wanted && ensure_post_target(post);
   if (post.drawing) {
     BeginTextureMode(post.target);
     Color clear{};
     to_raylib(ctx.cfg.clear_bg_color, clear);
     ClearBackground(clear);
   }
-  BeginMode2D(active_raylib_camera(ctx));
+  // The shake only moves what is drawn; camera_active, w2scr and scr2w keep
+  // answering for the steady camera.
+  Camera2D camera = active_raylib_camera(ctx);
+  fx_apply_shake(ctx, camera);
+  BeginMode2D(camera);
 }
 
 void end_world_space(njin_ctx &ctx) {
@@ -53,7 +60,8 @@ void end_world_space(njin_ctx &ctx) {
     return;
   post.drawing = false;
   EndTextureMode();
-  const Texture2D &texture = post.target.texture;
+  // Built-in effects first; the game's own shader sees their result.
+  const Texture2D &texture = post_chain_run(ctx, post.target.texture);
   // Framebuffers are stored bottom-up: a negative source height flips it.
   const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
   const shader_slot *slot = shader_slot_of(ctx.shader, post.shader);

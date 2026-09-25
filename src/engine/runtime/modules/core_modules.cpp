@@ -1,14 +1,20 @@
 #include "core_modules.h"
 #include "audio.h"
+#include "anim.h"
 #include "camera.h"
+#include "hierarchy.h"
+#include "particles.h"
 #include "njin_ctx.h"
 #include "sprite.h"
 
 namespace njin {
 // Order matters inside a phase: camera first, so its pre_render opens the
-// world pass before anything draws, and sprite before any game module, so
-// game render systems draw on top of sprites and tilemaps.
+// world pass before anything draws; hierarchy before anim, particles and
+// sprite, so they all see this frame's child transforms; and sprite before
+// any game module, so game render systems draw on top of sprites, tilemaps
+// and particles.
 void register_core_modules(njin_ctx &ctx) {
-  njin_mod_register(ctx, {camera_module(), audio_module(), sprite_module()});
+  njin_mod_register(ctx, {camera_module(), audio_module(), hierarchy_module(),
+                          anim_module(), particles_module(), sprite_module()});
 }
 } // namespace njin

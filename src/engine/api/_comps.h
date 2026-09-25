@@ -2,6 +2,7 @@
 
 #include "_math.h"
 #include "_types.h"
+#include <entt/entity/entity.hpp>
 namespace njin {
 /// @addtogroup grp_comps
 /// @{
@@ -102,5 +103,54 @@ inline void anim_play(sprite_anim &anim, i32 first, i32 count, f32 fps,
 struct scene_owned {
   scene_handle scene{}; ///< Scene sở hữu entity.
 };
+
+/// Gắn entity vào một entity cha: vũ khí trong tay nhân vật, bánh xe của xe.
+///
+/// Cần một transform trên cùng entity. Module hierarchy của engine **ghi đè**
+/// transform đó mỗi frame bằng transform của cha kết hợp với `local`, trong
+/// `phase_post_update` (trước animation, particle và lúc vẽ). Muốn di chuyển
+/// entity con thì sửa `local`, không sửa transform của nó.
+///
+/// Cha cũng có thể là con của entity khác; engine cập nhật từ gốc xuống. Khi
+/// cha bị hủy, con bị hủy theo, trừ khi `destroy_with_parent` là `false`: khi
+/// đó con được tách ra và đứng yên ở vị trí cuối cùng.
+///
+/// System trong `phase_update` đọc transform của con sẽ thấy giá trị của frame
+/// trước. Cần vị trí chính xác ngay thì dùng transform_combine().
+struct child_of {
+  entt::entity parent = entt::null; ///< Entity cha.
+  transform local{}; ///< Vị trí, góc xoay, tỉ lệ so với cha.
+  bool destroy_with_parent = true; ///< Hủy cùng cha.
+};
+
+/// Kết hợp transform của cha với transform tương đối của con.
+///
+/// `local.pos` được nhân tỉ lệ và xoay theo cha, góc xoay cộng lại, tỉ lệ nhân
+/// lại. Đây đúng là phép tính module hierarchy dùng cho child_of.
+/// @param parent Transform của cha, trong thế giới.
+/// @param local Transform của con, so với cha.
+/// @return Transform của con, trong thế giới.
+inline transform transform_combine(const transform &parent,
+                                   const transform &local) {
+  return transform{.pos = parent.pos + rotate(local.pos * parent.scale, parent.rot),
+                   .rot = parent.rot + local.rot,
+                   .scale = parent.scale * local.scale};
+}
+
+/// Phép ngược của transform_combine(): transform tương đối của một entity so
+/// với cha, từ transform trong thế giới của cả hai.
+///
+/// Dùng khi gắn một entity vào cha mà vẫn giữ nguyên vị trí hiện tại của nó:
+/// `child_of{.parent = p, .local = transform_relative(tr_p, tr_c)}`.
+/// @param parent Transform của cha, trong thế giới.
+/// @param world Transform của con, trong thế giới.
+/// @return Transform của con, so với cha. Tỉ lệ cha bằng 0 thì coi như 1.
+inline transform transform_relative(const transform &parent,
+                                    const transform &world) {
+  const f32 scale = parent.scale != 0.0f ? parent.scale : 1.0f;
+  return transform{.pos = rotate(world.pos - parent.pos, -parent.rot) / scale,
+                   .rot = world.rot - parent.rot,
+                   .scale = world.scale / scale};
+}
 /// @}
 } // namespace njin

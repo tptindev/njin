@@ -7,9 +7,10 @@ namespace njin {
 // begins 2D mode in phase_pre_render and ends it in phase_post_render, so
 // post_render is screen space. Also owns camera_active/w2scr/scr2w.
 //
-// With a post shader set, the world is drawn into `target` instead of the
-// screen and then drawn to the screen through the shader, before any
-// post_render system runs, so the UI stays untouched.
+// With a post shader set or built-in post effects on (post_fx.h), the world
+// is drawn into `target` instead of the screen, run through the effects, and
+// then drawn to the screen through the shader, before any post_render system
+// runs, so the UI stays untouched.
 mod_desc camera_module();
 
 struct camera_post {

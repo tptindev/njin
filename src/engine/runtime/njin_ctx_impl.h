@@ -3,12 +3,16 @@
 #include "_random.h"
 #include "_types.h"
 #include "modules/camera.h"
+#include "modules/fx.h"
+#include "modules/post_fx.h"
 #include "modules/sprite.h"
+#include "njin_anim_impl.h"
 #include "njin_audio.h"
 #include "njin_cfg.h"
 #include "njin_ecs.h"
 #include "njin_font.h"
 #include "njin_input.h"
+#include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
@@ -62,8 +66,12 @@ struct njin_ctx {
   font_store font;
   audio_store audio;
   camera_post post;
+  fx_state fx;
+  post_chain postfx;
   sprite_cache sprites;
   scene_store scene;
+  prefab_store prefab;
+  anim_store anim;
   ecs_store ecs;
 };
 // Saves every screenshot requested this frame. Called after post_render and

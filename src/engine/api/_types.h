@@ -136,6 +136,29 @@ struct texture_handle {
 struct render_texture_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
+
+/// Định danh của một prefab, tạo bởi prefab_register().
+///
+/// `id == 0` là handle không hợp lệ: prefab_spawn() với nó không tạo gì.
+struct prefab_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một sprite sheet có animation, tạo bởi anim_sheet_load() hoặc
+/// anim_sheet_grid().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.
+struct anim_sheet_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một máy trạng thái animation, tạo bởi anim_graph_create().
+///
+/// `id == 0` là "không có máy trạng thái": animator khi đó chỉ chạy clip được
+/// chọn bằng animator_play().
+struct anim_graph_handle {
+  u32 id = 0; ///< 0 nghĩa là không có.
+};
 /// @}
 
 
