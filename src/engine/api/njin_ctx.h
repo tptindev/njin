@@ -69,4 +69,36 @@ void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec2 value);
 void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec4 value);
+
+// Textures
+// Returns a handle with id 0 if the file is missing or cannot be decoded.
+// Invalid or already unloaded handles are ignored by every call below.
+texture_handle texture_load(njin_ctx &ctx, const char *path);
+void texture_unload(njin_ctx &ctx, texture_handle handle);
+// Size in pixels, {0, 0} for an invalid handle.
+vec2 texture_size(const njin_ctx &ctx, texture_handle handle);
+// Draws with the top-left corner at pos. tint multiplies the pixels; white
+// ({1, 1, 1, 1}) draws the texture unchanged.
+void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
+                  rgba tint);
+
+// Render textures
+// An offscreen image you can draw into, then draw like a texture.
+// Returns a handle with id 0 if the size is 0 or creation fails.
+render_texture_handle render_texture_load(njin_ctx &ctx, u32 width,
+                                          u32 height);
+void render_texture_unload(njin_ctx &ctx, render_texture_handle handle);
+vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle);
+// Draw calls between begin and end go into the render texture, in its own
+// pixel space (no camera). The overload with a color clears it first;
+// without one, the previous contents are kept.
+// Begin resets the camera transform, so do not use it in pre_render/render:
+// draw into render textures in post_update or post_render instead.
+void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle);
+void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
+                          rgba clear);
+void render_texture_end(const njin_ctx &ctx);
+// Draws the render texture's contents upright, top-left corner at pos.
+void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
+                         vec2 pos, rgba tint);
 } // namespace njin

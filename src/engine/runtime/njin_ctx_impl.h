@@ -5,6 +5,7 @@
 #include "njin_ecs.h"
 #include "njin_input.h"
 #include "njin_shader.h"
+#include "njin_texture.h"
 
 namespace njin {
 // Opens the window on construction and closes it on destruction.
@@ -18,8 +19,8 @@ struct window_guard {
 // Definition of the opaque njin_ctx handle. Only the runtime sees this.
 //
 // Members are destroyed in reverse order, so `window` (declared before the
-// stores) closes last: GPU resources in `shader` are freed while the GL
-// context is still alive.
+// stores) closes last: GPU resources in `shader`, `texture` and
+// `render_texture` are freed while the GL context is still alive.
 struct njin_ctx {
   explicit njin_ctx(const njin_cfg &config) : cfg(config), window(config) {}
 
@@ -29,6 +30,8 @@ struct njin_ctx {
   window_guard window;
   input_store input;
   shader_store shader;
+  texture_store texture;
+  render_texture_store render_texture;
   ecs_store ecs;
 };
 } // namespace njin

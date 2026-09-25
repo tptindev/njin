@@ -61,6 +61,14 @@ struct shader_handle {
   u32 id = 0;
 };
 
+struct texture_handle {
+  u32 id = 0;
+};
+
+struct render_texture_handle {
+  u32 id = 0;
+};
+
 enum key_code {
   key_none = 0,
 

@@ -77,4 +77,51 @@ void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec4 value) {
   shader_store_set_rgba(ctx.shader, handle, name, value);
 }
+
+texture_handle texture_load(njin_ctx &ctx, const char *path) {
+  return texture_store_load(ctx.texture, path);
+}
+
+void texture_unload(njin_ctx &ctx, texture_handle handle) {
+  texture_store_unload(ctx.texture, handle);
+}
+
+vec2 texture_size(const njin_ctx &ctx, texture_handle handle) {
+  return texture_store_size(ctx.texture, handle);
+}
+
+void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
+                  rgba tint) {
+  texture_store_draw(ctx.texture, handle, pos, tint);
+}
+
+render_texture_handle render_texture_load(njin_ctx &ctx, u32 width,
+                                          u32 height) {
+  return render_texture_store_load(ctx.render_texture, width, height);
+}
+
+void render_texture_unload(njin_ctx &ctx, render_texture_handle handle) {
+  render_texture_store_unload(ctx.render_texture, handle);
+}
+
+vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle) {
+  return render_texture_store_size(ctx.render_texture, handle);
+}
+
+void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle) {
+  render_texture_store_begin(ctx.render_texture, handle);
+}
+
+void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
+                          rgba clear) {
+  if (render_texture_store_begin(ctx.render_texture, handle))
+    render_texture_store_clear(clear);
+}
+
+void render_texture_end(const njin_ctx &) { render_texture_store_end(); }
+
+void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
+                         vec2 pos, rgba tint) {
+  render_texture_store_draw(ctx.render_texture, handle, pos, tint);
+}
 } // namespace njin
