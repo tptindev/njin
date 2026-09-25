@@ -87,6 +87,8 @@ theo thứ tự:
 
 | Module | Việc làm |
 |---|---|
+| `njin.reload` | Nạp lại texture, shader có file vừa đổi, khi hot reload bật (xem @ref rendering) |
+| `njin.ui` | Đọc phím, chuột, tay cầm cho UI, chuyển lựa chọn, giữ phím điều hướng khi menu hiện (xem @ref ui) |
 | `njin.camera` | Bật camera (có rung) trước mọi lệnh vẽ; chạy post-processing (xem @ref camera, @ref post_processing) |
 | `njin.audio` | Cấp dữ liệu cho stream nhạc, phát lại sound lặp (xem @ref audio) |
 | `njin.hierarchy` | Tính transform của entity con từ cha (xem @ref prefabs) |

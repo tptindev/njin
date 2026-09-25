@@ -92,7 +92,9 @@ thái của một nút trong **phần còn lại của frame**. System chạy sa
 nút đó nữa. Dùng khi một menu cần nuốt cú nhấp trước khi thế giới bên dưới xử lý
 cùng cú nhấp đó (xem ví dụ trên).
 
-Hiệu lực không kéo dài quá frame gọi nó, vì trạng thái được đọc lại ở frame sau.
+Hiệu lực không kéo dài quá frame gọi nó, vì trạng thái được đọc lại ở frame sau. Consume
+cũng không làm sai lịch sử của nút: một phím đang giữ bị consume thì ở frame sau vẫn là
+"đang giữ", không bị tính là vừa nhấn lại.
 Muốn system menu chạy trước, đặt nó ở phase sớm hơn (`phase_pre_update`) hoặc dùng
 thứ tự `after`/`before`: xem @ref modules_systems.
 

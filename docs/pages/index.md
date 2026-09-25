@@ -17,12 +17,13 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Điều khiển camera | @subpage camera |
 | Xử lý phím và action | @subpage input |
 | Vẽ hình, chữ, font tiếng Việt | @subpage drawing |
-| Vẽ ảnh, dùng shader | @subpage rendering |
+| Vẽ ảnh, dùng shader, sửa ảnh và shader khi game đang chạy | @subpage rendering |
 | Nhân vật có animation | @subpage sprites |
 | Animation từ Aseprite, máy trạng thái idle/run/jump | @subpage animation |
 | Nổ, bụi, tia lửa, rung camera, hitstop | @subpage particles |
 | Mẫu entity (prefab), gắn vũ khí vào nhân vật | @subpage prefabs |
 | Bản đồ ô vuông, va chạm với bản đồ | @subpage tilemap |
+| Vẽ màn chơi bằng Tiled hoặc LDtk | @subpage level |
 | Đạn trúng quái, nhặt đồ, tường chắn, raycast | @subpage collision |
 | Làm hiệu ứng toàn màn hình: bloom, CRT, vignette | @subpage post_processing |
 | Phát tiếng động và nhạc nền | @subpage audio |
@@ -30,6 +31,8 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Vật lý ổn định, tạm dừng, slow motion, timer, tween | @subpage time |
 | Toán vec2, va chạm, số ngẫu nhiên | @subpage math |
 | Cửa sổ, toàn màn hình, lưu game | @subpage window_files |
+| Lưu game, file cấu hình bằng JSON | @subpage json |
+| Menu, nút, thanh trượt, dùng được với tay cầm | @subpage ui |
 | Ghi log | @subpage logging |
 | Hiểu cách engine được tổ chức bên trong | @subpage architecture |
 | Tra cứu từng hàm | [Nhóm API](topics.html) |

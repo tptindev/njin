@@ -83,5 +83,17 @@
 /// @defgroup grp_prefab Prefab
 /// Mẫu để tạo entity, tìm theo tên, spawn làm con của entity khác.
 
+/// @defgroup grp_json JSON
+/// Đọc, ghi JSON cho lưu game và file cấu hình.
+
+/// @defgroup grp_level Level
+/// Nạp bản đồ từ Tiled và LDtk thành entity, tilemap và collider.
+
+/// @defgroup grp_reload Hot reload
+/// Nạp lại texture và shader khi file đổi, lúc game đang chạy.
+
+/// @defgroup grp_ui UI
+/// Panel, nút, công tắc, thanh trượt, lựa chọn; chuột, bàn phím, tay cầm; tùy biến ảnh và shader.
+
 /// @defgroup grp_types Kiểu cơ bản
 /// Số nguyên, số thực, vector, màu và các handle.

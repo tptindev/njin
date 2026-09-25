@@ -62,3 +62,31 @@ Các hàm đặt uniform:
 | njin::shader_set_f32() | `float` |
 | njin::shader_set_vec2() | `vec2` |
 | njin::shader_set_vec4() | `vec4` |
+
+## Hot reload
+
+Sửa ảnh hay shader trong lúc game đang chạy, lưu lại, và thấy kết quả ngay, không cần khởi
+động lại:
+
+```cpp
+#ifndef NDEBUG
+njin::hot_reload_enable(*ctx, true);
+#endif
+```
+
+Khi bật, engine kiểm tra thời gian sửa của mọi file texture và shader đã nạp, vài lần mỗi giây.
+File đổi được nạp lại **vào đúng handle cũ**: sprite, tilemap, ảnh của level, shader post đang
+dùng nó đổi theo ngay, không phải sửa code. Một file vừa đổi được nạp ở lần kiểm tra sau, khi
+nó đã thôi đổi, để không đọc nhầm file editor đang ghi dở.
+
+Shader **lỗi biên dịch thì giữ bản cũ**, và lỗi của trình biên dịch nằm trong log: sửa shader
+sai không làm game hỏng, sửa đúng thì bản mới vào ngay.
+
+| Hàm / event | Việc làm |
+|---|---|
+| njin::hot_reload_enable() | Bật, tắt, và chọn khoảng giữa hai lần kiểm tra |
+| njin::hot_reload_now() | Kiểm tra và nạp lại ngay, kể cả khi đang tắt (ví dụ gắn vào phím F5) |
+| njin::asset_reloaded | Event gửi qua njin::events() sau mỗi lần nạp lại, kể cả khi thất bại |
+
+Mặc định tắt: kiểm tra file tốn một chút thời gian, và game đã phát hành không cần.
+

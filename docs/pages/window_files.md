@@ -85,6 +85,11 @@ File đã xóa khỏi thư mục gốc **không** bị xóa khỏi bản copy; x
 sạch. Nhiều game trong cùng `build/bin` thì đặt tên thư mục khác nhau (ví dụ
 `njin_add_assets(pong pong_assets)`) để không đè lên nhau.
 
+## Định dạng lưu game
+
+njin::save_path() cho biết *nơi* lưu. Để lưu nhiều giá trị có cấu trúc (màn chơi, túi đồ, cài
+đặt), dùng JSON: njin::json_save() và njin::json_load(), xem @ref json.
+
 ## File
 
 | Hàm | Việc làm |
