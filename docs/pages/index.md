@@ -1,6 +1,8 @@
 # njin {#mainpage}
 
-njin là một engine game 2D nhỏ viết bằng C++20. Nó dùng **EnTT** cho ECS và
+njin là một engine game 2D nhỏ viết bằng C++20, dành riêng cho hai thể loại:
+**top-down** (hành động, phiêu lưu, RPG, bắn súng nhìn từ trên xuống) và **platformer**
+(màn hình ngang, nhảy qua các bục). Nó dùng **EnTT** cho ECS và
 **raylib** cho cửa sổ, đồ họa, nhập liệu. raylib được giấu hoàn toàn: game chỉ
 include `njin.h` và không bao giờ thấy raylib.
 
@@ -32,7 +34,7 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Toán vec2, va chạm, số ngẫu nhiên | @subpage math |
 | Cửa sổ, toàn màn hình, lưu game | @subpage window_files |
 | Lưu game, file cấu hình bằng JSON | @subpage json |
-| Menu, nút, thanh trượt, dùng được với tay cầm | @subpage ui |
+| Menu, popup, toast, thanh trượt, dùng được với tay cầm | @subpage ui |
 | Ghi log | @subpage logging |
 | Hiểu cách engine được tổ chức bên trong | @subpage architecture |
 | Tra cứu từng hàm | [Nhóm API](topics.html) |

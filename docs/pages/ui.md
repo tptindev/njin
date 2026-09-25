@@ -47,10 +47,65 @@ chơi đang chọn menu. Kiểm tra bằng njin::ui_active().
 @note Esc mặc định đóng cửa sổ (`njin_cfg::exit_key`). Menu dùng Esc để quay lại thì đặt
 `.exit_key = njin::key_none` trong njin_cfg và thoát bằng một nút "Thoát".
 
+## Popup
+
+njin::ui_popup() là hộp thoại xác nhận: nền tối, tiêu đề, nội dung tự xuống dòng và tối đa 4 nút.
+Gọi nó mỗi frame khi popup đang mở; biến `open` do game giữ và popup tự đặt về `false` khi đóng.
+
+@include ui_popup_toast.cpp
+
+Hàm trả về số thứ tự nút vừa bấm (theo `buttons`), hoặc -1 nếu chưa có gì. Quay lại (Esc, Backspace,
+nút B) đóng popup và trả về `cancel_button`, hoặc -1 nếu không đặt.
+
+Popup là **modal**:
+
+- Các panel khác vẫn được vẽ, nhưng không nhận chuột, phím hay tay cầm cho đến khi popup đóng.
+  Menu phía sau không cần ẩn đi, và không cần `if/else` giữa các màn hình.
+- njin::ui_back() chỉ báo cho popup, nên cùng một cú Esc không vừa đóng popup vừa quay lại menu.
+- Khi mở, nút `default_button` được chọn sẵn: đặt nó là nút **an toàn** ("Ở lại", "Hủy") để bấm Enter
+  nhầm không mất dữ liệu. Khi đóng, lựa chọn trở lại đúng widget cũ của menu phía sau.
+- Frame popup vừa mở bỏ qua nút quay lại. Nhờ vậy menu mở popup bằng Esc (`if (ui_back(ctx))
+  open = true;`) không bị popup đóng ngay bởi chính cú Esc đó.
+- Cú bấm vừa đóng popup không rơi xuống widget phía sau.
+
+Cần nội dung tùy ý (thanh trượt, công tắc...) thì dùng njin::ui_popup_begin() và njin::ui_popup_end()
+bao quanh các widget bình thường, xem `settings_popup` trong ví dụ. Chỉ `id`, `title` và `width` của
+njin::ui_popup_desc được dùng; tự đóng popup bằng cách ngừng gọi nó.
+
+Màu phủ làm tối nền là `ui_style::dim`. Panel của popup dùng chung diện mạo `ui_style::panel`.
+
+## Toast
+
+njin::ui_toast() hiện một thông báo nhỏ ở góc màn hình rồi tự biến mất: "Đã lưu game", "Nhặt được 5
+vàng", "Mất kết nối".
+
+```cpp
+njin::ui_toast(ctx, "Đã lưu game", {.kind = njin::ui_toast_success});
+njin::ui_toast(ctx, "Túi đồ đã đầy", {.kind = njin::ui_toast_warning, .seconds = 4.0f});
+```
+
+Gọi từ **bất cứ đâu**, ở bất cứ phase nào (kể cả trong `phase_update` hay trong một event handler).
+Không cần ui_begin: engine tự xếp hàng, trượt vào, mờ dần và vẽ đè lên mọi thứ, kể cả popup, trừ hiệu
+ứng chuyển scene. Chữ dài tự xuống dòng theo `ui_style::toast_width`.
+
+| Tính chất | Chi tiết |
+|---|---|
+| **Không nuốt phím** | Khác panel của UI: toast chỉ để đọc, game phía dưới vẫn nhận mũi tên, Enter, Esc và chuột |
+| Giờ thật | Đếm theo njin::delta_real(): vẫn chạy và tự hết hạn khi game đang pause hay hitstop |
+| Loại | njin::ui_toast_info, `_success`, `_warning`, `_error` đổi màu vạch bên trái (`ui_style::toast_accent`) |
+| Số lượng | Tối đa `ui_style::toast_max` (mặc định 5); cái cũ nhất bị bỏ khi đầy |
+| Vị trí | `ui_style::toast_anchor`: `{1, 1}` là góc dưới phải (mặc định), `{0.5, 0}` là giữa cạnh trên. Toast mới nhất nằm sát góc, cái cũ xếp dần vào trong |
+| Diện mạo | `ui_style::toast`: màu, bo góc, ảnh 9-slice và shader như mọi widget khác |
+
+njin::ui_toast_clear() xóa hết toast đang hiện, ví dụ khi đổi scene.
+
+@note Nếu dựng toast bằng ui_begin, panel đó sẽ nuốt phím điều hướng của game mỗi khi nó hiện, và
+nhân vật đứng khựng. Dùng njin::ui_toast().
+
 ## Tùy biến giao diện
 
 Toàn bộ giao diện nằm trong njin::ui_style: phông, cỡ chữ, `scale`, khoảng cách, và diện mạo
-(njin::ui_look) của từng loại widget: `panel`, `label`, `button`, `track`, `fill`, `knob`. Lấy
+(njin::ui_look) của từng loại widget: `panel`, `label`, `button`, `track`, `fill`, `knob`, `toast`. Lấy
 bản mặc định bằng njin::ui_default_style(), sửa, rồi njin::ui_style_set(). Đổi style giữa hai
 panel được, ví dụ một hộp thoại cảnh báo màu đỏ.
 
