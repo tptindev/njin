@@ -53,9 +53,13 @@ struct camera_view {
   vec2 target;
 };
 
-struct action_handle { u32 id = 0; };
+struct action_handle {
+  u32 id = 0;
+};
 
-struct shader_handle { u32 id = 0; };
+struct shader_handle {
+  u32 id = 0;
+};
 
 enum key_code {
   key_none = 0,

@@ -9,14 +9,18 @@ struct njin_ctx;
 using sys_fnc = void (*)(njin_ctx &ctx);
 
 // Phases run in this order. startup runs once before the first frame and
-// shutdown once after the window closes. The others run every frame; render
-// runs between begin/end drawing.
+// shutdown once after the window closes. The others run every frame.
+// pre_render/render/post_render run between begin/end drawing; the core
+// camera module draws render in world space (through the active camera) and
+// post_render in screen space, so use post_render for UI.
 enum sys_phase {
   phase_startup,
   phase_pre_update,
   phase_update,
   phase_post_update,
+  phase_pre_render,
   phase_render,
+  phase_post_render,
   phase_shutdown,
   phase_count
 };

@@ -1,4 +1,5 @@
 #include "njin_shader.h"
+#include "njin_log.h"
 
 namespace njin {
 namespace {
@@ -8,7 +9,7 @@ namespace {
 bool stage_readable(const char *path, const char *stage) {
   if (path == nullptr || FileExists(path))
     return true;
-  TraceLog(LOG_WARNING, "SHADER: %s shader not found: %s", stage, path);
+  NJIN_WARN("shader: %s shader not found: %s", stage, path);
   return false;
 }
 
@@ -19,8 +20,7 @@ i32 uniform_loc(shader_slot &slot, const char *name) {
 
   const i32 loc = GetShaderLocation(slot.shader, name);
   if (loc < 0) {
-    TraceLog(LOG_WARNING, "SHADER: [ID %u] uniform '%s' not found",
-             slot.shader.id, name);
+    NJIN_WARN("shader: [ID %u] uniform '%s' not found", slot.shader.id, name);
   }
   slot.uniforms.emplace(name, loc);
   return loc;
@@ -42,7 +42,7 @@ void set_uniform(shader_store &store, shader_handle handle, const char *name,
 shader_handle shader_store_load(shader_store &store, const char *vspath,
                                 const char *fspath) {
   if (vspath == nullptr && fspath == nullptr) {
-    TraceLog(LOG_WARNING, "SHADER: nothing to load, both paths are null");
+    NJIN_WARN("shader: nothing to load, both paths are null");
     return shader_handle{};
   }
   if (!stage_readable(vspath, "vertex") ||

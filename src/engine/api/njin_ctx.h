@@ -26,7 +26,12 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc);
 f32 delta(const njin_ctx &ctx);
 f32 elapsed(const njin_ctx &ctx);
 
-// Coordinates
+// Camera
+// The view used this frame: the entity with camera_on + camera_2d + transform
+// (see _comps.h), or the identity view (world == screen pixels) if none.
+// Read live from the registry, so changes apply immediately.
+camera_view camera_active(const njin_ctx &ctx);
+// World <-> screen pixels through camera_active.
 vec2 w2scr(const njin_ctx &ctx, vec2 pos);
 vec2 scr2w(const njin_ctx &ctx, vec2 pos);
 

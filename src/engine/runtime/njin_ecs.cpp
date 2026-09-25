@@ -1,14 +1,14 @@
 #include "njin_ecs.h"
-#include "_comps.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_log.h"
 #include <algorithm>
-#include <raylib.h>
 
 namespace njin {
 namespace {
 constexpr const char *phase_names[phase_count] = {
-    "startup", "pre_update", "update", "post_update", "render", "shutdown"};
+    "startup",    "pre_update", "update",      "post_update",
+    "pre_render", "render",     "post_render", "shutdown"};
 
 // Adjacency list of "a must run before b" edges between systems of one
 // module and phase, indexed by position in the pending list.
@@ -51,20 +51,18 @@ dep_graph build_graph(const std::vector<sys_desc> &systems, const char *label,
       if (find_system(systems, fnc, other)) {
         graph.add(other, i);
       } else {
-        TraceLog(LOG_WARNING,
-                 "%s/%s: system #%zu: 'after' target is not in this module "
-                 "and phase, ignored",
-                 label, phase_names[phase], i);
+        NJIN_WARN("%s/%s: system #%zu: 'after' target is not in this "
+                  "module and phase, ignored",
+                  label, phase_names[phase], i);
       }
     }
     for (const sys_fnc fnc : systems[i].before) {
       if (find_system(systems, fnc, other)) {
         graph.add(i, other);
       } else {
-        TraceLog(LOG_WARNING,
-                 "%s/%s: system #%zu: 'before' target is not in this module "
-                 "and phase, ignored",
-                 label, phase_names[phase], i);
+        NJIN_WARN("%s/%s: system #%zu: 'before' target is not in this "
+                  "module and phase, ignored",
+                  label, phase_names[phase], i);
       }
     }
   }
@@ -94,10 +92,9 @@ std::vector<sys_fnc> sort_systems(const std::vector<sys_desc> &systems,
     }
 
     if (best == count) {
-      TraceLog(LOG_ERROR,
-               "%s/%s: cycle in after/before constraints, remaining systems "
-               "keep registration order",
-               label, phase_names[phase]);
+      NJIN_ERROR("%s/%s: cycle in after/before constraints, remaining "
+                 "systems keep registration order",
+                 label, phase_names[phase]);
       for (usize i = 0; i < count; ++i) {
         if (!placed[i]) {
           sorted.push_back(systems[i].fnc);
@@ -119,21 +116,6 @@ bool is_registered(const ecs_store &ecs, const char *name) {
   return std::find(ecs.modules.begin(), ecs.modules.end(), name) !=
          ecs.modules.end();
 }
-
-// Moves velocity into transform. Runs after gameplay so this frame's
-// velocity changes apply immediately.
-void integrate_velocity(njin_ctx &ctx) {
-  for (auto [entity, tr, vel] :
-       ctx.ecs.registry.view<transform, velocity>().each()) {
-    (void)entity;
-    tr.pos.x += vel.value.x * ctx.dt;
-    tr.pos.y += vel.value.y * ctx.dt;
-  }
-}
-
-void core_setup(njin_ctx &ctx) {
-  ecs_register(ctx, phase_post_update, integrate_velocity);
-}
 } // namespace
 
 void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc) {
@@ -142,12 +124,11 @@ void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc) {
 
 void ecs_register(njin_ctx &ctx, sys_phase phase, const sys_desc &desc) {
   if (phase < 0 || phase >= phase_count || desc.fnc == nullptr) {
-    TraceLog(LOG_WARNING, "ecs_register: invalid phase or null system");
+    NJIN_WARN("ecs_register: invalid phase or null system");
     return;
   }
   if (!ctx.ecs.in_setup) {
-    TraceLog(LOG_WARNING,
-             "ecs_register: only allowed inside a module setup callback");
+    NJIN_WARN("ecs_register: only allowed inside a module setup callback");
     return;
   }
   ctx.ecs.pending[phase].push_back(desc);
@@ -157,16 +138,15 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
   ecs_store &ecs = ctx.ecs;
   const char *label = module_label(desc);
   if (ecs.started) {
-    TraceLog(LOG_WARNING, "module %s: cannot register after njin_run", label);
+    NJIN_WARN("module %s: cannot register after njin_run", label);
     return;
   }
   if (ecs.in_setup) {
-    TraceLog(LOG_WARNING,
-             "module %s: cannot register from another module's setup", label);
+    NJIN_WARN("module %s: cannot register from another module's setup", label);
     return;
   }
   if (desc.name != nullptr && is_registered(ecs, desc.name)) {
-    TraceLog(LOG_WARNING, "module %s: already registered", label);
+    NJIN_WARN("module %s: already registered", label);
     return;
   }
 
@@ -187,11 +167,7 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
   if (desc.name != nullptr) {
     ecs.modules.emplace_back(desc.name);
   }
-  TraceLog(LOG_INFO, "module registered: %s", label);
-}
-
-mod_desc core_module() {
-  return mod_desc{.name = "njin.core", .setup = core_setup};
+  NJIN_INFO("module registered: %s", label);
 }
 
 void ecs_run(njin_ctx &ctx, sys_phase phase) {

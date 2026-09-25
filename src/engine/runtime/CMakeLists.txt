@@ -14,3 +14,6 @@ target_link_libraries(
   njin_rt
   PUBLIC njin::api
   PRIVATE raylib njin_warnings)
+
+# Lets runtime files in subfolders (modules/) include runtime headers directly.
+target_include_directories(njin_rt PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

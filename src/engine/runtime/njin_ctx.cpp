@@ -1,35 +1,12 @@
 #include "njin_ctx.h"
-#include "njin2rl.h"
 #include "njin_ctx_impl.h"
-#include "rl2njin.h"
 #include <entt/entity/registry.hpp>
-#include <raylib.h>
 
 namespace njin {
 f32 delta(const njin_ctx &ctx) { return ctx.dt; }
 f32 elapsed(const njin_ctx &ctx) { return ctx.elapsed; }
 entt::registry &world(njin_ctx &ctx) { return ctx.ecs.registry; }
 entt::dispatcher &events(njin_ctx &ctx) { return ctx.ecs.dispatcher; }
-vec2 w2scr(const njin_ctx &ctx, vec2 pos) {
-  (void)ctx;
-  const Camera2D camera{};
-  Vector2 position{};
-  to_raylib(pos, position);
-  vec2 result{};
-  from_raylib(GetWorldToScreen2D(position, camera), result);
-  return result;
-}
-
-vec2 scr2w(const njin_ctx &ctx, vec2 pos) {
-  (void)ctx;
-  const Camera2D camera{};
-  Vector2 position{};
-  to_raylib(pos, position);
-  vec2 result{};
-  from_raylib(GetScreenToWorld2D(position, camera), result);
-  return result;
-}
-
 bool key_pressed(const njin_ctx &ctx, key_code key) {
   return input_key_pressed(ctx.input, key);
 }

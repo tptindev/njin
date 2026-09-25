@@ -19,7 +19,5 @@ struct ecs_store {
   bool started = false;
 };
 
-// Built-in systems (velocity integration, ...). Registered by njin_create.
-mod_desc core_module();
 void ecs_run(njin_ctx &ctx, sys_phase phase);
 } // namespace njin
