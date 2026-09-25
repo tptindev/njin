@@ -43,6 +43,105 @@ bool action_released(const njin_ctx &ctx, action_handle handle) {
   return input_action_released(ctx.input, handle);
 }
 
+void action_bind_mouse(njin_ctx &ctx, action_handle handle,
+                       mouse_button button) {
+  input_action_bind_mouse(ctx.input, handle, button);
+}
+
+void action_bind_pad(njin_ctx &ctx, action_handle handle,
+                     gamepad_button button) {
+  input_action_bind_pad(ctx.input, handle, button);
+}
+
+void action_clear_binds(njin_ctx &ctx, action_handle handle) {
+  input_action_clear_binds(ctx.input, handle);
+}
+
+vec2 mouse_pos(const njin_ctx &ctx) { return input_mouse_pos(ctx.input); }
+
+vec2 mouse_delta(const njin_ctx &ctx) { return input_mouse_delta(ctx.input); }
+
+f32 mouse_wheel(const njin_ctx &ctx) { return input_mouse_wheel(ctx.input); }
+
+bool mouse_pressed(const njin_ctx &ctx, mouse_button button) {
+  return input_mouse_pressed(ctx.input, button);
+}
+
+bool mouse_held(const njin_ctx &ctx, mouse_button button) {
+  return input_mouse_held(ctx.input, button);
+}
+
+bool mouse_released(const njin_ctx &ctx, mouse_button button) {
+  return input_mouse_released(ctx.input, button);
+}
+
+bool pad_available(const njin_ctx &ctx, i32 pad) {
+  return input_pad_available(ctx.input, pad);
+}
+
+bool pad_pressed(const njin_ctx &ctx, i32 pad, gamepad_button button) {
+  return input_pad_pressed(ctx.input, pad, button);
+}
+
+bool pad_held(const njin_ctx &ctx, i32 pad, gamepad_button button) {
+  return input_pad_held(ctx.input, pad, button);
+}
+
+bool pad_released(const njin_ctx &ctx, i32 pad, gamepad_button button) {
+  return input_pad_released(ctx.input, pad, button);
+}
+
+f32 pad_axis(const njin_ctx &ctx, i32 pad, gamepad_axis axis) {
+  return input_pad_axis(ctx.input, pad, axis);
+}
+
+void pad_set_deadzone(njin_ctx &ctx, f32 deadzone) {
+  input_pad_set_deadzone(ctx.input, deadzone);
+}
+
+i32 text_count(const njin_ctx &ctx) { return input_text_count(ctx.input); }
+
+i32 text_char(const njin_ctx &ctx, i32 index) {
+  return input_text_char(ctx.input, index);
+}
+
+void key_consume(njin_ctx &ctx, key_code key) {
+  input_key_consume(ctx.input, key);
+}
+
+void mouse_consume(njin_ctx &ctx, mouse_button button) {
+  input_mouse_consume(ctx.input, button);
+}
+
+void mouse_wheel_consume(njin_ctx &ctx) {
+  input_mouse_wheel_consume(ctx.input);
+}
+
+axis_handle axis_register(njin_ctx &ctx, const char *name) {
+  return input_axis_register(ctx.input, name);
+}
+
+axis_handle axis_find(const njin_ctx &ctx, const char *name) {
+  return input_axis_find(ctx.input, name);
+}
+
+void axis_bind_keys(njin_ctx &ctx, axis_handle handle, key_code negative,
+                    key_code positive) {
+  input_axis_bind_keys(ctx.input, handle, negative, positive);
+}
+
+void axis_bind_pad(njin_ctx &ctx, axis_handle handle, gamepad_axis axis) {
+  input_axis_bind_pad(ctx.input, handle, axis);
+}
+
+void axis_clear_binds(njin_ctx &ctx, axis_handle handle) {
+  input_axis_clear_binds(ctx.input, handle);
+}
+
+f32 axis_value(const njin_ctx &ctx, axis_handle handle) {
+  return input_axis_value(ctx.input, handle);
+}
+
 shader_handle shader_load(njin_ctx &ctx, const char *vspath,
                           const char *fspath) {
   return shader_store_load(ctx.shader, vspath, fspath);
