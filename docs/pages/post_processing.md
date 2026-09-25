@@ -3,6 +3,10 @@
 Hậu kỳ là áp shader lên **cả khung hình** sau khi đã vẽ xong: làm mờ, CRT,
 viền tối (vignette), đổi màu...
 
+Các hiệu ứng hay dùng đã có sẵn, không cần viết shader: xem
+[Hiệu ứng dựng sẵn](#post_builtin) ở cuối trang. Phần đầu trang dành cho khi bạn muốn
+tự viết shader.
+
 Nguyên tắc:
 
 ```mermaid
@@ -53,3 +57,37 @@ Engine vẽ thế giới vào một ảnh ngoài màn hình có kích thước b
 cửa sổ đổi kích thước), rồi vẽ ảnh đó ra màn hình qua shader. UI trong `phase_post_render`
 vẽ sau đó nên không bị ảnh hưởng. Đặt uniform như bình thường bằng các hàm
 `shader_set_*()`.
+
+## Hiệu ứng dựng sẵn {#post_builtin}
+
+njin::post_fx_set() bật các hiệu ứng có sẵn lên toàn bộ thế giới, không cần viết shader.
+Giống shader ở trên, chúng không đụng đến UI trong `phase_post_render`.
+
+@include post_builtin.cpp
+
+| Hiệu ứng | Trường | Tắt khi |
+|---|---|---|
+| Chỉnh màu | `brightness`, `contrast`, `saturation`, `sepia`, `tint` | 0, 1, 1, 0, trắng |
+| Vignette (tối viền) | `vignette`, `vignette_radius`, `vignette_softness`, `vignette_color` | `vignette` = 0 |
+| Bloom (quầng sáng) | `bloom`, `bloom_threshold`, `bloom_radius` | `bloom` = 0 |
+| Làm mờ | `blur` (pixel) | 0 |
+| Tách màu | `chromatic` (pixel) | 0 |
+| Sọc CRT | `scanlines`, `scanline_size` | `scanlines` = 0 |
+| Cong CRT | `crt_curve` | 0 |
+| Pixel hóa | `pixelate` (cỡ ô, pixel) | dưới 2 |
+| Nhiễu hạt | `grain` | 0 |
+
+Bộ có sẵn trong `namespace njin::post`: njin::post::crt(), njin::post::noir(),
+njin::post::vintage(), njin::post::dream(), njin::post::glow(), njin::post::retro(),
+njin::post::hurt(), njin::post::paused().
+
+Thứ tự áp:
+
+```mermaid
+flowchart LR
+  A[Thế giới]:::render --> B[blur]:::engine --> C[bloom]:::engine --> D["một lượt: cong CRT,<br/>pixel hóa, tách màu,<br/>chỉnh màu, sọc,<br/>vignette, nhiễu"]:::engine --> E[shader riêng<br/>của game]:::render --> F[Màn hình]:::once
+```
+
+Bloom và blur tốn thêm vài lượt vẽ toàn màn hình; các hiệu ứng còn lại gộp trong một lượt
+nên gần như miễn phí. Mọi trường sửa được mỗi frame: njin::post_fx_lerp() giúp chuyển mượt
+giữa hai bộ.

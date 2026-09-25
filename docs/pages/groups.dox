@@ -5,7 +5,8 @@
 /// Đăng ký module, system, phase; truy cập registry và event của EnTT.
 
 /// @defgroup grp_comps Component có sẵn
-/// Các component engine hiểu sẵn: transform, camera_2d, camera_on.
+/// Các component engine hiểu sẵn: transform, camera_2d, camera_on, sprite,
+/// sprite_anim, scene_owned, child_of.
 
 /// @defgroup grp_time Thời gian
 /// Thời gian của frame và thời gian đã chạy.
@@ -63,6 +64,21 @@
 
 /// @defgroup grp_tween Timer và tween
 /// Bộ đếm thời gian, đường cong chuyển động và chuyển giá trị mượt.
+
+/// @defgroup grp_anim Animation
+/// Sprite sheet có clip, nạp từ Aseprite, máy trạng thái animation.
+
+/// @defgroup grp_particles Particle
+/// Nguồn phát hạt: nổ, bụi, tia lửa, khói, lửa.
+
+/// @defgroup grp_fx Hiệu ứng (FX)
+/// Rung camera, hitstop, nháy màn hình, nháy sprite và các mẫu particle có sẵn.
+
+/// @defgroup grp_post Post-processing dựng sẵn
+/// Bloom, vignette, CRT, chỉnh màu, blur và các bộ hiệu ứng có sẵn.
+
+/// @defgroup grp_prefab Prefab
+/// Mẫu để tạo entity, tìm theo tên, spawn làm con của entity khác.
 
 /// @defgroup grp_types Kiểu cơ bản
 /// Số nguyên, số thực, vector, màu và các handle.

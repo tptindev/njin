@@ -28,7 +28,9 @@ build\bin\njin_sandbox.exe
 ```
 
 @note `run.bat` chạy game với thư mục làm việc là thư mục gốc của repo. Đường
-dẫn tương đối như `assets/player.png` được tính từ đó.
+dẫn tương đối như `assets/player.png` được tính từ đó trước, rồi từ thư mục chứa exe.
+Dùng `njin_add_assets()` trong CMake để thư mục assets của game được copy cạnh exe mỗi lần
+build, xem @ref window_files.
 
 ## Chương trình nhỏ nhất
 

@@ -82,13 +82,21 @@ và nối số còn lại theo thứ tự đăng ký.
 
 ## Module lõi
 
-njin_create() đăng ký sẵn các module lõi trước khi trả về (hiện là module camera và
-module âm thanh và module sprite, trong `runtime/modules/`). Vì chúng đăng ký **trước** module của game nên system của
-chúng chạy trước trong cùng phase. Module camera dựa vào điều này để bật camera
-trước mọi lệnh vẽ của game. Module âm thanh mỗi frame cấp dữ liệu cho các stream nhạc và
-phát lại các sound lặp (xem @ref audio). Module sprite chạy animation, bake chunk tilemap
-và vẽ mọi sprite và tilemap trong `phase_render` trước system vẽ của game (xem @ref sprites
-và @ref tilemap).
+njin_create() đăng ký sẵn các module lõi trước khi trả về, trong `runtime/modules/`,
+theo thứ tự:
+
+| Module | Việc làm |
+|---|---|
+| `njin.camera` | Bật camera (có rung) trước mọi lệnh vẽ; chạy post-processing (xem @ref camera, @ref post_processing) |
+| `njin.audio` | Cấp dữ liệu cho stream nhạc, phát lại sound lặp (xem @ref audio) |
+| `njin.hierarchy` | Tính transform của entity con từ cha (xem @ref prefabs) |
+| `njin.anim` | Chạy njin::animator: chuyển trạng thái, đổi frame (xem @ref animation) |
+| `njin.particles` | Sinh, di chuyển, xóa hạt (xem @ref particles) |
+| `njin.sprite` | Chạy njin::sprite_anim, nháy sprite, bake chunk tilemap, vẽ sprite, tilemap và particle theo lớp (xem @ref sprites, @ref tilemap) |
+
+Vì chúng đăng ký **trước** module của game nên system của chúng chạy trước trong cùng
+phase. Module camera dựa vào điều này để bật camera trước mọi lệnh vẽ của game;
+hierarchy chạy trước anim, particle và sprite để chúng thấy vị trí mới của frame này.
 
 ## Thêm một module lõi
 

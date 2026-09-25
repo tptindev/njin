@@ -19,10 +19,13 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Vẽ hình, chữ, font tiếng Việt | @subpage drawing |
 | Vẽ ảnh, dùng shader | @subpage rendering |
 | Nhân vật có animation | @subpage sprites |
+| Animation từ Aseprite, máy trạng thái idle/run/jump | @subpage animation |
+| Nổ, bụi, tia lửa, rung camera, hitstop | @subpage particles |
+| Mẫu entity (prefab), gắn vũ khí vào nhân vật | @subpage prefabs |
 | Bản đồ ô vuông, va chạm với bản đồ | @subpage tilemap |
-| Làm hiệu ứng toàn màn hình | @subpage post_processing |
+| Làm hiệu ứng toàn màn hình: bloom, CRT, vignette | @subpage post_processing |
 | Phát tiếng động và nhạc nền | @subpage audio |
-| Chia game thành menu, màn chơi, game over | @subpage scenes |
+| Chia game thành menu, màn chơi, game over; chuyển cảnh mờ dần | @subpage scenes |
 | Vật lý ổn định, tạm dừng, slow motion, timer, tween | @subpage time |
 | Toán vec2, va chạm, số ngẫu nhiên | @subpage math |
 | Cửa sổ, toàn màn hình, lưu game | @subpage window_files |

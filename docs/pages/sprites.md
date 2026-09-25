@@ -24,7 +24,8 @@ xoay quanh điểm neo, `scale` là tỉ lệ.
 
 Module sprite của engine vẽ trong `phase_render`:
 
-1. Mọi sprite và tilemap, theo `layer` tăng dần. Cùng lớp thì tilemap vẽ trước sprite.
+1. Mọi sprite, tilemap và particle, theo `layer` tăng dần. Cùng lớp thì tilemap vẽ trước,
+   rồi sprite, rồi particle.
 2. Sau đó mới đến các system vẽ của game trong `phase_render`, nên chúng đè lên sprite.
 
 Cùng một lớp, thứ tự giữa các sprite là thứ tự tạo entity.
@@ -44,6 +45,10 @@ cùng kích thước, đánh số từ 0 theo hàng từ trái sang phải rồi
 | `finished` | Đã chạy hết (chỉ khi không lặp) |
 
 Engine chuyển frame trong `phase_post_update` và ghi vào `sprite.source`.
+
+Cần thời lượng riêng cho từng frame, nạp từ Aseprite, hay máy trạng thái idle/run/jump thì
+dùng njin::animator, xem @ref animation. Nháy trắng khi trúng đòn: njin::sprite_flash(), xem
+@ref particles.
 
 Đổi animation bằng njin::anim_play(). Hàm này **không làm gì nếu animation đó đang chạy**,
 nên gọi mỗi frame được mà animation không bị bắt đầu lại liên tục.

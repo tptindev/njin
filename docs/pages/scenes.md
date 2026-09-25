@@ -37,6 +37,31 @@ Scene đầu tiên cũng được đặt bằng njin::scene_set(), thường tro
 | njin::scene_set() | Chuyển scene ở đầu frame sau |
 | njin::scene_current() | Scene đang chạy |
 
+## Chuyển cảnh mờ dần
+
+njin::scene_fade() đổi scene sau một hiệu ứng mờ dần, và có thể hiện màn hình loading:
+
+@include scene_fade.cpp
+
+```mermaid
+flowchart LR
+  A["Phủ dần<br/>fade_out giây"]:::engine --> B["Phủ kín:<br/>vẽ màn loading<br/>ít nhất một frame"]:::engine --> C["on_exit cũ,<br/>on_enter mới<br/>(nạp tài nguyên)"]:::update --> D["Giữ kín<br/>ít nhất hold giây"]:::engine --> E["Mở dần<br/>fade_in giây"]:::engine
+```
+
+- Màn hình loading (`draw_loading`) được vẽ **trước** khi `on_enter` của scene mới chạy, nên
+  `on_enter` nạp tài nguyên nặng thì người chơi vẫn thấy nó, không thấy cửa sổ đứng hình.
+- Thời gian tính theo giờ thật: pause và time_set_scale() không ảnh hưởng.
+- Game vẫn chạy trong lúc chuyển. Dùng njin::scene_transitioning() để bỏ qua nhập liệu nếu cần.
+- Gọi lại njin::scene_fade() khi đang chuyển thì chỉ đổi scene đích. njin::scene_set() khi đang
+  chuyển thì hủy hiệu ứng và đổi ngay frame sau.
+- Lớp phủ nằm trên mọi thứ, kể cả UI.
+
+| Hàm | Việc làm |
+|---|---|
+| njin::scene_fade() | Chuyển scene với hiệu ứng mờ dần |
+| njin::scene_transitioning() | Đang chuyển không |
+| njin::scene_transition_cover() | Độ phủ hiện tại, 0..1 |
+
 ## Scene hay tạm dừng?
 
 Menu tạm dừng thường **không** nên là một scene riêng: chuyển scene sẽ hủy thế giới đang

@@ -65,6 +65,26 @@ Mọi hàm nạp (texture, shader, font, sound, music) tìm file theo thứ tự
 Nhờ bước 2, game chạy bằng cách nhấp đúp file exe (thư mục làm việc khác) vẫn tìm thấy
 `assets/` đặt cạnh exe.
 
+### Đưa assets vào cạnh exe
+
+Đặt tài nguyên của game vào một thư mục cạnh `CMakeLists.txt` của game, rồi gọi
+`njin_add_assets()` (khai báo trong `cmake/njin.cmake`):
+
+```cmake
+add_executable(my_game main.cpp)
+target_link_libraries(my_game PRIVATE njin::rt njin_warnings)
+njin_add_assets(my_game assets)   # src/games/my_game/assets -> build/bin/assets
+```
+
+Mỗi lần build `my_game`, thư mục được copy cạnh exe, chỉ những file đã đổi, nên sửa một
+ảnh rồi build lại là đủ. Trong code, luôn dùng đường dẫn tương đối như
+`"assets/player.png"`. Cả thư mục `build/bin` khi đó chạy được ở bất cứ đâu, gửi cho người
+khác cũng được.
+
+File đã xóa khỏi thư mục gốc **không** bị xóa khỏi bản copy; xóa `build/bin/assets` để làm
+sạch. Nhiều game trong cùng `build/bin` thì đặt tên thư mục khác nhau (ví dụ
+`njin_add_assets(pong pong_assets)`) để không đè lên nhau.
+
 ## File
 
 | Hàm | Việc làm |
