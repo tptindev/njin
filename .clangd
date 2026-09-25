@@ -1,4 +1,5 @@
 CompileFlags:
+  CompilationDatabase: build
   Remove:
     - -fmodules-ts
     - -fmodule-mapper=*
