@@ -1,0 +1,32 @@
+/// @defgroup grp_core Vòng đời engine
+/// Tạo, chạy và hủy engine, cùng cấu hình cửa sổ.
+
+/// @defgroup grp_module Module và system
+/// Đăng ký module, system, phase; truy cập registry và event của EnTT.
+
+/// @defgroup grp_comps Component có sẵn
+/// Các component engine hiểu sẵn: transform, camera_2d, camera_on.
+
+/// @defgroup grp_time Thời gian
+/// Thời gian của frame và thời gian đã chạy.
+
+/// @defgroup grp_camera Camera
+/// Camera đang dùng và đổi tọa độ giữa thế giới và màn hình.
+
+/// @defgroup grp_input Nhập liệu
+/// Phím bàn phím và action.
+
+/// @defgroup grp_shader Shader
+/// Nạp shader, đặt uniform, bật và tắt shader khi vẽ.
+
+/// @defgroup grp_texture Texture
+/// Nạp và vẽ texture từ file ảnh.
+
+/// @defgroup grp_render_texture Render texture
+/// Ảnh ngoài màn hình để vẽ vào, dùng cho post-processing.
+
+/// @defgroup grp_log Log
+/// Ghi log theo mức độ, đổi nơi nhận log.
+
+/// @defgroup grp_types Kiểu cơ bản
+/// Số nguyên, số thực, vector, màu và các handle.

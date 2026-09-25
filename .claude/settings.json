@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/docs/hook_update_docs.py\"",
+            "timeout": 60,
+            "statusMessage": "Updating njin docs..."
+          }
+        ]
+      }
+    ]
+  }
+}

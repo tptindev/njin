@@ -1,0 +1,72 @@
+# Doxygen config for the njin wiki. Only options that differ from the
+# defaults are listed. Run from this folder (see build_docs.bat).
+
+PROJECT_NAME           = "njin"
+PROJECT_BRIEF          = "Engine game 2D nhỏ viết bằng C++20, EnTT và raylib"
+OUTPUT_LANGUAGE        = Vietnamese
+OUTPUT_DIRECTORY       = .
+HTML_OUTPUT            = html
+CREATE_SUBDIRS         = NO
+
+# Input: the public API headers, the hand-written pages and the examples.
+INPUT                  = ../src/engine/api pages
+FILE_PATTERNS          = *.h *.md *.dox
+RECURSIVE              = YES
+STRIP_FROM_PATH        = ../src/engine/api
+STRIP_FROM_INC_PATH    = ../src/engine/api
+EXAMPLE_PATH           = examples
+EXAMPLE_PATTERNS       = *.cpp *.fs *.vs
+USE_MDFILE_AS_MAINPAGE = pages/index.md
+
+# Extraction
+JAVADOC_AUTOBRIEF      = YES
+MARKDOWN_SUPPORT       = YES
+TAB_SIZE               = 2
+EXTRACT_ALL            = NO
+EXTRACT_STATIC         = NO
+EXTRACT_ANON_NSPACES   = NO
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+SORT_MEMBER_DOCS       = NO
+SORT_BRIEF_DOCS        = NO
+SHOW_INCLUDE_FILES     = NO
+SHOW_USED_FILES        = NO
+INLINE_SIMPLE_STRUCTS  = NO
+
+# Macros: NJIN_PRINTF is a compiler attribute, hide it from the parser.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = "NJIN_PRINTF(x,y)="
+
+# Warnings: any public symbol without documentation is reported.
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = NO
+WARN_LOGFILE           = doxygen_warnings.txt
+
+# Output
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+SEARCHENGINE           = YES
+SOURCE_BROWSER         = NO
+ALPHABETICAL_INDEX     = NO
+HAVE_DOT               = NO
+
+# Box2D-like look: doxygen-awesome-css (vendored in theme/).
+HTML_COLORSTYLE        = LIGHT
+HTML_HEADER            = header.html
+HTML_EXTRA_STYLESHEET  = theme/doxygen-awesome.css \
+                         theme/doxygen-awesome-sidebar-only.css \
+                         theme/doxygen-awesome-sidebar-only-darkmode-toggle.css
+HTML_EXTRA_FILES       = theme/doxygen-awesome-darkmode-toggle.js \
+                         theme/doxygen-awesome-fragment-copy-button.js \
+                         theme/doxygen-awesome-paragraph-link.js \
+                         theme/doxygen-awesome-interactive-toc.js \
+                         theme/doxygen-awesome-tabs.js
