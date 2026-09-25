@@ -74,8 +74,14 @@ IntGrid chỉ để trang trí; va chạm là giá trị IntGrid.
 - njin::level_size(), njin::level_origin() cho biết kích thước và vị trí, để giới hạn camera.
 - njin::level_properties() trả về thuộc tính của cả bản đồ (Tiled) hay của level (LDtk).
 
-## Không hỗ trợ
+## Chỉ lưới vuông
 
-Những thứ sau có cảnh báo trong log thay vì lỗi im lặng: bản đồ đẳng cự (isometric) và lục
-giác, nén zstd (hãy lưu bằng CSV, zlib hoặc gzip), ô xoay chéo (vẽ không xoay), tileset gồm
-nhiều ảnh rời, ô animation, object template của Tiled, nhiều world trong một project LDtk.
+njin làm game top-down và platformer, nên chỉ nhận bản đồ **lưới vuông** (Tiled: Orientation
+"Orthogonal"; LDtk luôn là lưới vuông). Bản đồ isometric, staggered hay lục giác của Tiled bị
+từ chối: njin::level_load() trả về handle id 0 và ghi lý do vào log, thay vì vẽ sai.
+
+## Chưa hỗ trợ
+
+Những thứ sau có cảnh báo trong log thay vì lỗi im lặng: nén zstd (hãy lưu bằng CSV, zlib hoặc
+gzip), ô xoay chéo (vẽ không xoay), tileset gồm nhiều ảnh rời, ô animation, object template của
+Tiled, nhiều world trong một project LDtk.

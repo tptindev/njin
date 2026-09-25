@@ -544,9 +544,14 @@ level_handle load_tiled(njin_ctx &ctx, const std::string &path, const level_desc
     NJIN_WARN("level: %s is not a Tiled map", path.c_str());
     return level_handle{};
   }
+  // njin makes top-down and platformer games, which sit on a square grid.
+  // Drawing any other grid as squares would only produce a wrong level.
   const char *orientation = map["orientation"].string_or("orthogonal");
-  if (std::strcmp(orientation, "orthogonal") != 0)
-    NJIN_WARN("level: %s: %s maps are drawn as orthogonal", path.c_str(), orientation);
+  if (std::strcmp(orientation, "orthogonal") != 0) {
+    NJIN_WARN("level: %s has %s orientation; only orthogonal (square grid) maps are "
+              "supported", path.c_str(), orientation);
+    return level_handle{};
+  }
 
   const level_handle handle = level_begin(ctx);
   level_slot &slot = *level_slot_of(ctx, handle);

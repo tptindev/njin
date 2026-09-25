@@ -88,9 +88,11 @@ struct level_object {
 ///   prefab trùng tên với lớp của nó nếu có. Object hình ô (tile object) có
 ///   thêm njin::sprite.
 ///
-/// Hỗ trợ bản đồ vuông góc (orthogonal), bản đồ vô hạn, layer lồng nhau,
-/// dữ liệu CSV, base64, zlib, gzip. Không hỗ trợ (có cảnh báo): bản đồ đẳng
-/// cự / lục giác, nén zstd, ô xoay chéo, tileset nhiều ảnh, ô animation.
+/// Chỉ nhận bản đồ lưới vuông (orthogonal), loại mà game top-down và
+/// platformer dùng; bản đồ isometric, lục giác bị từ chối (trả về handle id 0,
+/// có ghi log). Hỗ trợ bản đồ vô hạn, layer lồng nhau, dữ liệu CSV, base64,
+/// zlib, gzip. Chưa hỗ trợ (có cảnh báo): nén zstd, ô xoay chéo, tileset nhiều
+/// ảnh, ô animation.
 /// @param ctx Context của engine.
 /// @param path Đường dẫn file bản đồ.
 /// @param desc Cách nạp.
