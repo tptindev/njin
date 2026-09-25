@@ -34,5 +34,35 @@
 /// @defgroup grp_log Log
 /// Ghi log theo mức độ, đổi nơi nhận log.
 
+/// @defgroup grp_draw Vẽ hình
+/// Hình chữ nhật, hình tròn, đường thẳng, tam giác; cách trộn màu và cắt vùng vẽ.
+
+/// @defgroup grp_text Chữ và font
+/// Vẽ chữ, đo chữ, nạp font có tiếng Việt.
+
+/// @defgroup grp_tilemap Tilemap
+/// Lưới ô chia chunk, không giới hạn kích thước, và va chạm với lưới.
+
+/// @defgroup grp_scene Scene
+/// Chia game thành các màn: menu, đang chơi, game over.
+
+/// @defgroup grp_window Cửa sổ và ứng dụng
+/// Thoát game, toàn màn hình, kích thước cửa sổ, con trỏ chuột.
+
+/// @defgroup grp_file File và lưu game
+/// Đọc, ghi file và thư mục lưu game của người dùng.
+
+/// @defgroup grp_math Toán học
+/// Phép toán vec2, hình chữ nhật, hình tròn, nội suy, màu có sẵn.
+
+/// @defgroup grp_collide Va chạm
+/// Kiểm tra chồng nhau và đẩy ra giữa điểm, hình chữ nhật, hình tròn.
+
+/// @defgroup grp_random Số ngẫu nhiên
+/// Bộ sinh số ngẫu nhiên lặp lại được.
+
+/// @defgroup grp_tween Timer và tween
+/// Bộ đếm thời gian, đường cong chuyển động và chuyển giá trị mượt.
+
 /// @defgroup grp_types Kiểu cơ bản
 /// Số nguyên, số thực, vector, màu và các handle.

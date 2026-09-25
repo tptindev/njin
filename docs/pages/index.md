@@ -16,9 +16,16 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Làm việc với entity, component, event | @subpage ecs |
 | Điều khiển camera | @subpage camera |
 | Xử lý phím và action | @subpage input |
+| Vẽ hình, chữ, font tiếng Việt | @subpage drawing |
 | Vẽ ảnh, dùng shader | @subpage rendering |
+| Nhân vật có animation | @subpage sprites |
+| Bản đồ ô vuông, va chạm với bản đồ | @subpage tilemap |
 | Làm hiệu ứng toàn màn hình | @subpage post_processing |
 | Phát tiếng động và nhạc nền | @subpage audio |
+| Chia game thành menu, màn chơi, game over | @subpage scenes |
+| Vật lý ổn định, tạm dừng, slow motion, timer, tween | @subpage time |
+| Toán vec2, va chạm, số ngẫu nhiên | @subpage math |
+| Cửa sổ, toàn màn hình, lưu game | @subpage window_files |
 | Ghi log | @subpage logging |
 | Hiểu cách engine được tổ chức bên trong | @subpage architecture |
 | Tra cứu từng hàm | [Nhóm API](topics.html) |
@@ -29,6 +36,13 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 
 Hàm `njin_run` chạy vòng lặp đến khi cửa sổ đóng. Mọi logic của game nằm trong
 **module**, xem @ref modules_systems.
+
+## Một game hoàn chỉnh
+
+`src/games/pong` là một game Pong đầy đủ viết trên njin: menu, chơi với máy hoặc hai
+người, tạm dừng, slow motion ở điểm quyết định, âm thanh tự sinh, lưu kỷ lục, cửa sổ
+đổi kích thước được. Đọc từ trên xuống như một chuyến tham quan engine. Build target
+`njin_pong` rồi chạy `build\bin\njin_pong.exe`.
 
 ## Cấu trúc mã nguồn
 

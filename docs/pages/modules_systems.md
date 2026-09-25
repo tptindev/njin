@@ -27,6 +27,7 @@ Mỗi frame gọi các phase theo thứ tự cố định. Xem chi tiết ở @r
 |---|---|---|
 | njin::phase_startup | Một lần, trước frame đầu | Tạo entity, nạp tài nguyên, gắn phím |
 | njin::phase_pre_update | Mỗi frame | Chuẩn bị trước khi cập nhật |
+| njin::phase_fixed_update | Theo nhịp cố định, 0 hoặc nhiều lần mỗi frame | Vật lý, va chạm (xem @ref time) |
 | njin::phase_update | Mỗi frame | Logic chính |
 | njin::phase_post_update | Mỗi frame | Việc cần làm sau khi mọi thứ đã cập nhật, ví dụ camera đi theo người chơi |
 | njin::phase_pre_render | Mỗi frame | Chuẩn bị vẽ |
@@ -51,7 +52,27 @@ Các quy tắc:
 - njin_mod_register() phải được gọi **trước** njin_run().
 - Tên module phải **duy nhất**. Đăng ký hai lần cùng một tên bị bỏ qua và ghi cảnh báo.
 - ecs_register() chỉ hợp lệ **bên trong `setup`**. Gọi ở nơi khác bị bỏ qua và ghi cảnh báo.
-- Module lõi của engine (camera) đã được đăng ký sẵn bởi njin_create().
+- Module lõi của engine (camera, âm thanh, sprite) đã được đăng ký sẵn bởi njin_create().
+
+### Đăng ký nhiều module một lần
+
+Thay vì gọi njin_mod_register() cho từng module, truyền cả danh sách:
+
+```cpp
+njin::njin_mod_register(*ctx, {input_module(), physics_module(), ui_module()});
+```
+
+Danh sách tạo lúc chạy (`std::vector<njin::mod_desc>`, `std::array`) cũng được:
+
+```cpp
+std::vector<njin::mod_desc> mods{input_module(), physics_module()};
+if (debug)
+  mods.push_back(debug_overlay_module());
+njin::njin_mod_register(*ctx, mods);
+```
+
+Kết quả giống hệt gọi từng module lần lượt: module đứng trước chạy trước trong cùng phase,
+và một module lỗi (ví dụ trùng tên) chỉ bị bỏ qua riêng nó, các module còn lại vẫn được đăng ký.
 
 ## Thứ tự chạy
 
@@ -71,6 +92,7 @@ Nếu không khai báo gì, các system chạy theo đúng thứ tự bạn đă
 | `after` | Các system phải chạy **trước** system này |
 | `before` | Các system phải chạy **sau** system này |
 | `order` | Giá trị nhỏ chạy trước, trong số các system đã được `after`/`before` cho phép (mặc định 100) |
+| `scene` | Chỉ chạy khi scene này đang chạy. Để trống là chạy ở mọi scene (xem @ref scenes) |
 
 Khi hai system cùng sẵn sàng và có cùng `order`, system đăng ký trước chạy trước.
 

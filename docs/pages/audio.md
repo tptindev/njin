@@ -50,6 +50,14 @@ Với njin::sound_play_once_at(), `pitch` 1 là như bản ghi và 2 là cao g�
 vào âm lượng của sound. Cả hai **chỉ áp dụng cho bản đó**: lần phát thường sau đó trở về
 1 và 1.
 
+### Âm thanh theo vị trí
+
+njin::sound_play_at() phát như njin::sound_play_once() kèm một vị trí trong thế giới:
+
+- **Âm lượng** giảm dần theo khoảng cách tới điểm camera đang nhìn: đủ to trong khoảng gần,
+  nhỏ dần đều, im hẳn ở khoảng xa. Chỉnh bằng njin::audio_set_range() (mặc định 200 và 1200).
+- **Trái phải**: tiếng lệch sang loa trái hoặc phải theo vị trí trên màn hình.
+
 ### Âm lượng và tắt tiếng
 
 - njin::sound_set_volume(): 1 là âm lượng gốc, 0 là im lặng. Áp dụng ngay cả cho những bản

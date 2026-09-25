@@ -48,6 +48,9 @@ const njin::vec2 target = njin::scr2w(ctx, njin::mouse_pos(ctx));
 
 Xem @ref input.
 
+njin::camera_bounds() trả về vùng thế giới đang hiện trên màn hình. Dùng để bỏ qua những
+thứ nằm ngoài màn hình; tilemap dùng nó để chỉ vẽ các chunk nhìn thấy.
+
 ## Camera và các phase vẽ
 
 Module camera của engine bật camera ở đầu `phase_pre_render` và tắt ở đầu `phase_post_render`:

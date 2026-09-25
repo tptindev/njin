@@ -38,13 +38,18 @@ Hai bước ở hai phase khác nhau:
 Kích thước thường bằng njin::screen_size(). Nếu đổi kích thước cửa sổ, hãy tạo
 lại render texture.
 
-## Hạn chế hiện tại
+## Hậu kỳ cho cả thế giới qua camera
 
-Cách trên áp hậu kỳ lên những thứ **bạn tự vẽ vào render texture**. Nó **chưa** áp
-được lên phần thế giới đang được module camera vẽ qua camera, vì:
+Cách trên áp hậu kỳ lên những thứ **bạn tự vẽ vào render texture**. Muốn áp lên **toàn bộ
+thế giới** mà camera đang vẽ (sprite, tilemap, mọi thứ trong `phase_render`), chỉ cần một
+dòng:
 
-- Module camera bật camera ở `phase_pre_render` và module của game chạy **sau** nó.
-- Nếu game gọi njin::render_texture_begin() sau đó, phép biến đổi camera bị đặt lại.
+```cpp
+njin::camera_set_post_shader(ctx, effect);         // bật
+njin::camera_set_post_shader(ctx, njin::shader_handle{}); // tắt
+```
 
-Muốn hậu kỳ cả thế giới có camera, cần engine hỗ trợ trực tiếp: module camera vẽ
-cảnh vào một render texture rồi mới ra màn hình qua shader. Đây là việc chưa làm.
+Engine vẽ thế giới vào một ảnh ngoài màn hình có kích thước bằng cửa sổ (tự tạo lại khi
+cửa sổ đổi kích thước), rồi vẽ ảnh đó ra màn hình qua shader. UI trong `phase_post_render`
+vẽ sau đó nên không bị ảnh hưởng. Đặt uniform như bình thường bằng các hàm
+`shader_set_*()`.

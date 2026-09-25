@@ -17,6 +17,7 @@ Trên Windows, hai script ở thư mục gốc lo hết:
 |---|---|
 | `build.bat` | Cấu hình bằng Ninja (Debug), cập nhật `compile_commands.json` cho clangd, rồi build |
 | `run.bat` | Build target `njin_sandbox` và chạy `build\bin\njin_sandbox.exe` |
+| `build\bin\njin_pong.exe` | Game Pong mẫu, build cùng `build.bat` |
 
 Hoặc chạy CMake trực tiếp:
 
@@ -64,3 +65,4 @@ rồi thêm `add_subdirectory(src/games/my_game)` vào `CMakeLists.txt` gốc.
 - @ref modules_systems : viết logic cho game
 - @ref game_loop : biết một frame chạy theo thứ tự nào
 - @ref ecs : tạo entity và component
+- `src/games/pong`: một game hoàn chỉnh để đọc và sửa thử

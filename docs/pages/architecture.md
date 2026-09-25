@@ -24,10 +24,16 @@ nằm trong `runtime/njin_ctx_impl.h`:
 |---|---|
 | `dt`, `elapsed` | Thời gian, cập nhật mỗi frame |
 | `cfg` | Cấu hình đã truyền vào njin_create() |
-| `window` | Mở cửa sổ khi tạo, đóng khi hủy |
+| `time` | Thời gian, tốc độ, tạm dừng, bộ tích lũy fixed update |
+| `random` | Bộ sinh số ngẫu nhiên dùng chung |
+| `window` | Mở cửa sổ và thiết bị âm thanh khi tạo, đóng khi hủy |
 | `input` | Trạng thái phím của frame trước và frame này, danh sách action |
 | `shader`, `texture`, `render_texture` | Các store tài nguyên GPU |
+| `font` | Store font |
 | `audio` | Store âm thanh: sound và music |
+| `post` | Ảnh ngoài màn hình của shader hậu kỳ (module camera) |
+| `sprites` | Ảnh đã bake của các chunk tilemap (module sprite) |
+| `scene` | Danh sách scene, scene hiện tại và yêu cầu chuyển |
 | `ecs` | Registry, dispatcher và lịch chạy system |
 
 Thứ tự khai báo quan trọng: thành viên bị hủy theo thứ tự **ngược**, và `window`
@@ -78,10 +84,12 @@ và nối số còn lại theo thứ tự đăng ký.
 ## Module lõi
 
 njin_create() đăng ký sẵn các module lõi trước khi trả về (hiện là module camera và
-module âm thanh, trong `runtime/modules/`). Vì chúng đăng ký **trước** module của game nên system của
+module âm thanh và module sprite, trong `runtime/modules/`). Vì chúng đăng ký **trước** module của game nên system của
 chúng chạy trước trong cùng phase. Module camera dựa vào điều này để bật camera
 trước mọi lệnh vẽ của game. Module âm thanh mỗi frame cấp dữ liệu cho các stream nhạc và
-phát lại các sound lặp (xem @ref audio).
+phát lại các sound lặp (xem @ref audio). Module sprite chạy animation, bake chunk tilemap
+và vẽ mọi sprite và tilemap trong `phase_render` trước system vẽ của game (xem @ref sprites
+và @ref tilemap).
 
 ## Thêm một module lõi
 

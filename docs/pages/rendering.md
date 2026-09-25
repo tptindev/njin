@@ -1,7 +1,7 @@
 # Vẽ ảnh và shader {#rendering}
 
-Hiện njin có hai thứ để vẽ: **texture** (ảnh từ file) và **render texture** (ảnh
-ngoài màn hình, xem @ref post_processing). Cả hai được vẽ bằng lệnh có tên `*_draw`.
+Trang này nói về **texture** (ảnh từ file) và **shader**. Hình khối và chữ ở @ref drawing,
+sprite có animation ở @ref sprites, ảnh ngoài màn hình ở @ref post_processing.
 
 ## Handle
 

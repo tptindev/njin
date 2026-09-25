@@ -6,8 +6,10 @@ njin_run() chạy vòng lặp sau:
 flowchart TD
   S[phase_startup<br/>một lần] --> L{Cửa sổ còn mở?}
   L -- có --> T[Cập nhật thời gian và đọc phím]
-  T --> U1[phase_pre_update]
-  U1 --> U2[phase_update]
+  T --> SC[Chuyển scene nếu có yêu cầu]
+  SC --> U1[phase_pre_update]
+  U1 --> FX[phase_fixed_update<br/>0..n lần]
+  FX --> U2[phase_update]
   U2 --> U3[phase_post_update]
   U3 --> E[Phát event đã enqueue]
   E --> B[Bắt đầu vẽ và xóa nền]
@@ -23,9 +25,10 @@ flowchart TD
 
 Trước phase đầu tiên, engine:
 
-1. Cập nhật thời gian: delta() là thời gian của frame trước, elapsed() là thời
-   gian từ lúc mở cửa sổ (cả hai tính bằng giây).
-2. Đọc trạng thái phím (xem @ref input). Trạng thái này **không đổi** trong suốt frame.
+1. Cập nhật thời gian: delta() là thời gian của frame trước (đã nhân tốc độ, bằng 0 khi
+   tạm dừng), elapsed() là thời gian từ lúc mở cửa sổ. Xem @ref time.
+2. Đọc trạng thái input (xem @ref input). Trạng thái này **không đổi** trong suốt frame.
+3. Chuyển scene nếu frame trước có gọi scene_set() (xem @ref scenes).
 
 ## Nhóm update
 

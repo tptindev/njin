@@ -33,6 +33,9 @@ Ví dụ một lần nhấn giữ 3 frame rồi thả:
 | 4 | vẫn giữ | – | ✔ | – |
 | 5 | thả ra | – | – | ✔ |
 
+@note Một phím được nhấn rồi nhả **giữa hai frame** (gõ cực nhanh) vẫn được tính:
+`*_pressed` đúng ở frame đó và `*_released` đúng ở frame sau.
+
 @warning Ở frame nhấn đầu tiên (frame 2), `*_held` trả về **false**. Muốn biết
 "nút đang được ấn", dùng `*_pressed(...) || *_held(...)`.
 
