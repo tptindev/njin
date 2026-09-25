@@ -47,6 +47,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(raylib entt)
 
+# raylib saves a screenshot on F12 by default, silently, in every game. Games
+# built on njin may want F12 for something else; njin::screenshot() is the
+# explicit replacement.
+target_compile_definitions(raylib PRIVATE SUPPORT_SCREEN_CAPTURE=0)
+
 add_subdirectory(src/engine/api)
 add_subdirectory(src/engine/runtime)
 add_subdirectory(src/games/sandbox)
+add_subdirectory(src/games/pong)
