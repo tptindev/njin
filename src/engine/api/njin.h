@@ -1,8 +1,17 @@
 #pragma once
+#include "_collide.h"
 #include "_comps.h"
+#include "_math.h"
+#include "_random.h"
+#include "_tilemap.h"
+#include "_tween.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
+#include "njin_draw.h"
+#include "njin_file.h"
 #include "njin_log.h"
+#include "njin_scene.h"
+#include "njin_window.h"
 
 namespace njin {
 /// Handle mờ của engine. Tạo bằng njin_create(), giải phóng bằng

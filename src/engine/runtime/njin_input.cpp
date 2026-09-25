@@ -1,4 +1,5 @@
 #include "njin_input.h"
+#include <array>
 #include "njin2rl.h"
 #include "rl2njin.h"
 #include <raylib.h>
@@ -111,10 +112,33 @@ bool action_edge(const input_store &input, action_handle handle, edge e) {
 void input_key_poll(input_store &input) {
   input.prev = input.cur;
 
+  // raylib key code -> njin key, built once.
+  static const auto from_rl = [] {
+    std::array<key_code, 512> table{};
+    table.fill(key_none);
+    for (i32 k = key_none + 1; k < key_count; k++) {
+      i32 rl_key = KEY_NULL;
+      to_raylib((key_code)k, rl_key);
+      if (rl_key > 0 && rl_key < (i32)table.size())
+        table[(usize)rl_key] = (key_code)k;
+    }
+    return table;
+  }();
+
   for (i32 k = key_none + 1; k < key_count; k++) {
     i32 rl_key = KEY_NULL;
     to_raylib((key_code)k, rl_key);
     input.cur.keys[k] = IsKeyDown(rl_key);
+  }
+  // A key pressed and released between two frames reads as up here, and its
+  // press would be lost. raylib queues every press, so a queued key that is
+  // already up counts as down for this one frame: pressed now, released next.
+  for (i32 rl_key = GetKeyPressed(); rl_key != 0; rl_key = GetKeyPressed()) {
+    if (rl_key > 0 && rl_key < (i32)from_rl.size()) {
+      const key_code key = from_rl[(usize)rl_key];
+      if (key != key_none && !input.prev.keys[key])
+        input.cur.keys[key] = true;
+    }
   }
   for (i32 b = 0; b < mouse_button_count; b++)
     input.cur.mouse[b] = IsMouseButtonDown(b);

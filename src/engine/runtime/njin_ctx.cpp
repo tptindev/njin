@@ -1,10 +1,26 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_cfg.h"
 #include <entt/entity/registry.hpp>
 
 namespace njin {
-f32 delta(const njin_ctx &ctx) { return ctx.dt; }
-f32 elapsed(const njin_ctx &ctx) { return ctx.elapsed; }
+f32 delta(const njin_ctx &ctx) {
+  return ctx.time.in_fixed ? ctx.time.fixed_dt : ctx.time.dt;
+}
+f32 delta_real(const njin_ctx &ctx) { return ctx.time.dt_real; }
+f32 elapsed(const njin_ctx &ctx) { return ctx.time.elapsed; }
+
+void time_set_scale(njin_ctx &ctx, f32 scale) {
+  ctx.time.scale = scale < 0.0f ? 0.0f : scale;
+}
+f32 time_scale(const njin_ctx &ctx) { return ctx.time.scale; }
+void time_set_paused(njin_ctx &ctx, bool paused) { ctx.time.paused = paused; }
+bool time_paused(const njin_ctx &ctx) { return ctx.time.paused; }
+f32 fixed_delta(const njin_ctx &ctx) { return ctx.time.fixed_dt; }
+f32 fixed_alpha(const njin_ctx &ctx) { return ctx.time.fixed_alpha; }
+
+rng &random(njin_ctx &ctx) { return ctx.random; }
+
 entt::registry &world(njin_ctx &ctx) { return ctx.ecs.registry; }
 entt::dispatcher &events(njin_ctx &ctx) { return ctx.ecs.dispatcher; }
 bool key_pressed(const njin_ctx &ctx, key_code key) {
@@ -260,6 +276,31 @@ void sound_play_restart(njin_ctx &ctx, sound_handle handle) {
 
 void sound_play_loop(njin_ctx &ctx, sound_handle handle) {
   sound_store_play_loop(ctx.audio, handle);
+}
+
+void sound_play_at(njin_ctx &ctx, sound_handle handle, vec2 world_pos) {
+  const audio_store &audio = ctx.audio;
+  // The listener is where the camera looks, so what is centred on screen is
+  // heard loudest.
+  const f32 dist = distance(camera_active(ctx).target, world_pos);
+  f32 gain = 1.0f;
+  if (dist >= audio.range_far)
+    gain = 0.0f;
+  else if (dist > audio.range_near)
+    gain = 1.0f - (dist - audio.range_near) / (audio.range_far - audio.range_near);
+  if (gain <= 0.0f)
+    return;
+  // Pan from where it lands on screen: the left edge is hard left.
+  const f32 half_w = (f32)screen_size(ctx).x * 0.5f;
+  const f32 pan = half_w > 0.0f ? (w2scr(ctx, world_pos).x - half_w) / half_w : 0.0f;
+  sound_store_play_once(ctx.audio, handle, 1.0f, gain, clamp(pan, -1.0f, 1.0f));
+}
+
+void audio_set_range(njin_ctx &ctx, f32 full_until, f32 silent_from) {
+  const f32 lo = full_until < 0.0f ? 0.0f : full_until;
+  ctx.audio.range_near = lo;
+  // Kept strictly above the near range so the fade never divides by zero.
+  ctx.audio.range_far = silent_from > lo ? silent_from : lo + 1e-3f;
 }
 
 void sound_stop(njin_ctx &ctx, sound_handle handle) {

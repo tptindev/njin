@@ -20,11 +20,49 @@ Camera2D active_raylib_camera(const njin_ctx &ctx) {
   return camera;
 }
 
+// (Re)creates the post target when the window size changed.
+bool ensure_post_target(camera_post &post) {
+  const i32 w = GetScreenWidth();
+  const i32 h = GetScreenHeight();
+  if (IsRenderTextureValid(post.target) && post.target.texture.width == w &&
+      post.target.texture.height == h)
+    return true;
+  if (IsRenderTextureValid(post.target))
+    UnloadRenderTexture(post.target);
+  post.target = LoadRenderTexture(w, h);
+  return IsRenderTextureValid(post.target);
+}
+
 void begin_world_space(njin_ctx &ctx) {
+  camera_post &post = ctx.post;
+  post.drawing = shader_slot_of(ctx.shader, post.shader) != nullptr &&
+                 ensure_post_target(post);
+  if (post.drawing) {
+    BeginTextureMode(post.target);
+    Color clear{};
+    to_raylib(ctx.cfg.clear_bg_color, clear);
+    ClearBackground(clear);
+  }
   BeginMode2D(active_raylib_camera(ctx));
 }
 
-void end_world_space(njin_ctx &) { EndMode2D(); }
+void end_world_space(njin_ctx &ctx) {
+  EndMode2D();
+  camera_post &post = ctx.post;
+  if (!post.drawing)
+    return;
+  post.drawing = false;
+  EndTextureMode();
+  const Texture2D &texture = post.target.texture;
+  // Framebuffers are stored bottom-up: a negative source height flips it.
+  const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
+  const shader_slot *slot = shader_slot_of(ctx.shader, post.shader);
+  if (slot != nullptr)
+    BeginShaderMode(slot->shader);
+  DrawTextureRec(texture, source, Vector2{0.0f, 0.0f}, WHITE);
+  if (slot != nullptr)
+    EndShaderMode();
+}
 
 void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_pre_render, begin_world_space);
@@ -34,6 +72,34 @@ void setup(njin_ctx &ctx) {
 
 mod_desc camera_module() {
   return mod_desc{.name = "njin.camera", .setup = setup};
+}
+
+camera_post::~camera_post() {
+  if (IsRenderTextureValid(target))
+    UnloadRenderTexture(target);
+}
+
+void camera_set_post_shader(njin_ctx &ctx, shader_handle shader) {
+  ctx.post.shader = shader;
+}
+
+rect camera_bounds(const njin_ctx &ctx) {
+  const Camera2D camera = active_raylib_camera(ctx);
+  const f32 w = (f32)GetScreenWidth();
+  const f32 h = (f32)GetScreenHeight();
+  const Vector2 corners[4] = {{0.0f, 0.0f}, {w, 0.0f}, {0.0f, h}, {w, h}};
+  // With a rotated camera the visible area is a rotated rectangle; its
+  // bounding box is what callers culling against it want.
+  Vector2 lo = GetScreenToWorld2D(corners[0], camera);
+  Vector2 hi = lo;
+  for (const Vector2 &corner : corners) {
+    const Vector2 p = GetScreenToWorld2D(corner, camera);
+    lo.x = p.x < lo.x ? p.x : lo.x;
+    lo.y = p.y < lo.y ? p.y : lo.y;
+    hi.x = p.x > hi.x ? p.x : hi.x;
+    hi.y = p.y > hi.y ? p.y : hi.y;
+  }
+  return rect{{lo.x, lo.y}, {hi.x - lo.x, hi.y - lo.y}};
 }
 
 camera_view camera_active(const njin_ctx &ctx) {

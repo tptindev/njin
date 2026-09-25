@@ -23,9 +23,15 @@ using sys_fnc = void (*)(njin_ctx &ctx);
 /// đầu và kết thúc vẽ. Module camera của engine vẽ `phase_render` trong không
 /// gian thế giới (qua camera đang dùng) và `phase_post_render` trong không
 /// gian màn hình, nên dùng `phase_post_render` cho UI.
+///
+/// `phase_fixed_update` chạy theo nhịp cố định (mặc định 60 lần mỗi giây, xem
+/// `njin_cfg::fixed_hz`): 0, 1 hay nhiều lần trong một frame tùy FPS. Trong
+/// phase này delta() trả về đúng một nhịp. Đặt vật lý ở đây để kết quả không
+/// phụ thuộc FPS.
 enum sys_phase {
   phase_startup,      ///< Một lần, trước frame đầu tiên.
   phase_pre_update,   ///< Mỗi frame, trước khi cập nhật.
+  phase_fixed_update, ///< Theo nhịp cố định, 0 hoặc nhiều lần mỗi frame. Cho vật lý.
   phase_update,       ///< Mỗi frame, logic chính của game.
   phase_post_update,  ///< Mỗi frame, sau khi cập nhật. Event được phát ngay sau phase này.
   phase_pre_render,   ///< Mỗi frame, trước khi vẽ thế giới.
@@ -46,6 +52,9 @@ struct sys_desc {
   std::vector<sys_fnc> after{};
   /// Các system phải chạy sau system này.
   std::vector<sys_fnc> before{};
+  /// Chỉ chạy khi scene này đang chạy (xem scene_register()). Handle id 0 là
+  /// chạy ở mọi scene.
+  scene_handle scene{};
 };
 
 /// Mô tả một module: một nhóm system có tên.

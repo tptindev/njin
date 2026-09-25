@@ -1,8 +1,11 @@
 #pragma once
 #include "_mod.h"
+#include "_random.h"
 #include "_types.h"
 #include <entt/entity/registry.hpp>
 #include <entt/signal/dispatcher.hpp>
+#include <initializer_list>
+#include <span>
 
 namespace njin {
 // Opaque: created with njin_create (njin.h), only accessed through the
@@ -52,22 +55,101 @@ void ecs_register(njin_ctx &ctx, sys_phase phase, const sys_desc &desc);
 /// @param ctx Context của engine.
 /// @param desc Mô tả module.
 void njin_mod_register(njin_ctx &ctx, const mod_desc &desc);
+
+/// Đăng ký nhiều module một lần, theo đúng thứ tự trong danh sách.
+///
+/// Giống hệt gọi njin_mod_register() cho từng module lần lượt: module đứng
+/// trước chạy trước trong cùng phase, và một module lỗi (trùng tên, đăng ký
+/// sau njin_run()) chỉ bị bỏ qua riêng nó.
+/// @code
+/// njin::njin_mod_register(*ctx, {input_module(), physics_module(), ui_module()});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param mods Các module, theo thứ tự đăng ký.
+void njin_mod_register(njin_ctx &ctx, std::initializer_list<mod_desc> mods);
+
+/// Đăng ký nhiều module từ một danh sách tạo lúc chạy, ví dụ một
+/// `std::vector<mod_desc>` hay `std::array`. Cùng quy tắc với bản nhận danh
+/// sách trực tiếp.
+/// @param ctx Context của engine.
+/// @param mods Các module, theo thứ tự đăng ký.
+void njin_mod_register(njin_ctx &ctx, std::span<const mod_desc> mods);
 /// @}
 
 /// @addtogroup grp_time
 /// @{
 
-/// Thời gian của frame trước, tính bằng giây.
+/// Thời gian của frame trước, tính bằng giây, đã nhân với tốc độ thời gian.
 ///
-/// Nhân vận tốc với giá trị này để chuyển động không phụ thuộc FPS.
+/// Nhân vận tốc với giá trị này để chuyển động không phụ thuộc FPS. Bằng 0 khi
+/// đang tạm dừng (time_set_paused()). Trong `phase_fixed_update` hàm này trả
+/// về đúng một nhịp cố định, xem fixed_delta().
 /// @param ctx Context của engine.
-/// @return Thời gian của frame trước, tính bằng giây.
+/// @return Thời gian của frame, tính bằng giây.
 f32 delta(const njin_ctx &ctx);
+
+/// Thời gian thật của frame trước, không bị tốc độ thời gian hay tạm dừng ảnh
+/// hưởng. Dùng cho thứ vẫn phải chạy khi game dừng, như menu tạm dừng.
+/// @param ctx Context của engine.
+/// @return Thời gian thật của frame, tính bằng giây.
+f32 delta_real(const njin_ctx &ctx);
+
+/// Đặt tốc độ thời gian của game. 1 là bình thường, 0.5 là chậm một nửa.
+///
+/// Ảnh hưởng delta(), `phase_fixed_update` và animation của sprite. Giá trị âm
+/// được coi là 0.
+/// @param ctx Context của engine.
+/// @param scale Tốc độ thời gian.
+void time_set_scale(njin_ctx &ctx, f32 scale);
+
+/// Tốc độ thời gian hiện tại.
+/// @param ctx Context của engine.
+/// @return Tốc độ thời gian, mặc định 1.
+f32 time_scale(const njin_ctx &ctx);
+
+/// Tạm dừng hoặc chạy tiếp thời gian của game.
+///
+/// Khi dừng, delta() trả về 0 và `phase_fixed_update` không chạy, nhưng các
+/// phase khác vẫn chạy mỗi frame: input vẫn đọc được, menu vẫn vẽ được. Giữ
+/// nguyên tốc độ thời gian đã đặt.
+/// @param ctx Context của engine.
+/// @param paused `true` để tạm dừng.
+void time_set_paused(njin_ctx &ctx, bool paused);
+
+/// Game có đang tạm dừng không.
+/// @param ctx Context của engine.
+/// @return `true` nếu đang tạm dừng.
+bool time_paused(const njin_ctx &ctx);
+
+/// Độ dài một nhịp của `phase_fixed_update`, bằng `1 / njin_cfg::fixed_hz`.
+/// @param ctx Context của engine.
+/// @return Độ dài một nhịp, tính bằng giây.
+f32 fixed_delta(const njin_ctx &ctx);
+
+/// Phần nhịp cố định còn dư sau `phase_fixed_update` của frame này, từ 0 đến 1.
+///
+/// Dùng để nội suy vị trí khi vẽ, cho chuyển động mượt dù FPS khác nhịp vật lý:
+/// `draw_pos = lerp(prev_pos, pos, fixed_alpha(ctx))`.
+/// @param ctx Context của engine.
+/// @return Tỉ lệ từ 0 đến 1.
+f32 fixed_alpha(const njin_ctx &ctx);
 
 /// Thời gian đã trôi qua kể từ lúc mở cửa sổ, tính bằng giây.
 /// @param ctx Context của engine.
 /// @return Thời gian đã chạy, tính bằng giây.
 f32 elapsed(const njin_ctx &ctx);
+/// @}
+
+/// @addtogroup grp_random
+/// @{
+
+/// Bộ sinh số ngẫu nhiên dùng chung của engine.
+///
+/// Được gieo hạt giống từ thời gian lúc mở game, nên mỗi lần chơi mỗi khác.
+/// Gọi `random(ctx).reseed(n)` để có dãy số lặp lại được, ví dụ khi thử lỗi.
+/// @param ctx Context của engine.
+/// @return Bộ sinh số ngẫu nhiên.
+rng &random(njin_ctx &ctx);
 /// @}
 
 /// @addtogroup grp_camera
@@ -95,6 +177,24 @@ vec2 w2scr(const njin_ctx &ctx, vec2 pos);
 /// @param pos Điểm trên màn hình (pixel).
 /// @return Vị trí tương ứng trong thế giới.
 vec2 scr2w(const njin_ctx &ctx, vec2 pos);
+
+/// Vùng thế giới đang hiện trên màn hình.
+///
+/// Khi camera xoay, đây là hình chữ nhật thẳng trục bao quanh vùng nhìn thấy.
+/// Dùng để bỏ qua việc vẽ những thứ nằm ngoài màn hình.
+/// @param ctx Context của engine.
+/// @return Hình chữ nhật trong thế giới.
+rect camera_bounds(const njin_ctx &ctx);
+
+/// Áp một shader hậu kỳ lên toàn bộ thế giới đi qua camera.
+///
+/// Khi bật, mọi thứ vẽ trong `phase_pre_render` và `phase_render` (kể cả sprite
+/// và tilemap) được vẽ vào một ảnh ngoài màn hình, rồi vẽ ra màn hình qua
+/// shader này. UI vẽ trong `phase_post_render` không bị ảnh hưởng. Đặt uniform
+/// cho shader như bình thường bằng các hàm shader_set_*().
+/// @param ctx Context của engine.
+/// @param shader Shader hậu kỳ. Handle id 0 để tắt.
+void camera_set_post_shader(njin_ctx &ctx, shader_handle shader);
 /// @}
 
 /// @addtogroup grp_input
@@ -591,6 +691,26 @@ void sound_play_restart(njin_ctx &ctx, sound_handle handle);
 /// @param ctx Context của engine.
 /// @param handle Sound cần phát lặp.
 void sound_play_loop(njin_ctx &ctx, sound_handle handle);
+
+/// Phát sound như sound_play_once(), kèm vị trí trong thế giới.
+///
+/// Âm lượng giảm dần theo khoảng cách tới điểm camera đang nhìn, và âm thanh
+/// lệch sang loa trái hoặc phải theo vị trí trên màn hình. Xem
+/// audio_set_range().
+/// @param ctx Context của engine.
+/// @param handle Sound cần phát.
+/// @param world_pos Nơi phát ra tiếng, trong thế giới.
+void sound_play_at(njin_ctx &ctx, sound_handle handle, vec2 world_pos);
+
+/// Khoảng cách nghe được của sound_play_at().
+///
+/// Gần hơn `full_until` thì nghe đủ âm lượng, xa hơn `silent_from` thì im
+/// lặng, ở giữa thì nhỏ dần đều. Mặc định là 200 và 1200 đơn vị thế giới.
+/// @param ctx Context của engine.
+/// @param full_until Khoảng cách bắt đầu nhỏ dần.
+/// @param silent_from Khoảng cách im lặng hẳn. Nhỏ hơn `full_until` thì được
+/// nâng bằng `full_until`.
+void audio_set_range(njin_ctx &ctx, f32 full_until, f32 silent_from);
 
 /// Dừng mọi bản đang phát của sound và bỏ chế độ lặp.
 /// @param ctx Context của engine.

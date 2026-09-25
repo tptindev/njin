@@ -41,6 +41,9 @@ struct music_slot {
 struct audio_store {
   std::vector<sound_slot> sounds;
   std::vector<music_slot> musics;
+  // sound_play_at: full volume within range_near, silent past range_far.
+  f32 range_near = 200.0f;
+  f32 range_far = 1200.0f;
 
   audio_store() = default;
   ~audio_store();
@@ -73,8 +76,9 @@ sound_handle sound_store_load_samples(audio_store &store, const f32 *samples,
 void sound_store_unload(audio_store &store, sound_handle handle);
 void sound_store_set_volume(audio_store &store, sound_handle handle, f32 volume);
 void sound_store_set_muted(audio_store &store, sound_handle handle, bool muted);
+// pan is -1 (left) .. 1 (right), 0 centred.
 void sound_store_play_once(audio_store &store, sound_handle handle, f32 pitch,
-                           f32 gain);
+                           f32 gain, f32 pan = 0.0f);
 void sound_store_play_restart(audio_store &store, sound_handle handle);
 void sound_store_play_loop(audio_store &store, sound_handle handle);
 void sound_store_stop(audio_store &store, sound_handle handle);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "_types.h"
+#include "njin_draw.h"
 #include <raylib.h>
 #include <vector>
 
@@ -12,6 +13,8 @@ namespace njin {
 struct texture_slot {
   Texture2D texture{};
   bool alive = false;
+  // Kept so derived images (tilemap chunks) can be sampled the same way.
+  texture_filter filter = filter_linear;
 };
 
 // Owns the GPU textures of every live slot. The destructor frees them, so it
@@ -64,6 +67,11 @@ void texture_store_unload(texture_store &store, texture_handle handle);
 vec2 texture_store_size(const texture_store &store, texture_handle handle);
 void texture_store_draw(const texture_store &store, texture_handle handle,
                         vec2 pos, rgba tint);
+void texture_store_draw_ex(const texture_store &store, texture_handle handle,
+                           const texture_draw_desc &desc);
+void texture_store_set_filter(texture_store &store, texture_handle handle,
+                              texture_filter filter);
+int texture_filter_to_raylib(texture_filter filter);
 
 // Returns an invalid handle if the size is 0 or the framebuffer is incomplete.
 render_texture_handle render_texture_store_load(render_texture_store &store,

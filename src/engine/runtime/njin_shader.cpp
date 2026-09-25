@@ -1,5 +1,7 @@
 #include "njin_shader.h"
 #include "njin_log.h"
+#include "njin_path.h"
+#include <string>
 
 namespace njin {
 namespace {
@@ -45,6 +47,10 @@ shader_handle shader_store_load(shader_store &store, const char *vspath,
     NJIN_WARN("shader: nothing to load, both paths are null");
     return shader_handle{};
   }
+  const std::string vs = vspath != nullptr ? asset_path(vspath) : std::string{};
+  const std::string fs = fspath != nullptr ? asset_path(fspath) : std::string{};
+  vspath = vspath != nullptr ? vs.c_str() : nullptr;
+  fspath = fspath != nullptr ? fs.c_str() : nullptr;
   if (!stage_readable(vspath, "vertex") ||
       !stage_readable(fspath, "fragment"))
     return shader_handle{};

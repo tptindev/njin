@@ -7,8 +7,8 @@
 namespace njin {
 namespace {
 constexpr const char *phase_names[phase_count] = {
-    "startup",    "pre_update", "update",      "post_update",
-    "pre_render", "render",     "post_render", "shutdown"};
+    "startup",    "pre_update", "fixed_update", "update",  "post_update",
+    "pre_render", "render",     "post_render",  "shutdown"};
 
 // Adjacency list of "a must run before b" edges between systems of one
 // module and phase, indexed by position in the pending list.
@@ -71,13 +71,13 @@ dep_graph build_graph(const std::vector<sys_desc> &systems, const char *label,
 
 // Topological sort. Among systems that are ready, the lowest order runs
 // first; ties keep registration order. On a cycle the remaining systems are
-// appended in registration order.
-std::vector<sys_fnc> sort_systems(const std::vector<sys_desc> &systems,
+// appended in registration order. Returns indices into `systems`.
+std::vector<usize> sort_systems(const std::vector<sys_desc> &systems,
                                   const char *label, sys_phase phase) {
   const usize count = systems.size();
   dep_graph graph = build_graph(systems, label, phase);
   std::vector<bool> placed(count, false);
-  std::vector<sys_fnc> sorted;
+  std::vector<usize> sorted;
   sorted.reserve(count);
 
   while (sorted.size() < count) {
@@ -97,14 +97,14 @@ std::vector<sys_fnc> sort_systems(const std::vector<sys_desc> &systems,
                  label, phase_names[phase]);
       for (usize i = 0; i < count; ++i) {
         if (!placed[i]) {
-          sorted.push_back(systems[i].fnc);
+          sorted.push_back(i);
         }
       }
       break;
     }
 
     placed[best] = true;
-    sorted.push_back(systems[best].fnc);
+    sorted.push_back(best);
     for (const usize then : graph.next[best]) {
       --graph.indegree[then];
     }
@@ -158,8 +158,10 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
 
   for (i32 p = 0; p < phase_count; ++p) {
     const auto phase = static_cast<sys_phase>(p);
-    for (const sys_fnc fnc : sort_systems(ecs.pending[p], label, phase)) {
-      ecs.schedule[p].push_back(fnc);
+    const std::vector<sys_desc> &pending = ecs.pending[p];
+    for (const usize i : sort_systems(pending, label, phase)) {
+      ecs.schedule[p].push_back(
+          scheduled_system{.fnc = pending[i].fnc, .scene = pending[i].scene});
     }
     ecs.pending[p].clear();
   }
@@ -170,9 +172,20 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
   NJIN_INFO("module registered: %s", label);
 }
 
+void njin_mod_register(njin_ctx &ctx, std::span<const mod_desc> mods) {
+  for (const mod_desc &desc : mods)
+    njin_mod_register(ctx, desc);
+}
+
+void njin_mod_register(njin_ctx &ctx, std::initializer_list<mod_desc> mods) {
+  njin_mod_register(ctx, std::span<const mod_desc>(mods.begin(), mods.size()));
+}
+
 void ecs_run(njin_ctx &ctx, sys_phase phase) {
-  for (const sys_fnc fnc : ctx.ecs.schedule[phase]) {
-    fnc(ctx);
+  const u32 current = ctx.scene.current.id;
+  for (const scheduled_system &sys : ctx.ecs.schedule[phase]) {
+    if (sys.scene.id == 0 || sys.scene.id == current)
+      sys.fnc(ctx);
   }
 }
 } // namespace njin

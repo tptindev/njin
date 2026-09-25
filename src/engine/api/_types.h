@@ -107,6 +107,22 @@ struct music_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một font, tạo bởi font_load().
+///
+/// `id == 0` là font mặc định của engine (chỉ có ký tự ASCII). Font đã unload
+/// cũng được thay bằng font mặc định.
+struct font_handle {
+  u32 id = 0; ///< 0 nghĩa là font mặc định.
+};
+
+/// Định danh của một scene, tạo bởi scene_register().
+///
+/// `id == 0` là "không có scene". Trong njin::sys_desc, scene 0 nghĩa là system
+/// chạy ở mọi scene.
+struct scene_handle {
+  u32 id = 0; ///< 0 nghĩa là không có scene.
+};
+
 /// Định danh của một texture, tạo bởi texture_load().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.

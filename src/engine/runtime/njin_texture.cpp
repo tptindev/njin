@@ -1,6 +1,8 @@
 #include "njin_texture.h"
 #include "njin2rl.h"
 #include "njin_log.h"
+#include "njin_path.h"
+#include <string>
 
 namespace njin {
 namespace {
@@ -24,18 +26,23 @@ texture_handle texture_store_load(texture_store &store, const char *path) {
     return texture_handle{};
   }
   // raylib only logs a missing file; fail loudly with the path instead.
-  if (!FileExists(path)) {
+  const std::string resolved = asset_path(path);
+  if (!FileExists(resolved.c_str())) {
     NJIN_WARN("texture: file not found: %s", path);
     return texture_handle{};
   }
 
-  const Texture2D texture = LoadTexture(path);
+  const Texture2D texture = LoadTexture(resolved.c_str());
   if (!IsTextureValid(texture)) {
     NJIN_WARN("texture: failed to load: %s", path);
     return texture_handle{};
   }
 
-  store.slots.push_back(texture_slot{.texture = texture, .alive = true});
+  // raylib samples new textures with POINT; njin documents linear as the
+  // default and leaves pixel art to opt in with texture_set_filter.
+  SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+  store.slots.push_back(texture_slot{
+      .texture = texture, .alive = true, .filter = filter_linear});
   return texture_handle{.id = (u32)store.slots.size()};
 }
 
@@ -69,6 +76,45 @@ void texture_store_draw(const texture_store &store, texture_handle handle,
   Color color{};
   to_raylib(tint, color);
   DrawTextureV(slot->texture, position, color);
+}
+
+int texture_filter_to_raylib(texture_filter filter) {
+  return filter == filter_nearest ? TEXTURE_FILTER_POINT
+                                  : TEXTURE_FILTER_BILINEAR;
+}
+
+void texture_store_set_filter(texture_store &store, texture_handle handle,
+                              texture_filter filter) {
+  texture_slot *slot = texture_slot_of(store, handle);
+  if (slot == nullptr)
+    return;
+  slot->filter = filter;
+  SetTextureFilter(slot->texture, texture_filter_to_raylib(filter));
+}
+
+void texture_store_draw_ex(const texture_store &store, texture_handle handle,
+                           const texture_draw_desc &desc) {
+  const texture_slot *slot = texture_slot_of(store, handle);
+  if (slot == nullptr)
+    return;
+  const Texture2D &texture = slot->texture;
+  const bool whole = desc.source.size.x == 0.0f || desc.source.size.y == 0.0f;
+  const f32 sw = whole ? (f32)texture.width : desc.source.size.x;
+  const f32 sh = whole ? (f32)texture.height : desc.source.size.y;
+  // A negative scale is a flip; DrawTexturePro expresses flips as a negative
+  // source size and wants a positive destination.
+  const bool flip_x = desc.flip_x != (desc.scale.x < 0.0f);
+  const bool flip_y = desc.flip_y != (desc.scale.y < 0.0f);
+  const f32 dw = sw * (desc.scale.x < 0.0f ? -desc.scale.x : desc.scale.x);
+  const f32 dh = sh * (desc.scale.y < 0.0f ? -desc.scale.y : desc.scale.y);
+  const Rectangle source{whole ? 0.0f : desc.source.pos.x,
+                         whole ? 0.0f : desc.source.pos.y,
+                         flip_x ? -sw : sw, flip_y ? -sh : sh};
+  const Rectangle dest{desc.pos.x, desc.pos.y, dw, dh};
+  const Vector2 origin{desc.origin.x * dw, desc.origin.y * dh};
+  Color color{};
+  to_raylib(desc.tint, color);
+  DrawTexturePro(texture, source, dest, origin, desc.rotation, color);
 }
 
 // Render textures

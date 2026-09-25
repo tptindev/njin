@@ -1,5 +1,7 @@
 #include "njin_audio.h"
 #include "njin_log.h"
+#include "njin_path.h"
+#include <string>
 
 namespace njin {
 namespace {
@@ -105,13 +107,14 @@ sound_handle sound_store_load(audio_store &store, const char *path) {
   if (!device_ready(path))
     return sound_handle{};
   // raylib only logs a missing file; fail loudly with the path instead.
-  if (!FileExists(path)) {
+  const std::string resolved = asset_path(path);
+  if (!FileExists(resolved.c_str())) {
     NJIN_WARN("sound: file not found: %s", path);
     return sound_handle{};
   }
-  if (!has_extension(path))
+  if (!has_extension(resolved.c_str()))
     return sound_handle{};
-  const Sound sound = LoadSound(path);
+  const Sound sound = LoadSound(resolved.c_str());
   if (!IsSoundValid(sound)) {
     UnloadSound(sound);
     NJIN_WARN("sound: failed to load: %s", path);
@@ -174,7 +177,7 @@ void sound_store_set_muted(audio_store &store, sound_handle handle,
 // last played at 0.6 would otherwise carry that into the next plain play,
 // since the alias keeps whatever it was set to.
 void sound_store_play_once(audio_store &store, sound_handle handle, f32 pitch,
-                           f32 gain) {
+                           f32 gain, f32 pan) {
   sound_slot *slot = sound_slot_of(store, handle);
   if (slot == nullptr)
     return;
@@ -182,6 +185,8 @@ void sound_store_play_once(audio_store &store, sound_handle handle, f32 pitch,
   Sound *voice = pick_voice(*slot);
   SetSoundVolume(*voice, effective_volume(*slot) * (gain < 0.0f ? 0.0f : gain));
   SetSoundPitch(*voice, pitch > 1e-3f ? pitch : 1e-3f);
+  // Written on every start for the same reason as pitch.
+  SetSoundPan(*voice, pan < -1.0f ? -1.0f : (pan > 1.0f ? 1.0f : pan));
   PlaySound(*voice);
 }
 
@@ -196,6 +201,7 @@ void sound_store_play_restart(audio_store &store, sound_handle handle) {
     StopSound(voice);
   SetSoundVolume(slot->sound, effective_volume(*slot));
   SetSoundPitch(slot->sound, 1.0f); // a pitched one-shot may have left it off 1
+  SetSoundPan(slot->sound, 0.0f);
   // PlaySound rewinds the cursor whether or not the voice was playing, so no
   // StopSound is needed on the base voice first.
   PlaySound(slot->sound);
@@ -209,6 +215,7 @@ void sound_store_play_loop(audio_store &store, sound_handle handle) {
   if (!IsSoundPlaying(slot->sound)) {
     SetSoundVolume(slot->sound, effective_volume(*slot));
     SetSoundPitch(slot->sound, 1.0f);
+    SetSoundPan(slot->sound, 0.0f);
     PlaySound(slot->sound);
   }
 }
@@ -232,13 +239,14 @@ music_handle music_store_load(audio_store &store, const char *path) {
   }
   if (!device_ready(path))
     return music_handle{};
-  if (!FileExists(path)) {
+  const std::string resolved = asset_path(path);
+  if (!FileExists(resolved.c_str())) {
     NJIN_WARN("music: file not found: %s", path);
     return music_handle{};
   }
-  if (!has_extension(path))
+  if (!has_extension(resolved.c_str()))
     return music_handle{};
-  const Music music = LoadMusicStream(path);
+  const Music music = LoadMusicStream(resolved.c_str());
   if (!IsMusicValid(music)) {
     UnloadMusicStream(music);
     NJIN_WARN("music: failed to load: %s", path);

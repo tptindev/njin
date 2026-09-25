@@ -163,6 +163,12 @@
 },
 {
   "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\modules\\audio.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\modules\\audio.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/modules/audio.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/modules/audio.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\modules\\camera.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\modules\\camera.cpp",
   "file": "D:/projects/njin/src/engine/runtime/modules/camera.cpp",
   "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/modules/camera.cpp.obj"
@@ -172,6 +178,12 @@
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\modules\\core_modules.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\modules\\core_modules.cpp",
   "file": "D:/projects/njin/src/engine/runtime/modules/core_modules.cpp",
   "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/modules/core_modules.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\modules\\sprite.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\modules\\sprite.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/modules/sprite.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/modules/sprite.cpp.obj"
 },
 {
   "directory": "D:/projects/njin/build",
@@ -187,6 +199,12 @@
 },
 {
   "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_audio.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_audio.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_audio.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_audio.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_cfg.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_cfg.cpp",
   "file": "D:/projects/njin/src/engine/runtime/njin_cfg.cpp",
   "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_cfg.cpp.obj"
@@ -199,9 +217,27 @@
 },
 {
   "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_draw.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_draw.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_draw.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_draw.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_ecs.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_ecs.cpp",
   "file": "D:/projects/njin/src/engine/runtime/njin_ecs.cpp",
   "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_ecs.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_file.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_file.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_file.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_file.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_font.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_font.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_font.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_font.cpp.obj"
 },
 {
   "directory": "D:/projects/njin/build",
@@ -217,6 +253,18 @@
 },
 {
   "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_path.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_path.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_path.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_path.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_scene.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_scene.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_scene.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_scene.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_shader.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_shader.cpp",
   "file": "D:/projects/njin/src/engine/runtime/njin_shader.cpp",
   "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_shader.cpp.obj"
@@ -226,6 +274,12 @@
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_texture.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_texture.cpp",
   "file": "D:/projects/njin/src/engine/runtime/njin_texture.cpp",
   "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_texture.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -DGRAPHICS_API_OPENGL_33 -DPLATFORM_DESKTOP -ID:/projects/njin/src/engine/runtime -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -isystem D:/projects/njin/build/_deps/raylib-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\engine\\runtime\\CMakeFiles\\njin_rt.dir\\njin_window.cpp.obj -c D:\\projects\\njin\\src\\engine\\runtime\\njin_window.cpp",
+  "file": "D:/projects/njin/src/engine/runtime/njin_window.cpp",
+  "output": "D:/projects/njin/build/src/engine/runtime/CMakeFiles/njin_rt.dir/njin_window.cpp.obj"
 },
 {
   "directory": "D:/projects/njin/build",
@@ -244,5 +298,17 @@
   "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\games\\sandbox\\CMakeFiles\\njin_sandbox.dir\\modules\\hello.cpp.obj -c D:\\projects\\njin\\src\\games\\sandbox\\modules\\hello.cpp",
   "file": "D:/projects/njin/src/games/sandbox/modules/hello.cpp",
   "output": "D:/projects/njin/build/src/games/sandbox/CMakeFiles/njin_sandbox.dir/modules/hello.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\games\\pong\\CMakeFiles\\njin_pong.dir\\main.cpp.obj -c D:\\projects\\njin\\src\\games\\pong\\main.cpp",
+  "file": "D:/projects/njin/src/games/pong/main.cpp",
+  "output": "D:/projects/njin/build/src/games/pong/CMakeFiles/njin_pong.dir/main.cpp.obj"
+},
+{
+  "directory": "D:/projects/njin/build",
+  "command": "C:\\Dev\\raylib\\w64devkit\\bin\\c++.exe -ID:/projects/njin/src/engine/api -isystem D:/projects/njin/build/_deps/entt-src/src -g -std=c++20 -Wall -Wextra -Wpedantic -o src\\games\\pong\\CMakeFiles\\njin_pong.dir\\pong.cpp.obj -c D:\\projects\\njin\\src\\games\\pong\\pong.cpp",
+  "file": "D:/projects/njin/src/games/pong/pong.cpp",
+  "output": "D:/projects/njin/build/src/games/pong/CMakeFiles/njin_pong.dir/pong.cpp.obj"
 }
 ]
