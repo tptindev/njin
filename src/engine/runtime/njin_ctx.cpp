@@ -1,4 +1,8 @@
 #include "njin_ctx.h"
+#include "njin_audio.h"
+#include "njin_camera.h"
+#include "njin_input.h"
+#include "njin_render.h"
 #include "njin_ctx_impl.h"
 #include "njin_cfg.h"
 #include <algorithm>

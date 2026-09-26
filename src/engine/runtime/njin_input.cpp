@@ -1,4 +1,4 @@
-#include "njin_input.h"
+#include "njin_input_impl.h"
 #include <algorithm>
 #include <array>
 #include <iterator>

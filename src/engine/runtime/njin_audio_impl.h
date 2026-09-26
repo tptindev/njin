@@ -1,7 +1,7 @@
 #pragma once
 
 #include "_types.h"
-#include "njin_ctx.h"
+#include "njin_audio.h"
 #include <raylib.h>
 #include <vector>
 

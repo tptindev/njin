@@ -80,5 +80,46 @@ rect level_bounds(const njin_ctx &ctx, level_handle level);
 /// @param bounds Vùng thế giới. Kích thước 0 là không giới hạn.
 /// @return Vị trí đã giới hạn.
 vec2 camera_clamp(const njin_ctx &ctx, vec2 pos, const camera_2d &cam, rect bounds);
+
+/// Trả về góc nhìn dùng cho frame này.
+///
+/// Đó là entity có camera_on, camera_2d và transform (xem _comps.h), hoặc góc
+/// nhìn đồng nhất (thế giới trùng với pixel màn hình) nếu không có entity nào.
+/// Được đọc trực tiếp từ registry nên thay đổi có hiệu lực ngay.
+/// @param ctx Context của engine.
+/// @return Góc nhìn đang dùng.
+camera_view camera_active(const njin_ctx &ctx);
+
+/// Đổi một điểm từ thế giới sang pixel màn hình, qua camera_active().
+/// @param ctx Context của engine.
+/// @param pos Điểm trong thế giới.
+/// @return Vị trí tương ứng trên màn hình.
+vec2 w2scr(const njin_ctx &ctx, vec2 pos);
+
+/// Đổi một điểm từ pixel màn hình sang thế giới, qua camera_active().
+///
+/// Thường dùng để đổi vị trí chuột, từ mouse_pos(), thành vị trí trong thế giới.
+/// @param ctx Context của engine.
+/// @param pos Điểm trên màn hình (pixel).
+/// @return Vị trí tương ứng trong thế giới.
+vec2 scr2w(const njin_ctx &ctx, vec2 pos);
+
+/// Vùng thế giới đang hiện trên màn hình.
+///
+/// Khi camera xoay, đây là hình chữ nhật thẳng trục bao quanh vùng nhìn thấy.
+/// Dùng để bỏ qua việc vẽ những thứ nằm ngoài màn hình.
+/// @param ctx Context của engine.
+/// @return Hình chữ nhật trong thế giới.
+rect camera_bounds(const njin_ctx &ctx);
+
+/// Áp một shader hậu kỳ lên toàn bộ thế giới đi qua camera.
+///
+/// Khi bật, mọi thứ vẽ trong `phase_pre_render` và `phase_render` (kể cả sprite
+/// và tilemap) được vẽ vào một ảnh ngoài màn hình, rồi vẽ ra màn hình qua
+/// shader này. UI vẽ trong `phase_post_render` không bị ảnh hưởng. Đặt uniform
+/// cho shader như bình thường bằng các hàm shader_set_*().
+/// @param ctx Context của engine.
+/// @param shader Shader hậu kỳ. Handle id 0 để tắt.
+void camera_set_post_shader(njin_ctx &ctx, shader_handle shader);
 /// @}
 } // namespace njin

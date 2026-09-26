@@ -2,6 +2,7 @@
 #include "njin2rl.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
+#include "njin_input.h"
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
 #include "_tween.h"

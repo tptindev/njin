@@ -1,6 +1,7 @@
 #include "njin_settings.h"
 #include "njin_bindings.h"
 #include "njin_ctx.h"
+#include "njin_audio.h"
 #include "njin_file.h"
 #include "njin_i18n.h"
 #include "njin_log.h"

@@ -1,7 +1,8 @@
 #include "njin_bindings.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
 #include "njin_input.h"
+#include "njin_ctx_impl.h"
+#include "njin_input_impl.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <cstring>

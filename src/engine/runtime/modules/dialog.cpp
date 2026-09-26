@@ -1,6 +1,8 @@
 #include "dialog.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
+#include "njin_input.h"
+#include "njin_render.h"
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
 #include "njin_i18n.h"
