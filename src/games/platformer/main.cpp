@@ -34,25 +34,11 @@ void startup(njin_ctx &ctx) {
   i18n_load(ctx, "en", "assets/lang/en.json");
 
   // Controls. Defaults first; the player's own come from settings.json below.
-  g.move = axis_register(ctx, "move");
-  axis_bind_keys(ctx, g.move, key_left, key_right);
-  axis_bind_keys(ctx, g.move, key_a, key_d);
-  axis_bind_pad(ctx, g.move, pad_axis_left_x);
-  g.jump = action_register(ctx, "jump");
-  action_bind_key(ctx, g.jump, key_space);
-  action_bind_key(ctx, g.jump, key_w);
-  action_bind_key(ctx, g.jump, key_up);
-  action_bind_pad(ctx, g.jump, pad_face_down);
-  g.down = action_register(ctx, "down");
-  action_bind_key(ctx, g.down, key_down);
-  action_bind_key(ctx, g.down, key_s);
-  action_bind_pad(ctx, g.down, pad_dpad_down);
-  g.interact = action_register(ctx, "interact");
-  action_bind_key(ctx, g.interact, key_e);
-  action_bind_pad(ctx, g.interact, pad_face_left);
-  g.pause = action_register(ctx, "pause");
-  action_bind_key(ctx, g.pause, key_p);
-  action_bind_pad(ctx, g.pause, pad_start);
+  g.move = axis_define(ctx, "move", {{key_left, key_right}, {key_a, key_d}}, {pad_axis_left_x});
+  g.jump = action_define(ctx, "jump", {key_space, key_w, key_up, pad_face_down});
+  g.down = action_define(ctx, "down", {key_down, key_s, pad_dpad_down});
+  g.interact = action_define(ctx, "interact", {key_e, pad_face_left});
+  g.pause = action_define(ctx, "pause", {key_p, pad_start});
   settings_load(ctx);
 
   // Pixel art all the way: a pixel font at its design size, square UI.

@@ -28,28 +28,12 @@ void startup(njin_ctx &ctx) {
   i18n_load(ctx, "vi", "assets/lang/vi.json");
   i18n_load(ctx, "en", "assets/lang/en.json");
 
-  g.move_x = axis_register(ctx, "move_x");
-  axis_bind_keys(ctx, g.move_x, key_left, key_right);
-  axis_bind_keys(ctx, g.move_x, key_a, key_d);
-  axis_bind_pad(ctx, g.move_x, pad_axis_left_x);
-  g.move_y = axis_register(ctx, "move_y");
-  axis_bind_keys(ctx, g.move_y, key_up, key_down);
-  axis_bind_keys(ctx, g.move_y, key_w, key_s);
-  axis_bind_pad(ctx, g.move_y, pad_axis_left_y);
-  g.attack = action_register(ctx, "attack");
-  action_bind_key(ctx, g.attack, key_j);
-  action_bind_key(ctx, g.attack, key_space);
-  action_bind_pad(ctx, g.attack, pad_face_down);
-  g.dash = action_register(ctx, "dash");
-  action_bind_key(ctx, g.dash, key_left_shift);
-  action_bind_key(ctx, g.dash, key_k);
-  action_bind_pad(ctx, g.dash, pad_face_right);
-  g.interact = action_register(ctx, "interact");
-  action_bind_key(ctx, g.interact, key_e);
-  action_bind_pad(ctx, g.interact, pad_face_left);
-  g.pause = action_register(ctx, "pause");
-  action_bind_key(ctx, g.pause, key_p);
-  action_bind_pad(ctx, g.pause, pad_start);
+  g.move_x = axis_define(ctx, "move_x", {{key_left, key_right}, {key_a, key_d}}, {pad_axis_left_x});
+  g.move_y = axis_define(ctx, "move_y", {{key_up, key_down}, {key_w, key_s}}, {pad_axis_left_y});
+  g.attack = action_define(ctx, "attack", {key_j, key_space, pad_face_down});
+  g.dash = action_define(ctx, "dash", {key_left_shift, key_k, pad_face_right});
+  g.interact = action_define(ctx, "interact", {key_e, pad_face_left});
+  g.pause = action_define(ctx, "pause", {key_p, pad_start});
   settings_load(ctx);
 
   shared::apply_style(ctx, "assets/fonts/BeVietnamPro-Bold.ttf");
