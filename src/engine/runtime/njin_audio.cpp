@@ -1,17 +1,24 @@
 #include "njin_audio.h"
 #include "njin_log.h"
 #include "njin_path.h"
+#include <algorithm>
 #include <string>
 
 namespace njin {
 namespace {
-// The volume every voice of this slot should be playing at.
-f32 effective_volume(const sound_slot &slot) {
-  return slot.muted ? 0.0f : slot.volume;
+// What a bus multiplies its sounds by, master included.
+f32 bus_gain(const audio_store &store, audio_bus bus) {
+  const auto one = [&](audio_bus b) { return store.bus_muted[b] ? 0.0f : store.bus_volume[b]; };
+  return bus == bus_master ? one(bus_master) : one(bus) * one(bus_master);
 }
 
-f32 effective_volume(const music_slot &slot) {
-  return slot.muted ? 0.0f : slot.volume;
+// The volume every voice of this slot should be playing at.
+f32 effective_volume(const audio_store &store, const sound_slot &slot) {
+  return slot.muted ? 0.0f : slot.volume * bus_gain(store, slot.bus);
+}
+
+f32 effective_volume(const audio_store &store, const music_slot &slot) {
+  return slot.muted ? 0.0f : slot.volume * slot.fade * bus_gain(store, bus_music);
 }
 
 // Releases every voice in the right order: the aliases point into `sound`'s
@@ -33,8 +40,8 @@ void release(music_slot &slot) {
 
 // Each alias carries its own AudioBuffer with its own volume, so a live change
 // has to reach all of them or already-playing voices keep the old level.
-void apply_volume(sound_slot &slot) {
-  const f32 volume = effective_volume(slot);
+void apply_volume(const audio_store &store, sound_slot &slot) {
+  const f32 volume = effective_volume(store, slot);
   SetSoundVolume(slot.sound, volume);
   for (Sound &voice : slot.voices)
     SetSoundVolume(voice, volume);
@@ -161,7 +168,7 @@ void sound_store_set_volume(audio_store &store, sound_handle handle,
     return;
   slot->volume = volume < 0.0f ? 0.0f : volume;
   if (!slot->muted)
-    apply_volume(*slot);
+    apply_volume(store, *slot);
 }
 
 void sound_store_set_muted(audio_store &store, sound_handle handle,
@@ -170,7 +177,7 @@ void sound_store_set_muted(audio_store &store, sound_handle handle,
   if (slot == nullptr)
     return;
   slot->muted = muted;
-  apply_volume(*slot);
+  apply_volume(store, *slot);
 }
 
 // Every one-shot goes through here so pitch is written on every start: a voice
@@ -183,7 +190,7 @@ void sound_store_play_once(audio_store &store, sound_handle handle, f32 pitch,
     return;
   slot->looping = false;
   Sound *voice = pick_voice(*slot);
-  SetSoundVolume(*voice, effective_volume(*slot) * (gain < 0.0f ? 0.0f : gain));
+  SetSoundVolume(*voice, effective_volume(store, *slot) * (gain < 0.0f ? 0.0f : gain));
   SetSoundPitch(*voice, pitch > 1e-3f ? pitch : 1e-3f);
   // Written on every start for the same reason as pitch.
   SetSoundPan(*voice, pan < -1.0f ? -1.0f : (pan > 1.0f ? 1.0f : pan));
@@ -199,7 +206,7 @@ void sound_store_play_restart(audio_store &store, sound_handle handle) {
   // always leaves exactly one instance running.
   for (Sound &voice : slot->voices)
     StopSound(voice);
-  SetSoundVolume(slot->sound, effective_volume(*slot));
+  SetSoundVolume(slot->sound, effective_volume(store, *slot));
   SetSoundPitch(slot->sound, 1.0f); // a pitched one-shot may have left it off 1
   SetSoundPan(slot->sound, 0.0f);
   // PlaySound rewinds the cursor whether or not the voice was playing, so no
@@ -213,7 +220,7 @@ void sound_store_play_loop(audio_store &store, sound_handle handle) {
     return;
   slot->looping = true;
   if (!IsSoundPlaying(slot->sound)) {
-    SetSoundVolume(slot->sound, effective_volume(*slot));
+    SetSoundVolume(slot->sound, effective_volume(store, *slot));
     SetSoundPitch(slot->sound, 1.0f);
     SetSoundPan(slot->sound, 0.0f);
     PlaySound(slot->sound);
@@ -270,8 +277,7 @@ void music_store_set_volume(audio_store &store, music_handle handle,
   if (slot == nullptr)
     return;
   slot->volume = volume < 0.0f ? 0.0f : volume;
-  if (!slot->muted)
-    SetMusicVolume(slot->music, slot->volume);
+  SetMusicVolume(slot->music, effective_volume(store, *slot));
 }
 
 void music_store_set_muted(audio_store &store, music_handle handle,
@@ -280,7 +286,7 @@ void music_store_set_muted(audio_store &store, music_handle handle,
   if (slot == nullptr)
     return;
   slot->muted = muted;
-  SetMusicVolume(slot->music, effective_volume(*slot));
+  SetMusicVolume(slot->music, effective_volume(store, *slot));
 }
 
 void music_store_set_looping(audio_store &store, music_handle handle,
@@ -301,7 +307,10 @@ void music_store_play(audio_store &store, music_handle handle) {
   // play after a pause would restart the buffer while the decoder carried on
   // from where it stopped.
   StopMusicStream(slot->music);
-  SetMusicVolume(slot->music, effective_volume(*slot));
+  slot->fade = slot->fade_target = 1.0f; // a plain play cancels any fade
+  slot->fade_speed = 0.0f;
+  slot->stop_at_end = false;
+  SetMusicVolume(slot->music, effective_volume(store, *slot));
   PlayMusicStream(slot->music);
 }
 
@@ -323,14 +332,91 @@ void music_store_resume(audio_store &store, music_handle handle) {
     ResumeMusicStream(slot->music);
 }
 
-void audio_store_update(audio_store &store) {
+void sound_store_set_bus(audio_store &store, sound_handle handle, audio_bus bus) {
+  sound_slot *slot = sound_slot_of(store, handle);
+  if (slot == nullptr || bus < bus_master || bus >= audio_bus_count)
+    return;
+  slot->bus = bus;
+  apply_volume(store, *slot);
+}
+
+namespace {
+// A bus changed: every live voice and stream takes the new level now.
+void apply_all(audio_store &store) {
+  for (sound_slot &slot : store.sounds)
+    if (slot.alive)
+      apply_volume(store, slot);
+  for (music_slot &slot : store.musics)
+    if (slot.alive)
+      SetMusicVolume(slot.music, effective_volume(store, slot));
+}
+} // namespace
+
+void audio_store_set_bus_volume(audio_store &store, audio_bus bus, f32 volume) {
+  if (bus < bus_master || bus >= audio_bus_count)
+    return;
+  store.bus_volume[bus] = volume < 0.0f ? 0.0f : volume;
+  apply_all(store);
+}
+
+void audio_store_set_bus_muted(audio_store &store, audio_bus bus, bool muted) {
+  if (bus < bus_master || bus >= audio_bus_count)
+    return;
+  store.bus_muted[bus] = muted;
+  apply_all(store);
+}
+
+void music_store_fade(audio_store &store, music_handle handle, f32 target, f32 seconds, bool play,
+                      bool stop) {
+  music_slot *slot = music_slot_of(store, handle);
+  if (slot == nullptr)
+    return;
+  target = target < 0.0f ? 0.0f : (target > 1.0f ? 1.0f : target);
+  if (play && !IsMusicStreamPlaying(slot->music)) {
+    StopMusicStream(slot->music);
+    slot->fade = 0.0f;
+    SetMusicVolume(slot->music, effective_volume(store, *slot));
+    PlayMusicStream(slot->music);
+  }
+  slot->fade_target = target;
+  slot->stop_at_end = stop;
+  if (seconds <= 0.0f) {
+    slot->fade = target;
+    slot->fade_speed = 0.0f;
+  } else {
+    slot->fade_speed = 1.0f / seconds;
+  }
+  SetMusicVolume(slot->music, effective_volume(store, *slot));
+  if (slot->stop_at_end && slot->fade <= 0.0f) {
+    StopMusicStream(slot->music);
+    slot->stop_at_end = false;
+  }
+}
+
+bool music_store_playing(audio_store &store, music_handle handle) {
+  music_slot *slot = music_slot_of(store, handle);
+  return slot != nullptr && IsMusicStreamPlaying(slot->music);
+}
+
+void audio_store_update(audio_store &store, f32 dt_real) {
   for (sound_slot &slot : store.sounds) {
     if (slot.alive && slot.looping && !IsSoundPlaying(slot.sound))
       PlaySound(slot.sound);
   }
   for (music_slot &slot : store.musics) {
-    if (slot.alive)
-      UpdateMusicStream(slot.music);
+    if (!slot.alive)
+      continue;
+    if (slot.fade != slot.fade_target && slot.fade_speed > 0.0f) {
+      const f32 step = slot.fade_speed * dt_real;
+      slot.fade = slot.fade < slot.fade_target ? std::min(slot.fade + step, slot.fade_target)
+                                               : std::max(slot.fade - step, slot.fade_target);
+      SetMusicVolume(slot.music, effective_volume(store, slot));
+      if (slot.fade <= 0.0f && slot.stop_at_end) {
+        StopMusicStream(slot.music);
+        slot.stop_at_end = false;
+      }
+    }
+    UpdateMusicStream(slot.music);
   }
 }
 } // namespace njin

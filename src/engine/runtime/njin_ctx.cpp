@@ -233,7 +233,10 @@ void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
     render_texture_store_clear(clear);
 }
 
-void render_texture_end(const njin_ctx &) { render_texture_store_end(); }
+void render_texture_end(const njin_ctx &ctx) {
+  render_texture_store_end();
+  view_rebind(ctx.view); // back to the virtual screen, when drawing into one
+}
 
 void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
                          vec2 pos, rgba tint) {
@@ -276,6 +279,48 @@ void sound_play_restart(njin_ctx &ctx, sound_handle handle) {
 
 void sound_play_loop(njin_ctx &ctx, sound_handle handle) {
   sound_store_play_loop(ctx.audio, handle);
+}
+
+void audio_set_bus_volume(njin_ctx &ctx, audio_bus bus, f32 volume) {
+  audio_store_set_bus_volume(ctx.audio, bus, volume);
+}
+
+f32 audio_bus_volume(const njin_ctx &ctx, audio_bus bus) {
+  return bus >= bus_master && bus < audio_bus_count ? ctx.audio.bus_volume[bus] : 0.0f;
+}
+
+void audio_set_bus_muted(njin_ctx &ctx, audio_bus bus, bool muted) {
+  audio_store_set_bus_muted(ctx.audio, bus, muted);
+}
+
+bool audio_bus_muted(const njin_ctx &ctx, audio_bus bus) {
+  return bus >= bus_master && bus < audio_bus_count && ctx.audio.bus_muted[bus];
+}
+
+void sound_set_bus(njin_ctx &ctx, sound_handle handle, audio_bus bus) {
+  sound_store_set_bus(ctx.audio, handle, bus);
+}
+
+bool music_playing(njin_ctx &ctx, music_handle handle) {
+  return music_store_playing(ctx.audio, handle);
+}
+
+void music_fade_in(njin_ctx &ctx, music_handle handle, f32 seconds) {
+  music_store_fade(ctx.audio, handle, 1.0f, seconds, true, false);
+}
+
+void music_fade_out(njin_ctx &ctx, music_handle handle, f32 seconds) {
+  music_store_fade(ctx.audio, handle, 0.0f, seconds, false, true);
+}
+
+void music_crossfade(njin_ctx &ctx, music_handle handle, f32 seconds) {
+  for (usize i = 0; i < ctx.audio.musics.size(); i++) {
+    const music_handle other{(u32)(i + 1)};
+    if (other.id != handle.id && music_store_playing(ctx.audio, other))
+      music_store_fade(ctx.audio, other, 0.0f, seconds, false, true);
+  }
+  if (handle.id != 0)
+    music_store_fade(ctx.audio, handle, 1.0f, seconds, true, false);
 }
 
 void sound_play_at(njin_ctx &ctx, sound_handle handle, vec2 world_pos) {

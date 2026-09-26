@@ -2,6 +2,7 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include <algorithm>
 #include <raylib.h>
 
 namespace njin {
@@ -86,6 +87,55 @@ vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
   const Vector2 m = MeasureTextEx(font_store_get(ctx.font, font), text, size,
                                   font_store_spacing(font, size));
   return vec2{m.x, m.y};
+}
+
+std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,
+                                   f32 max_width, font_handle font) {
+  std::vector<std::string> lines;
+  if (text == nullptr)
+    return lines;
+  std::string paragraph;
+  const auto flush_paragraph = [&]() {
+    std::string line;
+    usize i = 0;
+    while (i <= paragraph.size()) {
+      const usize end = std::min(paragraph.find(' ', i), paragraph.size());
+      const std::string word = paragraph.substr(i, end - i);
+      const std::string trial = line.empty() ? word : line + " " + word;
+      if (!line.empty() && text_measure(ctx, trial.c_str(), size, font).x > max_width) {
+        lines.push_back(line);
+        line = word;
+      } else {
+        line = trial;
+      }
+      i = end + 1;
+    }
+    lines.push_back(line);
+    paragraph.clear();
+  };
+  for (const char *c = text; *c != '\0'; c++) {
+    if (*c == '\n')
+      flush_paragraph();
+    else
+      paragraph.push_back(*c);
+  }
+  flush_paragraph();
+  return lines;
+}
+
+vec2 draw_text_wrapped(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+                       f32 max_width, rgba color, font_handle font, f32 line_spacing) {
+  vec2 extent{};
+  f32 y = pos.y;
+  const std::vector<std::string> lines = text_wrap(ctx, text, size, max_width, font);
+  for (usize i = 0; i < lines.size(); i++) {
+    const vec2 m = text_measure(ctx, lines[i].c_str(), size, font);
+    draw_text(ctx, lines[i].c_str(), {pos.x, y}, size, color, font);
+    extent.x = std::max(extent.x, m.x);
+    extent.y = (y - pos.y) + m.y;
+    y += (m.y > 0.0f ? m.y : size) * line_spacing;
+  }
+  return extent;
 }
 
 // Textures

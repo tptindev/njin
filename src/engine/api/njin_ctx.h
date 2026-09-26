@@ -37,7 +37,8 @@ entt::dispatcher &events(njin_ctx &ctx);
 /// @param ctx Context của engine.
 /// @param phase Phase mà system chạy trong đó.
 /// @param fnc Hàm system.
-void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc);
+/// @param name Tên system, hiện trong njin_inspector. Có thể null.
+void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc, const char *name = nullptr);
 
 /// Thêm một system kèm ràng buộc thứ tự vào lịch chạy của một phase.
 ///
@@ -607,6 +608,47 @@ void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
 /// @addtogroup grp_sound
 /// @{
 
+/// Kênh trộn âm thanh, như thanh trượt trong menu cài đặt của game.
+///
+/// Âm lượng thật của một sound là âm lượng riêng của nó nhân âm lượng kênh của
+/// nó nhân `bus_master`. Music luôn ở kênh `bus_music`; sound mặc định ở
+/// `bus_sfx`, đổi bằng sound_set_bus().
+enum audio_bus {
+  bus_master, ///< Tổng: nhân vào mọi thứ.
+  bus_music,  ///< Nhạc nền (mọi music).
+  bus_sfx,    ///< Hiệu ứng trong game. Mặc định của sound.
+  bus_ui,     ///< Tiếng giao diện.
+  bus_voice,  ///< Lồng tiếng, tiếng thoại.
+  audio_bus_count ///< Số kênh. Không phải một kênh thật.
+};
+
+/// Đặt âm lượng một kênh, từ 0 trở lên (1 là nguyên). Áp dụng ngay cho cả
+/// những âm đang phát. Lưu cùng cài đặt bằng settings_save().
+/// @param ctx Context của engine.
+/// @param bus Kênh.
+/// @param volume Âm lượng. Giá trị âm được coi là 0.
+void audio_set_bus_volume(njin_ctx &ctx, audio_bus bus, f32 volume);
+
+/// Âm lượng một kênh. @param ctx Context của engine. @param bus Kênh.
+/// @return Âm lượng, mặc định 1.
+f32 audio_bus_volume(const njin_ctx &ctx, audio_bus bus);
+
+/// Tắt hoặc bật tiếng cả một kênh, không đụng đến âm lượng đã đặt.
+/// @param ctx Context của engine.
+/// @param bus Kênh.
+/// @param muted `true` để tắt tiếng.
+void audio_set_bus_muted(njin_ctx &ctx, audio_bus bus, bool muted);
+
+/// Kênh có đang tắt tiếng không. @param ctx Context của engine. @param bus Kênh.
+/// @return `true` nếu đang tắt.
+bool audio_bus_muted(const njin_ctx &ctx, audio_bus bus);
+
+/// Đưa một sound vào kênh khác, ví dụ `bus_ui` cho tiếng nhấp menu.
+/// @param ctx Context của engine.
+/// @param handle Sound.
+/// @param bus Kênh.
+void sound_set_bus(njin_ctx &ctx, sound_handle handle, audio_bus bus);
+
 /// Nạp một âm thanh ngắn vào bộ nhớ.
 ///
 /// Dùng cho hiệu ứng như tiếng bắn, tiếng nhấp. Nhạc nền dài thì dùng music_load().
@@ -774,5 +816,35 @@ void music_pause(njin_ctx &ctx, music_handle handle);
 /// @param ctx Context của engine.
 /// @param handle Music cần phát tiếp.
 void music_resume(njin_ctx &ctx, music_handle handle);
+
+/// Music có đang phát không (không tính lúc tạm dừng).
+/// @param ctx Context của engine.
+/// @param handle Music.
+/// @return `true` nếu đang phát.
+bool music_playing(njin_ctx &ctx, music_handle handle);
+
+/// Phát từ đầu, to dần từ im lặng trong `seconds` giây. Đang phát thì chỉ to
+/// dần lên mức đầy từ mức hiện tại.
+/// @param ctx Context của engine.
+/// @param handle Music.
+/// @param seconds Thời gian to dần, giây (giờ thật).
+void music_fade_in(njin_ctx &ctx, music_handle handle, f32 seconds);
+
+/// Nhỏ dần rồi dừng.
+/// @param ctx Context của engine.
+/// @param handle Music.
+/// @param seconds Thời gian nhỏ dần, giây (giờ thật).
+void music_fade_out(njin_ctx &ctx, music_handle handle, f32 seconds);
+
+/// Chuyển nhạc: mọi music khác đang phát nhỏ dần rồi dừng, trong lúc `handle`
+/// to dần. Gọi khi vào màn mới, khi gặp trùm. `handle` đang phát rồi thì nó
+/// tiếp tục, không bị phát lại từ đầu.
+/// @code
+/// njin::music_crossfade(ctx, g.boss_theme, 1.5f);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Music cần chuyển sang. Handle id 0 thì chỉ tắt dần mọi nhạc.
+/// @param seconds Thời gian chuyển, giây (giờ thật).
+void music_crossfade(njin_ctx &ctx, music_handle handle, f32 seconds);
 /// @}
 } // namespace njin

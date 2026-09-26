@@ -54,7 +54,15 @@ struct collider {
   /// chuyển màn. collision_move() đi xuyên qua trigger; raycast mặc định bỏ qua.
   bool trigger = false;
   bool enabled = true; ///< Tắt tạm mà không gỡ component. Tắt thì có `exit`.
+  /// Bục một chiều (chỉ với hình hộp): collision_move() chỉ bị chặn khi rơi từ
+  /// trên xuống mặt trên của nó; đi ngang hay nhảy từ dưới lên thì xuyên qua.
+  bool one_way = false;
 };
+
+/// Tag: entity được bục di chuyển chở theo khi đứng trên nó, và bị bục đẩy khi
+/// bục đâm vào. Xem collision_move_platform(). njin::platformer_body và
+/// njin::topdown_body không cần tag này.
+struct platform_rider {};
 
 /// Hai collider bắt đầu chồng nhau.
 ///
@@ -111,6 +119,26 @@ struct collision_move_result {
   bool hit_y = false; ///< Bị chặn trên trục dọc. `hit_y && delta.y > 0` là đang đứng trên đất.
   entt::entity other_x = entt::null; ///< Vật chặn trên trục ngang.
   entt::entity other_y = entt::null; ///< Vật chặn trên trục dọc.
+  /// Sau khi di chuyển, entity đang đứng trên mặt đất, dốc hay bục (cách không
+  /// quá nửa pixel phía dưới).
+  bool grounded = false;
+  entt::entity ground = entt::null; ///< Thứ đang đứng lên, nếu `grounded`.
+  bool on_slope = false;       ///< Đang đứng trên ô dốc.
+  bool ground_one_way = false; ///< Đang đứng trên bục một chiều (ô hoặc collider).
+};
+
+/// Tùy chọn của collision_move().
+struct collision_move_opts {
+  /// Bỏ qua bục một chiều (ô `tile_one_way` và collider `one_way`): để nhảy
+  /// xuống khỏi bục.
+  bool drop_through = false;
+  /// Khi lớn hơn 0 và entity không đi lên: nếu sau khi di chuyển có mặt đất
+  /// trong khoảng này phía dưới, kéo entity xuống chạm nó. Giữ nhân vật dính
+  /// mặt dốc khi đi xuống dốc thay vì nảy lên. Thường là `|dx| + 2` khi đang
+  /// đứng trên đất, 0 khi đang ở trên không.
+  f32 snap_down = 0.0f;
+  /// Chỉ tính, không ghi vị trí mới vào transform: để dò tường hay mặt đất.
+  bool test_only = false;
 };
 
 /// Di chuyển một entity có collider, dừng lại khi đụng collider **không phải
@@ -129,6 +157,34 @@ struct collision_move_result {
 /// @param delta Độ dời mong muốn.
 /// @return Độ dời thật và vật chặn trên từng trục.
 collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta);
+
+/// Như bản trên, kèm tùy chọn: bục một chiều, dính dốc, chỉ dò.
+///
+/// **Ô tilemap** theo tilemap::shapes: `tile_none` không chặn, `tile_one_way`
+/// chỉ chặn khi rơi xuống từ phía trên mặt của nó, các `tile_slope_*` đỡ entity
+/// theo mặt dốc tại **điểm giữa đáy** của hình hộp. Đi ngang lên hết dốc sang ô
+/// đặc cao bằng đỉnh dốc là liền mạch. Mặt đứng cao của ô dốc chặn như tường.
+/// @param ctx Context của engine.
+/// @param entity Entity có transform và collider hộp hoặc tròn.
+/// @param delta Độ dời mong muốn.
+/// @param opts Tùy chọn.
+/// @return Độ dời thật, vật chặn, và trạng thái mặt đất.
+collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta,
+                                     const collision_move_opts &opts);
+
+/// Di chuyển một bục (entity có collider hộp, thường là `one_way` hoặc vật cản)
+/// **không bị chặn**, và mang theo những gì đứng trên nó.
+///
+/// Entity đứng trên mặt bục (đáy chạm mặt bục, chồng nhau theo chiều ngang) có
+/// njin::platformer_body, njin::topdown_body hoặc njin::platform_rider được
+/// dời cùng độ dời bằng collision_move(), nên vẫn bị tường chặn. Bục không phải
+/// một chiều còn đẩy các entity đó ra khi đâm vào chúng. Gọi trong
+/// `phase_fixed_update`, **trước** khi nhân vật di chuyển. njin::path_mover
+/// gọi hàm này cho bạn.
+/// @param ctx Context của engine.
+/// @param platform Entity bục, có transform và collider.
+/// @param delta Độ dời của bục.
+void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta);
 
 /// Tìm mọi entity có collider chồng lên hình chữ nhật `area`.
 /// @param ctx Context của engine.
@@ -186,6 +242,21 @@ struct raycast_hit {
 raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to,
                               u32 mask = layer_all, bool include_triggers = false,
                               entt::entity ignore = entt::null);
+
+/// Có nhìn thấy nhau không: tia từ `from` đến `to` không trúng vật cản nào.
+///
+/// Dùng cho tầm nhìn của quái. Ô `tile_none` và trigger không che; bục một
+/// chiều chỉ che khi nhìn từ trên xuống.
+/// @param ctx Context của engine.
+/// @param from Điểm nhìn.
+/// @param to Điểm cần thấy.
+/// @param mask Chỉ xét collider có `layer & mask != 0`.
+/// @param ignore Entity bỏ qua, thường là chính người nhìn.
+/// @return `true` nếu không có gì chắn giữa hai điểm.
+inline bool collision_line_of_sight(const njin_ctx &ctx, vec2 from, vec2 to,
+                                    u32 mask = layer_all, entt::entity ignore = entt::null) {
+  return !collision_raycast(ctx, from, to, mask, false, ignore).hit;
+}
 
 /// Vẽ khung mọi collider hộp và tròn trong `phase_render`, trên sprite: xanh
 /// lá cho vật cản, vàng cho trigger. Để dò lỗi hitbox.

@@ -51,6 +51,9 @@ struct sprite {
   vec2 origin{0.5f, 0.5f};
   rgba tint{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu nhân vào ảnh.
   i32 layer = 0;       ///< Lớp vẽ: lớp nhỏ vẽ trước, lớp lớn đè lên.
+  /// Cộng vào `transform.pos.y` khi sắp theo Y (xem draw_set_y_sort()): đặt
+  /// bằng khoảng từ điểm neo xuống chân nếu điểm neo không nằm ở chân.
+  f32 sort_offset = 0.0f;
   bool flip_x = false; ///< Lật ngang.
   bool flip_y = false; ///< Lật dọc.
   bool visible = true; ///< Ẩn mà không cần gỡ component.

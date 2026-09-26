@@ -383,17 +383,17 @@ void setup(njin_ctx &ctx) {
   g.play = scene_register(ctx, {.name = "play", .on_enter = enter_play, .on_exit = exit_play});
   g.over = scene_register(ctx, {.name = "over"});
 
-  ecs_register(ctx, phase_startup, startup);
-  ecs_register(ctx, phase_pre_update, global_input);
-  ecs_register(ctx, phase_pre_update, fit_camera);
-  ecs_register(ctx, phase_update, sys_desc{.fnc = menu_update, .scene = g.menu});
-  ecs_register(ctx, phase_update, sys_desc{.fnc = play_input, .scene = g.play});
-  ecs_register(ctx, phase_update, sys_desc{.fnc = over_update, .scene = g.over});
-  ecs_register(ctx, phase_fixed_update, sys_desc{.fnc = play_physics, .scene = g.play});
-  ecs_register(ctx, phase_render, sys_desc{.fnc = draw_field, .scene = g.play});
-  ecs_register(ctx, phase_post_render, sys_desc{.fnc = draw_menu, .scene = g.menu});
-  ecs_register(ctx, phase_post_render, sys_desc{.fnc = draw_play_ui, .scene = g.play});
-  ecs_register(ctx, phase_post_render, sys_desc{.fnc = draw_over, .scene = g.over});
+  ecs_register(ctx, phase_startup, startup, "startup");
+  ecs_register(ctx, phase_pre_update, global_input, "global_input");
+  ecs_register(ctx, phase_pre_update, fit_camera, "fit_camera");
+  ecs_register(ctx, phase_update, sys_desc{.fnc = menu_update, .scene = g.menu, .name = "menu_update"});
+  ecs_register(ctx, phase_update, sys_desc{.fnc = play_input, .scene = g.play, .name = "play_input"});
+  ecs_register(ctx, phase_update, sys_desc{.fnc = over_update, .scene = g.over, .name = "over_update"});
+  ecs_register(ctx, phase_fixed_update, sys_desc{.fnc = play_physics, .scene = g.play, .name = "play_physics"});
+  ecs_register(ctx, phase_render, sys_desc{.fnc = draw_field, .scene = g.play, .name = "draw_field"});
+  ecs_register(ctx, phase_post_render, sys_desc{.fnc = draw_menu, .scene = g.menu, .name = "draw_menu"});
+  ecs_register(ctx, phase_post_render, sys_desc{.fnc = draw_play_ui, .scene = g.play, .name = "draw_play_ui"});
+  ecs_register(ctx, phase_post_render, sys_desc{.fnc = draw_over, .scene = g.over, .name = "draw_over"});
 }
 } // namespace
 

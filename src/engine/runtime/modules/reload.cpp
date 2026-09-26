@@ -84,7 +84,7 @@ void poll(njin_ctx &ctx) {
   scan(ctx, false);
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, poll); }
+void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, poll, "poll"); }
 } // namespace
 
 mod_desc reload_module() { return mod_desc{.name = "njin.reload", .setup = setup}; }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "_types.h"
+#include "njin_ctx.h"
 #include <raylib.h>
 #include <vector>
 
@@ -19,6 +20,7 @@ struct sound_slot {
   bool muted = false;
   bool looping = false;
   f32 volume = 1.0f;
+  audio_bus bus = bus_sfx;
   usize next_voice = 0; // round-robin cursor, only read once the pool is full
   Sound sound{};        // owns the sample data; the voice a loop plays on
   // Aliases of `sound`, grown on demand by play_once. They share its sample
@@ -34,6 +36,12 @@ struct music_slot {
   bool muted = false;
   f32 volume = 1.0f;
   Music music{};
+  // Fade: `fade` moves toward `fade_target` at `fade_speed` per second, and
+  // the stream stops when it reaches 0 with `stop_at_end`.
+  f32 fade = 1.0f;
+  f32 fade_target = 1.0f;
+  f32 fade_speed = 0.0f;
+  bool stop_at_end = false;
 };
 
 // Owns every sound and music stream. The destructor frees them, so it must run
@@ -44,6 +52,9 @@ struct audio_store {
   // sound_play_at: full volume within range_near, silent past range_far.
   f32 range_near = 200.0f;
   f32 range_far = 1200.0f;
+  // Mixer: every sound's volume is multiplied by its bus and by master.
+  f32 bus_volume[audio_bus_count] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+  bool bus_muted[audio_bus_count] = {};
 
   audio_store() = default;
   ~audio_store();
@@ -96,8 +107,18 @@ void music_store_stop(audio_store &store, music_handle handle);
 void music_store_pause(audio_store &store, music_handle handle);
 void music_store_resume(audio_store &store, music_handle handle);
 
-// Once per frame: restarts looping sounds that have ended and feeds every
-// music stream. UpdateMusicStream returns at once for a stream that is not
-// playing, so stopped and paused music costs nothing here.
-void audio_store_update(audio_store &store);
+void sound_store_set_bus(audio_store &store, sound_handle handle, audio_bus bus);
+void audio_store_set_bus_volume(audio_store &store, audio_bus bus, f32 volume);
+void audio_store_set_bus_muted(audio_store &store, audio_bus bus, bool muted);
+// Starts a fade of `handle` toward `target` (0..1) over `seconds`. With `play`
+// a stopped stream starts from silence; with `stop` it stops at 0.
+void music_store_fade(audio_store &store, music_handle handle, f32 target, f32 seconds, bool play,
+                      bool stop);
+bool music_store_playing(audio_store &store, music_handle handle);
+
+// Once per frame: restarts looping sounds that have ended, moves music fades
+// on by `dt_real`, and feeds every music stream. UpdateMusicStream returns at
+// once for a stream that is not playing, so stopped and paused music costs
+// nothing here.
+void audio_store_update(audio_store &store, f32 dt_real);
 } // namespace njin

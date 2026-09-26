@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <unordered_map>
+#include <vector>
 
 namespace njin {
 /// @addtogroup grp_tilemap
@@ -42,6 +43,68 @@ struct cell {
   i32 y = 0; ///< Hàng.
 };
 
+/// Hình va chạm của một loại ô, dùng bởi collision_move() và collision_raycast()
+/// với `collider_tiles`. Đặt bằng tilemap_set_shape(); ô chưa đặt là `tile_solid`.
+///
+/// Dốc là của game platformer: mặt dốc chỉ đỡ từ phía trên, và phía đáy của ô
+/// vẫn là vật cản. Tên `_r` là dốc **cao bên phải** (đi sang phải là lên dốc),
+/// `_l` là cao bên trái. Dốc 22.5 độ chiếm hai ô liền nhau: `_low` (nửa dưới)
+/// rồi `_high` (nửa trên).
+enum tile_shape : u8 {
+  tile_solid = 0,    ///< Chặn mọi phía. Mặc định.
+  tile_none,         ///< Không va chạm: chỉ để nhìn, dù nằm trong layer vật cản.
+  tile_one_way,      ///< Bục một chiều: chỉ đỡ từ trên xuống, nhảy xuyên từ dưới lên được.
+  tile_slope_r,      ///< Dốc 45 độ, thấp bên trái, cao bên phải.
+  tile_slope_l,      ///< Dốc 45 độ, cao bên trái, thấp bên phải.
+  tile_slope_r_low,  ///< Dốc 22.5 độ cao bên phải, nửa dưới (0 đến nửa ô).
+  tile_slope_r_high, ///< Dốc 22.5 độ cao bên phải, nửa trên (nửa ô đến đầy ô).
+  tile_slope_l_low,  ///< Dốc 22.5 độ cao bên trái, nửa dưới.
+  tile_slope_l_high, ///< Dốc 22.5 độ cao bên trái, nửa trên.
+  tile_shape_count   ///< Số loại hình. Không phải một hình thật.
+};
+
+/// Ô có phải dốc không.
+/// @param shape Hình của ô.
+/// @return `true` với các `tile_slope_*`.
+constexpr bool tile_is_slope(tile_shape shape) {
+  return shape >= tile_slope_r && shape <= tile_slope_l_high;
+}
+
+/// Chiều cao mặt dốc tại một điểm trong ô, tính từ đáy ô theo tỉ lệ chiều cao ô.
+/// @param shape Hình của ô.
+/// @param u Vị trí ngang trong ô, 0 là mép trái, 1 là mép phải.
+/// @return 0 (mặt ở đáy ô) đến 1 (mặt ở đỉnh ô). Ô không phải dốc trả về 1.
+constexpr f32 tile_surface(tile_shape shape, f32 u) {
+  u = u < 0.0f ? 0.0f : (u > 1.0f ? 1.0f : u);
+  switch (shape) {
+  case tile_slope_r: return u;
+  case tile_slope_l: return 1.0f - u;
+  case tile_slope_r_low: return u * 0.5f;
+  case tile_slope_r_high: return 0.5f + u * 0.5f;
+  case tile_slope_l_low: return (1.0f - u) * 0.5f;
+  case tile_slope_l_high: return 0.5f + (1.0f - u) * 0.5f;
+  default: return 1.0f;
+  }
+}
+
+/// Đọc tên một hình ô, như trong thuộc tính của Tiled hay tên giá trị IntGrid
+/// của LDtk: `solid`, `none` (hoặc `empty`), `one_way` (hoặc `oneway`,
+/// `platform`), `slope_r`, `slope_l`, `slope_r_low`, `slope_r_high`,
+/// `slope_l_low`, `slope_l_high`. Không phân biệt hoa thường; `-` và dấu cách
+/// được coi như `_`.
+/// @param name Tên.
+/// @param out Nhận hình nếu tên hợp lệ.
+/// @return `true` nếu nhận ra tên.
+bool tile_shape_from_name(const char *name, tile_shape &out);
+
+/// Animation của một loại ô: nước, đuốc, cỏ lay. Mọi ô cùng số thứ tự trong
+/// tilemap chạy cùng nhịp. Tạo bằng tilemap_animate(); nạp tự động từ Tiled.
+struct tile_anim {
+  std::vector<i32> frames;    ///< Số thứ tự ô của từng frame trong tileset.
+  std::vector<f32> durations; ///< Thời lượng từng frame, giây.
+  f32 total = 0.0f;           ///< Tổng thời lượng, tính sẵn.
+};
+
 /// Lưới ô vuông không giới hạn kích thước, vẽ từ một tileset, chia thành chunk.
 ///
 /// Cần một transform trên cùng entity: `transform.pos` là góc trên trái của ô
@@ -71,7 +134,80 @@ struct tilemap {
   /// Các chunk có ô, theo khóa từ tile_chunk_key().
   std::unordered_map<u64, tile_chunk> chunks;
   u32 revision = 0; ///< Tăng mỗi lần có ô đổi.
+  /// Hình va chạm theo số thứ tự ô: `shapes[id]`. Ô ngoài danh sách là
+  /// `tile_solid`. Đặt bằng tilemap_set_shape().
+  std::vector<u8> shapes;
+  /// Animation theo số thứ tự ô gốc. Đặt bằng tilemap_animate().
+  std::unordered_map<i32, tile_anim> anims;
 };
+
+/// Đặt hình va chạm cho mọi ô có số thứ tự `id` trong tilemap.
+/// @param map Tilemap.
+/// @param id Số thứ tự ô trong tileset (không kèm bit lật).
+/// @param shape Hình.
+inline void tilemap_set_shape(tilemap &map, i32 id, tile_shape shape) {
+  if (id < 0)
+    return;
+  if ((usize)id >= map.shapes.size())
+    map.shapes.resize((usize)id + 1, tile_solid);
+  map.shapes[(usize)id] = shape;
+}
+
+/// Hình va chạm của một ô.
+/// @param map Tilemap.
+/// @param value Giá trị ô từ tilemap_get(), có thể kèm bit lật.
+/// @return Hình của ô. Ô trống trả về `tile_none`. Ô lật ngang đổi dốc trái
+/// thành dốc phải và ngược lại.
+inline tile_shape tilemap_shape(const tilemap &map, i32 value) {
+  if (value < 0)
+    return tile_none;
+  const i32 id = tile_id(value);
+  tile_shape s = (usize)id < map.shapes.size() ? (tile_shape)map.shapes[(usize)id] : tile_solid;
+  if ((value & tile_flip_x) != 0 && tile_is_slope(s)) {
+    switch (s) {
+    case tile_slope_r: s = tile_slope_l; break;
+    case tile_slope_l: s = tile_slope_r; break;
+    case tile_slope_r_low: s = tile_slope_l_low; break;
+    case tile_slope_r_high: s = tile_slope_l_high; break;
+    case tile_slope_l_low: s = tile_slope_r_low; break;
+    case tile_slope_l_high: s = tile_slope_r_high; break;
+    default: break;
+    }
+  }
+  return s;
+}
+
+/// Cho mọi ô số `id` chạy animation qua các ô `frames`, mỗi frame `seconds`
+/// giây. Engine vẽ frame hiện tại mà không cần đổi ô trong lưới.
+/// @param map Tilemap.
+/// @param id Số thứ tự ô gốc, là ô đặt trong lưới.
+/// @param frames Số thứ tự ô của từng frame.
+/// @param seconds Thời lượng mỗi frame, giây.
+inline void tilemap_animate(tilemap &map, i32 id, const std::vector<i32> &frames, f32 seconds) {
+  if (id < 0 || frames.empty() || seconds <= 0.0f)
+    return;
+  tile_anim anim{frames, std::vector<f32>(frames.size(), seconds), seconds * (f32)frames.size()};
+  map.anims[id] = std::move(anim);
+}
+
+/// Số thứ tự ô đang hiện của một animation tại thời điểm `time`.
+/// @param anim Animation.
+/// @param time Thời gian, giây.
+/// @return Số thứ tự ô, hoặc -1 nếu animation rỗng.
+inline i32 tile_anim_frame(const tile_anim &anim, f32 time) {
+  if (anim.frames.empty() || anim.total <= 0.0f)
+    return -1;
+  f32 t = std::fmod(time, anim.total);
+  if (t < 0.0f)
+    t += anim.total;
+  for (usize i = 0; i < anim.frames.size(); i++) {
+    const f32 d = i < anim.durations.size() ? anim.durations[i] : 0.0f;
+    if (t < d)
+      return anim.frames[i];
+    t -= d;
+  }
+  return anim.frames.back();
+}
 
 /// Kết quả của tilemap_move().
 struct move_result {
@@ -208,6 +344,9 @@ inline bool tilemap_overlaps(const tilemap &map, vec2 origin, rect box) {
 ///
 /// Mỗi trục nên dời không quá một ô mỗi lần gọi, nếu không vật có thể xuyên
 /// qua tường mỏng.
+///
+/// Mọi ô không trống đều chặn, không xét tilemap::shapes. Muốn bục một chiều
+/// và dốc thì dùng collider `collider_tiles` với collision_move().
 /// @param map Tilemap, mọi ô không trống đều là vật cản.
 /// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới.
 /// @param box Hình chữ nhật của vật cần di chuyển.

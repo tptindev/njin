@@ -86,9 +86,19 @@ struct ui_state {
   u64 saved_focus = 0;
 
   std::vector<ui_toast_rec> toasts;
+
+  // ui_keybind waiting for the next press: the widget's id, and the device
+  // it wants (input_source kind). Navigation is off meanwhile.
+  u64 listening = 0;
+  i32 listen_kind = 0;
 };
 
 // Draws and ages the toasts. Called by the main loop after post_render, so
 // they land over the game's UI.
 void ui_draw_toasts(njin_ctx &ctx);
+
+// Draws one face of `look` (0 normal, 1 focused, 2 pressed, 3 disabled) over
+// `area`, with its texture, 9-slice and shader. For other engine overlays
+// (the dialogue box) that dress like the UI.
+void ui_draw_look(njin_ctx &ctx, const ui_look &look, i32 state, rect area, f32 value = 0.0f);
 } // namespace njin

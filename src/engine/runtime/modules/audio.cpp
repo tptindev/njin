@@ -4,10 +4,10 @@
 
 namespace njin {
 namespace {
-void update_audio(njin_ctx &ctx) { audio_store_update(ctx.audio); }
+void update_audio(njin_ctx &ctx) { audio_store_update(ctx.audio, ctx.time.dt_real); }
 
 void setup(njin_ctx &ctx) {
-  ecs_register(ctx, phase_post_update, update_audio);
+  ecs_register(ctx, phase_post_update, update_audio, "update_audio");
 }
 } // namespace
 

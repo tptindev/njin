@@ -98,5 +98,23 @@
 /// @defgroup grp_debug Debug
 /// Cổng debug cho njin_inspector: số liệu, entity, watches, log, điều khiển thời gian.
 
+/// @defgroup grp_body Nhân vật
+/// Bộ điều khiển platformer (coyote time, nhảy tường, dốc) và top-down (8 hướng, lướt), bục di chuyển.
+
+/// @defgroup grp_nav Tìm đường
+/// Lưới ô, A*, tầm nhìn và đi theo đường cho quái.
+
+/// @defgroup grp_timer Hẹn giờ và tween theo entity
+/// Chạy hàm sau một khoảng, lặp lại, và chuyển vị trí, tỉ lệ, màu của entity mượt mà.
+
+/// @defgroup grp_i18n Đa ngôn ngữ
+/// Bảng chuỗi theo ngôn ngữ, chuỗi có tham số, ngôn ngữ dự phòng.
+
+/// @defgroup grp_dialog Hộp thoại
+/// Kịch bản hội thoại, chữ chạy từng ký tự, chân dung, lựa chọn, event.
+
+/// @defgroup grp_settings Cài đặt
+/// Lưu và nạp âm lượng, phím, toàn màn hình, ngôn ngữ của người chơi.
+
 /// @defgroup grp_types Kiểu cơ bản
 /// Số nguyên, số thực, vector, màu và các handle.

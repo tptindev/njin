@@ -75,7 +75,10 @@ using debug_component_fn = std::function<json_value(const entt::registry &, entt
 /// @param type Định danh kiểu của EnTT, `entt::type_hash<T>::value()`.
 /// @param name Tên hiển thị.
 /// @param fn Hàm chuyển sang JSON.
-void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn);
+/// @param bytes Kích thước một component (`sizeof`), để bảng Memory của
+/// inspector tính bộ nhớ. 0 là chưa biết.
+void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn,
+                     std::size_t bytes = 0);
 
 /// Đăng ký cách hiện component `T` của game bằng một hàm nhận `const T &`.
 /// @code
@@ -98,7 +101,8 @@ void debug_component(njin_ctx &ctx, const char *name, Fn fn) {
                     } else {
                       return fn(reg.get<T>(e));
                     }
-                  });
+                  },
+                  std::is_empty_v<T> ? 0 : sizeof(T));
 }
 /// @}
 } // namespace njin

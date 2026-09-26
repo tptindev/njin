@@ -36,6 +36,50 @@ component và trả về njin::json_value (xem @ref json).
 
 Chưa đăng ký thì inspector ghi "no view" dưới tên component.
 
+## Tiêu thụ: CPU, RAM, GPU {#debug_consumption}
+
+Nút **Consumption** trên thanh trên cùng đổi sang bố cục các cửa sổ đo tiêu thụ (nút **Overview**
+đổi về). Có hai nguồn số liệu, và biết chúng khác nhau thế nào là điều quan trọng:
+
+- **Hệ điều hành báo về tiến trình game** (cửa sổ *Process*): CPU, RAM, GPU thật. Inspector tự đọc
+  bằng số hiệu tiến trình (game chỉ gửi `pid`), nên **game không tốn gì** để được đo.
+- **Chính game báo về dữ liệu của nó** (các cửa sổ còn lại): thời gian từng system, kích thước từng
+  component và entity, từng tài nguyên. Số này chi tiết hơn nhưng chỉ là phần game biết.
+
+| Cửa sổ | Có gì |
+|---|---|
+| **Process** | CPU (% cả máy và % một lõi), RAM (đang dùng, riêng, đỉnh), GPU (% của engine bận nhất, 3D, copy), VRAM (chuyên dụng và dùng chung). Đồ thị hai phút gần nhất |
+| **Systems** | Thanh phân bổ frame theo phase (phần còn lại là chờ vsync và trình chiếu). Bảng **từng system**: ms trung bình, frame vừa rồi, đỉnh, số lần gọi; lọc, sắp xếp |
+| **Memory** | Từng loại component: số lượng, `sizeof`, heap nó giữ, tổng, biểu đồ tròn. Tab **Entities**: bộ nhớ và GPU của **từng entity**, sắp xếp được, bấm để chọn |
+| **Assets** | Từng texture, render target, font, shader, sound, music, kèm dung lượng và nằm ở GPU hay RAM. Cộng thêm ảnh chunk tilemap, buffer post-processing, màn hình ảo |
+| **Entities** | Thêm hai cột RAM và GPU. Cửa sổ **Inspector** ghi entity đang chọn giữ bao nhiêu |
+
+Cách đọc các con số:
+
+- **CPU %** lấy từ thời gian CPU của tiến trình. 100 % là cả máy; "% một lõi" cho biết một luồng
+  bận cỡ nào (game một luồng chạy hết một lõi trên máy 16 lõi chỉ là 6 % cả máy).
+- **GPU và VRAM** đọc từ bộ đếm hiệu năng của Windows (`GPU Engine`, `GPU Process Memory`), giống
+  Task Manager, nên dùng được với card của mọi hãng (Windows 10 1709 trở lên). Card tích hợp dùng
+  bộ nhớ hệ thống, nên VRAM chuyên dụng là 0 và số thật nằm ở "dùng chung". Trên Linux và macOS,
+  cửa sổ Process chưa có GPU (Linux có CPU và RAM); dùng cửa sổ Assets.
+- **Component**: tính `sizeof` + heap + 8 byte chỉ mục của EnTT. **Component của game phải đăng ký
+  bằng njin::debug_component()** mới có kích thước (và giá trị); chưa đăng ký thì hiện `?`. Heap
+  (vector, chuỗi) của component engine như tilemap, particle_emitter, level_object đã được ước tính;
+  của component game thì chỉ tính phần `sizeof`.
+- **Một entity chỉ tốn CPU thông qua các system chạy trên nó**, nên CPU được chia theo **system**, không
+  theo entity. Xem system nào tốn, rồi xem nó chạy trên component nào. GPU của entity chỉ có với
+  tilemap (ảnh chunk đã bake); sprite dùng chung texture nên texture được tính ở cửa sổ Assets.
+- Ước tính GPU của Assets không gồm bộ nhớ của driver, swap chain và context, nên **nhỏ hơn** số
+  VRAM hệ điều hành báo.
+
+Tên system lấy từ tham số thứ ba của ecs_register() hoặc `sys_desc::name`; không đặt thì hiện
+`module/#số`. Đo thời gian **chỉ chạy khi có inspector kết nối** (hai lần đọc đồng hồ mỗi system),
+và ngừng ngay khi inspector đóng.
+
+Game thử inspector: `njin_debug_demo` (xem @ref samples). Mỗi phím của nó cố ý tốn một thứ:
+thêm bóng (entity, va chạm), `H` đốt 3 ms CPU trong một system, `M` giữ 64 MB RAM, `G` tạo một
+render texture 32 MB trên GPU. Bấm rồi xem con số nhảy.
+
 ## Điều khiển thời gian
 
 | Nút | Việc làm |

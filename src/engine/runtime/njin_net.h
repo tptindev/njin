@@ -26,6 +26,10 @@ i32 net_connect_poll(net_socket &sock);
 
 void net_close(net_socket &sock);
 
+// Id of this process, so the inspector can read its CPU, memory and GPU use
+// from the operating system.
+u32 net_process_id();
+
 // A newline-delimited message stream over a socket. Each message is one line
 // (compact JSON). Outgoing data queues and drains as the socket accepts it;
 // once more than `max_pending` bytes wait, new messages are dropped instead of

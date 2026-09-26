@@ -85,3 +85,13 @@ từ chối: njin::level_load() trả về handle id 0 và ghi lý do vào log, 
 Những thứ sau có cảnh báo trong log thay vì lỗi im lặng: nén zstd (hãy lưu bằng CSV, zlib hoặc
 gzip), ô xoay chéo (vẽ không xoay), tileset gồm nhiều ảnh rời, ô animation, object template của
 Tiled, nhiều world trong một project LDtk.
+
+## Hình va chạm và animation của ô
+
+- **Tiled**: đặt thuộc tính chuỗi `collision` (hoặc `shape`, hoặc lớp của ô) trên ô trong tileset:
+  `solid`, `none`, `one_way`, `slope_r`, `slope_l`, `slope_r_low`, `slope_r_high`, `slope_l_low`,
+  `slope_l_high`. Animation vẽ bằng trình chỉnh animation của tileset và được chạy đúng nhịp.
+- **LDtk**: đặt tên giá trị IntGrid theo các tên trên, hoặc gắn enum tag hay custom data lên ô của
+  tileset.
+
+Xem @ref platformer.

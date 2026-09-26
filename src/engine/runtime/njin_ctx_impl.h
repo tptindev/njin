@@ -5,22 +5,26 @@
 #include "modules/camera.h"
 #include "modules/collision.h"
 #include "modules/debug.h"
+#include "modules/dialog.h"
 #include "modules/fx.h"
 #include "modules/post_fx.h"
 #include "modules/reload.h"
 #include "modules/ui.h"
 #include "modules/sprite.h"
+#include "modules/timer.h"
 #include "njin_anim_impl.h"
 #include "njin_audio.h"
 #include "njin_cfg.h"
 #include "njin_ecs.h"
 #include "njin_font.h"
+#include "njin_i18n_impl.h"
 #include "njin_input.h"
 #include "njin_level_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
+#include "njin_view.h"
 #include <string>
 #include <vector>
 
@@ -64,6 +68,7 @@ struct njin_ctx {
   rng random;
   njin_cfg cfg;
   window_guard window;
+  view_state view;
   input_store input;
   shader_store shader;
   texture_store texture;
@@ -75,8 +80,11 @@ struct njin_ctx {
   post_chain postfx;
   reload_state reload;
   ui_state ui;
+  dialog_state dialog;
+  i18n_store i18n;
   debug_state debug;
   sprite_cache sprites;
+  timer_state timers;
   collision_state collision;
   scene_store scene;
   prefab_store prefab;

@@ -4,6 +4,7 @@
 #include "njin2rl.h"
 #include "njin_ctx_impl.h"
 #include "njin_log_impl.h"
+#include "njin_view.h"
 #include <chrono>
 #include <raylib.h>
 
@@ -61,6 +62,8 @@ njin_ctx *njin_create(const njin_cfg &cfg) {
   ctx->time.fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
   ctx->random.reseed(
       (u64)std::chrono::high_resolution_clock::now().time_since_epoch().count());
+  if (cfg.virtual_size.x >= 1.0f && cfg.virtual_size.y >= 1.0f)
+    window_set_virtual_size(*ctx, cfg.virtual_size, cfg.integer_scale);
   register_core_modules(*ctx);
   return ctx;
 }
@@ -81,7 +84,11 @@ void njin_run(njin_ctx &ctx) {
     time.dt = time.paused ? 0.0f : time.dt_real * time.scale;
     // Hitstop zeroes dt here, before any system (or fixed step) reads it.
     fx_frame_begin(ctx);
+    if (ctx.ecs.profile)
+      ecs_profile_roll(ctx.ecs);
+    view_frame_begin(ctx.view);
     input_key_poll(ctx.input);
+    view_map_mouse(ctx.view, ctx.input.cur.mouse_pos, ctx.input.cur.mouse_delta);
     // A scene switch requested last frame happens here, before any system
     // of the new frame runs.
     scene_store_apply(ctx);
@@ -94,14 +101,17 @@ void njin_run(njin_ctx &ctx) {
 
     BeginDrawing();
     ClearBackground(clearbg);
+    view_draw_begin(ctx.view, clearbg);
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
     ecs_run(ctx, phase_post_render);
     // Over everything, UI included: toasts, the screen flash, then the scene
     // fade, which covers the whole frame.
+    dialog_draw(ctx);
     ui_draw_toasts(ctx);
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
+    view_draw_end(ctx.view);
     take_pending_screenshots(ctx);
     EndDrawing();
   }

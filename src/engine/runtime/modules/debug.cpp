@@ -1,7 +1,10 @@
 #include "debug.h"
+#include "debug_prof.h"
 #include "_comps.h"
 #include "_tilemap.h"
 #include "njin_anim.h"
+#include "njin_body.h"
+#include "njin_camera.h"
 #include "njin_collision.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
@@ -17,7 +20,7 @@
 namespace njin {
 namespace {
 // The inspector speaks this version; it refuses a game with another one.
-constexpr i32 protocol_version = 1;
+constexpr i32 protocol_version = 2;
 // Log lines held while no inspector is connected, or between sends.
 constexpr usize max_log_lines = 2000;
 
@@ -56,18 +59,26 @@ void log_tap(log_level level, const char *file, i32 line, const char *msg, void 
 
 // --- built-in component views ---
 
-void register_builtin(debug_state &d, entt::id_type type, const char *name, debug_component_fn fn) {
-  d.types[type] = debug_type_entry{name, std::move(fn)};
+void register_builtin(debug_state &d, entt::id_type type, const char *name, debug_component_fn fn,
+                      std::size_t bytes) {
+  d.types[type] = debug_type_entry{name, std::move(fn), bytes, nullptr};
 }
 
 template <class T, class Fn> void builtin(debug_state &d, const char *name, Fn fn) {
   register_builtin(d, entt::type_hash<T>::value(), name,
-                   [fn](const entt::registry &reg, entt::entity e) { return fn(reg.get<T>(e)); });
+                   [fn](const entt::registry &reg, entt::entity e) { return fn(reg.get<T>(e)); }, sizeof(T));
+}
+
+// Says how much heap a builtin component owns, for the memory tables.
+template <class T, class Fn> void builtin_heap(debug_state &d, Fn fn) {
+  d.types[entt::type_hash<T>::value()].heap = [fn](const entt::registry &reg, entt::entity e) -> std::size_t {
+    return fn(reg.get<T>(e));
+  };
 }
 
 template <class T> void builtin_tag(debug_state &d, const char *name) {
   register_builtin(d, entt::type_hash<T>::value(), name,
-                   [](const entt::registry &, entt::entity) { return json_value::make_object(); });
+                   [](const entt::registry &, entt::entity) { return json_value::make_object(); }, 0);
 }
 
 void register_builtins(njin_ctx &ctx) {
@@ -160,6 +171,39 @@ void register_builtins(njin_ctx &ctx) {
         .set("finished", a.finished)
         .set("loops", a.loops);
   });
+  builtin<platformer_body>(d, "platformer_body", [](const platformer_body &b) {
+    return json_value::make_object()
+        .set("velocity", vec(b.velocity)).set("grounded", b.grounded).set("on_slope", b.on_slope)
+        .set("on_wall", b.on_wall).set("facing", b.facing)
+        .set("run_speed", b.run_speed).set("jump_speed", b.jump_speed)
+        .set("move_x", b.input.move_x).set("coyote", b.coyote_timer).set("jump_buffer", b.buffer_timer);
+  });
+  builtin<topdown_body>(d, "topdown_body", [](const topdown_body &b) {
+    return json_value::make_object()
+        .set("velocity", vec(b.velocity)).set("facing", vec(b.facing)).set("moving", b.moving)
+        .set("dashing", b.dashing).set("speed", b.speed).set("dash_cooldown", b.cooldown_timer);
+  });
+  builtin<path_mover>(d, "path_mover", [](const path_mover &p) {
+    return json_value::make_object()
+        .set("points", (i64)p.points.size()).set("target", p.target).set("speed", p.speed)
+        .set("loop", p.loop).set("paused", p.paused);
+  });
+  builtin<camera_follow>(d, "camera_follow", [](const camera_follow &f) {
+    return json_value::make_object()
+        .set("target", id_of(f.target)).set("offset", vec(f.offset)).set("deadzone", vec(f.deadzone))
+        .set("smoothing", f.smoothing).set("lookahead", vec(f.lookahead)).set("look", vec(f.look));
+  });
+  builtin<platformer_input_map>(d, "platformer_input_map", [](const platformer_input_map &) {
+    return json_value::make_object();
+  });
+  builtin<topdown_input_map>(d, "topdown_input_map", [](const topdown_input_map &) {
+    return json_value::make_object();
+  });
+  builtin_tag<platform_rider>(d, "platform_rider");
+  builtin_heap<path_mover>(d, [](const path_mover &p) -> std::size_t { return p.points.capacity() * sizeof(vec2); });
+  builtin_heap<tilemap>(d, debug_heap_tilemap);
+  builtin_heap<particle_emitter>(d, debug_heap_particles);
+  builtin_heap<level_object>(d, debug_heap_level_object);
 }
 
 // Name for a component type: the registered one, else EnTT's type name
@@ -275,7 +319,8 @@ void send_hello(njin_ctx &ctx) {
                             .set("t", "hello")
                             .set("v", protocol_version)
                             .set("title", ctx.cfg.title != nullptr ? ctx.cfg.title : "njin")
-                            .set("fixed_hz", ctx.time.fixed_dt > 0.0f ? 1.0f / ctx.time.fixed_dt : 0.0f),
+                            .set("fixed_hz", ctx.time.fixed_dt > 0.0f ? 1.0f / ctx.time.fixed_dt : 0.0f)
+                            .set("pid", (i64)net_process_id()),
                         false));
 }
 
@@ -333,6 +378,11 @@ void send_world(njin_ctx &ctx) {
     }
     json_value row = json_value::make_object();
     row.set("id", id_of(e)).set("n", label_of(reg, e, names)).set("c", std::move(comps));
+    if (const entity_cost cost = debug_entity_cost(ctx, e); cost.ram > 0) {
+      row.set("m", (i64)cost.ram);
+      if (cost.gpu > 0)
+        row.set("g", (i64)cost.gpu);
+    }
     if (const transform *t = reg.try_get<transform>(e))
       row.set("p", vec(t->pos));
     if (const collider *c = reg.try_get<collider>(e); c != nullptr && c->shape != collider_tiles) {
@@ -418,8 +468,12 @@ void send_watches(njin_ctx &ctx) {
 
 void begin_frame(njin_ctx &ctx) {
   debug_state &d = ctx.debug;
-  if (!d.running)
+  if (!d.running) {
+    ctx.ecs.profile = false;
     return;
+  }
+  // Time every system while (and only while) an inspector is watching.
+  ctx.ecs.profile = d.link.connected();
   // Undo the stepped frame: pause again before anything reads the clock.
   if (d.stepping) {
     d.stepping = false;
@@ -475,14 +529,22 @@ void end_frame(njin_ctx &ctx) {
     send_world(ctx);
     send_entity(ctx);
     send_watches(ctx);
+    d.link.send(json_dump(debug_build_prof(ctx), false));
+  }
+  // The memory and asset tables walk every component and resource: once a second.
+  d.slow_timer += ctx.time.dt_real;
+  if (d.slow_timer >= 1.0f) {
+    d.slow_timer = 0.0f;
+    d.link.send(json_dump(debug_build_mem(ctx), false));
+    d.link.send(json_dump(debug_build_res(ctx), false));
   }
   if (!d.link.pump())
     d.selected = -1;
 }
 
 void setup(njin_ctx &ctx) {
-  ecs_register(ctx, phase_pre_update, begin_frame);
-  ecs_register(ctx, phase_post_update, end_frame);
+  ecs_register(ctx, phase_pre_update, begin_frame, "begin_frame");
+  ecs_register(ctx, phase_post_update, end_frame, "end_frame");
 }
 } // namespace
 
@@ -505,6 +567,13 @@ bool debug_server_start(njin_ctx &ctx, const debug_server_desc &desc) {
   log_set_tap(log_tap, nullptr);
   NJIN_INFO("debug: waiting for njin_inspector on 127.0.0.1:%u", (unsigned)desc.port);
   return true;
+}
+
+debug_state::~debug_state() {
+  if (tap_target == this) {
+    log_set_tap(nullptr, nullptr);
+    tap_target = nullptr;
+  }
 }
 
 void debug_server_stop(njin_ctx &ctx) {
@@ -537,9 +606,10 @@ void debug_watch(njin_ctx &ctx, const char *name, json_value value) {
 
 void debug_watch(njin_ctx &ctx, const char *name, vec2 value) { debug_watch(ctx, name, vec(value)); }
 
-void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn) {
+void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn,
+                     std::size_t bytes) {
   if (name == nullptr || !fn)
     return;
-  ctx.debug.types[type] = debug_type_entry{name, std::move(fn)};
+  ctx.debug.types[type] = debug_type_entry{name, std::move(fn), bytes, nullptr};
 }
 } // namespace njin

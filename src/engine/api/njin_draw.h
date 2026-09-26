@@ -1,5 +1,7 @@
 #pragma once
 #include "_math.h"
+#include <string>
+#include <vector>
 
 namespace njin {
 struct njin_ctx;
@@ -109,6 +111,35 @@ void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
 /// @return Chiều rộng và chiều cao, tính bằng pixel.
 vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
                   font_handle font = {});
+
+/// Chia một đoạn chữ thành các dòng không rộng quá `max_width` khi vẽ bằng
+/// draw_text() với cùng cỡ và font.
+///
+/// Chỉ xuống dòng ở dấu cách và ở `\n`, nên không bao giờ cắt đôi một chữ
+/// (hay một ký tự UTF-8); một từ dài hơn cả dòng đứng riêng một dòng.
+/// @param ctx Context của engine.
+/// @param text Chuỗi UTF-8.
+/// @param size Cỡ chữ, pixel.
+/// @param max_width Chiều rộng tối đa của một dòng, pixel.
+/// @param font Font.
+/// @return Các dòng, theo thứ tự.
+std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,
+                                   f32 max_width, font_handle font = {});
+
+/// Vẽ một đoạn chữ tự xuống dòng trong bề rộng `max_width`, góc trên trái tại
+/// `pos`.
+/// @param ctx Context của engine.
+/// @param text Chuỗi UTF-8.
+/// @param pos Góc trên trái.
+/// @param size Cỡ chữ, pixel.
+/// @param max_width Chiều rộng tối đa, pixel.
+/// @param color Màu.
+/// @param font Font.
+/// @param line_spacing Khoảng cách dòng, nhân với chiều cao dòng. 1 là sát nhau.
+/// @return Kích thước của khối chữ đã vẽ.
+vec2 draw_text_wrapped(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+                       f32 max_width, rgba color, font_handle font = {},
+                       f32 line_spacing = 1.1f);
 /// @}
 
 /// @addtogroup grp_texture
@@ -165,6 +196,19 @@ enum blend_mode {
 /// @param ctx Context của engine.
 /// @param mode Cách trộn.
 void blend_begin(const njin_ctx &ctx, blend_mode mode);
+
+/// Bật sắp xếp theo Y cho một lớp vẽ: trong lớp đó, sprite và particle có
+/// `y` lớn hơn (thấp hơn trên màn hình) được vẽ sau, nên đè lên thứ đứng phía
+/// sau nó. Đây là cách game top-down cho nhân vật đi vòng ra sau cây, sau nhà.
+///
+/// `y` là `transform.pos.y + sprite::sort_offset`. Đặt `sprite::origin` ở
+/// chân (`{0.5, 1}`) thì không cần `sort_offset`. Tilemap trong lớp đó vẫn vẽ
+/// trước mọi sprite (làm nền). Hai thứ cùng `y` giữ thứ tự ổn định giữa các
+/// frame.
+/// @param ctx Context của engine.
+/// @param layer Lớp vẽ (njin::sprite::layer).
+/// @param on `true` để bật.
+void draw_set_y_sort(njin_ctx &ctx, i32 layer, bool on);
 
 /// Trở lại cách trộn mặc định.
 /// @param ctx Context của engine.

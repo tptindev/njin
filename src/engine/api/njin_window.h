@@ -1,4 +1,5 @@
 #pragma once
+#include "_math.h"
 #include "_types.h"
 
 namespace njin {
@@ -58,6 +59,37 @@ void cursor_set_visible(njin_ctx &ctx, bool visible);
 /// @param path Đường dẫn file. Để nullptr thì lưu vào thư mục `screenshots`
 /// trong thư mục lưu game (xem save_path()), tên theo ngày giờ.
 void screenshot(njin_ctx &ctx, const char *path = nullptr);
+
+/// Bật độ phân giải ảo: game vẽ lên một màn hình cố định `size` pixel (ví dụ
+/// 320 x 180), rồi engine phóng nó ra cửa sổ, giữ tỉ lệ, phần thừa là viền.
+///
+/// Mọi thứ đi qua màn hình ảo: thế giới, UI, toast, chuyển scene. screen_size()
+/// trả về `size`, mouse_pos() và mouse_delta() tính theo pixel ảo, nên code
+/// của game không cần biết cửa sổ thật to bao nhiêu. Ảnh được phóng không làm
+/// mượt, nên pixel art sắc nét ở mọi cỡ cửa sổ.
+///
+/// Với `integer_scale`, chỉ phóng 1, 2, 3... lần: mọi pixel ảo to bằng nhau,
+/// viền có thể dày hơn. Không thì phóng vừa khít cửa sổ.
+/// @param ctx Context của engine.
+/// @param size Kích thước ảo, pixel. `{0, 0}` để tắt và vẽ thẳng lên cửa sổ.
+/// @param integer_scale Chỉ phóng theo bội số nguyên.
+void window_set_virtual_size(njin_ctx &ctx, vec2 size, bool integer_scale = true);
+
+/// Màu viền quanh màn hình ảo. Mặc định là đen.
+/// @param ctx Context của engine.
+/// @param color Màu.
+void window_set_bar_color(njin_ctx &ctx, rgba color);
+
+/// Kích thước thật của cửa sổ, pixel, kể cả khi có độ phân giải ảo.
+/// @param ctx Context của engine.
+/// @return Kích thước cửa sổ.
+vec2 window_size(const njin_ctx &ctx);
+
+/// Vùng của cửa sổ mà màn hình ảo đang chiếm, pixel cửa sổ. Không có độ phân
+/// giải ảo thì là cả cửa sổ.
+/// @param ctx Context của engine.
+/// @return Vùng ảnh trong cửa sổ.
+rect window_viewport(const njin_ctx &ctx);
 
 /// Khóa con trỏ chuột trong cửa sổ và ẩn nó, như game bắn súng góc nhìn thứ
 /// nhất. Khi khóa, dùng mouse_delta() thay cho mouse_pos().

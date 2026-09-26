@@ -73,7 +73,7 @@ void update(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, update); }
+void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
 } // namespace
 
 mod_desc hierarchy_module() {

@@ -3,6 +3,7 @@
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
 #include <algorithm>
+#include <chrono>
 
 namespace njin {
 namespace {
@@ -118,8 +119,8 @@ bool is_registered(const ecs_store &ecs, const char *name) {
 }
 } // namespace
 
-void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc) {
-  ecs_register(ctx, phase, sys_desc{.fnc = fnc});
+void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc, const char *name) {
+  ecs_register(ctx, phase, sys_desc{.fnc = fnc, .name = name});
 }
 
 void ecs_register(njin_ctx &ctx, sys_phase phase, const sys_desc &desc) {
@@ -160,8 +161,13 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
     const auto phase = static_cast<sys_phase>(p);
     const std::vector<sys_desc> &pending = ecs.pending[p];
     for (const usize i : sort_systems(pending, label, phase)) {
-      ecs.schedule[p].push_back(
-          scheduled_system{.fnc = pending[i].fnc, .scene = pending[i].scene});
+      const std::string name = pending[i].name != nullptr
+                                   ? std::string(pending[i].name)
+                                   : "#" + std::to_string(ecs.schedule[p].size());
+      ecs.schedule[p].push_back(scheduled_system{.fnc = pending[i].fnc,
+                                                 .scene = pending[i].scene,
+                                                 .label = std::string(label) + "/" + name,
+                                                 .stat = {}});
     }
     ecs.pending[p].clear();
   }
@@ -183,9 +189,40 @@ void njin_mod_register(njin_ctx &ctx, std::initializer_list<mod_desc> mods) {
 
 void ecs_run(njin_ctx &ctx, sys_phase phase) {
   const u32 current = ctx.scene.current.id;
-  for (const scheduled_system &sys : ctx.ecs.schedule[phase]) {
-    if (sys.scene.id == 0 || sys.scene.id == current)
-      sys.fnc(ctx);
+  ecs_store &ecs = ctx.ecs;
+  if (!ecs.profile) {
+    for (const scheduled_system &sys : ecs.schedule[phase]) {
+      if (sys.scene.id == 0 || sys.scene.id == current)
+        sys.fnc(ctx);
+    }
+    return;
+  }
+  using clock = std::chrono::steady_clock;
+  const auto phase_start = clock::now();
+  for (scheduled_system &sys : ecs.schedule[phase]) {
+    if (sys.scene.id != 0 && sys.scene.id != current)
+      continue;
+    const auto start = clock::now();
+    sys.fnc(ctx);
+    sys.stat.accum += std::chrono::duration<f32, std::milli>(clock::now() - start).count();
+    sys.stat.calls_accum++;
+  }
+  ecs.phase_accum[phase] += std::chrono::duration<f32, std::milli>(clock::now() - phase_start).count();
+}
+
+void ecs_profile_roll(ecs_store &ecs) {
+  for (i32 p = 0; p < phase_count; p++) {
+    ecs.phase_last[p] = ecs.phase_accum[p];
+    ecs.phase_accum[p] = 0.0f;
+    for (scheduled_system &sys : ecs.schedule[p]) {
+      sys_stat &s = sys.stat;
+      s.last = s.accum;
+      s.calls = s.calls_accum;
+      s.avg += (s.last - s.avg) * 0.1f;
+      s.peak = std::max(s.peak * 0.995f, s.last);
+      s.accum = 0.0f;
+      s.calls_accum = 0;
+    }
   }
 }
 } // namespace njin

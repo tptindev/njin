@@ -68,3 +68,18 @@ Cần va chạm với cả tilemap lẫn các entity khác (thùng, cửa, quái
 
 @note Mỗi lần gọi, mỗi trục nên dời không quá một ô. Vật đi quá nhanh có thể xuyên qua
 tường mỏng. Đặt vật lý trong `phase_fixed_update` để bước đi nhỏ và đều (xem @ref time).
+
+## Hình va chạm và animation của ô
+
+Mỗi loại ô có thể có **hình va chạm** riêng (bục một chiều, dốc, không va chạm) và **animation** (nước,
+đuốc). Cả hai đặt theo số thứ tự ô, nên áp dụng cho mọi ô cùng loại:
+
+@code
+njin::tilemap_set_shape(map, 3, njin::tile_one_way);
+njin::tilemap_set_shape(map, 4, njin::tile_slope_r);
+njin::tilemap_animate(map, 10, {10, 11, 12, 13}, 0.18f); // ô 10 chạy qua bốn frame
+@endcode
+
+Bản đồ nạp từ Tiled và LDtk có sẵn cả hai (xem @ref level). Ô có animation không bị bake vào ảnh
+chunk mà vẽ chồng lên mỗi frame, nên chunk tĩnh vẫn rẻ. `collision_move()` và `collision_raycast()`
+hiểu hình của ô; tilemap_move() thì coi mọi ô là vật cản. Xem @ref platformer để dùng chúng.

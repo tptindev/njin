@@ -5,6 +5,7 @@
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
 #include "_tween.h"
+#include "njin_bindings.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <cmath>
@@ -229,6 +230,11 @@ void frame_begin(njin_ctx &ctx) {
     ui.focus = ui.saved_focus; // the popup is gone: back to where the player was
   }
   const bool active = !ui.last_panels.empty();
+  // A keybind that was not drawn last frame (its menu closed) stops waiting.
+  if (ui.listening != 0 &&
+      std::none_of(ui.last.begin(), ui.last.end(),
+                   [&](const ui_widget_rec &w) { return w.id == ui.listening; }))
+    ui.listening = 0;
 
   // Raw input, read before anything is consumed.
   const f32 dt = ctx.time.dt_real;
@@ -276,6 +282,12 @@ void frame_begin(njin_ctx &ctx) {
   ui.left = fire == 3;
   ui.right = fire == 4;
   ui.adjust = 0;
+  if (ui.listening != 0) {
+    // A keybind is waiting for a press: that press is not navigation.
+    ui.up = ui.down = ui.left = ui.right = false;
+    ui.accept = ui.accept_held = ui.back = false;
+    ui.mouse_pressed = ui.mouse_released = false;
+  }
 
   if (!active)
     return;
@@ -318,7 +330,7 @@ void frame_begin(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, frame_begin); }
+void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, frame_begin, "frame_begin"); }
 
 // --- layout ---
 
@@ -713,6 +725,68 @@ void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source) {
   ui.cmds.push_back(std::move(c));
 }
 
+void ui_draw_look(njin_ctx &ctx, const ui_look &look, i32 state, rect area, f32 value) {
+  ui_cmd c{};
+  c.kind = ui_cmd::skin;
+  c.area = area;
+  c.look = skin_for(look, (widget_state)std::clamp(state, 0, 3));
+  c.shader = look.shader;
+  c.state = (f32)state;
+  c.value = value;
+  flush(ctx, ctx.ui, {c});
+}
+
+bool ui_keybind(njin_ctx &ctx, const char *label, action_handle action, bool pad) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_keybind");
+  if (label == nullptr)
+    return false;
+  const interaction it = interact(ctx, label, true, false);
+  bool changed = false;
+  if (ui.listening == it.id) {
+    input_source s{};
+    if (input_any_pressed(ctx, s)) {
+      const bool cancel = s.kind == input_source::key && s.code == key_escape;
+      const bool fits = pad ? s.kind == input_source::pad : s.kind != input_source::pad;
+      if (cancel) {
+        ui.listening = 0;
+        play(ctx, ui.style.sound_back);
+      } else if (fits) {
+        action_rebind(ctx, action, s);
+        ui.listening = 0;
+        changed = true;
+        play(ctx, ui.style.sound_accept);
+      }
+    }
+  } else if (it.clicked && ui.listening == 0) {
+    ui.listening = it.id;
+    ui.listen_kind = pad ? 1 : 0;
+    play(ctx, ui.style.sound_accept);
+  }
+  const bool waiting = ui.listening == it.id;
+  const widget_state state = waiting ? state_pressed : it.state;
+  push_skin(ui, ui.style.button, state, it.area);
+  const rgba color = text_for(ui.style.button, state);
+  text_left(ctx, ui, shown(label), it.area, color);
+  std::string value = "...";
+  if (!waiting) {
+    value.clear();
+    for (const input_source &s : action_sources(ctx, action)) {
+      if ((s.kind == input_source::pad) != pad)
+        continue;
+      if (!value.empty())
+        value += ", ";
+      value += input_source_name(s);
+    }
+    if (value.empty())
+      value = "-";
+  }
+  text_right(ctx, ui, value, it.area, color);
+  return changed;
+}
+
+bool ui_keybind_listening(const njin_ctx &ctx) { return ctx.ui.listening != 0; }
+
 bool ui_back(njin_ctx &ctx) {
   ui_state &ui = ctx.ui;
   if (!ui.back || ui.last_panels.empty())
@@ -743,34 +817,7 @@ namespace {
 // the line stays whole.
 std::vector<std::string> wrap_lines(const njin_ctx &ctx, const ui_state &ui, const char *text,
                                     f32 max_w, f32 size) {
-  std::vector<std::string> lines;
-  std::string paragraph;
-  const auto flush_paragraph = [&]() {
-    std::string line;
-    usize i = 0;
-    while (i <= paragraph.size()) {
-      const usize end = std::min(paragraph.find(' ', i), paragraph.size());
-      const std::string word = paragraph.substr(i, end - i);
-      const std::string trial = line.empty() ? word : line + " " + word;
-      if (!line.empty() && measure(ctx, ui, trial, size).x > max_w) {
-        lines.push_back(line);
-        line = word;
-      } else {
-        line = trial;
-      }
-      i = end + 1;
-    }
-    lines.push_back(line);
-    paragraph.clear();
-  };
-  for (const char *c = text; *c != '\0'; c++) {
-    if (*c == '\n')
-      flush_paragraph();
-    else
-      paragraph.push_back(*c);
-  }
-  flush_paragraph();
-  return lines;
+  return text_wrap(ctx, text, size, max_w, ui.style.font);
 }
 } // namespace
 

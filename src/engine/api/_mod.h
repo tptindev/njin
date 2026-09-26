@@ -55,6 +55,9 @@ struct sys_desc {
   /// Chỉ chạy khi scene này đang chạy (xem scene_register()). Handle id 0 là
   /// chạy ở mọi scene.
   scene_handle scene{};
+  /// Tên hiện trong njin_inspector (bảng thời gian từng system). Null thì
+  /// inspector hiện `module/#số thứ tự`.
+  const char *name = nullptr;
 };
 
 /// Mô tả một module: một nhóm system có tên.

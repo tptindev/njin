@@ -33,11 +33,20 @@ rect chunk_rect(const tilemap &map, vec2 origin, u64 key) {
   return {{origin.x + (f32)c.x * size.x, origin.y + (f32)c.y * size.y}, size};
 }
 
-// Draws every tile of `chunk` with its top-left corner at `offset`. Used both
-// to bake a chunk image and, when a chunk changed after baking this frame, to
-// draw it directly so a stale image never reaches the screen.
+// Which tiles draw_chunk_tiles draws.
+enum class tiles_pass { all, still, animated };
+
+bool is_animated(const tilemap &map, i32 value) {
+  return !map.anims.empty() && map.anims.contains(tile_id(value));
+}
+
+// Draws the tiles of `chunk` with its top-left corner at `offset`. Used to
+// bake a chunk image (still tiles only), to draw the animated tiles over it
+// (at their frame for `time`), and, when a chunk changed after baking this
+// frame, to draw it all directly so a stale image never reaches the screen.
 void draw_chunk_tiles(const texture_slot &tileset, const tilemap &map,
-                      const tile_chunk &chunk, vec2 offset, Color tint) {
+                      const tile_chunk &chunk, vec2 offset, Color tint,
+                      tiles_pass pass = tiles_pass::all, f32 time = 0.0f) {
   const vec2 step = map.tile_size + vec2{map.spacing, map.spacing};
   const i32 columns =
       (i32)(((f32)tileset.texture.width - 2.0f * map.margin + map.spacing) / step.x);
@@ -48,7 +57,20 @@ void draw_chunk_tiles(const texture_slot &tileset, const tilemap &map,
       const i32 value = chunk.tiles[(usize)(y * tile_chunk_size + x)];
       if (value < 0)
         continue;
-      const i32 id = tile_id(value);
+      i32 id = tile_id(value);
+      if (!map.anims.empty()) {
+        const auto anim = map.anims.find(id);
+        const bool animated = anim != map.anims.end();
+        if ((pass == tiles_pass::still && animated) || (pass == tiles_pass::animated && !animated))
+          continue;
+        if (animated) {
+          const i32 frame = tile_anim_frame(anim->second, time);
+          if (frame >= 0)
+            id = frame;
+        }
+      } else if (pass == tiles_pass::animated) {
+        return;
+      }
       // A negative source size flips the tile.
       const Rectangle source{map.margin + (f32)(id % columns) * step.x,
                              map.margin + (f32)(id / columns) * step.y,
@@ -78,8 +100,17 @@ void bake(chunk_image &image, const texture_slot &tileset, const tilemap &map,
   }
   BeginTextureMode(image.target);
   ClearBackground(BLANK);
-  draw_chunk_tiles(tileset, map, chunk, {0.0f, 0.0f}, WHITE);
+  draw_chunk_tiles(tileset, map, chunk, {0.0f, 0.0f}, WHITE, tiles_pass::still);
   EndTextureMode();
+  image.has_animated = false;
+  if (!map.anims.empty()) {
+    for (const i32 value : chunk.tiles) {
+      if (value >= 0 && is_animated(map, value)) {
+        image.has_animated = true;
+        break;
+      }
+    }
+  }
   SetTextureFilter(image.target.texture, texture_filter_to_raylib(tileset.filter));
   image.version = chunk.version;
   image.texture_version = tileset.version;
@@ -87,6 +118,7 @@ void bake(chunk_image &image, const texture_slot &tileset, const tilemap &map,
 
 void animate(njin_ctx &ctx) {
   const f32 dt = ctx.time.dt;
+  ctx.sprites.tile_time += dt;
   auto view = ctx.ecs.registry.view<sprite, sprite_anim>();
   for (auto [entity, spr, anim] : view.each()) {
     if (anim.frame_size.x <= 0.0f || anim.frame_size.y <= 0.0f ||
@@ -184,13 +216,17 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
     if (image == nullptr) {
       // Changed after this frame's bake, or not baked yet: draw it tile by
       // tile this once. The bake catches up next frame.
-      draw_chunk_tiles(*tileset, map, chunk, area.pos, tint);
+      draw_chunk_tiles(*tileset, map, chunk, area.pos, tint, tiles_pass::all,
+                       ctx.sprites.tile_time);
       continue;
     }
     const Texture2D &texture = image->target.texture;
     const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
     const Rectangle dest{area.pos.x, area.pos.y, area.size.x, area.size.y};
     DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, tint);
+    if (image->has_animated)
+      draw_chunk_tiles(*tileset, map, chunk, area.pos, tint, tiles_pass::animated,
+                       ctx.sprites.tile_time);
   }
 }
 
@@ -201,6 +237,7 @@ struct draw_item {
   i32 layer = 0;
   i32 kind = 0; // 0 tilemap, 1 sprite, 2 particle emitter
   entt::entity entity{};
+  f32 y = 0.0f; // for layers sorted by y
 };
 
 void draw(njin_ctx &ctx) {
@@ -212,17 +249,23 @@ void draw(njin_ctx &ctx) {
   }
   for (auto [entity, tr, spr] : registry.view<const transform, const sprite>().each()) {
     if (spr.visible)
-      items.push_back({spr.layer, 1, entity});
+      items.push_back({spr.layer, 1, entity, tr.pos.y + spr.sort_offset});
   }
   for (auto [entity, tr, em] :
        registry.view<const transform, const particle_emitter>().each()) {
     if (em.visible && !em.particles.empty())
-      items.push_back({em.layer, 2, entity});
+      items.push_back({em.layer, 2, entity, tr.pos.y});
   }
+  const std::unordered_set<i32> &by_y = ctx.sprites.y_sorted;
   std::stable_sort(items.begin(), items.end(),
-                   [](const draw_item &a, const draw_item &b) {
-                     return a.layer != b.layer ? a.layer < b.layer
-                                               : a.kind < b.kind;
+                   [&by_y](const draw_item &a, const draw_item &b) {
+                     if (a.layer != b.layer)
+                       return a.layer < b.layer;
+                     // Tilemaps stay first, as the ground; the rest by y.
+                     if (!by_y.empty() && a.kind != 0 && b.kind != 0 && by_y.contains(a.layer) &&
+                         a.y != b.y)
+                       return a.y < b.y;
+                     return a.kind < b.kind;
                    });
 
   const rect view = camera_bounds(ctx);
@@ -254,10 +297,10 @@ void draw(njin_ctx &ctx) {
 }
 
 void setup(njin_ctx &ctx) {
-  ecs_register(ctx, phase_post_update, animate);
-  ecs_register(ctx, phase_post_update, fx_update_sprite_flashes);
-  ecs_register(ctx, phase_post_update, bake_tilemaps);
-  ecs_register(ctx, phase_render, draw);
+  ecs_register(ctx, phase_post_update, animate, "animate");
+  ecs_register(ctx, phase_post_update, fx_update_sprite_flashes, "fx_update_sprite_flashes");
+  ecs_register(ctx, phase_post_update, bake_tilemaps, "bake_tilemaps");
+  ecs_register(ctx, phase_render, draw, "draw");
 }
 } // namespace
 
@@ -266,6 +309,13 @@ sprite_cache::~sprite_cache() {
     for (auto &[key, image] : images)
       release(image);
   }
+}
+
+void draw_set_y_sort(njin_ctx &ctx, i32 layer, bool on) {
+  if (on)
+    ctx.sprites.y_sorted.insert(layer);
+  else
+    ctx.sprites.y_sorted.erase(layer);
 }
 
 mod_desc sprite_module() {

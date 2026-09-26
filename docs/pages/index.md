@@ -35,6 +35,12 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Cửa sổ, toàn màn hình, lưu game | @subpage window_files |
 | Lưu game, file cấu hình bằng JSON | @subpage json |
 | Menu, popup, toast, thanh trượt, dùng được với tay cầm | @subpage ui |
+| Platformer: chạy, nhảy có coyote time, dốc, bục một chiều, nhảy tường, camera bám | @subpage platformer |
+| Top-down: đi 8 hướng, lướt, quái đuổi theo A*, sắp theo Y | @subpage topdown |
+| Màn hình ảo cho pixel art; hẹn giờ và tween theo entity | @subpage screen_timers |
+| Hộp thoại, chữ chạy, lựa chọn; đa ngôn ngữ | @subpage dialog |
+| Âm lượng từng kênh, đổi phím, rung tay cầm, lưu cài đặt | @subpage settings |
+| Game mẫu, đóng gói bản phát hành | @subpage samples |
 | Ghi log | @subpage logging |
 | Xem FPS, entity, collider, log trong một cửa sổ riêng | @subpage debug |
 | Hiểu cách engine được tổ chức bên trong | @subpage architecture |

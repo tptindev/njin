@@ -5,6 +5,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
+#include "njin_body.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <cmath>
@@ -91,7 +92,8 @@ void each_tiles(const entt::registry &registry, Fnc &&fnc) {
   }
 }
 
-// Calls fnc(x, y) for every non-empty tile overlapping `area`.
+// Calls fnc(x, y, shape) for every tile overlapping `area` that collides
+// (non-empty, and not tile_none).
 template <class Fnc>
 void each_tile_in(const tilemap &map, vec2 origin, rect area, Fnc &&fnc) {
   if (area.size.x < 0.0f || area.size.y < 0.0f)
@@ -100,8 +102,9 @@ void each_tile_in(const tilemap &map, vec2 origin, rect area, Fnc &&fnc) {
   const cell b = tilemap_cell_at(map, origin, area.pos + area.size - vec2{1e-4f, 1e-4f});
   for (i32 y = a.y; y <= b.y; y++) {
     for (i32 x = a.x; x <= b.x; x++) {
-      if (tilemap_get(map, x, y) >= 0)
-        fnc(x, y);
+      const tile_shape shape = tilemap_shape(map, tilemap_get(map, x, y));
+      if (shape != tile_none)
+        fnc(x, y, shape);
     }
   }
 }
@@ -227,8 +230,8 @@ void draw_debug(njin_ctx &ctx) {
 }
 
 void setup(njin_ctx &ctx) {
-  ecs_register(ctx, phase_post_update, detect);
-  ecs_register(ctx, phase_render, draw_debug);
+  ecs_register(ctx, phase_post_update, detect, "detect");
+  ecs_register(ctx, phase_render, draw_debug, "draw_debug");
 }
 
 // --- raycast helpers ---
@@ -309,7 +312,145 @@ void collision_set_cell_size(njin_ctx &ctx, f32 size) {
 
 // --- movement ---
 
+namespace {
+// One thing that can stop a move. `kind` is a tile_shape: tile_solid,
+// tile_one_way or a slope (colliders only ever use the first two).
+struct obstacle {
+  rect box;
+  entt::entity entity;
+  tile_shape kind = tile_solid;
+  bool tile = false;
+};
+
+constexpr f32 move_eps = 0.01f;
+
+f32 bottom_of(const rect &r) { return r.pos.y + r.size.y; }
+f32 right_of(const rect &r) { return r.pos.x + r.size.x; }
+
+// Height (world y) of a slope's surface at world x.
+f32 slope_y(const obstacle &ob, f32 x) {
+  const f32 u = ob.box.size.x > 0.0f ? (x - ob.box.pos.x) / ob.box.size.x : 0.0f;
+  return bottom_of(ob.box) - ob.box.size.y * tile_surface(ob.kind, u);
+}
+
+// A moving box against the obstacles around it, one axis at a time.
+struct mover {
+  std::vector<obstacle> obstacles;
+  bool drop_through = false;
+  f32 feet = 0.0f;       // how far below the box's bottom a low tile may rise and be stepped onto from a slope
+  bool on_slope = false; // standing on a slope when the move began
+
+  bool one_way_ok(const obstacle &ob, f32 bottom) const {
+    return !drop_through && bottom <= ob.box.pos.y + move_eps;
+  }
+
+  // The rectangle `ob` blocks with when moving along an axis, or an empty one.
+  rect face(const obstacle &ob, f32 step, bool horizontal) const {
+    if (!tile_is_slope(ob.kind))
+      return ob.box;
+    if (!horizontal) // moving up: the underside of a slope is solid
+      return step < 0.0f ? ob.box : rect{};
+    // The high side of a slope is a wall; the low side is open. Walking onto
+    // it from level ground at its foot or its top is not blocked.
+    const f32 h = tile_surface(ob.kind, step > 0.0f ? 0.0f : 1.0f);
+    const f32 top = bottom_of(ob.box) - ob.box.size.y * h + feet;
+    if (top >= bottom_of(ob.box))
+      return rect{};
+    return rect{{ob.box.pos.x, top}, {ob.box.size.x, bottom_of(ob.box) - top}};
+  }
+
+  // Sweeps `r` by `step` along one axis and stops it at the first obstacle
+  // in the way, so a long step cannot tunnel through a thin wall. Obstacles
+  // `r` already overlaps are skipped, so an entity that starts stuck can move
+  // out. Returns the index of the obstacle hit, or -1.
+  i32 sweep(rect &r, f32 step, bool horizontal) const {
+    const i32 a = horizontal ? 0 : 1; // moving axis
+    const i32 o = 1 - a;              // other axis
+    const auto lo = [](const rect &x, i32 axis) { return axis == 0 ? x.pos.x : x.pos.y; };
+    const auto len = [](const rect &x, i32 axis) { return axis == 0 ? x.size.x : x.size.y; };
+    f32 allowed = step;
+    i32 hit = -1;
+    const f32 cx = r.pos.x + r.size.x * 0.5f;
+    for (i32 i = 0; i < (i32)obstacles.size(); i++) {
+      const obstacle &ob = obstacles[(usize)i];
+      if (ob.kind == tile_one_way && (horizontal || step < 0.0f || !one_way_ok(ob, bottom_of(r))))
+        continue;
+      if (!horizontal && step > 0.0f && tile_is_slope(ob.kind)) {
+        // Falling onto a slope lands on its surface under the box's centre.
+        if (cx < ob.box.pos.x || cx >= right_of(ob.box))
+          continue;
+        const f32 gap = slope_y(ob, cx) - bottom_of(r);
+        if (gap < -move_eps || gap >= allowed)
+          continue;
+        allowed = std::max(gap, 0.0f);
+        hit = i;
+        continue;
+      }
+      // On a slope, low tiles at the feet are walked onto, not bumped into.
+      if (horizontal && on_slope && ob.tile && ob.kind == tile_solid &&
+          ob.box.pos.y >= bottom_of(r) - feet)
+        continue;
+      const rect box = face(ob, step, horizontal);
+      if (box.size.x <= 0.0f || box.size.y <= 0.0f || rects_overlap(r, box))
+        continue;
+      // Must share the other axis (strictly: touching sides slide past).
+      if (!(lo(r, o) < lo(box, o) + len(box, o) && lo(box, o) < lo(r, o) + len(r, o)))
+        continue;
+      f32 gap = 0.0f;
+      if (step > 0.0f) {
+        gap = lo(box, a) - (lo(r, a) + len(r, a));
+        if (gap < 0.0f || gap >= allowed)
+          continue;
+      } else {
+        gap = (lo(box, a) + len(box, a)) - lo(r, a);
+        if (gap > 0.0f || gap <= allowed)
+          continue;
+      }
+      allowed = gap;
+      hit = i;
+    }
+    if (horizontal)
+      r.pos.x += allowed;
+    else
+      r.pos.y += allowed;
+    return hit;
+  }
+
+  // Highest ground under the centre of `r`'s bottom edge, from `up` above it
+  // to `down` below: a slope's surface, the top of a solid tile, or of a
+  // one-way platform the box started above. Colliders are left to the sweep.
+  // Returns its index, or -1.
+  i32 ground_under(const rect &r, f32 up, f32 down, f32 start_bottom, f32 &y) const {
+    const f32 cx = r.pos.x + r.size.x * 0.5f;
+    const f32 bottom = bottom_of(r);
+    i32 best = -1;
+    for (i32 i = 0; i < (i32)obstacles.size(); i++) {
+      const obstacle &ob = obstacles[(usize)i];
+      if (!ob.tile || cx < ob.box.pos.x || cx >= right_of(ob.box))
+        continue;
+      f32 s = ob.box.pos.y;
+      if (tile_is_slope(ob.kind))
+        s = slope_y(ob, cx);
+      else if (ob.kind == tile_one_way && !one_way_ok(ob, start_bottom))
+        continue;
+      if (s < bottom - up || s > bottom + down)
+        continue;
+      if (best < 0 || s < y) {
+        best = i;
+        y = s;
+      }
+    }
+    return best;
+  }
+};
+} // namespace
+
 collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta) {
+  return collision_move(ctx, entity, delta, collision_move_opts{});
+}
+
+collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta,
+                                     const collision_move_opts &opts) {
   entt::registry &registry = world(ctx);
   collision_move_result result{};
   transform *tr = registry.valid(entity) ? registry.try_get<transform>(entity) : nullptr;
@@ -320,24 +461,28 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
   }
   const rect start = collider_bounds(*tr, *self);
   if (!self->enabled) {
-    tr->pos += delta;
+    if (!opts.test_only)
+      tr->pos += delta;
     result.moved = delta;
     return result;
   }
 
+  mover m;
+  m.drop_through = opts.drop_through;
+  // A slope rises at most one tile per tile, so between the centre of the
+  // box's bottom (which rides the slope) and its edges there is at most half
+  // its width.
+  m.feet = std::min(start.size.x * 0.5f + 1.0f, start.size.y * 0.5f);
+  const f32 snap = std::max(opts.snap_down, 0.0f);
+
   // Everything that could block this move: the union of where the box is and
-  // where it wants to go.
+  // where it wants to go, grown enough to find the ground under it.
   rect swept = start;
   swept.pos.x = std::min(start.pos.x, start.pos.x + delta.x);
-  swept.pos.y = std::min(start.pos.y, start.pos.y + delta.y);
+  swept.pos.y = std::min(start.pos.y, start.pos.y + delta.y) - m.feet;
   swept.size.x += std::abs(delta.x);
-  swept.size.y += std::abs(delta.y);
+  swept.size.y += std::abs(delta.y) + m.feet * 2.0f + snap + 1.0f;
 
-  struct obstacle {
-    rect box;
-    entt::entity entity;
-  };
-  std::vector<obstacle> blockers;
   for (auto [other, otr, col] : registry.view<const transform, const collider>().each()) {
     if (other == entity || !col.enabled || col.trigger || col.shape == collider_tiles)
       continue;
@@ -347,59 +492,121 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
       continue;
     const rect b = collider_bounds(otr, col);
     if (rects_overlap(b, swept))
-      blockers.push_back({b, other});
+      m.obstacles.push_back(
+          {b, other, col.one_way && col.shape == collider_box ? tile_one_way : tile_solid, false});
   }
   each_tiles(registry, [&](entt::entity tiles, const collider &col, const tilemap &map, vec2 origin) {
     if (!layers_allow(self->layer, self->mask, col.layer, col.mask))
       return;
-    each_tile_in(map, origin, swept, [&](i32 x, i32 y) {
-      blockers.push_back({tilemap_cell_rect(map, origin, x, y), tiles});
+    each_tile_in(map, origin, swept, [&](i32 x, i32 y, tile_shape shape) {
+      m.obstacles.push_back({tilemap_cell_rect(map, origin, x, y), tiles, shape, true});
     });
   });
 
-  // Sweeps `r` by `step` along one axis and stops it at the first blocker in
-  // the way, so a long step cannot tunnel through a thin wall. Blockers `r`
-  // already overlaps are ignored, so an entity that starts stuck can move out.
-  const auto sweep = [&](rect &r, f32 step, bool horizontal, entt::entity &hit) {
-    const i32 a = horizontal ? 0 : 1; // moving axis
-    const i32 o = 1 - a;              // other axis
-    const auto lo = [](const rect &x, i32 axis) { return axis == 0 ? x.pos.x : x.pos.y; };
-    const auto len = [](const rect &x, i32 axis) { return axis == 0 ? x.size.x : x.size.y; };
-    f32 allowed = step;
-    for (const obstacle &ob : blockers) {
-      if (rects_overlap(r, ob.box))
-        continue;
-      // Must share the other axis (strictly: touching sides slide past).
-      if (!(lo(r, o) < lo(ob.box, o) + len(ob.box, o) && lo(ob.box, o) < lo(r, o) + len(r, o)))
-        continue;
-      f32 gap = 0.0f;
-      if (step > 0.0f) {
-        gap = lo(ob.box, a) - (lo(r, a) + len(r, a));
-        if (gap < 0.0f || gap >= allowed)
-          continue;
-      } else {
-        gap = (lo(ob.box, a) + len(ob.box, a)) - lo(r, a);
-        if (gap > 0.0f || gap <= allowed)
-          continue;
-      }
-      allowed = gap;
-      hit = ob.entity;
-    }
-    if (horizontal)
-      r.pos.x += allowed;
-    else
-      r.pos.y += allowed;
-    return allowed != step;
-  };
+  const f32 start_bottom = bottom_of(start);
+  f32 ground_y = 0.0f;
+  {
+    const i32 g = m.ground_under(start, 1.0f, 1.0f, start_bottom, ground_y);
+    m.on_slope = g >= 0 && tile_is_slope(m.obstacles[(usize)g].kind);
+  }
 
   rect r = start;
-  if (delta.x != 0.0f)
-    result.hit_x = sweep(r, delta.x, true, result.other_x);
-  if (delta.y != 0.0f)
-    result.hit_y = sweep(r, delta.y, false, result.other_y);
+  if (delta.x != 0.0f) {
+    const i32 hit = m.sweep(r, delta.x, true);
+    result.hit_x = hit >= 0;
+    if (hit >= 0)
+      result.other_x = m.obstacles[(usize)hit].entity;
+  }
+  if (delta.y != 0.0f) {
+    const i32 hit = m.sweep(r, delta.y, false);
+    result.hit_y = hit >= 0;
+    if (hit >= 0)
+      result.other_y = m.obstacles[(usize)hit].entity;
+  }
+
+  if (delta.y >= 0.0f) {
+    // Walking up a slope (or onto the step at its top) leaves the feet under
+    // the surface: lift them onto it. A fast fall may sink by one step's worth.
+    const f32 up = m.feet + std::max(delta.y, 0.0f);
+    const i32 g = m.ground_under(r, up, 0.0f, start_bottom, ground_y);
+    if (g >= 0 && ground_y < bottom_of(r) - move_eps) {
+      r.pos.y = ground_y - r.size.y;
+      result.hit_y = true;
+      result.other_y = m.obstacles[(usize)g].entity;
+    } else if (snap > 0.0f && !result.hit_y) {
+      // Walking down a slope: stay on the ground when it is close below,
+      // instead of floating off it.
+      rect probe = r;
+      if (m.sweep(probe, snap, false) >= 0)
+        r = probe;
+    }
+  }
+
+  // What it stands on: a short probe down from where the move ended.
+  {
+    rect probe = r;
+    const i32 g = m.sweep(probe, 0.5f, false);
+    if (g >= 0) {
+      const obstacle &ob = m.obstacles[(usize)g];
+      result.grounded = true;
+      result.ground = ob.entity;
+      result.on_slope = tile_is_slope(ob.kind);
+      result.ground_one_way = ob.kind == tile_one_way;
+    }
+  }
+
   result.moved = r.pos - start.pos;
-  tr->pos += result.moved;
+  if (!opts.test_only)
+    tr->pos += result.moved;
   return result;
+}
+
+void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta) {
+  entt::registry &registry = world(ctx);
+  transform *tr = registry.valid(platform) ? registry.try_get<transform>(platform) : nullptr;
+  const collider *col = tr != nullptr ? registry.try_get<collider>(platform) : nullptr;
+  if (col == nullptr || col->shape == collider_tiles) {
+    NJIN_WARN("collision_move_platform: entity needs a transform and a box collider");
+    return;
+  }
+  if (delta.x == 0.0f && delta.y == 0.0f)
+    return;
+  const rect before = collider_bounds(*tr, *col);
+
+  // Who rides: bodies whose bottom sits on the platform's top.
+  std::vector<entt::entity> riders;
+  std::vector<entt::entity> others;
+  for (auto [e, etr, ecol] : registry.view<const transform, const collider>().each()) {
+    if (e == platform || !ecol.enabled || ecol.trigger || ecol.shape == collider_tiles)
+      continue;
+    if (!registry.any_of<platform_rider, platformer_body, topdown_body>(e))
+      continue;
+    if (const child_of *link = registry.try_get<child_of>(e); link != nullptr && link->parent == platform)
+      continue;
+    const rect b = collider_bounds(etr, ecol);
+    const bool above = std::abs(bottom_of(b) - before.pos.y) <= 1.0f &&
+                       b.pos.x < right_of(before) && before.pos.x < right_of(b);
+    (above ? riders : others).push_back(e);
+  }
+
+  tr->pos += delta;
+  for (const entt::entity e : riders)
+    collision_move(ctx, e, delta);
+  if (col->one_way)
+    return;
+  // Push aside what the platform ran into.
+  const rect after = collider_bounds(*tr, *col);
+  for (const entt::entity e : others) {
+    const rect b = collider_bounds(registry.get<transform>(e), registry.get<collider>(e));
+    if (!rects_overlap(b, after))
+      continue;
+    vec2 push{};
+    if (std::abs(delta.x) >= std::abs(delta.y))
+      push.x = delta.x > 0.0f ? right_of(after) - b.pos.x : after.pos.x - right_of(b);
+    else
+      push.y = delta.y > 0.0f ? bottom_of(after) - b.pos.y : after.pos.y - bottom_of(b);
+    collision_move(ctx, e, push);
+  }
 }
 
 // --- queries ---
@@ -418,7 +625,7 @@ i32 overlap_query(const njin_ctx &ctx, rect area, std::vector<entt::entity> *out
       if (map == nullptr)
         continue;
       bool any = false;
-      each_tile_in(*map, tr.pos, area, [&](i32 x, i32 y) {
+      each_tile_in(*map, tr.pos, area, [&](i32 x, i32 y, tile_shape) {
         any = any || tile_test(tilemap_cell_rect(*map, tr.pos, x, y));
       });
       if (!any)
@@ -502,11 +709,43 @@ raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to, u32 mask,
       f32 t_enter = 0.0f;
       vec2 enter_normal = normalize(-d);
       const i32 max_steps = std::abs(last.x - c.x) + std::abs(last.y - c.y) + 2;
+      bool first_cell = true;
       for (i32 i = 0; i < max_steps && t_enter <= 1.0f && t_enter < best_t; i++) {
-        if (tilemap_get(*map, c.x, c.y) >= 0) {
+        const tile_shape shape = tilemap_shape(*map, tilemap_get(*map, c.x, c.y));
+        if (shape == tile_solid) {
           consider(t_enter, enter_normal, entity);
           break;
         }
+        if (shape == tile_one_way && !first_cell && enter_normal.y < 0.0f) {
+          consider(t_enter, enter_normal, entity); // only its top, from above
+          break;
+        }
+        if (tile_is_slope(shape)) {
+          // Inside the cell the surface is a straight line, so how far the ray
+          // is below it changes linearly from entry to exit.
+          const rect cr = tilemap_cell_rect(*map, origin, c.x, c.y);
+          const f32 t_exit = std::min(std::min(t_max_x, t_max_y), 1.0f);
+          const auto below = [&](f32 t) {
+            const vec2 p = from + d * t;
+            const f32 u = (p.x - cr.pos.x) / cr.size.x;
+            return p.y - (cr.pos.y + cr.size.y - cr.size.y * tile_surface(shape, u));
+          };
+          const f32 f0 = below(t_enter);
+          const f32 f1 = below(t_exit);
+          if (f0 >= 0.0f) {
+            consider(t_enter, enter_normal, entity);
+            break;
+          }
+          if (f1 >= 0.0f) {
+            const f32 t = t_enter + (t_exit - t_enter) * (-f0 / (f1 - f0));
+            // Surface y = bottom - h(u) * height: its slope in world units.
+            const f32 k = (tile_surface(shape, 1.0f) - tile_surface(shape, 0.0f)) *
+                          cr.size.y / cr.size.x;
+            consider(t, normalize(vec2{-k, -1.0f}), entity);
+            break;
+          }
+        }
+        first_cell = false;
         if (t_max_x < t_max_y) {
           t_enter = t_max_x;
           t_max_x += t_dx;

@@ -200,6 +200,28 @@ void ui_progress(njin_ctx &ctx, f32 value, const char *text = nullptr);
 /// @param source Vùng trong ảnh. Kích thước 0 là cả ảnh.
 void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source = {});
 
+/// Một dòng đổi phím cho màn hình cài đặt: bên trái là tên, bên phải là phím
+/// đang gắn vào `action`. Bấm vào thì dòng chờ phím mới ("..."); phím (hoặc
+/// nút chuột) bấm tiếp theo được gắn thay phím cũ bằng action_rebind(). Esc
+/// hủy. Trong lúc chờ, UI không điều hướng.
+/// @code
+/// njin::ui_keybind(ctx, "Nhảy", g.jump);            // bàn phím
+/// njin::ui_keybind(ctx, "Nhảy##pad", g.jump, true); // tay cầm
+/// @endcode
+/// Lưu phím mới bằng settings_save() (hoặc input_bindings_save()).
+/// @param ctx Context của engine.
+/// @param label Nhãn.
+/// @param action Action cần đổi phím.
+/// @param pad `true` để đổi nút tay cầm thay vì phím.
+/// @return `true` ở frame phím vừa được đổi.
+bool ui_keybind(njin_ctx &ctx, const char *label, action_handle action, bool pad = false);
+
+/// Có dòng ui_keybind() nào đang chờ phím không. Trong lúc đó đừng coi Esc là
+/// "đóng menu".
+/// @param ctx Context của engine.
+/// @return `true` nếu đang chờ.
+bool ui_keybind_listening(const njin_ctx &ctx);
+
 /// `true` ở frame người chơi bấm quay lại (Esc, Backspace, nút B) trong lúc
 /// có panel đang hiện. Dùng để đóng menu con hay quay về màn trước.
 /// @param ctx Context của engine.

@@ -24,6 +24,12 @@ struct njin_cfg {
   bool resizable = false;
   /// Tên thư mục lưu game, xem save_path(). Để trống thì dùng `title`.
   const char *app_name = nullptr;
+  /// Độ phân giải ảo, ví dụ `{320, 180}` cho pixel art. `{0, 0}` là tắt. Xem
+  /// window_set_virtual_size().
+  vec2 virtual_size{};
+  /// Với độ phân giải ảo: chỉ phóng theo bội số nguyên (mọi pixel ảo to bằng
+  /// nhau), phần thừa của cửa sổ là viền.
+  bool integer_scale = true;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).
@@ -34,10 +40,13 @@ struct njin_cfg {
 /// @return FPS mục tiêu.
 f32 fps(const njin_ctx &ctx);
 
-/// Trả về kích thước hiện tại của cửa sổ, tính bằng pixel.
+/// Trả về kích thước màn hình mà game vẽ lên, tính bằng pixel.
 ///
-/// Lúc đầu bằng `width`, `height` đã cấu hình; thay đổi khi người dùng kéo cửa
-/// sổ (nếu `resizable`) hoặc khi bật toàn màn hình.
+/// Không có độ phân giải ảo thì đó là cửa sổ: lúc đầu bằng `width`, `height`
+/// đã cấu hình, và thay đổi khi người dùng kéo cửa sổ (nếu `resizable`) hoặc
+/// khi bật toàn màn hình. Có độ phân giải ảo (window_set_virtual_size()) thì
+/// đó là kích thước ảo, không đổi theo cửa sổ; cỡ thật của cửa sổ là
+/// window_size().
 /// @param ctx Context của engine.
 /// @return Kích thước cửa sổ: `x` là rộng, `y` là cao.
 vec2 screen_size(const njin_ctx &ctx);

@@ -142,12 +142,30 @@ json_value xml_tileset(const xml_node &ts) {
     out.set("imagewidth", img->attr_number("width", 0.0));
     out.set("imageheight", img->attr_number("height", 0.0));
   }
+  // Per-tile data: class, properties and animation, in the TSJ shape.
+  json_value tiles = json_value::make_array();
   for (const xml_node &t : ts.children) {
-    if (t.name == "tile" && t.child("image") != nullptr) {
-      out.set("tiles", json_value::make_array().push(json_value::make_object()));
-      break;
+    if (t.name != "tile")
+      continue;
+    json_value tile = json_value::make_object();
+    copy_numbers(t, tile, {"id"});
+    copy_strings(t, tile, {"type", "class"});
+    tile.set("properties", xml_props(t));
+    if (const xml_node *img = t.child("image"))
+      tile.set("image", img->attr("source", ""));
+    if (const xml_node *anim = t.child("animation")) {
+      json_value frames = json_value::make_array();
+      for (const xml_node &f : anim->children)
+        if (f.name == "frame")
+          frames.push(json_value::make_object()
+                          .set("tileid", f.attr_number("tileid", 0.0))
+                          .set("duration", f.attr_number("duration", 100.0)));
+      tile.set("animation", std::move(frames));
     }
+    tiles.push(std::move(tile));
   }
+  if (tiles.size() > 0)
+    out.set("tiles", std::move(tiles));
   return out;
 }
 
@@ -333,6 +351,39 @@ struct tiled_loader {
     return nullptr;
   }
 
+  // Collision shape (property "collision" or "shape", else the tile's class)
+  // and animation of each tile that has any.
+  void read_tile_data(const json_value &def, level_tileset &tiles) {
+    for (const json_value &t : def["tiles"].items) {
+      const i32 id = t["id"].int_or(-1);
+      if (id < 0)
+        continue;
+      const json_value props = props_object(t["properties"]);
+      const bool named = props["collision"].is(json_value::string) || props["shape"].is(json_value::string);
+      const char *name = props["collision"].string_or(props["shape"].string_or(nullptr));
+      if (name == nullptr)
+        name = t["type"].string_or(t["class"].string_or(nullptr));
+      tile_shape shape{};
+      if (name != nullptr && name[0] != 0) {
+        if (tile_shape_from_name(name, shape))
+          tiles.shapes.push_back({id, shape});
+        else if (named)
+          NJIN_WARN("level: %s: tile %d has unknown collision shape '%s'", where.c_str(), id, name);
+      }
+      const json_value &frames = t["animation"];
+      if (frames.size() > 0) {
+        tile_anim anim;
+        for (const json_value &f : frames.items) {
+          anim.frames.push_back(f["tileid"].int_or(0));
+          const f32 seconds = std::max(f["duration"].f32_or(100.0f), 1.0f) / 1000.0f;
+          anim.durations.push_back(seconds);
+          anim.total += seconds;
+        }
+        tiles.anims[id] = std::move(anim);
+      }
+    }
+  }
+
   void load_tilesets(const json_value &map) {
     for (const json_value &entry : map["tilesets"].items) {
       tiled_tileset ts;
@@ -374,6 +425,7 @@ struct tiled_loader {
         NJIN_WARN("level: %s: tileset '%s' has %gx%g tiles on a %gx%g grid; they are "
                   "drawn at their own size", where.c_str(), (*def)["name"].string_or("?"),
                   ts.tiles.tile_size.x, ts.tiles.tile_size.y, grid.x, grid.y);
+      read_tile_data(*def, ts.tiles);
       ts.usable = ts.tiles.texture.id != 0;
       tilesets.push_back(ts);
     }
@@ -693,6 +745,9 @@ void level_builder::add_tiles(const level_tile_layer &layer, const level_tileset
       map.layer = level == 0 ? layer.draw_layer : take_draw_layer();
       map.tint = layer.tint;
       map.visible = layer.visible;
+      for (const auto &[id, shape] : tileset.shapes)
+        tilemap_set_shape(map, id, shape);
+      map.anims = tileset.anims;
       reg.emplace<tilemap>(e, std::move(map));
       if (layer.solid) {
         collider col = desc.solid;
@@ -707,7 +762,8 @@ void level_builder::add_tiles(const level_tile_layer &layer, const level_tileset
 }
 
 void level_builder::add_value_grid(const level_tile_layer &layer, vec2 cell_size,
-                                   const std::vector<std::pair<cell, i32>> &values) {
+                                   const std::vector<std::pair<cell, i32>> &values,
+                                   const std::vector<std::pair<i32, tile_shape>> &shapes) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e, transform{.pos = layer.origin});
@@ -717,6 +773,8 @@ void level_builder::add_value_grid(const level_tile_layer &layer, vec2 cell_size
   map.visible = false;
   for (const auto &[c, value] : values)
     tilemap_set(map, c.x, c.y, value);
+  for (const auto &[value, shape] : shapes)
+    tilemap_set_shape(map, value, shape);
   reg.emplace<tilemap>(e, std::move(map));
   if (layer.solid) {
     collider col = desc.solid;

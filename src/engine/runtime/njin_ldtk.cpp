@@ -42,6 +42,7 @@ struct ldtk_loader {
   level_builder &b;
   std::string where;
   std::vector<ldtk_tileset> tilesets;
+  json_value project_defs;
 
   const ldtk_tileset *tileset(i32 uid) const {
     for (const ldtk_tileset &t : tilesets)
@@ -67,6 +68,20 @@ struct ldtk_loader {
       t.tiles.columns = (i32)((def["pxWid"].f32_or(0.0f) - 2.0f * t.tiles.margin + t.tiles.spacing) /
                               (t.grid + t.tiles.spacing));
       t.usable = t.tiles.texture.id != 0 && t.tiles.columns > 0;
+      // Collision shapes from enum tags or custom data named after a shape
+      // ("one_way", "slope_r"...).
+      for (const json_value &tag : def["enumTags"].items) {
+        tile_shape shape{};
+        if (!tile_shape_from_name(tag["enumValueId"].string_or(nullptr), shape))
+          continue;
+        for (const json_value &id : tag["tileIds"].items)
+          t.tiles.shapes.push_back({id.int_or(0), shape});
+      }
+      for (const json_value &data : def["customData"].items) {
+        tile_shape shape{};
+        if (tile_shape_from_name(data["data"].string_or(nullptr), shape))
+          t.tiles.shapes.push_back({data["tileId"].int_or(0), shape});
+      }
       tilesets.push_back(t);
     }
   }
@@ -140,6 +155,23 @@ struct ldtk_loader {
     }
   }
 
+  // IntGrid value -> collision shape, from the value names in the layer's
+  // definition ("one_way", "slope_r"...). Unnamed values stay solid.
+  std::vector<std::pair<i32, tile_shape>> intgrid_shapes(const json_value &layer) const {
+    std::vector<std::pair<i32, tile_shape>> out;
+    const i32 uid = layer["layerDefUid"].int_or(-1);
+    for (const json_value &def : project_defs["layers"].items) {
+      if (def["uid"].int_or(-2) != uid)
+        continue;
+      for (const json_value &v : def["intGridValues"].items) {
+        tile_shape shape{};
+        if (tile_shape_from_name(v["identifier"].string_or(nullptr), shape))
+          out.push_back({v["value"].int_or(0), shape});
+      }
+    }
+    return out;
+  }
+
   void layer(const json_value &layer, vec2 level_origin) {
     level_tile_layer info;
     info.name = layer["__identifier"].string_or("");
@@ -164,7 +196,7 @@ struct ldtk_loader {
       if (!values.empty()) {
         level_tile_layer grid_info = info;
         grid_info.visible = false;
-        b.add_value_grid(grid_info, {grid, grid}, values);
+        b.add_value_grid(grid_info, {grid, grid}, values, intgrid_shapes(layer));
       }
       // The tiles an auto-layer rule drew on top of the grid are only looks.
       level_tile_layer look = info;
@@ -239,7 +271,7 @@ level_handle level_load_ldtk_file(njin_ctx &ctx, const char *path, const char *l
   slot.props = fields_object((*lv)["fieldInstances"]);
 
   level_builder b{.ctx = ctx, .desc = desc, .handle = handle, .slot = slot, .dir = dir, .loaded = {}};
-  ldtk_loader loader{.b = b, .where = path, .tilesets = {}};
+  ldtk_loader loader{.b = b, .where = path, .tilesets = {}, .project_defs = project["defs"]};
   loader.load_tilesets(project);
   // LDtk lists layers top first; build bottom first so draw layers rise.
   const json_value &layers = (*lv)["layerInstances"];

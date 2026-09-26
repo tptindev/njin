@@ -219,4 +219,12 @@ void net_link::close() {
   out.clear();
   in.clear();
 }
+
+u32 net_process_id() {
+#if defined(_WIN32)
+  return (u32)GetCurrentProcessId();
+#else
+  return (u32)getpid();
+#endif
+}
 } // namespace njin

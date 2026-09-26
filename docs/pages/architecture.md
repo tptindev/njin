@@ -33,7 +33,10 @@ nằm trong `runtime/njin_ctx_impl.h`:
 | `post` | Ảnh ngoài màn hình của shader hậu kỳ (module camera) |
 | `sprites` | Ảnh đã bake của các chunk tilemap (module sprite) |
 | `scene` | Danh sách scene, scene hiện tại và yêu cầu chuyển |
-| `ecs` | Registry, dispatcher và lịch chạy system |
+| `ecs` | Registry, dispatcher và lịch chạy system, kèm thời gian từng system khi có inspector |
+| `view` | Màn hình ảo: ảnh nhỏ cố định phóng ra cửa sổ (xem @ref screen_timers) |
+| `timers` | Hẹn giờ và tween đang chạy |
+| `dialog`, `i18n` | Hộp thoại đang mở; bảng chuỗi các ngôn ngữ (xem @ref dialog) |
 
 Thứ tự khai báo quan trọng: thành viên bị hủy theo thứ tự **ngược**, và `window`
 được khai báo trước các store, nên nó đóng **sau cùng**. Các store giải phóng tài
@@ -89,6 +92,7 @@ theo thứ tự:
 |---|---|
 | `njin.reload` | Nạp lại texture, shader có file vừa đổi, khi hot reload bật (xem @ref rendering) |
 | `njin.debug` | Khi bật cổng debug: nhận lệnh của njin_inspector ở đầu frame, gửi số liệu ở cuối (xem @ref debug) |
+| `njin.dialog` | Điều khiển hộp thoại đang mở: chữ chạy, chọn, sang câu (xem @ref dialog) |
 | `njin.ui` | Đọc phím, chuột, tay cầm cho UI, chuyển lựa chọn, giữ phím điều hướng khi menu hiện, chặn widget phía sau popup; toast được vẽ ở cuối frame (xem @ref ui) |
 | `njin.camera` | Bật camera (có rung) trước mọi lệnh vẽ; chạy post-processing (xem @ref camera, @ref post_processing) |
 | `njin.audio` | Cấp dữ liệu cho stream nhạc, phát lại sound lặp (xem @ref audio) |
@@ -96,7 +100,10 @@ theo thứ tự:
 | `njin.anim` | Chạy njin::animator: chuyển trạng thái, đổi frame (xem @ref animation) |
 | `njin.particles` | Sinh, di chuyển, xóa hạt (xem @ref particles) |
 | `njin.sprite` | Chạy njin::sprite_anim, nháy sprite, bake chunk tilemap, vẽ sprite, tilemap và particle theo lớp (xem @ref sprites, @ref tilemap) |
+| `njin.camera_follow` | Đưa camera tới mục tiêu: trễ, vùng chết, nhìn trước, chặn trong khung level (xem @ref platformer) |
 | `njin.collision` | Tìm cặp collider chạm nhau, gửi event; vẽ khung khi bật dò lỗi (xem @ref collision) |
+| `njin.body` | Điều khiển njin::platformer_body, njin::topdown_body và njin::path_mover trong `phase_fixed_update` (xem @ref platformer, @ref topdown) |
+| `njin.timer` | Chạy hẹn giờ và tween theo entity ở `phase_update` (xem @ref screen_timers) |
 
 Vì chúng đăng ký **trước** module của game nên system của chúng chạy trước trong cùng
 phase. Module camera dựa vào điều này để bật camera trước mọi lệnh vẽ của game;

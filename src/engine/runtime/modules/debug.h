@@ -2,6 +2,7 @@
 #include "_mod.h"
 #include "njin_debug.h"
 #include "njin_net.h"
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -17,9 +18,18 @@ mod_desc debug_module();
 struct debug_type_entry {
   std::string name;
   debug_component_fn fn;
+  std::size_t bytes = 0; // sizeof the component; 0 when unknown
+  // Heap the component owns (vectors, strings), for the memory tables.
+  std::function<std::size_t(const entt::registry &, entt::entity)> heap;
 };
 
 struct debug_state {
+  // Unhooks the log tap: the stores destroyed after this one still log.
+  ~debug_state();
+  debug_state() = default;
+  debug_state(const debug_state &) = delete;
+  debug_state &operator=(const debug_state &) = delete;
+
   bool running = false;
   debug_server_desc desc{};
   net_socket listener;
@@ -28,6 +38,7 @@ struct debug_state {
   // Selection and snapshot pacing.
   i64 selected = -1; // entt integral id, or -1
   f32 snapshot_timer = 0.0f;
+  f32 slow_timer = 0.0f; // paces the memory and asset tables (1 Hz)
   std::vector<f32> frame_ms; // since the last stats message
 
   // Frame stepping while paused: the step frame runs unpaused, the next

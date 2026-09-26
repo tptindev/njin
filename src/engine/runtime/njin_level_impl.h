@@ -33,6 +33,10 @@ struct level_tileset {
   f32 margin = 0.0f;
   f32 spacing = 0.0f;
   i32 columns = 0;
+  // Collision shapes (tile id -> shape) and animations, copied onto every
+  // tilemap drawn from this tileset.
+  std::vector<std::pair<i32, tile_shape>> shapes;
+  std::unordered_map<i32, tile_anim> anims;
 
   // Source rectangle of tile `id` in the texture.
   rect source(i32 id) const {
@@ -79,9 +83,11 @@ struct level_builder {
   // Adds `values` (cell -> tile value, flip bits included) as tilemaps.
   void add_tiles(const level_tile_layer &layer, const level_tileset &tileset,
                  const std::vector<std::pair<cell, i32>> &values);
-  // Adds an invisible tilemap holding raw values (LDtk IntGrid).
+  // Adds an invisible tilemap holding raw values (LDtk IntGrid), with a
+  // collision shape per value.
   void add_value_grid(const level_tile_layer &layer, vec2 cell_size,
-                      const std::vector<std::pair<cell, i32>> &values);
+                      const std::vector<std::pair<cell, i32>> &values,
+                      const std::vector<std::pair<i32, tile_shape>> &shapes = {});
   // Spawns an object: through the prefab named after its type when one is
   // registered, else as a plain entity (with a sprite when `sprite_source`
   // has a texture, and a collider when `solid`).
