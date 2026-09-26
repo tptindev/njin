@@ -5,6 +5,8 @@ UI của njin là kiểu *immediate mode*: không tạo đối tượng nút, ch
 
 @include ui_menu.cpp
 
+@image html platformer_title.png "Menu chính của game mẫu Mầm Leo Núi, dựng bằng njin::ui_button(). Nút đang chọn có viền xanh; đổi nút bằng phím, chuột hoặc tay cầm"
+
 ## Widget
 
 | Hàm | Là gì | Trả về `true` khi |

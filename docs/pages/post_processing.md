@@ -81,6 +81,16 @@ Giống shader ở trên, chúng không đụng đến UI trong `phase_post_rend
 | Pixel hóa | `pixelate` (cỡ ô, pixel) | dưới 2 |
 | Nhiễu hạt | `grain` | 0 |
 
+Ảnh dưới đây chụp từ `njin_render_demo`, cùng một cảnh: không hậu kỳ, rồi bật CRT (phím 6), bloom (phím 5) và blur (phím 4).
+
+@image html render_demo.png "Không hậu kỳ"
+
+@image html render_demo_crt.png "CRT: sọc và màn hình cong"
+
+@image html render_demo_bloom.png "Bloom: quầng sáng quanh vùng sáng"
+
+@image html render_demo_blur.png "Blur: làm mờ cả cảnh"
+
 Bộ có sẵn trong `namespace njin::post`: njin::post::crt(), njin::post::noir(),
 njin::post::vintage(), njin::post::dream(), njin::post::glow(), njin::post::retro(),
 njin::post::hurt(), njin::post::paused().

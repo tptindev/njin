@@ -10,6 +10,14 @@ Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới b�
 | `njin_debug_demo` | Bóng nảy để thử inspector: mỗi phím tốn CPU, RAM hay GPU một chút và inspector hiện ra ngay | @ref debug |
 | `njin_render_demo` | Rừng 128 x 96 ô với 3000 cây đá: phím bật tắt atlas, hạt GPU/CPU, vsync, blur, bloom, CRT; HUD hiện số sprite bị cắt và số lệnh vẽ | @ref rendering, @ref particles |
 
+@image html platformer.gif "njin_platformer: chạy và nhảy trên dốc, nhắc \"E\" khi lại gần con cú"
+
+@image html topdown.gif "njin_topdown: đi 8 hướng, vung kiếm, lướt"
+
+@image html pong_play.png "njin_pong: một trận Pong đang chơi"
+
+@image html render_demo.png "njin_render_demo: rừng 128 x 96 ô với hàng nghìn sprite; HUD ở trên cho số sprite, lệnh vẽ và phím bật tắt"
+
 `njin_render_demo` không có menu hay tiếng: nó chỉ để **thấy** các tính năng vẽ làm gì. Đi quanh
 bản đồ bằng WASD hoặc phím mũi tên, đọc phím ở dòng cuối của HUD (hoặc đầu `main.cpp`). Thử phím
 1 với 3000 cây đá bật: số lệnh vẽ rơi từ vài trăm xuống còn vài lệnh. Nó cũng mở cổng debug, nên chạy
@@ -70,5 +78,5 @@ console để đọc log). Game tìm `assets/...` cạnh exe dù chạy từ th�
 
 Nhớ tắt cổng debug trong bản phát hành: `debug_server_start()` chỉ trong `#ifndef NDEBUG`.
 
-@note Bản build cho Linux và macOS chưa được thử; code mạng của inspector có nhánh POSIX nhưng chưa
-được biên dịch. Cũng chưa thử với tay cầm thật.
+@note Ảnh và ảnh động trong trang này chụp từ bản build Windows. Trên Linux (Ubuntu 26.04 trong WSL2) mọi game mẫu và
+njin_inspector build được, và njin_pong mở được cửa sổ; macOS chưa thử: xem @ref setup. Cũng chưa thử với tay cầm thật.

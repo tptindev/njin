@@ -5,6 +5,8 @@ nổ, khung hình dừng một nhịp khi đòn đánh trúng. njin có sẵn t�
 
 @include particles_fx.cpp
 
+@image html particles_fountain.gif "Đài phun hạt trong njin_render_demo (phím F bật tắt), chạy trên GPU"
+
 ## Particle
 
 Gắn njin::particle_emitter vào entity có njin::transform. Module particle của engine sinh và

@@ -10,6 +10,11 @@ nhân vật.
 Bấm mũi tên trái/phải để chạy, Space để nhảy. Nhân vật rơi xuống đất, chạy được, nhảy được, và nhảy
 xuyên từ dưới lên bục rồi đứng lên trên nó.
 
+@image html first_jump.gif "Chạy sang phải, giữ Space để nhảy xuyên bục rồi đứng lên trên nó (hình chữ nhật vàng là nhân vật)"
+
+**Giữ** Space thì nhảy cao, **nhả sớm** thì nhảy thấp: đây là `jump_cut` của njin::platformer_body. Vì vậy chỉ gõ nhẹ
+Space thì nhân vật không lên nổi bục cao 32 pixel.
+
 ## Chuẩn bị
 
 Cần một ảnh tileset gồm các ô 16 x 16 tại `assets/tiles.png`. Dùng luôn ảnh của game mẫu:

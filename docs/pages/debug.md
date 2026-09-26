@@ -13,6 +13,8 @@ muốn xem thì nhìn sang cửa sổ inspector, không thì cứ chơi bình th
 | **Watches** | Giá trị game tự đặt bằng njin::debug_watch(), cập nhật trực tiếp |
 | **Log** | Log của game, lọc theo mức và chữ |
 
+@image html inspector_overview.png "njin_inspector nối với njin_debug_demo, bố cục Overview. Đang chọn entity 38: thấy component ball, transform, collider và giá trị của chúng"
+
 ## Dùng
 
 1. Trong game, mở cổng debug (thường chỉ ở bản debug):
@@ -43,6 +45,8 @@ component và trả về njin::json_value (xem @ref json).
 Chưa đăng ký thì inspector ghi "no view" dưới tên component.
 
 ## Tiêu thụ: CPU, RAM, GPU {#debug_consumption}
+
+@image html inspector_consumption.png "Bố cục Consumption: Process (CPU, RAM, GPU của tiến trình), Systems (thời gian từng system), Memory, Assets và Entities"
 
 Nút **Consumption** trên thanh trên cùng đổi sang bố cục các cửa sổ đo tiêu thụ (nút **Overview**
 đổi về). Có hai nguồn số liệu, và biết chúng khác nhau thế nào là điều quan trọng:

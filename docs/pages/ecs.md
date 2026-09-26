@@ -136,6 +136,7 @@ Muốn thấy các thao tác này trong một chương trình chạy được: @
 
 ## Lưu ý
 
-- Đừng giữ tham chiếu tới component qua nhiều frame: thêm hoặc bớt component có
-  thể làm dữ liệu dời chỗ. Lấy lại từ registry mỗi frame.
+- Đừng giữ tham chiếu tới component qua nhiều frame: bớt component (hoặc hủy entity) có
+  thể làm dữ liệu của entity khác dời chỗ. Lấy lại từ registry mỗi frame. Riêng thêm component
+  thì component đã có không dời (đã đo với EnTT v4.0.0).
 - Hủy entity trong lúc đang duyệt `view` cần cẩn thận, xem tài liệu EnTT về việc này.

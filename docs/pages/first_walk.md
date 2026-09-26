@@ -9,6 +9,8 @@ Bản top-down của @ref first_jump : một nhân vật nhìn từ trên xuốn
 Bấm mũi tên hoặc WASD để đi, Space để lướt. Nhân vật trượt dọc tường đá thay vì dính vào, và camera
 không bao giờ lộ ra ngoài bản đồ.
 
+@image html first_walk.gif "Đi chéo, lướt (giữ Space khi đang đi), rồi đi xuống. Hình chữ nhật vàng là nhân vật, camera bám theo"
+
 ## Chuẩn bị
 
 Cần một ảnh tileset gồm các ô 16 x 16 tại `assets/tiles.png`. Dùng luôn ảnh của game mẫu:

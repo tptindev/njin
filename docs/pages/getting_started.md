@@ -1,6 +1,8 @@
 # Bắt đầu {#getting_started}
 
-Trang này hướng dẫn build njin, chạy game mẫu và viết chương trình đầu tiên.
+Trang này hướng dẫn build njin, chạy game mẫu và viết chương trình đầu tiên. Chưa cài trình biên dịch,
+CMake hay Ninja? Làm theo @ref setup trước, có hướng dẫn cho từng hệ điều hành. Chưa quen C++, CMake
+hay shader? Nhóm bài @ref learn dạy từ đầu, và không cần njin.
 
 ## Yêu cầu
 

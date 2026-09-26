@@ -5,6 +5,8 @@ cảm giác tốt, dốc, bục một chiều, bục di chuyển, và camera bá
 `njin_platformer` (@ref samples) dùng đúng những thứ này. Chưa làm gì bao giờ? Bắt đầu với @ref first_jump : một nhân
 vật nhảy được trong 50 dòng.
 
+@image html platformer.gif "Game mẫu njin_platformer: chạy, nhảy trên dốc, nhắc \"E\" khi lại gần con cú, bụi khi tiếp đất"
+
 @include platformer_body.cpp
 
 ## Nhân vật: njin::platformer_body

@@ -4,6 +4,8 @@ Nhân vật đi 8 hướng, quái đuổi theo qua các lối đi, cây che nhâ
 `njin_topdown` (@ref samples) dùng đúng những thứ này. Chưa làm gì bao giờ? Bắt đầu với @ref first_walk : một nhân
 vật đi được trong 50 dòng.
 
+@image html topdown.gif "Game mẫu njin_topdown: đi 8 hướng, vung kiếm, lướt; quái đuổi theo, cây che nhân vật đúng chỗ"
+
 @include topdown_nav.cpp
 
 ## Nhân vật: njin::topdown_body

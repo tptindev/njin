@@ -29,6 +29,8 @@ font_load() và đặt vào njin::ui_style::font và njin::dialog_style::font.
 
 ## Hộp thoại
 
+@image html dialog_owl.png "Hộp thoại của game mẫu: chân dung, tên người nói (Cú Già) và chữ chạy dần. Ảnh chụp khi câu đã chạy xong"
+
 Một kịch bản là một danh sách nút nối với nhau (njin::dialog_script). Viết bằng JSON:
 
 @code{.json}
