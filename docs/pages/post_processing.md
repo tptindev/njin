@@ -81,13 +81,13 @@ Giống shader ở trên, chúng không đụng đến UI trong `phase_post_rend
 | Pixel hóa | `pixelate` (cỡ ô, pixel) | dưới 2 |
 | Nhiễu hạt | `grain` | 0 |
 
-Ảnh dưới đây chụp từ `njin_render_demo`, cùng một cảnh: không hậu kỳ, rồi bật CRT (phím 6), bloom (phím 5) và blur (phím 4).
+Ảnh dưới đây chụp từ `njin_render_demo`: không hậu kỳ, rồi bật CRT (phím 6), bloom (phím 5) và blur (phím 4). Bloom chỉ lộ ra ở chỗ có vùng sáng, nên ảnh của nó ghép hai bản (tắt và bật) của một cảnh có hạt sáng.
 
 @image html render_demo.png "Không hậu kỳ"
 
-@image html render_demo_crt.png "CRT: sọc và màn hình cong"
+@image html render_demo_crt.png "CRT (phím 6): sọc ngang và màn hình cong ở các cạnh"
 
-@image html render_demo_bloom.png "Bloom: quầng sáng quanh vùng sáng"
+@image html render_demo_bloom.png "Bloom (phím 5), cùng một cảnh: trái là tắt, phải là bật. Vùng sáng tỏa ra xung quanh, thấy rõ nhất ở cụm hạt vàng góc dưới phải, và quầng xanh quanh đài phun rộng hơn"
 
 @image html render_demo_blur.png "Blur: làm mờ cả cảnh"
 

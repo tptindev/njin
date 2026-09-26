@@ -12,7 +12,7 @@ Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới b�
 
 @image html platformer.gif "njin_platformer: chạy và nhảy trên dốc, nhắc \"E\" khi lại gần con cú"
 
-@image html topdown.gif "njin_topdown: đi 8 hướng, vung kiếm, lướt"
+@image html topdown.gif "njin_topdown: đi, lướt, con slime hồng đuổi theo, nhắc phím tương tác ở gần biển báo"
 
 @image html pong_play.png "njin_pong: một trận Pong đang chơi"
 
