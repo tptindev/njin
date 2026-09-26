@@ -58,3 +58,10 @@ add_subdirectory(src/engine/api)
 add_subdirectory(src/engine/runtime)
 add_subdirectory(src/games/sandbox)
 add_subdirectory(src/games/pong)
+
+# Debug inspector: a separate window that connects to a running game (see
+# njin_debug.h). Downloads Dear ImGui and rlImGui on first configure.
+option(NJIN_BUILD_INSPECTOR "Build the njin_inspector debug tool" ON)
+if(NJIN_BUILD_INSPECTOR)
+  add_subdirectory(src/tools/inspector)
+endif()
