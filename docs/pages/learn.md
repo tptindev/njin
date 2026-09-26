@@ -1,6 +1,6 @@
 # Kiến thức nền: học trước khi làm game {#learn}
 
-Muốn làm game với njin thì cần đọc được C++, biết CMake dựng ra chương trình, và hiểu shader là gì. Nhóm 12 bài này dạy
+Muốn làm game với njin thì cần đọc được C++, biết CMake dựng ra chương trình, và hiểu shader là gì. Nhóm 13 bài này dạy
 đúng những phần đó, **từ con số không**, theo một mạch duy nhất. Không cần chọn "mức" nào: bạn bắt đầu ở bài đầu, và
 bài nào đã biết thì bỏ qua.
 
@@ -16,7 +16,7 @@ CMake ở phần cuối. Cài chúng theo @ref setup.
   (một trình biên dịch, một hệ điều hành) thì nói rõ.
 - Gõ lại và sửa các ví dụ thay vì chỉ đọc. Lỗi bạn tự gây ra và tự sửa được dạy nhiều hơn ví dụ chạy đúng.
 
-## 12 bài
+## 13 bài
 
 **C: nền tảng của mọi thứ** (raylib viết bằng C, và API của njin vẫn giữ dáng C ở `const char *` và `printf`)
 
@@ -47,6 +47,7 @@ CMake ở phần cuối. Cài chúng theo @ref setup.
 | Bài | Nội dung |
 |---|---|
 | @subpage learn_shader_start | Shader là gì, GLSL đủ dùng, một "sân chơi" raylib để viết và sửa fragment shader |
+| @subpage learn_shader_sdf | SDF: vẽ hình bằng khoảng cách. Hình tròn, hộp, ghép hình, quầng sáng, bóng đổ, thanh máu không cần ảnh |
 | @subpage learn_shader_patterns | Viền tối, sọc CRT, làm mờ, nháy trắng, đổi bảng màu, tan biến, viền, pixel art sắc nét, sóng gợn |
 
 **Pattern của game**
@@ -63,7 +64,7 @@ Không phải mọi người cần đọc hết. Nếu bạn đã biết:
 - C++ cơ bản (lớp, `std::vector`, con trỏ thông minh): bắt đầu từ @ref learn_cpp_modern, và đọc @ref learn_cpp_types để
   hiểu handle của njin;
 - tạo được `CMakeLists.txt` nhiều target: đọc @ref learn_cmake_projects cho `FetchContent` và preset;
-- viết được fragment shader: đọc @ref learn_shader_patterns, rồi phần "Trong njin" của nó;
+- viết được fragment shader: đọc @ref learn_shader_sdf nếu chưa biết SDF, rồi @ref learn_shader_patterns và phần "Trong njin" của nó;
 - ECS và vòng lặp game: @ref learn_game_patterns ngắn, và có ví dụ chạy được.
 
 ## Đã thử những gì

@@ -307,7 +307,8 @@ Shader của njin là đúng loại shader này. So sánh:
 | `BeginShaderMode(shader)` ... `EndShaderMode()` | njin::shader_begin() ... njin::shader_end() |
 | Nạp lại khi file đổi (sân chơi tự làm) | njin::hot_reload_enable(), chỉ nên bật ở bản debug |
 
-Bài sau dùng lại các mẫu thiết kế shader hay gặp, và chỉ ra chúng ứng với hiệu ứng có sẵn nào của njin.
+Bài @ref learn_shader_sdf dạy cách vẽ hình bằng công thức, và bài @ref learn_shader_patterns chỉ ra các mẫu shader hay
+gặp ứng với hiệu ứng có sẵn nào của njin.
 
 ## Tự kiểm tra
 
@@ -360,5 +361,6 @@ suốt vì `c.a` giữ nguyên.
 
 ## Bước tiếp theo
 
-@ref learn_shader_patterns : những mẫu shader hay gặp (hậu kỳ, nháy trắng, viền, tan biến, pixel art) và cách
+@ref learn_shader_sdf : vẽ hình bằng khoảng cách (SDF): hình tròn, hộp, ghép hình, thanh máu, quầng sáng, bóng đổ.
+Rồi @ref learn_shader_patterns : những mẫu shader hay gặp (hậu kỳ, nháy trắng, viền, tan biến, pixel art) và cách
 chúng ứng với njin.

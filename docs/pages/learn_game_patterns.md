@@ -1,4 +1,4 @@
-# Bài 12: Các pattern của game {#learn_game_patterns}
+# Bài 13: Các pattern của game {#learn_game_patterns}
 
 **Bài này dạy gì:** sáu ý tưởng gần như game nào cũng dùng, viết bằng C++ thuần để bạn thấy chúng thật ra chỉ là vài
 chục dòng: vòng lặp với bước vật lý cố định, ECS, máy trạng thái, event, hẹn giờ, và action thay cho phím.

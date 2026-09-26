@@ -170,6 +170,6 @@ njin_inspector). Preset `release` build vào `build-release/` với tối ưu, x
 
 ## Bước tiếp theo
 
-- @ref learn : nếu chưa quen C, C++, CMake hay shader, 12 bài học từ đầu
+- @ref learn : nếu chưa quen C, C++, CMake hay shader, 13 bài học từ đầu
 - @ref getting_started : chương trình đầu tiên
 - @ref first_jump và @ref first_walk : một nhân vật chạy được trong 50 dòng

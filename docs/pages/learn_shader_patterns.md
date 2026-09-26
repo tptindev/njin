@@ -1,4 +1,4 @@
-# Bài 11: Các mẫu shader hay gặp {#learn_shader_patterns}
+# Bài 12: Các mẫu shader hay gặp {#learn_shader_patterns}
 
 **Bài này dạy gì:** những mẫu shader mà game 2D dùng nhiều nhất: hậu kỳ (viền tối, sọc CRT, làm mờ), nháy
 trắng, đổi bảng màu, tan biến, viền quanh nhân vật, giữ pixel art sắc nét, sóng gợn; cùng cách chúng ứng với

@@ -13,7 +13,7 @@ phiên bản nằm trong `CHANGELOG.md` ở thư mục gốc.
 
 ## Lộ trình cho người mới
 
-Chưa quen C, C++, CMake hay shader? Đọc nhóm 12 bài @ref learn trước (bỏ qua nếu đã biết). Rồi đi theo thứ tự này:
+Chưa quen C, C++, CMake hay shader? Đọc nhóm 13 bài @ref learn trước (bỏ qua nếu đã biết). Rồi đi theo thứ tự này:
 
 1. @ref setup : cài môi trường (bỏ qua nếu đã có trình biên dịch C++20, CMake, Ninja và Git)
 2. @ref getting_started : build và chạy chương trình đầu tiên
@@ -29,7 +29,7 @@ Chưa quen C, C++, CMake hay shader? Đọc nhóm 12 bài @ref learn trước (b
 
 | Bạn muốn | Đọc |
 |---|---|
-| Chưa quen C, C++, CMake hay shader: 12 bài học trước khi làm game | @subpage learn |
+| Chưa quen C, C++, CMake hay shader: 13 bài học trước khi làm game | @subpage learn |
 | Cài trình biên dịch, CMake, Ninja trên Windows, Linux, macOS | @subpage setup |
 | Build và chạy được một chương trình | @subpage getting_started |
 | Có ngay một nhân vật chạy và nhảy được trên bản đồ, trong 50 dòng | @subpage first_jump |
