@@ -8,6 +8,9 @@ include `njin.h` và không bao giờ thấy raylib.
 
 Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 
+**Mã nguồn:** <https://github.com/tptindev/njin>. Báo lỗi và góp ý ở mục Issues của repo. Lịch sử
+phiên bản nằm trong `CHANGELOG.md` ở thư mục gốc.
+
 ## Đọc từ đâu
 
 | Bạn muốn | Đọc |

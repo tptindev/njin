@@ -9,6 +9,13 @@ Trang này hướng dẫn build njin, chạy game mẫu và viết chương trì
 - **Ninja**
 - **Git**: CMake tải raylib 6.0 và EnTT v4.0.0 về khi cấu hình lần đầu
 
+## Lấy mã nguồn
+
+```
+git clone https://github.com/tptindev/njin.git
+cd njin
+```
+
 ## Build và chạy
 
 Trên Windows, hai script ở thư mục gốc lo hết:
