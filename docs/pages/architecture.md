@@ -88,6 +88,7 @@ theo thứ tự:
 | Module | Việc làm |
 |---|---|
 | `njin.reload` | Nạp lại texture, shader có file vừa đổi, khi hot reload bật (xem @ref rendering) |
+| `njin.debug` | Khi bật cổng debug: nhận lệnh của njin_inspector ở đầu frame, gửi số liệu ở cuối (xem @ref debug) |
 | `njin.ui` | Đọc phím, chuột, tay cầm cho UI, chuyển lựa chọn, giữ phím điều hướng khi menu hiện, chặn widget phía sau popup; toast được vẽ ở cuối frame (xem @ref ui) |
 | `njin.camera` | Bật camera (có rung) trước mọi lệnh vẽ; chạy post-processing (xem @ref camera, @ref post_processing) |
 | `njin.audio` | Cấp dữ liệu cho stream nhạc, phát lại sound lặp (xem @ref audio) |

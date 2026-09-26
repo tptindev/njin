@@ -95,5 +95,8 @@
 /// @defgroup grp_ui UI
 /// Panel, nút, công tắc, thanh trượt, lựa chọn, popup, toast; chuột, bàn phím, tay cầm; tùy biến ảnh và shader.
 
+/// @defgroup grp_debug Debug
+/// Cổng debug cho njin_inspector: số liệu, entity, watches, log, điều khiển thời gian.
+
 /// @defgroup grp_types Kiểu cơ bản
 /// Số nguyên, số thực, vector, màu và các handle.

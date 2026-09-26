@@ -36,6 +36,7 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 | Lưu game, file cấu hình bằng JSON | @subpage json |
 | Menu, popup, toast, thanh trượt, dùng được với tay cầm | @subpage ui |
 | Ghi log | @subpage logging |
+| Xem FPS, entity, collider, log trong một cửa sổ riêng | @subpage debug |
 | Hiểu cách engine được tổ chức bên trong | @subpage architecture |
 | Tra cứu từng hàm | [Nhóm API](topics.html) |
 
@@ -62,4 +63,7 @@ src/
     runtime/    phần cài đặt, dùng raylib. Game không include trực tiếp
   games/
     sandbox/    game mẫu
+    pong/       game Pong hoàn chỉnh
+  tools/
+    inspector/  njin_inspector, công cụ debug chạy cạnh game
 ```
