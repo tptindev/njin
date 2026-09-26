@@ -4,3 +4,4 @@
 njin_inspector.ini
 /docs/doxygen_warnings.txt
 __pycache__/
+compile_commands.json
