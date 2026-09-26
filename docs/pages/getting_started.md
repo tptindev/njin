@@ -71,7 +71,9 @@ rồi thêm `add_subdirectory(src/games/my_game)` vào `CMakeLists.txt` gốc.
 
 ## Bước tiếp theo
 
+- @ref first_jump : một nhân vật nhảy được trên bản đồ, trong 50 dòng
 - @ref modules_systems : viết logic cho game
+- @ref cheatsheet : muốn làm X thì dùng hàm nào
 - @ref game_loop : biết một frame chạy theo thứ tự nào
 - @ref ecs : tạo entity và component
 - `src/games/pong`: một game hoàn chỉnh để đọc và sửa thử

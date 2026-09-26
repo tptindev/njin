@@ -16,6 +16,8 @@ phiên bản nằm trong `CHANGELOG.md` ở thư mục gốc.
 | Bạn muốn | Đọc |
 |---|---|
 | Build và chạy được một chương trình | @subpage getting_started |
+| Có ngay một nhân vật chạy và nhảy được trên bản đồ, trong 50 dòng | @subpage first_jump |
+| Biết "muốn làm X thì dùng hàm nào" | @subpage cheatsheet |
 | Hiểu module, system, phase | @subpage modules_systems |
 | Biết một frame chạy như thế nào | @subpage game_loop |
 | Làm việc với entity, component, event | @subpage ecs |
