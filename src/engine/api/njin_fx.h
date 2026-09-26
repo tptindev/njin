@@ -91,6 +91,49 @@ void sprite_flash(njin_ctx &ctx, entt::entity entity,
                   rgba color = {1.0f, 1.0f, 1.0f, 1.0f}, f32 duration = 0.1f);
 /// @}
 
+/// @name Tan biến sprite
+/// @{
+
+/// Cho một sprite tan biến từng mảng nhỏ, có viền cháy sáng ở chỗ đang tan:
+/// kẻ địch chết, vật phẩm biến mất. Đặt `reverse` thì ngược lại, sprite hiện ra dần.
+///
+/// Mỗi mảng có một số ngẫu nhiên cố định (từ hàm băm, không cần ảnh nhiễu); mảng nào có số nhỏ hơn
+/// ngưỡng đang chạy từ 0 đến 1 thì biến mất. Hình dáng sprite được giữ nguyên, chỉ bớt mảng.
+/// Module sprite cập nhật `time` theo delta() (nên dừng trong hitstop).
+///
+/// Khi hết giờ:
+/// - tan biến (mặc định): sprite **ẩn hẳn** và component ở lại, để nó không hiện lại. Đặt
+///   `destroy_when_done` để hủy luôn entity, hoặc tự gỡ component để sprite hiện lại;
+/// - `reverse`: component tự được gỡ và sprite hiện đủ.
+///
+/// Dùng chung được với njin::flash_fx: nháy trắng rồi tan biến.
+/// Dùng sprite_dissolve() cho gọn.
+struct dissolve_fx {
+  rgba edge_color{1.0f, 0.55f, 0.1f, 1.0f}; ///< Màu viền cháy. `a` là độ đậm, 0 là bỏ viền.
+  f32 edge_width = 0.08f; ///< Độ dày viền, tính theo thang ngẫu nhiên 0..1. 0 là bỏ viền.
+  f32 grain = 2.0f;       ///< Cỡ mỗi mảng, tính bằng pixel của ảnh sprite. 1 là từng pixel, lớn hơn là mảng to.
+  f32 seed = 0.0f;        ///< Đổi hình mẫu tan biến. Cho mỗi kẻ địch một giá trị riêng để chúng không tan giống hệt nhau.
+  f32 duration = 0.6f;    ///< Thời gian tan hết, giây.
+  f32 time = 0.0f;        ///< Thời gian đã trôi qua, do engine cập nhật.
+  bool reverse = false;   ///< `true`: hiện ra dần thay vì tan biến.
+  bool destroy_when_done = false; ///< Hủy entity khi tan hết. Không áp dụng cho `reverse`.
+};
+
+/// Cho sprite của `entity` tan biến. Gọi lại khi đang tan thì bắt đầu lại.
+///
+/// Muốn chỉnh thêm (hiện ra dần, cỡ mảng, hủy khi xong) thì tự gắn njin::dissolve_fx:
+/// @code
+/// reg.emplace_or_replace<njin::dissolve_fx>(enemy, njin::dissolve_fx{.duration = 0.8f, .seed = 3.0f,
+///                                                                     .destroy_when_done = true});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param entity Entity có sprite.
+/// @param duration Thời gian, giây (theo delta(), nên dừng trong hitstop).
+/// @param edge_color Màu viền cháy. `a` bằng 0 là không có viền.
+void sprite_dissolve(njin_ctx &ctx, entt::entity entity, f32 duration = 0.6f,
+                     rgba edge_color = {1.0f, 0.55f, 0.1f, 1.0f});
+/// @}
+
 /// Các mẫu particle hay dùng, để truyền vào particles_spawn() hoặc gắn thẳng
 /// lên entity. Là giá trị thường: sửa thoải mái trước khi dùng.
 ///

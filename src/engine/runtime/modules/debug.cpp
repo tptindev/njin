@@ -173,6 +173,14 @@ void register_builtins(njin_ctx &ctx) {
   builtin<flash_fx>(d, "flash_fx", [](const flash_fx &f) {
     return json_value::make_object().set("color", color(f.color)).set("duration", f.duration).set("time", f.time);
   });
+  builtin<dissolve_fx>(d, "dissolve_fx", [](const dissolve_fx &f) {
+    return json_value::make_object()
+        .set("edge_color", color(f.edge_color))
+        .set("duration", f.duration)
+        .set("time", f.time)
+        .set("reverse", f.reverse)
+        .set("destroy_when_done", f.destroy_when_done);
+  });
   builtin<animator>(d, "animator", [pctx](const animator &a) {
     return json_value::make_object()
         .set("current", animator_current(*pctx, a))
@@ -242,7 +250,7 @@ std::string label_of(const entt::registry &reg, entt::entity e, const std::vecto
     if (!o->type.empty())
       return o->type;
   }
-  static const char *plumbing[] = {"transform", "scene_owned", "child_of", "sprite", "collider", "sprite_anim", "flash_fx"};
+  static const char *plumbing[] = {"transform", "scene_owned", "child_of", "sprite", "collider", "sprite_anim", "flash_fx", "dissolve_fx"};
   for (const std::string &n : names) {
     if (std::find(std::begin(plumbing), std::end(plumbing), n) == std::end(plumbing))
       return n;

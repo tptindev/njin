@@ -356,7 +356,12 @@ void draw(njin_ctx &ctx) {
     }
     const sprite &spr = registry.get<sprite>(item.entity);
     const flash_fx *flash = registry.try_get<flash_fx>(item.entity);
-    const bool flashing = flash != nullptr && fx_flash_begin(ctx, *flash);
+    const dissolve_fx *dissolve = registry.try_get<dissolve_fx>(item.entity);
+    if (dissolve != nullptr && fx_dissolve_hidden(*dissolve))
+      continue; // dissolved away: nothing of it is left to draw
+    // One shader at a time: a dissolving sprite takes the flash into its own pass.
+    const bool flashing = dissolve != nullptr ? fx_dissolve_begin(ctx, *dissolve, flash)
+                                              : (flash != nullptr && fx_flash_begin(ctx, *flash));
     stats.sprites++;
     if (flashing)
       stats.note_flush();
@@ -372,7 +377,7 @@ void draw(njin_ctx &ctx) {
                                             .flip_y = spr.flip_y,
                                             .tint = spr.tint});
     if (flashing) {
-      fx_flash_end();
+      fx_sprite_shader_end();
       stats.note_flush();
     }
   }
@@ -381,6 +386,7 @@ void draw(njin_ctx &ctx) {
 void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_post_update, animate, "animate");
   ecs_register(ctx, phase_post_update, fx_update_sprite_flashes, "fx_update_sprite_flashes");
+  ecs_register(ctx, phase_post_update, fx_update_sprite_dissolves, "fx_update_sprite_dissolves");
   ecs_register(ctx, phase_post_update, bake_tilemaps, "bake_tilemaps");
   ecs_register(ctx, phase_render, draw, "draw");
 }
