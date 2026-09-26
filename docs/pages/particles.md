@@ -100,6 +100,7 @@ Trong `namespace njin::fx`, mỗi hàm trả về một emitter đã chỉnh s�
 | njin::hitstop() | Dừng hình: delta() bằng 0 trong chốc lát | 0.03–0.12 giây |
 | njin::screen_flash() | Nháy cả màn hình một màu rồi mờ dần | trắng khi nổ, đỏ khi bị thương |
 | njin::sprite_flash() | Tô sprite thành một màu (thường là trắng) | 0.1 giây khi trúng đòn |
+| njin::sprite_dissolve() | Cho sprite tan biến từng mảng, có viền cháy | 0.5–1 giây khi kẻ địch chết |
 
 Rung camera chỉ dịch **hình vẽ ra**: transform của camera, njin::camera_active(),
 njin::w2scr() và njin::scr2w() không đổi, nên bấm chuột vẫn trúng chỗ. Cách rung chỉnh bằng
@@ -110,5 +111,38 @@ Nháy sprite tính theo delta(), nên nó "đứng hình" cùng game trong hitst
 
 Nháy sprite khác `sprite.tint`: tint chỉ **nhân** màu nên không thể làm sprite sáng trắng lên;
 nháy thay hẳn màu từng điểm ảnh nhưng giữ hình dáng sprite.
+
+## Tan biến
+
+njin::sprite_dissolve() cho một sprite tan dần từng mảng nhỏ, kèm viền cháy màu cam ở chỗ đang tan. Dùng khi kẻ
+địch chết hoặc vật phẩm biến mất. Sprite vẫn giữ hình dáng, chỉ bớt mảng đi, nên nhìn ra ngay là con gì đang tan.
+
+@include sprite_dissolve.cpp
+
+@image html sprite_dissolve.gif "Bấm Space: nháy trắng rồi tan biến với viền cam. Bấm R: hiện lại dần"
+
+Mỗi mảng có một số ngẫu nhiên cố định tính từ tọa độ pixel của nó (bằng hàm băm, **không cần ảnh nhiễu**);
+mảng nào có số thấp hơn ngưỡng đang chạy từ 0 đến 1 thì mất. Muốn chỉnh thêm thì tự gắn njin::dissolve_fx:
+
+| Trường | Ý nghĩa |
+|---|---|
+| `duration` | Thời gian tan hết, giây. Tính theo delta(), nên **đứng hình trong hitstop** |
+| `edge_color`, `edge_width` | Màu và độ dày viền cháy. `edge_color.a = 0` hoặc `edge_width = 0` là bỏ viền |
+| `grain` | Cỡ mỗi mảng, tính bằng pixel của ảnh sprite. 1 là từng pixel, 4 là mảng to, hợp pixel art |
+| `seed` | Đổi hình mẫu tan biến. Cho mỗi kẻ địch một giá trị riêng để chúng không tan giống hệt nhau |
+| `reverse` | Hiện ra dần thay vì tan biến |
+| `destroy_when_done` | Hủy entity khi tan hết (không áp dụng cho `reverse`) |
+
+Khi hết giờ:
+
+- **tan biến**: sprite **ẩn hẳn** và component ở lại, nên nó không hiện lại. Gắn `destroy_when_done` để hủy luôn
+  entity, hoặc tự gỡ component để sprite hiện lại;
+- **hiện ra dần** (`reverse`): component tự được gỡ và sprite hiện đủ.
+
+Dùng chung được với njin::sprite_flash(): gọi cả hai thì sprite nháy rồi tan trong cùng một lần vẽ. Gọi
+njin::sprite_dissolve() lần nữa khi đang tan thì bắt đầu lại. Gọi với entity đã hủy hoặc `entt::null` thì bỏ qua.
+
+@note Hình mẫu tan biến lấy theo vị trí pixel **trong ảnh** (atlas), nên hai kẻ địch dùng cùng một frame sẽ tan
+giống hệt nhau nếu cùng `seed`. Đặt `seed` khác nhau, ví dụ theo id của entity.
 
 Xem thêm @ref post_processing cho các hiệu ứng toàn màn hình như vignette đỏ khi máu thấp.

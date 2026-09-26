@@ -182,6 +182,7 @@ njin có sẵn những thứ này. Bảng ánh xạ, đã đối chiếu với h
 | Viền tối, sọc CRT, pixel hoá, làm mờ, nhuộm màu, nhiễu hạt... | njin::post_fx_set() với njin::post_fx: các trường `vignette`, `scanlines` và `scanline_size`, `pixelate`, `blur`, `tint`, `saturation`, `grain`... Không phải viết shader. Xem @ref post_processing |
 | Gộp nhiều hiệu ứng vào một lượt | Đã làm sẵn: các hiệu ứng chỉ cần pixel hiện tại gộp trong một shader, `blur` và `bloom` là lượt riêng (header `njin_post.h`) |
 | Shader hậu kỳ của riêng bạn | njin::camera_set_post_shader(): vẽ cả thế giới qua shader đó, **sau cùng** trong chuỗi hiệu ứng có sẵn. UI trong `phase_post_render` không bị ảnh hưởng |
+| Tan biến sprite | njin::sprite_dissolve() và njin::dissolve_fx: cùng ý với `learn_shader_dissolve.fs` ở bài này (ngưỡng nhiễu quét từ 0 đến 1, viền cháy ở mép), nhưng số ngẫu nhiên tính bằng hàm băm nên không cần ảnh nhiễu. Xem @ref particles |
 | Nháy trắng sprite | njin::sprite_flash(). Shader của nó (`flash_fs` trong `fx.cpp`) làm đúng điều ở bài này: `mix(c.rgb, flashColor.rgb, flashColor.a)`, giữ `c.a` |
 | Shader của riêng bạn lên sprite hay vật | njin::shader_load(), njin::shader_set_f32(), njin::shader_set_vec2(), rồi njin::shader_begin() và njin::shader_end() bao quanh lệnh vẽ. Đặt uniform **trước** `shader_begin` |
 | Sửa shader khi game chạy | njin::hot_reload_enable(). Shader **lỗi biên dịch thì giữ bản cũ** và ghi log, giống sân chơi. Nên bật ở bản debug |
