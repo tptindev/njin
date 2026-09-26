@@ -508,12 +508,16 @@ void begin_frame(njin_ctx &ctx) {
       d.link.sock = s;
       d.frame_ms.clear();
       send_hello(ctx);
+      // The log is on the inspector's screen now (the lines so far are sent at the
+      // end of this frame); the console stays quiet until it goes away.
+      log_set_console(false);
       NJIN_INFO("debug: inspector connected");
     }
   }
   if (!d.link.connected())
     return;
   if (!d.link.pump()) {
+    log_set_console(true);
     NJIN_INFO("debug: inspector disconnected");
     d.selected = -1;
     return;
@@ -593,6 +597,7 @@ bool debug_server_start(njin_ctx &ctx, const debug_server_desc &desc) {
     debug_server_stop(ctx);
   d.listener = net_listen(desc.port);
   if (!d.listener.valid()) {
+    log_hold(false); // nobody can attach: stop keeping lines for it
     NJIN_WARN("debug: cannot listen on 127.0.0.1:%u (port in use?)", (unsigned)desc.port);
     return false;
   }
@@ -609,6 +614,7 @@ bool debug_server_start(njin_ctx &ctx, const debug_server_desc &desc) {
 debug_state::~debug_state() {
   if (tap_target == this) {
     log_set_tap(nullptr, nullptr);
+    log_set_console(true);
     tap_target = nullptr;
   }
 }
@@ -617,6 +623,7 @@ void debug_server_stop(njin_ctx &ctx) {
   debug_state &d = ctx.debug;
   if (tap_target == &d) {
     log_set_tap(nullptr, nullptr);
+    log_set_console(true);
     tap_target = nullptr;
   }
   d.link.close();

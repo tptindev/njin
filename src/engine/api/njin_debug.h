@@ -36,6 +36,11 @@ struct debug_server_desc {
 ///   njin::debug_server_start(*ctx);
 /// #endif
 /// @endcode
+///
+/// **Log:** khi một inspector đang kết nối, log đi sang inspector và **không in ra
+/// console của game** nữa; chưa có inspector (hoặc nó đã ngắt) thì log vẫn ra
+/// console như thường. Các dòng đã ra trước đó, kể cả lúc mở cửa sổ (tối đa 2000
+/// dòng, chỉ tính từ njin_create()), được gửi cho inspector ngay khi nó kết nối.
 /// @param ctx Context của engine.
 /// @param desc Cổng và nhịp gửi.
 /// @return `false` nếu cổng đang bị chiếm (ví dụ một bản game khác đang chạy).

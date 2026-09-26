@@ -14,6 +14,9 @@ int main() {
 
   njin::njin_ctx *ctx = njin::njin_create(cfg);
   njin::njin_mod_register(*ctx, pong::pong_module());
+#ifndef NDEBUG
+  njin::debug_server_start(*ctx); // njin_inspector, in a debug build
+#endif
   njin::njin_run(*ctx);
   njin::njin_destroy(ctx);
   return 0;

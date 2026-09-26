@@ -22,6 +22,12 @@ muốn xem thì nhìn sang cửa sổ inspector, không thì cứ chơi bình th
 2. Chạy game và `build\bin\njin_inspector.exe`, theo thứ tự nào cũng được. Inspector tự kết
    nối khi game mở cổng, và tự nối lại khi game khởi động lại.
 
+**Log đi sang inspector khi nó đang kết nối.** Lúc đó console của game không in log nữa; mọi dòng,
+kể cả các dòng lúc mở cửa sổ và nạp GL, nằm ở bảng **Log** của inspector. Chưa có inspector (hoặc nó
+đã tắt) thì game vẫn log ra console như thường. Các dòng ra trước khi inspector nối vào được giữ lại
+(tối đa 2000) và gửi ngay khi nối. Game tự mở cổng bằng njin::debug_server_start(), như ở trên;
+tắt cổng (bản phát hành) thì log luôn ra stderr.
+
 Cổng mặc định là 7779. Dùng cổng khác: `debug_server_start(*ctx, {.port = 7800})` trong game và
 `njin_inspector --port 7800`.
 

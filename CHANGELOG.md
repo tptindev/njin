@@ -6,6 +6,15 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## Unreleased
+
+- **The log goes to the inspector while one is connected**: the game's console
+  stops printing then, and every message (the window's startup lines included,
+  up to 1000 kept from `njin_create`) is sent to `njin_inspector`. With no
+  inspector connected, or after it goes away, the game logs to stderr as
+  before. A sink set with `log_set_sink` is not affected. The inspector is
+  still switched on by the game, with `debug_server_start`.
+
 ## 0.2.0
 
 Rendering and GPU work:

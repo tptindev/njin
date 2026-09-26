@@ -65,6 +65,9 @@ window_guard::~window_guard() {
 
 njin_ctx *njin_create(const njin_cfg &cfg) {
   prefer_discrete_gpu();
+  // Keep the log lines from here (the window's own GL and audio messages) for an
+  // inspector that a game may attach before njin_run; njin_run lets go of them.
+  log_hold(true);
   njin_ctx *ctx = new njin_ctx(cfg);
   ctx->time.fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
   ctx->random.reseed(
@@ -88,6 +91,7 @@ void njin_run(njin_ctx &ctx) {
     return;
   }
   ctx.ecs.started = true;
+  log_hold(false);
   NJIN_INFO("njin %s", version());
   // Driver shader compiles cost tens of milliseconds each: pay them here, not
   // on the first hit, pause or explosion.

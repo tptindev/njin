@@ -3,9 +3,22 @@
 #include <chrono>
 #include <cstdarg>
 #include <raylib.h>
+#include <string>
+#include <vector>
 
 namespace njin {
 namespace {
+struct held_line {
+  log_level level;
+  std::string file;
+  bool has_file;
+  i32 line;
+  std::string msg;
+};
+
+// The most lines log_hold keeps: window and audio startup is a few hundred.
+constexpr usize max_held = 1000;
+
 struct logger {
 #ifdef NDEBUG
   log_level level = log_info;
@@ -16,6 +29,9 @@ struct logger {
   void *user = nullptr;
   log_sink tap = nullptr;
   void *tap_user = nullptr;
+  bool console = true;
+  bool hold = false;
+  std::vector<held_line> held;
 };
 
 logger &state() {
@@ -58,12 +74,14 @@ void emit(log_level level, const char *file, i32 line, const char *fmt,
           va_list args) {
   char msg[1024];
   std::vsnprintf(msg, sizeof(msg), fmt, args);
-  const logger &log = state();
+  logger &log = state();
   if (log.tap != nullptr)
     log.tap(level, file, line, msg, log.tap_user);
+  else if (log.hold && log.held.size() < max_held)
+    log.held.push_back({level, file != nullptr ? file : "", file != nullptr, line, msg});
   if (log.sink != nullptr) {
     log.sink(level, file, line, msg, log.user);
-  } else {
+  } else if (log.console) {
     default_sink(level, file, line, msg, nullptr);
   }
 }
@@ -145,7 +163,23 @@ void log_capture_raylib() {
   SetTraceLogCallback(raylib_callback);
 }
 void log_set_tap(log_sink tap, void *user) {
-  state().tap = tap;
-  state().tap_user = user;
+  logger &log = state();
+  log.tap = tap;
+  log.tap_user = user;
+  if (tap == nullptr)
+    return;
+  log.hold = false;
+  std::vector<held_line> held;
+  held.swap(log.held);
+  for (const held_line &h : held)
+    tap(h.level, h.has_file ? h.file.c_str() : nullptr, h.line, h.msg.c_str(), user);
 }
+
+void log_hold(bool on) {
+  state().hold = on;
+  if (!on)
+    state().held.clear();
+}
+
+void log_set_console(bool on) { state().console = on; }
 } // namespace njin

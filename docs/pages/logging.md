@@ -35,6 +35,9 @@ Từ chi tiết nhất đến nghiêm trọng nhất (njin::log_level):
 - njin::log_set_level() bỏ qua mọi dòng thấp hơn một mức. Mặc định là
   `log_debug` ở bản debug và `log_info` khi định nghĩa `NDEBUG`.
 - njin::log_set_sink() thay nơi nhận log (mặc định là stderr), ví dụ để ghi ra file.
+- Khi njin_inspector đang kết nối vào game (xem @ref debug), log hiện ở inspector thay vì stderr.
+  Chưa có inspector thì log ra stderr như bình thường. Nơi nhận do game đặt bằng
+  njin::log_set_sink() vẫn nhận log như cũ.
 
 @include logging.cpp
 

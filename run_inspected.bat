@@ -2,6 +2,7 @@
 rem Builds a game and the inspector, starts the inspector, then the game.
 rem   run_inspected.bat              the debug demo
 rem   run_inspected.bat platformer   njin_platformer (a Debug build opens the debug port)
+rem   Any sample works the same way: sandbox, pong, platformer, topdown, debug_demo, render_demo.
 cd /d "%~dp0"
 
 set GAME=%1

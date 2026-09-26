@@ -20,6 +20,11 @@ nằm ở `src/games/shared` (menu cài đặt); mọi hình, tiếng, bản đ�
 `tools/make_assets.py` của từng game, nên không có file nhị phân không rõ nguồn.
 Font Be Vietnam Pro (giấy phép SIL OFL, kèm `OFL.txt`) dùng cho chữ tiếng Việt.
 
+**Mọi game trong `src/games` đều mở cổng cho njin_inspector khi build bản debug** (bốn game ở bảng trên
+cùng `njin_pong` và `njin_sandbox`; `njin_debug_demo` và `njin_render_demo` luôn mở), nên
+`run_inspected.bat <tên game>` chạy game kèm inspector cho bất kỳ game nào. Khi inspector đang nối, log của
+game hiện ở inspector thay vì console.
+
 Mỗi game có assets riêng nên chạy từ thư mục riêng của nó, `build/bin/<game>/` (exe và `assets` nằm cạnh nhau). Chạy:
 
 @code{.bat}
