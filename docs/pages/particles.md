@@ -5,7 +5,7 @@ nổ, khung hình dừng một nhịp khi đòn đánh trúng. njin có sẵn t�
 
 @include particles_fx.cpp
 
-@image html particles_fountain.gif "Đài phun hạt trong njin_render_demo (phím F bật tắt), chạy trên GPU"
+@image html particles_explosion.gif "Vụ nổ hạt trong njin_render_demo: mỗi lần bấm Space là một vụ nổ tại con trỏ chuột, hạt nở ra rồi mờ dần"
 
 ## Particle
 
