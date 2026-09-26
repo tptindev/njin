@@ -1,0 +1,83 @@
+name: Wiki
+
+# Builds the Doxygen wiki (docs/) and publishes it to GitHub Pages.
+# Site: https://<owner>.github.io/njin/
+#
+# One-time setup in the repository: Settings > Pages > Build and deployment >
+# Source: "GitHub Actions". Pages on a private repository needs a paid plan.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/engine/api/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push replaces one still queued, but never
+# cancels a deployment that is already running.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # The version the wiki is written against. The header template and the
+  # doxygen-awesome theme in docs/ are tied to it, so it is pinned rather than
+  # taken from apt, which is far behind.
+  DOXYGEN_VERSION: 1.18.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Doxygen ${{ env.DOXYGEN_VERSION }}
+        run: |
+          curl -fsSL -o doxygen.tar.gz \
+            "https://github.com/doxygen/doxygen/releases/download/Release_${DOXYGEN_VERSION//./_}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          tar -xzf doxygen.tar.gz
+          echo "$PWD/doxygen-${DOXYGEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build the wiki
+        working-directory: docs
+        run: |
+          doxygen --version
+          doxygen Doxyfile
+
+      # Doxygen writes its warnings to a file and exits 0. Surface them on the
+      # run so a broken @ref or an undocumented parameter is not missed.
+      - name: Report Doxygen warnings
+        working-directory: docs
+        run: |
+          if [ -s doxygen_warnings.txt ]; then
+            echo "::warning title=Doxygen::$(wc -l < doxygen_warnings.txt) warning(s), see the log"
+            cat doxygen_warnings.txt
+          else
+            echo "No Doxygen warnings."
+          fi
+
+      - name: Check the site was generated
+        run: test -s docs/html/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
