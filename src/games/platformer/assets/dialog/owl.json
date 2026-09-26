@@ -1,0 +1,14 @@
+{
+  "start": "hello",
+  "nodes": [
+    { "id": "hello", "speaker": "@owl.name", "portrait": "owl", "text": "@owl.hello" },
+    { "id": "ask", "speaker": "@owl.name", "portrait": "owl", "text": "@owl.ask",
+      "choices": [
+        { "text": "@owl.yes", "next": "tip1" },
+        { "text": "@owl.no", "next": "bye" }
+      ] },
+    { "id": "tip1", "speaker": "@owl.name", "portrait": "owl", "text": "@owl.tip1" },
+    { "id": "tip2", "speaker": "@owl.name", "portrait": "owl", "text": "@owl.tip2", "event": "tips_heard" },
+    { "id": "bye", "speaker": "@owl.name", "portrait": "owl", "text": "@owl.bye", "next": null }
+  ]
+}

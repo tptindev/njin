@@ -1,0 +1,28 @@
+{
+  "_name": "Tiếng Việt",
+  "game": { "title": "Rừng Cổ Thạch" },
+  "menu": {
+    "play": "Chơi", "settings": "Cài đặt", "quit": "Thoát", "resume": "Chơi tiếp", "back": "Quay lại",
+    "to_title": "Về màn hình chính", "again": "Chơi lại", "paused": "Tạm dừng"
+  },
+  "settings": {
+    "title": "Cài đặt", "master": "Âm lượng", "music": "Nhạc", "sfx": "Hiệu ứng",
+    "fullscreen": "Toàn màn hình", "language": "Ngôn ngữ", "controls": "Phím (bàn phím | tay cầm)"
+  },
+  "action": { "attack": "Tấn công", "dash": "Lướt", "interact": "Nói chuyện", "pause": "Tạm dừng" },
+  "level": { "name": "Rừng Cổ Thạch" },
+  "sign": { "speaker": "Biển báo", "hello": "Đi theo lối mòn tới đền đá ở phía đông. Cẩn thận lũ nhầy đuổi theo bạn!" },
+  "elder": {
+    "name": "Cụ Rùa",
+    "hello": "Ôi, may quá có người đến! Lũ nhầy đã chiếm khu rừng này.",
+    "ask": "Con giúp ta lấy lại chiếc rương trong đền đá được không?",
+    "yes": "Được ạ",
+    "no": "Để con suy nghĩ",
+    "tip": "Bấm phím tấn công để vung kiếm, bấm lướt để né. Lũ nhầy nhìn thấy con là đuổi theo ngay, nhưng chúng không xuyên tường được.",
+    "bye": "Cứ từ từ. Ta sẽ đợi ở đây."
+  },
+  "hud": { "slimes": "Nhầy: {0}" },
+  "toast": { "slime": "Hạ một con nhầy!", "locked": "Rương bị khóa: hạ hết lũ nhầy trước", "hint": "Mở rương ở đền đá" },
+  "win": { "title": "Rương đã mở!", "text": "Khu rừng lại yên bình nhờ bạn.", "time": "Thời gian: {0}", "hits": "Số lần trúng đòn: {0}" },
+  "over": { "title": "Bạn đã ngã xuống" }
+}

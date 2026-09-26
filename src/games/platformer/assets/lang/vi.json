@@ -1,0 +1,34 @@
+{
+  "_name": "Tiếng Việt",
+  "game": { "title": "Mầm Leo Núi", "press": "Nhấn Enter hoặc nút A" },
+  "menu": {
+    "play": "Chơi", "settings": "Cài đặt", "quit": "Thoát", "resume": "Chơi tiếp",
+    "back": "Quay lại", "to_title": "Về màn hình chính", "again": "Chơi lại", "paused": "Tạm dừng"
+  },
+  "settings": {
+    "title": "Cài đặt", "master": "Âm lượng", "music": "Nhạc", "sfx": "Hiệu ứng",
+    "fullscreen": "Toàn màn hình", "language": "Ngôn ngữ", "controls": "Phím (bàn phím | tay cầm)"
+  },
+  "action": { "jump": "Nhảy", "down": "Xuống", "interact": "Nói chuyện", "pause": "Tạm dừng" },
+  "hud": { "coins": "{0}/{1}", "talk": "E" },
+  "level": { "1": "Đồi Xanh", "2": "Tháp Đá" },
+  "sign": {
+    "speaker": "Biển báo",
+    "move": "Phím mũi tên hoặc A/D để chạy. Space để nhảy, giữ lâu thì nhảy cao hơn.",
+    "drop": "Giữ phím xuống rồi bấm nhảy để xuyên xuống tấm ván gỗ.",
+    "wall": "Áp vào tường khi đang rơi để trượt chậm, rồi nhảy bật ra khỏi tường.",
+    "climb": "Có hai đường lên đỉnh: giếng đá bên trái, hoặc những tấm ván bên phải."
+  },
+  "owl": {
+    "name": "Cú Già",
+    "hello": "Chào mầm nhỏ! Con định leo lên đỉnh núi thật à?",
+    "ask": "Có muốn nghe vài lời khuyên không?",
+    "yes": "Dạ, có ạ",
+    "no": "Thôi, con đi đây",
+    "tip1": "Giẫm lên đầu nấm đỏ để hạ chúng. Chạm vào chúng từ bên cạnh thì đau lắm.",
+    "tip2": "Cờ xanh là nơi con quay lại mỗi khi ngã. Và nhớ nhặt đồng vàng nhé!",
+    "bye": "Đi cẩn thận nhé!"
+  },
+  "toast": { "checkpoint": "Đã lưu điểm hồi sinh", "all_coins": "Nhặt hết vàng rồi!" },
+  "win": { "title": "Lên tới đỉnh rồi!", "coins": "Vàng: {0}/{1}", "time": "Thời gian: {0}", "deaths": "Số lần ngã: {0}" }
+}

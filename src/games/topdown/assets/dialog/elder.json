@@ -1,0 +1,10 @@
+{
+  "start": "hello",
+  "nodes": [
+    { "id": "hello", "speaker": "@elder.name", "portrait": "elder", "text": "@elder.hello" },
+    { "id": "ask", "speaker": "@elder.name", "portrait": "elder", "text": "@elder.ask",
+      "choices": [ { "text": "@elder.yes", "next": "tip" }, { "text": "@elder.no", "next": "bye" } ] },
+    { "id": "tip", "speaker": "@elder.name", "portrait": "elder", "text": "@elder.tip", "next": null },
+    { "id": "bye", "speaker": "@elder.name", "portrait": "elder", "text": "@elder.bye", "next": null }
+  ]
+}

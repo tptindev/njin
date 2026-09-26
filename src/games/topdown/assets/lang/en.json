@@ -1,0 +1,28 @@
+{
+  "_name": "English",
+  "game": { "title": "Old Stone Forest" },
+  "menu": {
+    "play": "Play", "settings": "Settings", "quit": "Quit", "resume": "Resume", "back": "Back",
+    "to_title": "Title screen", "again": "Play again", "paused": "Paused"
+  },
+  "settings": {
+    "title": "Settings", "master": "Volume", "music": "Music", "sfx": "Effects",
+    "fullscreen": "Fullscreen", "language": "Language", "controls": "Controls (keyboard | pad)"
+  },
+  "action": { "attack": "Attack", "dash": "Dash", "interact": "Talk", "pause": "Pause" },
+  "level": { "name": "Old Stone Forest" },
+  "sign": { "speaker": "Sign", "hello": "Follow the path to the stone keep in the east. Watch out for slimes: they chase you!" },
+  "elder": {
+    "name": "Old Turtle",
+    "hello": "Oh, what luck! Someone came. The slimes have taken over this forest.",
+    "ask": "Would you fetch the chest from the stone keep for me?",
+    "yes": "Sure",
+    "no": "Let me think",
+    "tip": "Press attack to swing the sword, dash to dodge. Slimes chase you the moment they see you, but they cannot pass walls.",
+    "bye": "Take your time. I'll wait right here."
+  },
+  "hud": { "slimes": "Slimes: {0}" },
+  "toast": { "slime": "Slime down!", "locked": "The chest is locked: defeat all the slimes first", "hint": "Open the chest in the keep" },
+  "win": { "title": "Chest opened!", "text": "The forest is at peace thanks to you.", "time": "Time: {0}", "hits": "Times hit: {0}" },
+  "over": { "title": "You fell" }
+}

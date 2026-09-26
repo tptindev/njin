@@ -1,0 +1,34 @@
+{
+  "_name": "English",
+  "game": { "title": "Sprout's Climb", "press": "Press Enter or pad A" },
+  "menu": {
+    "play": "Play", "settings": "Settings", "quit": "Quit", "resume": "Resume",
+    "back": "Back", "to_title": "Title screen", "again": "Play again", "paused": "Paused"
+  },
+  "settings": {
+    "title": "Settings", "master": "Volume", "music": "Music", "sfx": "Effects",
+    "fullscreen": "Fullscreen", "language": "Language", "controls": "Controls (keyboard | pad)"
+  },
+  "action": { "jump": "Jump", "down": "Down", "interact": "Talk", "pause": "Pause" },
+  "hud": { "coins": "{0}/{1}", "talk": "E" },
+  "level": { "1": "Green Hills", "2": "Stone Tower" },
+  "sign": {
+    "speaker": "Sign",
+    "move": "Arrow keys or A/D to run. Space to jump; hold it to jump higher.",
+    "drop": "Hold Down and press Jump to drop through wooden ledges.",
+    "wall": "Press against a wall while falling to slide, then jump off it.",
+    "climb": "Two ways up: the stone shaft on the left, or the ledges on the right."
+  },
+  "owl": {
+    "name": "Old Owl",
+    "hello": "Hello, little sprout! Are you really climbing to the top?",
+    "ask": "Would you like a few tips?",
+    "yes": "Yes, please",
+    "no": "No, I'm off",
+    "tip1": "Stomp on the red mushrooms. Touch them from the side and it hurts.",
+    "tip2": "Green flags are where you come back when you fall. And grab the gold!",
+    "bye": "Take care out there!"
+  },
+  "toast": { "checkpoint": "Checkpoint saved", "all_coins": "All the gold!" },
+  "win": { "title": "You made it to the top!", "coins": "Gold: {0}/{1}", "time": "Time: {0}", "deaths": "Falls: {0}" }
+}
