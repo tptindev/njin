@@ -14,6 +14,8 @@ struct logger {
 #endif
   log_sink sink = nullptr;
   void *user = nullptr;
+  log_sink tap = nullptr;
+  void *tap_user = nullptr;
 };
 
 logger &state() {
@@ -57,6 +59,8 @@ void emit(log_level level, const char *file, i32 line, const char *fmt,
   char msg[1024];
   std::vsnprintf(msg, sizeof(msg), fmt, args);
   const logger &log = state();
+  if (log.tap != nullptr)
+    log.tap(level, file, line, msg, log.tap_user);
   if (log.sink != nullptr) {
     log.sink(level, file, line, msg, log.user);
   } else {
@@ -139,5 +143,9 @@ void log_capture_raylib() {
   // filter in log_enabled instead.
   SetTraceLogLevel(LOG_ALL);
   SetTraceLogCallback(raylib_callback);
+}
+void log_set_tap(log_sink tap, void *user) {
+  state().tap = tap;
+  state().tap_user = user;
 }
 } // namespace njin

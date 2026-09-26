@@ -1,5 +1,6 @@
 /build
 /graphify-out
 /docs/html
+njin_inspector.ini
 /docs/doxygen_warnings.txt
 __pycache__/

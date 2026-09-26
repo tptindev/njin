@@ -9,6 +9,7 @@
 #include "njin_collision.h"
 #include "njin_anim.h"
 #include "njin_ctx.h"
+#include "njin_debug.h"
 #include "njin_draw.h"
 #include "njin_file.h"
 #include "njin_fx.h"

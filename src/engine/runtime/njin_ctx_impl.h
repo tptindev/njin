@@ -4,6 +4,7 @@
 #include "_types.h"
 #include "modules/camera.h"
 #include "modules/collision.h"
+#include "modules/debug.h"
 #include "modules/fx.h"
 #include "modules/post_fx.h"
 #include "modules/reload.h"
@@ -74,6 +75,7 @@ struct njin_ctx {
   post_chain postfx;
   reload_state reload;
   ui_state ui;
+  debug_state debug;
   sprite_cache sprites;
   collision_state collision;
   scene_store scene;

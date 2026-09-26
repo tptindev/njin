@@ -15,5 +15,10 @@ target_link_libraries(
   PUBLIC njin::api
   PRIVATE raylib njin_warnings)
 
+# The debug link (njin_net.cpp) uses sockets.
+if(WIN32)
+  target_link_libraries(njin_rt PRIVATE ws2_32)
+endif()
+
 # Lets runtime files in subfolders (modules/) include runtime headers directly.
 target_include_directories(njin_rt PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
