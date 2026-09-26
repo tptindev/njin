@@ -1,6 +1,7 @@
 # Game mẫu và đóng gói {#samples}
 
-Bốn chương trình trong `src/games` để đọc, chạy và sửa.
+Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
+@ref first_walk (top-down) trước: mỗi bài dưới 50 dòng, rồi quay lại đây xem một game đầy đủ.
 
 | Game | Là gì | Đọc để học |
 |---|---|---|
@@ -59,8 +60,8 @@ njin_package(my_game
 @endcode
 
 @code{.bat}
-cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release --target my_game_dist
+cmake --preset release
+cmake --build --preset release --target my_game_dist
 @endcode
 
 Kết quả là `build-release/dist/my_game-1.0.0.zip` chứa exe, thư mục `assets` và các file kèm theo. Trên

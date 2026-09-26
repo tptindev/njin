@@ -106,7 +106,8 @@ vì phím, nên đổi phím sau này không phải sửa logic.
 
 | Hàm | Việc làm |
 |---|---|
-| njin::action_register() | Tạo action. Nếu tên đã có thì trả về action cũ |
+| njin::action_define() | Tạo action và gắn mọi nguồn trong **một dòng**: `action_define(ctx, "jump", {key_space, key_w, pad_face_down})`. Cách nên dùng |
+| njin::action_register() | Tạo action trống. Nếu tên đã có thì trả về action cũ |
 | njin::action_find() | Tìm action theo tên |
 | njin::action_bind_key() | Gắn thêm một phím |
 | njin::action_bind_mouse() | Gắn thêm một nút chuột |
@@ -123,7 +124,8 @@ khác nhau: action là đúng hoặc sai, axis là mức độ.
 
 | Hàm | Việc làm |
 |---|---|
-| njin::axis_register() / njin::axis_find() | Tạo và tìm axis theo tên |
+| njin::axis_define() | Tạo axis và gắn mọi cặp phím, trục tay cầm trong một dòng: `axis_define(ctx, "move", {{key_left, key_right}, {key_a, key_d}}, {pad_axis_left_x})`. Cách nên dùng |
+| njin::axis_register() / njin::axis_find() | Tạo axis trống, và tìm axis theo tên |
 | njin::axis_bind_keys() | Gắn một cặp phím: chỉ phím âm thì -1, chỉ phím dương thì 1, cả hai hoặc không phím nào thì 0 |
 | njin::axis_bind_pad() | Gắn một trục tay cầm |
 | njin::axis_clear_binds() | Xóa mọi nguồn đã gắn |

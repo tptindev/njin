@@ -1,7 +1,8 @@
 # Làm game top-down {#topdown}
 
 Nhân vật đi 8 hướng, quái đuổi theo qua các lối đi, cây che nhân vật đúng chỗ. Game mẫu
-`njin_topdown` (@ref samples) dùng đúng những thứ này.
+`njin_topdown` (@ref samples) dùng đúng những thứ này. Chưa làm gì bao giờ? Bắt đầu với @ref first_walk : một nhân
+vật đi được trong 50 dòng.
 
 @include topdown_nav.cpp
 

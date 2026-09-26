@@ -1,7 +1,7 @@
 # Nhân vật nhảy được trong 50 dòng {#first_jump}
 
 Trang này dựng một nhân vật platformer chạy và nhảy được trên một bản đồ ô vuông, với **dưới
-50 dòng code** (47 dòng, không tính dòng trống và dòng chú thích). Nó dùng ba thứ: njin::tilemap
+50 dòng code** (45 dòng, không tính dòng trống và dòng chú thích). Nó dùng ba thứ: njin::tilemap
 làm mặt đất, njin::platformer_body làm nhân vật, và njin::platformer_input_map nối phím vào
 nhân vật.
 
@@ -22,16 +22,16 @@ build (xem @ref getting_started và @ref window_files).
 ### 1. Phím: axis và action
 
 @code
-const njin::axis_handle move = njin::axis_register(ctx, "move");
-njin::axis_bind_keys(ctx, move, njin::key_left, njin::key_right);
-const njin::action_handle jump = njin::action_register(ctx, "jump");
-njin::action_bind_key(ctx, jump, njin::key_space);
+const njin::axis_handle move = njin::axis_define(ctx, "move", {{njin::key_left, njin::key_right}});
+const njin::action_handle jump = njin::action_define(ctx, "jump", {njin::key_space, njin::pad_face_down});
 @endcode
 
 Một **axis** là một trục từ -1 đến 1, ở đây gộp hai phím thành trục ngang. Một **action** là một
-tên logic ("jump") gắn với một hoặc nhiều phím. Game không hỏi "phím Space có đang bấm không" mà
-hỏi "action `jump` có đang bấm không", nên sau này đổi phím hay thêm tay cầm chỉ là thêm một
-dòng `bind`. Xem @ref input.
+tên logic ("jump") gắn với một hoặc nhiều nguồn: phím, nút chuột, nút tay cầm. Game không hỏi "phím
+Space có đang bấm không" mà hỏi "action `jump` có đang bấm không", nên sau này đổi phím hay thêm
+tay cầm chỉ là thêm một phần tử vào danh sách. Muốn thêm phím A/D cho axis: `{{key_left, key_right},
+{key_a, key_d}}`, và thêm cần analog: `njin::axis_define(ctx, "move", {...}, {njin::pad_axis_left_x})`.
+Xem @ref input.
 
 ### 2. Bản đồ: njin::tilemap
 
@@ -97,6 +97,8 @@ reg.emplace<njin::platformer_body>(player, body);
 ## Bước tiếp theo
 
 - @ref platformer : dốc, bục di chuyển, nhảy tường, camera giới hạn trong màn chơi
+- @ref first_walk : cùng cách làm, cho game nhìn từ trên xuống
+- @ref ecs : nếu `registry.emplace<...>` và `view` còn lạ
 - @ref level : thay đoạn đặt ô bằng một màn vẽ trong Tiled hoặc LDtk
 - @ref sprites và @ref animation : thay hình chữ nhật bằng nhân vật có animation
 - @ref cheatsheet : "muốn làm X thì dùng hàm nào"

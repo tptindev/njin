@@ -4,7 +4,8 @@ Bảng tra nhanh: tìm việc bạn muốn làm ở cột trái, dùng thứ ở
 Mọi thứ nằm trong `njin::` và chỉ cần `#include <njin.h>`. Muốn xem đầy đủ tham số của một hàm thì bấm vào tên
 nó, hoặc vào [Nhóm API](topics.html).
 
-Chưa biết bắt đầu từ đâu? Đọc @ref first_jump trước: một nhân vật nhảy được trong 50 dòng.
+Chưa biết bắt đầu từ đâu? Đọc @ref first_jump (platformer) hoặc @ref first_walk (top-down) trước: một nhân
+vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref ecs.
 
 ## Khởi động và cấu trúc game
 
@@ -27,7 +28,7 @@ Chưa biết bắt đầu từ đâu? Đọc @ref first_jump trước: một nh�
 |---|---|---|
 | Nhân vật platformer chạy, nhảy | njin::platformer_body + njin::platformer_input_map | @ref first_jump, @ref platformer |
 | Nhảy đôi, trượt tường, nhảy tường | `air_jumps`, `wall_slide_speed`, `wall_jump` của njin::platformer_body | @ref platformer |
-| Nhân vật top-down đi 8 hướng, lướt | njin::topdown_body + njin::topdown_input_map | @ref topdown |
+| Nhân vật top-down đi 8 hướng, lướt | njin::topdown_body + njin::topdown_input_map | @ref first_walk, @ref topdown |
 | Đẩy lùi khi trúng đòn | ghi thẳng vào `velocity` của body | @ref platformer |
 | Bục di chuyển, lính gác đi tuần | njin::path_mover | @ref platformer |
 | Quái đuổi theo, tìm đường tránh tường | njin::nav_grid_from_world(), njin::nav_find_path(), njin::nav_steer() | @ref topdown |
@@ -72,8 +73,8 @@ Chưa biết bắt đầu từ đâu? Đọc @ref first_jump trước: một nh�
 
 | Muốn | Dùng | Xem |
 |---|---|---|
-| Hỏi "nút nhảy có bấm không" (không hỏi phím cụ thể) | njin::action_register(), njin::action_bind_key(), njin::action_pressed() | @ref input |
-| Trục ngang/dọc từ hai phím hoặc cần analog | njin::axis_register(), njin::axis_bind_keys(), njin::axis_value() | @ref input |
+| Hỏi "nút nhảy có bấm không" (không hỏi phím cụ thể) | njin::action_define(), njin::action_pressed() | @ref input |
+| Trục ngang/dọc từ hai phím hoặc cần analog | njin::axis_define(), njin::axis_value() | @ref input |
 | Đọc thẳng phím, chuột, tay cầm | njin::key_pressed(), njin::mouse_pos(), njin::pad_axis() | @ref input |
 | Gõ chữ | njin::text_char() | @ref input |
 | Cho người chơi đổi phím | njin::action_rebind(), njin::input_bindings_save() | @ref settings |

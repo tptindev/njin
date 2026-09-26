@@ -11,12 +11,26 @@ Trang này là tài liệu để **dùng** njin và để **hiểu** nó.
 **Mã nguồn:** <https://github.com/tptindev/njin>. Báo lỗi và góp ý ở mục Issues của repo. Lịch sử
 phiên bản nằm trong `CHANGELOG.md` ở thư mục gốc.
 
+## Lộ trình cho người mới
+
+Đi theo thứ tự này:
+
+1. @ref getting_started : build và chạy chương trình đầu tiên
+2. @ref first_jump (platformer) hoặc @ref first_walk (top-down) : một nhân vật chạy được trên bản đồ, dưới 50 dòng
+3. @ref ecs : `entt::registry` và `view`, nếu các bài trên còn lạ. Mười thao tác là đủ
+4. @ref sprites và @ref animation : thay hình chữ nhật bằng nhân vật có ảnh
+5. @ref level : vẽ màn chơi trong Tiled hoặc LDtk thay vì viết từng ô bằng code
+6. @ref audio, @ref ui, @ref dialog : tiếng, menu, hộp thoại
+7. @ref samples : đọc một game đầy đủ
+8. @ref cheatsheet : tra khi cần biết "muốn làm X thì dùng hàm nào"
+
 ## Đọc từ đâu
 
 | Bạn muốn | Đọc |
 |---|---|
 | Build và chạy được một chương trình | @subpage getting_started |
 | Có ngay một nhân vật chạy và nhảy được trên bản đồ, trong 50 dòng | @subpage first_jump |
+| Có ngay một nhân vật đi 8 hướng và lướt được trên bản đồ, trong 50 dòng | @subpage first_walk |
 | Biết "muốn làm X thì dùng hàm nào" | @subpage cheatsheet |
 | Hiểu module, system, phase | @subpage modules_systems |
 | Biết một frame chạy như thế nào | @subpage game_loop |

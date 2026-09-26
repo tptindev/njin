@@ -5,10 +5,8 @@ using namespace njin;
 
 void startup(njin_ctx &ctx) {
   // 1. Phím: một axis cho trái/phải, một action cho nhảy.
-  const axis_handle move = axis_register(ctx, "move");
-  axis_bind_keys(ctx, move, key_left, key_right);
-  const action_handle jump = action_register(ctx, "jump");
-  action_bind_key(ctx, jump, key_space);
+  const axis_handle move = axis_define(ctx, "move", {{key_left, key_right}});
+  const action_handle jump = action_define(ctx, "jump", {key_space, pad_face_down});
 
   entt::registry &reg = world(ctx);
 

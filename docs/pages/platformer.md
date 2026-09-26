@@ -2,7 +2,8 @@
 
 Trang này ghép các phần có sẵn của engine thành một nhân vật platformer: chạy, nhảy có
 cảm giác tốt, dốc, bục một chiều, bục di chuyển, và camera bám theo. Game mẫu
-`njin_platformer` (@ref samples) dùng đúng những thứ này.
+`njin_platformer` (@ref samples) dùng đúng những thứ này. Chưa làm gì bao giờ? Bắt đầu với @ref first_jump : một nhân
+vật nhảy được trong 50 dòng.
 
 @include platformer_body.cpp
 

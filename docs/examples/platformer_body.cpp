@@ -12,14 +12,9 @@ struct game {
 } g;
 
 void startup(njin::njin_ctx &ctx) {
-  g.move = njin::axis_register(ctx, "move");
-  njin::axis_bind_keys(ctx, g.move, njin::key_left, njin::key_right);
-  njin::axis_bind_pad(ctx, g.move, njin::pad_axis_left_x);
-  g.jump = njin::action_register(ctx, "jump");
-  njin::action_bind_key(ctx, g.jump, njin::key_space);
-  njin::action_bind_pad(ctx, g.jump, njin::pad_face_down);
-  g.down = njin::action_register(ctx, "down");
-  njin::action_bind_key(ctx, g.down, njin::key_down);
+  g.move = njin::axis_define(ctx, "move", {{njin::key_left, njin::key_right}}, {njin::pad_axis_left_x});
+  g.jump = njin::action_define(ctx, "jump", {njin::key_space, njin::pad_face_down});
+  g.down = njin::action_define(ctx, "down", {njin::key_down});
 
   // Màn Tiled: ô có thuộc tính collision = one_way / slope_r / ... (xem trang này).
   g.level = njin::level_load(ctx, "assets/level1.tmx");

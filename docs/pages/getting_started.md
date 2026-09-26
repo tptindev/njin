@@ -5,9 +5,12 @@ Trang này hướng dẫn build njin, chạy game mẫu và viết chương trì
 ## Yêu cầu
 
 - **CMake** 3.28 trở lên
-- Trình biên dịch **C++20** (bản build hiện tại dùng GCC trong w64devkit)
-- **Ninja**
-- **Git**: CMake tải raylib 6.0 và EnTT v4.0.0 về khi cấu hình lần đầu
+- Trình biên dịch **C++20**. Môi trường phát triển chính là GCC trong w64devkit trên Windows.
+  MSVC và GCC trên Linux có trong CI (`.github/workflows/build.yml`)
+- **Ninja** (không cần nếu dùng MSVC với generator của Visual Studio)
+- **Git**: CMake tải raylib 6.0, EnTT v4.0.0 và (cho njin_inspector) Dear ImGui về khi cấu hình lần đầu
+- **Linux**: thêm các thư viện phát triển X11 và OpenGL, ví dụ trên Ubuntu:
+  `sudo apt install ninja-build libgl1-mesa-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev`
 
 ## Lấy mã nguồn
 
@@ -26,13 +29,21 @@ Trên Windows, hai script ở thư mục gốc lo hết:
 | `run.bat` | Build target `njin_sandbox` và chạy `build\bin\njin_sandbox.exe` |
 | `build\bin\njin_pong.exe` | Game Pong mẫu, build cùng `build.bat` |
 
-Hoặc chạy CMake trực tiếp:
+Trên mọi hệ điều hành, dùng **preset** trong `CMakePresets.json`, không cần nhớ tham số:
+
+| Preset | Thư mục build | Việc làm |
+|---|---|---|
+| `debug` | `build/` | Ninja, Debug. Game có kết nối debug tới njin_inspector |
+| `release` | `build-release/` | Ninja, Release. Tối ưu, không có kết nối debug |
 
 ```
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target njin_sandbox
+cmake --preset debug
+cmake --build --preset debug --target njin_sandbox
 build\bin\njin_sandbox.exe
 ```
+
+Bỏ `--target` để build mọi thứ (game mẫu, njin_inspector). Dùng MSVC thì không cần preset:
+`cmake -S . -B build -A x64` rồi `cmake --build build --config Release`.
 
 @note `run.bat` chạy game với thư mục làm việc là thư mục gốc của repo. Đường
 dẫn tương đối như `assets/player.png` được tính từ đó trước, rồi từ thư mục chứa exe.
@@ -71,7 +82,8 @@ rồi thêm `add_subdirectory(src/games/my_game)` vào `CMakeLists.txt` gốc.
 
 ## Bước tiếp theo
 
-- @ref first_jump : một nhân vật nhảy được trên bản đồ, trong 50 dòng
+- @ref first_jump : một nhân vật nhảy được trên bản đồ, trong 50 dòng (platformer)
+- @ref first_walk : một nhân vật đi 8 hướng trên bản đồ, trong 50 dòng (top-down)
 - @ref modules_systems : viết logic cho game
 - @ref cheatsheet : muốn làm X thì dùng hàm nào
 - @ref game_loop : biết một frame chạy theo thứ tự nào
