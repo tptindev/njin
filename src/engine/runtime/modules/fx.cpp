@@ -126,19 +126,24 @@ void fx_update_sprite_flashes(njin_ctx &ctx) {
   registry.remove<flash_fx>(done.begin(), done.end());
 }
 
+void fx_warmup(njin_ctx &ctx) {
+  fx_state &fx = ctx.fx;
+  if (fx.flash_loaded)
+    return;
+  fx.flash_loaded = true;
+  fx.flash_shader = LoadShaderFromMemory(nullptr, flash_fs);
+  if (!IsShaderValid(fx.flash_shader))
+    NJIN_WARN("fx: sprite flash shader failed to compile");
+  else
+    fx.flash_color_loc = GetShaderLocation(fx.flash_shader, "flashColor");
+}
+
 bool fx_flash_begin(njin_ctx &ctx, const flash_fx &flash) {
   fx_state &fx = ctx.fx;
   const f32 amount = flash_amount(flash);
   if (amount <= 0.0f)
     return false;
-  if (!fx.flash_loaded) {
-    fx.flash_loaded = true;
-    fx.flash_shader = LoadShaderFromMemory(nullptr, flash_fs);
-    if (!IsShaderValid(fx.flash_shader))
-      NJIN_WARN("fx: sprite flash shader failed to compile");
-    else
-      fx.flash_color_loc = GetShaderLocation(fx.flash_shader, "flashColor");
-  }
+  fx_warmup(ctx);
   if (!IsShaderValid(fx.flash_shader))
     return false;
   const f32 value[4] = {flash.color.r, flash.color.g, flash.color.b, amount};

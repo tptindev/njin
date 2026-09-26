@@ -54,6 +54,10 @@ Nút **Consumption** trên thanh trên cùng đổi sang bố cục các cửa s
 | **Assets** | Từng texture, render target, font, shader, sound, music, kèm dung lượng và nằm ở GPU hay RAM. Cộng thêm ảnh chunk tilemap, buffer post-processing, màn hình ảo |
 | **Entities** | Thêm hai cột RAM và GPU. Cửa sổ **Inspector** ghi entity đang chọn giữ bao nhiêu |
 
+Cửa sổ **Performance** còn có mục **Rendering (last frame)**: số sprite vẽ và số bị cắt vì nằm
+ngoài camera, số chunk tilemap, số hạt (và bao nhiêu trên GPU), số lệnh instanced, số pass hậu kỳ, và
+**số lệnh vẽ ước tính** (xem @ref render_stats).
+
 Cách đọc các con số:
 
 - **CPU %** lấy từ thời gian CPU của tiến trình. 100 % là cả máy; "% một lõi" cho biết một luồng

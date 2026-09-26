@@ -1,5 +1,6 @@
 #pragma once
 #include "njin_post.h"
+#include <array>
 #include <raylib.h>
 
 namespace njin {
@@ -8,7 +9,7 @@ struct njin_ctx;
 // Built-in post-processing (njin_post.h), run by the camera module on the
 // finished world image before the game's own post shader.
 //
-// Passes: optional blur (two separable passes at full size), optional bloom
+// Passes: optional blur (two separable passes, at half size when wide), optional bloom
 // (bright pass, then blurred twice at half size), then one "uber" pass that
 // does everything else and adds the bloom. Shaders and targets are created
 // on first use and resized with the window.
@@ -32,6 +33,15 @@ struct post_chain {
   i32 u_chromatic = -1, u_scanlines = -1, u_scanline_size = -1, u_curve = -1,
       u_pixelate = -1, u_grain = -1;
 
+  // The value last written to each uniform of `uber`, slot by location. A
+  // program remembers its uniforms, so an unchanged one is not sent again.
+  struct uniform_memory {
+    i32 loc = -1;
+    i32 count = 0;
+    f32 value[4] = {};
+  };
+  std::array<uniform_memory, 32> uniforms{};
+
   RenderTexture2D full_a{}, full_b{}; // screen size
   RenderTexture2D half_a{}, half_b{}; // half screen size, for bloom
 
@@ -40,6 +50,10 @@ struct post_chain {
   post_chain(const post_chain &) = delete;
   post_chain &operator=(const post_chain &) = delete;
 };
+
+// Compiles the three shaders now instead of when an effect is first switched
+// on (a pause menu blur would stall the frame it opens on). Safe to call again.
+void post_chain_warmup(njin_ctx &ctx);
 
 // True when any built-in effect is on, so the world must be drawn into an
 // offscreen target first.

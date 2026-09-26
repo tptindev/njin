@@ -102,6 +102,12 @@ void on_message(app &a, const std::string &line) {
     a.scene = m["scene"].string_or("");
     a.collision_debug = m["collision_debug"].bool_or(false);
     a.dropped = (long long)m["dropped"].number_or(0);
+    const json_value &r = m["render"];
+    a.render = {(long long)r["sprites"].number_or(0),        (long long)r["sprites_culled"].number_or(0),
+                (long long)r["tile_chunks"].number_or(0),    (long long)r["emitters"].number_or(0),
+                (long long)r["emitters_culled"].number_or(0), (long long)r["particles"].number_or(0),
+                (long long)r["particles_gpu"].number_or(0),  (long long)r["instanced"].number_or(0),
+                (long long)r["batches"].number_or(0),        (long long)r["post_passes"].number_or(0)};
   } else if (t == "world") {
     on_world(a, m);
   } else if (t == "entity") {

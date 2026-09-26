@@ -17,6 +17,10 @@ flowchart LR
 Render texture là một ảnh ngoài màn hình. Bạn vẽ cảnh vào nó, rồi vẽ nó ra màn
 hình với một shader bật lên. Shader chạy trên từng pixel của cả cảnh.
 
+Các shader dựng sẵn được biên dịch **lúc game khởi động**, không phải lúc bật hiệu ứng lần đầu,
+nên mở menu tạm dừng với `blur` không làm khựng frame. `blur` từ 3 pixel trở lên chạy ở nửa
+độ phân giải (chỉ chạm một phần tư số pixel) rồi phóng lại; nhỏ hơn thì chạy ở độ phân giải đầy đủ.
+
 ## Ví dụ
 
 @include post_processing.cpp

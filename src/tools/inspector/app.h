@@ -14,7 +14,7 @@ namespace inspector {
 using njin::json_value;
 
 // Must match the game's debug module (modules/debug.cpp).
-constexpr int protocol_version = 2;
+constexpr int protocol_version = 3;
 constexpr size_t frame_history = 600;
 constexpr size_t log_history = 5000;
 
@@ -99,6 +99,12 @@ struct app {
   std::string scene;
   bool collision_debug = false;
   long long dropped = 0;
+  // What the last frame's world pass drew (see njin's render_stats).
+  struct render_row {
+    long long sprites = 0, sprites_culled = 0, tile_chunks = 0;
+    long long emitters = 0, emitters_culled = 0, particles = 0, particles_gpu = 0;
+    long long instanced = 0, batches = 0, post_passes = 0;
+  } render;
 
   std::vector<std::string> types;
   std::vector<entity_row> ents;

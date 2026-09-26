@@ -148,11 +148,21 @@ json_value debug_build_res(const njin_ctx &ctx) {
 
   for (usize i = 0; i < ctx.texture.slots.size(); i++) {
     const texture_slot &s = ctx.texture.slots[i];
-    if (!s.alive)
+    if (!s.alive || s.packed) // a packed image is part of its atlas page, listed below
       continue;
     const std::string name = s.path.empty() ? "texture #" + std::to_string(i + 1) : s.path;
     add(item("texture", name, texture_bytes(s.texture), true,
              dim(s.texture.width, s.texture.height) + (s.texture.mipmaps > 1 ? "  mips" : "")));
+  }
+  for (usize a = 0; a < ctx.texture.atlases.size(); a++) {
+    const atlas_slot &atlas = ctx.texture.atlases[a];
+    if (!atlas.alive)
+      continue;
+    for (usize p = 0; p < atlas.pages.size(); p++) {
+      const Texture2D &t = atlas.pages[p].texture;
+      add(item("texture", "atlas #" + std::to_string(a + 1) + " page " + std::to_string(p + 1),
+               texture_bytes(t), true, dim(t.width, t.height)));
+    }
   }
   for (usize i = 0; i < ctx.render_texture.slots.size(); i++) {
     const render_texture_slot &s = ctx.render_texture.slots[i];
@@ -235,6 +245,8 @@ entity_cost debug_entity_cost(const njin_ctx &ctx, entt::entity entity) {
   }
   if (reg.all_of<tilemap>(entity))
     cost.gpu = chunk_bytes_of(ctx, entity);
+  if (const particle_gpu_buffer *buffer = reg.try_get<particle_gpu_buffer>(entity))
+    cost.gpu += (usize)buffer->capacity;
   return cost;
 }
 

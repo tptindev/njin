@@ -47,6 +47,9 @@ bool settings_panel(njin_ctx &ctx, std::span<const rebind_row> rows) {
   bool full = window_fullscreen(ctx);
   if (ui_toggle(ctx, tr(ctx, "settings.fullscreen"), full))
     window_set_fullscreen(ctx, full);
+  bool vsync = window_vsync(ctx);
+  if (ui_toggle(ctx, tr(ctx, "settings.vsync"), vsync))
+    window_set_vsync(ctx, vsync);
 
   // Language: every loaded table, shown by its own name.
   const std::vector<std::string> langs = i18n_languages(ctx);

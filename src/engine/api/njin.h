@@ -8,6 +8,7 @@
 #include "njin_cfg.h"
 #include "njin_collision.h"
 #include "njin_anim.h"
+#include "njin_atlas.h"
 #include "njin_bindings.h"
 #include "njin_body.h"
 #include "njin_camera.h"

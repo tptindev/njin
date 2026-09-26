@@ -49,6 +49,11 @@ struct particle {
 ///
 /// Mọi trường đều sửa được lúc đang chạy; hạt đã sinh giữ tốc độ và tuổi thọ
 /// của chúng, còn màu và kích thước luôn theo giá trị hiện tại.
+///
+/// Máy có GPU thì hạt được mô phỏng trong vertex shader và vẽ bằng một lệnh
+/// instanced cho mỗi emitter (xem particle_backend). Khi đó `gpu` là true và trong `particles` chỉ `age` được
+/// cập nhật: `pos`, `velocity`, `rot` giữ giá trị lúc sinh, vì card đồ họa tự
+/// tính vị trí hiện tại từ đó. Đọc vị trí hạt thì kiểm tra `gpu` trước.
 struct particle_emitter {
   /// @name Phát
   /// @{
@@ -100,11 +105,42 @@ struct particle_emitter {
 
   /// @name Trạng thái (do engine quản lý)
   /// @{
-  std::vector<particle> particles; ///< Các hạt đang sống.
+  std::vector<particle> particles; ///< Các hạt đang sống. Xem lưu ý về `gpu` ở trên.
   i32 pending_burst = 0; ///< Số hạt chờ sinh ở lần cập nhật tới, xem particles_burst().
   f32 emit_accum = 0.0f; ///< Phần lẻ của hạt chưa sinh khi phát liên tục.
+  /// Đang mô phỏng và vẽ trên GPU. Engine chọn lúc emitter hết hạt, xem particle_backend.
+  bool gpu = false;
   /// @}
 };
+
+/// Nơi mô phỏng và vẽ hạt.
+enum particle_backend {
+  /// Máy có GPU (OpenGL 3.3 trở lên, không phải bộ vẽ bằng phần mềm) thì mọi
+  /// emitter chạy trên GPU; máy không có thì chạy trên CPU.
+  particle_backend_auto,
+  particle_backend_cpu, ///< Mọi emitter chạy trên CPU, dù máy có GPU.
+};
+
+/// Chọn nơi mô phỏng hạt. Mặc định là particle_backend_auto.
+///
+/// Mỗi emitter chỉ đổi nơi chạy khi nó không còn hạt nào, nên đổi giữa chừng
+/// không làm hạt đang bay bị giật.
+/// @param ctx Context của engine.
+/// @param backend Lựa chọn.
+void particles_set_backend(njin_ctx &ctx, particle_backend backend);
+
+/// Lựa chọn đang đặt bằng particles_set_backend().
+/// @param ctx Context của engine.
+/// @return Lựa chọn hiện tại.
+particle_backend particles_backend(const njin_ctx &ctx);
+
+/// Máy này có chạy được hạt trên GPU không: OpenGL 3.3 trở lên, có instancing,
+/// và không phải bộ vẽ bằng phần mềm (llvmpipe, SwiftShader, Microsoft Basic
+/// Render Driver, ...). Chỉ đúng sau khi cửa sổ đã mở, tức là trong mọi hàm
+/// của game.
+/// @param ctx Context của engine.
+/// @return `true` nếu GPU dùng được.
+bool particles_gpu_available(njin_ctx &ctx);
 
 /// Xếp hàng `count` hạt để sinh cùng lúc ở lần cập nhật tới.
 ///

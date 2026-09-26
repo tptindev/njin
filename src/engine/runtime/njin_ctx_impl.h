@@ -7,8 +7,10 @@
 #include "modules/debug.h"
 #include "modules/dialog.h"
 #include "modules/fx.h"
+#include "modules/particles_gpu.h"
 #include "modules/post_fx.h"
 #include "modules/reload.h"
+#include "modules/render_stats.h"
 #include "modules/ui.h"
 #include "modules/sprite.h"
 #include "modules/timer.h"
@@ -78,6 +80,8 @@ struct njin_ctx {
   camera_post post;
   fx_state fx;
   post_chain postfx;
+  particle_gpu_state particles_gpu;
+  render_stats stats;
   reload_state reload;
   ui_state ui;
   dialog_state dialog;

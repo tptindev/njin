@@ -50,13 +50,15 @@ void texture_store_unload(texture_store &store, texture_handle handle) {
   texture_slot *slot = texture_slot_of(store, handle);
   if (slot == nullptr)
     return;
-  UnloadTexture(slot->texture);
+  // A packed image shares its page: the atlas frees that.
+  if (!slot->packed)
+    UnloadTexture(slot->texture);
   *slot = texture_slot{};
 }
 
 bool texture_store_reload(texture_store &store, texture_handle handle) {
   texture_slot *slot = texture_slot_of(store, handle);
-  if (slot == nullptr || slot->path.empty())
+  if (slot == nullptr || slot->path.empty() || slot->packed)
     return false;
   const Texture2D texture = LoadTexture(slot->path.c_str());
   if (!IsTextureValid(texture)) {
@@ -73,13 +75,18 @@ bool texture_store_reload(texture_store &store, texture_handle handle) {
 texture_store::~texture_store() {
   for (usize i = 0; i < slots.size(); i++)
     texture_store_unload(*this, texture_handle{.id = (u32)(i + 1)});
+  for (atlas_slot &atlas : atlases) {
+    for (atlas_page &page : atlas.pages)
+      UnloadTexture(page.texture);
+  }
 }
 
 vec2 texture_store_size(const texture_store &store, texture_handle handle) {
   const texture_slot *slot = texture_slot_of(store, handle);
   if (slot == nullptr)
     return vec2{0.0f, 0.0f};
-  return vec2{(f32)slot->texture.width, (f32)slot->texture.height};
+  const Rectangle area = texture_area(*slot);
+  return vec2{area.width, area.height};
 }
 
 void texture_store_draw(const texture_store &store, texture_handle handle,
@@ -91,7 +98,8 @@ void texture_store_draw(const texture_store &store, texture_handle handle,
   to_raylib(pos, position);
   Color color{};
   to_raylib(tint, color);
-  DrawTextureV(slot->texture, position, color);
+  const Rectangle area = texture_area(*slot);
+  DrawTextureRec(slot->texture, area, position, color);
 }
 
 int texture_filter_to_raylib(texture_filter filter) {
@@ -114,17 +122,18 @@ void texture_store_draw_ex(const texture_store &store, texture_handle handle,
   if (slot == nullptr)
     return;
   const Texture2D &texture = slot->texture;
+  const Rectangle area = texture_area(*slot);
   const bool whole = desc.source.size.x == 0.0f || desc.source.size.y == 0.0f;
-  const f32 sw = whole ? (f32)texture.width : desc.source.size.x;
-  const f32 sh = whole ? (f32)texture.height : desc.source.size.y;
+  const f32 sw = whole ? area.width : desc.source.size.x;
+  const f32 sh = whole ? area.height : desc.source.size.y;
   // A negative scale is a flip; DrawTexturePro expresses flips as a negative
   // source size and wants a positive destination.
   const bool flip_x = desc.flip_x != (desc.scale.x < 0.0f);
   const bool flip_y = desc.flip_y != (desc.scale.y < 0.0f);
   const f32 dw = sw * (desc.scale.x < 0.0f ? -desc.scale.x : desc.scale.x);
   const f32 dh = sh * (desc.scale.y < 0.0f ? -desc.scale.y : desc.scale.y);
-  const Rectangle source{whole ? 0.0f : desc.source.pos.x,
-                         whole ? 0.0f : desc.source.pos.y,
+  const Rectangle source{area.x + (whole ? 0.0f : desc.source.pos.x),
+                         area.y + (whole ? 0.0f : desc.source.pos.y),
                          flip_x ? -sw : sw, flip_y ? -sh : sh};
   const Rectangle dest{desc.pos.x, desc.pos.y, dw, dh};
   const Vector2 origin{desc.origin.x * dw, desc.origin.y * dh};

@@ -6,7 +6,9 @@
 #include "njin_ctx_impl.h"
 #include "fx.h"
 #include "particles.h"
+#include "_collide.h"
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace njin {
@@ -34,22 +36,22 @@ rect chunk_rect(const tilemap &map, vec2 origin, u64 key) {
 }
 
 // Which tiles draw_chunk_tiles draws.
-enum class tiles_pass { all, still, animated };
+enum class tiles_pass { all, still };
 
 bool is_animated(const tilemap &map, i32 value) {
   return !map.anims.empty() && map.anims.contains(tile_id(value));
 }
 
 // Draws the tiles of `chunk` with its top-left corner at `offset`. Used to
-// bake a chunk image (still tiles only), to draw the animated tiles over it
-// (at their frame for `time`), and, when a chunk changed after baking this
-// frame, to draw it all directly so a stale image never reaches the screen.
+// bake a chunk image (still tiles only) and, when a chunk changed after baking
+// this frame, to draw it all directly so a stale image never reaches the
+// screen. The animated tiles over a baked image go through draw_animated_tiles.
 void draw_chunk_tiles(const texture_slot &tileset, const tilemap &map,
                       const tile_chunk &chunk, vec2 offset, Color tint,
                       tiles_pass pass = tiles_pass::all, f32 time = 0.0f) {
   const vec2 step = map.tile_size + vec2{map.spacing, map.spacing};
-  const i32 columns =
-      (i32)(((f32)tileset.texture.width - 2.0f * map.margin + map.spacing) / step.x);
+  const Rectangle area = texture_area(tileset);
+  const i32 columns = (i32)((area.width - 2.0f * map.margin + map.spacing) / step.x);
   if (columns <= 0)
     return;
   for (i32 y = 0; y < tile_chunk_size; y++) {
@@ -61,25 +63,52 @@ void draw_chunk_tiles(const texture_slot &tileset, const tilemap &map,
       if (!map.anims.empty()) {
         const auto anim = map.anims.find(id);
         const bool animated = anim != map.anims.end();
-        if ((pass == tiles_pass::still && animated) || (pass == tiles_pass::animated && !animated))
+        if (pass == tiles_pass::still && animated)
           continue;
         if (animated) {
           const i32 frame = tile_anim_frame(anim->second, time);
           if (frame >= 0)
             id = frame;
         }
-      } else if (pass == tiles_pass::animated) {
-        return;
       }
       // A negative source size flips the tile.
-      const Rectangle source{map.margin + (f32)(id % columns) * step.x,
-                             map.margin + (f32)(id / columns) * step.y,
+      const Rectangle source{area.x + map.margin + (f32)(id % columns) * step.x,
+                             area.y + map.margin + (f32)(id / columns) * step.y,
                              (value & tile_flip_x) != 0 ? -map.tile_size.x : map.tile_size.x,
                              (value & tile_flip_y) != 0 ? -map.tile_size.y : map.tile_size.y};
       const Vector2 pos{offset.x + (f32)x * map.tile_size.x,
                         offset.y + (f32)y * map.tile_size.y};
       DrawTextureRec(tileset.texture, source, pos, tint);
     }
+  }
+}
+
+// Draws the animated tiles of `chunk` listed in `cells`, at their frame for
+// `time`, over its baked image.
+void draw_animated_tiles(const texture_slot &tileset, const tilemap &map,
+                         const tile_chunk &chunk, const std::vector<u16> &cells,
+                         vec2 offset, Color tint, f32 time) {
+  const vec2 step = map.tile_size + vec2{map.spacing, map.spacing};
+  const Rectangle area = texture_area(tileset);
+  const i32 columns = (i32)((area.width - 2.0f * map.margin + map.spacing) / step.x);
+  if (columns <= 0)
+    return;
+  for (const u16 cell : cells) {
+    const i32 value = chunk.tiles[cell];
+    i32 id = tile_id(value);
+    const auto anim = map.anims.find(id);
+    if (anim != map.anims.end()) {
+      const i32 frame = tile_anim_frame(anim->second, time);
+      if (frame >= 0)
+        id = frame;
+    }
+    const Rectangle source{area.x + map.margin + (f32)(id % columns) * step.x,
+                           area.y + map.margin + (f32)(id / columns) * step.y,
+                           (value & tile_flip_x) != 0 ? -map.tile_size.x : map.tile_size.x,
+                           (value & tile_flip_y) != 0 ? -map.tile_size.y : map.tile_size.y};
+    const Vector2 pos{offset.x + (f32)(cell % tile_chunk_size) * map.tile_size.x,
+                      offset.y + (f32)(cell / tile_chunk_size) * map.tile_size.y};
+    DrawTextureRec(tileset.texture, source, pos, tint);
   }
 }
 
@@ -102,13 +131,11 @@ void bake(chunk_image &image, const texture_slot &tileset, const tilemap &map,
   ClearBackground(BLANK);
   draw_chunk_tiles(tileset, map, chunk, {0.0f, 0.0f}, WHITE, tiles_pass::still);
   EndTextureMode();
-  image.has_animated = false;
+  image.animated_cells.clear();
   if (!map.anims.empty()) {
-    for (const i32 value : chunk.tiles) {
-      if (value >= 0 && is_animated(map, value)) {
-        image.has_animated = true;
-        break;
-      }
+    for (usize cell = 0; cell < chunk.tiles.size(); cell++) {
+      if (chunk.tiles[cell] >= 0 && is_animated(map, chunk.tiles[cell]))
+        image.animated_cells.push_back((u16)cell);
     }
   }
   SetTextureFilter(image.target.texture, texture_filter_to_raylib(tileset.filter));
@@ -142,7 +169,7 @@ void animate(njin_ctx &ctx) {
     const texture_slot *slot = texture_slot_of(ctx.texture, spr.texture);
     if (slot == nullptr)
       continue;
-    const i32 columns = (i32)((f32)slot->texture.width / anim.frame_size.x);
+    const i32 columns = (i32)(texture_area(*slot).width / anim.frame_size.x);
     if (columns <= 0)
       continue;
     const i32 index = anim.first + anim.frame;
@@ -155,6 +182,7 @@ void animate(njin_ctx &ctx) {
 void bake_tilemaps(njin_ctx &ctx) {
   sprite_cache &cache = ctx.sprites;
   const u32 frame = ++cache.frame;
+  ctx.stats.reset();
   const rect view = camera_bounds(ctx);
   entt::registry &registry = ctx.ecs.registry;
 
@@ -201,6 +229,14 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
   Color tint{};
   to_raylib(map.tint, tint);
   const auto cached = ctx.sprites.chunks.find(entity);
+  // Chunks with animated tiles: those are drawn after every chunk image, all
+  // from the tileset, so the tileset texture is one batch instead of one per chunk.
+  struct animated_chunk {
+    const tile_chunk *chunk;
+    const chunk_image *image;
+    vec2 pos;
+  };
+  std::vector<animated_chunk> animated;
   for (const auto &[key, chunk] : map.chunks) {
     const rect area = chunk_rect(map, tr.pos, key);
     if (!rects_overlap(area, view))
@@ -216,6 +252,8 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
     if (image == nullptr) {
       // Changed after this frame's bake, or not baked yet: draw it tile by
       // tile this once. The bake catches up next frame.
+      ctx.stats.tile_chunks++;
+      ctx.stats.note_draw(tileset->texture.id, blend_alpha);
       draw_chunk_tiles(*tileset, map, chunk, area.pos, tint, tiles_pass::all,
                        ctx.sprites.tile_time);
       continue;
@@ -223,11 +261,33 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
     const Texture2D &texture = image->target.texture;
     const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
     const Rectangle dest{area.pos.x, area.pos.y, area.size.x, area.size.y};
+    ctx.stats.tile_chunks++;
+    ctx.stats.note_draw(texture.id, blend_alpha);
     DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, tint);
-    if (image->has_animated)
-      draw_chunk_tiles(*tileset, map, chunk, area.pos, tint, tiles_pass::animated,
-                       ctx.sprites.tile_time);
+    if (!image->animated_cells.empty())
+      animated.push_back({&chunk, image, area.pos});
   }
+  if (!animated.empty())
+    ctx.stats.note_draw(tileset->texture.id, blend_alpha);
+  for (const animated_chunk &a : animated)
+    draw_animated_tiles(*tileset, map, *a.chunk, a.image->animated_cells, a.pos, tint,
+                        ctx.sprites.tile_time);
+}
+
+// False when `spr` is certainly outside `view`. The box is a circle around the
+// anchor that reaches the farthest corner, so rotation cannot pull it back in.
+bool sprite_on_screen(const njin_ctx &ctx, const transform &tr, const sprite &spr,
+                      const rect &view) {
+  const texture_slot *slot = texture_slot_of(ctx.texture, spr.texture);
+  if (slot == nullptr)
+    return false; // nothing would be drawn
+  const bool whole = spr.source.size.x == 0.0f || spr.source.size.y == 0.0f;
+  const Rectangle area = texture_area(*slot);
+  const f32 w = (whole ? area.width : spr.source.size.x) * std::abs(tr.scale);
+  const f32 h = (whole ? area.height : spr.source.size.y) * std::abs(tr.scale);
+  const f32 radius = std::hypot(std::max(spr.origin.x, 1.0f - spr.origin.x) * w,
+                                std::max(spr.origin.y, 1.0f - spr.origin.y) * h);
+  return rects_overlap(rect{tr.pos - vec2{radius, radius}, {2.0f * radius, 2.0f * radius}}, view);
 }
 
 // One thing to draw this frame. On the same layer tilemaps come first, so a
@@ -242,19 +302,34 @@ struct draw_item {
 
 void draw(njin_ctx &ctx) {
   entt::registry &registry = ctx.ecs.registry;
+  render_stats &stats = ctx.stats;
+  const rect view = camera_bounds(ctx);
+  // A shaking camera reveals a little of what lies outside `view`.
+  const bool cull = ctx.fx.trauma <= 0.0f;
   std::vector<draw_item> items;
   for (auto [entity, tr, map] : registry.view<const transform, const tilemap>().each()) {
     if (map.visible)
       items.push_back({map.layer, 0, entity});
   }
   for (auto [entity, tr, spr] : registry.view<const transform, const sprite>().each()) {
-    if (spr.visible)
-      items.push_back({spr.layer, 1, entity, tr.pos.y + spr.sort_offset});
+    if (!spr.visible)
+      continue;
+    if (cull && !sprite_on_screen(ctx, tr, spr, view)) {
+      stats.sprites_culled++;
+      continue;
+    }
+    items.push_back({spr.layer, 1, entity, tr.pos.y + spr.sort_offset});
   }
   for (auto [entity, tr, em] :
        registry.view<const transform, const particle_emitter>().each()) {
-    if (em.visible && !em.particles.empty())
-      items.push_back({em.layer, 2, entity, tr.pos.y});
+    if (!em.visible || em.particles.empty())
+      continue;
+    const particle_extent *extent = registry.try_get<particle_extent>(entity);
+    if (cull && extent != nullptr && !particles_on_screen(tr, em, *extent, view)) {
+      stats.emitters_culled++;
+      continue;
+    }
+    items.push_back({em.layer, 2, entity, tr.pos.y});
   }
   const std::unordered_set<i32> &by_y = ctx.sprites.y_sorted;
   std::stable_sort(items.begin(), items.end(),
@@ -268,7 +343,6 @@ void draw(njin_ctx &ctx) {
                      return a.kind < b.kind;
                    });
 
-  const rect view = camera_bounds(ctx);
   for (const draw_item &item : items) {
     const transform &tr = registry.get<transform>(item.entity);
     if (item.kind == 0) {
@@ -276,12 +350,17 @@ void draw(njin_ctx &ctx) {
       continue;
     }
     if (item.kind == 2) {
-      particles_draw(ctx, tr, registry.get<particle_emitter>(item.entity));
+      particles_draw(ctx, item.entity, tr, registry.get<particle_emitter>(item.entity));
       continue;
     }
     const sprite &spr = registry.get<sprite>(item.entity);
     const flash_fx *flash = registry.try_get<flash_fx>(item.entity);
     const bool flashing = flash != nullptr && fx_flash_begin(ctx, *flash);
+    stats.sprites++;
+    if (flashing)
+      stats.note_flush();
+    if (const texture_slot *slot = texture_slot_of(ctx.texture, spr.texture))
+      stats.note_draw(slot->texture.id, blend_alpha);
     texture_store_draw_ex(ctx.texture, spr.texture,
                           texture_draw_desc{.pos = tr.pos,
                                             .source = spr.source,
@@ -291,8 +370,10 @@ void draw(njin_ctx &ctx) {
                                             .flip_x = spr.flip_x,
                                             .flip_y = spr.flip_y,
                                             .tint = spr.tint});
-    if (flashing)
+    if (flashing) {
       fx_flash_end();
+      stats.note_flush();
+    }
   }
 }
 

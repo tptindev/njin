@@ -72,6 +72,15 @@ bool window_fullscreen(const njin_ctx &) {
   return IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
 }
 
+void window_set_vsync(njin_ctx &, bool vsync) {
+  if (vsync)
+    SetWindowState(FLAG_VSYNC_HINT);
+  else
+    ClearWindowState(FLAG_VSYNC_HINT);
+}
+
+bool window_vsync(const njin_ctx &) { return IsWindowState(FLAG_VSYNC_HINT); }
+
 bool window_resized(const njin_ctx &) { return IsWindowResized(); }
 
 void cursor_set_visible(njin_ctx &, bool visible) {

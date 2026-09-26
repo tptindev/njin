@@ -7,7 +7,7 @@
   },
   "settings": {
     "title": "Cài đặt", "master": "Âm lượng", "music": "Nhạc", "sfx": "Hiệu ứng",
-    "fullscreen": "Toàn màn hình", "language": "Ngôn ngữ", "controls": "Phím (bàn phím | tay cầm)"
+    "fullscreen": "Toàn màn hình", "vsync": "Đồng bộ dọc", "language": "Ngôn ngữ", "controls": "Phím (bàn phím | tay cầm)"
   },
   "action": { "jump": "Nhảy", "down": "Xuống", "interact": "Nói chuyện", "pause": "Tạm dừng" },
   "hud": { "coins": "{0}/{1}", "talk": "E" },

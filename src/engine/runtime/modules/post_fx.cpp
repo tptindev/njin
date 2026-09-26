@@ -2,9 +2,14 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
+#include <algorithm>
+#include <rlgl.h>
 
 namespace njin {
 namespace {
+// A blur at least this wide (screen pixels) runs at half size.
+constexpr f32 half_blur_min = 3.0f;
+
 // Keeps only what is brighter than `threshold`, fading in over a short knee
 // so the bloom does not switch on with a hard edge.
 constexpr const char *bright_fs = R"(#version 330
@@ -209,10 +214,32 @@ void set_f(const Shader &s, i32 loc, f32 v) {
   SetShaderValue(s, loc, &v, SHADER_UNIFORM_FLOAT);
 }
 
-void set_color(const Shader &s, i32 loc, rgba c) {
-  const f32 v[4] = {c.r, c.g, c.b, c.a};
-  SetShaderValue(s, loc, v, SHADER_UNIFORM_VEC4);
-}
+// Writes uniforms of the uber program, which must be enabled, skipping the
+// ones whose value is what the program already holds.
+struct uniform_writer {
+  post_chain &chain;
+
+  void put(i32 loc, const f32 *value, i32 count, i32 type) {
+    if (loc < 0)
+      return;
+    post_chain::uniform_memory &m = chain.uniforms[(usize)loc % chain.uniforms.size()];
+    if (m.loc == loc && m.count == count && std::equal(value, value + count, m.value))
+      return;
+    m.loc = loc;
+    m.count = count;
+    std::copy(value, value + count, m.value);
+    rlSetUniform(loc, value, type, 1);
+  }
+  void f(i32 loc, f32 v) { put(loc, &v, 1, RL_SHADER_UNIFORM_FLOAT); }
+  void xy(i32 loc, f32 x, f32 y) {
+    const f32 v[2] = {x, y};
+    put(loc, v, 2, RL_SHADER_UNIFORM_VEC2);
+  }
+  void color(i32 loc, rgba c) {
+    const f32 v[4] = {c.r, c.g, c.b, c.a};
+    put(loc, v, 4, RL_SHADER_UNIFORM_VEC4);
+  }
+};
 } // namespace
 
 post_chain::~post_chain() {
@@ -226,6 +253,8 @@ post_chain::~post_chain() {
     UnloadShader(uber);
   }
 }
+
+void post_chain_warmup(njin_ctx &ctx) { load(ctx.postfx); }
 
 bool post_chain_active(const post_chain &chain) {
   return !chain.failed && (chain.settings.blur > 0.0f || effects_in_uber(chain.settings));
@@ -243,12 +272,28 @@ const Texture2D &post_chain_run(njin_ctx &ctx, const Texture2D &scene) {
   if (!ensure(c.full_a, w, h) || !ensure(c.full_b, w, h))
     return scene;
 
+  u32 passes = 0;
   const Texture2D *src = &scene;
   if (p.blur > 0.0f) {
-    // Four taps each side: spread them so the outermost reaches `blur` px.
-    const f32 step = p.blur / 4.0f;
-    blur_pass(c, *src, c.full_a, {step / (f32)w, 0.0f});
-    blur_pass(c, c.full_a.texture, c.full_b, {0.0f, step / (f32)h});
+    if (p.blur >= half_blur_min && ensure(c.half_a, hw, hh) && ensure(c.half_b, hw, hh)) {
+      // A wide blur hides the lost detail, and at half size it touches a
+      // quarter of the pixels: shrink, blur, scale back up. Four taps each
+      // side, spread so the outermost reaches `blur` screen pixels.
+      const f32 step = p.blur * 0.5f / 4.0f;
+      // Bilinear at exactly half size averages each 2x2 block; a point-sampled
+      // scene (pixel art) would keep one texel of four and show a grid.
+      SetTextureFilter(*src, TEXTURE_FILTER_BILINEAR);
+      blit(*src, c.half_a, nullptr);
+      blur_pass(c, c.half_a.texture, c.half_b, {step / (f32)hw, 0.0f});
+      blur_pass(c, c.half_b.texture, c.half_a, {0.0f, step / (f32)hh});
+      blit(c.half_a.texture, c.full_b, nullptr);
+      passes += 4;
+    } else {
+      const f32 step = p.blur / 4.0f;
+      blur_pass(c, *src, c.full_a, {step / (f32)w, 0.0f});
+      blur_pass(c, c.full_a.texture, c.full_b, {0.0f, step / (f32)h});
+      passes += 2;
+    }
     src = &c.full_b.texture;
   }
 
@@ -261,36 +306,46 @@ const Texture2D &post_chain_run(njin_ctx &ctx, const Texture2D &scene) {
       blur_pass(c, c.half_a.texture, c.half_b, {step / (f32)hw, 0.0f});
       blur_pass(c, c.half_b.texture, c.half_a, {0.0f, step / (f32)hh});
     }
+    passes += 5;
   }
 
-  if (!effects_in_uber(p))
+  if (!effects_in_uber(p)) {
+    ctx.stats.post_passes += passes;
     return *src;
+  }
+  passes++;
+  ctx.stats.post_passes += passes;
   const Shader &u = c.uber;
   // The uber pass writes into whichever full target is not its source.
   RenderTexture2D &dst = src == &c.full_a.texture ? c.full_b : c.full_a;
   BeginTextureMode(dst);
   ClearBackground(BLANK);
+  // One bind for all the uniforms (SetShaderValue would bind and unbind the
+  // program for each), and only the ones that changed since the last frame:
+  // a program keeps its uniform values.
+  rlEnableShader(u.id);
+  uniform_writer set{c};
+  set.xy(c.u_resolution, (f32)w, (f32)h);
+  set.f(c.u_time, ctx.time.elapsed);
+  set.f(c.u_bloom, bloom ? p.bloom : 0.0f);
+  rlSetUniformSampler(c.u_bloom_tex, (bloom ? c.half_a.texture : *src).id);
+  set.f(c.u_brightness, p.brightness);
+  set.f(c.u_contrast, p.contrast);
+  set.f(c.u_saturation, p.saturation);
+  set.f(c.u_sepia, p.sepia);
+  set.color(c.u_tint, p.tint);
+  set.f(c.u_vignette, p.vignette);
+  set.f(c.u_vignette_radius, p.vignette_radius);
+  set.f(c.u_vignette_softness, p.vignette_softness);
+  set.color(c.u_vignette_color, p.vignette_color);
+  set.f(c.u_chromatic, p.chromatic);
+  set.f(c.u_scanlines, p.scanlines);
+  set.f(c.u_scanline_size, p.scanline_size > 0.5f ? p.scanline_size : 0.5f);
+  set.f(c.u_curve, p.crt_curve);
+  set.f(c.u_pixelate, p.pixelate);
+  set.f(c.u_grain, p.grain);
+  rlDisableShader();
   BeginShaderMode(u);
-  const f32 resolution[2] = {(f32)w, (f32)h};
-  SetShaderValue(u, c.u_resolution, resolution, SHADER_UNIFORM_VEC2);
-  set_f(u, c.u_time, ctx.time.elapsed);
-  set_f(u, c.u_bloom, bloom ? p.bloom : 0.0f);
-  SetShaderValueTexture(u, c.u_bloom_tex, bloom ? c.half_a.texture : *src);
-  set_f(u, c.u_brightness, p.brightness);
-  set_f(u, c.u_contrast, p.contrast);
-  set_f(u, c.u_saturation, p.saturation);
-  set_f(u, c.u_sepia, p.sepia);
-  set_color(u, c.u_tint, p.tint);
-  set_f(u, c.u_vignette, p.vignette);
-  set_f(u, c.u_vignette_radius, p.vignette_radius);
-  set_f(u, c.u_vignette_softness, p.vignette_softness);
-  set_color(u, c.u_vignette_color, p.vignette_color);
-  set_f(u, c.u_chromatic, p.chromatic);
-  set_f(u, c.u_scanlines, p.scanlines);
-  set_f(u, c.u_scanline_size, p.scanline_size > 0.5f ? p.scanline_size : 0.5f);
-  set_f(u, c.u_curve, p.crt_curve);
-  set_f(u, c.u_pixelate, p.pixelate);
-  set_f(u, c.u_grain, p.grain);
   const Rectangle source{0.0f, 0.0f, (f32)w, -(f32)h};
   DrawTexturePro(*src, source, Rectangle{0.0f, 0.0f, (f32)w, (f32)h},
                  Vector2{0.0f, 0.0f}, 0.0f, WHITE);

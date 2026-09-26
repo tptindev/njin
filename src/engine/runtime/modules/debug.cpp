@@ -21,7 +21,7 @@
 namespace njin {
 namespace {
 // The inspector speaks this version; it refuses a game with another one.
-constexpr i32 protocol_version = 2;
+constexpr i32 protocol_version = 3;
 // Log lines held while no inspector is connected, or between sends.
 constexpr usize max_log_lines = 2000;
 
@@ -142,16 +142,26 @@ void register_builtins(njin_ctx &ctx) {
         .set("visible", m.visible)
         .set("chunks", (i64)m.chunks.size());
   });
-  builtin<particle_emitter>(d, "particle_emitter", [](const particle_emitter &p) {
-    return json_value::make_object()
-        .set("alive", (i64)p.particles.size())
-        .set("max", p.max_particles)
-        .set("rate", p.rate)
-        .set("emitting", p.emitting)
-        .set("layer", p.layer)
-        .set("visible", p.visible)
-        .set("destroy_when_done", p.destroy_when_done);
-  });
+  // Not through builtin<>: it needs the entity, to find the emitter's GPU buffer.
+  register_builtin(
+      d, entt::type_hash<particle_emitter>::value(), "particle_emitter",
+      [](const entt::registry &reg, entt::entity e) {
+        const particle_emitter &p = reg.get<particle_emitter>(e);
+        // On the GPU the vector still holds dead particles until the next cleanup.
+        usize alive = p.particles.size();
+        if (const auto *buffer = reg.try_get<particle_gpu_buffer>(e); buffer != nullptr && p.gpu)
+          alive = particles_gpu_alive(p, *buffer);
+        return json_value::make_object()
+            .set("alive", (i64)alive)
+            .set("gpu", p.gpu)
+            .set("max", p.max_particles)
+            .set("rate", p.rate)
+            .set("emitting", p.emitting)
+            .set("layer", p.layer)
+            .set("visible", p.visible)
+            .set("destroy_when_done", p.destroy_when_done);
+      },
+      sizeof(particle_emitter));
   builtin<level_object>(d, "level_object", [](const level_object &o) {
     return json_value::make_object()
         .set("name", o.name)
@@ -342,6 +352,17 @@ void send_stats(njin_ctx &ctx) {
                             .set("scale", ctx.time.scale)
                             .set("scene", scene)
                             .set("collision_debug", ctx.collision.debug)
+                            .set("render", json_value::make_object()
+                                               .set("sprites", (i64)ctx.stats.sprites)
+                                               .set("sprites_culled", (i64)ctx.stats.sprites_culled)
+                                               .set("tile_chunks", (i64)ctx.stats.tile_chunks)
+                                               .set("emitters", (i64)ctx.stats.emitters)
+                                               .set("emitters_culled", (i64)ctx.stats.emitters_culled)
+                                               .set("particles", (i64)ctx.stats.particles)
+                                               .set("particles_gpu", (i64)ctx.stats.particles_gpu)
+                                               .set("instanced", (i64)ctx.stats.instanced_calls)
+                                               .set("batches", (i64)ctx.stats.batches)
+                                               .set("post_passes", (i64)ctx.stats.post_passes))
                             .set("dropped", (i64)d.link.dropped),
                         false));
 }
@@ -549,6 +570,20 @@ void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_post_update, end_frame, "end_frame");
 }
 } // namespace
+
+render_info render_info_get(const njin_ctx &ctx) {
+  const render_stats &s = ctx.stats;
+  return render_info{.sprites = s.sprites,
+                     .sprites_culled = s.sprites_culled,
+                     .tile_chunks = s.tile_chunks,
+                     .emitters = s.emitters,
+                     .emitters_culled = s.emitters_culled,
+                     .particles = s.particles,
+                     .particles_gpu = s.particles_gpu,
+                     .instanced_calls = s.instanced_calls,
+                     .draw_calls = s.batches,
+                     .post_passes = s.post_passes};
+}
 
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }
 

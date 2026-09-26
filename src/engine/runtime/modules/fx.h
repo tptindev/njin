@@ -16,8 +16,8 @@ struct fx_state {
   f32 flash_duration = 0.0f;
   f32 flash_time = 0.0f;
 
-  // Mixes a sprite's pixels toward a colour (flash_fx). Loaded on first use,
-  // since the GL context must exist; freed with the state.
+  // Mixes a sprite's pixels toward a colour (flash_fx). Loaded by fx_warmup()
+  // when the game starts, or on first use if that did not run; freed with the state.
   Shader flash_shader{};
   i32 flash_color_loc = -1;
   bool flash_loaded = false;
@@ -40,6 +40,10 @@ void fx_draw_screen_flash(njin_ctx &ctx);
 
 // Advances every flash_fx by delta() and removes finished ones.
 void fx_update_sprite_flashes(njin_ctx &ctx);
+
+// Compiles the flash shader now instead of on the first hit, when the driver
+// would stall the frame for it. Safe to call again.
+void fx_warmup(njin_ctx &ctx);
 
 // Begins drawing with the flash shader for `flash`; returns false (and begins
 // nothing) when the shader is unavailable or the flash is invisible.

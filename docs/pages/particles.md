@@ -38,6 +38,41 @@ thế giới và để lại dấu vết.
 
 `blend_additive` làm các hạt chồng lên nhau sáng rực lên: dùng cho lửa, tia lửa, phép thuật.
 
+### CPU hay GPU
+
+Engine tự chọn khi game khởi động. Máy có card đồ họa (OpenGL 3.3 trở lên, không phải bộ vẽ
+bằng phần mềm như llvmpipe, SwiftShader hay Microsoft Basic Render Driver) thì hạt chạy trên
+GPU; máy không có thì chạy trên CPU, đúng như cũ. Game không phải làm gì, và cả hai cách cho
+gần như cùng một hình.
+
+Trên GPU, CPU chỉ ghi lại trạng thái lúc sinh của từng hạt. Mỗi emitter có một vertex buffer
+riêng, chỉ được ghi khi có hạt mới hoặc khi dọn hạt chết (khoảng mỗi 0,25 giây), nên một frame
+không tốn việc gì theo từng hạt trên CPU. Vertex shader tính vị trí hiện tại bằng công thức
+(gia tốc và lực cản có nghiệm đóng), và mỗi emitter được vẽ bằng **một lệnh instanced** thay vì
+một lệnh vẽ cho mỗi hạt. Kết quả lệch so với CPU dưới nửa pixel ở 60 FPS, vì CPU cộng dồn từng
+bước Euler còn GPU tính chính xác.
+
+Thử trên Intel Iris Xe, bản Release, hạt hình tròn, 10.000 hạt sống cùng lúc: khoảng 42 ms mỗi
+frame trên CPU, khoảng 1 ms trên GPU (phép thử giới hạn ở 1000 FPS, nên đó là cận dưới). Ngay cả
+200 emitter nhỏ, mỗi cái 20 hạt, GPU vẫn nhanh hơn nhiều, nên không có ngưỡng "emitter đủ lớn".
+
+Vài điều cần biết:
+
+- njin::particle_emitter::gpu cho biết emitter đang chạy ở đâu. Khi nó là `true`, `pos`,
+  `velocity`, `rot` trong `particles` giữ giá trị lúc sinh, và `age` là **thời điểm sinh** theo
+  đồng hồ riêng của emitter chứ không phải tuổi. `particles` còn giữ cả hạt chết chưa được dọn,
+  nên đếm hạt sống bằng inspector (trường `alive`) hoặc kiểm tra `gpu` trước khi đọc trực tiếp.
+- Emitter chỉ đổi nơi chạy khi hết hạt, nên hạt đang bay không bị giật.
+- Shader hậu kỳ của game (njin::camera_set_post_shader()) chạy trên cả khung hình đã vẽ xong,
+  nên vẫn thấy hạt GPU như mọi thứ khác. Riêng hạt hình tròn (không có texture) trên GPU có
+  mép khử răng cưa, còn CPU vẽ đa giác không khử.
+- njin::particles_set_backend() với `particle_backend_cpu` ép chạy trên CPU, để so sánh hoặc
+  tìm lỗi. njin::particles_gpu_available() cho biết máy này dùng được GPU không.
+
+Emitter nằm ngoài camera không được vẽ (mô phỏng vẫn chạy để hạt đúng chỗ khi quay lại). Engine
+biết vùng hạt có thể tới từ nơi chúng được sinh, tốc độ, tuổi thọ và gia tốc, nên emitter chỉ
+bị bỏ qua khi chắc chắn không hạt nào trong khung hình.
+
 ### Mẫu có sẵn
 
 Trong `namespace njin::fx`, mỗi hàm trả về một emitter đã chỉnh sẵn, sửa tùy ý trước khi dùng:

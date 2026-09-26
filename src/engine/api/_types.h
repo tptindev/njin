@@ -130,6 +130,13 @@ struct texture_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một atlas, tạo bởi atlas_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct atlas_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một render texture, tạo bởi render_texture_load().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.

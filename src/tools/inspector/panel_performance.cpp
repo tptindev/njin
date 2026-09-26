@@ -59,6 +59,20 @@ void performance_window(app &a) {
                    {ImGui::GetContentRegionAvail().x, 90});
   ImGui::Text("entities %lld", a.entity_count);
 
+  ImGui::SeparatorText("Rendering (last frame)");
+  const app::render_row &r = a.render;
+  ImGui::Text("draw calls (estimated) %lld", r.batches);
+  ImGui::SameLine(0, 24);
+  ImGui::TextDisabled("%lld instanced, %d post passes", r.instanced, (int)r.post_passes);
+  ImGui::Text("sprites %lld", r.sprites);
+  ImGui::SameLine(0, 24);
+  ImGui::TextDisabled("%lld culled off screen", r.sprites_culled);
+  ImGui::Text("tile chunks %lld", r.tile_chunks);
+  ImGui::Text("particles %lld", r.particles);
+  ImGui::SameLine(0, 24);
+  ImGui::TextDisabled("%lld on the GPU, %lld emitters, %lld culled", r.particles_gpu, r.emitters,
+                      r.emitters_culled);
+
   ImGui::SeparatorText("Time");
   if (ImGui::Button(a.paused ? "Resume" : "Pause", {80, 0}))
     send_cmd(a, json_value::make_object().set("cmd", "pause").set("value", !a.paused));

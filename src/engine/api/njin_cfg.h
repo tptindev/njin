@@ -30,6 +30,10 @@ struct njin_cfg {
   /// Với độ phân giải ảo: chỉ phóng theo bội số nguyên (mọi pixel ảo to bằng
   /// nhau), phần thừa của cửa sổ là viền.
   bool integer_scale = true;
+  /// Đồng bộ dọc: mỗi frame chờ màn hình làm tươi xong mới hiện, nên không xé
+  /// hình và GPU, CPU nghỉ giữa các frame (đỡ tốn pin). Mặc định tắt. Bật thì
+  /// `target_fps` vẫn còn tác dụng như một mức trần thêm. Xem window_set_vsync().
+  bool vsync = false;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).

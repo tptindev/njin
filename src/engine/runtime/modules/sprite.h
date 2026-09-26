@@ -5,6 +5,7 @@
 #include <raylib.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace njin {
 // Core module. Advances sprite_anim and bakes dirty tilemap chunks in
@@ -21,7 +22,9 @@ struct chunk_image {
   u32 texture_version = 0; // tileset texture_slot::version it was drawn from
   u32 last_used = 0; // frame number it was last visible on
   // Animated tiles are left out of the image and drawn over it every frame.
-  bool has_animated = false;
+  // Their cells (index into tile_chunk::tiles), found when the chunk was baked,
+  // so the frame loop does not have to look through all the tiles for them.
+  std::vector<u16> animated_cells;
 };
 
 // Chunk images per tilemap entity, keyed by tile_chunk_key. Images of chunks

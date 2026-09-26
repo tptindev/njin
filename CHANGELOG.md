@@ -6,6 +6,45 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## Unreleased
+
+Rendering and GPU work:
+
+- **Particles on the GPU**: on a machine with a real GPU (OpenGL 3.3+, not a
+  software renderer) every emitter is simulated in a vertex shader and drawn
+  with one instanced call from a vertex buffer of its own, written only when
+  particles are spawned or removed; elsewhere the CPU path is unchanged. New:
+  `particles_set_backend`, `particles_backend`, `particles_gpu_available`,
+  `particle_emitter::gpu`. On the GPU `particle::pos`, `velocity` and `rot`
+  keep their spawn values and `age` is the emitter-clock time of birth.
+- **Atlas**: `atlas_create`, `atlas_load`, `atlas_destroy` pack small images
+  into shared pages so sprites of different images batch into one draw call.
+  The result is an ordinary `texture_handle`; unscaled, unrotated drawing is
+  pixel-identical to separate textures.
+- **Culling**: sprites and particle emitters fully outside the camera are no
+  longer sorted or drawn (off while the camera shakes).
+- **Inspector** (protocol 3): a Rendering section in Performance with sprites
+  drawn and culled, tile chunks, particles (GPU share), instanced calls, post
+  passes and an estimated draw-call count.
+- **Discrete GPU first**: on a laptop with two GPUs the game asks for the
+  discrete one (Windows: the Optimus and PowerXpress exports; Linux: PRIME
+  offload variables on laptops only, and only where the user has not set them;
+  macOS needs nothing; a desktop uses the card its monitor is plugged into).
+  Windows games link the new `njin::gpu` target, which compiles the exports
+  into the executable itself (a static library would drop them). CMake option
+  `NJIN_PREFER_DISCRETE_GPU`, on by default.
+- **Sample** `njin_render_demo`: a forest with thousands of sprites, animated
+  water, GPU particles, atlas and post effects, with keys to switch each and a
+  HUD of the draw calls. New `render_info_get()` gives a game those numbers.
+- **VSync**: `njin_cfg::vsync`, `window_set_vsync`, `window_vsync`; saved in the
+  settings file and offered in the sample settings menus.
+- **Shaders compile at startup** (sprite flash, post-processing, particles)
+  instead of on first use.
+- **Post-processing**: a `blur` of 3 px or more runs at half size; the uber
+  pass binds its program once and writes only the uniforms that changed.
+- **Tilemaps**: animated tiles are found once when a chunk is baked, and drawn
+  together per tilemap (fewer draw calls).
+
 ## 0.1.0
 
 First numbered version. What the engine has:

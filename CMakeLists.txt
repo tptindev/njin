@@ -65,12 +65,14 @@ target_compile_definitions(raylib PRIVATE SUPPORT_SCREEN_CAPTURE=0)
 include(cmake/njin.cmake)
 
 add_subdirectory(src/engine/api)
+add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
 add_subdirectory(src/games/sandbox)
 add_subdirectory(src/games/pong)
 add_subdirectory(src/games/platformer)
 add_subdirectory(src/games/topdown)
 add_subdirectory(src/games/debug_demo)
+add_subdirectory(src/games/render_demo)
 
 # Debug inspector: a separate window that connects to a running game (see
 # njin_debug.h). Downloads Dear ImGui and rlImGui on first configure.

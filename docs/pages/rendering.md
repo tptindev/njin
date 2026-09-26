@@ -31,6 +31,69 @@ njin::texture_draw(ctx, tex, {100.0f, 100.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
 Vẽ texture trong `phase_render` (không gian thế giới, chịu ảnh hưởng camera) hoặc
 `phase_post_render` (không gian màn hình). Xem @ref game_loop.
 
+## Atlas: ghép nhiều ảnh vào một texture {#atlas}
+
+Raylib gom các lệnh vẽ **liền nhau dùng chung texture** thành một lệnh. Sprite xếp theo `layer`
+hoặc theo y (top-down) mà dùng nhiều texture khác nhau thì bị ngắt mỗi lần đổi texture: 90 sprite
+xen kẽ ba ảnh là 90 lệnh vẽ. Ghép các ảnh nhỏ vào một atlas thì chúng cùng một texture, và số
+lệnh còn hai.
+
+```cpp
+const njin::atlas_handle atlas = njin::atlas_create(ctx, {.size = 2048});
+const njin::texture_handle hero = njin::atlas_load(ctx, atlas, "assets/hero.png");
+const njin::texture_handle tree = njin::atlas_load(ctx, atlas, "assets/tree.png");
+```
+
+Kết quả là njin::texture_handle thường: đưa vào njin::sprite, njin::tilemap, njin::particle_emitter,
+UI hay njin::texture_draw() đều được. Vẽ ảnh không co giãn, không xoay thì **giống hệt từng
+pixel** so với nạp riêng.
+
+| Việc | Cách xử lý |
+|---|---|
+| Ảnh lem sang ảnh bên cạnh khi phóng hoặc xoay | Mỗi ảnh có viền `padding` (mặc định 1 pixel) chép lại điểm ảnh ngoài cùng |
+| Trang đầy | Atlas tự thêm trang mới; ảnh trên trang khác nhau vẫn là hai texture |
+| Ảnh lớn hơn cả trang | Nạp như njin::texture_load(), có cảnh báo trong log |
+| njin::texture_size() | Kích thước của ảnh, không phải của cả trang |
+| Shader riêng của game | Lấy mẫu theo toạ độ của cả trang, không phải của ảnh. Ảnh dùng với shader kiểu đó thì nạp bằng njin::texture_load() |
+| njin::texture_set_filter() | Đổi bộ lọc của cả trang |
+| Hot reload, njin::texture_unload() | Không áp dụng cho ảnh trong atlas; chỗ đã xếp không được thu hồi |
+
+Nên xếp vào atlas những ảnh nhỏ hay xuất hiện cùng nhau (nhân vật, kẻ địch, vật phẩm, đạn), và
+để tileset hoặc ảnh nền lớn nạp riêng.
+
+## Cắt bỏ ngoài màn hình và số lệnh vẽ {#render_stats}
+
+Module sprite bỏ qua sprite và emitter hạt **nằm hoàn toàn ngoài camera**: không sắp xếp, không
+tạo đỉnh. 40.000 sprite rải khắp bản đồ mà chỉ vài trăm nằm trong khung hình mất khoảng 1 ms thay
+vì 9 ms. Khi camera đang rung thì việc cắt tạm tắt, vì rung để lộ một chút phần ngoài khung.
+
+njin_inspector hiện ở cửa sổ **Performance** những gì frame vừa rồi đã vẽ: số sprite (và số bị cắt),
+số chunk tilemap, số hạt (bao nhiêu trên GPU), và **số lệnh vẽ ước tính**. Raylib không báo số lệnh
+vẽ thật, nên con số này được tính từ các lần đổi texture và blend mode; nó tăng lên khi sprite khác
+texture xen kẽ nhau, và giảm khi dùng atlas.
+
+## Card đồ họa rời trên laptop có hai card {#discrete_gpu}
+
+Laptop có card onboard (tích hợp) và card rời thường khởi động chương trình trên card onboard cho
+đỡ tốn pin. Game njin xin chạy trên **card rời** khi máy có, trên mọi hệ điều hành:
+
+| Hệ điều hành | Cách làm |
+|---|---|
+| Windows | File `.exe` xuất hai biến `NvOptimusEnablement` và `AmdPowerXpressRequestHighPerformance` mà driver NVIDIA và AMD tìm. Hai biến phải nằm trong chính `.exe`, nên game link target `njin::gpu` (biên dịch thẳng vào exe): `target_link_libraries(my_game PRIVATE njin::rt njin::gpu)` |
+| Linux | Chỉ trên **laptop** (nhận bằng loại khung máy SMBIOS, hoặc có pin): đặt `DRI_PRIME=1` (Mesa), và với driver NVIDIA riêng thì `__NV_PRIME_RENDER_OFFLOAD=1` cùng `__GLX_VENDOR_LIBRARY_NAME=nvidia` nếu thư viện GLX của NVIDIA có trên máy. Biến nào người dùng đã đặt rồi thì được giữ nguyên |
+| macOS | Không cần làm gì: máy Mac hai card dùng card rời cho mọi app không xin chuyển card tự động |
+
+Máy chỉ có một card thì không có gì thay đổi.
+
+**PC để bàn** khác laptop: card nào chạy game là card mà **màn hình cắm vào**. Màn hình cắm vào card
+rời thì game đã chạy trên card rời; cắm vào cổng của bo mạch chủ (card onboard) thì game chạy trên
+card onboard, và engine không đổi được điều đó. Trên Linux engine cố ý không đặt biến offload cho PC
+để bàn, vì ở đó "card còn lại" chính là card onboard. Với PC có hai card, cách chắc chắn là cắm màn hình
+vào card rời. Người chơi vẫn quyết định cuối cùng: mục *Graphics
+settings* của Windows hoặc bảng điều khiển driver ghi đè yêu cầu này cho từng game. Tắt hẳn khi build
+bằng `-DNJIN_PREFER_DISCRETE_GPU=OFF`. Game không link `njin::gpu` thì trên Windows không có yêu cầu này. Log lúc khởi động ghi rõ card nào đang được dùng (dòng
+`Renderer:`).
+
 ## Shader
 
 Shader biến đổi cách mọi thứ được vẽ. njin dùng GLSL 330.

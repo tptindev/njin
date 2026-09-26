@@ -15,10 +15,20 @@ target_link_libraries(
   PUBLIC njin::api
   PRIVATE raylib njin_warnings)
 
+# njin_gpu_hint.cpp checks for the NVIDIA GLX library with dlopen.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(njin_rt PRIVATE ${CMAKE_DL_LIBS})
+endif()
+
 # The debug link (njin_net.cpp) uses sockets.
 if(WIN32)
   target_link_libraries(njin_rt PRIVATE ws2_32)
 endif()
+
+# On Linux, ask for the discrete GPU of a laptop with PRIME offload variables
+# (njin_gpu_hint.cpp). Windows is done by njin::gpu, linked into each game; the
+# option is defined in src/engine/gpu.
+target_compile_definitions(njin_rt PRIVATE NJIN_PREFER_DISCRETE_GPU=$<BOOL:${NJIN_PREFER_DISCRETE_GPU}>)
 
 # Lets runtime files in subfolders (modules/) include runtime headers directly.
 target_include_directories(njin_rt PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

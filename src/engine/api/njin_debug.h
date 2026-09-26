@@ -104,5 +104,28 @@ void debug_component(njin_ctx &ctx, const char *name, Fn fn) {
                   },
                   std::is_empty_v<T> ? 0 : sizeof(T));
 }
+
+/// Những gì frame vừa rồi đã vẽ, cho màn hình debug của chính game. njin_inspector
+/// hiện đúng các số này ở cửa sổ Performance.
+struct render_info {
+  u32 sprites = 0;         ///< Sprite đã vẽ.
+  u32 sprites_culled = 0;  ///< Sprite bị bỏ qua vì nằm ngoài camera.
+  u32 tile_chunks = 0;     ///< Chunk tilemap đã vẽ.
+  u32 emitters = 0;        ///< Emitter hạt đã vẽ.
+  u32 emitters_culled = 0; ///< Emitter bị bỏ qua vì nằm ngoài camera.
+  u32 particles = 0;       ///< Hạt đã vẽ, cả CPU và GPU.
+  u32 particles_gpu = 0;   ///< Trong đó vẽ bằng GPU.
+  u32 instanced_calls = 0; ///< Lệnh vẽ instanced (mỗi emitter GPU một lệnh).
+  /// Số lệnh vẽ **ước tính**. Raylib không báo số thật, nên con số này đếm các
+  /// lần đổi texture hoặc blend mode, và mỗi lệnh instanced. Không tính UI và chữ.
+  u32 draw_calls = 0;
+  u32 post_passes = 0;     ///< Số pass toàn màn hình của hậu kỳ dựng sẵn.
+};
+
+/// Số liệu vẽ của frame vừa rồi. Đọc trong `phase_post_render` (hoặc frame sau)
+/// thì có số của cả frame; đọc trước đó thì thiếu phần chưa vẽ.
+/// @param ctx Context của engine.
+/// @return Số liệu.
+render_info render_info_get(const njin_ctx &ctx);
 /// @}
 } // namespace njin

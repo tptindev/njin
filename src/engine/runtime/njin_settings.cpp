@@ -25,6 +25,7 @@ json_value settings_to_json(const njin_ctx &ctx) {
   out.set("audio", std::move(audio));
   out.set("input", input_bindings_save(ctx));
   out.set("fullscreen", window_fullscreen(ctx));
+  out.set("vsync", window_vsync(ctx));
   if (*i18n_language(ctx) != '\0')
     out.set("language", i18n_language(ctx));
   return out;
@@ -46,6 +47,8 @@ void settings_apply(njin_ctx &ctx, const json_value &json) {
     input_bindings_load(ctx, json["input"]);
   if (json["fullscreen"].is(json_value::boolean))
     window_set_fullscreen(ctx, json["fullscreen"].b);
+  if (json["vsync"].is(json_value::boolean))
+    window_set_vsync(ctx, json["vsync"].b);
   if (const char *lang = json["language"].string_or(nullptr)) {
     for (const std::string &l : i18n_languages(ctx))
       if (l == lang)

@@ -2,6 +2,7 @@
 #include "modules/core_modules.h"
 #include "modules/fx.h"
 #include "njin2rl.h"
+#include "njin_gpu_hint.h"
 #include "njin_ctx_impl.h"
 #include "njin_log_impl.h"
 #include "njin_view.h"
@@ -39,8 +40,12 @@ void run_fixed_steps(njin_ctx &ctx) {
 
 window_guard::window_guard(const njin_cfg &cfg) {
   log_capture_raylib();
+  unsigned int flags = 0;
   if (cfg.resizable)
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    flags |= FLAG_WINDOW_RESIZABLE;
+  if (cfg.vsync)
+    flags |= FLAG_VSYNC_HINT;
+  SetConfigFlags(flags);
   InitWindow((i32)cfg.width, (i32)cfg.height, cfg.title);
   // Without a device (no speakers, driver problem) the game still runs; the
   // audio calls just fail to load and say so in the log.
@@ -59,6 +64,7 @@ window_guard::~window_guard() {
 }
 
 njin_ctx *njin_create(const njin_cfg &cfg) {
+  prefer_discrete_gpu();
   njin_ctx *ctx = new njin_ctx(cfg);
   ctx->time.fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
   ctx->random.reseed(
@@ -83,6 +89,11 @@ void njin_run(njin_ctx &ctx) {
   }
   ctx.ecs.started = true;
   NJIN_INFO("njin %s", version());
+  // Driver shader compiles cost tens of milliseconds each: pay them here, not
+  // on the first hit, pause or explosion.
+  fx_warmup(ctx);
+  post_chain_warmup(ctx);
+  particles_gpu_available(ctx);
   ecs_run(ctx, phase_startup);
 
   Color clearbg = RAYWHITE;

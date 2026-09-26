@@ -12,6 +12,7 @@ Ngoài tiêu đề, kích thước, FPS và màu nền, njin::njin_cfg có:
 | `exit_key` | `key_escape` | Phím đóng game ngay. Đặt `key_none` khi cần Esc cho menu |
 | `resizable` | `false` | Cho phép kéo đổi kích thước cửa sổ |
 | `app_name` | tiêu đề | Tên thư mục lưu game |
+| `vsync` | `false` | Đồng bộ dọc: mỗi frame chờ màn hình làm tươi, không xé hình, CPU và GPU nghỉ giữa các frame. `target_fps` vẫn là mức trần thêm |
 
 ## Cửa sổ
 
@@ -20,6 +21,7 @@ Ngoài tiêu đề, kích thước, FPS và màu nền, njin::njin_cfg có:
 | njin::screen_size() | Kích thước **hiện tại** của cửa sổ |
 | njin::window_resized() | Cửa sổ vừa đổi kích thước ở frame này |
 | njin::window_set_fullscreen() / njin::window_fullscreen() | Toàn màn hình dạng cửa sổ không viền |
+| njin::window_set_vsync() / njin::window_vsync() | Bật tắt đồng bộ dọc lúc đang chạy; được lưu trong cài đặt |
 | njin::window_set_size(), njin::window_set_title() | Đổi kích thước, tiêu đề |
 | njin::cursor_set_visible() | Ẩn hiện con trỏ chuột |
 | njin::cursor_set_locked() | Khóa con trỏ trong cửa sổ; đọc njin::mouse_delta() |

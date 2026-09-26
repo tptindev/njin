@@ -85,9 +85,11 @@ void draw_skin(njin_ctx &ctx, const ui_cmd &c) {
   const Rectangle dest{c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
   if (const texture_slot *tex = texture_slot_of(ctx.texture, s.texture)) {
     const bool whole = s.source.size.x <= 0.0f || s.source.size.y <= 0.0f;
-    const Rectangle src{whole ? 0.0f : s.source.pos.x, whole ? 0.0f : s.source.pos.y,
-                        whole ? (f32)tex->texture.width : s.source.size.x,
-                        whole ? (f32)tex->texture.height : s.source.size.y};
+    const Rectangle area = texture_area(*tex);
+    const Rectangle src{area.x + (whole ? 0.0f : s.source.pos.x),
+                        area.y + (whole ? 0.0f : s.source.pos.y),
+                        whole ? area.width : s.source.size.x,
+                        whole ? area.height : s.source.size.y};
     if (s.border > 0.0f) {
       const i32 b = (i32)s.border;
       const NPatchInfo patch{src, b, b, b, b, NPATCH_NINE_PATCH};
@@ -719,7 +721,7 @@ void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source) {
   const texture_slot *tex = texture_slot_of(ctx.texture, texture);
   const vec2 src = source.size.x > 0.0f && source.size.y > 0.0f
                        ? source.size
-                       : (tex != nullptr ? vec2{(f32)tex->texture.width, (f32)tex->texture.height} : s);
+                       : (tex != nullptr ? vec2{texture_area(*tex).width, texture_area(*tex).height} : s);
   c.source = source;
   c.scale = {src.x > 0.0f ? s.x / src.x : 1.0f, src.y > 0.0f ? s.y / src.y : 1.0f};
   ui.cmds.push_back(std::move(c));

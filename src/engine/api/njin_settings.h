@@ -8,12 +8,12 @@ struct njin_ctx;
 /// @{
 
 /// Cài đặt của người chơi dạng JSON: âm lượng và tắt tiếng từng kênh, phím
-/// đã gắn, toàn màn hình, ngôn ngữ.
+/// đã gắn, toàn màn hình, đồng bộ dọc, ngôn ngữ.
 /// @code{.json}
 /// { "audio": { "master": 0.8, "music": 0.5, "sfx": 1, "ui": 1, "voice": 1,
 ///              "muted": ["music"] },
 ///   "input": { "actions": {...}, "axes": {...} },
-///   "fullscreen": false, "language": "vi" }
+///   "fullscreen": false, "vsync": true, "language": "vi" }
 /// @endcode
 /// @param ctx Context của engine.
 /// @return Object JSON.

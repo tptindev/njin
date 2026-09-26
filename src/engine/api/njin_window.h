@@ -36,6 +36,16 @@ void window_set_fullscreen(njin_ctx &ctx, bool fullscreen);
 /// @return `true` nếu đang toàn màn hình.
 bool window_fullscreen(const njin_ctx &ctx);
 
+/// Bật hoặc tắt đồng bộ dọc lúc đang chạy, xem njin_cfg::vsync.
+/// @param ctx Context của engine.
+/// @param vsync `true` để bật.
+void window_set_vsync(njin_ctx &ctx, bool vsync);
+
+/// Đồng bộ dọc có đang bật không.
+/// @param ctx Context của engine.
+/// @return `true` nếu đang bật.
+bool window_vsync(const njin_ctx &ctx);
+
 /// Cửa sổ có vừa đổi kích thước ở frame này không (người dùng kéo cửa sổ, hoặc
 /// bật tắt toàn màn hình).
 /// @param ctx Context của engine.

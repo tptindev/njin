@@ -7,7 +7,7 @@
   },
   "settings": {
     "title": "Settings", "master": "Volume", "music": "Music", "sfx": "Effects",
-    "fullscreen": "Fullscreen", "language": "Language", "controls": "Controls (keyboard | pad)"
+    "fullscreen": "Fullscreen", "vsync": "VSync", "language": "Language", "controls": "Controls (keyboard | pad)"
   },
   "action": { "jump": "Jump", "down": "Down", "interact": "Talk", "pause": "Pause" },
   "hud": { "coins": "{0}/{1}", "talk": "E" },

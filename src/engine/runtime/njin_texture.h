@@ -1,6 +1,7 @@
 #pragma once
 
 #include "_types.h"
+#include "njin_atlas.h"
 #include "njin_draw.h"
 #include <raylib.h>
 #include <string>
@@ -21,12 +22,47 @@ struct texture_slot {
   // Bumped each time the texture is reloaded, so images derived from it
   // (tilemap chunks) know to redraw.
   u32 version = 0;
+  // An image packed into an atlas page (atlas_load): `texture` is then the
+  // page, shared and owned by the atlas, and `area` is where the image sits in
+  // it. Always read the image through texture_area().
+  bool packed = false;
+  Rectangle area{};
+};
+
+// The part of `slot.texture` the image occupies: all of it for an ordinary
+// texture, its rectangle in the page for a packed one. Sizes and source
+// rectangles of drawing calls are relative to this, so callers add its origin.
+inline Rectangle texture_area(const texture_slot &slot) {
+  return slot.packed ? slot.area
+                     : Rectangle{0.0f, 0.0f, (f32)slot.texture.width, (f32)slot.texture.height};
+}
+
+// One page of an atlas: a texture the images are packed into in rows.
+struct atlas_page {
+  struct shelf {
+    i32 y = 0;
+    i32 height = 0;
+    i32 x = 0; // next free column
+  };
+  Texture2D texture{};
+  std::vector<shelf> shelves;
+  i32 next_y = 0; // top of the next new shelf
+};
+
+struct atlas_slot {
+  bool alive = false;
+  i32 size = 2048;
+  i32 padding = 1;
+  texture_filter filter = filter_linear;
+  std::vector<atlas_page> pages;
+  std::vector<u32> images; // texture slot ids packed here
 };
 
 // Owns the GPU textures of every live slot. The destructor frees them, so it
 // must run while the GL context is still alive (before CloseWindow).
 struct texture_store {
   std::vector<texture_slot> slots;
+  std::vector<atlas_slot> atlases; // atlas N is atlases[N - 1], never reused
 
   texture_store() = default;
   ~texture_store();
@@ -49,6 +85,12 @@ struct render_texture_store {
   render_texture_store(const render_texture_store &) = delete;
   render_texture_store &operator=(const render_texture_store &) = delete;
 };
+
+// Atlases (njin_atlas.h). Images packed into one come back as ordinary texture
+// slots with `packed` set.
+atlas_handle atlas_store_create(texture_store &store, const atlas_desc &desc);
+texture_handle atlas_store_load(texture_store &store, atlas_handle atlas, const char *path);
+void atlas_store_destroy(texture_store &store, atlas_handle atlas);
 
 inline const texture_slot *texture_slot_of(const texture_store &store,
                                            texture_handle handle) {
