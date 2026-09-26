@@ -83,6 +83,7 @@ void on_message(app &a, const std::string &line) {
     a.problem.clear();
     a.game_title = m["title"].string_or("njin");
     a.game_pid = (uint32_t)m["pid"].number_or(0);
+    a.engine_version = m["engine"].string_or("");
     a.usage.clear();
     a.mon.attach(a.game_pid);
     a.frames.clear();

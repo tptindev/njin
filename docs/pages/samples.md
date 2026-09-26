@@ -22,6 +22,14 @@ run_inspected.bat platformer   rem một game khác, cùng inspector
 build\bin\topdown\njin_topdown.exe
 @endcode
 
+## Phiên bản
+
+Số phiên bản của njin (semver) nằm ở một chỗ duy nhất: `src/engine/api/njin_version.h`. CMake, log
+lúc khởi động, njin::version() và njin_inspector đều đọc từ đó; `njin_package()` mặc định dùng nó làm
+phiên bản của game nếu bạn không đặt `VERSION`. Trước 1.0 API còn có thể đổi giữa hai bản MINOR. Lịch
+sử nằm ở `CHANGELOG.md`. So `NJIN_VERSION` với `njin::version()` để phát hiện game và engine build từ
+hai bản khác nhau.
+
 ## Đóng gói bản phát hành
 
 Trong CMakeLists của game:

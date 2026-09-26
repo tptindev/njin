@@ -13,6 +13,7 @@
 #include "njin_log.h"
 #include "njin_log_impl.h"
 #include "njin_particles.h"
+#include "njin_version.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -320,7 +321,8 @@ void send_hello(njin_ctx &ctx) {
                             .set("v", protocol_version)
                             .set("title", ctx.cfg.title != nullptr ? ctx.cfg.title : "njin")
                             .set("fixed_hz", ctx.time.fixed_dt > 0.0f ? 1.0f / ctx.time.fixed_dt : 0.0f)
-                            .set("pid", (i64)net_process_id()),
+                            .set("pid", (i64)net_process_id())
+                            .set("engine", version()),
                         false));
 }
 

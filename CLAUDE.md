@@ -48,6 +48,13 @@ whether one of those two needs it.
   snippets included by the pages. Run real Doxygen after doc edits: it must
   print no warnings.
 
+## Versioning
+
+One number, `src/engine/api/njin_version.h` (semver, 0.x until the API settles).
+CMake, the startup log, `njin::version()` and the inspector all read it. A
+release edits that header, adds a section to `CHANGELOG.md`, and tags
+`vX.Y.Z`. Bump MINOR for new features, PATCH for fixes only.
+
 ## Verifying changes
 
 - Build: `cmake --build build --parallel` (stop running game exes first, or the

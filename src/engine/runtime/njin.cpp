@@ -6,6 +6,7 @@
 #include "njin_log_impl.h"
 #include "njin_view.h"
 #include <chrono>
+#include <string>
 #include <raylib.h>
 
 namespace njin {
@@ -68,11 +69,20 @@ njin_ctx *njin_create(const njin_cfg &cfg) {
   return ctx;
 }
 
+// The version of the linked library. Built from the same macros as the header,
+// so a game built against another header shows a different number.
+const char *version() {
+  static const std::string text = std::to_string(NJIN_VERSION_MAJOR) + "." + std::to_string(NJIN_VERSION_MINOR) +
+                                  "." + std::to_string(NJIN_VERSION_PATCH);
+  return text.c_str();
+}
+
 void njin_run(njin_ctx &ctx) {
   if (ctx.ecs.started) {
     return;
   }
   ctx.ecs.started = true;
+  NJIN_INFO("njin %s", version());
   ecs_run(ctx, phase_startup);
 
   Color clearbg = RAYWHITE;

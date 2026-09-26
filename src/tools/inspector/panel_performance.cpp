@@ -21,6 +21,8 @@ void status_bar(app &a) {
   if (a.handshake) {
     ImGui::TextColored({0.45f, 0.85f, 0.5f, 1}, "connected");
     ImGui::Text("%s  -  %s:%d", a.game_title.c_str(), a.host.c_str(), a.port);
+    if (!a.engine_version.empty())
+      ImGui::TextDisabled("njin %s", a.engine_version.c_str());
     if (!a.scene.empty())
       ImGui::TextDisabled("scene: %s", a.scene.c_str());
   } else if (!a.problem.empty()) {

@@ -123,6 +123,7 @@ struct app {
   // ...and what the OS reports about the process.
   sysmon mon;
   uint32_t game_pid = 0;
+  std::string engine_version; // of the game's njin build
   double clock = 0; // seconds since start
   usage_history usage;
 

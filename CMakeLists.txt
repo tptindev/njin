@@ -1,10 +1,20 @@
 # raylib 6.0 needs >= 3.25, EnTT v4.0.0 needs >= 3.28.
 cmake_minimum_required(VERSION 3.28...4.0)
 
+# The version lives in one place, src/engine/api/njin_version.h; read it here so
+# CMake, the log and the inspector never disagree.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/njin_version.h" NJIN_VERSION_HEADER)
+foreach(part MAJOR MINOR PATCH)
+  string(REGEX MATCH "#define NJIN_VERSION_${part} ([0-9]+)" _ "${NJIN_VERSION_HEADER}")
+  set(NJIN_VERSION_${part} "${CMAKE_MATCH_1}")
+endforeach()
+set(NJIN_VERSION "${NJIN_VERSION_MAJOR}.${NJIN_VERSION_MINOR}.${NJIN_VERSION_PATCH}")
+
 project(
   njin_lab
-  VERSION 0.0.1
+  VERSION ${NJIN_VERSION}
   LANGUAGES C CXX)
+message(STATUS "njin ${NJIN_VERSION}")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
