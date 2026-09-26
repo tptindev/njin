@@ -67,6 +67,25 @@ MAJOR is 0 the API has not settled, so a MINOR bump may still break it; say so
 in the `CHANGELOG.md` section when it does. A change that only fixes a bug never
 raises MINOR, and one that adds anything visible to a game never stays a PATCH.
 
+### Releasing
+
+A tag is not pushed by a plain `git push` of the branch, and a release that
+exists only locally is a release nobody sees (v0.3.0 sat unpushed until someone
+noticed). To release:
+
+1. Edit `njin_version.h` and add the `## X.Y.Z` section to `CHANGELOG.md` in the
+   same commit. `.github/scripts/version.sh` checks that they agree; run it
+   before committing.
+2. Tag that commit (`git tag -a vX.Y.Z -m "njin X.Y.Z"`), then push the branch
+   and the tag. `push.followTags` is set in this clone, so `git push` sends
+   annotated tags too; still confirm with `git ls-remote --tags origin`.
+3. The Release workflow makes the GitHub Release from the CHANGELOG section. Do
+   not create it by hand. It only fires for tags whose commit already contains
+   `release.yml`; for an older tag, run it from the Actions tab with the tag name.
+
+Never tag or push a tag without the user asking for the release. After a
+release, say what was pushed and what the workflow will do; do not assume it ran.
+
 ## Verifying changes
 
 - Build: `cmake --build build --parallel` (stop running game exes first, or the

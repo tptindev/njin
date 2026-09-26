@@ -1,0 +1,56 @@
+name: Release
+
+# Pushing a tag vX.Y.Z creates the GitHub Release for it, with the notes taken
+# from that version's section of CHANGELOG.md. The tag must match
+# src/engine/api/njin_version.h, and the header must match the CHANGELOG, or the
+# run fails and nothing is published.
+#
+# A tag push runs the workflow file that exists at the tagged commit, so a tag
+# made before this file existed (v0.3.0) does not trigger it. Run it by hand
+# instead: Actions > Release > Run workflow, and give the tag name.
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish, for example v0.3.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      # The scripts always come from the default branch; the tag supplies the
+      # header and the CHANGELOG being released.
+      - uses: actions/checkout@v4
+        with:
+          path: tools
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          path: repo
+
+      - name: The tag matches the version
+        run: |
+          version="$(ROOT=repo tools/.github/scripts/version.sh)"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match njin_version.h ($version)"
+            exit 1
+          fi
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ROOT=repo tools/.github/scripts/version.sh notes > notes.md
+          test -s notes.md || { echo "::error::CHANGELOG section for $TAG is empty"; exit 1; }
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "njin ${TAG#v}" --notes-file notes.md --verify-tag

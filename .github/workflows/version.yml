@@ -1,0 +1,36 @@
+name: Version
+
+# njin_version.h and CHANGELOG.md must agree, and a version that has been bumped
+# should get its tag. The first is an error; the second is only a warning,
+# because the bump comes before the tag.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/engine/api/njin_version.h"
+      - "CHANGELOG.md"
+      - ".github/scripts/version.sh"
+  pull_request:
+    paths:
+      - "src/engine/api/njin_version.h"
+      - "CHANGELOG.md"
+      - ".github/scripts/version.sh"
+  workflow_dispatch:
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Header and CHANGELOG agree
+        id: v
+        run: echo "version=$(.github/scripts/version.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: The version is tagged
+        run: |
+          tag="v${{ steps.v.outputs.version }}"
+          if [ -z "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            echo "::warning title=Version::$tag is not on the remote yet. Tag the release commit and run: git push origin $tag"
+          fi
