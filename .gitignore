@@ -1,4 +1,5 @@
 /build
+/build-*
 /graphify-out
 /docs/html
 njin_inspector.ini
