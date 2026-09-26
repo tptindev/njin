@@ -12,7 +12,7 @@
 ///
 /// Trước 1.0, API công khai còn có thể đổi giữa hai bản MINOR; PATCH chỉ sửa lỗi.
 #define NJIN_VERSION_MAJOR 0 ///< Số MAJOR: tăng khi API đổi không tương thích (từ 1.0 trở đi).
-#define NJIN_VERSION_MINOR 1 ///< Số MINOR: tăng khi thêm tính năng.
+#define NJIN_VERSION_MINOR 2 ///< Số MINOR: tăng khi thêm tính năng.
 #define NJIN_VERSION_PATCH 0 ///< Số PATCH: tăng khi chỉ sửa lỗi.
 
 /// Số phiên bản dạng số để so sánh: `MAJOR * 10000 + MINOR * 100 + PATCH`.

@@ -6,7 +6,7 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
-## Unreleased
+## 0.2.0
 
 Rendering and GPU work:
 
