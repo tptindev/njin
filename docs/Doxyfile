@@ -15,7 +15,8 @@ RECURSIVE              = YES
 STRIP_FROM_PATH        = ../src/engine/api
 STRIP_FROM_INC_PATH    = ../src/engine/api
 EXAMPLE_PATH           = examples
-EXAMPLE_PATTERNS       = *.cpp *.fs *.vs
+EXAMPLE_PATTERNS       = *.cpp *.c *.h *.fs *.vs
+IMAGE_PATH             = images
 USE_MDFILE_AS_MAINPAGE = pages/index.md
 
 # Extraction
