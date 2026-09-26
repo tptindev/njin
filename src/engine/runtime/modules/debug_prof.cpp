@@ -170,12 +170,22 @@ json_value debug_build_res(const njin_ctx &ctx) {
       add(item("target", "render texture #" + std::to_string(i + 1), target_bytes(s.target), true,
                dim(s.target.texture.width, s.target.texture.height)));
   }
-  for (usize i = 0; i < ctx.font.slots.size(); i++) {
-    const font_slot &s = ctx.font.slots[i];
-    if (s.alive)
-      add(item("font", "font #" + std::to_string(i + 1), texture_bytes(s.font.texture), true,
-               std::to_string(s.font.glyphCount) + " glyphs, " + dim(s.font.texture.width, s.font.texture.height)));
-  }
+  // One entry per typeface: its atlases, one for every pixel size drawn so far.
+  const auto add_font = [&](const std::string &name, const font_slot &s) {
+    if (!s.alive || s.atlases.empty())
+      return;
+    usize bytes = 0;
+    std::string sizes;
+    for (const auto &[px, font] : s.atlases) {
+      bytes += texture_bytes(font.texture);
+      sizes += (sizes.empty() ? "" : ", ") + std::to_string(px);
+    }
+    add(item("font", name, bytes, true,
+             std::to_string(s.atlases.size()) + " atlas(es) at " + sizes + " px"));
+  };
+  add_font("font default", ctx.font.fallback);
+  for (usize i = 0; i < ctx.font.slots.size(); i++)
+    add_font("font #" + std::to_string(i + 1), ctx.font.slots[i]);
   for (usize i = 0; i < ctx.shader.slots.size(); i++) {
     const shader_slot &s = ctx.shader.slots[i];
     if (!s.alive)

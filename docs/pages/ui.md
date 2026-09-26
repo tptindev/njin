@@ -157,8 +157,8 @@ void main() {
 **Âm thanh.** `sound_move`, `sound_accept`, `sound_back` trong style phát khi chuyển lựa chọn,
 khi bấm hoặc đổi giá trị, và khi quay lại.
 
-**Phông.** Phông mặc định của engine chỉ có chữ ASCII. Menu tiếng Việt cần nạp một phông có
-dấu bằng njin::font_load() và đặt vào `ui_style::font` (xem @ref drawing).
+**Phông.** Phông mặc định của engine (JetBrains Mono, nhúng sẵn) đã có chữ tiếng Việt. Muốn
+phông khác, nạp bằng njin::font_load() và đặt vào `ui_style::font` (xem @ref drawing).
 
 UI vẽ trong không gian màn hình, sau post-processing, nên hiệu ứng như blur hay CRT không làm
 mờ menu (xem @ref post_processing; njin::post::paused() hợp với menu pause).

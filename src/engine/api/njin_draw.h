@@ -73,14 +73,15 @@ void draw_triangle(const njin_ctx &ctx, vec2 a, vec2 b, vec2 c, rgba color);
 
 /// Nạp một font TrueType/OpenType, kèm sẵn các ký tự tiếng Việt.
 ///
-/// Font được dựng thành ảnh ở cỡ `size` pixel. Vẽ ở đúng cỡ đó thì nét sắc
-/// nhất; vẽ ở cỡ khác vẫn được nhưng chữ bị co giãn. Cần nhiều cỡ khác nhau
-/// thì nạp một font cho mỗi cỡ.
+/// Mỗi cỡ chữ được vẽ có một ảnh glyph riêng, dựng đúng cỡ đó ở lần vẽ đầu
+/// tiên (cỡ làm tròn thành số nguyên pixel, từ 6 đến 256), nên chữ nét ở mọi
+/// cỡ và một font dùng được cho cả chữ nhỏ lẫn chữ to.
 /// @param ctx Context của engine.
 /// @param path Đường dẫn file font (ttf, otf).
-/// @param size Cỡ chữ để dựng font, tính bằng pixel.
+/// @param size Cỡ dựng sẵn ngay lúc nạp, tính bằng pixel, để lần vẽ đầu không
+/// phải chờ. Bỏ qua hoặc 0 thì dựng thử ở cỡ 16 để biết file có đọc được không.
 /// @return Handle của font, hoặc handle id 0 (font mặc định) nếu nạp thất bại.
-font_handle font_load(njin_ctx &ctx, const char *path, i32 size);
+font_handle font_load(njin_ctx &ctx, const char *path, i32 size = 0);
 
 /// Giải phóng font. Handle không hợp lệ bị bỏ qua. Vẽ bằng handle đã giải
 /// phóng thì dùng font mặc định.
@@ -90,8 +91,11 @@ void font_unload(njin_ctx &ctx, font_handle font);
 
 /// Vẽ chữ với góc trên trái tại `pos`. Hỗ trợ xuống dòng bằng `\n`.
 ///
-/// Chuỗi là UTF-8. Font mặc định (handle id 0) chỉ có ký tự ASCII: muốn viết
-/// tiếng Việt có dấu thì nạp một font bằng font_load().
+/// Chuỗi là UTF-8. Font mặc định (handle id 0) là JetBrains Mono, đã có chữ
+/// tiếng Việt. Vị trí được làm tròn về pixel để chữ không bị nhòe.
+///
+/// Với độ phân giải ảo và GPU thật, chữ trên màn hình (ngoài world) được vẽ ở
+/// độ phân giải cửa sổ, xem njin_cfg::crisp_text.
 /// @param ctx Context của engine.
 /// @param text Chuỗi UTF-8.
 /// @param pos Vị trí góc trên trái.

@@ -8,6 +8,7 @@
 #include "njin_cfg.h"
 #include "njin_view.h"
 #include "rl2njin.h"
+#include <algorithm>
 #include <raylib.h>
 
 namespace njin {
@@ -54,10 +55,12 @@ void begin_world_space(njin_ctx &ctx) {
   Camera2D camera = active_raylib_camera(ctx);
   fx_apply_shake(ctx, camera);
   BeginMode2D(camera);
+  ctx.view.world_depth++;
 }
 
 void end_world_space(njin_ctx &ctx) {
   EndMode2D();
+  ctx.view.world_depth = std::max(0, ctx.view.world_depth - 1);
   camera_post &post = ctx.post;
   if (!post.drawing)
     return;

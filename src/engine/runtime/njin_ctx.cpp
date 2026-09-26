@@ -1,6 +1,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_cfg.h"
+#include <algorithm>
 #include <entt/entity/registry.hpp>
 
 namespace njin {
@@ -224,17 +225,21 @@ vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle) {
 }
 
 void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle) {
-  render_texture_store_begin(ctx.render_texture, handle);
+  if (render_texture_store_begin(ctx.render_texture, handle))
+    ctx.view.offscreen_depth++;
 }
 
 void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
                           rgba clear) {
-  if (render_texture_store_begin(ctx.render_texture, handle))
+  if (render_texture_store_begin(ctx.render_texture, handle)) {
+    ctx.view.offscreen_depth++;
     render_texture_store_clear(clear);
+  }
 }
 
 void render_texture_end(const njin_ctx &ctx) {
   render_texture_store_end();
+  ctx.view.offscreen_depth = std::max(0, ctx.view.offscreen_depth - 1);
   view_rebind(ctx.view); // back to the virtual screen, when drawing into one
 }
 

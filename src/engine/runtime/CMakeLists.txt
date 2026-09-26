@@ -6,7 +6,15 @@ if(NOT NJIN_RT_SOURCES)
     FATAL_ERROR "njin_rt: no .cpp found under ${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
-add_library(njin_rt STATIC ${NJIN_RT_SOURCES})
+# The default font (JetBrains Mono, SIL OFL) is compiled in, so draw_text works
+# in a game that ships no assets.
+include("${PROJECT_SOURCE_DIR}/cmake/embed_file.cmake")
+njin_embed_file("${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/JetBrainsMono-Regular.ttf"
+                font_default_ttf)
+
+add_library(njin_rt STATIC ${NJIN_RT_SOURCES}
+                           "${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp")
 add_library(njin::rt ALIAS njin_rt)
 
 # raylib stays private. EnTT is part of the public ECS API through njin::api.

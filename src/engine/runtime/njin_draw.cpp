@@ -3,6 +3,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include <algorithm>
+#include <cmath>
 #include <raylib.h>
 
 namespace njin {
@@ -20,8 +21,9 @@ Rectangle rect_of(rect r) { return Rectangle{r.pos.x, r.pos.y, r.size.x, r.size.
 
 // Shapes
 
-void draw_rect(const njin_ctx &, rect r, rgba color) {
+void draw_rect(const njin_ctx &ctx, rect r, rgba color) {
   DrawRectangleRec(rect_of(r), color_of(color));
+  view_text_cover(ctx.view, r, color);
 }
 
 void draw_rect_lines(const njin_ctx &, rect r, f32 thickness, rgba color) {
@@ -74,19 +76,65 @@ void font_unload(njin_ctx &ctx, font_handle font) {
 
 void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
                rgba color, font_handle font) {
-  if (text == nullptr)
+  if (text == nullptr || text[0] == '\0' || size < 1.0f)
     return;
-  DrawTextEx(font_store_get(ctx.font, font), text, vec_of(pos), size,
-             font_store_spacing(font, size), color_of(color));
+  if (view_text_deferred(ctx.view)) {
+    ctx.view.text_layer.push_back(queued_text{text, pos, size, color, font});
+    return;
+  }
+  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
+  if (atlas == nullptr)
+    return;
+  // Rounded to the pixel grid: half a pixel of offset is half a pixel of blur
+  // on a ten-pixel letter, and centred text lands on halves constantly.
+  DrawTextEx(*atlas, text, Vector2{std::round(pos.x), std::round(pos.y)},
+             (f32)atlas->baseSize, 0.0f, color_of(color));
 }
 
 vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
                   font_handle font) {
   if (text == nullptr)
     return vec2{0.0f, 0.0f};
-  const Vector2 m = MeasureTextEx(font_store_get(ctx.font, font), text, size,
-                                  font_store_spacing(font, size));
+  // Through the atlas draw_text will use, or a centred line would be centred
+  // on a width nothing renders at.
+  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
+  if (atlas == nullptr)
+    return vec2{0.0f, 0.0f};
+  const Vector2 m = MeasureTextEx(*atlas, text, (f32)atlas->baseSize, 0.0f);
   return vec2{m.x, m.y};
+}
+
+void text_layer_flush(njin_ctx &ctx) {
+  view_state &view = ctx.view;
+  std::vector<queued_text> queue;
+  queue.swap(view.text_layer);
+  if (queue.empty() || !view_active(view))
+    return;
+  // The virtual image is the only place the game draws; the bars stay clean.
+  BeginScissorMode((int)view.offset.x, (int)view.offset.y, (int)(view.size.x * view.scale),
+                   (int)(view.size.y * view.scale));
+  for (const queued_text &q : queue) {
+    const Font *atlas = font_store_atlas(ctx.font, q.font, font_px(q.size * view.scale));
+    const Font *layout = font_store_atlas(ctx.font, q.font, font_px(q.size));
+    if (atlas == nullptr || layout == nullptr)
+      continue;
+    // A glyph advance is a whole number of pixels, so the same line is a little
+    // narrower or wider at another size. The virtual size is what the game
+    // measured and aligned with: stretch the gaps until the line is as wide as
+    // that, so centred and right-aligned text stays where it was put.
+    f32 spacing = 0.0f;
+    const bool one_line = q.text.find('\n') == std::string::npos;
+    const int glyphs = one_line ? GetCodepointCount(q.text.c_str()) : 0;
+    if (glyphs > 1) {
+      const f32 want = MeasureTextEx(*layout, q.text.c_str(), (f32)layout->baseSize, 0.0f).x * view.scale;
+      const f32 have = MeasureTextEx(*atlas, q.text.c_str(), (f32)atlas->baseSize, 0.0f).x;
+      spacing = (want - have) / (f32)(glyphs - 1);
+    }
+    const Vector2 at{std::round(view.offset.x + q.pos.x * view.scale),
+                     std::round(view.offset.y + q.pos.y * view.scale)};
+    DrawTextEx(*atlas, q.text.c_str(), at, (f32)atlas->baseSize, spacing, color_of(q.color));
+  }
+  EndScissorMode();
 }
 
 std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,

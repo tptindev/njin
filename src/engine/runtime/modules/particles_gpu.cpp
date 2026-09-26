@@ -1,6 +1,7 @@
 #include "particles_gpu.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_gpu_caps.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <cctype>
@@ -10,20 +11,12 @@
 #include <rlgl.h>
 #include <raymath.h>
 
-// raylib compiles GLFW in but does not export its header. glGetString is the
-// only OpenGL call njin makes itself: raylib logs the renderer name and hides
-// it, and the name is how a software renderer gives itself away.
-extern "C" void (*glfwGetProcAddress(const char *name))(void);
-
 namespace njin {
 namespace {
 // How often the dead particles of a GPU emitter are removed, seconds, and when
 // its clock is moved back to zero.
 constexpr f32 compact_interval = 0.25f;
 constexpr f32 clock_rebase = 600.0f;
-
-constexpr unsigned int gl_vendor = 0x1F00;
-constexpr unsigned int gl_renderer = 0x1F01;
 
 // Where a particle is after `t` seconds, for velocity v0, constant gravity g and
 // drag k (velocity decays as exp(-k t)):
@@ -119,22 +112,6 @@ static_assert(offsetof(particle, pos) == 0 && offsetof(particle, velocity) == 8 
 
 enum : int { mode_circle = 0, mode_square = 1, mode_texture = 2 };
 
-std::string lower(const unsigned char *text) {
-  std::string out = text != nullptr ? reinterpret_cast<const char *>(text) : "";
-  std::transform(out.begin(), out.end(), out.begin(),
-                 [](unsigned char c) { return (char)std::tolower(c); });
-  return out;
-}
-
-bool looks_like_software(const std::string &renderer) {
-  for (const char *marker : {"llvmpipe", "softpipe", "swrast", "software", "swiftshader",
-                             "basic render", "gdi generic", "offscreen"}) {
-    if (renderer.find(marker) != std::string::npos)
-      return true;
-  }
-  return false;
-}
-
 // Points attributes 1..3 of the bound vertex array at `vbo`, one instance per
 // particle.
 void bind_instance_attributes(unsigned int vbo) {
@@ -184,14 +161,9 @@ void probe(particle_gpu_state &gpu) {
     return;
   }
 
-  using get_string_fn = const unsigned char *(*)(unsigned int);
-  const get_string_fn get_string =
-      reinterpret_cast<get_string_fn>(glfwGetProcAddress("glGetString"));
-  const std::string renderer = get_string != nullptr ? lower(get_string(gl_renderer)) : "";
-  const std::string vendor = get_string != nullptr ? lower(get_string(gl_vendor)) : "";
-  if (looks_like_software(renderer) || looks_like_software(vendor)) {
+  if (gpu_is_software()) {
     NJIN_INFO("particles: software renderer (%s), particles run on the CPU",
-              renderer.c_str());
+              gpu_renderer_name().c_str());
     return;
   }
 
@@ -219,7 +191,7 @@ void probe(particle_gpu_state &gpu) {
   gpu.quad_vbo = rlLoadVertexBuffer(quad_corners, (int)sizeof quad_corners, false);
 
   gpu.available = true;
-  NJIN_INFO("particles: GPU backend on (%s)", renderer.c_str());
+  NJIN_INFO("particles: GPU backend on (%s)", gpu_renderer_name().c_str());
 }
 
 void set_vec2(int loc, vec2 v) {

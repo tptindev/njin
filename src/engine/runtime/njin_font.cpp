@@ -1,26 +1,40 @@
 #include "njin_font.h"
 #include "njin_log.h"
 #include "njin_path.h"
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace njin {
 namespace {
-// Codepoints baked into every loaded font. Vietnamese needs more than
-// Latin-1: đ/Đ live in Latin Extended-A, ơ/ư in Extended-B, and the letters
-// carrying two marks (ấ, ẫ, ộ...) in the Latin Extended Additional block.
-std::vector<int> font_codepoints() {
-  std::vector<int> cps;
-  const auto add = [&](int lo, int hi) {
-    for (int c = lo; c <= hi; c++)
-      cps.push_back(c);
-  };
-  add(0x20, 0x7E);   // ASCII
-  add(0xA0, 0xFF);   // Latin-1 Supplement
-  add(0x100, 0x24F); // Latin Extended-A and -B
-  add(0x300, 0x323); // combining marks, for text typed in decomposed form
-  add(0x1EA0, 0x1EF9); // Vietnamese
-  add(0x2010, 0x2027); // dashes, quotes, bullet, ellipsis
-  add(0x20AB, 0x20AC); // đồng and euro signs
+// Below this a glyph is a smudge, and above it text does not go.
+constexpr i32 min_px = 6;
+constexpr i32 max_px = 256;
+// An atlas is a few hundred glyphs: a small texture. Past this many for one
+// font the nearest size already baked is used instead of baking another.
+constexpr usize max_atlases = 24;
+constexpr i32 probe_px = 16;
+
+// Codepoints baked into every atlas. Vietnamese needs more than Latin-1:
+// đ/Đ live in Latin Extended-A, ơ/ư in Extended-B, and the letters carrying two
+// marks (ấ, ẫ, ộ...) in the Latin Extended Additional block. A glyph the font
+// lacks is skipped by raylib, not faked.
+const std::vector<int> &font_codepoints() {
+  static const std::vector<int> cps = [] {
+    std::vector<int> out;
+    const auto add = [&](int lo, int hi) {
+      for (int c = lo; c <= hi; c++)
+        out.push_back(c);
+    };
+    add(0x20, 0x7E);     // ASCII
+    add(0xA0, 0xFF);     // Latin-1 Supplement
+    add(0x100, 0x24F);   // Latin Extended-A and -B
+    add(0x300, 0x323);   // combining marks, for text typed in decomposed form
+    add(0x1EA0, 0x1EF9); // Vietnamese
+    add(0x2010, 0x2027); // dashes, quotes, bullet, ellipsis
+    add(0x20AB, 0x20AC); // đồng and euro signs
+    return out;
+  }();
   return cps;
 }
 
@@ -30,20 +44,61 @@ font_slot *slot_of(font_store &store, font_handle handle) {
   font_slot &slot = store.slots[handle.id - 1];
   return slot.alive ? &slot : nullptr;
 }
+
+// Bakes one atlas; null when the bytes are not a font raylib can read.
+const Font *bake(font_slot &slot, i32 px) {
+  const std::vector<int> &cps = font_codepoints();
+  Font font = LoadFontFromMemory(".ttf", slot.bytes, slot.length, px,
+                                 const_cast<int *>(cps.data()), (int)cps.size());
+  // raylib hands back its built-in font when it cannot read the bytes, and
+  // that one is its own: unloading it would take the default font down.
+  if (!IsFontValid(font) || font.glyphCount <= 0 ||
+      font.texture.id == GetFontDefault().texture.id)
+    return nullptr;
+  // Drawn at the size it was baked at, so filtering only smooths the fraction
+  // of a pixel a position may still carry.
+  SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+  return &slot.atlases.emplace(px, font).first->second;
+}
+
+const Font *atlas_of(font_slot &slot, i32 px) {
+  const auto found = slot.atlases.find(px);
+  if (found != slot.atlases.end())
+    return &found->second;
+  if (slot.atlases.size() >= max_atlases) {
+    auto nearest = slot.atlases.begin();
+    for (auto it = slot.atlases.begin(); it != slot.atlases.end(); ++it)
+      if (std::abs(it->first - px) < std::abs(nearest->first - px))
+        nearest = it;
+    return &nearest->second;
+  }
+  return bake(slot, px);
+}
 } // namespace
 
-font_store::~font_store() {
-  for (usize i = 0; i < slots.size(); i++)
-    font_store_unload(*this, font_handle{.id = (u32)(i + 1)});
+void font_slot::unload_atlases() {
+  for (auto &[px, font] : atlases)
+    UnloadFont(font);
+  atlases.clear();
 }
+
+font_store::font_store() {
+  fallback.bytes = font_default_ttf;
+  fallback.length = (i32)font_default_ttf_size;
+  fallback.alive = true;
+}
+
+font_store::~font_store() {
+  fallback.unload_atlases();
+  for (font_slot &slot : slots)
+    slot.unload_atlases();
+}
+
+i32 font_px(f32 size) { return std::clamp((i32)std::lround(size), min_px, max_px); }
 
 font_handle font_store_load(font_store &store, const char *path, i32 size) {
   if (path == nullptr) {
     NJIN_WARN("font: path is null");
-    return font_handle{};
-  }
-  if (size <= 0) {
-    NJIN_WARN("font: invalid size %d for %s", size, path);
     return font_handle{};
   }
   const std::string resolved = asset_path(path);
@@ -51,17 +106,26 @@ font_handle font_store_load(font_store &store, const char *path, i32 size) {
     NJIN_WARN("font: file not found: %s", path);
     return font_handle{};
   }
-  const std::vector<int> cps = font_codepoints();
-  const Font font =
-      LoadFontEx(resolved.c_str(), size, cps.data(), (int)cps.size());
-  // LoadFontEx falls back to the default font when the file cannot be parsed;
-  // its texture id is then the default font's, which must not be unloaded.
-  if (!IsFontValid(font) || font.texture.id == GetFontDefault().texture.id) {
-    NJIN_WARN("font: failed to load: %s", path);
+  int length = 0;
+  unsigned char *data = LoadFileData(resolved.c_str(), &length);
+  if (data == nullptr || length <= 0) {
+    NJIN_WARN("font: cannot read: %s", path);
     return font_handle{};
   }
-  SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
-  store.slots.push_back(font_slot{.font = font, .alive = true});
+  font_slot slot;
+  slot.owned.assign(data, data + length);
+  UnloadFileData(data);
+  slot.bytes = slot.owned.data();
+  slot.length = length;
+  slot.alive = true;
+  // The vector's buffer does not move when the slot does, so `bytes` stays.
+  store.slots.push_back(std::move(slot));
+  font_slot &kept = store.slots.back();
+  if (atlas_of(kept, size > 0 ? font_px((f32)size) : probe_px) == nullptr) {
+    NJIN_WARN("font: failed to load: %s", path);
+    store.slots.pop_back();
+    return font_handle{};
+  }
   return font_handle{.id = (u32)store.slots.size()};
 }
 
@@ -69,20 +133,19 @@ void font_store_unload(font_store &store, font_handle handle) {
   font_slot *slot = slot_of(store, handle);
   if (slot == nullptr)
     return;
-  UnloadFont(slot->font);
+  slot->unload_atlases();
   *slot = font_slot{};
 }
 
-Font font_store_get(const font_store &store, font_handle handle) {
-  if (handle.id != 0 && handle.id <= store.slots.size()) {
-    const font_slot &slot = store.slots[handle.id - 1];
-    if (slot.alive)
-      return slot.font;
-  }
-  return GetFontDefault();
-}
-
-f32 font_store_spacing(font_handle handle, f32 size) {
-  return handle.id == 0 ? size / 10.0f : 0.0f;
+const Font *font_store_atlas(font_store &store, font_handle handle, i32 px) {
+  font_slot *slot = slot_of(store, handle);
+  if (slot == nullptr)
+    slot = &store.fallback;
+  const Font *font = atlas_of(*slot, px);
+  // A slot whose bytes stopped parsing cannot happen after load succeeded, but
+  // the default font is always there to fall back on.
+  if (font == nullptr && slot != &store.fallback)
+    font = atlas_of(store.fallback, px);
+  return font;
 }
 } // namespace njin

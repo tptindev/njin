@@ -2,6 +2,7 @@
 #include "modules/core_modules.h"
 #include "modules/fx.h"
 #include "njin2rl.h"
+#include "njin_gpu_caps.h"
 #include "njin_gpu_hint.h"
 #include "njin_ctx_impl.h"
 #include "njin_log_impl.h"
@@ -126,6 +127,7 @@ void njin_run(njin_ctx &ctx) {
 
     BeginDrawing();
     ClearBackground(clearbg);
+    ctx.view.crisp_text = ctx.cfg.crisp_text && !gpu_is_software();
     view_draw_begin(ctx.view, clearbg);
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
@@ -137,6 +139,7 @@ void njin_run(njin_ctx &ctx) {
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
     view_draw_end(ctx.view);
+    text_layer_flush(ctx);
     take_pending_screenshots(ctx);
     EndDrawing();
   }

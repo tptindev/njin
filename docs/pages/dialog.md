@@ -24,8 +24,8 @@ Thiếu một khóa trong ngôn ngữ đang dùng thì lấy ở **ngôn ngữ d
 tiên; đổi bằng i18n_set_fallback()); thiếu nữa thì hiện chính khóa và ghi log một lần, nên chữ
 thiếu dịch hiện ra rõ ràng thay vì mất hẳn.
 
-Font mặc định của engine chỉ có ASCII. Muốn tiếng Việt, nạp font bằng font_load() (đã có sẵn
-các ký tự tiếng Việt) và đặt vào njin::ui_style::font và njin::dialog_style::font.
+Font mặc định của engine (JetBrains Mono) đã có chữ tiếng Việt. Muốn font khác, nạp bằng
+font_load() và đặt vào njin::ui_style::font và njin::dialog_style::font.
 
 ## Hộp thoại
 

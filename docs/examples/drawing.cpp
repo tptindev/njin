@@ -35,7 +35,7 @@ void draw_ui(njin::njin_ctx &ctx) {
   draw_text(ctx, title, {(screen.x - size.x) * 0.5f, 20}, 32, colors::white,
             title_font);
 
-  // Font mặc định: chỉ ASCII, không cần nạp.
+  // Font mặc định (JetBrains Mono, có tiếng Việt): không cần nạp.
   draw_text(ctx, "FPS 60", {10, 10}, 20, colors::green);
 
   // Khung cuộn: chỉ vẽ bên trong vùng 300x100.

@@ -34,6 +34,12 @@ struct njin_cfg {
   /// hình và GPU, CPU nghỉ giữa các frame (đỡ tốn pin). Mặc định tắt. Bật thì
   /// `target_fps` vẫn còn tác dụng như một mức trần thêm. Xem window_set_vsync().
   bool vsync = false;
+  /// Vẽ chữ ở độ phân giải thật của cửa sổ khi máy có GPU thật, để chữ nét ở mọi
+  /// cỡ cửa sổ (mặc định bật). Với độ phân giải ảo (`virtual_size`), cảnh được
+  /// vẽ nhỏ rồi phóng lên và chữ vẽ trong đó sẽ bị mờ; bật thì chữ trên màn hình
+  /// (UI, HUD) được vẽ sau khi phóng, từ font dựng đúng cỡ trên màn hình. Xem
+  /// trang Vẽ và chữ. Máy chỉ có renderer phần mềm luôn vẽ chữ trong ảnh ảo.
+  bool crisp_text = true;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).

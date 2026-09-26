@@ -29,15 +29,37 @@ njin::draw_text() vẽ chữ UTF-8 với góc trên trái tại vị trí cho tr
 bằng `\n`. njin::text_measure() cho kích thước chữ trước khi vẽ, dùng để căn giữa hay
 căn phải.
 
-**Font mặc định** (không truyền font) có sẵn, không cần nạp, nhưng **chỉ có ký tự ASCII**.
-Muốn viết tiếng Việt có dấu, nạp một font TrueType/OpenType bằng njin::font_load(). Font
-được nạp kèm sẵn bảng chữ Latin và toàn bộ chữ tiếng Việt.
+**Font mặc định** (không truyền font) là JetBrains Mono (giấy phép SIL OFL), nhúng sẵn trong
+engine nên game không cần file font nào. Nó có bảng chữ Latin và toàn bộ chữ tiếng Việt. Muốn
+font khác, nạp một font TrueType/OpenType bằng njin::font_load(); font nạp cũng có sẵn bảng
+chữ Latin và tiếng Việt.
 
-@note Font được dựng thành ảnh ở cỡ chữ khi nạp. Vẽ đúng cỡ đó thì chữ sắc nhất; cỡ khác
-vẫn được nhưng bị co giãn. Cần chữ nhỏ và chữ to đều sắc thì nạp hai font.
+Mỗi cỡ chữ được vẽ có một ảnh glyph riêng, dựng đúng cỡ đó ở lần vẽ đầu tiên. Cỡ làm tròn
+thành số nguyên pixel (từ 6 đến 256) và vị trí cũng làm tròn về pixel, vì nửa pixel lệch là
+nửa pixel nhòe trên một chữ cao mười pixel. njin::text_measure() đo bằng đúng ảnh glyph đó,
+nên căn giữa và căn phải khớp với chữ được vẽ.
 
 Nạp thất bại (file thiếu, không đọc được) trả về handle id 0, nên chữ tự rơi về font mặc
 định thay vì biến mất.
+
+### Chữ nét trên màn hình có độ phân giải ảo
+
+Với njin::njin_cfg::virtual_size, cả frame được vẽ vào một ảnh nhỏ (ví dụ 640x360) rồi phóng
+lên cửa sổ, nên chữ vẽ trong ảnh đó nhòe theo mức phóng. Khi máy có **GPU thật** và
+njin::njin_cfg::crisp_text bật (mặc định), chữ trên màn hình (UI, HUD, hội thoại, thông báo)
+không vẽ vào ảnh nhỏ mà xếp hàng đợi, rồi vẽ **sau khi ảnh đã phóng**, thẳng vào cửa sổ, từ
+ảnh glyph dựng ở cỡ chữ nhân với mức phóng. Chữ nét ở mọi cỡ cửa sổ, kể cả mức phóng lẻ.
+Vị trí vẫn theo pixel ảo, và mỗi dòng được dãn khoảng cách chữ cho đúng bằng độ rộng
+njin::text_measure() đã đo.
+
+Đánh đổi:
+- Chữ trên màn hình nằm **trên** mọi thứ vẽ trong ảnh ảo, kể cả panel vẽ sau nó. Hình chữ
+  nhật phủ **cả màn hình** vẽ sau (fade scene, flash, lớp làm tối sau popup) thì làm tối cả chữ
+  đã xếp hàng, như khi chúng phủ lên chữ thật.
+- Chữ trong world (giữa `phase_render` với camera) và chữ vẽ vào render texture vẫn vẽ trong
+  ảnh ảo, vì chúng thuộc về không gian và ảnh đó.
+- Máy chỉ có renderer phần mềm (llvmpipe, SwiftShader, GDI Generic) luôn vẽ chữ trong ảnh
+  ảo như trước. Cửa sổ đúng bằng ảnh ảo (mức phóng 1) cũng vậy.
 
 ## Trộn màu
 

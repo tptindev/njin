@@ -75,7 +75,8 @@ struct njin_ctx {
   shader_store shader;
   texture_store texture;
   render_texture_store render_texture;
-  font_store font;
+  // Mutable: atlases are baked on first draw, and drawing takes a const ctx.
+  mutable font_store font;
   audio_store audio;
   camera_post post;
   fx_state fx;
@@ -99,4 +100,7 @@ struct njin_ctx {
 // Saves every screenshot requested this frame. Called after post_render and
 // before EndDrawing, while the back buffer still holds the finished frame.
 void take_pending_screenshots(njin_ctx &ctx);
+// Draws the text queued for window resolution (view_state::text_layer) onto the
+// window, over the scaled virtual image. Called right after view_draw_end.
+void text_layer_flush(njin_ctx &ctx);
 } // namespace njin

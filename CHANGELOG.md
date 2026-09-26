@@ -8,6 +8,18 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+- **Sharper text**: the default font is now JetBrains Mono (SIL OFL), compiled
+  into the engine, with the Latin and Vietnamese blocks; before it was raylib's
+  ASCII-only bitmap font. Every font, loaded or default, keeps one glyph atlas
+  per pixel size drawn, baked on first use, and `draw_text` snaps the position
+  to whole pixels; `text_measure` measures with the same atlas. On a real GPU
+  with a virtual resolution (`virtual_size`), screen-space text is queued and
+  drawn after the scaled image, at window resolution, from an atlas baked at
+  size x scale (`njin_cfg::crisp_text`, on by default; off on a software
+  renderer, and in world space or a render texture). A full-screen rectangle
+  drawn afterwards (fade, flash, modal dim) tints the queued text. `font_load`'s
+  `size` is now optional (it only pre-bakes that size). The inspector's font
+  entries list the atlases of a font, one per size.
 - **The log goes to the inspector while one is connected**: the game's console
   stops printing then, and every message (the window's startup lines included,
   up to 1000 kept from `njin_create`) is sent to `njin_inspector`. With no

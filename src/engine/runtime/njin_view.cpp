@@ -39,6 +39,9 @@ void view_map_mouse(const view_state &view, vec2 &pos, vec2 &motion) {
 
 void view_draw_begin(view_state &view, Color clear) {
   view.drawing = false;
+  view.world_depth = 0;
+  view.offscreen_depth = 0;
+  view.text_layer.clear();
   if (!view_active(view))
     return;
   const i32 w = (i32)view.size.x;
@@ -55,6 +58,20 @@ void view_draw_begin(view_state &view, Color clear) {
   view.drawing = true;
   BeginTextureMode(view.target);
   ClearBackground(clear);
+}
+
+void view_text_cover(const view_state &view, rect r, rgba color) {
+  if (view.text_layer.empty() || !view_text_deferred(view) || color.a <= 0.0f)
+    return;
+  if (r.pos.x > 0.0f || r.pos.y > 0.0f || r.pos.x + r.size.x < view.size.x ||
+      r.pos.y + r.size.y < view.size.y)
+    return;
+  const f32 a = std::min(color.a, 1.0f);
+  for (queued_text &q : view.text_layer) {
+    q.color.r += (color.r - q.color.r) * a;
+    q.color.g += (color.g - q.color.g) * a;
+    q.color.b += (color.b - q.color.b) * a;
+  }
 }
 
 void view_rebind(const view_state &view) {

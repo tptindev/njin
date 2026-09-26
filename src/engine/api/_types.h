@@ -109,7 +109,7 @@ struct music_handle {
 
 /// Định danh của một font, tạo bởi font_load().
 ///
-/// `id == 0` là font mặc định của engine (chỉ có ký tự ASCII). Font đã unload
+/// `id == 0` là font mặc định của engine (JetBrains Mono, có chữ tiếng Việt). Font đã unload
 /// cũng được thay bằng font mặc định.
 struct font_handle {
   u32 id = 0; ///< 0 nghĩa là font mặc định.
