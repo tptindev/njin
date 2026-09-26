@@ -113,7 +113,8 @@ struct ui_panel_desc {
 };
 
 /// Bắt đầu một panel. Các widget gọi sau đó xếp từ trên xuống bên trong nó,
-/// cho đến ui_end(). Chiều cao tự tính theo nội dung.
+/// cho đến ui_end(). Chiều cao tự tính theo nội dung. Panel cao hơn màn hình thì
+/// tự thu nhỏ (cả chữ, tối đa còn một nửa) cho vừa, thay vì tràn ra trên và dưới.
 ///
 /// Gọi trong `phase_post_render` (không gian màn hình). Chỉ panel nào được
 /// gọi trong frame mới hiện; muốn ẩn menu thì đừng gọi nó.

@@ -128,6 +128,7 @@ void njin_run(njin_ctx &ctx) {
     BeginDrawing();
     ClearBackground(clearbg);
     ctx.view.crisp_text = ctx.cfg.crisp_text && !gpu_is_software();
+    ctx.view.smooth_ui = ctx.cfg.smooth_ui;
     view_draw_begin(ctx.view, clearbg);
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
@@ -138,7 +139,10 @@ void njin_run(njin_ctx &ctx) {
     ui_draw_toasts(ctx);
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
-    view_draw_end(ctx.view);
+    if (ctx.view.ui_window)
+      view_ui_end(ctx.view);
+    else
+      view_draw_end(ctx.view);
     text_layer_flush(ctx);
     take_pending_screenshots(ctx);
     EndDrawing();

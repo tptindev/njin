@@ -18,7 +18,10 @@ Cả hai game đầu có menu chính, tạm dừng, cài đặt (âm lượng, t
 phím và tay cầm), hai ngôn ngữ (Việt, Anh), nhạc và tiếng, và màn hình ảo 640 x 360. Phần dùng chung
 nằm ở `src/games/shared` (menu cài đặt); mọi hình, tiếng, bản đồ đều sinh ra từ script Python
 `tools/make_assets.py` của từng game, nên không có file nhị phân không rõ nguồn.
-Font Be Vietnam Pro (giấy phép SIL OFL, kèm `OFL.txt`) dùng cho chữ tiếng Việt.
+`topdown` dùng font Be Vietnam Pro (giấy phép SIL OFL, kèm `OFL.txt`) cho chữ tiếng Việt.
+`platformer` là pixel art đến tận UI: font VT323 (SIL OFL, kèm `OFL-VT323.txt`, font pixel có đủ
+tiếng Việt) vẽ bằng njin::font_pixel ở cỡ 16 và 32, panel và nút vuông góc, màn hình ảo 640 x 360
+phóng theo số nguyên với lọc nearest, và `crisp_text` tắt.
 
 **Mọi game trong `src/games` đều mở cổng cho njin_inspector khi build bản debug** (bốn game ở bảng trên
 cùng `njin_pong` và `njin_sandbox`; `njin_debug_demo` và `njin_render_demo` luôn mở), nên

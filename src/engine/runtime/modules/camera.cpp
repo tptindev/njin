@@ -58,9 +58,18 @@ void begin_world_space(njin_ctx &ctx) {
   ctx.view.world_depth++;
 }
 
+void finish_world_post(njin_ctx &ctx);
+
 void end_world_space(njin_ctx &ctx) {
   EndMode2D();
   ctx.view.world_depth = std::max(0, ctx.view.world_depth - 1);
+  finish_world_post(ctx);
+  // The world is done and on the virtual image. With smooth UI, the rest of the
+  // frame (the screen-space phase and what follows) is drawn on the window.
+  view_ui_begin(ctx.view);
+}
+
+void finish_world_post(njin_ctx &ctx) {
   camera_post &post = ctx.post;
   if (!post.drawing)
     return;

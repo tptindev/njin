@@ -48,16 +48,37 @@ font_slot *slot_of(font_store &store, font_handle handle) {
 // Bakes one atlas; null when the bytes are not a font raylib can read.
 const Font *bake(font_slot &slot, i32 px) {
   const std::vector<int> &cps = font_codepoints();
-  Font font = LoadFontFromMemory(".ttf", slot.bytes, slot.length, px,
-                                 const_cast<int *>(cps.data()), (int)cps.size());
+  Font font{};
+  if (slot.pixel) {
+    // FONT_BITMAP rasterizes without anti-aliasing: every texel of a glyph is
+    // fully on or off, which is the pixel-font look at the size it was made for.
+    int count = 0;
+    GlyphInfo *glyphs = LoadFontData(slot.bytes, slot.length, px, cps.data(), (int)cps.size(),
+                                     FONT_BITMAP, &count);
+    if (glyphs == nullptr || count <= 0)
+      return nullptr;
+    constexpr int padding = 4;
+    Rectangle *recs = nullptr;
+    const Image atlas = GenImageFontAtlas(glyphs, &recs, count, px, padding, 0);
+    font.baseSize = px;
+    font.glyphCount = count;
+    font.glyphPadding = padding;
+    font.glyphs = glyphs;
+    font.recs = recs;
+    font.texture = LoadTextureFromImage(atlas);
+    UnloadImage(atlas);
+  } else {
+    font = LoadFontFromMemory(".ttf", slot.bytes, slot.length, px,
+                              const_cast<int *>(cps.data()), (int)cps.size());
+  }
   // raylib hands back its built-in font when it cannot read the bytes, and
   // that one is its own: unloading it would take the default font down.
   if (!IsFontValid(font) || font.glyphCount <= 0 ||
       font.texture.id == GetFontDefault().texture.id)
     return nullptr;
   // Drawn at the size it was baked at, so filtering only smooths the fraction
-  // of a pixel a position may still carry.
-  SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+  // of a pixel a position may still carry. The pixel style has none to smooth.
+  SetTextureFilter(font.texture, slot.pixel ? TEXTURE_FILTER_POINT : TEXTURE_FILTER_BILINEAR);
   return &slot.atlases.emplace(px, font).first->second;
 }
 
@@ -96,7 +117,7 @@ font_store::~font_store() {
 
 i32 font_px(f32 size) { return std::clamp((i32)std::lround(size), min_px, max_px); }
 
-font_handle font_store_load(font_store &store, const char *path, i32 size) {
+font_handle font_store_load(font_store &store, const char *path, i32 size, bool pixel) {
   if (path == nullptr) {
     NJIN_WARN("font: path is null");
     return font_handle{};
@@ -118,6 +139,7 @@ font_handle font_store_load(font_store &store, const char *path, i32 size) {
   slot.bytes = slot.owned.data();
   slot.length = length;
   slot.alive = true;
+  slot.pixel = pixel;
   // The vector's buffer does not move when the slot does, so `bytes` stays.
   store.slots.push_back(std::move(slot));
   font_slot &kept = store.slots.back();
@@ -135,6 +157,20 @@ void font_store_unload(font_store &store, font_handle handle) {
     return;
   slot->unload_atlases();
   *slot = font_slot{};
+}
+
+void font_store_set_pixel(font_store &store, font_handle handle, bool pixel) {
+  font_slot *slot = handle.id == 0 ? &store.fallback : slot_of(store, handle);
+  if (slot == nullptr || slot->pixel == pixel)
+    return;
+  slot->pixel = pixel;
+  slot->unload_atlases();
+}
+
+bool font_store_is_pixel(const font_store &store, font_handle handle) {
+  if (handle.id != 0 && handle.id <= store.slots.size() && store.slots[handle.id - 1].alive)
+    return store.slots[handle.id - 1].pixel;
+  return store.fallback.pixel;
 }
 
 const Font *font_store_atlas(font_store &store, font_handle handle, i32 px) {

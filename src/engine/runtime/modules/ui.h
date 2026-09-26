@@ -76,6 +76,11 @@ struct ui_state {
   const char *panel_title = nullptr;
   bool panel_background = true;
   std::unordered_map<u64, f32> heights; // measured panel heights, by id
+  // A panel taller than the screen is shrunk to fit it: `natural` is the height
+  // a panel would have at fit 1 (last frame's height over the fit it was built
+  // with), and `fit` multiplies every size of the panel being built (see sc()).
+  std::unordered_map<u64, f32> natural;
+  f32 fit = 1.0f;
 
   // Modal popup. `modal` is the popup drawn this frame; `modal_last` the one
   // drawn last frame, which is what input is filtered against (the widget

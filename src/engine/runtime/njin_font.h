@@ -21,6 +21,7 @@ struct font_slot {
   i32 length = 0;
   std::map<i32, Font> atlases;
   bool alive = false;
+  bool pixel = false; // font_pixel: no anti-aliasing, nearest filter
 
   void unload_atlases();
 };
@@ -46,7 +47,12 @@ i32 font_px(f32 size);
 
 // Reads the file and bakes `size` (or 16 when `size` <= 0) once, so a font
 // that cannot be parsed fails here and not at the first draw.
-font_handle font_store_load(font_store &store, const char *path, i32 size);
+font_handle font_store_load(font_store &store, const char *path, i32 size, bool pixel);
+// Switches a font (id 0: the default one) between smooth and pixel; its atlases
+// are dropped and baked again in the new style on the next draw.
+void font_store_set_pixel(font_store &store, font_handle handle, bool pixel);
+// True when text in `handle` is drawn in the pixel style.
+bool font_store_is_pixel(const font_store &store, font_handle handle);
 void font_store_unload(font_store &store, font_handle handle);
 
 // The atlas to draw `handle` with at `px` pixels (see font_px). Never null once

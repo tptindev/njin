@@ -9,19 +9,30 @@
 namespace njin {
 struct njin_ctx;
 
+// A line of text waiting for the window-resolution pass (see view_state).
+struct queued_text {
+  std::string text;
+  vec2 pos;         // virtual pixels
+  f32 size;         // virtual pixels
+  rgba color;
+  font_handle font;
+  rect bounds;      // where its glyphs can land, virtual pixels
+  rect clip;        // clip_begin() area when it was queued; size 0 for none
+  usize occluders;  // how many occluders existed then: later ones cover it
+};
+
+// Something drawn into the virtual image after some text was queued, which
+// therefore sits over that text: a panel, a button, the dimming behind a popup.
+struct text_occluder {
+  rect area;   // virtual pixels
+  rgba color;  // what the text under it blends towards, by color.a
+  bool hide;   // an image of unknown colour: the text under it is dropped
+};
+
 // Virtual resolution. While `size` is set, the whole frame (world, UI, toasts,
 // fades) is drawn into `target` at that size, then scaled onto the window with
 // bars around it. Everything that asks for the screen size gets `size`, and
 // the mouse is mapped into it, so games never see the window's real pixels.
-// A line of text waiting for the window-resolution pass (see view_state).
-struct queued_text {
-  std::string text;
-  vec2 pos;   // virtual pixels
-  f32 size;   // virtual pixels
-  rgba color;
-  font_handle font;
-};
-
 struct view_state {
   vec2 size{};              // 0: off, the frame goes straight to the window
   bool integer_scale = true;
@@ -37,13 +48,28 @@ struct view_state {
   // the scaled image, into the window itself, from an atlas baked at
   // size * scale: sharp at any window size. Text in world space (under the
   // world camera) and text drawn into a render texture stay in the virtual
-  // image, where they belong. Queued text sits above everything drawn in the
-  // virtual image; a full-screen rectangle drawn later (fade, flash, the
-  // dimming behind a modal) tints it, see view_text_cover().
+  // image, where they belong.
+  //
+  // Queued text would sit above everything in the virtual image, so what is
+  // drawn over it afterwards is recorded (view_text_occlude) and applied when
+  // the text is drawn: the part of a line under a panel is blended towards the
+  // panel's colour, or dropped when the panel is opaque. Draw order is thus
+  // kept for rectangles and UI skins; other later draws (sprites, textures) do
+  // not cover queued text.
   bool crisp_text = false;             // wanted and possible, set every frame
   mutable i32 world_depth = 0;         // inside begin/end of the world camera
   mutable i32 offscreen_depth = 0;     // inside a render texture
+  mutable rect clip{};                 // clip_begin() area; size 0 when none
+
+  // Smooth UI (njin_cfg::smooth_ui): after the world, the virtual image is put
+  // on the window and the rest of the frame is drawn straight into the window,
+  // under a scale-and-offset transform that maps virtual pixels to window ones.
+  // Shapes are then rasterized at window resolution, and text is baked at
+  // size * scale and drawn without the transform, so it is sharp.
+  bool smooth_ui = false;              // wanted, set every frame
+  mutable bool ui_window = false;      // the UI pass is running
   mutable std::vector<queued_text> text_layer;
+  mutable std::vector<text_occluder> occluders;
 
   view_state() = default;
   ~view_state();
@@ -59,9 +85,19 @@ inline bool view_text_deferred(const view_state &view) {
   return view.crisp_text && view.drawing && view.scale != 1.0f && view.world_depth == 0 &&
          view.offscreen_depth == 0;
 }
-// A rectangle of `color` was just drawn over the virtual image: when it covers
-// all of it, the text already queued is under it, so it takes the tint.
-void view_text_cover(const view_state &view, rect r, rgba color);
+// A rectangle of `color` was just drawn over the virtual image: text queued
+// before it, and under it, is blended towards `color`, or dropped when `hide`.
+// Does nothing unless text is being deferred.
+void view_text_occlude(const view_state &view, rect area, rgba color, bool hide = false);
+
+// Ends the virtual image (it is put on the window) and starts the UI pass when
+// smooth UI is wanted and the image is scaled. Returns whether it did.
+bool view_ui_begin(view_state &view);
+// Ends the UI pass.
+void view_ui_end(view_state &view);
+// Leaves the UI pass's transform for the moment, before the game starts a render
+// texture: view_rebind() (called when it ends) puts it back.
+void view_ui_suspend(const view_state &view);
 
 // Works out scale and offset for this frame's window size. Called at the top
 // of the frame, before input is read.

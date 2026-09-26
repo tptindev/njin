@@ -10,10 +10,20 @@
 /// hiện số này. Khi phát hành, sửa ba số ở đây, ghi vào `CHANGELOG.md`, rồi đặt
 /// tag `vMAJOR.MINOR.PATCH`.
 ///
-/// Trước 1.0, API công khai còn có thể đổi giữa hai bản MINOR; PATCH chỉ sửa lỗi.
-#define NJIN_VERSION_MAJOR 0 ///< Số MAJOR: tăng khi API đổi không tương thích (từ 1.0 trở đi).
-#define NJIN_VERSION_MINOR 2 ///< Số MINOR: tăng khi thêm tính năng.
-#define NJIN_VERSION_PATCH 0 ///< Số PATCH: tăng khi chỉ sửa lỗi.
+/// - **MAJOR**: biến đổi lớn. Khi số này tăng, phần lõi của engine thay đổi và
+///   có thể không tương thích với các bản cũ: game viết cho API cũ có thể phải
+///   sửa.
+/// - **MINOR**: tính năng mới. Engine được bổ sung tính năng nhưng vẫn tương
+///   thích tốt với các bản cũ của cùng nhánh MAJOR: game hiện có vẫn build và
+///   chạy như trước.
+/// - **PATCH**: sửa lỗi. Chỉ vá lỗi và sửa bảo mật, không có tính năng mới.
+///
+/// Tăng một số thì các số bên phải về 0 (`0.2.3` thành `0.3.0`). Khi MAJOR còn
+/// là 0, API chưa ổn định nên bản MINOR vẫn có thể đổi API; `CHANGELOG.md` sẽ
+/// nói rõ khi có chuyện đó.
+#define NJIN_VERSION_MAJOR 0 ///< Số MAJOR: tăng khi có biến đổi lớn, có thể không tương thích bản cũ.
+#define NJIN_VERSION_MINOR 3 ///< Số MINOR: tăng khi thêm tính năng mới, vẫn tương thích trong nhánh.
+#define NJIN_VERSION_PATCH 0 ///< Số PATCH: tăng khi chỉ sửa lỗi và bảo mật.
 
 /// Số phiên bản dạng số để so sánh: `MAJOR * 10000 + MINOR * 100 + PATCH`.
 /// Ví dụ 0.1.0 là 100. Dùng `#if NJIN_VERSION >= 200` để hỗ trợ nhiều bản engine.

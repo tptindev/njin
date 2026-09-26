@@ -55,7 +55,8 @@ void startup(njin_ctx &ctx) {
   action_bind_pad(ctx, g.pause, pad_start);
   settings_load(ctx);
 
-  shared::apply_style(ctx, "assets/fonts/BeVietnamPro-Bold.ttf");
+  // Pixel art all the way: a pixel font at its design size, square UI.
+  shared::apply_style(ctx, "assets/fonts/VT323-Regular.ttf", font_pixel);
   dialog_load("assets/dialog/owl.json", g.owl);
   const texture_handle sheet = g.sprites;
   dialog_portrait(ctx, "owl", sheet, rect{{64.0f, 96.0f}, {32.0f, 32.0f}});
@@ -78,7 +79,10 @@ int main() {
                                .resizable = true,
                                .app_name = "SproutsClimb",
                                .virtual_size = {640.0f, 360.0f},
-                               .integer_scale = false});
+                               .integer_scale = true,
+                               // Everything, text included, is drawn in the 640 x 360 image and
+                               // scaled with the nearest filter.
+                               .crisp_text = false});
   g.title = scene_register(*ctx, {.name = "title", .on_enter = title_enter});
   scene_register(*ctx, {.name = "card", .on_enter = card_scene_enter});
   g.play = scene_register(*ctx, {.name = "play", .on_enter = play_enter, .on_exit = play_exit});

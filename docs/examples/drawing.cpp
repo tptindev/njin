@@ -8,6 +8,19 @@ void load(njin::njin_ctx &ctx) {
   title_font = njin::font_load(ctx, "assets/fonts/roboto.ttf", 32);
 }
 
+// [pixel_text]
+// Font pixel thiết kế ở 8 pixel: vẽ ở 8, 16, 24. Chữ luôn nằm trong ảnh ảo.
+void load_pixel_font(njin::njin_ctx &ctx) {
+  const njin::font_handle pixel =
+      njin::font_load(ctx, "assets/fonts/PressStart2P.ttf", 8, njin::font_pixel);
+  njin::ui_style style = njin::ui_default_style();
+  style.font = pixel;
+  style.font_size = 8.0f;
+  njin::ui_style_set(ctx, style);
+  // Hoặc đổi font mặc định: njin::font_set_style(ctx, {}, njin::font_pixel);
+}
+// [pixel_text]
+
 // Trong không gian thế giới: đi qua camera.
 void draw_world(njin::njin_ctx &ctx) {
   using namespace njin;

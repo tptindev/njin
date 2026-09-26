@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <raylib.h>
+#include <rlgl.h>
 
 namespace njin {
 namespace {
@@ -17,13 +18,83 @@ Color color_of(rgba c) {
 Vector2 vec_of(vec2 v) { return Vector2{v.x, v.y}; }
 
 Rectangle rect_of(rect r) { return Rectangle{r.pos.x, r.pos.y, r.size.x, r.size.y}; }
+
+bool has_area(rect r) { return r.size.x > 0.0f && r.size.y > 0.0f; }
+
+rect intersect(rect a, rect b) {
+  const f32 x0 = std::max(a.pos.x, b.pos.x);
+  const f32 y0 = std::max(a.pos.y, b.pos.y);
+  const f32 x1 = std::min(a.pos.x + a.size.x, b.pos.x + b.size.x);
+  const f32 y1 = std::min(a.pos.y + a.size.y, b.pos.y + b.size.y);
+  return rect{{x0, y0}, {std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)}};
+}
+
+// The parts of `a` that `b` does not cover: up to four rectangles.
+void subtract(rect a, rect b, std::vector<rect> &out) {
+  const rect in = intersect(a, b);
+  if (!has_area(in)) {
+    out.push_back(a);
+    return;
+  }
+  const f32 ax1 = a.pos.x + a.size.x, ay1 = a.pos.y + a.size.y;
+  const f32 ix1 = in.pos.x + in.size.x, iy1 = in.pos.y + in.size.y;
+  if (in.pos.y > a.pos.y)
+    out.push_back(rect{a.pos, {a.size.x, in.pos.y - a.pos.y}});
+  if (iy1 < ay1)
+    out.push_back(rect{{a.pos.x, iy1}, {a.size.x, ay1 - iy1}});
+  if (in.pos.x > a.pos.x)
+    out.push_back(rect{{a.pos.x, in.pos.y}, {in.pos.x - a.pos.x, in.size.y}});
+  if (ix1 < ax1)
+    out.push_back(rect{{ix1, in.pos.y}, {ax1 - ix1, in.size.y}});
+}
+
+// A part of a queued line, and the colour it is drawn in.
+struct text_piece {
+  rect area;
+  rgba color;
+};
+
+// What is left of a queued line after everything drawn over it since: the
+// piece under a translucent panel keeps the panel's share of the colour, the
+// piece under an opaque one is gone.
+std::vector<text_piece> visible_pieces(const view_state &view, const queued_text &q) {
+  rect area = intersect(q.bounds, rect{{0.0f, 0.0f}, view.size});
+  if (has_area(q.clip))
+    area = intersect(area, q.clip);
+  std::vector<text_piece> pieces;
+  if (has_area(area))
+    pieces.push_back({area, q.color});
+  for (usize k = q.occluders; k < view.occluders.size() && !pieces.empty(); k++) {
+    const text_occluder &o = view.occluders[k];
+    std::vector<text_piece> next;
+    for (const text_piece &p : pieces) {
+      const rect under = intersect(p.area, o.area);
+      if (!has_area(under)) {
+        next.push_back(p);
+        continue;
+      }
+      std::vector<rect> rest;
+      subtract(p.area, o.area, rest);
+      for (const rect &r : rest)
+        next.push_back({r, p.color});
+      if (o.hide || o.color.a >= 0.999f)
+        continue;
+      const f32 a = std::min(o.color.a, 1.0f);
+      next.push_back({under, rgba{p.color.r + (o.color.r - p.color.r) * a,
+                                  p.color.g + (o.color.g - p.color.g) * a,
+                                  p.color.b + (o.color.b - p.color.b) * a, p.color.a}});
+    }
+    pieces.swap(next);
+  }
+  return pieces;
+}
 } // namespace
 
 // Shapes
 
 void draw_rect(const njin_ctx &ctx, rect r, rgba color) {
   DrawRectangleRec(rect_of(r), color_of(color));
-  view_text_cover(ctx.view, r, color);
+  view_text_occlude(ctx.view, r, color);
 }
 
 void draw_rect_lines(const njin_ctx &, rect r, f32 thickness, rgba color) {
@@ -66,20 +137,72 @@ void draw_triangle(const njin_ctx &, vec2 a, vec2 b, vec2 c, rgba color) {
 
 // Text
 
-font_handle font_load(njin_ctx &ctx, const char *path, i32 size) {
-  return font_store_load(ctx.font, path, size);
+font_handle font_load(njin_ctx &ctx, const char *path, i32 size, font_style style) {
+  return font_store_load(ctx.font, path, size, style == font_pixel);
+}
+
+void font_set_style(njin_ctx &ctx, font_handle font, font_style style) {
+  font_store_set_pixel(ctx.font, font, style == font_pixel);
 }
 
 void font_unload(njin_ctx &ctx, font_handle font) {
   font_store_unload(ctx.font, font);
 }
 
+namespace {
+// Text in the UI pass: baked at size * scale and drawn in window pixels, with
+// the pass's transform put aside. A glyph advance is a whole number of pixels,
+// so the same line is a little narrower or wider at another size. The virtual
+// size is what the game measured and aligned with: stretch the gaps until the
+// line is as wide as that, so centred and right-aligned text stays where it was
+// put.
+void draw_text_window(const njin_ctx &ctx, const char *text, vec2 pos, f32 size, rgba color,
+                      font_handle font) {
+  const view_state &view = ctx.view;
+  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size * view.scale));
+  const Font *layout = font_store_atlas(ctx.font, font, font_px(size));
+  if (atlas == nullptr || layout == nullptr)
+    return;
+  f32 spacing = 0.0f;
+  int glyphs = 0;
+  bool one_line = true;
+  for (const char *c = text; *c != '\0'; c++)
+    if (*c == '\n')
+      one_line = false;
+  if (one_line)
+    glyphs = GetCodepointCount(text);
+  if (glyphs > 1) {
+    const f32 want = MeasureTextEx(*layout, text, (f32)layout->baseSize, 0.0f).x * view.scale;
+    const f32 have = MeasureTextEx(*atlas, text, (f32)atlas->baseSize, 0.0f).x;
+    spacing = (want - have) / (f32)(glyphs - 1);
+  }
+  const Vector2 at{std::round(view.offset.x + pos.x * view.scale),
+                   std::round(view.offset.y + pos.y * view.scale)};
+  rlPushMatrix();
+  rlLoadIdentity();
+  DrawTextEx(*atlas, text, at, (f32)atlas->baseSize, spacing, color_of(color));
+  rlPopMatrix();
+}
+} // namespace
+
 void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
                rgba color, font_handle font) {
   if (text == nullptr || text[0] == '\0' || size < 1.0f)
     return;
-  if (view_text_deferred(ctx.view)) {
-    ctx.view.text_layer.push_back(queued_text{text, pos, size, color, font});
+  // The pixel style is meant to be scaled with the rest of the pixels, by the
+  // same nearest filter, so it stays in the virtual image.
+  if (view_text_deferred(ctx.view) && !font_store_is_pixel(ctx.font, font)) {
+    const vec2 m = text_measure(ctx, text, size, font);
+    // Room for the marks above and below the line and the overhang of the glyphs.
+    const f32 margin = size * 0.3f;
+    ctx.view.text_layer.push_back(queued_text{
+        text, pos, size, color, font,
+        rect{{pos.x - margin, pos.y - margin}, {m.x + 2.0f * margin, m.y + 2.0f * margin}},
+        ctx.view.clip, ctx.view.occluders.size()});
+    return;
+  }
+  if (ctx.view.ui_window && ctx.view.offscreen_depth == 0 && !font_store_is_pixel(ctx.font, font)) {
+    draw_text_window(ctx, text, pos, size, color, font);
     return;
   }
   const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
@@ -108,11 +231,10 @@ void text_layer_flush(njin_ctx &ctx) {
   view_state &view = ctx.view;
   std::vector<queued_text> queue;
   queue.swap(view.text_layer);
-  if (queue.empty() || !view_active(view))
+  if (queue.empty() || !view_active(view)) {
+    view.occluders.clear();
     return;
-  // The virtual image is the only place the game draws; the bars stay clean.
-  BeginScissorMode((int)view.offset.x, (int)view.offset.y, (int)(view.size.x * view.scale),
-                   (int)(view.size.y * view.scale));
+  }
   for (const queued_text &q : queue) {
     const Font *atlas = font_store_atlas(ctx.font, q.font, font_px(q.size * view.scale));
     const Font *layout = font_store_atlas(ctx.font, q.font, font_px(q.size));
@@ -132,9 +254,20 @@ void text_layer_flush(njin_ctx &ctx) {
     }
     const Vector2 at{std::round(view.offset.x + q.pos.x * view.scale),
                      std::round(view.offset.y + q.pos.y * view.scale)};
-    DrawTextEx(*atlas, q.text.c_str(), at, (f32)atlas->baseSize, spacing, color_of(q.color));
+    // Each visible part of the line is drawn through a scissor of its own, in
+    // window pixels, so the image's bars stay clean and what is drawn over the
+    // line since it was queued stays over it.
+    for (const text_piece &p : visible_pieces(view, q)) {
+      const int x0 = (int)std::floor(view.offset.x + p.area.pos.x * view.scale);
+      const int y0 = (int)std::floor(view.offset.y + p.area.pos.y * view.scale);
+      const int x1 = (int)std::ceil(view.offset.x + (p.area.pos.x + p.area.size.x) * view.scale);
+      const int y1 = (int)std::ceil(view.offset.y + (p.area.pos.y + p.area.size.y) * view.scale);
+      BeginScissorMode(x0, y0, x1 - x0, y1 - y0);
+      DrawTextEx(*atlas, q.text.c_str(), at, (f32)atlas->baseSize, spacing, color_of(p.color));
+      EndScissorMode();
+    }
   }
-  EndScissorMode();
+  view.occluders.clear();
 }
 
 std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,
@@ -217,10 +350,30 @@ void blend_begin(const njin_ctx &, blend_mode mode) {
 
 void blend_end(const njin_ctx &) { EndBlendMode(); }
 
-void clip_begin(const njin_ctx &, rect area) {
+void clip_begin(const njin_ctx &ctx, rect area) {
+  ctx.view.clip = area;
+  if (ctx.view.ui_window) {
+    // Scissor works in window pixels, whatever the transform is.
+    const view_state &v = ctx.view;
+    const rect image{{0.0f, 0.0f}, v.size};
+    const rect in = intersect(area, image);
+    BeginScissorMode((int)std::floor(v.offset.x + in.pos.x * v.scale),
+                     (int)std::floor(v.offset.y + in.pos.y * v.scale),
+                     (int)std::ceil(in.size.x * v.scale), (int)std::ceil(in.size.y * v.scale));
+    return;
+  }
   BeginScissorMode((int)area.pos.x, (int)area.pos.y, (int)area.size.x,
                    (int)area.size.y);
 }
 
-void clip_end(const njin_ctx &) { EndScissorMode(); }
+void clip_end(const njin_ctx &ctx) {
+  ctx.view.clip = {};
+  EndScissorMode();
+  // The UI pass stays inside the image.
+  if (ctx.view.ui_window) {
+    const view_state &v = ctx.view;
+    BeginScissorMode((int)v.offset.x, (int)v.offset.y, (int)(v.size.x * v.scale),
+                     (int)(v.size.y * v.scale));
+  }
+}
 } // namespace njin

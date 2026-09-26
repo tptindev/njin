@@ -5,17 +5,30 @@
 namespace shared {
 using namespace njin;
 
-void apply_style(njin_ctx &ctx, const char *font_path) {
-  const font_handle font = font_load(ctx, font_path, 16);
+namespace {
+// Corners are square in the pixel style: a rounded corner is a curve, and there
+// is no curve in a pixel grid.
+void square(ui_look &look) {
+  for (ui_skin *skin : {&look.normal, &look.focused, &look.pressed, &look.disabled})
+    skin->roundness = 0.0f;
+}
+} // namespace
+
+void apply_style(njin_ctx &ctx, const char *font_path, font_style style) {
+  const bool pixel = style == font_pixel;
+  const font_handle font = font_load(ctx, font_path, 16, style);
   ui_style s = ui_default_style();
   s.font = font;
   s.font_size = 16.0f;
-  s.padding = 12.0f;
-  s.spacing = 5.0f;
-  s.widget_height = 24.0f;
+  s.padding = pixel ? 10.0f : 12.0f;
+  s.spacing = pixel ? 4.0f : 5.0f;
+  s.widget_height = pixel ? 22.0f : 24.0f;
   s.width = 300.0f;
   s.toast_width = 260.0f;
   s.toast_margin = {10.0f, 10.0f};
+  if (pixel)
+    for (ui_look *look : {&s.panel, &s.button, &s.track, &s.fill, &s.knob, &s.toast})
+      square(*look);
   ui_style_set(ctx, s);
 
   dialog_style d = dialog_default_style();
@@ -45,9 +58,10 @@ bool settings_panel(njin_ctx &ctx, std::span<const rebind_row> rows) {
   }
 
   bool full = window_fullscreen(ctx);
+  bool vsync = window_vsync(ctx);
+  ui_row(ctx, 2);
   if (ui_toggle(ctx, tr(ctx, "settings.fullscreen"), full))
     window_set_fullscreen(ctx, full);
-  bool vsync = window_vsync(ctx);
   if (ui_toggle(ctx, tr(ctx, "settings.vsync"), vsync))
     window_set_vsync(ctx, vsync);
 

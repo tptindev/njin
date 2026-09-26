@@ -6,7 +6,7 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
-## Unreleased
+## 0.3.0
 
 - **Sharper text**: the default font is now JetBrains Mono (SIL OFL), compiled
   into the engine, with the Latin and Vietnamese blocks; before it was raylib's
@@ -20,6 +20,26 @@ To release: edit that header, add a section here, commit, then
   drawn afterwards (fade, flash, modal dim) tints the queued text. `font_load`'s
   `size` is now optional (it only pre-bakes that size). The inspector's font
   entries list the atlases of a font, one per size.
+- **Smooth UI**: `njin_cfg::smooth_ui` draws everything after the world (the
+  screen-space phase, dialogue, toasts, flash, fade) at the window's resolution
+  instead of into the virtual image, so rounded panels, buttons and text stay
+  smooth at any scale while the world keeps its pixels. `njin_topdown` uses it;
+  `njin_platformer` keeps the pixel UI.
+- **Panels fit the screen**: a `ui_begin` panel taller than the screen is shrunk
+  (text included, down to half size) to fit it instead of running off the top and
+  bottom. It settles on the second frame the panel is shown.
+- **Queued text keeps the draw order**: text drawn at window resolution is now
+  covered by what is drawn over it afterwards (`draw_rect`, UI panels, buttons,
+  the dimming behind a popup) and cut by `clip_begin`; before, it sat above all
+  of it, so a game title showed through a settings panel.
+- **Sample** `njin_platformer` is pixel art all the way: VT323 (a pixel font
+  with the Vietnamese blocks, SIL OFL) in `font_pixel`, square UI, integer
+  scaling and no window-resolution text. `shared::apply_style` takes a
+  `font_style`; `njin_topdown` keeps its smooth style.
+- **Pixel text**: `font_set_style(ctx, font, font_pixel)` (or the new `style`
+  argument of `font_load`; a default `{}` handle switches the default font)
+  rasterizes without anti-aliasing and samples with the nearest filter. Pixel
+  text is always drawn in the virtual image, so it scales like the sprites.
 - **The log goes to the inspector while one is connected**: the game's console
   stops printing then, and every message (the window's startup lines included,
   up to 1000 kept from `njin_create`) is sent to `njin_inspector`. With no

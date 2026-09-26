@@ -5,6 +5,7 @@
 #include "njin_window.h"
 #include <algorithm>
 #include <cmath>
+#include <rlgl.h>
 
 namespace njin {
 view_state::~view_state() {
@@ -42,6 +43,8 @@ void view_draw_begin(view_state &view, Color clear) {
   view.world_depth = 0;
   view.offscreen_depth = 0;
   view.text_layer.clear();
+  view.occluders.clear();
+  view.clip = {};
   if (!view_active(view))
     return;
   const i32 w = (i32)view.size.x;
@@ -60,21 +63,59 @@ void view_draw_begin(view_state &view, Color clear) {
   ClearBackground(clear);
 }
 
-void view_text_cover(const view_state &view, rect r, rgba color) {
+void view_text_occlude(const view_state &view, rect area, rgba color, bool hide) {
   if (view.text_layer.empty() || !view_text_deferred(view) || color.a <= 0.0f)
     return;
-  if (r.pos.x > 0.0f || r.pos.y > 0.0f || r.pos.x + r.size.x < view.size.x ||
-      r.pos.y + r.size.y < view.size.y)
+  view.occluders.push_back(text_occluder{area, color, hide});
+}
+
+namespace {
+// The UI pass draws inside the image only, as the virtual target used to. The
+// transform is rlgl's own (applied to each vertex as it is added), not a 2D
+// camera's (the modelview matrix): a line of text can then be drawn without it
+// by pushing an identity, with no flush, and a game's own camera in the pass
+// (BeginMode2D) still works over it.
+void ui_enter(const view_state &view) {
+  BeginScissorMode((int)view.offset.x, (int)view.offset.y, (int)(view.size.x * view.scale),
+                   (int)(view.size.y * view.scale));
+  rlPushMatrix();
+  rlTranslatef(view.offset.x, view.offset.y, 0.0f);
+  rlScalef(view.scale, view.scale, 1.0f);
+}
+
+void ui_leave() {
+  rlPopMatrix();
+  EndScissorMode();
+}
+} // namespace
+
+bool view_ui_begin(view_state &view) {
+  if (!view.smooth_ui || !view.drawing || view.scale == 1.0f)
+    return false;
+  view_draw_end(view);
+  view.ui_window = true;
+  ui_enter(view);
+  return true;
+}
+
+void view_ui_end(view_state &view) {
+  if (!view.ui_window)
     return;
-  const f32 a = std::min(color.a, 1.0f);
-  for (queued_text &q : view.text_layer) {
-    q.color.r += (color.r - q.color.r) * a;
-    q.color.g += (color.g - q.color.g) * a;
-    q.color.b += (color.b - q.color.b) * a;
-  }
+  ui_leave();
+  view.ui_window = false;
+}
+
+void view_ui_suspend(const view_state &view) {
+  if (!view.ui_window)
+    return;
+  ui_leave();
 }
 
 void view_rebind(const view_state &view) {
+  if (view.ui_window) {
+    ui_enter(view);
+    return;
+  }
   if (view.drawing)
     BeginTextureMode(view.target);
 }

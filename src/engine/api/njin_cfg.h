@@ -40,6 +40,15 @@ struct njin_cfg {
   /// (UI, HUD) được vẽ sau khi phóng, từ font dựng đúng cỡ trên màn hình. Xem
   /// trang Vẽ và chữ. Máy chỉ có renderer phần mềm luôn vẽ chữ trong ảnh ảo.
   bool crisp_text = true;
+  /// Vẽ giao diện ở độ phân giải thật của cửa sổ, cho UI mịn. Với độ phân giải ảo
+  /// (`virtual_size`) mặc định cả frame vẽ vào ảnh nhỏ rồi phóng lên bằng lọc
+  /// nearest, nên panel bo góc, nút và thanh trượt bị vỡ hạt theo mức phóng. Bật
+  /// thì world vẫn vẽ trong ảnh ảo (pixel art), còn `phase_post_render` (UI, HUD),
+  /// hội thoại, toast, flash và fade vẽ sau khi ảnh đã phóng, thẳng vào cửa sổ:
+  /// hình khối và chữ đều mịn ở mọi cỡ cửa sổ, tọa độ vẫn tính theo pixel ảo.
+  /// Mặc định tắt: UI giữ nguyên kiểu pixel. Bật thì `crisp_text` không còn cần.
+  /// Xem trang Vẽ và chữ.
+  bool smooth_ui = false;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).

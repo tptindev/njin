@@ -410,12 +410,13 @@ void talk_hint(njin_ctx &ctx) {
   if (g.near_talk == entt::null || !reg.valid(g.near_talk) || dialog_active(ctx))
     return;
   const vec2 pos = reg.get<transform>(g.near_talk).pos + vec2{0.0f, -24.0f + std::sin(elapsed(ctx) * 5.0f)};
-  draw_circle(ctx, pos, 5.0f, {0.1f, 0.1f, 0.15f, 0.8f});
+  draw_circle(ctx, pos, 8.0f, {0.1f, 0.1f, 0.15f, 0.8f});
   const char *key = "E";
   const auto sources = action_sources(ctx, g.interact);
   if (!sources.empty())
     key = input_source_name(sources.front());
-  draw_text(ctx, key, pos - text_measure(ctx, key, 8.0f) * 0.5f, 8.0f, colors::white);
+  const font_handle font = ui_style_get(ctx).font; // the pixel font, at its design size
+  draw_text(ctx, key, pos - text_measure(ctx, key, 16.0f, font) * 0.5f, 16.0f, colors::white, font);
 }
 
 void setup(njin_ctx &ctx) {

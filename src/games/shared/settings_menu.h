@@ -13,7 +13,11 @@ struct rebind_row {
 
 // Loads the Be Vietnam Pro font at the sizes the samples use and sets the UI
 // and dialogue styles for a 640 x 360 screen.
-void apply_style(njin::njin_ctx &ctx, const char *font_path);
+// `style` font_pixel makes it a pixel-art UI: the font is drawn without
+// anti-aliasing (use a pixel font, at a multiple of its design size), panels and
+// widgets are square, and the layout is tighter so the settings fit 360 pixels.
+void apply_style(njin::njin_ctx &ctx, const char *font_path,
+                 njin::font_style style = njin::font_smooth);
 
 // Draws the settings panel. Returns true on the frame the player leaves it
 // (the Back button, Esc, or pad B); settings are saved then.

@@ -53,7 +53,19 @@ whether one of those two needs it.
 One number, `src/engine/api/njin_version.h` (semver, 0.x until the API settles).
 CMake, the startup log, `njin::version()` and the inspector all read it. A
 release edits that header, adds a section to `CHANGELOG.md`, and tags
-`vX.Y.Z`. Bump MINOR for new features, PATCH for fixes only.
+`vX.Y.Z`.
+
+- **MAJOR** (X): a big change. The engine's core changes and may be incompatible
+  with earlier versions. Games written against the old API may need edits.
+- **MINOR** (Y): new features. The engine gains something new but stays
+  compatible with the earlier versions of the same MAJOR line, so an existing
+  game keeps building and behaving the same.
+- **PATCH** (Z): bug fixes. Fixes and security patches only, no new feature.
+
+Bumping a number resets the ones to its right to 0 (`0.2.3` -> `0.3.0`). While
+MAJOR is 0 the API has not settled, so a MINOR bump may still break it; say so
+in the `CHANGELOG.md` section when it does. A change that only fixes a bug never
+raises MINOR, and one that adds anything visible to a game never stays a PATCH.
 
 ## Verifying changes
 

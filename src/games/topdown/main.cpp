@@ -76,7 +76,10 @@ int main() {
                                .resizable = true,
                                .app_name = "OldStoneForest",
                                .virtual_size = {640.0f, 360.0f},
-                               .integer_scale = false});
+                               .integer_scale = false,
+                               // The world is pixels; the UI is drawn smooth, at the window's
+                               // resolution.
+                               .smooth_ui = true});
   g.title = scene_register(*ctx, {.name = "title", .on_enter = title_enter});
   g.play = scene_register(*ctx, {.name = "play", .on_enter = play_enter, .on_exit = play_exit});
   g.win = scene_register(*ctx, {.name = "win", .on_enter = end_enter});

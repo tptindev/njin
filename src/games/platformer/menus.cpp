@@ -28,7 +28,7 @@ void text_centered(njin_ctx &ctx, const char *text, f32 y, f32 size, rgba color,
 
 void title_draw(njin_ctx &ctx) {
   const f32 t = elapsed(ctx);
-  text_centered(ctx, tr(ctx, "game.title"), 60.0f + std::sin(t * 2.0f) * 3.0f, 40.0f,
+  text_centered(ctx, tr(ctx, "game.title"), 60.0f + std::sin(t * 2.0f) * 3.0f, 32.0f,
                 {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
   // The hero, bouncing.
   texture_draw_ex(ctx, g.sprites,
@@ -63,7 +63,7 @@ void card_draw(njin_ctx &ctx) {
   const bool second = g.level_file.find("level2") != std::string::npos;
   const char *name = tr(ctx, second ? "level.2" : "level.1");
   draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, {0.08f, 0.09f, 0.14f, 1.0f});
-  text_centered(ctx, name, 150.0f, 40.0f, colors::white, g_big);
+  text_centered(ctx, name, 150.0f, 32.0f, colors::white, g_big);
 }
 
 // --- play: HUD and pause ---
@@ -116,7 +116,7 @@ void hud(njin_ctx &ctx) {
 // --- win ---
 
 void win_draw(njin_ctx &ctx) {
-  text_centered(ctx, tr(ctx, "win.title"), 50.0f, 36.0f, {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
+  text_centered(ctx, tr(ctx, "win.title"), 50.0f, 32.0f, {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
   ui_begin(ctx, {.id = "win", .anchor = {0.5f, 0.62f}, .width = 260.0f});
   ui_label(ctx, trf(ctx, "win.coins", {std::to_string(g.run_coins), std::to_string(g.run_total)}).c_str());
   ui_label(ctx, trf(ctx, "win.time", {format_time(g.run_time)}).c_str());
@@ -134,7 +134,8 @@ void win_draw(njin_ctx &ctx) {
 }
 
 void setup(njin_ctx &ctx) {
-  g_big = font_load(ctx, "assets/fonts/BeVietnamPro-Bold.ttf", 40);
+  // VT323 is drawn at multiples of 16: 32 for titles, 16 for the rest.
+  g_big = font_load(ctx, "assets/fonts/VT323-Regular.ttf", 32, font_pixel);
   const scene_handle card = scene_find(ctx, "card");
   ecs_register(ctx, phase_pre_render, sys_desc{.fnc = screen_backdrop, .scene = g.title, .name = "screen_backdrop"});
   ecs_register(ctx, phase_post_render, sys_desc{.fnc = title_draw, .scene = g.title, .name = "title_draw"});

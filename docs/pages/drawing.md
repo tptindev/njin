@@ -42,6 +42,36 @@ nên căn giữa và căn phải khớp với chữ được vẽ.
 Nạp thất bại (file thiếu, không đọc được) trả về handle id 0, nên chữ tự rơi về font mặc
 định thay vì biến mất.
 
+### Chữ kiểu pixel
+
+njin::font_set_style() với njin::font_pixel (hoặc tham số `style` của njin::font_load()) tắt
+khử răng cưa và dùng lọc nearest: mỗi texel của glyph hoặc bật hoặc tắt, và chữ được phóng bằng
+cùng bộ lọc nearest với sprite. Handle rỗng `{}` đổi font mặc định.
+
+@snippet drawing.cpp pixel_text
+
+Kiểu này **chỉ nét ở đúng cỡ font được thiết kế**: một font pixel như Press Start 2P thiết kế
+ở 8 pixel thì vẽ ở 8, 16, 24. Font vector thường (như JetBrains Mono) ở cỡ nhỏ sẽ răng cưa và
+khó đọc. Chữ pixel luôn vẽ trong ảnh ảo, không đi qua lớp chữ nét bên dưới, nên hãy bật
+`integer_scale` để mọi pixel chữ to bằng nhau.
+
+### UI mịn trên màn hình có độ phân giải ảo
+
+Ngoài chữ, panel bo góc, nút, thanh trượt và mọi hình vẽ trong ảnh nhỏ cũng bị vỡ hạt khi
+phóng bằng lọc nearest. Đặt njin::njin_cfg::smooth_ui thì **world vẫn vẽ trong ảnh ảo** (pixel
+art), còn `phase_post_render` (UI, HUD), hội thoại, toast, flash và fade được vẽ **sau khi ảnh đã
+phóng**, thẳng vào cửa sổ: engine đặt một phép biến đổi (dời và nhân với mức phóng) nên tọa độ
+vẫn theo pixel ảo, nhưng hình khối được rasterize ở độ phân giải cửa sổ, và chữ dựng ở cỡ chữ
+nhân với mức phóng. Thứ tự vẽ giữ nguyên hoàn toàn, không có đánh đổi về chồng lớp như lớp chữ
+bên dưới. Với chế độ này `crisp_text` không còn tác dụng.
+
+Lưu ý:
+- njin::clip_begin() vẫn nhận tọa độ pixel ảo. Shader của UI skin nhận `uiRect` theo pixel cửa sổ.
+- Texture vẽ trong UI được lọc theo njin::texture_filter của nó ở độ phân giải cửa sổ, nên
+  icon pixel art cần njin::filter_nearest để giữ vẻ pixel.
+- Font pixel vẫn được phóng bằng lọc nearest như sprite.
+- Không có tác dụng khi mức phóng bằng 1.
+
 ### Chữ nét trên màn hình có độ phân giải ảo
 
 Với njin::njin_cfg::virtual_size, cả frame được vẽ vào một ảnh nhỏ (ví dụ 640x360) rồi phóng
@@ -53,9 +83,13 @@ Vị trí vẫn theo pixel ảo, và mỗi dòng được dãn khoảng cách ch
 njin::text_measure() đã đo.
 
 Đánh đổi:
-- Chữ trên màn hình nằm **trên** mọi thứ vẽ trong ảnh ảo, kể cả panel vẽ sau nó. Hình chữ
-  nhật phủ **cả màn hình** vẽ sau (fade scene, flash, lớp làm tối sau popup) thì làm tối cả chữ
-  đã xếp hàng, như khi chúng phủ lên chữ thật.
+- Chữ xếp hàng nằm trên ảnh ảo, nên engine ghi lại những gì được vẽ **sau** chữ và phủ lên nó:
+  njin::draw_rect() và nền, nút, thanh trượt của UI. Phần chữ nằm dưới một hình mờ (fade, flash,
+  lớp làm tối sau popup, panel bán trong suốt) được trộn về màu của hình đó; dưới hình đục thì
+  bị bỏ. Nhờ vậy panel vẽ sau che được chữ vẽ trước, đúng thứ tự vẽ. Sprite và texture vẽ sau
+  chữ thì **không** che được nó; chữ cần nằm dưới chúng thì vẽ chữ trước bằng font pixel hoặc
+  trong world.
+- njin::clip_begin() được tôn trọng: chữ xếp hàng bị cắt theo vùng clip lúc nó được vẽ.
 - Chữ trong world (giữa `phase_render` với camera) và chữ vẽ vào render texture vẫn vẽ trong
   ảnh ảo, vì chúng thuộc về không gian và ảnh đó.
 - Máy chỉ có renderer phần mềm (llvmpipe, SwiftShader, GDI Generic) luôn vẽ chữ trong ảnh

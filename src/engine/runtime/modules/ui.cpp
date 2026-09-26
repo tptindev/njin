@@ -23,6 +23,10 @@ constexpr f32 repeat_rate = 0.08f;
 // A stick past this counts as a pressed direction.
 constexpr f32 stick_threshold = 0.5f;
 constexpr i32 max_pads = 4;
+// Room left above and below a panel that had to be shrunk (before `scale`), and
+// how far it may shrink.
+constexpr f32 panel_screen_margin = 6.0f;
+constexpr f32 min_panel_fit = 0.5f;
 
 enum widget_state { state_normal, state_focused, state_pressed, state_disabled };
 
@@ -73,7 +77,15 @@ void draw_skin(njin_ctx &ctx, const ui_cmd &c) {
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
     const f32 time = ctx.time.elapsed;
-    const f32 area[4] = {c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
+    f32 area[4] = {c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
+    if (ctx.view.ui_window) {
+      // The shader runs on window pixels in the smooth UI pass.
+      const view_state &v = ctx.view;
+      area[0] = v.offset.x + area[0] * v.scale;
+      area[1] = v.offset.y + area[1] * v.scale;
+      area[2] *= v.scale;
+      area[3] *= v.scale;
+    }
     set_uniform_quiet(*sh, "uiState", &c.state, SHADER_UNIFORM_FLOAT);
     set_uniform_quiet(*sh, "uiTime", &time, SHADER_UNIFORM_FLOAT);
     set_uniform_quiet(*sh, "uiRect", area, SHADER_UNIFORM_VEC4);
@@ -112,6 +124,11 @@ void draw_skin(njin_ctx &ctx, const ui_cmd &c) {
   }
   if (sh != nullptr)
     EndShaderMode();
+  // Text queued before this skin is under it (see view_state::text_layer). An
+  // image skin has colours of its own, so it hides what is under it. A skin with
+  // a shader draws whatever the shader decides, so it is left alone.
+  if (sh == nullptr)
+    view_text_occlude(ctx.view, c.area, s.color, texture_slot_of(ctx.texture, s.texture) != nullptr);
 }
 
 void flush(njin_ctx &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
@@ -336,7 +353,7 @@ void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, frame_begin, "fr
 
 // --- layout ---
 
-f32 sc(const ui_state &ui, f32 v) { return v * ui.style.scale; }
+f32 sc(const ui_state &ui, f32 v) { return v * ui.style.scale * ui.fit; }
 f32 font_px(const ui_state &ui) { return sc(ui, ui.style.font_size); }
 
 // Takes the next slot of height `h` in the panel (a column of the current
@@ -500,12 +517,23 @@ void ui_begin(njin_ctx &ctx, const ui_panel_desc &desc) {
   ui.panel_background = desc.background;
   ui.cmds.clear();
   ui.row_cols = 0;
+  const vec2 screen = screen_size(ctx);
+  // A panel taller than the screen would run off it, top and bottom: shrink
+  // its sizes (text included) by the factor that makes it fit, down to half.
+  // The height it would have unshrunk is known from the frame before.
+  ui.fit = 1.0f;
+  const auto nat = ui.natural.find(ui.panel_id);
+  if (nat != ui.natural.end() && nat->second > 0.0f) {
+    const f32 room = screen.y - 2.0f * sc(ui, panel_screen_margin);
+    ui.fit = std::clamp(room / nat->second, min_panel_fit, 1.0f);
+  }
   const f32 width = sc(ui, desc.width > 0.0f ? desc.width : ui.style.width);
   // The height is last frame's: the panel is placed before its content is
   // known. It settles on the first frame a panel is shown.
   const auto h = ui.heights.find(ui.panel_id);
-  const f32 height = h != ui.heights.end() ? h->second : 0.0f;
-  const vec2 screen = screen_size(ctx);
+  f32 height = h != ui.heights.end() ? h->second : 0.0f;
+  if (nat != ui.natural.end())
+    height = nat->second * ui.fit;
   const vec2 size{width, height};
   ui.panel = rect{screen * desc.anchor - size * desc.pivot + desc.offset, size};
   ui.cursor = ui.panel.pos.y + sc(ui, ui.style.padding);
@@ -531,6 +559,8 @@ void ui_end(njin_ctx &ctx) {
   }
   const f32 height = ui.cursor - sc(ui, ui.style.spacing) + sc(ui, ui.style.padding) - ui.panel.pos.y;
   ui.heights[ui.panel_id] = height;
+  ui.natural[ui.panel_id] = height / ui.fit;
+  ui.fit = 1.0f;
   rect bg = ui.panel;
   bg.size.y = height;
   ui.panels.push_back(bg);

@@ -225,15 +225,21 @@ vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle) {
 }
 
 void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle) {
+  view_ui_suspend(ctx.view);
   if (render_texture_store_begin(ctx.render_texture, handle))
     ctx.view.offscreen_depth++;
+  else if (ctx.view.ui_window)
+    view_rebind(ctx.view);
 }
 
 void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
                           rgba clear) {
+  view_ui_suspend(ctx.view);
   if (render_texture_store_begin(ctx.render_texture, handle)) {
     ctx.view.offscreen_depth++;
     render_texture_store_clear(clear);
+  } else if (ctx.view.ui_window) {
+    view_rebind(ctx.view);
   }
 }
 
