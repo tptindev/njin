@@ -81,6 +81,7 @@ như đi trên băng.
 ## Bước tiếp theo
 
 - @ref topdown : sắp xếp theo Y (cây che nhân vật), quái đuổi theo bằng A\*, kiếm
-- @ref level : thay đoạn đặt ô bằng một màn vẽ trong Tiled hoặc LDtk
+- @ref tilemap : viết bản đồ bằng chữ thay cho vòng `for` (njin::tilemap_from_text()), không cần editor
+- @ref level : hoặc thay đoạn đặt ô bằng một màn vẽ trong Tiled hoặc LDtk
 - @ref sprites và @ref animation : thay hình chữ nhật bằng nhân vật có animation
 - @ref cheatsheet : "muốn làm X thì dùng hàm nào"

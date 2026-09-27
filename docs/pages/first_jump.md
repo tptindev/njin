@@ -104,6 +104,7 @@ reg.emplace<njin::platformer_body>(player, body);
 - @ref platformer : dốc, bục di chuyển, nhảy tường, camera giới hạn trong màn chơi
 - @ref first_walk : cùng cách làm, cho game nhìn từ trên xuống
 - @ref ecs : nếu `registry.emplace<...>` và `view` còn lạ
-- @ref level : thay đoạn đặt ô bằng một màn vẽ trong Tiled hoặc LDtk
+- @ref tilemap : viết bản đồ bằng chữ thay cho vòng `for` (njin::tilemap_from_text()), không cần editor
+- @ref level : hoặc thay đoạn đặt ô bằng một màn vẽ trong Tiled hoặc LDtk
 - @ref sprites và @ref animation : thay hình chữ nhật bằng nhân vật có animation
 - @ref cheatsheet : "muốn làm X thì dùng hàm nào"

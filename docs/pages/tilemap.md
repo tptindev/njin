@@ -18,6 +18,38 @@ của ô (0, 0) trong thế giới.
 Tilemap **không có kích thước cố định** và tọa độ ô có thể âm: đặt ô ở đâu thì bản đồ
 mở rộng tới đó.
 
+## Viết bản đồ bằng chữ
+
+Không muốn dùng Tiled hay LDtk? Viết bản đồ như ngày xưa: mỗi ký tự là một ô.
+njin::tilemap_from_text() đọc một chuỗi nhiều dòng (viết thẳng trong code, hoặc đọc từ một file văn bản bằng
+njin::file_read()), còn njin::tilemap_from_rows() nhận từng hàng riêng cho bản đồ nhỏ.
+
+@include tilemap_text.cpp
+
+Tham số thứ ba là **bảng ký tự** (njin::tile_key): ký tự nào đặt ô số mấy. Ở ví dụ trên `#` là ô 7 (tường đá) và `.` là ô 0
+(cỏ). Ký tự không có trong bảng thì có hai trường hợp:
+
+- ` `, `.` và tab là **ô trống**;
+- mọi ký tự khác là **điểm đánh dấu**: hàm không đặt ô nào, mà trả về vị trí của nó trong một danh sách
+  njin::tile_marker (theo thứ tự đọc, từ trên xuống và trái sang phải). Đây là chỗ để đặt điểm xuất hiện
+  của người chơi (`P`), kẻ địch (`E`), đồng xu, cửa... Tự tạo entity ở đúng ô đó; njin::tilemap_cell_rect() đổi ô
+  thành vị trí trong thế giới.
+
+Một ký tự có thể vừa đặt ô vừa được báo lại: `{'P', 0, true}` đặt ô cỏ 0 dưới chân nhân vật **và** báo vị trí của `P`,
+để không có lỗ hổng dưới người chơi.
+
+| Quy tắc | Chi tiết |
+|---|---|
+| Vị trí | Dòng đầu là hàng 0, ký tự đầu là cột 0, cộng thêm tham số `origin` nếu có. Các hàng dài ngắn khác nhau được |
+| Dòng đầu chuỗi | Nếu chuỗi bắt đầu bằng xuống dòng thì xuống dòng đó bị bỏ, để viết `R"(` rồi xuống dòng mới đến hàng đầu. Dòng cuối kết thúc bằng xuống dòng không thêm hàng rỗng |
+| Kết thúc dòng Windows | `\r\n` được hiểu đúng, không có ký tự `\r` lạc |
+| Chồng lớp | Ô trống và điểm đánh dấu **không đụng** tới ô đang có, nên gọi nhiều lần cho nhiều lớp (nền, rồi vật trang trí). Muốn xóa một ô, ghi rõ trong bảng: `{'x', -1}` |
+| Hình va chạm | Ký tự trong bảng gọi njin::tilemap_set(), nên njin::tilemap_set_shape() và njin::tilemap_animate() áp dụng như bình thường |
+
+@note Bản đồ chữ chỉ dựng **ô** và báo vị trí. Nó không tạo entity, không có thuộc tính hay đối tượng
+như Tiled/LDtk (xem @ref level). Muốn có những thứ đó thì đọc danh sách njin::tile_marker rồi tạo entity, hoặc
+dùng njin::prefab_spawn() (@ref prefabs) cho từng ký tự. Muốn lưu bản đồ ra file thì ghi lại chính chuỗi chữ.
+
 ## Chunking
 
 Ô được lưu và vẽ theo **chunk**: khối 32 x 32 ô (njin::tile_chunk_size).

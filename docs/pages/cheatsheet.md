@@ -52,6 +52,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Muốn | Dùng | Xem |
 |---|---|---|
 | Vẽ bản đồ ô vuông bằng code | njin::tilemap, njin::tilemap_set() | @ref tilemap |
+| Viết bản đồ bằng chữ, mỗi ký tự một ô (không cần Tiled hay LDtk) | njin::tilemap_from_text(), njin::tilemap_from_rows() | @ref tilemap |
 | Ô là dốc, bục một chiều, không va chạm | njin::tilemap_set_shape() | @ref platformer |
 | Nước, đuốc chuyển động | njin::tilemap_animate() | @ref tilemap |
 | Nạp màn chơi vẽ trong Tiled hoặc LDtk | njin::level_load(), njin::level_load_ldtk() | @ref level |

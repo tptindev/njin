@@ -1,7 +1,8 @@
 # Level từ Tiled và LDtk {#level}
 
 Vẽ màn chơi trong editor, không viết cứng trong code. njin đọc được file của hai editor 2D
-phổ biến, bằng cùng một hàm:
+phổ biến, bằng cùng một hàm. Không dùng editor? Viết bản đồ bằng chữ, mỗi ký tự một ô: xem
+@ref tilemap.
 
 | Editor | File | Ghi chú |
 |---|---|---|

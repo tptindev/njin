@@ -2,6 +2,8 @@
 #include "_collide.h"
 #include <array>
 #include <cmath>
+#include <initializer_list>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -289,6 +291,115 @@ inline void tilemap_set(tilemap &map, i32 x, i32 y, i32 id) {
 inline void tilemap_clear(tilemap &map) {
   map.chunks.clear();
   ++map.revision;
+}
+
+/// Một dòng trong bảng ký tự của bản đồ chữ: ký tự này đặt ô nào. Dùng với
+/// tilemap_from_text() và tilemap_from_rows().
+///
+/// Ký tự không có trong bảng: ` `, `.` và tab là ô trống, mọi ký tự khác được
+/// báo lại cho game như một tile_marker (điểm xuất hiện, kẻ địch, đồng xu).
+struct tile_key {
+  char symbol;         ///< Ký tự trong bản đồ chữ.
+  i32 tile;            ///< Số thứ tự ô đặt cho ký tự này. -1 là xóa ô (ô trống).
+  bool marker = false; ///< `true`: ngoài việc đặt ô, còn báo vị trí ký tự này về cho game.
+};
+
+/// Vị trí của một ký tự mà bản đồ chữ chỉ dùng để **đánh dấu**: người chơi, kẻ địch, đồng xu.
+/// Dùng njin::tilemap_cell_rect() để đổi ô thành vị trí trong thế giới.
+struct tile_marker {
+  char symbol; ///< Ký tự đã gặp.
+  cell at;     ///< Ô của nó, kể cả `origin` đã cộng vào.
+};
+
+/// @cond INTERNAL
+inline void tilemap_apply_row(tilemap &map, std::string_view row, i32 y, std::initializer_list<tile_key> legend,
+                              cell origin, std::vector<tile_marker> &markers) {
+  for (usize i = 0; i < row.size(); i++) {
+    const char c = row[i];
+    const cell at{origin.x + (i32)i, origin.y + y};
+    const tile_key *key = nullptr;
+    for (const tile_key &k : legend)
+      if (k.symbol == c) {
+        key = &k;
+        break;
+      }
+    if (key != nullptr) {
+      tilemap_set(map, at.x, at.y, key->tile);
+      if (key->marker)
+        markers.push_back({c, at});
+    } else if (c != ' ' && c != '.' && c != '\t') {
+      markers.push_back({c, at});
+    }
+  }
+}
+/// @endcond
+
+/// Dựng bản đồ từ một chuỗi nhiều dòng, mỗi ký tự là một ô: cách viết bản đồ "kiểu truyền thống", không cần
+/// Tiled hay LDtk. Chuỗi có thể viết thẳng trong code hoặc đọc từ file bằng njin::file_read().
+/// @code
+/// const auto markers = njin::tilemap_from_text(map, R"(
+/// ####################
+/// #..P......E........#
+/// #.....####.........#
+/// ####################
+/// )", {{'#', 7}, {'P', 0, true}});
+/// // '#' thành ô số 7. 'P' thành ô số 0 (nền dưới chân) và được báo lại; 'E' không có trong bảng nên
+/// // chỉ được báo lại; '.' là ô trống. Rồi tạo người chơi và kẻ địch ở đúng ô của chúng.
+/// @endcode
+/// Quy tắc:
+/// - dòng đầu là hàng 0, ký tự đầu là cột 0 (cộng thêm `origin`). Các dòng có thể dài ngắn khác nhau;
+/// - nếu chuỗi bắt đầu bằng xuống dòng thì xuống dòng đó bị bỏ, để viết `R"(` rồi xuống dòng mới đến hàng đầu.
+///   Dòng cuối kết thúc bằng xuống dòng không tạo thêm một hàng rỗng; dòng rỗng ở giữa vẫn tính là một hàng;
+/// - kết thúc dòng kiểu Windows (`\r\n`) được hiểu đúng;
+/// - ô trống (` `, `.`, tab) và ký tự chỉ đánh dấu **không đụng** tới ô đang có, nên gọi nhiều lần để chồng
+///   các lớp được. Muốn xóa ô thì ghi rõ trong bảng: `{'.', -1}`;
+/// - ký tự trong bảng gọi njin::tilemap_set() nên hình va chạm và animation của ô (njin::tilemap_set_shape,
+///   njin::tilemap_animate) áp dụng như khi đặt bằng tay.
+/// @param map Tilemap cần đặt ô. Cần `tileset` và `tile_size` như mọi tilemap khác.
+/// @param text Bản đồ chữ.
+/// @param legend Bảng ký tự. Để trống thì mọi ký tự (trừ ` `, `.`, tab) chỉ được báo lại.
+/// @param origin Ô của ký tự đầu tiên. Mặc định `(0, 0)`.
+/// @return Các ký tự đánh dấu, theo thứ tự đọc: từ trên xuống, trái sang phải.
+inline std::vector<tile_marker> tilemap_from_text(tilemap &map, std::string_view text,
+                                                  std::initializer_list<tile_key> legend = {}, cell origin = {}) {
+  std::vector<tile_marker> markers;
+  usize pos = 0;
+  if (text.starts_with("\r\n"))
+    pos = 2;
+  else if (text.starts_with('\n'))
+    pos = 1;
+  i32 y = 0;
+  while (pos < text.size()) {
+    usize end = text.find('\n', pos);
+    if (end == std::string_view::npos)
+      end = text.size();
+    std::string_view row = text.substr(pos, end - pos);
+    if (!row.empty() && row.back() == '\r')
+      row.remove_suffix(1);
+    tilemap_apply_row(map, row, y, legend, origin, markers);
+    pos = end + 1;
+    y++;
+  }
+  return markers;
+}
+
+/// Như tilemap_from_text(), nhưng mỗi hàng là một chuỗi riêng. Gọn hơn cho bản đồ nhỏ viết ngay trong code,
+/// và không phải lo chuyện xuống dòng đầu chuỗi.
+/// @code
+/// const auto markers = njin::tilemap_from_rows(map, {"#####", "#.P.#", "#####"}, {{'#', 7}});
+/// @endcode
+/// @param map Tilemap cần đặt ô.
+/// @param rows Các hàng, từ trên xuống.
+/// @param legend Bảng ký tự. Xem njin::tile_key.
+/// @param origin Ô của ký tự đầu tiên. Mặc định `(0, 0)`.
+/// @return Các ký tự đánh dấu, theo thứ tự đọc.
+inline std::vector<tile_marker> tilemap_from_rows(tilemap &map, std::initializer_list<std::string_view> rows,
+                                                  std::initializer_list<tile_key> legend = {}, cell origin = {}) {
+  std::vector<tile_marker> markers;
+  i32 y = 0;
+  for (const std::string_view row : rows)
+    tilemap_apply_row(map, row, y++, legend, origin, markers);
+  return markers;
 }
 
 /// Ô chứa một điểm trong thế giới.
