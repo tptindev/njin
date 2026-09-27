@@ -9,7 +9,7 @@ set GAME=%1
 if "%GAME%"=="" set GAME=debug_demo
 
 echo [1/2] Building njin_%GAME% and njin_inspector...
-cmake --build build --target njin_%GAME% njin_inspector --parallel
+cmake --build --preset debug --target njin_%GAME% njin_inspector --parallel
 if errorlevel 1 goto error
 
 echo [2/2] Starting the inspector and njin_%GAME%...

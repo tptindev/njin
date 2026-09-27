@@ -3,7 +3,7 @@ cd /d "%~dp0"
 
 echo [1/2] Building sandbox...
 
-cmake --build build --target njin_sandbox --parallel
+cmake --build --preset debug --target njin_sandbox --parallel
 
 if errorlevel 1 goto error
 

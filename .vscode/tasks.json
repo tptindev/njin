@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "game",
+      "type": "pickString",
+      "description": "Game to run with the inspector",
+      "default": "debug_demo",
+      "options": [
+        "debug_demo",
+        "sandbox",
+        "pong",
+        "platformer",
+        "topdown",
+        "render_demo",
+        "tower_defense",
+        "dr_mote"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      // Ctrl+Shift+B: the same as build.bat, without the pause.
+      "label": "njin: build",
+      "type": "cmake",
+      "command": "build",
+      "preset": "debug",
+      "targets": ["all"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "njin: run with inspector",
+      "type": "process",
+      "command": "${workspaceFolder}/run_inspected.bat",
+      "args": ["${input:game}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
+    }
+  ]
+}

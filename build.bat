@@ -3,10 +3,9 @@ cd /d "%~dp0"
 
 echo [1/3] Configuring Njin...
 
-cmake -S . -B build ^
-    -G Ninja ^
-    -DCMAKE_BUILD_TYPE=Debug ^
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+rem The "debug" preset in CMakePresets.json: Ninja, Debug, build/. VS Code
+rem (CMake Tools) uses the same preset, so both build the same way.
+cmake --preset debug
 
 if errorlevel 1 goto error
 
@@ -18,7 +17,7 @@ if errorlevel 1 goto error
 
 echo [3/3] Building Njin...
 
-cmake --build build --parallel
+cmake --build --preset debug --parallel
 
 if errorlevel 1 goto error
 

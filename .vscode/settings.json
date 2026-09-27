@@ -1,0 +1,21 @@
+{
+  // CMake Tools builds from CMakePresets.json, the same "debug" preset that
+  // build.bat, run.bat and run_inspected.bat use: Ninja, Debug, build/.
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": true,
+  "cmake.buildBeforeRun": true,
+  "cmake.saveBeforeBuild": true,
+  "cmake.parallelJobs": 0,
+  // What build.bat does after configuring: clangd reads the copy at the root.
+  "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+  // Build, Run and Debug buttons, and the target pickers, in the status bar.
+  "cmake.options.statusBarVisibility": "visible",
+  // Run and Debug start the game from its own folder (build/bin/<game>/), where
+  // its assets are copied.
+  "cmake.debugConfig": {
+    "cwd": "${command:cmake.launchTargetDirectory}",
+    "MIMode": "gdb",
+    "miDebuggerPath": "gdb",
+    "externalConsole": false
+  }
+}
