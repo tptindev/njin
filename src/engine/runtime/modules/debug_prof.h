@@ -1,4 +1,5 @@
 #pragma once
+#include "../njin_internal_only.h"
 #include "njin_json.h"
 #include "_tilemap.h"
 #include "njin_level.h"

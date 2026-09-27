@@ -31,6 +31,116 @@ function(njin_add_assets target dir)
   add_dependencies(${target} ${target}_${name})
 endfunction()
 
+# njin_check_boundary()
+#
+# Runs by itself at the end of configure (deferred below). Every target that
+# links njin and is not part of the engine (NJIN_ENGINE_INTERNAL off) is a
+# game, and a game reaches raylib only through njin. Configure fails when a
+# game links raylib or GLFW, directly or through a library that passes it on,
+# or has on its include path the runtime folder or any folder holding
+# raylib.h or GLFW/glfw3.h. The compile-time half of the boundary is in
+# src/engine/api/CMakeLists.txt.
+function(_njin_forbidden_link item out)
+  set(${out} "" PARENT_SCOPE)
+  # A static library's private dependencies show as $<LINK_ONLY:x>: linked, but
+  # no headers pass on. That is how njin_rt carries raylib, and it is allowed.
+  if(item MATCHES "^\\$<LINK_ONLY:")
+    return()
+  endif()
+  if(TARGET ${item})
+    get_target_property(real ${item} ALIASED_TARGET)
+    if(NOT real)
+      set(real ${item})
+    endif()
+    if(real MATCHES "^(raylib|glfw.*)$")
+      set(${out} "${item}" PARENT_SCOPE)
+      return()
+    endif()
+    get_property(visited GLOBAL PROPERTY _NJIN_BOUNDARY_VISITED)
+    if(real IN_LIST visited)
+      return()
+    endif()
+    set_property(GLOBAL APPEND PROPERTY _NJIN_BOUNDARY_VISITED ${real})
+    get_target_property(deps ${real} INTERFACE_LINK_LIBRARIES)
+    if(deps)
+      foreach(dep IN LISTS deps)
+        _njin_forbidden_link("${dep}" found)
+        if(found)
+          set(${out} "${found} (through ${item})" PARENT_SCOPE)
+          return()
+        endif()
+      endforeach()
+    endif()
+  elseif(item MATCHES "(^|[/\\\\]|-l)(lib)?(raylib|glfw)[^/\\\\]*$")
+    set(${out} "${item}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(_njin_check_target target runtime_dir guard_dir)
+  get_target_property(type ${target} TYPE)
+  if(type STREQUAL "INTERFACE_LIBRARY" OR type STREQUAL "UTILITY")
+    return()
+  endif()
+  get_target_property(internal ${target} NJIN_ENGINE_INTERNAL)
+  if(internal)
+    return()
+  endif()
+  get_target_property(links ${target} LINK_LIBRARIES)
+  if(NOT links)
+    return()
+  endif()
+  if(NOT links MATCHES "(^|;)njin(::|_)(rt|api)(;|$)")
+    return()
+  endif()
+  foreach(item IN LISTS links)
+    set_property(GLOBAL PROPERTY _NJIN_BOUNDARY_VISITED "")
+    _njin_forbidden_link("${item}" found)
+    if(found)
+      message(FATAL_ERROR
+        "njin: game target '${target}' links ${found}. Games reach raylib only "
+        "through njin (njin::rt); add what is missing to src/engine/api.")
+    endif()
+  endforeach()
+  get_target_property(dirs ${target} INCLUDE_DIRECTORIES)
+  if(dirs)
+    foreach(dir IN LISTS dirs)
+      if(dir MATCHES "\\$<")
+        continue()
+      endif()
+      cmake_path(NORMAL_PATH dir OUTPUT_VARIABLE dir)
+      cmake_path(IS_PREFIX runtime_dir "${dir}" NORMALIZE under_runtime)
+      if(under_runtime
+         OR (NOT dir STREQUAL guard_dir
+             AND (EXISTS "${dir}/raylib.h" OR EXISTS "${dir}/GLFW/glfw3.h")))
+        message(FATAL_ERROR
+          "njin: game target '${target}' has '${dir}' on its include path. "
+          "Games include njin.h only, not raylib or the engine runtime.")
+      endif()
+    endforeach()
+  endif()
+endfunction()
+
+function(_njin_check_dir dir runtime_dir guard_dir)
+  get_property(targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(target IN LISTS targets)
+    _njin_check_target(${target} "${runtime_dir}" "${guard_dir}")
+  endforeach()
+  get_property(subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+  foreach(sub IN LISTS subdirs)
+    _njin_check_dir("${sub}" "${runtime_dir}" "${guard_dir}")
+  endforeach()
+endfunction()
+
+function(njin_check_boundary)
+  # Deferred calls run in the top-level scope, which may be a parent project,
+  # so the njin folder comes from where this function is defined.
+  set(root "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/..")
+  cmake_path(NORMAL_PATH root)
+  _njin_check_dir("${CMAKE_SOURCE_DIR}" "${root}src/engine/runtime"
+                  "${root}src/engine/guard")
+endfunction()
+cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL njin_check_boundary)
+
 # The icon and version resource of njin_package need the resource compiler.
 # enable_language only works at file scope, so it is switched on here.
 if(WIN32)

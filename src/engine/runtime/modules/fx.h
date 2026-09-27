@@ -1,4 +1,5 @@
 #pragma once
+#include "../njin_internal_only.h"
 #include "njin_fx.h"
 #include <raylib.h>
 

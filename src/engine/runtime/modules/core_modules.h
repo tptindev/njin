@@ -1,4 +1,5 @@
 #pragma once
+#include "../njin_internal_only.h"
 
 namespace njin {
 struct njin_ctx;

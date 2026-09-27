@@ -17,6 +17,10 @@ add_library(njin_rt STATIC ${NJIN_RT_SOURCES}
                            "${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp")
 add_library(njin::rt ALIAS njin_rt)
 
+# Engine side of the boundary: raylib and the runtime headers are allowed here
+# (see src/engine/api/CMakeLists.txt).
+set_target_properties(njin_rt PROPERTIES NJIN_ENGINE_INTERNAL ON)
+
 # raylib stays private. EnTT is part of the public ECS API through njin::api.
 target_link_libraries(
   njin_rt

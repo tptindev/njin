@@ -1,4 +1,5 @@
 #pragma once
+#include "njin_internal_only.h"
 
 namespace njin {
 // Asks the system to run the game on the discrete GPU of a laptop that has two,

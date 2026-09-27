@@ -1,4 +1,5 @@
 #pragma once
+#include "njin_internal_only.h"
 
 namespace njin {
 // Routes raylib's TraceLog output through the njin logger. Call before

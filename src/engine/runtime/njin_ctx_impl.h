@@ -1,4 +1,5 @@
 #pragma once
+#include "njin_internal_only.h"
 
 #include "_random.h"
 #include "_types.h"

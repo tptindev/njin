@@ -1,4 +1,5 @@
 #pragma once
+#include "../njin_internal_only.h"
 #include "_comps.h"
 #include "njin_particles.h"
 #include <entt/entity/fwd.hpp>

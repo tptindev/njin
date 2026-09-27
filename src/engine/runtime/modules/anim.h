@@ -1,4 +1,5 @@
 #pragma once
+#include "../njin_internal_only.h"
 #include "_mod.h"
 
 namespace njin {
