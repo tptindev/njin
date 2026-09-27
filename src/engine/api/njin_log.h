@@ -9,7 +9,9 @@
 //   njin::log_set_level(njin::log_warn);  // hide trace/debug/info
 //
 // Output: [  1.234] WARN  file.cpp:42  message
-// raylib's own messages go through the same logger, tagged "raylib".
+// The window/audio backend's own messages go through the same logger, tagged
+// "njin" like the engine's own: njin seals it off from game code (see
+// src/engine/guard/), so the log should not name it either.
 
 /// @cond INTERNAL
 #if defined(__MINGW_PRINTF_FORMAT)
@@ -38,8 +40,9 @@ enum log_level {
 
 /// Hàm nhận mọi dòng log vượt qua bộ lọc mức độ.
 ///
-/// `file` là nullptr và `line` là 0 khi không biết nguồn (ví dụ log của raylib).
-/// `user` là con trỏ đã truyền cho log_set_sink().
+/// `line` là 0 khi không biết đúng dòng, chỉ có tên nguồn (`file` là `"njin"`
+/// cho log của window/audio backend); cả `file` cũng là nullptr khi không
+/// biết gì. `user` là con trỏ đã truyền cho log_set_sink().
 using log_sink = void (*)(log_level level, const char *file, i32 line,
                           const char *msg, void *user);
 

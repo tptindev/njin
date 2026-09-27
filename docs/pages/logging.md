@@ -14,8 +14,10 @@ Mỗi dòng in ra dạng:
 [  1.234] WARN  file.cpp:42  texture thiếu: assets/player.png
 ```
 
-gồm thời gian (giây), mức độ, file và dòng gọi, nội dung. Log của chính raylib
-cũng đi qua logger này và được gắn nhãn `raylib`.
+gồm thời gian (giây), mức độ, file và dòng gọi, nội dung. Log của backend cửa
+sổ/âm thanh cũng đi qua logger này, gắn nhãn `njin` như log của chính engine:
+njin che nó khỏi code của game (xem [Kiến trúc](#architecture)), nên log cũng
+không nêu tên nó.
 
 ## Mức độ
 
@@ -41,6 +43,8 @@ Từ chi tiết nhất đến nghiêm trọng nhất (njin::log_level):
 
 @include logging.cpp
 
-@note `file` là `nullptr` và `line` là `0` khi không biết nguồn gốc dòng log, ví dụ log của raylib.
+@note `line` là `0` khi không biết đúng dòng, chỉ có tên nguồn (`file` là
+`"njin"` cho log của backend cửa sổ/âm thanh); `file` cũng là `nullptr` khi
+không biết gì.
 
 Danh sách đầy đủ các hàm và macro nằm ở nhóm @ref grp_log.

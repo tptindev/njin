@@ -108,7 +108,9 @@ log_level from_raylib_level(i32 level) {
 void raylib_callback(int rl_level, const char *fmt, va_list args) {
   const log_level level = from_raylib_level(rl_level);
   if (log_enabled(level)) {
-    emit(level, "raylib", 0, fmt, args);
+    // Tagged "njin", not "raylib": the engine seals raylib off from game
+    // code (see src/engine/guard/), and the log should not say otherwise.
+    emit(level, "njin", 0, fmt, args);
   }
 }
 } // namespace
