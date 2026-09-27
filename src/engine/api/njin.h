@@ -28,6 +28,7 @@
 #include "njin_particles.h"
 #include "njin_post.h"
 #include "njin_prefab.h"
+#include "njin_procgen.h"
 #include "njin_render.h"
 #include "njin_reload.h"
 #include "njin_scene.h"

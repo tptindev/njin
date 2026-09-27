@@ -44,6 +44,9 @@
 /// @defgroup grp_tilemap Tilemap
 /// Lưới ô chia chunk, không giới hạn kích thước, và va chạm với lưới.
 
+/// @defgroup grp_procgen Sinh bản đồ
+/// Nhiễu, luật làm bản đồ tự nhiên, sinh màn top-down và platformer, Wave Function Collapse.
+
 /// @defgroup grp_scene Scene
 /// Chia game thành các màn: menu, đang chơi, game over.
 
