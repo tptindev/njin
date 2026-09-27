@@ -75,6 +75,12 @@ njin_ctx *njin_create(const njin_cfg &cfg) {
       (u64)std::chrono::high_resolution_clock::now().time_since_epoch().count());
   if (cfg.virtual_size.x >= 1.0f && cfg.virtual_size.y >= 1.0f)
     window_set_virtual_size(*ctx, cfg.virtual_size, cfg.integer_scale);
+  ctx->view.render_scale =
+      view_clamp_render_scale(cfg.render_scale, {(f32)GetScreenWidth(), (f32)GetScreenHeight()});
+  if (ctx->view.render_scale != cfg.render_scale && cfg.render_scale > 1)
+    NJIN_WARN("njin_cfg::render_scale %d at the window's size would need a texture "
+             "bigger than any GPU guarantees; using %dx instead",
+             cfg.render_scale, ctx->view.render_scale);
   register_core_modules(*ctx);
   return ctx;
 }

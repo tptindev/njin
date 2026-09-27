@@ -43,6 +43,15 @@ struct view_state {
   f32 scale = 1.0f;         // window pixels per virtual pixel
   vec2 offset{};            // top-left of the image in the window
 
+  // Supersampling (njin_cfg::render_scale). `target` is `render_scale` times
+  // bigger than the logical size in each dimension (view_logical_size()) and
+  // downscaled with a bilinear filter in view_draw_end(); the projection stays
+  // at logical size (see bind_view_target() in njin_view.cpp), so it survives
+  // the world camera's own matrix resets untouched. `1` is off. Set once from
+  // njin_create() and never changed afterwards, and clamped there so `target`
+  // never asks for a texture bigger than max_render_scale_dim on a side.
+  i32 render_scale = 1;
+
   // Text at window resolution. The virtual image is scaled up with a point
   // filter, so text drawn into it is as soft as the scaling is coarse. With a
   // real GPU, screen-space text is queued instead of drawn, and drawn after
@@ -78,7 +87,24 @@ struct view_state {
   view_state &operator=(const view_state &) = delete;
 };
 
-inline bool view_active(const view_state &view) { return view.size.x >= 1.0f && view.size.y >= 1.0f; }
+// An explicit virtual size was set (window_set_virtual_size()), as opposed to
+// supersampling alone driving the offscreen target.
+inline bool view_has_virtual_size(const view_state &view) {
+  return view.size.x >= 1.0f && view.size.y >= 1.0f;
+}
+
+inline bool view_active(const view_state &view) {
+  return view_has_virtual_size(view) || view.render_scale > 1;
+}
+
+// What the game sees as the screen: the virtual size when set, else the real
+// window. screen_size(), the mouse and the camera all use this, never
+// `view.target`'s own (possibly bigger, with render_scale) pixel size.
+inline vec2 view_logical_size(const view_state &view) {
+  if (view_has_virtual_size(view))
+    return view.size;
+  return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};
+}
 
 // True when a screen-space draw_text right now goes to the window-resolution
 // pass instead of the virtual image.
@@ -99,6 +125,18 @@ void view_ui_end(view_state &view);
 // Leaves the UI pass's transform for the moment, before the game starts a render
 // texture: view_rebind() (called when it ends) puts it back.
 void view_ui_suspend(const view_state &view);
+
+// Clamps a requested njin_cfg::render_scale so `window_size * requested`
+// never exceeds a GL texture side every desktop GPU can create. Called once
+// from njin_create(), against the just-opened window's real size.
+i32 view_clamp_render_scale(i32 requested, vec2 window_size);
+
+// Binds `target` for drawing at `logical` coordinates, `target` itself
+// possibly bigger (njin_cfg::render_scale). See njin_view.cpp for why this is
+// not just BeginTextureMode(target). Used by view_draw_begin()/view_rebind()
+// for the virtual/window screen, and by camera.cpp for the world's own
+// post-processing target, so render_scale covers both.
+void bind_view_target(const RenderTexture2D &target, vec2 logical);
 
 // Works out scale and offset for this frame's window size. Called at the top
 // of the frame, before input is read.

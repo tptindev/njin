@@ -95,6 +95,35 @@ njin::text_measure() đã đo.
 - Máy chỉ có renderer phần mềm (llvmpipe, SwiftShader, GDI Generic) luôn vẽ chữ trong ảnh
   ảo như trước. Cửa sổ đúng bằng ảnh ảo (mức phóng 1) cũng vậy.
 
+### Khử răng cưa bằng supersampling {#render_scale}
+
+njin::njin_cfg::render_scale vẽ cả world và UI ở độ phân giải gấp `render_scale`
+lần (2, 4 hay 8) rồi thu nhỏ lại bằng lọc mượt khi lên cửa sổ, làm mượt cạnh
+hình khối, sprite xoay và đường cong. `1` (mặc định) là tắt.
+
+```cpp
+njin::njin_cfg cfg{};
+cfg.render_scale = 4; // đọc từ file cài đặt của game, không hardcode
+njin::njin_ctx *ctx = njin::njin_create(cfg);
+```
+
+Đây **không phải** MSAA của cửa sổ (raylib chỉ có đúng một mức 4x qua GLFW,
+không chọn được 2x/8x): cách này chạy trên mọi GPU giống nhau và cho đúng số
+mức đã đặt, đổi lại tốn thêm bấy nhiêu lần pixel GPU phải vẽ (16 lần ở mức 4).
+
+Lưu ý:
+- Không đổi tọa độ nào: njin::screen_size(), chuột, camera vẫn tính như
+  `virtual_size` (nếu có) hay kích thước cửa sổ (nếu không) — game không biết
+  gì về `render_scale`.
+- **Không đổi được lúc đang chạy.** njin_create() tạo cửa sổ và các render
+  texture theo đúng giá trị này một lần; đổi mức trong menu cài đặt cần lưu
+  lựa chọn rồi khởi động lại game để áp dụng, như đổi độ phân giải ở hầu hết
+  game khác.
+- Pixel art dùng `virtual_size` với njin::filter_nearest nên thường không cần;
+  hợp game vẽ hình khối, sprite xoay hay chữ vector hơn.
+- Cửa sổ rất lớn ở mức cao có thể vượt kích thước texture GPU cho phép; engine
+  tự giảm mức xuống mức cao nhất còn vừa và ghi vào log khi việc đó xảy ra.
+
 ## Trộn màu
 
 njin::blend_begin() đổi cách màu mới trộn với màu đã có, cho đến njin::blend_end():

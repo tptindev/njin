@@ -49,6 +49,24 @@ struct njin_cfg {
   /// Mặc định tắt: UI giữ nguyên kiểu pixel. Bật thì `crisp_text` không còn cần.
   /// Xem trang Vẽ và chữ.
   bool smooth_ui = false;
+  /// Khử răng cưa bằng supersampling: thế giới và giao diện được vẽ ở độ phân
+  /// giải gấp `render_scale` lần (theo mỗi chiều) rồi thu nhỏ lại bằng lọc
+  /// mượt khi lên màn hình. `1` là tắt (mặc định). `2`, `4` hay `8` cho cạnh
+  /// mượt hơn, tốn thêm bấy nhiêu lần pixel GPU phải vẽ (4 lần ở mức 2, 16 lần
+  /// ở mức 4...).
+  ///
+  /// Đây không phải MSAA của cửa sổ (raylib chỉ có đúng một mức 4x qua GLFW,
+  /// không chọn được 2x/8x); cách này chạy trên mọi GPU giống nhau và cho
+  /// đúng số mức đã đặt. Không đổi được lúc đang chạy: `njin_create()` tạo
+  /// cửa sổ và các render texture theo đúng giá trị này một lần, nên đổi mức
+  /// cần khởi động lại game (đọc giá trị người chơi chọn từ file cài đặt của
+  /// bạn, trước khi gọi njin_create() ở lần chạy sau). Xem render_scale().
+  ///
+  /// Không đổi tọa độ nào cả: screen_size(), chuột, camera vẫn tính như
+  /// `virtual_size` (nếu có) hay kích thước cửa sổ (nếu không), không biết gì
+  /// về `render_scale`. Pixel art dùng `virtual_size` với `filter_nearest` nên
+  /// thường không cần; hợp game vẽ hình khối, sprite xoay hay chữ vector hơn.
+  i32 render_scale = 1;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).

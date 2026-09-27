@@ -26,18 +26,25 @@ Camera2D active_raylib_camera(const njin_ctx &ctx) {
   return camera;
 }
 
-// (Re)creates the post target when the window size changed.
+// (Re)creates the post target when the window size changed. Sized by
+// render_scale like view.target, and bound the same way, so a game's post_fx
+// or its own post shader do not bake the world in at 1x before render_scale
+// gets a chance to smooth it.
 bool ensure_post_target(const njin_ctx &ctx, camera_post &post) {
   const vec2 screen = screen_size(ctx);
-  const i32 w = (i32)screen.x;
-  const i32 h = (i32)screen.y;
+  const i32 scale = ctx.view.render_scale;
+  const i32 w = (i32)screen.x * scale;
+  const i32 h = (i32)screen.y * scale;
   if (IsRenderTextureValid(post.target) && post.target.texture.width == w &&
       post.target.texture.height == h)
     return true;
   if (IsRenderTextureValid(post.target))
     UnloadRenderTexture(post.target);
   post.target = LoadRenderTexture(w, h);
-  return IsRenderTextureValid(post.target);
+  if (!IsRenderTextureValid(post.target))
+    return false;
+  SetTextureFilter(post.target.texture, scale > 1 ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
+  return true;
 }
 
 void begin_world_space(njin_ctx &ctx) {
@@ -46,7 +53,7 @@ void begin_world_space(njin_ctx &ctx) {
                       post_chain_active(ctx.postfx);
   post.drawing = wanted && ensure_post_target(ctx, post);
   if (post.drawing) {
-    BeginTextureMode(post.target);
+    bind_view_target(post.target, screen_size(ctx));
     Color clear{};
     to_raylib(ctx.cfg.clear_bg_color, clear);
     ClearBackground(clear);
@@ -80,12 +87,17 @@ void finish_world_post(njin_ctx &ctx) {
   // texture mode ends on the window, so go back to the virtual screen after.
   const Texture2D &texture = post_chain_run(ctx, post.target.texture);
   view_rebind(ctx.view);
-  // Framebuffers are stored bottom-up: a negative source height flips it.
+  // Framebuffers are stored bottom-up: a negative source height flips it. The
+  // dest is the logical size, not the texture's own (render_scale times
+  // bigger) pixel size: DrawTextureRec draws 1:1 by texture pixel, which would
+  // draw render_scale times too big without an explicit dest rect.
+  const vec2 screen = screen_size(ctx);
   const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
+  const Rectangle dest{0.0f, 0.0f, screen.x, screen.y};
   const shader_slot *slot = shader_slot_of(ctx.shader, post.shader);
   if (slot != nullptr)
     BeginShaderMode(slot->shader);
-  DrawTextureRec(texture, source, Vector2{0.0f, 0.0f}, WHITE);
+  DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
   if (slot != nullptr)
     EndShaderMode();
 }
