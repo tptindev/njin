@@ -10,6 +10,8 @@ namespace inspector {
 bool begin_panel(app &a, const char *name);
 // Call after the last window of the frame.
 void end_frame_layout(app &a);
+// Call once per frame after the menu bar: notices a resize of the inspector's window, so the panels follow it.
+void track_window_size(app &a);
 
 void status_bar(app &a);          // top bar: connection and scene
 void performance_window(app &a);  // FPS, frame graph, pause / step / time scale

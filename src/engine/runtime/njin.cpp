@@ -145,6 +145,7 @@ void njin_run(njin_ctx &ctx) {
       view_draw_end(ctx.view);
     text_layer_flush(ctx);
     take_pending_screenshots(ctx);
+    debug_record_frame(ctx);
     EndDrawing();
   }
 

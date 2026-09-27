@@ -1,7 +1,7 @@
 // njin_inspector: connects to a running njin game (njin::debug_server_start)
 // over 127.0.0.1 and shows its state with Dear ImGui, in its own window.
 //
-//   njin_inspector [--port 7779]
+//   njin_inspector [--port 7779] [--layout overview|consumption] [--size 1280x720]
 //
 // It retries until a game is listening, and again whenever the game restarts.
 #include "app.h"
@@ -10,6 +10,7 @@
 #include "panels.h"
 #include "raylib.h"
 #include "rlImGui.h"
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -35,13 +36,29 @@ void load_font() {
 
 int main(int argc, char **argv) {
   inspector::app a;
+  int want_w = 0, want_h = 0;
   for (int i = 1; i + 1 < argc; i++) {
     if (std::strcmp(argv[i], "--port") == 0)
       a.port = std::atoi(argv[i + 1]);
+    if (std::strcmp(argv[i], "--size") == 0)
+      std::sscanf(argv[i + 1], "%dx%d", &want_w, &want_h);
+    if (std::strcmp(argv[i], "--layout") == 0)
+      a.layout = std::strcmp(argv[i + 1], "consumption") == 0 ? 1 : 0;
   }
   SetTraceLogLevel(LOG_WARNING);
   SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
   InitWindow(1700, 960, "njin inspector");
+  {
+    // A small screen gets a smaller window (the panels scale to fit), placed so its title bar is reachable.
+    const int monitor = GetCurrentMonitor();
+    const int mw = GetMonitorWidth(monitor), mh = GetMonitorHeight(monitor);
+    if (mw > 0 && mh > 0 && (mw < 1700 + 40 || mh < 960 + 80)) {
+      SetWindowSize(mw < 1740 ? mw - 40 : 1700, mh < 1040 ? mh - 100 : 960);
+      SetWindowPosition(20, 40);
+    }
+    if (want_w >= 640 && want_h >= 400)
+      SetWindowSize(want_w, want_h);
+  }
   SetExitKey(KEY_NULL);
   SetTargetFPS(60);
   rlImGuiBeginInitImGui();

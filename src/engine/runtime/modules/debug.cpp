@@ -21,7 +21,7 @@
 namespace njin {
 namespace {
 // The inspector speaks this version; it refuses a game with another one.
-constexpr i32 protocol_version = 3;
+constexpr i32 protocol_version = 4;
 // Log lines held while no inspector is connected, or between sends.
 constexpr usize max_log_lines = 2000;
 
@@ -327,6 +327,13 @@ void apply(njin_ctx &ctx, const json_value &cmd) {
       reg.destroy(e);
   } else if (c == "collision_debug") {
     collision_set_debug(ctx, cmd["value"].bool_or(false));
+  } else if (c == "rec") {
+    // Start or stop recording the game window to a GIF (see debug_recorder).
+    if (cmd["value"].bool_or(false))
+      debug_record_start(ctx, cmd["fps"].f32_or(15.0f), cmd["scale"].f32_or(0.5f), cmd["max_s"].f32_or(30.0f));
+    else
+      debug_record_stop(ctx);
+    d.rec.dirty = true; // tell the inspector how it went, even when the start failed
   }
 }
 
@@ -528,6 +535,7 @@ void begin_frame(njin_ctx &ctx) {
     log_set_console(true);
     NJIN_INFO("debug: inspector disconnected");
     d.selected = -1;
+    debug_record_stop(ctx); // nobody left to stop it: finish the file
     return;
   }
   std::string line;
@@ -565,6 +573,11 @@ void end_frame(njin_ctx &ctx) {
     send_entity(ctx);
     send_watches(ctx);
     d.link.send(json_dump(debug_build_prof(ctx), false));
+  }
+  // The recording: progress while it runs, and once more whenever its state changed.
+  if (d.rec.active || d.rec.dirty) {
+    d.rec.dirty = false;
+    d.link.send(json_dump(debug_record_status(ctx), false));
   }
   // The memory and asset tables walk every component and resource: once a second.
   d.slow_timer += ctx.time.dt_real;
@@ -634,6 +647,7 @@ void debug_server_stop(njin_ctx &ctx) {
     log_set_console(true);
     tap_target = nullptr;
   }
+  debug_record_stop(ctx);
   d.link.close();
   net_close(d.listener);
   d.running = false;

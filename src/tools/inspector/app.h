@@ -14,7 +14,7 @@ namespace inspector {
 using njin::json_value;
 
 // Must match the game's debug module (modules/debug.cpp).
-constexpr int protocol_version = 3;
+constexpr int protocol_version = 4;
 constexpr size_t frame_history = 600;
 constexpr size_t log_history = 5000;
 
@@ -80,6 +80,16 @@ struct log_row {
   std::string src, msg;
 };
 
+// The game's screen recording (a GIF it writes to its own save folder), as last reported.
+struct recording_state {
+  bool on = false;
+  int frames = 0, width = 0, height = 0;
+  float secs = 0, fps = 0, max_secs = 0;
+  long long bytes = 0;
+  std::string file, dir; // the current or last finished recording, and its folder
+  std::string error;
+};
+
 struct app {
   // Connection.
   std::string host = "127.0.0.1";
@@ -133,7 +143,12 @@ struct app {
   double clock = 0; // seconds since start
   usage_history usage;
 
+  recording_state rec;
+
   // UI.
+  int rec_fps = 1;    // index into the frame rate choices (10, 15, 20, 30)
+  int rec_scale = 2;  // index into the size choices (100%, 75%, 50%, 33%)
+  float rec_max = 30; // seconds
   char entity_filter[128] = "";
   char log_filter[128] = "";
   int log_min_level = 0;
@@ -147,6 +162,15 @@ struct app {
   bool sys_hide_idle = true;
   int layout = 0;            // 0 overview, 1 consumption
   bool layout_dirty = true;  // windows take their place for the current layout this frame
+  int layout_dirty_age = 0;  // frames the placement has been forced: two, so the menu bar's height is known
+  // The window area (below the menu bar) as of the last frame, to notice a resize (then `rescale` is true for that
+  // frame), and where each panel is as a share of that area, so a panel keeps its place when the window changes.
+  float work_w = 0, work_h = 0;
+  bool rescale = false;
+  struct panel_share {
+    float x = 0, y = 0, w = 0, h = 0;
+  };
+  std::unordered_map<std::string, panel_share> shares;
   bool fitted = false;
   std::unordered_map<std::string, float> edits; // live edit buffers, by field key
   std::string active_edit;                      // field being dragged right now

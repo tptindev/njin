@@ -85,6 +85,7 @@ void on_message(app &a, const std::string &line) {
     a.game_pid = (uint32_t)m["pid"].number_or(0);
     a.engine_version = m["engine"].string_or("");
     a.usage.clear();
+    a.rec = {};
     a.mon.attach(a.game_pid);
     a.frames.clear();
     a.fitted = false;
@@ -138,6 +139,19 @@ void on_message(app &a, const std::string &line) {
                              (long long)r["b"].number_or(0), r["gpu"].bool_or(false)});
     a.res_gpu = (long long)m["gpu_bytes"].number_or(0);
     a.res_ram = (long long)m["ram_bytes"].number_or(0);
+  } else if (t == "rec") {
+    recording_state &r = a.rec;
+    r.on = m["on"].bool_or(false);
+    r.frames = m["frames"].int_or(0);
+    r.secs = m["secs"].f32_or(0);
+    r.bytes = (long long)m["bytes"].number_or(0);
+    r.width = m["w"].int_or(0);
+    r.height = m["h"].int_or(0);
+    r.fps = m["fps"].f32_or(0);
+    r.max_secs = m["max"].f32_or(0);
+    r.file = m["file"].string_or("");
+    r.dir = m["dir"].string_or("");
+    r.error = m["err"].string_or("");
   } else if (t == "watch") {
     a.watches = m["values"];
   } else if (t == "log") {

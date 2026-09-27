@@ -23,7 +23,7 @@ struct debug_server_desc {
 /// Mở cổng debug để chương trình **njin_inspector** (một process riêng) kết
 /// nối vào: FPS, biểu đồ thời gian frame, danh sách entity và component, khung
 /// collider vẽ trên bản đồ, log, giá trị theo dõi, và điều khiển thời gian
-/// (dừng, chạy từng frame, tua chậm).
+/// (dừng, chạy từng frame, tua chậm) và quay cửa sổ game thành file GIF (xem @ref debug_recording).
 ///
 /// Game **không vẽ gì thêm**: mọi giao diện debug nằm ở cửa sổ inspector. Chỉ
 /// nghe trên 127.0.0.1, nên máy khác không kết nối được; không có inspector nào

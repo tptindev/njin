@@ -13,7 +13,7 @@ muốn xem thì nhìn sang cửa sổ inspector, không thì cứ chơi bình th
 | **Watches** | Giá trị game tự đặt bằng njin::debug_watch(), cập nhật trực tiếp |
 | **Log** | Log của game, lọc theo mức và chữ |
 
-@image html inspector_overview.png "njin_inspector nối với njin_debug_demo, bố cục Overview. Đang chọn entity 38: thấy component ball, transform, collider và giá trị của chúng"
+@image html inspector_overview.png "njin_inspector nối với njin_debug_demo, bố cục Overview. Đang chọn entity 27: thấy component ball, transform, collider và giá trị của chúng. Bảng Performance có mục Screen recording"
 
 ## Dùng
 
@@ -33,7 +33,13 @@ tắt cổng (bản phát hành) thì log luôn ra stderr.
 Cổng mặc định là 7779. Dùng cổng khác: `debug_server_start(*ctx, {.port = 7800})` trong game và
 `njin_inspector --port 7800`.
 
-Inspector nhớ vị trí và kích thước các bảng trong `njin_inspector.ini` ở thư mục chạy nó.
+**Cỡ cửa sổ.** Hai bố cục phủ kín cửa sổ ở mọi cỡ: vị trí và kích thước các bảng là tỉ lệ của vùng dưới thanh menu, nên kéo
+cửa sổ to hay nhỏ thì các bảng co giãn theo và giữ nguyên chỗ, kể cả bảng bạn đã kéo đi chỗ khác. Màn hình nhỏ hơn 1700 x 960
+thì cửa sổ mở nhỏ lại cho vừa. `njin_inspector --size 1280x720` mở cửa sổ đúng cỡ đó (tối thiểu 640 x 400). Cửa sổ rất nhỏ thì
+bảng nào không đủ chỗ sẽ cuộn được.
+
+Inspector nhớ vị trí và kích thước các bảng trong `njin_inspector.ini` ở thư mục chạy nó. `njin_inspector --layout consumption` mở thẳng bố cục Consumption
+(mặc định là Overview).
 
 ## Component của game
 
@@ -105,6 +111,45 @@ render texture 32 MB trên GPU. Bấm rồi xem con số nhảy.
 Lệnh từ inspector được áp dụng ở đầu frame, trước mọi system của game, nên một frame không
 bao giờ chạy nửa dừng nửa không.
 
+## Quay màn hình {#debug_recording}
+
+Bảng **Performance** có mục **Screen recording**: bấm **Record** (hoặc **F9** ở bất kỳ chỗ nào trong inspector, trừ khi đang gõ
+vào ô văn bản) để quay cửa sổ game thành một file GIF, bấm lại để dừng. Game không phải làm gì thêm ngoài
+njin::debug_server_start().
+
+@image html inspector_recording.png "Mục Screen recording của njin_inspector, nối với njin_platformer. Trái: đang quay (REC 0:02, 38 khung, 223 KB, 640x360). Phải: đã dừng, hiện đường dẫn file với nút Open folder và Copy path"
+
+Việc quay diễn ra **trong game**, không phải trong inspector: cứ mỗi 1/fps giây, sau khi frame đã vẽ xong (có cả UI, hiệu ứng
+hậu kỳ), game đọc ảnh từ card đồ họa, thu nhỏ rồi nối vào file GIF. Vì đọc từ chính game chứ không chụp màn hình hệ điều hành,
+cửa sổ khác che lên game không lọt vào file (đã thử). File nằm trong thư mục lưu của game,
+`recordings/rec_<ngày>_<giờ>.gif` (cùng chỗ với `screenshots/` của njin::screenshot(); xem njin::save_path()); inspector hiện
+đường dẫn, và **Open folder** mở thư mục đó.
+
+| Lựa chọn | Giá trị | Ghi chú |
+|---|---|---|
+| Tốc độ | 10, 15, 20, 30 khung/giây | Mặc định 15 |
+| Cỡ | 100%, 75%, 50%, 33% cửa sổ | Mặc định 50%. Thu nhỏ bằng cách lấy trung bình các pixel |
+| Giới hạn | 5 đến 120 giây | Hết giờ thì tự dừng. Mặc định 30 |
+
+Các lựa chọn áp dụng cho lần quay **kế tiếp**. Quay dừng khi: bấm Stop hay F9, hết giới hạn, inspector đóng hoặc mất kết nối
+(game hoàn tất file rồi mới thôi, nên vẫn xem được), hoặc game thoát. Nếu cửa sổ game bị đổi cỡ khi đang quay, mỗi khung được
+co về cỡ lúc bắt đầu (đổi cả tỉ lệ thì hình bị méo).
+
+Vài điều về file:
+
+- Mỗi khung có bảng **256 màu riêng**, chọn theo màu thật của khung đó và không pha màu (dither). Pixel art với ít hơn
+  256 màu ra đúng màu (tới độ chính xác 5 bit mỗi kênh, sai số tối đa 7 trên 255); ảnh chuyển sắc mượt thì có thể thấy
+  sọc màu.
+- Khung **giống hệt** khung trước không được ghi lại: khung trước chỉ được giữ lâu hơn. Màn hình đứng yên (menu, game đang dừng) cho
+  file rất nhỏ.
+- Thời lượng mỗi khung là thời gian thật giữa hai lần chụp, nên GIF chạy đúng bằng thời gian đã quay, kể cả khi game giật.
+  Trình xem GIF làm tròn thời gian mỗi khung theo 1/100 giây.
+- Thử với njin_platformer (menu chính, 640x360, 15 khung/giây, 3 giây): 41 khung, 248 KB.
+
+**Chi phí:** khung nào được chụp thì game tốn thêm ở đúng frame đó: đọc từ GPU rồi thu nhỏ và nén GIF ngay trên luồng của game
+(đo riêng bước nén, khung 480x270, ảnh nhiều màu: khoảng 4 ms). Biểu đồ frame time của inspector có gai theo nhịp quay, và game
+chậm đi thấy được nếu frame vốn đã sát 16,7 ms. Muốn nhẹ hơn thì hạ tốc độ hoặc cỡ.
+
 ## Chi phí và an toàn
 
 - Chỉ nghe trên `127.0.0.1`: máy khác không kết nối được. Vẫn nên chỉ bật trong bản debug
@@ -122,7 +167,9 @@ bao giờ chạy nửa dừng nửa không.
 
 Game và inspector nói chuyện bằng từng dòng JSON qua TCP. Phía game là module lõi `njin.debug`
 (`runtime/modules/debug.cpp`); phía inspector là `src/tools/inspector`, dùng Dear ImGui qua
-rlImGui. Hai bên kiểm tra số phiên bản giao thức khi kết nối: lệch thì inspector báo cần build
-lại một trong hai.
+rlImGui. Hai bên kiểm tra số phiên bản giao thức khi kết nối (hiện là 4): lệch thì inspector báo cần build
+lại một trong hai. Việc quay màn hình đi qua lệnh `rec` (inspector gửi tốc độ, cỡ và giới hạn) và tin `rec` (game báo
+trạng thái, số khung, dung lượng và đường dẫn file); phần chụp và ghi GIF là `runtime/modules/debug_record.cpp` và
+`runtime/njin_gif.cpp`.
 
 Tắt việc build inspector (và tải ImGui) bằng `-DNJIN_BUILD_INSPECTOR=OFF` khi cấu hình CMake.

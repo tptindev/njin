@@ -49,12 +49,13 @@ add_executable(njin_inspector
   panel_systems.cpp
   panel_memory.cpp
   panel_assets.cpp
+  os_open.cpp
   sysmon.cpp)
 # The inspector reuses the runtime's JSON and socket code, so it sees the
 # runtime's private headers.
 target_include_directories(njin_inspector PRIVATE ${PROJECT_SOURCE_DIR}/src/engine/runtime)
 target_link_libraries(njin_inspector PRIVATE njin::rt njin_imgui raylib njin_warnings)
 if(WIN32)
-  # Process memory (PSAPI) and GPU counters (PDH) of the game, by process id.
-  target_link_libraries(njin_inspector PRIVATE psapi pdh)
+  # Process memory (PSAPI) and GPU counters (PDH) of the game, by process id; the shell opens folders.
+  target_link_libraries(njin_inspector PRIVATE psapi pdh shell32)
 endif()
