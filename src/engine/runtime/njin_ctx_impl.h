@@ -22,6 +22,7 @@
 #include "njin_font.h"
 #include "njin_i18n_impl.h"
 #include "njin_input_impl.h"
+#include "njin_instance.h"
 #include "njin_level_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
@@ -74,6 +75,7 @@ struct njin_ctx {
   view_state view;
   input_store input;
   shader_store shader;
+  instance_store instances;
   texture_store texture;
   render_texture_store render_texture;
   // Mutable: atlases are baked on first draw, and drawing takes a const ctx.

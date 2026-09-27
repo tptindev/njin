@@ -11,6 +11,11 @@ To release: edit that header, add a section here, commit, then
 - **Supersampling**: `njin_cfg::render_scale` draws the world and UI at 2x, 4x or
   8x resolution, then smoothly downsamples the image to reduce jagged edges.
   Logical coordinates stay the same; higher settings use more GPU work.
+- **Instancing**: `instance_buffer_create`, `instance_buffer_upload` and
+  `draw_instanced` draw thousands of quads in one draw call through a game's own
+  shader, each with 4 to 16 floats of its own data (`instance0..3` in the vertex
+  shader). `instancing_available` says whether the machine can. The inspector's
+  draw-call and instanced-call counts include these draws.
 - **New sample games**: `njin_tower_defense` is a tower-defense game with enemy
   waves, and `njin_moteswarm` lets you steer one creature among a swarm of
   wandering creatures, demonstrating procedural motion and a shader pass.

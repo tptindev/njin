@@ -20,6 +20,9 @@
 /// @defgroup grp_shader Shader
 /// Nạp shader, đặt uniform, bật và tắt shader khi vẽ.
 
+/// @defgroup grp_instancing Instancing
+/// Vẽ hàng nghìn hình giống nhau bằng một lệnh vẽ, mỗi hình một ít dữ liệu riêng.
+
 /// @defgroup grp_texture Texture
 /// Nạp và vẽ texture từ file ảnh.
 

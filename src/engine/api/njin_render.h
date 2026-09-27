@@ -70,6 +70,70 @@ void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec4 value);
 /// @}
 
+/// @addtogroup grp_instancing
+/// @{
+
+/// Máy này có vẽ instanced được không: cần OpenGL 3.3 trở lên (hoặc ES 3.0).
+///
+/// Khi `false`, mọi hàm instance_* trả về handle không hợp lệ hoặc không làm
+/// gì; game nên có sẵn một cách vẽ khác (ví dụ texture_draw_ex() từng cái).
+/// @param ctx Context của engine.
+/// @return `true` nếu draw_instanced() vẽ được.
+bool instancing_available(const njin_ctx &ctx);
+
+/// Tạo một bộ đệm instance trên GPU: mỗi instance là `floats_per_instance`
+/// số thực, do game tự quyết định ý nghĩa.
+///
+/// Shader đọc chúng thành các thuộc tính `vec4` theo instance, tên `instance0`,
+/// `instance1`, `instance2`, `instance3` (4 số một thuộc tính, theo thứ tự).
+/// Bộ đệm tự lớn lên khi instance_buffer_upload() cần thêm chỗ.
+/// @param ctx Context của engine.
+/// @param floats_per_instance 4, 8, 12 hoặc 16.
+/// @return Handle, hoặc handle có id 0 nếu số không hợp lệ hay máy không hỗ trợ
+/// (xem instancing_available()).
+instance_buffer_handle instance_buffer_create(njin_ctx &ctx, u32 floats_per_instance);
+
+/// Hủy bộ đệm instance. Handle không hợp lệ bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Bộ đệm cần hủy.
+void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle);
+
+/// Ghi `count` instance vào bộ đệm, thay toàn bộ nội dung cũ.
+///
+/// `data` có `count * floats_per_instance` số, instance này nối tiếp instance
+/// kia. Gọi mỗi frame với dữ liệu mới là cách dùng bình thường.
+/// @param ctx Context của engine.
+/// @param handle Bộ đệm cần ghi.
+/// @param data Dữ liệu các instance.
+/// @param count Số instance.
+void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const f32 *data,
+                            u32 count);
+
+/// Vẽ `count` hình vuông, bắt đầu từ instance `first`, bằng **một** lệnh vẽ.
+///
+/// Mỗi hình vuông có 6 đỉnh (2 tam giác). Vertex shader của game nhận:
+/// - `in vec3 vertexPosition`: góc của hình vuông đơn vị, từ `(0, 0)` đến
+///   `(1, 1)`, y hướng xuống. Chỉ `xy` có nghĩa.
+/// - `in vec4 instance0` ... `instance3`: dữ liệu của instance đang vẽ.
+/// - `uniform mat4 mvp`: camera hiện tại, như khi vẽ bình thường.
+///
+/// Shader tự đặt hình vuông vào thế giới (vị trí, kích thước, góc xoay) từ dữ
+/// liệu instance. Cách trộn màu hiện tại (blend_begin()) được giữ nguyên; thứ
+/// đã vẽ trước đó được đẩy ra trước, nên thứ tự vẽ đúng như gọi. Instance vẽ
+/// sau đè lên instance vẽ trước: sắp xếp dữ liệu (ví dụ theo y) trước khi ghi.
+///
+/// Phải gọi giữa lúc bắt đầu và kết thúc vẽ của frame, ngoài
+/// shader_begin()/shader_end(). Uniform khác của shader đặt bằng shader_set_*()
+/// như thường.
+/// @param ctx Context của engine.
+/// @param handle Bộ đệm đã ghi bằng instance_buffer_upload().
+/// @param shader Shader có vertex shader đọc các thuộc tính trên.
+/// @param first Instance đầu tiên được vẽ.
+/// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
+void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+                    u32 count);
+/// @}
+
 /// @addtogroup grp_texture
 /// @{
 

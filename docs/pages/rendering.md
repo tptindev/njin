@@ -126,6 +126,40 @@ Các hàm đặt uniform:
 | njin::shader_set_vec2() | `vec2` |
 | njin::shader_set_vec4() | `vec4` |
 
+## Instancing: hàng nghìn hình bằng một lệnh vẽ {#instancing}
+
+Khi cần vẽ **rất nhiều** hình giống nhau mà mỗi hình khác một chút (một đám đông, một đàn chim,
+cỏ, mưa), vẽ từng cái bằng `texture_draw_ex` bắt CPU tạo 4 đỉnh cho mỗi cái, mỗi frame. Với
+instancing, game chỉ ghi **vài số cho mỗi hình** vào một bộ đệm; GPU tự dựng hình vuông cho từng
+cái, tất cả trong **một lệnh vẽ**.
+
+@include instancing.cpp
+
+Vertex shader nhận hình vuông đơn vị và dữ liệu của instance đang vẽ, rồi tự đặt nó vào thế giới:
+
+@include dots.vs
+
+@include dots.fs
+
+Một số điểm cần biết:
+
+- Mỗi instance có 4, 8, 12 hoặc 16 số thực. Shader đọc chúng thành `vec4 instance0` đến
+  `instance3`, theo thứ tự. Ý nghĩa của từng số do game quyết định.
+- `vertexPosition.xy` là góc hình vuông, từ `(0, 0)` đến `(1, 1)`, y hướng xuống. `mvp` là camera
+  hiện tại: instance đi theo camera như mọi thứ vẽ trong `phase_render`.
+- Instance sau đè lên instance trước. Cần sắp xếp (ví dụ theo y cho game top-down) thì sắp xếp
+  dữ liệu trước khi ghi.
+- njin::draw_instanced() vẽ một **đoạn** của bộ đệm (`first`, `count`), nên có thể ghi một lần rồi
+  vẽ nhiều đoạn xen giữa những thứ vẽ theo cách khác. Mỗi lần gọi là một lệnh vẽ.
+- Uniform khác của shader đặt bằng njin::shader_set_f32() và các hàm cùng loại như thường, nhưng
+  **không** gọi njin::shader_begin(): njin::draw_instanced() tự bật shader.
+- Máy không có OpenGL 3.3 thì njin::instancing_available() trả về `false` và các hàm này không làm
+  gì.
+
+Ví dụ một đám đông: mỗi người là một instance 12 số (vị trí, tư thế, màu, pha chuyển động), và
+fragment shader vẽ người bằng SDF trong hình vuông của họ. Ở 10.000 người, cách này tốn khoảng 5 ms
+CPU mỗi frame để vẽ, so với khoảng 7 ms khi vẽ từng người bằng `texture_draw_ex`.
+
 ## Hot reload
 
 Sửa ảnh hay shader trong lúc game đang chạy, lưu lại, và thấy kết quả ngay, không cần khởi

@@ -93,6 +93,14 @@ struct shader_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một bộ đệm instance, tạo bởi instance_buffer_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua, không bao
+/// giờ trỏ nhầm sang bộ đệm mới.
+struct instance_buffer_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một âm thanh ngắn (sound), tạo bởi sound_load().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.
