@@ -6,6 +6,94 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## 0.4.0
+
+- **Breaking for code that includes a split header directly.** `njin_ctx.h` no
+  longer declares the input, audio, texture, shader, render-texture and camera-view
+  functions: they moved to `njin_input.h`, `njin_audio.h`, `njin_render.h` and (the
+  camera-view helpers `camera_active`, `w2scr`, `scr2w`, `camera_bounds`,
+  `camera_set_post_shader`) `njin_camera.h`. No function was removed or renamed,
+  and `njin.h` still includes everything, so a game that includes `njin.h`, the
+  documented way, is unaffected. A game that includes `njin_ctx.h` on its own to
+  reach those functions must include the new header (or `njin.h`). `njin_ctx.h`
+  keeps the module and system registration, time and random. The engine's own
+  private headers `njin_audio.h` and `njin_input.h` were renamed
+  `njin_audio_impl.h` and `njin_input_impl.h` so the names are free for the public
+  ones.
+- **Input in one call**: `action_define(ctx, "jump", {key_space, key_w,
+  pad_face_down})` and `axis_define(ctx, "move", {{key_left, key_right}, {key_a,
+  key_d}}, {pad_axis_left_x})` register an action or axis and bind every key,
+  mouse button, pad button, key pair and pad axis at once, and return the handle.
+  The register and bind calls are unchanged.
+- **`sprite_dissolve`**: a sprite dissolves patch by patch with a glowing edge,
+  or appears the same way (`dissolve_fx::reverse`). Each patch gets a stable
+  random number from a hash of its texel, so no noise texture is needed;
+  `dissolve_fx` sets the edge colour and width, the patch size (`grain`), a `seed`
+  and `destroy_when_done`. It follows `delta()`, so it freezes in hitstop, shares
+  one draw pass with `flash_fx`, and shows in the inspector. A finished dissolve
+  leaves the sprite hidden; a finished reverse removes the component.
+- **Text maps**: `tilemap_from_text` and `tilemap_from_rows` build a tilemap from
+  a multi-line string or a list of rows, one character per tile, with a legend
+  (`tile_key`) from characters to tiles. Characters that only mark a place (player,
+  enemy, coin) come back as `tile_marker` positions instead of placing tiles, and a
+  legend entry can do both. Empty cells and markers never erase existing tiles, so
+  calls can be layered. A leading newline in a raw string is dropped, and `\r\n`
+  line endings are handled. This is a way to write a map with no editor; Tiled and
+  LDtk levels are unchanged.
+- **Procedural maps** (`njin_procgen.h`): everything works on a `tile_grid`, a
+  plain grid of tile numbers that needs no window, and `tilemap_from_grid` puts it
+  in a tilemap. `noise_2d` and `noise_1d` give seeded Perlin or value noise with
+  fBm, ridged and billow layering, octaves, gain and domain warp (`noise_desc`).
+  Rules that make a map look natural: `grid_majority`, `grid_smooth` (cave
+  automaton), `grid_remove_small`, `grid_merge_small`, `grid_keep_largest`,
+  `grid_border` and `grid_scatter` (spacing and a predicate). `generate_topdown`
+  picks biomes from height and moisture (thresholds are percentiles of the map),
+  with an island falloff and a guaranteed single walkable region;
+  `generate_platformer` builds a ground line, pits, caves, floating platforms and
+  optional slopes under rules that keep the level passable. `grid_autotile`
+  rounds corners: 47-tile blob or 16-tile edge sets chosen by the eight
+  neighbours, with joins between terrains and per-side control of what lies
+  outside the grid. `wfc_learn` and `wfc_generate` run Wave Function Collapse
+  (adjacency rules learned from a sample or written by hand, weights, a
+  constraint callback, periodic output, retry on contradiction). The same seed
+  gives the same map: a hash of 12 seeds of all three generators matched between
+  GCC on Windows and on Linux at `-O0`, `-O2` and `-O3 -march=native`. The
+  platformer generator was checked with a bot that drives the real
+  `platformer_body` and reached the goal on 20 of 20 seeds with the documented
+  settings; other settings (wider pits, taller steps than the character can jump)
+  are not covered. The samples gained `terrain.png` (47-tile ground, stone and
+  shore sets, built by `src/games/shared/tools/make_terrain.py`).
+- **Screen recording in `njin_inspector`**: the Performance window has a Screen
+  recording section (Record, or F9): the game grabs its finished frame every
+  1/fps seconds, shrinks it (100, 75, 50 or 33%) and appends it to an animated
+  GIF in its save folder, `recordings/rec_<date>_<time>.gif`, with a time limit
+  of 5 to 120 seconds. Each frame has its own 256-colour palette; a frame equal
+  to the previous one only lengthens it. The file is finished when recording
+  stops, the limit is reached, the inspector goes away or the game exits. The
+  inspector shows progress, the path, Open folder and Copy path. **The debug
+  protocol is now version 4** (new `rec` command and message), so an inspector
+  and a game must be built from the same version. `njin_inspector --layout
+  consumption` opens that layout and `--size 1280x720` sets the window size.
+  The inspector's panels now scale with its window: both layouts fill the whole
+  window at any size (they were placed for 1700 x 960 pixels, leaving a strip of
+  empty space in the overview), and resizing keeps each panel's place and share,
+  including panels you moved. A screen smaller than 1700 x 960 gets a smaller
+  window. Each grabbed frame costs the game a few milliseconds on its own thread
+  (GPU read-back, shrink, compress).
+- **Builds and releases**: `CMakePresets.json` has `debug` (`build/`) and `release`
+  (`build-release/`) presets on Ninja. A Build workflow compiles every target on
+  Windows with MSVC and on Linux with GCC, a Version workflow fails when
+  `njin_version.h` and this file disagree, and a Release workflow creates the
+  GitHub Release for a `vX.Y.Z` tag from its section here.
+- **Docs**: a setup page for Windows, Linux and macOS; a 13-lesson track on C, C++,
+  CMake, shaders (including signed distance fields) and game patterns to read
+  before starting; the `first_jump` and `first_walk` tutorials; a "what do I use
+  for X" cheat sheet; and real screenshots and animated captures of the samples,
+  effects and `njin_inspector`.
+- **Tested on**: Windows with GCC 15.2 (development), and a full build from a fresh
+  clone on Ubuntu 26.04 under WSL2 (GCC 15.2). Not tested: MSVC, macOS, and any
+  GPU other than an Intel Iris Xe for the shaders.
+
 ## 0.3.0
 
 - **Sharper text**: the default font is now JetBrains Mono (SIL OFL), compiled

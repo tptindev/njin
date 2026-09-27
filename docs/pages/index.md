@@ -47,6 +47,7 @@ Chưa quen C, C++, CMake hay shader? Đọc nhóm 13 bài @ref learn trước (b
 | Nổ, bụi, tia lửa, rung camera, hitstop | @subpage particles |
 | Mẫu entity (prefab), gắn vũ khí vào nhân vật | @subpage prefabs |
 | Bản đồ ô vuông, va chạm với bản đồ | @subpage tilemap |
+| Tự sinh bản đồ bằng nhiễu, luật, bo góc và WFC | @subpage procgen |
 | Vẽ màn chơi bằng Tiled hoặc LDtk | @subpage level |
 | Đạn trúng quái, nhặt đồ, tường chắn, raycast | @subpage collision |
 | Làm hiệu ứng toàn màn hình: bloom, CRT, vignette | @subpage post_processing |

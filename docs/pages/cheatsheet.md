@@ -55,6 +55,12 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Viết bản đồ bằng chữ, mỗi ký tự một ô (không cần Tiled hay LDtk) | njin::tilemap_from_text(), njin::tilemap_from_rows() | @ref tilemap |
 | Ô là dốc, bục một chiều, không va chạm | njin::tilemap_set_shape() | @ref platformer |
 | Nước, đuốc chuyển động | njin::tilemap_animate() | @ref tilemap |
+| Tự sinh bản đồ top-down (đảo, vùng đất) từ nhiễu | njin::generate_topdown(), njin::noise_2d() | @ref procgen |
+| Tự sinh màn platformer chơi được (hố, hang, bục) | njin::generate_platformer() | @ref procgen |
+| Làm bản đồ sinh ra bớt vụn: xoá chấm lẻ, thêm viền, rải hoa | njin::grid_majority(), njin::grid_border(), njin::grid_scatter() | @ref procgen |
+| Góc bo tròn tự nhiên cho đất, nước, tường (autotile) | njin::grid_autotile(), njin::autotile_index() | @ref procgen_autotile |
+| Sinh bản đồ bằng Wave Function Collapse, từ mẫu hoặc luật tự viết | njin::wfc_learn(), njin::wfc_generate() | @ref procgen |
+| Đưa lưới sinh ra vào tilemap | njin::tilemap_from_grid() | @ref procgen |
 | Nạp màn chơi vẽ trong Tiled hoặc LDtk | njin::level_load(), njin::level_load_ldtk() | @ref level |
 | Tìm điểm xuất hiện, cửa, quái đặt trong màn | njin::level_find() | @ref level |
 | Xem ô nào ở vị trí nào, có chạm ô không | njin::tilemap_cell_at(), njin::tilemap_overlaps(), njin::tilemap_move() | @ref tilemap |
@@ -164,6 +170,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 |---|---|---|
 | Xem FPS, entity, collider, log trong cửa sổ riêng | njin::debug_server_start() rồi mở njin_inspector | @ref debug |
 | Theo dõi một giá trị đang đổi | njin::debug_watch() | @ref debug |
+| Quay cửa sổ game thành GIF (bấm F9 trong inspector) | njin::debug_server_start() rồi mở njin_inspector | @ref debug_recording |
 | Hiện component tự định nghĩa trong inspector | njin::debug_component | @ref debug |
 | Ghi log | `NJIN_INFO`, `NJIN_WARN`, `NJIN_ERROR` | @ref logging |
 | Sửa ảnh và shader khi game đang chạy | njin::hot_reload_enable() | @ref rendering |
