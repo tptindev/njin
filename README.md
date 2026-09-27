@@ -29,6 +29,7 @@ Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có th�
 | `njin_render_demo` | Mẫu atlas, particle, culling và hậu kỳ |
 | `njin_tower_defense` | Game thủ thành với tháp phòng thủ và các đợt quái |
 | `njin_moteswarm` | Điều khiển một sinh vật giữa đàn sinh vật tự di chuyển; mẫu chuyển động và shader |
+| `njin_paper_crowd` | Đám đông người tí hon tự làm việc riêng trên tờ giấy màu nước; mẫu instancing, click để theo dõi và phóng to một người |
 
 ## Yêu cầu
 
@@ -68,7 +69,7 @@ build\bin\Release\njin_pong.exe
 build/bin/njin_pong
 ```
 
-Bỏ `--target njin_pong` để build tất cả game mẫu và inspector. Có thể thay target bằng bất kỳ game nào trong bảng trên. Các game có thư mục output riêng chạy từ đó, ví dụ `build/bin/topdown/`, `build/bin/platformer/` và `build/bin/moteswarm/`.
+Bỏ `--target njin_pong` để build tất cả game mẫu và inspector. Có thể thay target bằng bất kỳ game nào trong bảng trên. Các game có thư mục output riêng chạy từ đó, ví dụ `build/bin/topdown/`, `build/bin/platformer/`, `build/bin/moteswarm/` và `build/bin/paper_crowd/`.
 
 Trên Windows, các script tiện ích có sẵn:
 

@@ -156,7 +156,7 @@ Một số điểm cần biết:
 - Máy không có OpenGL 3.3 thì njin::instancing_available() trả về `false` và các hàm này không làm
   gì.
 
-Ví dụ một đám đông: mỗi người là một instance 12 số (vị trí, tư thế, màu, pha chuyển động), và
+`njin_paper_crowd` vẽ đám đông theo cách này: mỗi người là một instance 12 số (vị trí, tư thế, màu, pha chuyển động), và
 fragment shader vẽ người bằng SDF trong hình vuông của họ. Ở 10.000 người, cách này tốn khoảng 5 ms
 CPU mỗi frame để vẽ, so với khoảng 7 ms khi vẽ từng người bằng `texture_draw_ex`.
 
