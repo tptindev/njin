@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="njin">
+<title>njin</title>
+<rect x="0" y="0" width="100" height="100" rx="22" fill="#16161C"/>
+<path d="M24 59.5A26 26 0 0 1 76 59.5H63A13 13 0 0 0 37 59.5Z" fill="#F3EFE6"/>
+<rect x="24" y="59.5" width="13" height="28" fill="#F3EFE6"/>
+<rect x="63" y="59.5" width="13" height="28" fill="#F3EFE6"/>
+<rect x="43.5" y="12.5" width="13" height="13" fill="#FF5B4A"/>
+</svg>

@@ -31,6 +31,41 @@ function(njin_add_assets target dir)
   add_dependencies(${target} ${target}_${name})
 endfunction()
 
+# njin_icon(<target> [<file.ico>])
+#
+# On Windows, embeds an icon in the executable of <target>. Explorer shows it,
+# and so do the game's window and its taskbar button: the resource is named
+# GLFW_ICON, the one the window looks for when it opens. Without <file.ico>
+# (relative to the calling CMakeLists.txt) it is the njin icon. Other systems
+# ignore it. A target has one icon: njin_package() calls this too, and only the
+# first call counts.
+function(njin_icon target)
+  if(NOT TARGET ${target})
+    message(FATAL_ERROR "njin_icon: '${target}' is not a target")
+  endif()
+  if(NOT WIN32)
+    return()
+  endif()
+  get_target_property(done ${target} NJIN_ICON)
+  if(done)
+    return()
+  endif()
+  if(ARGC GREATER 1)
+    cmake_path(ABSOLUTE_PATH ARGV1 BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+               NORMALIZE OUTPUT_VARIABLE icon)
+  else()
+    set(icon "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../docs/images/brand/njin.ico")
+    cmake_path(NORMAL_PATH icon)
+  endif()
+  if(NOT EXISTS "${icon}")
+    message(FATAL_ERROR "njin_icon: icon not found: ${icon}")
+  endif()
+  set(rc "${CMAKE_CURRENT_BINARY_DIR}/${target}_icon.rc")
+  file(CONFIGURE OUTPUT "${rc}" CONTENT "GLFW_ICON ICON \"${icon}\"\n" @ONLY)
+  target_sources(${target} PRIVATE "${rc}")
+  set_property(TARGET ${target} PROPERTY NJIN_ICON "${icon}")
+endfunction()
+
 # njin_check_boundary()
 #
 # Runs by itself at the end of configure (deferred below). Every target that
@@ -151,9 +186,9 @@ endif()
 #              [ASSETS <dir>...] [FILES <file>...])
 #
 # Makes <target> ready to hand to players:
-# - on Windows, embeds the icon (shown by Explorer and the taskbar) and a
-#   version resource (NAME, VERSION) in the executable, and builds it without
-#   a console window in every configuration but Debug;
+# - on Windows, embeds the icon (njin_icon(): ICON, or the njin icon without
+#   it) and a version resource (NAME, VERSION) in the executable, and builds it
+#   without a console window in every configuration but Debug;
 # - adds a target <target>_dist that gathers the executable, the ASSETS
 #   folders and the extra FILES (readme, licence) into build/dist/<target>/,
 #   then zips that folder to build/dist/<target>-<VERSION>.zip.
@@ -184,15 +219,12 @@ function(njin_package target)
     list(SUBLIST parts 0 4 parts)
     list(JOIN parts "," numeric)
     set(rc "${CMAKE_CURRENT_BINARY_DIR}/${target}_package.rc")
-    set(body "")
     if(PKG_ICON)
-      cmake_path(ABSOLUTE_PATH PKG_ICON BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-                 NORMALIZE OUTPUT_VARIABLE icon)
-      if(NOT EXISTS "${icon}")
-        message(FATAL_ERROR "njin_package: icon not found: ${icon}")
-      endif()
-      string(APPEND body "1 ICON \"${icon}\"\n")
+      njin_icon(${target} "${PKG_ICON}")
+    else()
+      njin_icon(${target})
     endif()
+    set(body "")
     string(APPEND body
       "1 VERSIONINFO\n"
       "FILEVERSION ${numeric}\n"

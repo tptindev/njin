@@ -3,6 +3,8 @@
 
 PROJECT_NAME           = "njin"
 PROJECT_BRIEF          = "Engine game 2D nhỏ viết bằng C++20, EnTT và raylib"
+PROJECT_LOGO           = images/brand/njin-mark.svg
+PROJECT_ICON           = images/brand/njin-mark.svg
 OUTPUT_LANGUAGE        = Vietnamese
 OUTPUT_DIRECTORY       = .
 HTML_OUTPUT            = html

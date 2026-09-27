@@ -8,3 +8,6 @@ target_link_libraries(njin_render_demo PRIVATE njin::rt njin::gpu njin_warnings)
 set_target_properties(njin_render_demo PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/render_demo")
 
 njin_add_assets(njin_render_demo assets)
+
+# The njin icon on the exe, its window and its taskbar button (Windows).
+njin_icon(njin_render_demo)

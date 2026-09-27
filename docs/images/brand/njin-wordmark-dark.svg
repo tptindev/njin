@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 102" width="148" height="102" role="img" aria-label="njin">
+<title>njin</title>
+<path d="M0 44A22 22 0 0 1 44 44H32A10 10 0 0 0 12 44Z" fill="#F3EFE6"/>
+<rect x="0" y="44" width="12" height="30" fill="#F3EFE6"/>
+<rect x="32" y="44" width="12" height="30" fill="#F3EFE6"/>
+<rect x="56" y="22" width="12" height="62" fill="#F3EFE6"/>
+<path d="M68 84A18 18 0 0 1 50 102V90A6 6 0 0 0 56 84Z" fill="#F3EFE6"/>
+<rect x="56" y="0" width="12" height="12" fill="#FF5B4A"/>
+<rect x="80" y="22" width="12" height="52" fill="#F3EFE6"/>
+<rect x="80" y="0" width="12" height="12" fill="#FF5B4A"/>
+<path d="M104 44A22 22 0 0 1 148 44H136A10 10 0 0 0 116 44Z" fill="#F3EFE6"/>
+<rect x="104" y="44" width="12" height="30" fill="#F3EFE6"/>
+<rect x="136" y="44" width="12" height="30" fill="#F3EFE6"/>
+</svg>

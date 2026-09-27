@@ -16,6 +16,11 @@ To release: edit that header, add a section here, commit, then
   shader, each with 4 to 16 floats of its own data (`instance0..3` in the vertex
   shader). `instancing_available` says whether the machine can. The inspector's
   draw-call and instanced-call counts include these draws.
+- **Logo and icon**: the njin mark and wordmark (SVG, PNG, ICO) are in
+  `docs/images/brand/`. `njin_icon(<target> [file.ico])` embeds an icon in a
+  game's executable, its window and its taskbar button on Windows, and defaults
+  to njin's; `njin_package` uses it, and every sample game without an icon of
+  its own and the inspector now carry the njin one.
 - **New sample games**: `njin_tower_defense` is a tower-defense game with enemy
   waves, and `njin_moteswarm` lets you steer one creature among a swarm of
   wandering creatures, demonstrating procedural motion and a shader pass.

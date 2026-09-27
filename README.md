@@ -1,4 +1,9 @@
-# njin
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/brand/njin-logo-dark.svg">
+    <img src="docs/images/brand/njin-logo.svg" alt="njin" width="360">
+  </picture>
+</p>
 
 njin là game engine 2D mã nguồn mở, viết bằng C++20, tập trung vào hai thể loại: **top-down** và **platformer màn hình ngang**. Engine dùng EnTT cho ECS và raylib cho cửa sổ, đồ họa, âm thanh và input; game chỉ cần include API của njin qua `njin.h`.
 

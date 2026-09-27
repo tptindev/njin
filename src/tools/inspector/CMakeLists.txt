@@ -58,6 +58,8 @@ target_include_directories(njin_inspector PRIVATE ${PROJECT_SOURCE_DIR}/src/engi
 # runtime's protocol headers, so the game-side guard does not apply.
 set_target_properties(njin_inspector PROPERTIES NJIN_ENGINE_INTERNAL ON)
 target_link_libraries(njin_inspector PRIVATE njin::rt njin_imgui raylib njin_warnings)
+# The njin icon on the exe, its window and its taskbar button (Windows).
+njin_icon(njin_inspector)
 if(WIN32)
   # Process memory (PSAPI) and GPU counters (PDH) of the game, by process id; the shell opens folders.
   target_link_libraries(njin_inspector PRIVATE psapi pdh shell32)
