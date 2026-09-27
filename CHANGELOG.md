@@ -6,6 +6,20 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## 0.5.0
+
+- **Supersampling**: `njin_cfg::render_scale` draws the world and UI at 2x, 4x or
+  8x resolution, then smoothly downsamples the image to reduce jagged edges.
+  Logical coordinates stay the same; higher settings use more GPU work.
+- **New sample games**: `njin_tower_defense` is a tower-defense game with enemy
+  waves, and `njin_moteswarm` lets you steer one creature among a swarm of
+  wandering creatures, demonstrating procedural motion and a shader pass.
+- **Build and editor setup**: Windows scripts now use the CMake presets, with
+  VS Code build, run and debug tasks included. Configure-time and compile-time
+  checks keep game code behind njin's public API instead of including or
+  linking directly to raylib.
+- **Logging**: window and audio backend messages use the `njin` log tag.
+
 ## 0.4.0
 
 - **Breaking for code that includes a split header directly.** `njin_ctx.h` no

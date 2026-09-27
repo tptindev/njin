@@ -2,7 +2,7 @@
 
 njin là game engine 2D mã nguồn mở, viết bằng C++20, tập trung vào hai thể loại: **top-down** và **platformer màn hình ngang**. Engine dùng EnTT cho ECS và raylib cho cửa sổ, đồ họa, âm thanh và input; game chỉ cần include API của njin qua `njin.h`.
 
-Phiên bản hiện tại: **0.4.0**. API vẫn đang phát triển và có thể thay đổi giữa các bản minor trước 1.0. Xem [CHANGELOG.md](CHANGELOG.md) để biết chi tiết.
+Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có thể thay đổi giữa các bản minor trước 1.0. Xem [CHANGELOG.md](CHANGELOG.md) để biết chi tiết.
 
 ## Tính năng
 
@@ -10,7 +10,7 @@ Phiên bản hiện tại: **0.4.0**. API vẫn đang phát triển và có th�
 - Sprite, animation, tilemap vuông từ Tiled/LDtk, va chạm và camera theo nhân vật.
 - Bộ điều khiển nhân vật cho platformer và top-down, navigation A*, particle và hiệu ứng hậu kỳ.
 - UI, âm thanh, lưu cài đặt, hội thoại và bản địa hóa.
-- Màn hình ảo cho pixel art và công cụ `njin_inspector` để xem entity, system, log, hiệu năng và tài nguyên khi game chạy.
+- Màn hình ảo cho pixel art, khử răng cưa bằng supersampling và công cụ `njin_inspector` để xem entity, system, log, hiệu năng và tài nguyên khi game chạy.
 
 ## Game mẫu
 
@@ -22,6 +22,8 @@ Phiên bản hiện tại: **0.4.0**. API vẫn đang phát triển và có th�
 | `njin_topdown` | Game top-down có tilemap, chiến đấu và quái tìm đường |
 | `njin_debug_demo` | Mẫu dùng thử `njin_inspector` |
 | `njin_render_demo` | Mẫu atlas, particle, culling và hậu kỳ |
+| `njin_tower_defense` | Game thủ thành với tháp phòng thủ và các đợt quái |
+| `njin_moteswarm` | Điều khiển một sinh vật giữa đàn sinh vật tự di chuyển; mẫu chuyển động và shader |
 
 ## Yêu cầu
 
@@ -61,7 +63,7 @@ build\bin\Release\njin_pong.exe
 build/bin/njin_pong
 ```
 
-Bỏ `--target njin_pong` để build tất cả game mẫu và inspector. Có thể thay target bằng `njin_sandbox`, `njin_platformer`, `njin_topdown`, `njin_debug_demo` hoặc `njin_render_demo`. Hai game có tài nguyên riêng chạy từ thư mục riêng, ví dụ `build/bin/topdown/` và `build/bin/platformer/`.
+Bỏ `--target njin_pong` để build tất cả game mẫu và inspector. Có thể thay target bằng bất kỳ game nào trong bảng trên. Các game có thư mục output riêng chạy từ đó, ví dụ `build/bin/topdown/`, `build/bin/platformer/` và `build/bin/moteswarm/`.
 
 Trên Windows, các script tiện ích có sẵn:
 
