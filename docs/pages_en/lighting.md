@@ -4,6 +4,10 @@ njin has built-in **physically based (PBR)** 2D lighting: point lights, spot lig
 (metallic, roughness, occlusion), emissive glow and tonemapping. Turn it on and the whole world, sprites and tilemaps alike, is lit, with no shader to write.
 
 You should know first: @ref sprites, @ref camera and @ref ecs. Run `njin_render_demo` and press `L` to see everything below.
+`njin_lighting_demo` puts each case in a room of its own (12 rooms: the kinds of light, `size` and soft shadows, the occluder
+shapes, walls from a tilemap, shadows from sprites, PBR surfaces, colour and tonemapping, many lights, a side view platformer),
+with what to look at and the line of code that makes it written on screen; each room is one function in
+`src/games/lighting_demo/rooms_*.cpp`.
 
 @image html render_light_night.gif "Night in the forest (njin_render_demo, key L): the character's torch flickers, four fixed lights, each tree trunk casts a pixel-exact shadow, flowers glow on their own. The golden ball is metal, so it reflects the lights differently from the wood and grass"
 

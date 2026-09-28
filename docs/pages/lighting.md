@@ -4,6 +4,9 @@ njin có sẵn ánh sáng 2D **dựa trên vật lý (PBR)**: đèn điểm, đ�
 (độ kim loại, độ nhám, che khuất), phát sáng và tonemap. Bật lên là cả thế giới, sprite lẫn tilemap, được chiếu sáng, không cần viết shader.
 
 Cần biết trước: @ref sprites, @ref camera và @ref ecs. Chạy `njin_render_demo` rồi bấm phím `L` để xem mọi thứ dưới đây.
+`njin_lighting_demo` tách từng trường hợp ra một phòng riêng (12 phòng: các loại đèn, `size` và bóng mềm, các hình vật chắn,
+tường từ tilemap, bóng từ sprite, bề mặt PBR, màu và tonemap, nhiều đèn, platformer nhìn ngang), có ghi ngay trên màn hình
+cần nhìn gì và dòng code tạo ra nó; mỗi phòng là một hàm trong `src/games/lighting_demo/rooms_*.cpp`.
 
 @image html render_light_night.gif "Đêm trong rừng (njin_render_demo, phím L): đuốc của nhân vật chập chờn, bốn đèn cố định, thân mỗi cây đổ bóng từng pixel, hoa tự phát sáng. Quả cầu vàng là kim loại nên phản chiếu đèn khác gỗ và cỏ"
 
