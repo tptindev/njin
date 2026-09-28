@@ -254,8 +254,10 @@ struct lighting_desc {
   /// Cách nén ánh sáng HDR về màn hình.
   light_tonemap tonemap = tonemap_shoulder;
   /// Số cột của bản đồ bóng mỗi đèn dùng light_occluder_pixels: số góc quanh một đèn điểm (số dải
-  /// của đèn hướng). Nhiều thì bóng sắc nét hơn ở xa đèn, tốn hơn một chút. 128 đến 4096.
-  i32 shadow_columns = 1024;
+  /// của đèn hướng). 0 là tự chọn: đủ để mỗi tia cách nhau khoảng một pixel ở rìa đèn rộng nhất, nên
+  /// vật chắn mảnh không lọt giữa hai tia (nếu ít hơn, bóng xa đèn vỡ thành các tia nan quạt). Đặt số
+  /// cụ thể (256 đến 4096) để giới hạn chi phí.
+  i32 shadow_columns = 0;
   /// Ngưỡng alpha của light_occluder_pixels, 0..1: pixel từ ngưỡng này trở lên là vật đặc.
   f32 pixel_alpha = 0.5f;
   /// Vật chắn light_occluder_pixels được đọc trong ảnh màn hình mở rộng thêm khoảng này về mọi phía
@@ -265,8 +267,11 @@ struct lighting_desc {
   /// tiết (cần cho pixel art). Nhỏ hơn thì cả ảnh đã chiếu sáng được tính ở độ
   /// phân giải thấp rồi phóng lên: nhanh hơn nhiều, nhưng mờ, chỉ hợp máy yếu.
   f32 scale = 1.0f;
-  /// Khoảng đèn hướng dò bóng (đơn vị thế giới): vật chắn xa hơn thế không đổ
-  /// bóng lên điểm đang xét.
+  /// Độ dài bóng của đèn hướng (đơn vị thế giới): vật chắn xa hơn thế phía sau
+  /// không đổ bóng lên điểm đang xét. Một vật cao H bị mặt trời ở góc `elevation`
+  /// chiếu thì bóng dài `H / tan(elevation)`: với cây cao 24 và mặt trời 30 độ là
+  /// khoảng 40. Mặc định 600 là bóng gần như vô hạn, chỉ hợp khi vật chắn thưa; ở khu
+  /// rừng dày nó làm cả bản đồ chìm trong bóng. Áp dụng cho cả bóng đa giác và từng pixel.
   f32 shadow_reach = 600.0f;
 };
 

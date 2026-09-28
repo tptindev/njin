@@ -10,7 +10,8 @@
 
 namespace njin::light_impl {
 namespace {
-constexpr i32 max_rows = 64; // lights that can have pixel shadows in one frame
+constexpr i32 max_rows = 64;  // rows of the shadow map
+constexpr i32 sun_rows = 4;   // a directional light keeps 8 runs per column, two to a row
 
 // World coordinates to texels of the occluder map (y down): the world camera moved by the margin, and the
 // scale from logical pixels to texels.
@@ -64,7 +65,22 @@ bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camer
   const i32 margin_px = (i32)std::ceil(margin_world * zoom);
   const vec2 logical{screen.x + 2.0f * (f32)margin_px, screen.y + 2.0f * (f32)margin_px};
   const i32 tw = std::max(1, (i32)std::ceil(logical.x * texel_scale)), th = std::max(1, (i32)std::ceil(logical.y * texel_scale));
-  const i32 columns = std::clamp(d.shadow_columns, 128, 4096);
+  const f32 texel_world = 1.0f / (zoom * ((f32)tw / logical.x)); // world units in one texel
+  // Columns: a ray per texel at the far end of the widest light, or the number asked for. Fewer columns
+  // than that and a thin occluder falls between two rays far from the light, leaving spokes.
+  i32 columns = d.shadow_columns;
+  if (columns <= 0) {
+    f32 reach = 0.0f;
+    for (const light_job &job : lights) {
+      if (!job.light->cast_shadows)
+        continue;
+      reach = std::max(reach, job.light->kind == light_directional ? std::max(steady.size.x, steady.size.y) + 128.0f
+                                                                    : 2.0f * PI * std::max(job.light->radius, 1.0f));
+    }
+    columns = (i32)std::ceil(reach / std::max(texel_world, 1e-3f));
+  }
+  columns = std::clamp(columns, 256, 4096);
+  s.pixel_columns_used = columns;
   if (!ensure_target(s.occluder_map, tw, th, false) || !ensure_float_target(s.shadow_rows, columns, max_rows, s.hdr_ok, true))
     return false;
 
@@ -106,12 +122,12 @@ bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camer
   const light_locations &loc = s.loc;
   const Shader &mh = s.march;
   const f32 rot = camera.rotation * (PI / 180.0f);
-  const f32 texel_world = 1.0f / (zoom * map.sx); // world units in one texel
   const rect view{steady.pos - vec2{64.0f, 64.0f}, steady.size + vec2{128.0f, 128.0f}}; // the same as the strips of the edges
   bool any = false;
   i32 row = 0;
   BeginTextureMode(s.shadow_rows);
   ClearBackground(WHITE); // entry and exit 1: nothing
+  rlDisableColorBlend();  // the four channels are data: the last one is not an opacity
   BeginShaderMode(mh);
   set_v2(mh, loc.march_map_size, {(f32)tw, (f32)th});
   set_f(mh, loc.march_columns, (f32)columns);
@@ -122,6 +138,10 @@ bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camer
     const light_2d &l = *job.light;
     if (!l.cast_shadows)
       continue;
+    // One row per two runs: a point light needs the first two, the sun keeps up to eight.
+    const i32 rows = l.kind == light_directional ? sun_rows : 1;
+    if (row + rows > max_rows)
+      break;
     if (l.kind == light_directional) {
       // Parallel strips across the rays, from the sun's side of the map.
       const vec2 dir{std::cos(job.angle), std::sin(job.angle)}, across{-std::sin(job.angle), std::cos(job.angle)};
@@ -153,15 +173,19 @@ bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camer
       set_f(mh, loc.march_max_len, radius / texel_world);
       out[i] = {row, 1.0f / radius, 0.0f, 1.5f * texel_world / radius};
     }
-    // The sampler is forgotten at each flush: bind it again for every light.
-    SetShaderValueTexture(mh, loc.march_occluders, s.occluder_map.texture);
-    // The target is drawn y down, so storage row `row` is drawn at the mirrored height.
-    DrawRectangle(0, max_rows - 1 - row, columns, 1, WHITE);
-    rlDrawRenderBatchActive();
-    row++;
+    for (i32 r = 0; r < rows; r++) {
+      set_i(mh, loc.march_first_run, 2 * r);
+      // The sampler is forgotten at each flush: bind it again for every row.
+      SetShaderValueTexture(mh, loc.march_occluders, s.occluder_map.texture);
+      // The target is drawn y down, so storage row `row` is drawn at the mirrored height.
+      DrawRectangle(0, max_rows - 1 - (row + r), columns, 1, WHITE);
+      rlDrawRenderBatchActive();
+    }
+    row += rows;
     any = true;
   }
   EndShaderMode();
+  rlEnableColorBlend();
   EndTextureMode();
   return any;
 }

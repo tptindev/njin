@@ -424,6 +424,7 @@ void find_locations(lighting_state &s) {
   l.march_strip0 = GetShaderLocation(mh, "strip0");
   l.march_strip_step = GetShaderLocation(mh, "strip_step");
   l.march_dir = GetShaderLocation(mh, "dir");
+  l.march_first_run = GetShaderLocation(mh, "first_run");
 }
 
 } // namespace
@@ -583,7 +584,7 @@ const Texture2D &lighting_apply(njin_ctx &ctx, const Camera2D &camera, const Tex
     set_i(sh, loc.use_normals, use_normals ? 1 : 0);
     set_i(sh, loc.use_material, use_material ? 1 : 0);
     set_f(sh, loc.reach, d.shadow_reach);
-    set_f(sh, loc.pixel_columns, (f32)std::clamp(d.shadow_columns, 128, 4096));
+    set_f(sh, loc.pixel_columns, (f32)s.pixel_columns_used);
     if (have_pixel) {
       // A fifth sampler, past the four raylib manages: bound here once, it stays bound across the flushes.
       const int unit = 5;

@@ -117,13 +117,46 @@ float visibility(vec2 p, vec2 target, vec2 across, float half_width) {
   return lit / 8.0;
 }
 
-// Pixel-perfect shadow (mattdesl, "2D Pixel-Perfect Shadows"): the light's 1D shadow map holds, for each angle,
-// where the first occluder starts and ends. A receiver beyond the end is in shadow; one before it, or inside it
-// (the object itself), is lit. The soft edge is percentage-closer filtering across neighbouring angles, as wide
-// as the penumbra the light's size makes from the average blocker depth (percentage-closer soft shadows).
-vec2 shadow_at(float t) {
-  float col = floor(clamp(t, 0.0, 0.99999) * pixel_columns);
-  return texelFetch(pixel_shadows, ivec2(int(col), pixel_row), 0).rg;
+// Pixel-perfect shadow (mattdesl, "2D Pixel-Perfect Shadows"): the light's 1D shadow map holds, for each angle
+// (or strip, for the sun), where the occluders start and end along it. A receiver behind a run's end is shadowed
+// by it; one before it, or inside it (the object itself), is not. A point light needs only the first run of a
+// column, as its shadows have no end. The sun's are as long as `reach`, so a blocker behind another one still
+// matters: the map keeps up to 8 runs per column, in 4 rows, and the nearest one behind the receiver counts.
+// The soft edge is percentage-closer filtering across neighbouring columns, as wide as the penumbra the light's
+// size makes from the average blocker depth (percentage-closer soft shadows).
+const int SUN_ROWS = 4;
+
+// What column `u` says about a receiver at normalised depth `nd`: the distance (world units) behind the nearest
+// blocker that shadows it, or -1 when none does; `entry` is where that blocker starts, and `inside` says the
+// receiver is in a solid (the object itself).
+float column_state(float u, float nd, out bool inside, out float entry) {
+  int col = int(floor(clamp(u, 0.0, 0.99999) * pixel_columns));
+  float world_r = 1.0 / pixel_inv;
+  int rows = kind == 2 ? SUN_ROWS : 1;
+  float best = -1.0;
+  inside = false;
+  entry = 0.0;
+  for (int r = 0; r < rows; r++) {
+    vec4 run = texelFetch(pixel_shadows, ivec2(col, pixel_row + r), 0);
+    if (run.x >= 0.999 || run.x > nd + pixel_tol)
+      break;                                   // no run here, or all of them past the receiver: so in the rows after
+    for (int k = 0; k < 2; k++) {
+      float e = k == 0 ? run.x : run.z;
+      float l = k == 0 ? run.y : run.w;
+      if (e >= 0.999 || e > nd + pixel_tol)
+        break;
+      if (nd >= e - pixel_tol && nd <= l + pixel_tol) {
+        inside = true;
+      } else if (l < nd - pixel_tol) {
+        float d = (nd - l) * world_r;
+        if (best < 0.0 || d < best) {
+          best = d;
+          entry = e;
+        }
+      }
+    }
+  }
+  return best;
 }
 
 // Half the penumbra, as a share of the coordinate (angle / 2 pi, or the across range), for a receiver at
@@ -132,7 +165,7 @@ float penumbra(float nd, float db, float world_r) {
   db = max(db, 0.002);
   float width = source_size * (nd - db) / db;               // across the receiver, world units (point light)
   if (kind == 2)
-    width = source_size * (nd - db) * world_r / reach;      // the sun's rays are nearly parallel
+    width = source_size * (nd - db) * world_r / 600.0;      // the sun's disc has a fixed angular size, size / 600
   float half_span = kind == 2 ? bin_inv / float(BUCKETS) : 1.0 / (2.0 * PI * max(nd * world_r, 1.0));
   return width * half_span;
 }
@@ -140,40 +173,51 @@ float penumbra(float nd, float db, float world_r) {
 float pixel_visibility(float t, float nd) {
   float world_r = 1.0 / pixel_inv;
   bool wrap = kind != 2;
-  // Inside the first solid on its ray: the object itself, lit whatever its neighbours' rays do.
-  for (int i = -1; i <= 1; i++) {   // the neighbouring columns too: a ray at a slant can skirt a corner
-    vec2 own = shadow_at(t + float(i) / pixel_columns);
-    if (nd >= own.x - pixel_tol && nd <= own.y + pixel_tol)
+  bool inside;
+  float entry;
+  // Inside a solid: the object itself, lit whatever its neighbours' rays do. The neighbouring columns too:
+  // a ray at a slant can skirt a corner.
+  for (int i = -1; i <= 1; i++) {
+    column_state(t + float(i) / pixel_columns, nd, inside, entry);
+    if (inside)
       return 1.0;
   }
+  float jitter = hash(gl_FragCoord.xy);
+  // The sun's shadows are as long as `reach`, like those of an object that is only so tall: a blocker
+  // farther behind than that no longer shadows the receiver.
+  float shadow_len = kind == 2 ? reach : 1e9;
   // Search for blockers across the widest penumbra the light could make here.
-  float search = kind == 2 ? source_size * nd * world_r / reach * bin_inv / float(BUCKETS)
+  float search = kind == 2 ? source_size * min(nd * world_r, shadow_len) / 600.0 * bin_inv / float(BUCKETS)
                            : source_size / max(nd * world_r, 1.0) / (2.0 * PI);
-  search = clamp(search, 0.5 / pixel_columns, 0.25);
+  search = clamp(search, 1.5 / pixel_columns, 0.25);
   float blocker = 0.0;
   float found = 0.0;
-  for (int i = -2; i <= 2; i++) {
-    float u = t + search * float(i) / 2.0;
+  // A narrow window needs few samples: a few columns wide, every column is nearly the same.
+  int search_taps = search * pixel_columns < 4.0 ? 3 : 8;
+  for (int i = 0; i < search_taps; i++) {
+    float u = t + search * (((float(i) + jitter) / float(search_taps)) * 2.0 - 1.0);
     u = wrap ? fract(u) : u;
-    vec2 be = shadow_at(u);
-    if (nd > be.y + pixel_tol) {
-      blocker += be.x;
+    float behind = column_state(u, nd, inside, entry);
+    if (behind >= 0.0 && behind <= shadow_len) {
+      blocker += entry;
       found += 1.0;
     }
   }
   if (found < 0.5)
     return 1.0;
-  float w = clamp(penumbra(nd, blocker / found, world_r), 0.6 / pixel_columns, 0.25);
+  // The filter: 16 samples, one in each of 16 equal parts of the penumbra, each moved by a per-pixel offset
+  // inside its part. Every part is sampled, so a thin blocker cannot fall between the samples and leave
+  // spokes; what is left of the approximation is a fine grain.
+  float w = clamp(penumbra(nd, blocker / found, world_r), 1.5 / pixel_columns, 0.25);
   float lit = 0.0;
-  float weight = 0.0;
-  for (int i = -4; i <= 4; i++) {
-    float u = t + w * float(i) / 4.0;
+  int taps = w * pixel_columns < 4.0 ? 5 : 16;
+  for (int i = 0; i < taps; i++) {
+    float u = t + w * (((float(i) + jitter) / float(taps)) * 2.0 - 1.0);
     u = wrap ? fract(u) : u;
-    float k = 5.0 - abs(float(i));
-    lit += k * (nd <= shadow_at(u).y + pixel_tol ? 1.0 : 0.0);
-    weight += k;
+    float behind = column_state(u, nd, inside, entry);
+    lit += (inside || behind < 0.0 || behind > shadow_len) ? 1.0 : 0.0;
   }
-  return lit / weight;
+  return lit / float(taps);
 }
 
 float distribution_ggx(float nh, float a) {
@@ -201,7 +245,8 @@ void main() {
       edge_row = bucket_base + bucket;
       edge_count = bucket_count[bucket];
     }
-    vis = visibility(world, world + back * reach, vec2(-ldir.y, ldir.x), source_size);
+    // The sun's disc is `source_size` wide seen from 600 units away, whatever the length of the shadows.
+    vis = visibility(world, world + back * reach, vec2(-ldir.y, ldir.x), source_size * reach / 600.0);
   } else {
     vec2 to_light = lpos - world;
     float d = length(to_light);
@@ -333,9 +378,10 @@ void main() {
 }
 )";
 // The 1D shadow map of one light (mattdesl, "2D Pixel-Perfect Shadows"): one fragment per column, marching a
-// ray through the occluder map, one texel at a time, from the light (or from the start of a strip, for the sun).
-// The result is where the first solid run starts and ends, as a share of `max_len`; 1 and 1 when there is none.
-// A light that sits inside a solid first leaves it, so it is not blocked by its own object.
+// ray through the occluder map, half a texel at a time, from the light (or from the start of a strip, for the sun).
+// The result is where the runs of solid start and end along the ray, as a share of `max_len`: the run number
+// `first_run` in .xy and the next one in .zw; 1 when there is none. A light that sits inside a solid first
+// leaves it, so it is not blocked by its own object.
 const char *const march_fs = R"(#version 330
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -350,12 +396,36 @@ uniform vec2 rot;        // cos, sin of the camera's rotation: world direction t
 uniform vec2 strip0;     // strips: where strip 0 starts, and the step to the next one, in texels
 uniform vec2 strip_step;
 uniform vec2 dir;        // strips: the unit direction of the rays, in texels
+uniform int first_run;   // how many runs to skip: a row holds two of them
 out vec4 finalColor;
+
+const float STEP = 0.5;  // texels; at a slant a whole-texel step can jump over the corner of a pixel
 
 bool solid(vec2 p) {
   if (p.x < 0.0 || p.y < 0.0 || p.x >= map_size.x || p.y >= map_size.y)
     return false;
   return texelFetch(occluders, ivec2(int(p.x), int(map_size.y) - 1 - int(p.y)), 0).a >= alpha;
+}
+
+// The next run of solid at or after step `pos`: where it starts and ends, as a share of max_len (1 and 1 when
+// there is none). `pos` moves to its end.
+void next_run(vec2 start, vec2 step_dir, int n, inout int pos, out float entry, out float leave) {
+  entry = 1.0;
+  leave = 1.0;
+  for (int k = 0; k < 4096; k++) {             // the first solid step
+    if (pos >= n || solid(start + step_dir * ((float(pos) + 0.5) * STEP)))
+      break;
+    pos++;
+  }
+  if (pos >= n)
+    return;
+  entry = float(pos) * STEP / max_len;
+  for (int k = 0; k < 4096; k++) {             // and where that run ends
+    if (pos >= n || !solid(start + step_dir * ((float(pos) + 0.5) * STEP)))
+      break;
+    pos++;
+  }
+  leave = float(pos) * STEP / max_len;
 }
 
 void main() {
@@ -371,35 +441,21 @@ void main() {
     start = strip0 + strip_step * (c + 0.5);
     step_dir = dir;
   }
-  // Half a texel at a time: at a slant a whole-texel step can jump over the corner of a pixel.
-  const float STEP = 0.5;
   int n = int(min(max_len / STEP, 4096.0));
-  int i = 0;
+  int pos = 0;
   if (mode == 0) {
     for (int k = 0; k < 4096; k++) {           // leave the light's own solid first
-      if (i >= n || !solid(start + step_dir * ((float(i) + 0.5) * STEP)))
+      if (pos >= n || !solid(start + step_dir * ((float(pos) + 0.5) * STEP)))
         break;
-      i++;
+      pos++;
     }
   }
-  for (int k = 0; k < 4096; k++) {             // the first solid texel
-    if (i >= n || solid(start + step_dir * ((float(i) + 0.5) * STEP)))
-      break;
-    i++;
-  }
-  float entry = 1.0;
-  float leave = 1.0;
-  if (i < n) {
-    entry = float(i) * STEP / max_len;
-    int j = i;
-    for (int k = 0; k < 4096; k++) {           // and where that run ends
-      if (j >= n || !solid(start + step_dir * ((float(j) + 0.5) * STEP)))
-        break;
-      j++;
-    }
-    leave = float(j) * STEP / max_len;
-  }
-  finalColor = vec4(entry, leave, 0.0, 1.0);
+  float e0 = 1.0, l0 = 1.0, e1 = 1.0, l1 = 1.0;
+  for (int r = 0; r < first_run; r++)
+    next_run(start, step_dir, n, pos, e0, l0);
+  next_run(start, step_dir, n, pos, e0, l0);
+  next_run(start, step_dir, n, pos, e1, l1);
+  finalColor = vec4(e0, l0, e1, l1);
 }
 )";
 } // namespace njin::light_impl

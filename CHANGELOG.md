@@ -47,7 +47,9 @@ To release: edit that header, add a section here, commit, then
   `light_occluder_pixels` casts pixel-perfect shadows from the alpha of a sprite (or a mask
   image), after mattdesl's "2D Pixel-Perfect Shadows": the occluders go to an image, each
   light ray-marches a 1D shadow map through it, and the soft edge is percentage-closer soft
-  shadows. Its cost follows the light's area, not the number of occluders.
+  shadows. Its cost follows the light's area, not the number of occluders. The sun's
+  shadows are as long as `lighting_desc::shadow_reach` (an object only so tall), and the
+  1D shadow map keeps several runs per column for it.
   `render_demo` keys L, N, O, M, P show it.
 - **Logo and icon**: the njin mark and wordmark (SVG, PNG, ICO) are in
   `docs/images/brand/`. `njin_icon(<target> [file.ico])` embeds an icon in a

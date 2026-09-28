@@ -54,7 +54,7 @@ struct light_locations {
   i32 pixel_shadows = -1, pixel_row = -1, pixel_columns = -1, pixel_inv = -1, pixel_off = -1, pixel_tol = -1;
   // The march shader.
   i32 march_occluders = -1, march_map_size = -1, march_mode = -1, march_columns = -1, march_alpha = -1, march_origin = -1;
-  i32 march_max_len = -1, march_rot = -1, march_strip0 = -1, march_strip_step = -1, march_dir = -1;
+  i32 march_max_len = -1, march_rot = -1, march_strip0 = -1, march_strip_step = -1, march_dir = -1, march_first_run = -1;
 };
 
 // The outline of one frame of a sprite (light_occluder_sprite), in the pixels of
@@ -71,6 +71,7 @@ struct lighting_state {
   // The textures of pixel occluders already set to clamp: with the default repeat, the bottom row of a
   // picture shows above its top edge where the quad's edge falls between two texels.
   std::unordered_set<u32> clamped;
+  i32 pixel_columns_used = 1024; // the columns of the pixel shadow map this frame (lighting_desc::shadow_columns, or automatic)
 
   // Outlines traced from sprite frames, by frame (texture, rectangle, settings).
   std::unordered_map<u64, std::vector<silhouette_loop>> silhouettes;
