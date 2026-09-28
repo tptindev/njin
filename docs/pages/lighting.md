@@ -17,7 +17,7 @@ cần nhìn gì và dòng code tạo ra nó; mỗi phòng là một hàm trong `
 | BRDF của mỗi đèn: khuếch tán Lambert + phản xạ gương Cook-Torrance (phân bố **GGX** với `alpha = roughness^2`, che khuất **Smith-Schlick** với `k = (r + 1)^2 / 8`, **Fresnel-Schlick**, `kD = (1 - F)(1 - metallic)`) | `pbr.fs` trong ví dụ `shaders_basic_pbr` của raylib: cùng công thức, nên art làm cho ví dụ đó dùng lại được |
 | Bản đồ vật liệu xếp kênh **MRA**: R metallic, G roughness, B ambient occlusion | Cách xếp trong ví dụ đó |
 | Bóng đổ **từng pixel** từ alpha của sprite: bản đồ vật chắn, bản đồ bóng 1D theo góc, làm mờ theo khoảng cách | Bài [2D Pixel-Perfect Shadows](https://github.com/mattdesl/lwjgl-basics/wiki/2D-Pixel-Perfect-Shadows) của mattdesl, thêm tính vùng nửa tối kiểu PCSS |
-| Bóng đổ từ **đa giác** (hình bất kỳ, tường mỏng, ô tilemap) | Ý tưởng khối bóng (shadow volume) của ví dụ `shapes_top_down_lights` của raylib, làm bằng tia kiểm tra để có bóng mềm và hình bất kỳ |
+| Bóng đổ từ **đa giác** (hình bất kỳ, tường mỏng, ô tilemap), vùng nửa tối tính chính xác | Ý tưởng khối bóng (shadow volume) của ví dụ `shapes_top_down_lights` của raylib; vùng nửa tối theo bài [2D Lighting with Soft Shadows](https://www.slembcke.net/blog/SuperFastSoftShadows/) của Scott Lembcke: mỗi cạnh che một khoảng trên đường kính của nguồn sáng, tính bằng diện tích, không lấy mẫu |
 
 Ánh sáng tính trong **không gian tuyến tính, HDR 16 bit**: ảnh sprite (sRGB) được đổi sang tuyến tính trước khi tính, cộng dồn các đèn, rồi phơi sáng, tonemap và gamma
 để về màn hình. Khác `pbr.fs` của raylib ở ba chỗ, đều cho kết quả đúng hơn: albedo được đổi sang tuyến tính (ví dụ của raylib bỏ bước này), ánh sáng nền theo ambient
@@ -231,8 +231,8 @@ Các sprite không có độ sâu riêng, nên không có che khuất giữa cá
 | Pixel đèn không tới được, hoặc tới quá yếu để thấy, bị bỏ trước khi tính bóng | Không tính bóng cho phần rìa tối |
 | **Bản đồ bóng 1D**: một hàng mỗi đèn, ray-march một lần cho mỗi góc rồi mỗi pixel chỉ tra một cột | Chi phí bóng từng pixel theo cỡ vùng đèn, không theo số vật chắn |
 | Đa giác: lưới không gian, **chia các cạnh vào 32 ngăn** (cung góc quanh đèn, hoặc dải vuông góc với tia của đèn hướng) đưa lên texture | Mỗi pixel chỉ thử với vài cạnh của ngăn nó, không phải mọi cạnh gần đèn; rừng dày không còn mất bóng ở xa |
-| Bỏ các cạnh quay mặt về phía đèn (không bao giờ chặn tia) | Nửa số cạnh |
-| Ba tia thăm dò cho mỗi pixel, chỉ vùng nửa tối mới lấy đủ 8 mẫu | Phần lớn pixel tốn 3 tia thay vì 8 |
+| Bỏ các cạnh quay mặt về phía cả nguồn sáng (không bao giờ chặn tia) | Nửa số cạnh |
+| Vùng nửa tối tính bằng diện tích: mỗi cạnh chiếu lên đường kính của nguồn sáng một lần, các khoảng bị che được gộp (không cộng) trên 64 lát bằng diện tích | Mỗi pixel duyệt các cạnh của ngăn một lần; bóng mềm mượt, không dải, không hạt |
 | Vị trí uniform tra một lần; bộ đệm dùng lại giữa các frame; sin/cos xoay tính một lần cho mỗi vật chắn | Ít việc cho CPU |
 | Ảnh ánh sáng HDR 16 bit float; không chạy khi không có đèn và ambient là trắng | Không tốn khi không cần |
 | `lighting_desc::scale` | Giảm độ phân giải toàn bộ lượt ánh sáng |

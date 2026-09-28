@@ -164,11 +164,16 @@ struct frame_scratch {
 // around it; a directional light strips across its rays. Returns how many edges
 // the light has in all.
 usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, const light_job &job, const rect &view,
-                   i32 index) {
+                   i32 index, f32 shadow_reach) {
   const light_2d &l = *job.light;
   for (auto &list : sc.lists)
     list.clear();
   const bool sun = l.kind == light_directional;
+  // The light's size, as the shader sees it: a point light's radius; the sun's disc, `size` wide seen from 600
+  // units away, as a sine of its half angle and as its half width where the shadows end.
+  const f32 source = sun ? 0.0f : std::max(l.size, 0.0f);
+  const f32 sun_spread = sun ? std::min(std::max(l.size, 0.0f) / 600.0f, 1.0f) : 0.0f;
+  const f32 sun_half = sun ? std::max(l.size, 0.0f) * shadow_reach / 600.0f : 0.0f;
   const f32 dir_x = std::cos(job.angle), dir_y = std::sin(job.angle);
   const vec2 across{-dir_y, dir_x};
   f32 lo = 0.0f, inv = 0.0f;
@@ -182,10 +187,12 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
     const occluder_edge &e = edges[i];
     if (!overlaps(job.area, e.min_x, e.min_y, e.max_x, e.max_y))
       return;
-    // A ray is stopped only where it enters a solid, which happens only with the light behind the
-    // edge: an edge that faces the light never counts.
+    // A ray is stopped only where it enters a solid, which happens only with some of the light behind the
+    // edge: an edge that faces the whole of the light (its centre, and its size to either side) never counts.
     const f32 nx = e.b.y - e.a.y, ny = -(e.b.x - e.a.x);
-    if (sun ? (nx * -dir_x + ny * -dir_y > 0.0f) : (nx * (job.pos.x - e.a.x) + ny * (job.pos.y - e.a.y) > 0.0f))
+    const f32 n_len = std::sqrt(nx * nx + ny * ny);
+    if (sun ? (nx * -dir_x + ny * -dir_y > n_len * sun_spread)
+            : (nx * (job.pos.x - e.a.x) + ny * (job.pos.y - e.a.y) > n_len * source))
       return;
     // A light inside a solid is not blocked by it.
     if (e.solid && !sun) {
@@ -199,8 +206,9 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
     i32 first, last; // the buckets the edge reaches, before wrapping
     if (sun) {
       const f32 c0 = e.a.x * across.x + e.a.y * across.y, c1 = e.b.x * across.x + e.b.y * across.y;
-      first = (i32)std::floor((std::min(c0, c1) - lo) * inv - 0.5f);
-      last = (i32)std::floor((std::max(c0, c1) - lo) * inv + 0.5f);
+      // The rays from a pixel to the sun's disc drift across by up to half its width.
+      first = (i32)std::floor((std::min(c0, c1) - sun_half - lo) * inv - 0.5f);
+      last = (i32)std::floor((std::max(c0, c1) + sun_half - lo) * inv + 0.5f);
       first = std::max(first, 0), last = std::min(last, buckets - 1);
     } else {
       // The angles at which the light sees its two ends; the edge covers the shorter way between them.
@@ -211,7 +219,15 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
       if (diff < -PI)
         diff += 2.0f * PI;
       const f32 start = diff >= 0.0f ? ta : tb, span = std::abs(diff);
-      const f32 margin = 0.06f; // the samples across a light's size look a little to the side
+      // A pixel sees the whole of the light's disc, so its rays pass an edge at distance d from the light up to
+      // asin(size / d) to the side of the light's centre: the edge belongs to the sectors that far around it too.
+      f32 margin = 0.06f;
+      if (source > 0.0f) {
+        const f32 ex = e.b.x - e.a.x, ey = e.b.y - e.a.y, len2 = std::max(ex * ex + ey * ey, 1e-6f);
+        const f32 t = std::clamp(((job.pos.x - e.a.x) * ex + (job.pos.y - e.a.y) * ey) / len2, 0.0f, 1.0f);
+        const f32 dx = e.a.x + ex * t - job.pos.x, dy = e.a.y + ey * t - job.pos.y;
+        margin += std::asin(std::min(1.0f, source / std::max(std::sqrt(dx * dx + dy * dy), 1e-3f)));
+      }
       const f32 per = (f32)buckets / (2.0f * PI);
       first = (i32)std::floor((start - margin + PI) * per);
       last = (i32)std::floor((start + span + margin + PI) * per);
@@ -567,7 +583,7 @@ const Texture2D &lighting_apply(njin_ctx &ctx, const Camera2D &camera, const Tex
     sc.bucket_counts.assign(rows, 0);
     for (usize i = 0; i < lights.size(); i++) {
       if (lights[i].light->cast_shadows)
-        fill_buckets(sc, edges, lights[i], view, (i32)i);
+        fill_buckets(sc, edges, lights[i], view, (i32)i, d.shadow_reach);
     }
     rlUpdateTexture(s.edge_texture.id, 0, 0, bucket_cap, (int)rows, RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32,
                     sc.bucket_data.data());

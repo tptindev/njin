@@ -20,8 +20,8 @@ struct njin_ctx;
 // geometry, Fresnel-Schlick, energy conserving between the diffuse and the
 // specular part) as one quad. A last pass applies the exposure, a filmic
 // shoulder that keeps the low tones as they are, and the gamma back to sRGB.
-// Shadows are ray tests against the occluder edges near each light, several
-// rays across the light's size for a penumbra.
+// Shadows test the occluder edges near each light; the penumbra is worked out from
+// how much of the light's disc each edge hides, not sampled.
 //
 // Shadows: the occluder edges that can shadow a light are sorted into 32 buckets
 // (angular sectors around a point or spot light, strips across a directional
@@ -31,9 +31,8 @@ struct njin_ctx;
 // Kept cheap the usual ways: lights and occluders outside the view are dropped;
 // each light is one quad no bigger than its own reach (a cone gets the box of
 // the cone), with pixels the light cannot reach discarded before any shadow
-// work; a spatial grid finds the occluder edges near a light; shadow rays
-// settle most pixels with three probes and sample the full light only in a
-// penumbra; uniform locations are looked up once; buffers are reused between
+// work; a spatial grid finds the occluder edges near a light; each pixel goes
+// through the edges of its bucket once; uniform locations are looked up once; buffers are reused between
 // frames; nothing at all runs when there is no light and the ambient light
 // leaves the world as it is. The images can also be smaller than the world
 // image (lighting_desc::scale).

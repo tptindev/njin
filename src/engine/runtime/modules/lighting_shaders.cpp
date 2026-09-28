@@ -93,28 +93,79 @@ bool blocked(vec2 p, vec2 s) {
 
 float hash(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 
-// Share of the light that reaches p: rays to points spread over the light's
-// size, so the shadow is sharp next to what casts it and soft far away.
+// The share of a disc's area on the side x < s of a chord, for s from -1 to 1: how much of a round light an
+// edge that reaches s across it hides.
+float disc_share(float s) {
+  s = clamp(s, -1.0, 1.0);
+  return 0.5 + (s * sqrt(1.0 - s * s) + asin(s)) / PI;
+}
+
+uint bits_between(int lo, int hi) { // bits lo..hi of a 32 bit word, both in 0..31
+  uint upper = hi >= 31 ? 0xFFFFFFFFu : ((1u << uint(hi + 1)) - 1u);
+  return upper & ~((1u << uint(lo)) - 1u);
+}
+
+uint count_bits(uint v) {
+  v = v - ((v >> 1u) & 0x55555555u);
+  v = (v & 0x33333333u) + ((v >> 2u) & 0x33333333u);
+  return (((v + (v >> 4u)) & 0x0F0F0F0Fu) * 0x01010101u) >> 24u;
+}
+
+// Share of the light that reaches p, from a round light of radius `half_width` centred on `target` (seen side
+// on: the segment across it). Worked out, not sampled (after Scott Lembcke, "2D Lighting with Soft Shadows"):
+// each edge that p sees from outside its solid is cut to the part between p and the light, and projected from p
+// onto the light's diameter. What it hides is an interval across the light, worth the area of the disc on that
+// stretch. Edges of one outline hide neighbouring intervals, but two objects one behind the other can hide the
+// same part: the intervals are joined, not added, over 64 slices of equal area (shifted a little per pixel, so
+// no slice shows as a band). The shadow is sharp where it meets what casts it and soft far away, with no grain.
 float visibility(vec2 p, vec2 target, vec2 across, float half_width) {
   if (edge_count == 0)
     return 1.0;
   if (half_width <= 0.5)
     return blocked(p, target) ? 0.0 : 1.0;
-  // Three probes (the two ends of the light and its middle) settle most pixels:
-  // all clear is lit, all blocked is shadow. Only a pixel in a penumbra, where
-  // they disagree, takes the full sampling.
-  bool centre = blocked(p, target);
-  bool left = blocked(p, target - across * half_width);
-  bool right = blocked(p, target + across * half_width);
-  if (centre == left && centre == right)
-    return centre ? 0.0 : 1.0;
-  float jitter = hash(gl_FragCoord.xy);
-  float lit = 0.0;
-  for (int i = 0; i < 8; i++) {
-    float f = (float(i) + jitter) / 8.0 * 2.0 - 1.0;
-    lit += blocked(p, target + across * (f * half_width)) ? 0.0 : 1.0;
+  vec2 to_light = target - p;
+  float dist = length(to_light);
+  if (dist < 0.001)
+    return 1.0;
+  vec2 dir = to_light / dist;
+  const float NEAR = 0.01;
+  float shift = hash(gl_FragCoord.xy);
+  uint lo_bits = 0u, hi_bits = 0u;
+  for (int i = 0; i < edge_count; i++) {
+    vec4 seg = texelFetch(edges, ivec2(i, edge_row), 0);
+    vec2 a = seg.xy, b = seg.zw;
+    vec2 e = b - a;
+    if (dot(p - a, vec2(e.y, -e.x)) <= 0.0)
+      continue;                                  // p is inside the solid, or behind the edge
+    float ta = dot(a - p, dir), tb = dot(b - p, dir);
+    if (max(ta, tb) <= NEAR || min(ta, tb) >= dist)
+      continue;                                  // behind p, or past the light
+    // Cut the edge to NEAR < t < dist.
+    float lo_t = min(ta, tb), hi_t = max(ta, tb);
+    vec2 lo_p = ta < tb ? a : b, hi_p = ta < tb ? b : a;
+    if (lo_t < NEAR) {
+      lo_p = mix(lo_p, hi_p, (NEAR - lo_t) / (hi_t - lo_t));
+      lo_t = NEAR;
+    }
+    if (hi_t > dist) {
+      hi_p = mix(lo_p, hi_p, (dist - lo_t) / (hi_t - lo_t));
+      hi_t = dist;
+    }
+    float s0 = dot(lo_p - p, across) * dist / (lo_t * half_width);
+    float s1 = dot(hi_p - p, across) * dist / (hi_t * half_width);
+    // The slices whose (shifted) middle lies in the interval.
+    int k0 = max(int(ceil(disc_share(min(s0, s1)) * 64.0 - shift)), 0);
+    int k1 = min(int(floor(disc_share(max(s0, s1)) * 64.0 - shift)), 63);
+    if (k1 < k0)
+      continue;
+    if (k0 < 32)
+      lo_bits |= bits_between(k0, min(k1, 31));
+    if (k1 >= 32)
+      hi_bits |= bits_between(max(k0, 32) - 32, k1 - 32);
+    if (lo_bits == 0xFFFFFFFFu && hi_bits == 0xFFFFFFFFu)
+      return 0.0;
   }
-  return lit / 8.0;
+  return 1.0 - float(count_bits(lo_bits) + count_bits(hi_bits)) / 64.0;
 }
 
 // Pixel-perfect shadow (mattdesl, "2D Pixel-Perfect Shadows"): the light's 1D shadow map holds, for each angle

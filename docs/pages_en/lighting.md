@@ -18,7 +18,7 @@ with what to look at and the line of code that makes it written on screen; each 
 | The BRDF of each light: Lambert diffuse + Cook-Torrance specular (**GGX** distribution with `alpha = roughness^2`, **Smith-Schlick** occlusion with `k = (r + 1)^2 / 8`, **Fresnel-Schlick**, `kD = (1 - F)(1 - metallic)`) | `pbr.fs` in raylib's `shaders_basic_pbr` example: the same formulas, so art made for that example can be reused |
 | Material maps with **MRA** channel layout: R metallic, G roughness, B ambient occlusion | The layout used in that example |
 | **Per-pixel** shadows from sprite alpha: an occluder map, a 1D shadow map by angle, blurring by distance | The article [2D Pixel-Perfect Shadows](https://github.com/mattdesl/lwjgl-basics/wiki/2D-Pixel-Perfect-Shadows) by mattdesl, with PCSS-style penumbra estimation added |
-| Shadows from **polygons** (any shape, thin walls, tilemap tiles) | The shadow volume idea from raylib's `shapes_top_down_lights` example, done with test rays to get soft shadows and arbitrary shapes |
+| Shadows from **polygons** (any shape, thin walls, tilemap tiles), with an exact penumbra | The shadow volume idea from raylib's `shapes_top_down_lights` example; the penumbra follows Scott Lembcke's [2D Lighting with Soft Shadows](https://www.slembcke.net/blog/SuperFastSoftShadows/): each edge hides an interval of the light's diameter, worked out as an area, not sampled |
 
 Lighting is computed in **linear space, 16-bit HDR**: the sprite image (sRGB) is converted to linear before computing, the lights are summed, then exposure, tonemap and gamma
 bring it to the screen. It differs from raylib's `pbr.fs` in three ways, all giving more correct results: albedo is converted to linear (raylib's example skips this step), ambient light works like real
@@ -232,8 +232,8 @@ Lighting already uses the usual optimizations:
 | Pixels a light cannot reach, or reaches too weakly to be seen, are dropped before shadows are computed | No shadow computation for the dark edges |
 | **1D shadow map**: one row per light, ray-march once per angle, then each pixel only looks up one column | The cost of per-pixel shadows follows the size of the light's area, not the number of occluders |
 | Polygons: a spatial grid, **edges split into 32 bins** (angular arcs around the light, or strips perpendicular to the directional light's rays) uploaded as a texture | Each pixel only tests a few edges of its bin, not every edge near the light; a dense forest no longer loses its far shadows |
-| Drop edges facing the light (they never block a ray) | Half the edges |
-| Three probe rays per pixel, only the penumbra takes the full 8 samples | Most pixels cost 3 rays instead of 8 |
+| Drop edges facing the whole light (they never block a ray) | Half the edges |
+| The penumbra as an area: each edge is projected onto the light's diameter once, and the hidden intervals are joined (not added) over 64 slices of equal area | Each pixel goes through the edges of its bin once; soft shadows are smooth, with no bands and no grain |
 | Uniform locations looked up once; buffers reused between frames; rotation sin/cos computed once per occluder | Less work for the CPU |
 | 16-bit float HDR light image; does not run when there are no lights and ambient is white | Costs nothing when not needed |
 | `lighting_desc::scale` | Lowers the resolution of the whole lighting pass |
