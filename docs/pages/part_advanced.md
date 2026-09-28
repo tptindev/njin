@@ -8,6 +8,7 @@ hơn, nhiều nội dung hơn, hoặc muốn hiểu engine bên trong. Mỗi tra
 | Trang | Bạn được gì |
 |---|---|
 | @subpage rendering | Texture, atlas, shader, instancing (hàng nghìn hình bằng một lệnh vẽ), sửa ảnh và shader khi game đang chạy |
+| @subpage shader_advanced | Shader đọc thêm ảnh (bảng màu, nhiễu), nhận mảng uniform (đèn), chạy trên cả khung hình, nhiều lượt vẽ nối nhau |
 | @subpage post_processing | Hiệu ứng toàn màn hình: bloom, CRT, vignette, blur |
 
 Muốn tự viết shader thì học trước ba bài shader trong @ref learn (bài 10 đến 12).

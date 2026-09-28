@@ -125,6 +125,10 @@ Các hàm đặt uniform:
 | njin::shader_set_f32() | `float` |
 | njin::shader_set_vec2() | `vec2` |
 | njin::shader_set_vec4() | `vec4` |
+| njin::shader_set_vec4_array() | `vec4[]` (mảng, ví dụ danh sách đèn) |
+| njin::shader_set_texture() | `sampler2D` phụ ngoài `texture0` (bảng màu, nhiễu, mặt nạ) |
+
+Cần đọc thêm một ảnh, nhận một danh sách đèn, hay chạy trên cả khung hình? Xem @ref shader_advanced.
 
 ## Instancing: hàng nghìn hình bằng một lệnh vẽ {#instancing}
 

@@ -8,7 +8,7 @@ Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới b�
 | `njin_platformer` | *Mầm Leo Núi*: hai màn Tiled với dốc, bục một chiều, bục di chuyển, nhảy tường, quái, checkpoint, hộp thoại | @ref platformer |
 | `njin_topdown` | *Rừng Cổ Thạch*: bản đồ Tiled có nước động, kiếm, quái đuổi theo A\*, cây che nhân vật, rương, hộp thoại | @ref topdown |
 | `njin_debug_demo` | Bóng nảy để thử inspector: mỗi phím tốn CPU, RAM hay GPU một chút và inspector hiện ra ngay | @ref debug |
-| `njin_render_demo` | Rừng 128 x 96 ô với 3000 cây đá: phím bật tắt atlas, hạt GPU/CPU, vsync, blur, bloom, CRT; HUD hiện số sprite bị cắt và số lệnh vẽ | @ref rendering, @ref particles |
+| `njin_render_demo` | Rừng 128 x 96 ô với 3000 cây đá: phím bật tắt atlas, hạt GPU/CPU, vsync, blur, bloom, CRT, và phím 7 đến 9 cho đêm có đèn, hoàng hôn bằng bảng màu, sương mù bằng nhiễu; HUD hiện số sprite bị cắt và số lệnh vẽ | @ref rendering, @ref particles, @ref shader_advanced |
 
 @image html platformer.gif "njin_platformer: chạy và nhảy trên dốc, nhắc \"E\" khi lại gần con cú"
 

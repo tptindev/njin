@@ -62,6 +62,9 @@ cửa sổ đổi kích thước), rồi vẽ ảnh đó ra màn hình qua shade
 vẽ sau đó nên không bị ảnh hưởng. Đặt uniform như bình thường bằng các hàm
 `shader_set_*()`.
 
+Shader hậu kỳ đọc được thêm ảnh phụ (bảng màu, nhiễu) và mảng uniform (danh sách đèn): xem @ref shader_advanced,
+có ví dụ đêm với đèn, hoàng hôn bằng bảng màu và sương mù bằng nhiễu.
+
 ## Hiệu ứng dựng sẵn {#post_builtin}
 
 njin::post_fx_set() bật các hiệu ứng có sẵn lên toàn bộ thế giới, không cần viết shader.

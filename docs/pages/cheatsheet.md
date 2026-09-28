@@ -100,6 +100,9 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Sắp xếp ai đứng trước ai (top-down) | njin::draw_set_y_sort() | @ref topdown |
 | Ghép nhiều ảnh nhỏ vào một trang | njin::atlas_create(), njin::atlas_load() | @ref rendering |
 | Shader riêng | njin::shader_load(), njin::shader_set_f32() | @ref rendering |
+| Shader đọc thêm một ảnh (bảng màu, nhiễu, mặt nạ) | njin::shader_set_texture() | @ref shader_advanced |
+| Shader nhận một danh sách (các nguồn sáng) | njin::shader_set_vec4_array() | @ref shader_advanced |
+| Một shader chạy trên cả khung hình: đêm có đèn, hoàng hôn, sương mù | njin::camera_set_post_shader() kèm ảnh phụ và mảng uniform | @ref shader_advanced |
 | Vẽ hàng nghìn hình giống nhau bằng một lệnh vẽ | njin::instance_buffer_create(), njin::draw_instanced() | @ref instancing |
 | Lưu render texture (sprite sheet đã bake) ra PNG | njin::render_texture_save() | @ref instancing_bake |
 | Vẽ trước các hình vào một sprite sheet, đọc lại mỗi frame | njin::render_texture_begin(), njin::draw_instanced() kèm render texture, njin::render_texture_set_filter() | @ref instancing_bake |

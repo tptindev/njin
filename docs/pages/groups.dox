@@ -18,7 +18,7 @@
 /// Phím bàn phím và action.
 
 /// @defgroup grp_shader Shader
-/// Nạp shader, đặt uniform, bật và tắt shader khi vẽ.
+/// Nạp shader, đặt uniform (kể cả mảng), gắn ảnh phụ, bật và tắt shader khi vẽ.
 
 /// @defgroup grp_instancing Instancing
 /// Vẽ hàng nghìn hình giống nhau bằng một lệnh vẽ, mỗi hình một ít dữ liệu riêng.
