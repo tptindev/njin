@@ -62,7 +62,8 @@ void input(njin_ctx &ctx) {
     demo.lights.pixel_shadows = !demo.lights.pixel_shadows;
     apply_occluders(ctx);
   }
-  if (key_pressed(ctx, key_t)) {
+  // `key_t` alone is ambiguous on Linux: <sys/types.h> has a global one.
+  if (key_pressed(ctx, njin::key_t)) {
     demo.lights.tonemap = (demo.lights.tonemap + 1) % 3;
     lighting_desc d = lighting_get(ctx);
     d.tonemap = (light_tonemap)demo.lights.tonemap;
