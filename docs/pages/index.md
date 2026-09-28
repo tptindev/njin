@@ -38,10 +38,10 @@ trái cũng hiện đúng cây này.
 | @subpage part_world | Trung cấp | Bản đồ ô vuông, Tiled và LDtk, va chạm, prefab; ghép lại thành game platformer và top-down |
 | @subpage part_ui_audio | Trung cấp | Tiếng động và nhạc, menu, hộp thoại, đa ngôn ngữ |
 | @subpage part_ship | Trung cấp | Chia màn chơi, lưu game, cài đặt của người chơi, cửa sổ, đọc game mẫu, đóng gói |
-| @subpage part_advanced | Nâng cao | Shader, instancing, hậu kỳ, sinh bản đồ tự động, debug bằng inspector, kiến trúc bên trong |
+| @subpage part_advanced | Nâng cao | Shader, instancing, hậu kỳ, sinh bản đồ tự động, debug bằng inspector |
 
-Ngoài các phần trên: @subpage cheatsheet là bảng tra nhanh "muốn làm X thì dùng gì", và
-[Nhóm API](topics.html) tra cứu từng hàm.
+Sau bảy phần có @subpage part_appendix , gồm bảng tra nhanh "muốn làm X thì dùng gì", tra cứu từng hàm theo
+nhóm API, và kiến trúc bên trong engine.
 
 ## Một chương trình nhỏ nhất
 

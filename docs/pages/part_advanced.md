@@ -18,9 +18,10 @@ Muốn tự viết shader thì học trước ba bài shader trong @ref learn (b
 |---|---|
 | @subpage procgen | Tự sinh bản đồ bằng nhiễu, luật, bo góc và Wave Function Collapse |
 
-## Công cụ và bên trong engine
+## Công cụ
 
 | Trang | Bạn được gì |
 |---|---|
 | @subpage debug | njin_inspector: xem FPS, entity, collider, log trong một cửa sổ riêng |
-| @subpage architecture | Cách engine được tổ chức bên trong. Dành cho người muốn sửa engine |
+
+Muốn hiểu engine bên trong thì xem @ref architecture ở @ref part_appendix.
