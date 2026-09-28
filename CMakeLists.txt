@@ -83,3 +83,9 @@ option(NJIN_BUILD_INSPECTOR "Build the njin_inspector debug tool" ON)
 if(NJIN_BUILD_INSPECTOR)
   add_subdirectory(src/tools/inspector)
 endif()
+
+# UI Editor: visual editor tool for designing UI layouts (.ui.json) and exporting C++ code.
+option(NJIN_BUILD_UI_EDITOR "Build the njin_ui_editor tool" ON)
+if(NJIN_BUILD_UI_EDITOR)
+  add_subdirectory(src/tools/ui_editor)
+endif()

@@ -36,6 +36,13 @@
       "args": ["${input:game}"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "njin: run UI editor",
+      "type": "process",
+      "command": "${workspaceFolder}/run_ui_editor.bat",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
     }
   ]
 }

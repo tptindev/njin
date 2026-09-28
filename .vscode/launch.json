@@ -15,6 +15,20 @@
       "setupCommands": [
         { "description": "Pretty printing", "text": "-enable-pretty-printing", "ignoreFailures": true }
       ]
+    },
+    {
+      "name": "njin: run UI editor",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bin/njin_ui_editor.exe",
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "miDebuggerPath": "gdb",
+      "externalConsole": false,
+      "preLaunchTask": "njin: build",
+      "setupCommands": [
+        { "description": "Pretty printing", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
     }
   ]
 }

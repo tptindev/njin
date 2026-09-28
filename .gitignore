@@ -3,6 +3,7 @@
 /graphify-out
 /docs/html
 njin_inspector.ini
+njin_ui_editor.ini
 /docs/doxygen_warnings.txt
 /docs/doxygen_warnings_en.txt
 __pycache__/

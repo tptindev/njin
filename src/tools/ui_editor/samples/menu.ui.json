@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "design_resolution": [
+    1280.0,
+    720.0
+  ],
+  "panels": [
+    {
+      "id": "main_menu",
+      "title": "Menu Chính",
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "offset": [
+        0.0,
+        0.0
+      ],
+      "width": 340.0,
+      "background": true,
+      "visible": true,
+      "widgets": [
+        {
+          "type": "label",
+          "id": "lbl_subtitle",
+          "text": "Chào mừng dũng sĩ đến với njin!"
+        },
+        {
+          "type": "space",
+          "id": "",
+          "height": 10.0
+        },
+        {
+          "type": "button",
+          "id": "btn_play",
+          "label": "Bắt đầu chơi"
+        },
+        {
+          "type": "button",
+          "id": "btn_settings",
+          "label": "Cài đặt"
+        },
+        {
+          "type": "button",
+          "id": "btn_quit",
+          "label": "Thoát"
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Cài Đặt Hệ Thống",
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "offset": [
+        0.0,
+        0.0
+      ],
+      "width": 360.0,
+      "background": true,
+      "visible": false,
+      "widgets": [
+        {
+          "type": "slider",
+          "id": "slider_vol",
+          "label": "Âm lượng tổng",
+          "value": 0.8,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "percent": true
+        },
+        {
+          "type": "slider",
+          "id": "slider_sfx",
+          "label": "Hiệu ứng âm thanh",
+          "value": 0.9,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "percent": true
+        },
+        {
+          "type": "row",
+          "id": "",
+          "columns": 2
+        },
+        {
+          "type": "toggle",
+          "id": "tog_fullscreen",
+          "label": "Toàn màn hình",
+          "value": false
+        },
+        {
+          "type": "toggle",
+          "id": "tog_vsync",
+          "label": "V-Sync",
+          "value": true
+        },
+        {
+          "type": "choice",
+          "id": "choice_difficulty",
+          "label": "Độ khó",
+          "index": 1,
+          "options": [
+            "Dễ",
+            "Bình thường",
+            "Khó",
+            "Ác mộng"
+          ]
+        },
+        {
+          "type": "space",
+          "id": "",
+          "height": 10.0
+        },
+        {
+          "type": "button",
+          "id": "btn_back",
+          "label": "Quay lại"
+        }
+      ]
+    }
+  ],
+  "popups": [
+    {
+      "id": "quit_confirm",
+      "title": "Thoát game?",
+      "message": "Tiến trình chơi chưa lưu sẽ bị mất. Bạn có chắc chắn muốn thoát?",
+      "default_button": 0,
+      "cancel_button": 0,
+      "width": 320.0,
+      "open": false,
+      "buttons": [
+        "Ở lại",
+        "Thoát"
+      ]
+    }
+  ]
+}
