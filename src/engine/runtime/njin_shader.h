@@ -38,6 +38,11 @@ struct shader_slot {
 // must run while the GL context is still alive (before CloseWindow).
 struct shader_store {
   std::vector<shader_slot> slots;
+  // The shader bound by an explicit shader_begin(), cleared by shader_end().
+  // A texture's material shader (texture_set_shader) only auto-binds while
+  // this is invalid, so it never clobbers a shader the game began itself.
+  // Mutable so a draw can read and restore it through a const store.
+  mutable shader_handle active{};
 
   shader_store() = default;
   ~shader_store();
@@ -71,7 +76,7 @@ void shader_store_unload(shader_store &store, shader_handle handle);
 bool shader_store_reload(shader_store &store, shader_handle handle);
 
 void shader_store_begin(const shader_store &store, shader_handle handle);
-void shader_store_end();
+void shader_store_end(const shader_store &store);
 
 void shader_store_set_i32(shader_store &store, shader_handle handle,
                           const char *name, i32 value);

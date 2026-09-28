@@ -219,6 +219,27 @@ struct texture_draw_desc {
 /// @param desc Draw parameters.
 void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
                      const texture_draw_desc &desc);
+
+/// Attaches a fixed "material" shader to a texture: no need to wrap every draw
+/// in shader_begin()/shader_end() anymore.
+///
+/// From the next draw on, every texture_draw() and texture_draw_ex() that draws
+/// `handle` auto-binds this shader (including any auxiliary textures attached
+/// with shader_set_texture()), then unbinds it right after drawing. The old way
+/// still works exactly as before and always wins: if a different shader_begin()
+/// is already active (even one from another texture's material),
+/// texture_draw()/texture_draw_ex() leaves it alone instead of swapping in its
+/// own material. Set uniforms with shader_set_*() before drawing, same as
+/// shader_begin().
+///
+/// Does not apply to sprites/tilemaps/particles drawn through the ECS: those
+/// systems manage their own shaders (e.g. the flash/dissolve effects of
+/// njin_fx.h).
+/// @param ctx Engine context.
+/// @param handle Texture to attach to.
+/// @param shader Shader to attach, or a handle with id 0 to remove the material.
+void texture_set_shader(njin_ctx &ctx, texture_handle handle,
+                        shader_handle shader);
 /// @}
 
 /// @addtogroup grp_draw

@@ -1,19 +1,22 @@
 #version 330
 
 // The minimalist stick figure, drawn once per cell into the sheets. Instead of
-// colours it writes how much of each pixel belongs to each colour slot, so one
-// sheet serves every DNA: crowd.fs multiplies the weights by the person's own
-// colours.
+// a colour it writes how much of each pixel belongs to the body's one colour
+// slot, so one sheet serves every DNA: crowd.fs multiplies the weight by the
+// person's own colour. Every shape is a thin outline (ring()): the torso's
+// interior stays at weight 0, same as the background; legs and arms are a
+// single stroke thinner than the ring, so it reads as solid there instead.
 //
-//   u_pass 0, body A: r cloth, g limb (far side), b limb (near side)
-//   u_pass 1, body B: r shoe; the top-left texel of each cell holds the head
+//   u_pass 0, body A: r the body (torso, legs, arms)
+//   u_pass 1, body B: unused; the top-left texel of each cell holds the head
 //                     centre in g, b (fraction of the cell), read by crowd.vs
-//   u_pass 2, head:   r skin, g hair in front of the body, b hair behind it
+//   u_pass 2, head:   r the head (a plain circle, same colour as the body)
 //
 // Body cells are one per (build, pose, base direction, frame); head cells one
-// per (hair style, base direction), placed on the body at the stored centre.
-// Weights are premultiplied by coverage, so the sheets filter linearly. Alpha is
-// written as 1: the default blend would square it otherwise.
+// per (hair style, base direction) though the shape ignores hair style, placed
+// on the body at the stored centre. Weights are premultiplied by coverage, so
+// the sheets filter linearly. Alpha is written as 1: the default blend would
+// square it otherwise.
 
 in vec2 v_local;
 flat in vec2 v_frame; // frame, frame count
@@ -49,13 +52,6 @@ uniform int u_pass;
 #define POSE_LEAP_PUNCH 13
 #define POSE_LEAP_KICK  14
 
-#define HAIR_SHORT 0
-#define HAIR_BUZZ  1
-#define HAIR_LONG  2
-#define HAIR_BUN   3
-#define HAIR_PONY  4
-#define HAIR_AFRO  5
-
 #define GROUND -0.080
 #define HEAD_R 0.010
 // Where the hands are, from the body centre. game.h spaces people by these
@@ -65,16 +61,13 @@ uniform int u_pass;
 
 #define TAU 6.2831853
 
-// ---- weights of the body colour slots ------------------------------------
+// ---- the body's one colour slot --------------------------------------------
 struct W {
-  vec3 a; // cloth, limb far, limb near
-  vec3 b; // shoe, -, -
+  vec3 a; // cloth
+  vec3 b; // shoe (unused, one colour for the whole person)
 };
 W w_mix(W x, W y, float t) { return W(mix(x.a, y.a, t), mix(x.b, y.b, t)); }
 W w_cloth() { return W(vec3(1, 0, 0), vec3(0)); }
-W w_far()   { return W(vec3(0, 1, 0), vec3(0)); }
-W w_near()  { return W(vec3(0, 0, 1), vec3(0)); }
-W w_shoe()  { return W(vec3(0), vec3(1, 0, 0)); }
 
 // ---- distance functions (from the reference sample) ----------------------
 float smin(float a, float b, float k) {
@@ -82,13 +75,14 @@ float smin(float a, float b, float k) {
   return mix(b, a, h) - k * h * (1.0 - h);
 }
 
-float sminColor(float a, float b, float k, inout float factor) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  factor = h;
-  return mix(b, a, h) - k * h * (1.0 - h);
-}
-
 float sdCircle(vec2 p, float r) { return length(p) - r; }
+
+// Outline instead of fill: a thin band straddling a shape's zero level-set,
+// `w` half its thickness either side, so the inside stays transparent.
+#define OUTLINE_R 0.0022
+float ring(float d, float px, float w) {
+  return smoothstep(px, -px, d - w) - smoothstep(px, -px, d + w);
+}
 
 float sdTaperedCapsule(vec2 p, vec2 a, vec2 b, float ra, float rb) {
   vec2 pa = p - a, ba = b - a;
@@ -573,99 +567,34 @@ Pose makePose(int dir, int pose, int frame, int frames, float bT) {
   return P;
 }
 
-// ---- body: torso and limbs --------------------------------------------------
+// ---- body: torso outlined, legs and arms a single thin stroke ---------------
 W drawBody(vec2 p, Pose P, int dir, float bL, float px) {
-  float rThigh   = 0.0055 * bL;
-  float rAnkle   = 0.0030 * bL;
-  float rToe     = 0.0022;
-  float rArmBase = 0.0042 * bL;
-  float rArmTip  = 0.0018;
+  // One flat colour for the whole person: legs and arms are a single stroke,
+  // one radius end to end (no taper), thinner than OUTLINE_R so ring() below
+  // reads as solid fill there instead of a hollow outline like the torso gets.
+  float rLimb = 0.0018 * bL;
+  float legK = 0.005, armK = 0.0035; // half the old blend radius: a tighter joint to the torso
 
   float isFootL = 0.0, isFootR = 0.0;
   float dLegL = sdSeamlessLeg(p, P.hipL, P.kneeL, P.ankleL, P.ankleL + P.heelL, P.ankleL + P.toeL,
-                              rThigh, rAnkle, rToe, isFootL);
+                              rLimb, rLimb, rLimb, isFootL);
   float dLegR = sdSeamlessLeg(p, P.hipR, P.kneeR, P.ankleR, P.ankleR + P.heelR, P.ankleR + P.toeR,
-                              rThigh, rAnkle, rToe, isFootR);
-  float dArmL = sdSeamlessArm(p, P.shL, P.elbL, P.tipL, rArmBase, rArmTip);
-  float dArmR = sdSeamlessArm(p, P.shR, P.elbR, P.tipR, rArmBase, rArmTip);
-
-  W colArmL = w_far(),  colLegL = w_mix(w_far(),  w_shoe(), isFootL * 0.6);
-  W colArmR = w_near(), colLegR = w_mix(w_near(), w_shoe(), isFootR * 0.6);
-  if (dir == DIR_S || dir == DIR_N) {
-    W mid = w_mix(w_far(), w_near(), 0.5);
-    colArmL = mid;
-    colArmR = mid;
-    colLegL = w_mix(mid, w_shoe(), max(isFootL, isFootR) * 0.6);
-    colLegR = colLegL;
-  }
+                              rLimb, rLimb, rLimb, isFootR);
+  float dArmL = sdSeamlessArm(p, P.shL, P.elbL, P.tipL, rLimb, rLimb);
+  float dArmR = sdSeamlessArm(p, P.shR, P.elbR, P.tipR, rLimb, rLimb);
 
   vec2 axis = normalize(P.shoulder - P.hip);
   float dBody = sdTaperedCapsule(p, P.shoulder + axis * P.capUp, P.hip - axis * P.capDown, P.rSh, P.rHip);
-  W body = w_cloth();
-  float f = 0.0;
-  dBody = sminColor(dBody, dLegL, 0.010, f); body = w_mix(colLegL, body, f);
-  dBody = sminColor(dBody, dLegR, 0.010, f); body = w_mix(colLegR, body, f);
-  dBody = sminColor(dBody, dArmL, 0.007, f); body = w_mix(colArmL, body, f);
-  dBody = sminColor(dBody, dArmR, 0.007, f); body = w_mix(colArmR, body, f);
-  return w_mix(W(vec3(0), vec3(0)), body, smoothstep(px, -px, dBody));
+  dBody = smin(dBody, dLegL, legK);
+  dBody = smin(dBody, dLegR, legK);
+  dBody = smin(dBody, dArmL, armK);
+  dBody = smin(dBody, dArmR, armK);
+  return w_mix(W(vec3(0), vec3(0)), w_cloth(), ring(dBody, px, OUTLINE_R));
 }
 
-// ---- head and hair: (skin, hair in front of the body, hair behind it) ------
+// ---- head: a plain circle, same one colour slot as the body ----------------
 vec3 drawHead(vec2 hp, int dir, int style, float px) {
-  bool buzz = style == HAIR_BUZZ;
-  float faceMask; // 1 skin, 0 hair
-  if (dir == DIR_S) {
-    float top = hp.y - (buzz ? 0.0068 : (style == HAIR_BUN || style == HAIR_AFRO ? 0.004 : 0.003));
-    faceMask = 1.0 - smoothstep(0.0, 0.002, top);
-  } else if (dir == DIR_N) {
-    faceMask = buzz ? 1.0 - smoothstep(-0.0075, -0.0055, hp.y) : 0.0; // nape shows under a buzz cut
-  } else if (dir == DIR_E) {
-    float s = buzz ? 0.004 : 0.0;
-    faceMask = smoothstep(-0.001 - s, 0.002 - s, hp.x);
-    if (buzz) faceMask *= 1.0 - smoothstep(0.0062, 0.0078, hp.y);
-  } else if (dir == DIR_SE) {
-    float s = buzz ? 0.004 : 0.0;
-    faceMask = smoothstep(-0.003 - s, 0.002 - s, hp.x + hp.y * 0.3);
-    if (buzz) faceMask *= 1.0 - smoothstep(0.0062, 0.0078, hp.y);
-  } else {
-    float s = buzz ? 0.003 : 0.0;
-    faceMask = smoothstep(0.003 - s, 0.006 - s, hp.x - hp.y * 0.2);
-  }
-
-  // Hair falling down the back is behind the body seen from the front.
-  bool frontView = dir == DIR_S || dir == DIR_SE;
-  float dBack = 1e3, dFront = 1e3;
-  if (style == HAIR_LONG) {
-    vec2 back = dir == DIR_SE ? vec2(-0.003, 0.0) : (dir == DIR_E ? vec2(-0.004, 0.0)
-              : (dir == DIR_NE ? vec2(-0.0015, 0.0) : vec2(0.0)));
-    float rTop = dir == DIR_E ? 0.0085 : 0.0112;
-    float d = sdTaperedCapsule(hp, back + vec2(0.0, -0.001), back * 1.4 + vec2(0.0, -0.018), rTop, rTop * 0.72);
-    if (frontView) dBack = d; else dFront = d;
-  }
-  if (style == HAIR_PONY) {
-    vec2 a = dir == DIR_S ? vec2(0.0, -0.004) : (dir == DIR_SE ? vec2(-0.006, 0.003)
-           : (dir == DIR_E ? vec2(-0.009, 0.003) : (dir == DIR_NE ? vec2(-0.004, 0.002) : vec2(0.0))));
-    vec2 b = dir == DIR_S ? vec2(0.0, -0.015) : (dir == DIR_SE ? vec2(-0.009, -0.010)
-           : (dir == DIR_E ? vec2(-0.013, -0.009) : (dir == DIR_NE ? vec2(-0.006, -0.012) : vec2(0.0, -0.014))));
-    float d = sdTaperedCapsule(hp, a, b, 0.0036, 0.0022);
-    if (frontView) dBack = min(dBack, d); else dFront = min(dFront, d);
-  }
-  if (style == HAIR_BUN) {
-    vec2 at = dir == DIR_E ? vec2(-0.009, 0.006)
-            : (dir == DIR_SE ? vec2(-0.004, 0.010) : (dir == DIR_NE ? vec2(-0.005, 0.010) : vec2(0.0, 0.0115)));
-    dFront = min(dFront, sdCircle(hp - at, 0.0052));
-  }
-  if (style == HAIR_AFRO) {
-    vec2 at = dir == DIR_E ? vec2(-0.002, 0.002) : (dir == DIR_S || dir == DIR_N ? vec2(0.0, 0.002) : vec2(-0.001, 0.002));
-    dFront = min(dFront, sdCircle(hp - at, 0.0138));
-  }
-
-  float dHead = sdCircle(hp, HEAD_R);
-  vec3 o = vec3(0.0);
-  o = mix(o, vec3(0.0, 0.0, 1.0), smoothstep(px, -px, dBack));
-  o = mix(o, vec3(0.0, 1.0, 0.0), smoothstep(px, -px, dFront));
-  o = mix(o, vec3(faceMask, 1.0 - faceMask, 0.0), smoothstep(px, -px, dHead));
-  return o;
+  return vec3(ring(sdCircle(hp, HEAD_R), px, OUTLINE_R), 0.0, 0.0);
 }
 
 void main() {

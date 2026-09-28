@@ -73,8 +73,9 @@ void main() {
   float bodyA = min(1.0, body.r + body.g + body.b + shoe);
   color = body.r * v_cloth + body.g * v_far + body.b * v_near + shoe * v_shoe + color * (1.0 - bodyA);
   alpha = bodyA + alpha * (1.0 - bodyA);
+  // One colour for the whole person: the head ring uses the body's own colour.
   float headA = min(1.0, head.r + head.g);
-  color = head.r * v_skin + head.g * v_hair + color * (1.0 - headA);
+  color = head.r * v_cloth + head.g * v_hair + color * (1.0 - headA);
   alpha = headA + alpha * (1.0 - headA);
 
   if (alpha < 0.004) discard;

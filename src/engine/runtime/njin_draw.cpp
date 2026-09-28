@@ -2,6 +2,7 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_render.h"
 #include <algorithm>
 #include <cmath>
 #include <raylib.h>
@@ -328,7 +329,15 @@ void texture_set_filter(njin_ctx &ctx, texture_handle handle,
 
 void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
                      const texture_draw_desc &desc) {
+  const texture_slot *slot = texture_slot_of(ctx.texture, handle);
+  // A material shader (texture_set_shader) auto-binds only when nothing else
+  // is already bound: an explicit shader_begin() (the game's own choice) wins.
+  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader.active.id == 0;
+  if (material)
+    shader_begin(ctx, slot->shader);
   texture_store_draw_ex(ctx.texture, handle, desc);
+  if (material)
+    shader_end(ctx);
 }
 
 // Blend and clip

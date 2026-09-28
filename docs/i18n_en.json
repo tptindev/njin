@@ -128,7 +128,7 @@
  "src/engine/api/njin_ctx.h": "7b0893615601077bb6a93214e343e6d1102dd6c9",
  "src/engine/api/njin_debug.h": "a15def388fc1c5b2288a6d360c406441ff7abf18",
  "src/engine/api/njin_dialog.h": "20da11f54c6840799bdedb69703bd59d74bd853f",
- "src/engine/api/njin_draw.h": "2682b09a33a6cecd256eb8680077a1bcda968030",
+ "src/engine/api/njin_draw.h": "a49f48afc7058ec3d3bec9fe1cd452df93e47e59",
  "src/engine/api/njin_file.h": "c10b6615841c8c287fdbd2081277373d4873a8d2",
  "src/engine/api/njin_fx.h": "548941cca775c557832e5bd6df67e408203be387",
  "src/engine/api/njin_i18n.h": "0c229b89bb5ca1c1391d3ca6bcea0c1dd8b0eb29",

@@ -91,6 +91,14 @@ vec2 texture_store_size(const texture_store &store, texture_handle handle) {
   return vec2{area.width, area.height};
 }
 
+void texture_store_set_shader(texture_store &store, texture_handle handle,
+                              shader_handle shader) {
+  texture_slot *slot = texture_slot_of(store, handle);
+  if (slot == nullptr)
+    return;
+  slot->shader = shader;
+}
+
 void texture_store_draw(const texture_store &store, texture_handle handle,
                         vec2 pos, rgba tint) {
   const texture_slot *slot = texture_slot_of(store, handle);

@@ -35,6 +35,8 @@ struct game_state {
   entt::entity camera = entt::null;
   f32 frame_ms = 16.0f;
   std::string status;
+  shader_handle ground{};
+  rect ground_area{};
 };
 game_state g;
 
@@ -67,6 +69,13 @@ void startup(njin_ctx &ctx) {
   g.in_gallery = g.start_in_gallery;
   place_camera(ctx);
   populate(ctx, g.population);
+
+  // Ground: covers the main crowd area and the gallery to its left, with the
+  // same margin as the border and the camera's pan clamp.
+  const vec2 pos{gallery_origin.x - 40.0f, -100.0f};
+  g.ground_area = rect{pos, world_size - pos + vec2{8.0f, 8.0f}};
+  g.ground = shader_load(ctx, nullptr, "assets/shaders/ground.fs");
+  shader_set_vec2(ctx, g.ground, "resolution", g.ground_area.size);
 }
 
 void camera_input(njin_ctx &ctx) {
@@ -149,6 +158,9 @@ void bake(njin_ctx &ctx) {
 
 // Drawing is three systems so the inspector times each step.
 void draw_background(njin_ctx &ctx) {
+  shader_begin(ctx, g.ground);
+  draw_rect(ctx, g.ground_area, rgba{1.0f, 1.0f, 1.0f, 1.0f});
+  shader_end(ctx);
   draw_rect_lines(ctx, rect{{-8, -8}, world_size + vec2{16, 16}}, 4.0f, rgba{0.6f, 0.6f, 0.58f, 1.0f});
   for (const label &l : gallery_labels())
     draw_text(ctx, l.text.c_str(), l.pos, 12.0f, rgba{0.3f, 0.28f, 0.3f, 1.0f});

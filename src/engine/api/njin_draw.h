@@ -219,6 +219,25 @@ struct texture_draw_desc {
 /// @param desc Tham số vẽ.
 void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
                      const texture_draw_desc &desc);
+
+/// Gắn một shader "vật liệu" cố định vào texture: không cần bọc
+/// shader_begin()/shader_end() quanh mỗi lần vẽ nữa.
+///
+/// Từ lần vẽ kế tiếp, mọi texture_draw() và texture_draw_ex() vẽ `handle` tự
+/// bật shader này (kể cả các ảnh phụ đã gắn bằng shader_set_texture()), rồi tắt
+/// lại ngay sau khi vẽ xong. Cách cũ vẫn dùng được nguyên vẹn và luôn thắng: nếu
+/// đang ở giữa một shader_begin() khác (kể cả của một texture có vật liệu khác),
+/// texture_draw()/texture_draw_ex() giữ nguyên shader đó, không thay bằng vật
+/// liệu của mình. Đặt uniform bằng shader_set_*() trước khi vẽ, như
+/// shader_begin().
+///
+/// Không áp dụng cho sprite/tilemap/particle vẽ qua ECS: những hệ đó tự quản
+/// shader riêng (ví dụ flash/dissolve của njin_fx.h).
+/// @param ctx Context của engine.
+/// @param handle Texture cần gắn.
+/// @param shader Shader cần gắn, hoặc handle có id 0 để gỡ vật liệu.
+void texture_set_shader(njin_ctx &ctx, texture_handle handle,
+                        shader_handle shader);
 /// @}
 
 /// @addtogroup grp_draw

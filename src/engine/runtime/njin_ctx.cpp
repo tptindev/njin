@@ -180,7 +180,7 @@ void shader_begin(const njin_ctx &ctx, shader_handle handle) {
     shader_bind_textures(ctx, *slot);
 }
 
-void shader_end(const njin_ctx &) { shader_store_end(); }
+void shader_end(const njin_ctx &ctx) { shader_store_end(ctx.shader); }
 
 void shader_set_i32(njin_ctx &ctx, shader_handle handle, const char *name,
                     i32 value) {
@@ -247,9 +247,22 @@ vec2 texture_size(const njin_ctx &ctx, texture_handle handle) {
   return texture_store_size(ctx.texture, handle);
 }
 
+void texture_set_shader(njin_ctx &ctx, texture_handle handle,
+                        shader_handle shader) {
+  texture_store_set_shader(ctx.texture, handle, shader);
+}
+
 void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
                   rgba tint) {
+  const texture_slot *slot = texture_slot_of(ctx.texture, handle);
+  // A material shader auto-binds only when nothing else is already bound: an
+  // explicit shader_begin() (the game's own choice) always wins.
+  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader.active.id == 0;
+  if (material)
+    shader_begin(ctx, slot->shader);
   texture_store_draw(ctx.texture, handle, pos, tint);
+  if (material)
+    shader_end(ctx);
 }
 
 render_texture_handle render_texture_load(njin_ctx &ctx, u32 width,

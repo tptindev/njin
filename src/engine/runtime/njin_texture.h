@@ -28,6 +28,12 @@ struct texture_slot {
   // it. Always read the image through texture_area().
   bool packed = false;
   Rectangle area{};
+  // Material shader (texture_set_shader): auto-bound by texture_store_draw()
+  // and texture_store_draw_ex() so a game does not need shader_begin()/
+  // shader_end() around every draw. Id 0 is "none". Not consulted by the ECS
+  // sprite/tilemap/particle renderers, which manage their own shaders (e.g.
+  // the flash/dissolve fx pass).
+  shader_handle shader{};
 };
 
 // The part of `slot.texture` the image occupies: all of it for an ordinary
@@ -117,6 +123,13 @@ void texture_store_unload(texture_store &store, texture_handle handle);
 // texture stays and false is returned.
 bool texture_store_reload(texture_store &store, texture_handle handle);
 vec2 texture_store_size(const texture_store &store, texture_handle handle);
+// Sets or clears (shader id 0) the texture's material shader, see
+// texture_slot::shader. Only texture_draw()/texture_draw_ex() (njin_render.h)
+// auto-bind it; the ECS sprite/tilemap/particle renderers draw straight from
+// this store and manage their own shaders (e.g. the flash/dissolve fx pass),
+// so a material shader would silently fight them.
+void texture_store_set_shader(texture_store &store, texture_handle handle,
+                              shader_handle shader);
 void texture_store_draw(const texture_store &store, texture_handle handle,
                         vec2 pos, rgba tint);
 void texture_store_draw_ex(const texture_store &store, texture_handle handle,

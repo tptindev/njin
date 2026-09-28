@@ -115,11 +115,16 @@ shader_store::~shader_store() {
 
 void shader_store_begin(const shader_store &store, shader_handle handle) {
   const shader_slot *slot = shader_slot_of(store, handle);
-  if (slot != nullptr)
-    BeginShaderMode(slot->shader);
+  if (slot == nullptr)
+    return;
+  BeginShaderMode(slot->shader);
+  store.active = handle;
 }
 
-void shader_store_end() { EndShaderMode(); }
+void shader_store_end(const shader_store &store) {
+  EndShaderMode();
+  store.active = shader_handle{};
+}
 
 void shader_store_set_i32(shader_store &store, shader_handle handle,
                           const char *name, i32 value) {
