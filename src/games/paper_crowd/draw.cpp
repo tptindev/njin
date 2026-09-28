@@ -8,7 +8,7 @@
 // Order: the paper, the figures and pets sorted by the y of their feet, then
 // the paper grain multiplied over all of it so the paint sits in the paper's
 // texture.
-#include "game.h"
+#include "figure.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,28 +20,6 @@ constexpr f32 pi = 3.14159265f;
 constexpr f32 tau = 2.0f * pi;
 constexpr rgba ink{0.12f, 0.11f, 0.13f, 1.0f};
 constexpr rgba paper_color{0.945f, 0.94f, 0.925f, 1.0f};
-
-// The quad, in figure units (one world pixel at size 1), and the point of the
-// figure at its centre, which is also what tipping poses turn around. Both
-// must match assets/person.fs.
-constexpr f32 quad_units = 28.0f;
-constexpr vec2 pivot{0.0f, -10.0f};
-
-// Pose ids, in step with assets/person.fs.
-enum pose_id : u32 {
-  pose_stand,
-  pose_walk,
-  pose_run,
-  pose_wave,
-  pose_jump,
-  pose_jacks,
-  pose_dance,
-  pose_cartwheel,
-  pose_handstand,
-  pose_lie,
-  pose_sit,
-  pose_ring,
-};
 
 // Everything one quad carries: see the table at the top of person.fs.
 struct quad {
@@ -171,23 +149,24 @@ quad person_quad(const entt::registry &reg, entt::entity e, const person &p, con
   return q;
 }
 
-// One person's instance for draw_instanced(): three vec4s, read by person.vs
-// as instance0..2.
-struct instance {
-  f32 cx, cy, side, rotation; // quad centre, side length, degrees clockwise
-  f32 pose, cloth, flip, unused; // pose id, colour index, -1 to face left
-  f32 phase, extra, extra2, seed;
-};
-static_assert(sizeof(instance) == 12 * sizeof(f32), "uploaded as is");
-
-// Adds one quad for the person shader. `base` is where the feet stand.
-void emit(std::vector<instance> &out, entt::entity e, const person &p, vec2 base, const quad &q) {
+// Adds one quad for the person shader. `base` is where the feet stand. A pose
+// the sheet has (`baked`) is written as the two frames to blend; any other is
+// written as the pose itself, for the shader to compute.
+void emit(std::vector<instance> &out, entt::entity e, const person &p, vec2 base, const quad &q, bool baked) {
   const vec2 centre = base + vec2{0.0f, -q.lift} + pivot * p.size;
-  // A number that differs from one person to the next, for the shader to vary
-  // anything by (nothing at the moment).
+  const f32 side = quad_units * p.size;
+  const f32 flip = q.flip ? -1.0f : 1.0f;
+  const f32 cloth = static_cast<f32>(p.cloth);
+  sheet_pick pick;
+  if (baked && sheet_frames(q.pose, q.phase, q.extra, pick)) {
+    out.push_back({centre.x, centre.y, side, q.tilt, static_cast<f32>(pick.f0), cloth, flip, 0.0f, pick.blend,
+                   static_cast<f32>(pick.f1), 0.0f, 0.0f});
+    return;
+  }
+  // A number that differs from one person to the next: it seeds their paper.
   const f32 seed = cycle01(static_cast<f32>(entt::to_entity(e)) * 0.618034f);
-  out.push_back({centre.x, centre.y, quad_units * p.size, q.tilt, static_cast<f32>(q.pose),
-                 static_cast<f32>(p.cloth), q.flip ? -1.0f : 1.0f, 0.0f, q.phase, q.extra, q.extra2, seed});
+  out.push_back({centre.x, centre.y, side, q.tilt, static_cast<f32>(q.pose), cloth, flip, 1.0f, q.phase, q.extra,
+                 q.extra2, seed});
 }
 
 void draw_pet(njin_ctx &ctx, const pet &a, const topdown_body &b, vec2 base) {
@@ -246,6 +225,7 @@ struct draw_item {
   entt::entity e;
   usize quad; // index into the quads built this draw; people only
   bool is_pet;
+  bool shown = true; // people only: inside the camera's view, so written as an instance
 };
 
 void draw_paper_grain(njin_ctx &ctx) {
@@ -282,14 +262,32 @@ void draw_crowd(njin_ctx &ctx) {
     return;
   }
 
-  // Every figure, by the y of their feet, in one upload; the draws below are
-  // ranges of it.
+  // Every figure in view, by the y of their feet, in one upload; the draws
+  // below are ranges of it. Close up (past bake_zoom_max), or with B pressed,
+  // people are computed live; otherwise from the sprite sheet, except the poses
+  // it has no frames for.
+  const bool baked = g.use_baked && g.sheet.id != 0 && camera_active(ctx).zoom <= bake_zoom_max;
+  g.baked_now = baked;
+  const rect seen = camera_bounds(ctx);
+  constexpr f32 margin = quad_units * 1.5f; // a raised, tilted quad reaches this far past the feet
   static std::vector<instance> batch;
   batch.clear();
-  for (const draw_item &it : items)
-    if (!it.is_pet)
-      emit(batch, it.e, reg.get<person>(it.e), reg.get<transform>(it.e).pos, quads[it.quad]);
+  for (draw_item &it : items) {
+    if (it.is_pet)
+      continue;
+    const vec2 feet = reg.get<transform>(it.e).pos;
+    it.shown = feet.x > seen.pos.x - margin && feet.x < seen.pos.x + seen.size.x + margin &&
+               feet.y > seen.pos.y - margin && feet.y < seen.pos.y + seen.size.y + margin;
+    if (it.shown)
+      emit(batch, it.e, reg.get<person>(it.e), feet, quads[it.quad], baked);
+  }
   instance_buffer_upload(ctx, g.instances, &batch.data()->cx, static_cast<u32>(batch.size()));
+  auto draw_run = [&](u32 first, u32 count) {
+    if (g.sheet.id != 0)
+      draw_instanced(ctx, g.instances, g.person, first, count, g.sheet);
+    else
+      draw_instanced(ctx, g.instances, g.person, first, count);
+  };
 
   // The person being followed stands in a faint pencil ellipse on the ground.
   // Drawn as a polyline so it stays round however far the camera zooms in.
@@ -321,15 +319,15 @@ void draw_crowd(njin_ctx &ctx) {
   u32 run = 0;
   for (const draw_item &it : items) {
     if (!it.is_pet) {
-      ++run;
+      run += it.shown ? 1 : 0;
       continue;
     }
-    draw_instanced(ctx, g.instances, g.person, next, run);
+    draw_run(next, run);
     next += run;
     run = 0;
     draw_pet(ctx, reg.get<pet>(it.e), reg.get<topdown_body>(it.e), reg.get<transform>(it.e).pos);
   }
-  draw_instanced(ctx, g.instances, g.person, next, run);
+  draw_run(next, run);
 
   draw_paper_grain(ctx);
 }
@@ -337,21 +335,23 @@ void draw_crowd(njin_ctx &ctx) {
 void draw_hint(njin_ctx &ctx) {
   const rgba soft_ink{0.22f, 0.22f, 0.28f, 0.75f};
   char count[64];
-  std::snprintf(count, sizeof count, "%d người",
-                static_cast<i32>(world(ctx).view<person>().size()));
-  draw_text(ctx, count, {world_w - 96.0f, world_h - 24.0f}, 13.0f, soft_ink);
+  std::snprintf(count, sizeof count, "%d người · %s", static_cast<i32>(world(ctx).view<person>().size()),
+                g.baked_now ? "sprite sheet" : "SDF trực tiếp");
+  draw_text(ctx, count, {world_w - 190.0f, world_h - 24.0f}, 13.0f, soft_ink);
   if (world(ctx).valid(g.focus)) {
     char line[96];
     std::snprintf(line, sizeof line, "Đang theo: %s", activity_name(world(ctx).get<person>(g.focus).act));
     draw_text(ctx, line, {18.0f, 16.0f}, 15.0f, soft_ink);
   }
+  if (g.toast_timer > 0.0f)
+    draw_text(ctx, g.toast.c_str(), {18.0f, 40.0f}, 12.0f, soft_ink);
   if (!g.show_hint)
     return;
   const char *hint =
       world(ctx).valid(g.focus)
           ? "Lăn chuột: phóng to / thu nhỏ   Esc hoặc lăn ra: thôi theo   Click người khác: đổi người"
           : "Click vào người: theo dõi   Lăn chuột lên: phóng vào người gần nhất   Chuột trái chỗ trống: thêm người   "
-            "Chuột phải: gọi lại gần   Space: cổ vũ   R: làm lại   H: ẩn";
+            "Chuột phải: gọi lại gần   Space: cổ vũ   B: đổi cách vẽ   E: xuất sprite sheet   R: làm lại   H: ẩn";
   draw_text(ctx, hint, {18.0f, world_h - 24.0f}, 13.0f, soft_ink);
 }
 } // namespace paper_crowd

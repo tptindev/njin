@@ -5,12 +5,14 @@
 // friend, chase someone, or hold hands in a ring. A few dogs tag along.
 //
 //   game.cpp   the state, input (spawn, call, cheer, reset), the module
+//   bake.cpp   drawing every pose once into a sprite sheet, and finding a frame in it
 //   crowd.cpp  spawning, and the AI that picks and runs each activity
 //   camera.cpp picking a person, following them up close, easing back out
 //   draw.cpp   the paper, the figures, the hint
 #include <njin.h>
 
 #include <array>
+#include <string>
 #include <vector>
 
 namespace paper_crowd {
@@ -22,7 +24,7 @@ inline constexpr f32 world_h = 720.0f;
 // is scaled down, so thin limbs stay smooth.
 inline constexpr i32 render_scale = 2;
 inline constexpr f32 margin = 34.0f; // people keep this far from the paper's edge
-inline constexpr i32 start_people = 120;
+inline constexpr i32 start_people = 1000;
 inline constexpr i32 start_pets = 9;
 inline constexpr i32 max_people = 420;
 
@@ -104,6 +106,12 @@ struct game_state {
   shader_handle paper{};
   shader_handle person{};             // draws every person, see draw.cpp
   instance_buffer_handle instances{}; // their quads, one instance each
+  render_texture_handle sheet{};      // the baked sprite sheet, see bake.cpp
+  bool use_baked = true;              // B toggles: sprite sheet, or live SDF for comparison
+  bool baked_now = false;             // what the last frame drew with
+  bool export_requested = false;      // E: write the sheet out, at the next post_update
+  std::string toast;                  // the last export's result, shown for a few seconds
+  f32 toast_timer = 0.0f;
   std::vector<ring> rings;
   vec2 call_pos{};
   f32 call_flash = 0.0f; // fades the ripple drawn where the player called

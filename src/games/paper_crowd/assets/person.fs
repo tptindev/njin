@@ -1,27 +1,38 @@
 #version 330
 
 // One painted person per quad, in the plainest form the painting allows: a
-// flat dab of colour for the body, an ink dot for the head, and four curved
-// ink strokes for the limbs. The whole crowd is a few draw_instanced() calls;
-// person.vs places each quad and hands over what draw.cpp wrote for that
-// person:
+// cut-out of coloured paper for the body, a dot of dark paper for the head, and
+// four curved strokes for the limbs. The whole crowd is a few draw_instanced()
+// calls; person.vs places each quad and hands over what draw.cpp wrote for that
+// person, in one of two modes (see `instance` in figure.h):
 //
-//   v_codes  = (pose, cloth colour index)
-//   v_params = (phase, extra, extra2) each 0..1, and a seed (unused here)
+//   live   the pose is computed here, per pixel, from a pose id and its
+//          parameters. Exact, and the only way to draw a pose whose limbs depend
+//          on something new every frame (a ring of hands), but the costly one.
+//   baked  the pose was drawn once, at startup, by this same code into a sprite
+//          sheet (bake.cpp); drawing it is two texture reads and the person's
+//          own colour. Frames hold three numbers, not a colour:
+//            R = how much of the person's own paper shows (scaled by 1/1.25)
+//            G = how much fixed ink and pale paper
+//            B = coverage
+//          so the colour is paper * R * 1.25 + G, divided by coverage.
 //
 // Where the person stands, how high they are off the ground, which way they
-// face and how far they are tipped over (cartwheel, handstand, lying down)
-// are the quad's own position, rotation and flip, so this shader only draws a
-// person standing upright facing right, in "figure units": feet on the ground
-// at the origin, up is -y, one unit is one world pixel at size 1.
+// face and how far they are tipped over (cartwheel, handstand, lying down) are
+// the quad's own position, rotation and flip, so either mode draws a person
+// standing upright facing right, in "figure units": feet on the ground at the
+// origin, up is -y, one unit is one world pixel at size 1.
 
 in vec2 v_local;
-flat in vec2 v_codes;
-flat in vec4 v_params;
+flat in vec4 v_data0; // live: pose, colour, -, 1     baked: frame 0, colour, -, 0
+flat in vec4 v_data1; // live: phase, extra, extra2, seed     baked: blend, frame 1, -, -
 uniform vec4 cloth[16];
+uniform sampler2D texture0; // the sprite sheet, when drawing baked
+uniform vec2 sheet_cells;   // its frames across and down
+uniform int bake;           // 1 while bake.cpp draws the sheet: write frames, not colours
 out vec4 finalColor;
 
-const float quad_units = 28.0;         // must match draw.cpp
+const float quad_units = 24.0;         // must match figure.h
 const vec2 pivot = vec2(0.0, -10.0);   // the quad's centre, in figure units
 const float hip_y = -6.5;
 const float shoulder_y = -12.4;
@@ -29,7 +40,7 @@ const vec2 head_at = vec2(0.0, -16.9);
 const float pi = 3.14159265;
 const float tau = 6.2831853;
 
-const vec3 ink = vec3(0.12, 0.11, 0.13);
+const float ink = 0.12; // dark paper, as one grey: baked frames keep one number for it
 
 // Pose ids, in step with draw.cpp.
 const int pose_stand = 0;
@@ -132,25 +143,49 @@ float noise(vec2 p) {
              mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
-// Painter's algorithm inside one fragment: each shape goes over the last.
-vec4 color = vec4(0.0);
+// Painter's algorithm inside one fragment: each shape goes over the last. A
+// shape's colour is `paper * kk + cc`: kk of the person's own paper plus cc of
+// something fixed. Accumulating the two apart, instead of one colour, is what
+// lets a baked frame be drawn in any person's colour.
+float acc_k = 0.0;
+float acc_c = 0.0;
+float acc_a = 0.0;
 float aa = 0.5;
 
-void paint(float d, vec3 rgb) {
+void paint(float d, float kk, float cc) {
   float a = 1.0 - smoothstep(-aa, aa, d);
-  color.rgb = rgb * a + color.rgb * (1.0 - a);
-  color.a = a + color.a * (1.0 - a);
+  acc_k = kk * a + acc_k * (1.0 - a);
+  acc_c = cc * a + acc_c * (1.0 - a);
+  acc_a = a + acc_a * (1.0 - a);
+}
+
+// One frame of the sprite sheet at `local` (0..1 across it, y down). The
+// texture is a framebuffer, stored bottom-up.
+vec3 frame(float index, vec2 local) {
+  float row = floor((index + 0.5) / sheet_cells.x);
+  float col = index - row * sheet_cells.x;
+  return texture(texture0, vec2((col + local.x) / sheet_cells.x, 1.0 - (row + local.y) / sheet_cells.y)).rgb;
 }
 
 void main() {
   vec2 p = (v_local - 0.5) * quad_units + pivot;
   aa = max(fwidth(p.x), fwidth(p.y)) * 0.75;
 
-  int pose = int(v_codes.x + 0.5);
-  int cloth_i = int(v_codes.y + 0.5) & 15;
-  float phase = v_params.x;
-  float extra = v_params.y;
-  float extra2 = v_params.z;
+  vec3 paper = cloth[int(v_data0.y + 0.5) & 15].rgb;
+
+  if (v_data0.w < 0.5) {
+    // Baked: two frames of the sheet, blended, in this person's paper.
+    vec3 s = mix(frame(v_data0.x, v_local), frame(v_data1.y, v_local), v_data1.x);
+    if (s.b < 0.02)
+      discard;
+    finalColor = vec4(min((paper * (s.r * 1.25) + s.g) / s.b, vec3(1.0)), s.b);
+    return;
+  }
+
+  int pose = int(v_data0.x + 0.5);
+  float phase = v_data1.x;
+  float extra = v_data1.y;
+  float extra2 = v_data1.z;
 
   // ---- The pose: where hands and feet go, and how the upper body moves.
   vec2 hand_l = vec2(-4.4, -5.2);
@@ -271,26 +306,31 @@ void main() {
   // octaves of noise, seeded per person so no two sheets match: `coarse`
   // nudges the cut edges so they are not vector-smooth, `fibre` is the
   // mottling of the sheet's surface.
-  float seed = v_params.w * 91.0;
+  float seed = v_data1.w * 91.0;
   float coarse = noise(p * 1.4 + seed);
   float fibre = noise(p * 4.6 - seed);
   float grain = 0.9 + 0.16 * fibre;
-  vec3 ink_paper = ink * (0.85 + 0.35 * fibre);
-  paint(legs, ink_paper);
-  paint(arms, ink_paper);
+  float ink_paper = ink * (0.85 + 0.35 * fibre);
+  paint(legs, 0.0, ink_paper);
+  paint(arms, 0.0, ink_paper);
 
   // ---- Body and head: a cut-out of coloured paper, and a dot of dark paper.
   // A slightly larger pale cut goes first: the white core of the sheet that
   // shows along a cut edge.
-  vec3 sheet = cloth[cloth_i].rgb;
   float body = sd_segment(p - up, vec2(0.0, shoulder_y + 1.2), vec2(0.0, hip_y - 0.9), 2.5)
              + (coarse - 0.5) * 0.45;
-  paint(body - 0.3, mix(sheet, vec3(0.97, 0.96, 0.93), 0.6));
-  paint(body, sheet * grain);
+  // The pale core is the person's paper mixed 60% toward cream (0.955).
+  paint(body - 0.3, 0.4, 0.573);
+  paint(body, grain, 0.0);
   float head = sd_circle(p - up - head_at, 2.4) + (coarse - 0.5) * 0.3;
-  paint(head, ink_paper);
+  paint(head, 0.0, ink_paper);
 
-  if (color.a < 0.004)
+  if (bake != 0) {
+    // A sheet frame: the numbers above, opaque so the frame overwrites the cell.
+    finalColor = vec4(acc_k / 1.25, acc_c, acc_a, 1.0);
+    return;
+  }
+  if (acc_a < 0.004)
     discard;
-  finalColor = vec4(color.rgb / color.a, color.a);
+  finalColor = vec4((paper * acc_k + acc_c) / acc_a, acc_a);
 }

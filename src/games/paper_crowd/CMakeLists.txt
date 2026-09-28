@@ -1,4 +1,4 @@
-add_executable(njin_paper_crowd main.cpp game.cpp crowd.cpp camera.cpp draw.cpp)
+add_executable(njin_paper_crowd main.cpp game.cpp crowd.cpp camera.cpp bake.cpp draw.cpp)
 target_link_libraries(njin_paper_crowd PRIVATE njin::rt njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/paper_crowd/), so two games never

@@ -1,4 +1,4 @@
-#include "game.h"
+#include "figure.h"
 
 #include <algorithm>
 #include <cmath>
@@ -83,6 +83,30 @@ void handle_input(njin_ctx &ctx) {
   }
   if (key_pressed(ctx, key_h))
     g.show_hint = !g.show_hint;
+  if (key_pressed(ctx, key_b))
+    g.use_baked = !g.use_baked;
+  if (key_pressed(ctx, key_e))
+    g.export_requested = true;
+  g.toast_timer = std::max(0.0f, g.toast_timer - delta_real(ctx));
+}
+
+// The sheet is drawn once, on the first frame, and written out when asked:
+// render textures are drawn into after the frame's update, not in startup or
+// in the middle of it.
+void sheet_tasks(njin_ctx &ctx) {
+  static bool tried = false;
+  if (!tried) {
+    tried = true;
+    bake_sheet(ctx);
+  }
+  if (g.export_requested) {
+    g.export_requested = false;
+    std::string folder;
+    const bool ok = export_sheet(ctx, folder);
+    g.toast = ok ? "Đã xuất sprite sheet, bản xem trước và bảng khung vào: " + folder
+                 : "Không xuất được sprite sheet (xem log)";
+    g.toast_timer = 8.0f;
+  }
 }
 
 void setup(njin_ctx &ctx) {
@@ -91,6 +115,7 @@ void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_update, drive_rings, "drive_rings");
   ecs_register(ctx, phase_update, drive_people, "drive_people");
   ecs_register(ctx, phase_update, drive_pets, "drive_pets");
+  ecs_register(ctx, phase_post_update, sheet_tasks, "sheet");
   ecs_register(ctx, phase_post_update, drive_camera, "camera");
   ecs_register(ctx, phase_pre_render, draw_paper, "paper");
   ecs_register(ctx, phase_render, draw_crowd, "crowd");
