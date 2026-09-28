@@ -246,7 +246,7 @@ Số đo trên máy dev (RTX 3050 Laptop, 1280 x 720, 3000 sprite trên bản đ
 | 6 đèn, bóng đa giác (2250 vật chắn) | khoảng 6.7 ms |
 | 6 đèn, bóng từng pixel (mọi cây, bụi, đá) | khoảng 5.9 ms |
 | Một đèn hướng phủ cả màn hình, bóng đa giác | khoảng 5.4 ms |
-| Một đèn hướng phủ cả màn hình, bóng từng pixel | khoảng 8 ms |
+| Một đèn hướng phủ cả màn hình, bóng từng pixel | khoảng 5.7 ms |
 
 Con số của máy bạn sẽ khác; đo bằng `run_inspected.bat render_demo` và njin_inspector. Nếu cần nhanh hơn, theo thứ tự hiệu quả: giảm số đèn có bóng
 (`cast_shadows = false` cho đèn nhỏ), giảm `radius`, `scale = 0.5`, tắt vật liệu và normal (không tốn G-buffer), giảm `shadow_columns`, bớt số cạnh của vật chắn đa giác.

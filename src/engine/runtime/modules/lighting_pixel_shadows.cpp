@@ -173,14 +173,15 @@ bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camer
       set_f(mh, loc.march_max_len, radius / texel_world);
       out[i] = {row, 1.0f / radius, 0.0f, 1.5f * texel_world / radius};
     }
-    for (i32 r = 0; r < rows; r++) {
-      set_i(mh, loc.march_first_run, 2 * r);
-      // The sampler is forgotten at each flush: bind it again for every row.
-      SetShaderValueTexture(mh, loc.march_occluders, s.occluder_map.texture);
-      // The target is drawn y down, so storage row `row` is drawn at the mirrored height.
-      DrawRectangle(0, max_rows - 1 - (row + r), columns, 1, WHITE);
-      rlDrawRenderBatchActive();
-    }
+    // All the rows of the light in one draw, a fragment per row and column (the shader finds its row from its
+    // height): one draw per row ran the rows one after another, each marching its ray again from the start,
+    // which made a directional light about four times as slow.
+    set_i(mh, loc.march_first_row, row);
+    // The sampler is forgotten at each flush: bind it again for every light.
+    SetShaderValueTexture(mh, loc.march_occluders, s.occluder_map.texture);
+    // The target is drawn y down, so storage rows `row` to `row + rows - 1` are drawn at the mirrored height.
+    DrawRectangle(0, max_rows - (row + rows), columns, rows, WHITE);
+    rlDrawRenderBatchActive();
     row += rows;
     any = true;
   }

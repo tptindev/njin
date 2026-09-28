@@ -380,7 +380,8 @@ void main() {
 // The 1D shadow map of one light (mattdesl, "2D Pixel-Perfect Shadows"): one fragment per column, marching a
 // ray through the occluder map, half a texel at a time, from the light (or from the start of a strip, for the sun).
 // The result is where the runs of solid start and end along the ray, as a share of `max_len`: the run number
-// `first_run` in .xy and the next one in .zw; 1 when there is none. A light that sits inside a solid first
+// 2 * (the row - `first_row`) in .xy and the next one in .zw, so the rows of one light are drawn at once, a
+// fragment each; 1 when there is none. A light that sits inside a solid first
 // leaves it, so it is not blocked by its own object.
 const char *const march_fs = R"(#version 330
 in vec2 fragTexCoord;
@@ -396,7 +397,7 @@ uniform vec2 rot;        // cos, sin of the camera's rotation: world direction t
 uniform vec2 strip0;     // strips: where strip 0 starts, and the step to the next one, in texels
 uniform vec2 strip_step;
 uniform vec2 dir;        // strips: the unit direction of the rays, in texels
-uniform int first_run;   // how many runs to skip: a row holds two of them
+uniform int first_row;   // the storage row of the light's first row: a row holds two runs
 out vec4 finalColor;
 
 const float STEP = 0.5;  // texels; at a slant a whole-texel step can jump over the corner of a pixel
@@ -451,6 +452,7 @@ void main() {
     }
   }
   float e0 = 1.0, l0 = 1.0, e1 = 1.0, l1 = 1.0;
+  int first_run = 2 * (int(floor(gl_FragCoord.y)) - first_row);
   for (int r = 0; r < first_run; r++)
     next_run(start, step_dir, n, pos, e0, l0);
   next_run(start, step_dir, n, pos, e0, l0);

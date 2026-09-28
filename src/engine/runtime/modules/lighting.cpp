@@ -424,7 +424,7 @@ void find_locations(lighting_state &s) {
   l.march_strip0 = GetShaderLocation(mh, "strip0");
   l.march_strip_step = GetShaderLocation(mh, "strip_step");
   l.march_dir = GetShaderLocation(mh, "dir");
-  l.march_first_run = GetShaderLocation(mh, "first_run");
+  l.march_first_row = GetShaderLocation(mh, "first_row");
 }
 
 } // namespace

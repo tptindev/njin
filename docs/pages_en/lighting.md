@@ -247,7 +247,7 @@ Measurements on a dev machine (RTX 3050 Laptop, 1280 x 720, 3000 sprites on the 
 | 6 lights, polygon shadows (2250 occluders) | about 6.7 ms |
 | 6 lights, per-pixel shadows (every tree, bush, rock) | about 5.9 ms |
 | One directional light covering the whole screen, polygon shadows | about 5.4 ms |
-| One directional light covering the whole screen, per-pixel shadows | about 8 ms |
+| One directional light covering the whole screen, per-pixel shadows | about 5.7 ms |
 
 The numbers on your machine will differ; measure with `run_inspected.bat render_demo` and njin_inspector. If you need it faster, in order of effectiveness: reduce the number of lights with shadows
 (`cast_shadows = false` for small lights), reduce `radius`, `scale = 0.5`, turn off materials and normals (no G-buffer cost), reduce `shadow_columns`, reduce the number of edges of polygon occluders.
