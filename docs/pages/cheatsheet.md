@@ -101,6 +101,8 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Ghép nhiều ảnh nhỏ vào một trang | njin::atlas_create(), njin::atlas_load() | @ref rendering |
 | Shader riêng | njin::shader_load(), njin::shader_set_f32() | @ref rendering |
 | Vẽ hàng nghìn hình giống nhau bằng một lệnh vẽ | njin::instance_buffer_create(), njin::draw_instanced() | @ref instancing |
+| Lưu render texture (sprite sheet đã bake) ra PNG | njin::render_texture_save() | @ref instancing_bake |
+| Vẽ trước các hình vào một sprite sheet, đọc lại mỗi frame | njin::render_texture_begin(), njin::draw_instanced() kèm render texture, njin::render_texture_set_filter() | @ref instancing_bake |
 | Thanh máu, vòng hồi chiêu, bóng đổ vẽ bằng công thức (SDF) | njin::shader_begin() quanh một ảnh kéo giãn, njin::shader_set_vec2() | @ref learn_shader_sdf |
 | Vẽ vào một ảnh ngoài màn hình | njin::render_texture_load(), njin::render_texture_begin() | @ref rendering |
 

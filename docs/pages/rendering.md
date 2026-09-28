@@ -155,10 +155,44 @@ Một số điểm cần biết:
   **không** gọi njin::shader_begin(): njin::draw_instanced() tự bật shader.
 - Máy không có OpenGL 3.3 thì njin::instancing_available() trả về `false` và các hàm này không làm
   gì.
+- njin::draw_instanced() có thêm bản nhận njin::texture_handle hoặc njin::render_texture_handle: texture
+  được gắn vào `uniform sampler2D texture0` của shader (xem phần tiếp theo).
 
-`njin_paper_crowd` vẽ đám đông theo cách này: mỗi người là một instance 12 số (vị trí, tư thế, màu, pha chuyển động), và
-fragment shader vẽ người bằng SDF trong hình vuông của họ. Ở 10.000 người, cách này tốn khoảng 5 ms
-CPU mỗi frame để vẽ, so với khoảng 7 ms khi vẽ từng người bằng `texture_draw_ex`.
+### Vẽ trước một lần, đọc lại mỗi frame {#instancing_bake}
+
+Instance ít việc cho CPU, nhưng nếu fragment shader phải **tính lại** cả hình (một công thức SDF dài)
+cho từng pixel của từng instance, GPU vẫn gánh mọi frame. Khi số hình khác nhau thật sự ít (vài chục
+tư thế), hãy vẽ mỗi hình **một lần** vào một render texture, rồi để instance chỉ đọc lại:
+
+1. Tạo njin::render_texture_load() đủ chứa mọi khung, xếp thành lưới. Đặt njin::render_texture_set_filter()
+   với `filter_linear`, vì mặc định là `filter_nearest`.
+2. Trong `phase_post_update` của frame đầu, ghi một instance cho mỗi khung (vị trí là tâm ô, kích thước
+   là ô), njin::render_texture_begin(), vẽ bằng njin::draw_instanced() **không kèm texture** (đang vẽ vào chính
+   nó), njin::render_texture_end().
+3. Mỗi frame, ghi instance của người chơi với **số thứ tự khung** thay vì tham số tư thế, và vẽ bằng
+   njin::draw_instanced() có kèm render texture. Fragment shader lấy mẫu `texture0` ở ô tương ứng.
+
+Muốn **xem** sprite sheet, hoặc giữ lại làm asset, gọi njin::render_texture_save(): nó lưu render texture ra
+PNG ngay lập tức, theo đúng chiều đã vẽ và **giữ nguyên từng byte** (kể cả alpha), nên một sheet chứa dữ
+liệu chứ không phải màu vẫn lưu được đúng như nó chứa. Để có ảnh dễ nhìn, vẽ các khung qua đúng đường vẽ
+của game vào một render texture thứ hai, mỗi khung một màu, rồi lưu cả hai.
+
+Vài điều dễ sai:
+
+- Toạ độ texture của render texture có gốc ở **góc dưới trái** của hình đã vẽ: `v = 1 - y / chiều cao`.
+- Khung không cần lưu màu. Lưu vài con số (độ phủ, phần nào lấy màu riêng của từng người) rồi nhân màu
+  lúc vẽ, thì một sprite sheet dùng cho mọi màu. Lưu **premultiplied** (số đã nhân với độ phủ) để
+  lọc tuyến tính không viền tối ở mép.
+- Hai khung liền kề trộn được để chuyển động mượt, nhưng chỉ khi tư thế đổi ít giữa hai khung. Nếu một
+  chi đổi hình dạng nhanh (khuỷu tay bật ra khi tay đi ngang vai) thì trộn sẽ hiện chi ma: bake nhiều khung
+  hơn và chọn khung gần nhất.
+- Zoom camera vượt độ phân giải đã bake thì hình mờ. Chuyển sang tính trực tiếp khi zoom gần, lúc chỉ còn
+  vài instance trong khung nhìn.
+
+`njin_paper_crowd` làm đúng như vậy cho đám đông: mỗi người là một instance 12 số, tư thế đi, chạy, nhảy…
+được bake một lần lúc khởi động thành khoảng 160 khung, còn vòng nắm tay và cảnh zoom gần vẫn tính trực
+tiếp. Bấm `E` để xuất sheet, một bản xem trước có màu và bảng tra khung (JSON) vào thư mục lưu game. Ở 5.000 người, cách đọc sprite sheet đạt 317 fps so với 173 fps khi tính SDF mỗi frame, và khi GPU là
+nút thắt (`render_scale` 4, 20.000 người) là 55 fps so với 18 fps.
 
 ## Hot reload
 

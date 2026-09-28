@@ -2,7 +2,7 @@
 # defaults are listed. Run from this folder (see build_docs.bat).
 
 PROJECT_NAME           = "njin"
-PROJECT_BRIEF          = "Engine game 2D nhỏ viết bằng C++20, EnTT và raylib"
+PROJECT_BRIEF          = "Engine 2D gọn nhẹ để tự tay làm game theo ý mình. Vibe coding cũng ổn luôn"
 PROJECT_LOGO           = images/brand/njin-mark.svg
 PROJECT_ICON           = images/brand/njin-mark.svg
 OUTPUT_LANGUAGE        = Vietnamese

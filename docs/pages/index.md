@@ -25,49 +25,23 @@ Chưa quen C, C++, CMake hay shader? Đọc nhóm 13 bài @ref learn trước (b
 8. @ref samples : đọc một game đầy đủ
 9. @ref cheatsheet : tra khi cần biết "muốn làm X thì dùng hàm nào"
 
-## Đọc từ đâu
+## Tài liệu chia thành 7 phần
 
-| Bạn muốn | Đọc |
-|---|---|
-| Chưa quen C, C++, CMake hay shader: 13 bài học trước khi làm game | @subpage learn |
-| Cài trình biên dịch, CMake, Ninja trên Windows, Linux, macOS | @subpage setup |
-| Build và chạy được một chương trình | @subpage getting_started |
-| Có ngay một nhân vật chạy và nhảy được trên bản đồ, trong 50 dòng | @subpage first_jump |
-| Có ngay một nhân vật đi 8 hướng và lướt được trên bản đồ, trong 50 dòng | @subpage first_walk |
-| Biết "muốn làm X thì dùng hàm nào" | @subpage cheatsheet |
-| Hiểu module, system, phase | @subpage modules_systems |
-| Biết một frame chạy như thế nào | @subpage game_loop |
-| Làm việc với entity, component, event | @subpage ecs |
-| Điều khiển camera | @subpage camera |
-| Xử lý phím và action | @subpage input |
-| Vẽ hình, chữ, font tiếng Việt | @subpage drawing |
-| Vẽ ảnh, dùng shader, sửa ảnh và shader khi game đang chạy | @subpage rendering |
-| Nhân vật có animation | @subpage sprites |
-| Animation từ Aseprite, máy trạng thái idle/run/jump | @subpage animation |
-| Nổ, bụi, tia lửa, rung camera, hitstop | @subpage particles |
-| Mẫu entity (prefab), gắn vũ khí vào nhân vật | @subpage prefabs |
-| Bản đồ ô vuông, va chạm với bản đồ | @subpage tilemap |
-| Tự sinh bản đồ bằng nhiễu, luật, bo góc và WFC | @subpage procgen |
-| Vẽ màn chơi bằng Tiled hoặc LDtk | @subpage level |
-| Đạn trúng quái, nhặt đồ, tường chắn, raycast | @subpage collision |
-| Làm hiệu ứng toàn màn hình: bloom, CRT, vignette | @subpage post_processing |
-| Phát tiếng động và nhạc nền | @subpage audio |
-| Chia game thành menu, màn chơi, game over; chuyển cảnh mờ dần | @subpage scenes |
-| Vật lý ổn định, tạm dừng, slow motion, timer, tween | @subpage time |
-| Toán vec2, va chạm, số ngẫu nhiên | @subpage math |
-| Cửa sổ, toàn màn hình, lưu game | @subpage window_files |
-| Lưu game, file cấu hình bằng JSON | @subpage json |
-| Menu, popup, toast, thanh trượt, dùng được với tay cầm | @subpage ui |
-| Platformer: chạy, nhảy có coyote time, dốc, bục một chiều, nhảy tường, camera bám | @subpage platformer |
-| Top-down: đi 8 hướng, lướt, quái đuổi theo A*, sắp theo Y | @subpage topdown |
-| Màn hình ảo cho pixel art; hẹn giờ và tween theo entity | @subpage screen_timers |
-| Hộp thoại, chữ chạy, lựa chọn; đa ngôn ngữ | @subpage dialog |
-| Âm lượng từng kênh, đổi phím, rung tay cầm, lưu cài đặt | @subpage settings |
-| Game mẫu, đóng gói bản phát hành | @subpage samples |
-| Ghi log | @subpage logging |
-| Xem FPS, entity, collider, log trong một cửa sổ riêng | @subpage debug |
-| Hiểu cách engine được tổ chức bên trong | @subpage architecture |
-| Tra cứu từng hàm | [Nhóm API](topics.html) |
+Các trang xếp theo **độ khó tăng dần**: đi từ Phần 1 xuống Phần 7, hoặc nhảy thẳng tới phần bạn cần. Thanh bên
+trái cũng hiện đúng cây này.
+
+| Phần | Mức | Bạn được gì |
+|---|---|---|
+| @subpage part_start | Người mới | Cài môi trường, chạy chương trình đầu tiên, có ngay một nhân vật chạy được. Kèm 13 bài nền về C, C++, CMake, shader |
+| @subpage part_core | Cơ bản | Hiểu module, system, một frame chạy thế nào, entity và component, nhập liệu, thời gian, toán, log |
+| @subpage part_visual | Cơ bản | Vẽ hình và chữ, sprite, animation, camera, particle, pixel art |
+| @subpage part_world | Trung cấp | Bản đồ ô vuông, Tiled và LDtk, va chạm, prefab; ghép lại thành game platformer và top-down |
+| @subpage part_ui_audio | Trung cấp | Tiếng động và nhạc, menu, hộp thoại, đa ngôn ngữ |
+| @subpage part_ship | Trung cấp | Chia màn chơi, lưu game, cài đặt của người chơi, cửa sổ, đọc game mẫu, đóng gói |
+| @subpage part_advanced | Nâng cao | Shader, instancing, hậu kỳ, sinh bản đồ tự động, debug bằng inspector, kiến trúc bên trong |
+
+Ngoài các phần trên: @subpage cheatsheet là bảng tra nhanh "muốn làm X thì dùng gì", và
+[Nhóm API](topics.html) tra cứu từng hàm.
 
 ## Một chương trình nhỏ nhất
 
