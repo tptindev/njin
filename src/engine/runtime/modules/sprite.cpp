@@ -196,10 +196,13 @@ void bake_tilemaps(njin_ctx &ctx) {
       if (!rects_overlap(chunk_rect(map, tr.pos, key), view))
         continue;
       chunk_image &image = images[key];
-      image.last_used = frame;
       if (image.version != chunk.version || image.texture_version != tileset->version ||
           !IsRenderTextureValid(image.target))
         bake(image, *tileset, map, chunk);
+      // After the bake: making a new image resets the whole chunk_image, and a last_used of 0
+      // would evict it below once the game has run chunk_evict_frames frames, so it would be
+      // baked again every frame.
+      image.last_used = frame;
     }
   }
 
