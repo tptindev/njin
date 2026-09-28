@@ -186,6 +186,17 @@ enum texture_filter {
 void texture_set_filter(njin_ctx &ctx, texture_handle handle,
                         texture_filter filter);
 
+/// Đổi cách lấy mẫu của render texture.
+///
+/// Render texture mới tạo lấy mẫu kiểu `filter_nearest`. Đặt `filter_linear` khi
+/// shader của game (xem draw_instanced()) đọc nó ở kích thước khác kích thước
+/// đã vẽ.
+/// @param ctx Context của engine.
+/// @param handle Render texture cần đổi.
+/// @param filter Cách lấy mẫu.
+void render_texture_set_filter(njin_ctx &ctx, render_texture_handle handle,
+                               texture_filter filter);
+
 /// Tham số đầy đủ cho texture_draw_ex().
 struct texture_draw_desc {
   vec2 pos{};     ///< Vị trí của điểm neo `origin`.

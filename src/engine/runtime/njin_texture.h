@@ -138,6 +138,9 @@ bool render_texture_store_begin(const render_texture_store &store,
 // Fills the render texture being drawn into. Call between begin and end.
 void render_texture_store_clear(rgba color);
 void render_texture_store_end();
+bool render_texture_store_save(render_texture_store &store, render_texture_handle handle, const char *path);
+void render_texture_store_set_filter(render_texture_store &store, render_texture_handle handle,
+                                     texture_filter filter);
 void render_texture_store_draw(const render_texture_store &store,
                                render_texture_handle handle, vec2 pos,
                                rgba tint);

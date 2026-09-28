@@ -119,8 +119,10 @@ void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const 
   rlUpdateVertexBuffer(slot->vbo, data, bytes, 0);
 }
 
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
-                    u32 count) {
+namespace {
+// `texture_id` is bound to texture0 when not 0.
+void draw_instanced_impl(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader,
+                         u32 first, u32 count, unsigned int texture_id) {
   instance_store &store = ctx.instances;
   instance_slot *slot = instance_slot_of(store, handle);
   const shader_slot *program = shader_slot_of(ctx.shader, shader);
@@ -142,6 +144,12 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
   const Matrix mvp = MatrixMultiply(
       MatrixMultiply(rlGetMatrixTransform(), rlGetMatrixModelview()), rlGetMatrixProjection());
   rlSetUniformMatrix(rlGetLocationUniform(id, "mvp"), mvp);
+  if (texture_id != 0) {
+    const int unit = 0;
+    rlActiveTextureSlot(unit);
+    rlEnableTexture(texture_id);
+    rlSetUniform(rlGetLocationUniform(id, "texture0"), &unit, RL_SHADER_UNIFORM_INT, 1);
+  }
 
   // Point this shader's instance attributes at the buffer, starting at
   // `first`. Pointing them per draw (not once per buffer) lets any shader and
@@ -165,6 +173,28 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
   rlDrawVertexArrayInstanced(0, 6, (int)count);
   rlEnableBackfaceCulling();
   rlDisableVertexArray();
+  if (texture_id != 0)
+    rlDisableTexture();
   rlDisableShader();
+}
+} // namespace
+
+void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+                    u32 count) {
+  draw_instanced_impl(ctx, handle, shader, first, count, 0);
+}
+
+void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+                    u32 count, texture_handle texture) {
+  const texture_slot *slot = texture_slot_of(ctx.texture, texture);
+  if (slot != nullptr)
+    draw_instanced_impl(ctx, handle, shader, first, count, slot->texture.id);
+}
+
+void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+                    u32 count, render_texture_handle texture) {
+  const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, texture);
+  if (slot != nullptr)
+    draw_instanced_impl(ctx, handle, shader, first, count, slot->target.texture.id);
 }
 } // namespace njin

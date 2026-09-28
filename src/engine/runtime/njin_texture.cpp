@@ -2,6 +2,8 @@
 #include "njin2rl.h"
 #include "njin_log.h"
 #include "njin_path.h"
+#include <filesystem>
+#include <rlgl.h>
 #include <string>
 
 namespace njin {
@@ -200,6 +202,40 @@ void render_texture_store_clear(rgba color) {
   Color clear{};
   to_raylib(color, clear);
   ClearBackground(clear);
+}
+
+bool render_texture_store_save(render_texture_store &store, render_texture_handle handle, const char *path) {
+  const render_texture_slot *slot = render_texture_slot_of(store, handle);
+  if (slot == nullptr || path == nullptr)
+    return false;
+  // Queued draws may still be headed for this texture.
+  rlDrawRenderBatchActive();
+  Image image = LoadImageFromTexture(slot->target.texture);
+  if (image.data == nullptr) {
+    NJIN_WARN("render texture: cannot read %s back from the GPU", path);
+    return false;
+  }
+  // OpenGL framebuffers are stored bottom-up; the file is top-down, as drawn.
+  ImageFlipVertical(&image);
+  std::error_code ec;
+  const std::filesystem::path p(reinterpret_cast<const char8_t *>(path));
+  if (p.has_parent_path())
+    std::filesystem::create_directories(p.parent_path(), ec);
+  const bool saved = ExportImage(image, path);
+  UnloadImage(image);
+  if (saved)
+    NJIN_INFO("render texture saved: %s", path);
+  else
+    NJIN_WARN("render texture: cannot save %s (unknown extension or unwritable)", path);
+  return saved;
+}
+
+void render_texture_store_set_filter(render_texture_store &store, render_texture_handle handle,
+                                     texture_filter filter) {
+  render_texture_slot *slot = const_cast<render_texture_slot *>(render_texture_slot_of(store, handle));
+  if (slot == nullptr)
+    return;
+  SetTextureFilter(slot->target.texture, texture_filter_to_raylib(filter));
 }
 
 void render_texture_store_end() { EndTextureMode(); }

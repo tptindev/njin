@@ -132,6 +132,35 @@ void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const 
 /// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
 void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count);
+
+/// Như bản trên, và gắn `texture` vào uniform `sampler2D texture0` của shader.
+///
+/// Dùng khi mỗi instance là một khung trong một sprite sheet: vertex shader chọn
+/// khung từ dữ liệu instance, fragment shader đọc nó. Với texture nằm trong atlas
+/// (atlas_load()), toạ độ là của cả trang atlas.
+/// @param ctx Context của engine.
+/// @param handle Bộ đệm đã ghi bằng instance_buffer_upload().
+/// @param shader Shader có vertex shader đọc các thuộc tính trên.
+/// @param first Instance đầu tiên được vẽ.
+/// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
+/// @param texture Texture gắn vào `texture0`. Handle không hợp lệ thì không vẽ gì.
+void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+                    u32 count, texture_handle texture);
+
+/// Như bản trên, với một render texture, ví dụ sprite sheet vừa vẽ ra (bake) một lần
+/// bằng render_texture_begin().
+///
+/// Toạ độ texture có gốc ở **góc dưới trái** của hình đã vẽ (`v = 1 - y / chiều
+/// cao`), vì framebuffer OpenGL lưu từ dưới lên. Render texture lấy mẫu kiểu
+/// `filter_nearest` trừ khi đổi bằng render_texture_set_filter().
+/// @param ctx Context của engine.
+/// @param handle Bộ đệm đã ghi bằng instance_buffer_upload().
+/// @param shader Shader có vertex shader đọc các thuộc tính trên.
+/// @param first Instance đầu tiên được vẽ.
+/// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
+/// @param texture Render texture gắn vào `texture0`. Handle không hợp lệ thì không vẽ gì.
+void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+                    u32 count, render_texture_handle texture);
 /// @}
 
 /// @addtogroup grp_texture
@@ -215,6 +244,23 @@ void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
 /// Kết thúc vẽ vào render texture.
 /// @param ctx Context của engine.
 void render_texture_end(const njin_ctx &ctx);
+
+/// Lưu nội dung render texture ra file ảnh, ngay lập tức.
+///
+/// Ảnh theo đúng chiều đã vẽ (góc trên trái của hình vẽ là góc trên trái của
+/// file) và giữ **nguyên từng byte**, kể cả kênh alpha: không nhân hay chia
+/// alpha, nên một render texture dùng để chứa dữ liệu (sprite sheet đã bake, xem
+/// draw_instanced()) lưu ra được đúng như nó chứa.
+///
+/// Định dạng theo đuôi file: `.png` (nên dùng), `.bmp`, `.tga`, `.qoi`. Thư
+/// mục cha được tạo nếu chưa có. Không gọi giữa render_texture_begin() và
+/// render_texture_end(). Đọc lại từ GPU nên chậm hơn nhiều so với một lệnh vẽ:
+/// dùng khi xuất file, không phải mỗi frame.
+/// @param ctx Context của engine.
+/// @param handle Render texture cần lưu. Handle không hợp lệ thì trả về `false`.
+/// @param path Đường dẫn file. Muốn lưu vào thư mục lưu game thì dùng save_path().
+/// @return `true` nếu đã lưu. Lý do thất bại (đuôi file lạ, không ghi được) ghi vào log.
+bool render_texture_save(njin_ctx &ctx, render_texture_handle handle, const char *path);
 
 /// Vẽ nội dung render texture theo đúng chiều, góc trên trái tại `pos`.
 /// @param ctx Context của engine.

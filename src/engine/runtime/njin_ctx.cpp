@@ -253,6 +253,15 @@ void render_texture_end(const njin_ctx &ctx) {
   view_rebind(ctx.view); // back to the virtual screen, when drawing into one
 }
 
+bool render_texture_save(njin_ctx &ctx, render_texture_handle handle, const char *path) {
+  return render_texture_store_save(ctx.render_texture, handle, path);
+}
+
+void render_texture_set_filter(njin_ctx &ctx, render_texture_handle handle,
+                               texture_filter filter) {
+  render_texture_store_set_filter(ctx.render_texture, handle, filter);
+}
+
 void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
                          vec2 pos, rgba tint) {
   render_texture_store_draw(ctx.render_texture, handle, pos, tint);

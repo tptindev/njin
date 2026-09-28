@@ -15,7 +15,12 @@ To release: edit that header, add a section here, commit, then
   `draw_instanced` draw thousands of quads in one draw call through a game's own
   shader, each with 4 to 16 floats of its own data (`instance0..3` in the vertex
   shader). `instancing_available` says whether the machine can. The inspector's
-  draw-call and instanced-call counts include these draws.
+  draw-call and instanced-call counts include these draws. `draw_instanced` can
+  also bind a texture or a render texture to `texture0`, so a game can draw its
+  poses into a render texture once and have every instance read a frame of it;
+  `render_texture_set_filter` sets how it is sampled (nearest by default), and
+  `render_texture_save` writes a render texture to an image file exactly as it
+  holds it, top-down, alpha untouched.
 - **Logo and icon**: the njin mark and wordmark (SVG, PNG, ICO) are in
   `docs/images/brand/`. `njin_icon(<target> [file.ico])` embeds an icon in a
   game's executable, its window and its taskbar button on Windows, and defaults
@@ -25,8 +30,10 @@ To release: edit that header, add a section here, commit, then
   waves; `njin_moteswarm` lets you steer one creature among a swarm of
   wandering creatures, demonstrating procedural motion and a shader pass; and
   `njin_paper_crowd` fills a sheet of watercolour paper with a crowd of tiny
-  people who each decide what to do next, drawn with instancing. Click anyone
-  to follow them up close.
+  people who each decide what to do next, drawn with instancing from a sprite
+  sheet baked at startup (B compares it with drawing every person live, E writes
+  the sheet out as a PNG with a coloured preview and a JSON of its frames).
+  Click anyone to follow them up close.
 - **Build and editor setup**: Windows scripts now use the CMake presets, with
   VS Code build, run and debug tasks included. Configure-time and compile-time
   checks keep game code behind njin's public API instead of including or
