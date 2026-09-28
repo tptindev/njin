@@ -28,5 +28,10 @@ if(NOT TARGET njin_imgui)
     ${implot_SOURCE_DIR}/implot_items.cpp
     ${rlimgui_SOURCE_DIR}/rlImGui.cpp)
   target_include_directories(njin_imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR} ${implot_SOURCE_DIR} ${rlimgui_SOURCE_DIR})
+  # 32-bit indices: the inspector's world view draws every entity into one draw
+  # list, and a few thousand entities pass the 65536 vertices of 16-bit indices.
+  # rlImGui reads indices through ImDrawIdx, so it follows. C++ only: the
+  # resource compiler cannot take a definition with a space.
+  target_compile_definitions(njin_imgui PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:ImDrawIdx=unsigned int>")
   target_link_libraries(njin_imgui PUBLIC raylib)
 endif()

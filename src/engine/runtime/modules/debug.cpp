@@ -241,23 +241,6 @@ std::string type_name(const debug_state &d, const entt::type_info &info) {
   return n;
 }
 
-// A readable label for an entity: its level object's name or type, else the
-// first component that is not one of the engine's own plumbing types.
-std::string label_of(const entt::registry &reg, entt::entity e, const std::vector<std::string> &names) {
-  if (const level_object *o = reg.try_get<level_object>(e)) {
-    if (!o->name.empty() && o->name.size() < 40)
-      return o->name;
-    if (!o->type.empty())
-      return o->type;
-  }
-  static const char *plumbing[] = {"transform", "scene_owned", "child_of", "sprite", "collider", "sprite_anim", "flash_fx", "dissolve_fx"};
-  for (const std::string &n : names) {
-    if (std::find(std::begin(plumbing), std::end(plumbing), n) == std::end(plumbing))
-      return n;
-  }
-  return names.empty() ? std::string("entity") : names.front();
-}
-
 // --- commands from the inspector ---
 
 entt::entity entity_from(const entt::registry &reg, const json_value &v) {
@@ -397,43 +380,130 @@ void send_world(njin_ctx &ctx) {
     pools.push_back({&pool, (i32)type_names.size() - 1});
   }
 
-  json_value ents = json_value::make_array();
+  // The entity rows are written straight into the message rather than built as
+  // a json_value tree and dumped: with thousands of entities the tree was most
+  // of the cost (crowd: 5000 people took ~100 ms per snapshot in a debug build).
+  // What each pool adds to an entity's RAM, and whether it can name the entity.
+  struct pool_cost {
+    usize bytes = 0;
+    const std::function<std::size_t(const entt::registry &, entt::entity)> *heap = nullptr;
+    bool known = false;
+    bool plumbing = false;
+  };
+  static const char *plumbing[] = {"transform", "scene_owned", "child_of", "sprite", "collider", "sprite_anim", "flash_fx", "dissolve_fx"};
+  std::vector<pool_cost> costs;
+  std::vector<std::string> quoted; // type names as JSON strings
+  for (const auto &[pool, index] : pools) {
+    pool_cost c;
+    if (const auto it = d.types.find(pool->info().hash()); it != d.types.end()) {
+      c.bytes = it->second.bytes;
+      c.heap = it->second.heap ? &it->second.heap : nullptr;
+      c.known = true;
+    }
+    const std::string &n = type_names[(usize)index];
+    c.plumbing = std::find(std::begin(plumbing), std::end(plumbing), n) != std::end(plumbing);
+    costs.push_back(c);
+    quoted.push_back(json_dump(json_value(n), false));
+  }
+  const auto number = [](std::string &out, f64 v) {
+    char buf[32];
+    if (!std::isfinite(v))
+      std::snprintf(buf, sizeof buf, "0");
+    else if (v == std::floor(v) && std::abs(v) < 1e15)
+      std::snprintf(buf, sizeof buf, "%.0f", v);
+    else
+      std::snprintf(buf, sizeof buf, "%.9g", v); // positions and sizes are f32
+    out += buf;
+  };
+
+  std::string ents;
+  ents.reserve(reg.view<entt::entity>().size() * 96);
+  ents += '[';
   i32 count = 0;
   bool truncated = false;
+  std::vector<i32> comps;
   for (const entt::entity e : reg.view<entt::entity>()) {
     if (count >= d.desc.max_entities) {
       truncated = true;
       break;
     }
+    if (count > 0)
+      ents += ',';
     count++;
-    json_value comps = json_value::make_array();
-    std::vector<std::string> names;
-    for (const auto &[pool, index] : pools) {
-      if (pool->contains(e)) {
-        comps.push(index);
-        names.push_back(type_names[(usize)index]);
+    comps.clear();
+    usize ram = 0;
+    i32 label = -1, first = -1; // pool whose name labels the entity
+    for (usize k = 0; k < pools.size(); k++) {
+      if (!pools[k].first->contains(e))
+        continue;
+      comps.push_back(pools[k].second);
+      ram += debug_component_overhead;
+      if (costs[k].known) {
+        ram += costs[k].bytes;
+        if (costs[k].heap != nullptr)
+          ram += (*costs[k].heap)(reg, e);
+      }
+      if (first < 0)
+        first = (i32)k;
+      if (label < 0 && !costs[k].plumbing)
+        label = (i32)k;
+    }
+    ents += "{\"id\":";
+    number(ents, id_of(e));
+    // Label: the level object's name or type, else the first component that
+    // is not one of the engine's own plumbing types, else the first one.
+    ents += ",\"n\":";
+    const level_object *o = reg.try_get<level_object>(e);
+    if (o != nullptr && ((!o->name.empty() && o->name.size() < 40) || !o->type.empty()))
+      ents += json_dump(json_value(!o->name.empty() && o->name.size() < 40 ? o->name : o->type), false);
+    else if (label >= 0 || first >= 0)
+      ents += quoted[(usize)(label >= 0 ? label : first)];
+    else
+      ents += "\"entity\"";
+    ents += ",\"c\":[";
+    for (usize k = 0; k < comps.size(); k++) {
+      if (k > 0)
+        ents += ',';
+      number(ents, comps[k]);
+    }
+    ents += ']';
+    if (ram > 0) {
+      ents += ",\"m\":";
+      number(ents, (f64)ram);
+      if (const usize gpu = debug_entity_gpu(ctx, e); gpu > 0) {
+        ents += ",\"g\":";
+        number(ents, (f64)gpu);
       }
     }
-    json_value row = json_value::make_object();
-    row.set("id", id_of(e)).set("n", label_of(reg, e, names)).set("c", std::move(comps));
-    if (const entity_cost cost = debug_entity_cost(ctx, e); cost.ram > 0) {
-      row.set("m", (i64)cost.ram);
-      if (cost.gpu > 0)
-        row.set("g", (i64)cost.gpu);
+    const transform *t = reg.try_get<transform>(e);
+    if (t != nullptr) {
+      ents += ",\"p\":[";
+      number(ents, t->pos.x);
+      ents += ',';
+      number(ents, t->pos.y);
+      ents += ']';
     }
-    if (const transform *t = reg.try_get<transform>(e))
-      row.set("p", vec(t->pos));
-    if (const collider *c = reg.try_get<collider>(e); c != nullptr && c->shape != collider_tiles) {
-      const transform *t = reg.try_get<transform>(e);
-      if (t != nullptr)
-        row.set("col", json_value::make_object()
-                           .set("s", c->shape == collider_circle ? 1 : 0)
-                           .set("b", rect_json(collider_bounds(*t, *c)))
-                           .set("tr", c->trigger)
-                           .set("en", c->enabled));
+    if (const collider *c = reg.try_get<collider>(e); c != nullptr && c->shape != collider_tiles && t != nullptr) {
+      const rect b = collider_bounds(*t, *c);
+      ents += ",\"col\":{\"s\":";
+      ents += c->shape == collider_circle ? '1' : '0';
+      ents += ",\"b\":[";
+      number(ents, b.pos.x);
+      ents += ',';
+      number(ents, b.pos.y);
+      ents += ',';
+      number(ents, b.size.x);
+      ents += ',';
+      number(ents, b.size.y);
+      ents += "],\"tr\":";
+      ents += c->trigger ? "true" : "false";
+      ents += ",\"en\":";
+      ents += c->enabled ? "true" : "false";
+      ents += '}';
     }
-    ents.push(std::move(row));
+    ents += '}';
   }
+  ents += ']';
 
   // Occupied area of each tilemap, so the world view shows where the level is.
   json_value maps = json_value::make_array();
@@ -458,14 +528,13 @@ void send_world(njin_ctx &ctx) {
                   .set("solid", col != nullptr && col->shape == collider_tiles && col->enabled));
   }
 
-  d.link.send(json_dump(json_value::make_object()
-                            .set("t", "world")
-                            .set("types", std::move(types))
-                            .set("ents", std::move(ents))
-                            .set("truncated", truncated)
-                            .set("camera", rect_json(camera_bounds(ctx)))
-                            .set("tilemaps", std::move(maps)),
-                        false));
+  std::string msg = "{\"t\":\"world\",\"types\":" + json_dump(types, false) + ",\"ents\":";
+  msg += ents;
+  msg += ",\"truncated\":";
+  msg += truncated ? "true" : "false";
+  msg += ",\"camera\":" + json_dump(rect_json(camera_bounds(ctx)), false);
+  msg += ",\"tilemaps\":" + json_dump(maps, false) + "}";
+  d.link.send(msg);
 }
 
 void send_entity(njin_ctx &ctx) {

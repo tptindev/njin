@@ -34,6 +34,14 @@ struct entity_cost {
 };
 entity_cost debug_entity_cost(const njin_ctx &ctx, entt::entity entity);
 
+// What debug_entity_cost counts per component beyond its payload: EnTT keeps
+// its slot in the packed and the sparse arrays, about two 32-bit ids.
+inline constexpr std::size_t debug_component_overhead = 8;
+
+// The GPU part of debug_entity_cost alone, for a caller that already walks the
+// component pools and adds the RAM itself.
+std::size_t debug_entity_gpu(const njin_ctx &ctx, entt::entity entity);
+
 // Heap owned by the engine's own components, attached to their debug entries.
 std::size_t debug_heap_tilemap(const tilemap &m);
 std::size_t debug_heap_particles(const particle_emitter &p);

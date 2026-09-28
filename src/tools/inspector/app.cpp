@@ -1,4 +1,5 @@
 #include "app.h"
+#include <algorithm>
 #include <cstdio>
 
 namespace inspector {
@@ -48,6 +49,12 @@ void on_world(app &a, const json_value &m) {
     }
     a.ents.push_back(std::move(r));
   }
+  // The game lists entities in storage order, which reshuffles whenever
+  // entities come and go. Sorted by id, a row stays under the mouse between
+  // press and release, so clicking it selects it (crowd: groups form and
+  // disband every frame).
+  std::sort(a.ents.begin(), a.ents.end(),
+            [](const entity_row &x, const entity_row &y) { return (x.id & 0xFFFFFu) < (y.id & 0xFFFFFu); });
   a.truncated = m["truncated"].bool_or(false);
   a.has_cam = m["camera"].size() == 4;
   for (int i = 0; i < 4 && a.has_cam; i++)

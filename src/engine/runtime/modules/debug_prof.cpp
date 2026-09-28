@@ -11,9 +11,7 @@
 
 namespace njin {
 namespace {
-// EnTT keeps, for every component of an entity, its slot in the packed entity
-// array and in the sparse array: about two 32-bit ids.
-constexpr usize per_component_overhead = 8;
+constexpr usize per_component_overhead = debug_component_overhead;
 
 f64 round2(f64 v) { return std::round(v * 100.0) / 100.0; }
 
@@ -253,11 +251,18 @@ entity_cost debug_entity_cost(const njin_ctx &ctx, entt::entity entity) {
         cost.ram += it->second.heap(reg, entity);
     }
   }
-  if (reg.all_of<tilemap>(entity))
-    cost.gpu = chunk_bytes_of(ctx, entity);
-  if (const particle_gpu_buffer *buffer = reg.try_get<particle_gpu_buffer>(entity))
-    cost.gpu += (usize)buffer->capacity;
+  cost.gpu = debug_entity_gpu(ctx, entity);
   return cost;
+}
+
+usize debug_entity_gpu(const njin_ctx &ctx, entt::entity entity) {
+  const entt::registry &reg = ctx.ecs.registry;
+  usize gpu = 0;
+  if (reg.all_of<tilemap>(entity))
+    gpu = chunk_bytes_of(ctx, entity);
+  if (const particle_gpu_buffer *buffer = reg.try_get<particle_gpu_buffer>(entity))
+    gpu += (usize)buffer->capacity;
+  return gpu;
 }
 
 // Heap held by the engine's own component types, for debug.cpp to attach.
