@@ -194,11 +194,6 @@ A few easy mistakes:
 - Zooming the camera past the baked resolution makes the shapes blurry. Switch to direct computation when zoomed in close, when only
   a few instances are left in view.
 
-`njin_paper_crowd` does exactly this for a crowd: each person is a 12-float instance, and the walking, running, jumping poses...
-are baked once at startup into about 160 frames, while the ring of people holding hands and the close-up zoom scene are still computed
-directly. Press `E` to export the sheet, a colored preview and a frame lookup table (JSON) into the game's save folder. At 5,000 people, reading from the sprite sheet reaches 317 fps versus 173 fps when computing the SDF every frame, and when the GPU is
-the bottleneck (`render_scale` 4, 20,000 people) it is 55 fps versus 18 fps.
-
 ## Hot reload
 
 Edit an image or a shader while the game is running, save, and see the result right away, with no

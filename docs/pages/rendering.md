@@ -194,11 +194,6 @@ Vài điều dễ sai:
 - Zoom camera vượt độ phân giải đã bake thì hình mờ. Chuyển sang tính trực tiếp khi zoom gần, lúc chỉ còn
   vài instance trong khung nhìn.
 
-`njin_paper_crowd` làm đúng như vậy cho đám đông: mỗi người là một instance 12 số, tư thế đi, chạy, nhảy…
-được bake một lần lúc khởi động thành khoảng 160 khung, còn vòng nắm tay và cảnh zoom gần vẫn tính trực
-tiếp. Bấm `E` để xuất sheet, một bản xem trước có màu và bảng tra khung (JSON) vào thư mục lưu game. Ở 5.000 người, cách đọc sprite sheet đạt 317 fps so với 173 fps khi tính SDF mỗi frame, và khi GPU là
-nút thắt (`render_scale` 4, 20.000 người) là 55 fps so với 18 fps.
-
 ## Hot reload
 
 Sửa ảnh hay shader trong lúc game đang chạy, lưu lại, và thấy kết quả ngay, không cần khởi

@@ -74,8 +74,6 @@ add_subdirectory(src/games/topdown)
 add_subdirectory(src/games/debug_demo)
 add_subdirectory(src/games/render_demo)
 add_subdirectory(src/games/tower_defense)
-add_subdirectory(src/games/moteswarm)
-add_subdirectory(src/games/paper_crowd)
 
 # Debug inspector: a separate window that connects to a running game (see
 # njin_debug.h). Downloads Dear ImGui and rlImGui on first configure.

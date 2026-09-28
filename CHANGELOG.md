@@ -56,14 +56,8 @@ To release: edit that header, add a section here, commit, then
   game's executable, its window and its taskbar button on Windows, and defaults
   to njin's; `njin_package` uses it, and every sample game without an icon of
   its own and the inspector now carry the njin one.
-- **New sample games**: `njin_tower_defense` is a tower-defense game with enemy
-  waves; `njin_moteswarm` lets you steer one creature among a swarm of
-  wandering creatures, demonstrating procedural motion and a shader pass; and
-  `njin_paper_crowd` fills a sheet of watercolour paper with a crowd of tiny
-  people who each decide what to do next, drawn with instancing from a sprite
-  sheet baked at startup (B compares it with drawing every person live, E writes
-  the sheet out as a PNG with a coloured preview and a JSON of its frames).
-  Click anyone to follow them up close.
+- **New sample game**: `njin_tower_defense` is a tower-defense game with enemy
+  waves.
 - **Build and editor setup**: Windows scripts now use the CMake presets, with
   VS Code build, run and debug tasks included. Configure-time and compile-time
   checks keep game code behind njin's public API instead of including or
