@@ -15,7 +15,8 @@
 //  11  many lights at once, with and without shadows
 //  12  a side view platformer level: moonlight, lamp posts, a lantern
 //
-// Keys everywhere: Page Up / Page Down or F1..F12 change the room, L turns the lighting off to compare,
+// Keys everywhere: Tab / Shift+Tab, the number keys (0 is room 10), F1..F12, Page Up / Page Down or the
+// two buttons at the bottom right change the room, L turns the lighting off to compare,
 // G draws the outline of every occluder (what the lights actually see), H hides the text. Each room
 // lists its own keys under its explanation.
 #include "demo.h"

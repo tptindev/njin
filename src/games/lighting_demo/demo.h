@@ -144,6 +144,8 @@ const room &room_at(i32 index);
 // --- hud.cpp ---
 
 void hud(njin_ctx &ctx);
+// Where the two room buttons of the bottom bar are, on the screen: previous and next.
+void nav_buttons(const njin_ctx &ctx, rect &prev, rect &next);
 // In the world: the current room's own drawing, and the occluder outlines of key G.
 void draw_world(njin_ctx &ctx);
 

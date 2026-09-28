@@ -10,7 +10,25 @@ constexpr rgba text_color{0.90f, 0.92f, 0.98f, 1.0f};
 constexpr rgba code_color{0.60f, 0.90f, 0.70f, 1.0f};
 constexpr rgba keys_color{0.62f, 0.78f, 1.0f, 1.0f};
 constexpr rgba outline_color{1.0f, 0.3f, 0.9f, 1.0f};
+constexpr const char *prev_text = "< phòng trước";
+constexpr const char *next_text = "phòng sau >";
+
+bool inside(rect r, vec2 p) { return p.x >= r.pos.x && p.x < r.pos.x + r.size.x && p.y >= r.pos.y && p.y < r.pos.y + r.size.y; }
+
+void draw_button(njin_ctx &ctx, rect r, const char *text) {
+  const bool hot = inside(r, mouse_pos(ctx));
+  draw_rect(ctx, r, hot ? rgba{0.30f, 0.40f, 0.65f, 1.0f} : rgba{0.18f, 0.22f, 0.34f, 1.0f});
+  draw_text(ctx, text, {r.pos.x + 8.0f, r.pos.y + 3.0f}, 16.0f, colors::white);
+}
 } // namespace
+
+void nav_buttons(const njin_ctx &ctx, rect &prev, rect &next) {
+  const vec2 screen = screen_size(ctx);
+  const f32 wn = text_measure(ctx, next_text, 16.0f).x + 16.0f;
+  const f32 wp = text_measure(ctx, prev_text, 16.0f).x + 16.0f;
+  next = rect{{screen.x - wn - 4.0f, screen.y - 23.0f}, {wn, 22.0f}};
+  prev = rect{{next.pos.x - wp - 6.0f, screen.y - 23.0f}, {wp, 22.0f}};
+}
 
 // In the world, before the lighting: what the room draws itself (so it is lit like the rest), and the
 // outlines of every occluder on top when key G is on.
@@ -52,6 +70,10 @@ void hud(njin_ctx &ctx) {
                                  demo.outlines ? "bật" : "tắt");
   draw_rect(ctx, rect{{0.0f, screen.y - 24.0f}, {screen.x, 24.0f}}, panel);
   draw_text(ctx, status.c_str(), {10.0f, screen.y - 21.0f}, 16.0f, text_color);
+  rect prev, next;
+  nav_buttons(ctx, prev, next);
+  draw_button(ctx, prev, prev_text);
+  draw_button(ctx, next, next_text);
   if (!demo.help)
     return;
 
@@ -59,7 +81,7 @@ void hud(njin_ctx &ctx) {
   draw_rect(ctx, rect{{0.0f, 0.0f}, {screen.x, 118.0f}}, panel);
   const std::string title = fmt("%d / %d   %s", demo.current + 1, room_count, r.title);
   draw_text(ctx, title.c_str(), {12.0f, 6.0f}, 22.0f, title_color);
-  const char *nav = "PgUp / PgDn hoặc F1..F12: đổi phòng";
+  const char *nav = "Tab / Shift+Tab, 1..9 0, F1..F12: đổi phòng";
   draw_text(ctx, nav, {screen.x - text_measure(ctx, nav, 16.0f).x - 12.0f, 10.0f}, 16.0f, keys_color);
   draw_text(ctx, r.what, {12.0f, 34.0f}, 16.0f, text_color);
   draw_text(ctx, r.code, {12.0f, 74.0f}, 16.0f, code_color);
