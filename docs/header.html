@@ -33,6 +33,18 @@ div.mermaidgraph, pre.mermaid {
   background: none !important; border: none !important; box-shadow: none !important;
   padding: 0 !important; margin: 1em 0 !important; text-align: center;
 }
+/* Sidebar header. The theme fixes #top at 120px, but the logo row plus the
+   search box under it need more, so the box was clipped by #top and landed on
+   the first tree entry. The language link sits in the corner instead of
+   beside the tagline (which wrapped to 3-4 lines), and #top is made tall
+   enough for a 3-line tagline. html:root beats the theme's plain `html`
+   rule whatever the load order. */
+@media screen and (min-width: 768px) {
+  html:root { --top-height: 152px; }
+  #doc-content { padding-top: 40px !important; }
+  #titlearea { position: relative; }
+  #lang-switch { position: absolute; top: 12px; right: 16px; }
+}
 </style>
 <script type="module">
 // Mermaid for the njin wiki: colours that follow the page's light/dark mode,
