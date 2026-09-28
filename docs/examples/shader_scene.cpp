@@ -24,6 +24,7 @@ void update_scene(njin::njin_ctx &ctx) {
   const float t = njin::elapsed(ctx);
   njin::shader_set_f32(ctx, scene, "time", t);
   njin::shader_set_vec2(ctx, scene, "resolution", njin::screen_size(ctx));
+  njin::shader_set_vec3(ctx, scene, "ambient", {0.10f, 0.13f, 0.24f}); // xanh đêm
   njin::shader_set_f32(ctx, scene, "night", 1.0f);
   njin::shader_set_f32(ctx, scene, "dusk", 0.0f);
   njin::shader_set_f32(ctx, scene, "haze", 0.0f);

@@ -80,6 +80,9 @@
 /// @defgroup grp_fx Hiệu ứng (FX)
 /// Rung camera, hitstop, nháy màn hình, nháy sprite và các mẫu particle có sẵn.
 
+/// @defgroup grp_light Ánh sáng 2D
+/// Đèn điểm, đèn nón, đèn hướng, ánh sáng nền, bóng đổ từ vật chắn, normal map, đèn theo vật lý.
+
 /// @defgroup grp_post Post-processing dựng sẵn
 /// Bloom, vignette, CRT, chỉnh màu, blur và các bộ hiệu ứng có sẵn.
 

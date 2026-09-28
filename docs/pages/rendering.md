@@ -124,6 +124,7 @@ Các hàm đặt uniform:
 | njin::shader_set_i32() | `int` |
 | njin::shader_set_f32() | `float` |
 | njin::shader_set_vec2() | `vec2` |
+| njin::shader_set_vec3() | `vec3` (màu không alpha, hướng) |
 | njin::shader_set_vec4() | `vec4` |
 | njin::shader_set_vec4_array() | `vec4[]` (mảng, ví dụ danh sách đèn) |
 | njin::shader_set_texture() | `sampler2D` phụ ngoài `texture0` (bảng màu, nhiễu, mặt nạ) |

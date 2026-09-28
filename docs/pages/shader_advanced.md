@@ -3,6 +3,8 @@
 Trang này dành cho khi shader một ảnh với vài số (`amount`, `time`) không còn đủ: shader cần đọc **thêm một ảnh**
 (bảng màu, nhiễu, mặt nạ), nhận **một danh sách** (các nguồn sáng), hoặc chạy trên **cả khung hình**.
 
+Muốn **ánh sáng** (đèn, bóng đổ, vật liệu) thì engine đã có sẵn, xem @ref lighting; trang này dạy cách tự viết một shader như vậy và nhiều thứ khác.
+
 Cần biết trước: phần Shader của @ref rendering, và ba bài shader trong @ref learn (bài 10 đến 12). Chạy `njin_render_demo`
 rồi bấm phím 7, 8, 9 để xem mọi thứ dưới đây hoạt động.
 
@@ -122,7 +124,7 @@ số sương mù. `njin_render_demo` không bật hot reload: thêm một dòng 
 
 ## Chưa có
 
-Những thứ sau chưa có trong API vì chưa game nào cần: uniform `mat4` và `vec3` riêng (dùng `vec4`), ảnh phụ bền qua
+Những thứ sau chưa có trong API vì chưa game nào cần: uniform `mat4`, ảnh phụ bền qua
 mọi lần đẩy batch khi vẽ hàng nghìn sprite bằng `shader_begin` (dùng njin::draw_instanced() hoặc lượt vẽ toàn màn hình), và
 uniform dựng sẵn như thời gian, độ phân giải (tự đặt bằng njin::shader_set_f32() và njin::shader_set_vec2(), như trong
 ví dụ).

@@ -99,6 +99,13 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Nhân vật có ảnh | njin::sprite | @ref sprites |
 | Sắp xếp ai đứng trước ai (top-down) | njin::draw_set_y_sort() | @ref topdown |
 | Ghép nhiều ảnh nhỏ vào một trang | njin::atlas_create(), njin::atlas_load() | @ref rendering |
+| Ánh sáng: đèn điểm, đèn nón, đèn hướng, ban đêm, mặt trời | njin::lighting_set(), njin::light_2d | @ref lighting |
+| Bóng đổ đúng từng pixel của sprite (cây, bụi, đá, nhân vật) | njin::light_occluder_pixels | @ref lighting |
+| Bóng đổ từ tường, hàng rào, hình hình học | njin::light_occluder, njin::light_occluder_capsule(), njin::light_occluder_sprite | @ref lighting |
+| Bóng đổ từ tường của tilemap | njin::light_occluders_from_tiles() | @ref lighting |
+| Sprite nổi khối, kim loại, bóng gương dưới đèn | `sprite::normal`, `sprite::material` (PBR, xếp kênh MRA như raylib) | @ref lighting |
+| Sprite tự phát sáng (hoa dạ quang, mắt quái, cửa sổ) | `sprite::emissive`, `sprite::emissive_power` | @ref lighting |
+| Đổi cách nén HDR (Reinhard, ACES) | njin::lighting_desc::tonemap | @ref lighting |
 | Shader riêng | njin::shader_load(), njin::shader_set_f32() | @ref rendering |
 | Shader đọc thêm một ảnh (bảng màu, nhiễu, mặt nạ) | njin::shader_set_texture() | @ref shader_advanced |
 | Shader nhận một danh sách (các nguồn sáng) | njin::shader_set_vec4_array() | @ref shader_advanced |

@@ -8,6 +8,7 @@ hơn, nhiều nội dung hơn, hoặc muốn hiểu engine bên trong. Mỗi tra
 | Trang | Bạn được gì |
 |---|---|
 | @subpage rendering | Texture, atlas, shader, instancing (hàng nghìn hình bằng một lệnh vẽ), sửa ảnh và shader khi game đang chạy |
+| @subpage lighting | Ánh sáng 2D dựa trên vật lý (PBR): đèn điểm, nón, hướng; bóng đổ mềm từ vật chắn hình bất kỳ; normal map, vật liệu MRA, phát sáng, tonemap; bóng từng pixel theo bài của mattdesl |
 | @subpage shader_advanced | Shader đọc thêm ảnh (bảng màu, nhiễu), nhận mảng uniform (đèn), chạy trên cả khung hình, nhiều lượt vẽ nối nhau |
 | @subpage post_processing | Hiệu ứng toàn màn hình: bloom, CRT, vignette, blur |
 
