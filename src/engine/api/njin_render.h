@@ -61,6 +61,14 @@ void shader_set_f32(njin_ctx &ctx, shader_handle handle, const char *name,
 void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec2 value);
 
+/// Đặt uniform kiểu `vec3`. Xem shader_set_i32() về uniform không tồn tại.
+/// @param ctx Context của engine.
+/// @param handle Shader cần đặt.
+/// @param name Tên uniform trong shader.
+/// @param value Giá trị.
+void shader_set_vec3(njin_ctx &ctx, shader_handle handle, const char *name,
+                     vec3 value);
+
 /// Đặt uniform kiểu `vec4`. Xem shader_set_i32() về uniform không tồn tại.
 /// @param ctx Context của engine.
 /// @param handle Shader cần đặt.

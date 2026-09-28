@@ -79,6 +79,7 @@ void shader_store_set_f32(shader_store &store, shader_handle handle,
                           const char *name, f32 value);
 void shader_store_set_vec2(shader_store &store, shader_handle handle,
                            const char *name, vec2 value);
+void shader_store_set_vec3(shader_store &store, shader_handle handle, const char *name, vec3 value);
 void shader_store_set_rgba(shader_store &store, shader_handle handle, const char *name, vec4 value);
 void shader_store_set_vec4_array(shader_store &store, shader_handle handle, const char *name,
                                  const vec4 *values, u32 count);

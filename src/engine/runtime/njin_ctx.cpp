@@ -197,6 +197,11 @@ void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
   shader_store_set_vec2(ctx.shader, handle, name, value);
 }
 
+void shader_set_vec3(njin_ctx &ctx, shader_handle handle, const char *name,
+                     vec3 value) {
+  shader_store_set_vec3(ctx.shader, handle, name, value);
+}
+
 void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec4 value) {
   shader_store_set_rgba(ctx.shader, handle, name, value);

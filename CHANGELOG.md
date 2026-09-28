@@ -24,11 +24,31 @@ To release: edit that header, add a section here, commit, then
 - **Shader inputs**: `shader_set_texture` gives a shader up to four more
   `sampler2D` inputs besides `texture0` (a colour ramp, noise, a mask), from a
   texture or a render texture; `shader_set_vec4_array` sets a `vec4[]` uniform
-  (a list of lights). The images are bound whenever the shader runs, through
+  (a list of lights); `vec3` is a new type and `shader_set_vec3` sets a `vec3`
+  uniform. The images are bound whenever the shader runs, through
   `camera_set_post_shader`, `draw_instanced` and `shader_begin` (with
   `shader_begin`, raylib's batch forgets them at its next flush, so use it for
   a few draws). `njin_render_demo` keys 7 to 9 show it: night with lights, a
   dusk colour ramp and haze from a noise image, in one whole-frame shader.
+- **2D lighting (PBR)**: `lighting_set` turns on lit worlds. `light_2d` is a point,
+  spot or directional light (colour, kelvin `temperature`, HDR `intensity`, physical
+  inverse-square `falloff` or linear, smooth, none, a `size` that sets the softness of
+  its shadows). Surfaces are physically based: the sprite is the albedo, and
+  `sprite::normal` and `sprite::material` (roughness, metallic, occlusion) feed a
+  Cook-Torrance BRDF (GGX, Smith, Fresnel-Schlick, energy conserving; the same as raylib's
+  `pbr.fs`, with the same "MRA" packing of the material map: metallic, roughness, occlusion)
+  evaluated in linear 16-bit float HDR, then exposure, a tonemap (`tonemap_shoulder`,
+  `tonemap_reinhard` or `tonemap_aces`) and gamma. `sprite::emissive` makes a sprite glow. Shadows come
+  from `light_occluder` (box, circle, ellipse, capsule, polygon, wall lines, holes),
+  `light_occluder_sprite` (the outline of the sprite frame on show, following
+  animation and flips) and `light_occluders_from_tiles`; solids do not shadow
+  themselves and a light inside one is not blocked by it. Edges are sorted into
+  angular buckets in a data texture, so a pixel tests a few edges rather than all.
+  `light_occluder_pixels` casts pixel-perfect shadows from the alpha of a sprite (or a mask
+  image), after mattdesl's "2D Pixel-Perfect Shadows": the occluders go to an image, each
+  light ray-marches a 1D shadow map through it, and the soft edge is percentage-closer soft
+  shadows. Its cost follows the light's area, not the number of occluders.
+  `render_demo` keys L, N, O, M, P show it.
 - **Logo and icon**: the njin mark and wordmark (SVG, PNG, ICO) are in
   `docs/images/brand/`. `njin_icon(<target> [file.ico])` embeds an icon in a
   game's executable, its window and its taskbar button on Windows, and defaults

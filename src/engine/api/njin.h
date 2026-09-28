@@ -22,6 +22,7 @@
 #include "njin_i18n.h"
 #include "njin_input.h"
 #include "njin_json.h"
+#include "njin_light.h"
 #include "njin_level.h"
 #include "njin_log.h"
 #include "njin_nav.h"

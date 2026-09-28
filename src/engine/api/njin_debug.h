@@ -124,7 +124,8 @@ struct render_info {
   /// Số lệnh vẽ **ước tính**. Raylib không báo số thật, nên con số này đếm các
   /// lần đổi texture hoặc blend mode, và mỗi lệnh instanced. Không tính UI và chữ.
   u32 draw_calls = 0;
-  u32 post_passes = 0;     ///< Số pass toàn màn hình của hậu kỳ dựng sẵn.
+  u32 post_passes = 0;     ///< Số pass toàn màn hình của hậu kỳ dựng sẵn và của ánh sáng.
+  u32 lights = 0;          ///< Đèn đã vẽ vào bản đồ ánh sáng (njin_light.h).
 };
 
 /// Số liệu vẽ của frame vừa rồi. Đọc trong `phase_post_render` (hoặc frame sau)

@@ -20,6 +20,8 @@ struct camera_post {
   // Set when this frame's world pass went into `target`, so the end of the
   // pass matches its beginning even if the shader changes mid-frame.
   bool drawing = false;
+  // The camera this frame's world pass used (shake included), for the light map.
+  Camera2D world_camera{};
 
   camera_post() = default;
   ~camera_post();

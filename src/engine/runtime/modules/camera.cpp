@@ -1,6 +1,7 @@
 #include "camera.h"
 #include "_comps.h"
 #include "fx.h"
+#include "lighting.h"
 #include "post_fx.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
@@ -50,7 +51,7 @@ bool ensure_post_target(const njin_ctx &ctx, camera_post &post) {
 void begin_world_space(njin_ctx &ctx) {
   camera_post &post = ctx.post;
   const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
-                      post_chain_active(ctx.postfx);
+                      post_chain_active(ctx.postfx) || lighting_active(ctx.light);
   post.drawing = wanted && ensure_post_target(ctx, post);
   if (post.drawing) {
     bind_view_target(post.target, screen_size(ctx));
@@ -62,6 +63,7 @@ void begin_world_space(njin_ctx &ctx) {
   // answering for the steady camera.
   Camera2D camera = active_raylib_camera(ctx);
   fx_apply_shake(ctx, camera);
+  post.world_camera = camera;
   BeginMode2D(camera);
   ctx.view.world_depth++;
 }
@@ -85,7 +87,8 @@ void finish_world_post(njin_ctx &ctx) {
   EndTextureMode();
   // Built-in effects first; the game's own shader sees their result. Every
   // texture mode ends on the window, so go back to the virtual screen after.
-  const Texture2D &texture = post_chain_run(ctx, post.target.texture);
+  const Texture2D &lit = lighting_apply(ctx, post.world_camera, post.target.texture);
+  const Texture2D &texture = post_chain_run(ctx, lit);
   view_rebind(ctx.view);
   // Framebuffers are stored bottom-up: a negative source height flips it. The
   // dest is the logical size, not the texture's own (render_scale times

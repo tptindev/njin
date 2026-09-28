@@ -137,6 +137,11 @@ void shader_store_set_vec2(shader_store &store, shader_handle handle,
   set_uniform(store, handle, name, data, SHADER_UNIFORM_VEC2);
 }
 
+void shader_store_set_vec3(shader_store &store, shader_handle handle, const char *name, vec3 value) {
+  const f32 data[3] = {value.x, value.y, value.z};
+  set_uniform(store, handle, name, data, SHADER_UNIFORM_VEC3);
+}
+
 void shader_store_set_rgba(shader_store &store, shader_handle handle, const char *name, vec4 value) {
   const f32 data[4] = {value.x, value.y, value.z, value.w};
   set_uniform(store, handle, name, data, SHADER_UNIFORM_VEC4);

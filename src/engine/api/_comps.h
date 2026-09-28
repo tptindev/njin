@@ -57,6 +57,22 @@ struct sprite {
   bool flip_x = false; ///< Lật ngang.
   bool flip_y = false; ///< Lật dọc.
   bool visible = true; ///< Ẩn mà không cần gỡ component.
+  /// Normal map của sprite, để đèn (njin_light.h) làm sprite nổi khối. Phải
+  /// cùng kích thước và cách xếp frame với `texture`, kiểu OpenGL (kênh xanh lá
+  /// hướng lên), nạp bằng texture_load() hoặc atlas_load(). Trống là sprite
+  /// phẳng. Sprite xoay hoặc lật ngang không xoay hay lật normal theo.
+  texture_handle normal{};
+  /// Bản đồ vật liệu của sprite cho ánh sáng PBR (njin_light.h), xếp kênh theo
+  /// kiểu "MRA" của raylib: đỏ là độ kim loại (metallic, 0 phi kim đến 1 kim loại),
+  /// xanh lá là độ nhám (roughness, 0 bóng gương đến 1 nhám), xanh dương là che khuất
+  /// môi trường (ambient occlusion, 1 là không bị che). Cùng kích thước và cách xếp
+  /// frame với `texture`. Trống là vật liệu mặc định: phi kim, nhám 0.8, không bị che.
+  texture_handle material{};
+  /// Bản đồ phát sáng: chỗ nào có màu là chỗ đó tự sáng, không cần đèn (mắt quái, cửa sổ
+  /// có đèn, nấm dạ quang). Màu của bản đồ nhân với `emissive_power`. Cùng kích thước và
+  /// cách xếp frame với `texture`. Trống là không phát sáng.
+  texture_handle emissive{};
+  f32 emissive_power = 1.0f; ///< Độ sáng của `emissive`, từ 0 đến 8. Lớn hơn 1 là sáng hơn màu ảnh, tràn ra bloom.
 };
 
 /// Animation theo frame từ một sprite sheet. Cần sprite trên cùng entity.

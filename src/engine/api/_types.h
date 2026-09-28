@@ -41,6 +41,14 @@ struct vec2 {
   f32 y; ///< Thành phần dọc (trong không gian màn hình, y tăng khi đi xuống).
 };
 
+/// Vector 3 chiều. Dùng để truyền giá trị `vec3` vào uniform của shader: màu
+/// không cần alpha, hướng, vị trí có độ cao.
+struct vec3 {
+  f32 x; ///< Thành phần thứ nhất.
+  f32 y; ///< Thành phần thứ hai.
+  f32 z; ///< Thành phần thứ ba.
+};
+
 /// Vector 4 chiều. Dùng để truyền giá trị `vec4` vào uniform của shader.
 struct vec4 {
   f32 x; ///< Thành phần thứ nhất.

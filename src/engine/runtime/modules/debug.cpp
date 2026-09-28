@@ -607,7 +607,8 @@ render_info render_info_get(const njin_ctx &ctx) {
                      .particles_gpu = s.particles_gpu,
                      .instanced_calls = s.instanced_calls,
                      .draw_calls = s.batches,
-                     .post_passes = s.post_passes};
+                     .post_passes = s.post_passes,
+                     .lights = s.lights};
 }
 
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }
