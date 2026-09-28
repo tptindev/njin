@@ -40,6 +40,21 @@ int grid9(const char *id, vec2 current) {
   return picked;
 }
 
+// A colour that is either the style's (alpha 0 in the file) or the widget's own.
+void color_or_style(const char *label, njin::rgba &color, njin::rgba style_color) {
+  ImGui::PushID(label);
+  bool own = color.a > 0.0f;
+  if (ImGui::Checkbox("##own", &own))
+    color = own ? (style_color.a > 0.0f ? style_color : njin::rgba{1.0f, 1.0f, 1.0f, 1.0f}) : njin::rgba{0.0f, 0.0f, 0.0f, 0.0f};
+  ImGui::SetItemTooltip("Bật: màu riêng. Tắt: lấy từ style");
+  ImGui::SameLine();
+  if (own)
+    ImGui::ColorEdit4(label, &color.r, ImGuiColorEditFlags_AlphaBar);
+  else
+    ImGui::TextDisabled("%s: theo style", label);
+  ImGui::PopID();
+}
+
 void root_inspector(editor_app &app) {
   ImGui::SeparatorText("Layout");
   ImGui::DragFloat2("Độ phân giải", &app.layout.design_resolution.x, 1.0f, 64.0f, 7680.0f, "%.0f");
@@ -112,7 +127,8 @@ void widget_inspector(editor_app &app, ui_widget_data &w) {
     ImGui::EndCombo();
   }
   const bool has_label = w.kind != ui_widget_kind::space && w.kind != ui_widget_kind::row &&
-                         w.kind != ui_widget_kind::progress && w.kind != ui_widget_kind::image;
+                         w.kind != ui_widget_kind::progress && w.kind != ui_widget_kind::image &&
+                         w.kind != ui_widget_kind::circle;
   if (w.kind != ui_widget_kind::space && w.kind != ui_widget_kind::row) {
     input_string("ID", w.id);
     ImGui::SetItemTooltip("Tên để game bắt sự kiện: ui_layout_event::widget_id");
@@ -166,6 +182,26 @@ void widget_inspector(editor_app &app, ui_widget_data &w) {
   case ui_widget_kind::progress:
     ImGui::SliderFloat("Giá trị", &w.float_val, 0.0f, 1.0f, "%.2f");
     input_string("Chữ", w.text);
+    break;
+  case ui_widget_kind::circle:
+    ImGui::SliderFloat("Giá trị", &w.float_val, 0.0f, 1.0f, "%.2f");
+    ImGui::SeparatorText("Kiểu dáng");
+    ImGui::DragFloat("Đường kính", &w.diameter, 0.5f, 8.0f, 1000.0f, "%.0f px");
+    ImGui::DragFloat("Độ dày", &w.thickness, 0.25f, 1.0f, 500.0f, "%.0f px");
+    ImGui::SetItemTooltip("Từ nửa đường kính trở lên thì thành hình tròn đặc");
+    ImGui::DragFloat("Góc bắt đầu", &w.start_angle, 1.0f, -360.0f, 360.0f, "%.0f°");
+    ImGui::SetItemTooltip("0 là đỉnh (12 giờ), 90 là 3 giờ; tính theo chiều kim đồng hồ");
+    ImGui::Checkbox("Theo chiều kim đồng hồ", &w.clockwise);
+    ImGui::Checkbox("Đầu bo tròn", &w.round_caps);
+    ImGui::Checkbox("Vẽ vòng nền", &w.show_track);
+    ImGui::SeparatorText("Màu");
+    color_or_style("Màu phần đầy", w.fill_color, app.layout.style.fill.normal.color);
+    color_or_style("Màu vòng nền", w.track_color, app.layout.style.track.normal.color);
+    ImGui::SeparatorText("Chữ giữa vòng");
+    input_string("Chữ", w.text);
+    ImGui::BeginDisabled(!w.text.empty());
+    ImGui::Checkbox("Hiện phần trăm", &w.percent);
+    ImGui::EndDisabled();
     break;
   case ui_widget_kind::image:
     input_string("Ảnh", w.texture_path);

@@ -42,8 +42,8 @@ của hàng.
 
 ### Nodes
 
-Panel, Popup, Row, Space và các điều khiển (Label, Button, Toggle, Slider, Choice, Progress, Image,
-Keybind). Kéo vào Viewport hoặc Scene để tạo, hoặc bấm đúp để thêm vào node đang chọn.
+Panel, Popup, Row, Space và các điều khiển (Label, Button, Toggle, Slider, Choice, Progress, Circle,
+Image, Keybind). Kéo vào Viewport hoặc Scene để tạo, hoặc bấm đúp để thêm vào node đang chọn.
 
 ### Viewport
 
@@ -121,6 +121,8 @@ và njin::ui_panel_generate_cpp().
   dùng lẫn style riêng của layout và style của mình thì đặt lại style sau khi vẽ.
 - Widget `image` chỉ lưu đường dẫn; njin::ui_layout_load() không nạp ảnh. Game phải tự gán
   `texture` của widget đó (njin::ui_layout::find_widget()) thì ảnh mới hiện.
+- Widget `circle` (njin::ui_progress_circle()) chỉnh được đường kính, độ dày, góc bắt đầu, chiều chạy, đầu bo
+  tròn, màu và chữ giữa vòng ngay trong Inspector. Bỏ chọn "màu riêng" thì vòng lấy màu từ style của game.
 - Widget `keybind` được vẽ như một dòng chữ; việc gán phím game tự làm bằng njin::ui_keybind().
 - Chiều cao panel do nội dung quyết định, không lưu trong file.
 - Phần cây và toàn bộ layout chỉ chứa panel và popup. Không có node lồng nhau ngoài `Row`.
@@ -154,8 +156,8 @@ và njin::ui_panel_generate_cpp().
 }
 ```
 
-Loại widget: `label`, `space`, `button`, `toggle`, `slider`, `choice`, `progress`, `image`, `row`,
-`keybind`. Trường không có trong file lấy giá trị mặc định. Thêm khối `"style"` khi bật
+Loại widget: `label`, `space`, `button`, `toggle`, `slider`, `choice`, `progress`, `circle`, `image`,
+`row`, `keybind`. Trường không có trong file lấy giá trị mặc định. Thêm khối `"style"` khi bật
 `custom_style`.
 
 `design_resolution` chỉ là khung mà editor dùng để xem: game vẽ theo cỡ màn hình thật, và `anchor`

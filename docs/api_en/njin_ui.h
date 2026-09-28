@@ -205,6 +205,34 @@ bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
 /// @param text Text drawn in the middle of the bar. May be null.
 void ui_progress(njin_ctx &ctx, f32 value, const char *text = nullptr);
 
+/// Describes a circular progress bar, for ui_progress_circle().
+/// Every size is in pixels before `ui_style::scale`. A colour with alpha 0 comes from ui_style.
+struct ui_circle_desc {
+  f32 value = 0.0f;       ///< Progress 0..1.
+  f32 diameter = 96.0f;   ///< Outer diameter.
+  f32 thickness = 10.0f;  ///< Width of the ring. Half the diameter or more makes a solid disc.
+  /// Where it starts, in degrees from the top (12 o'clock), clockwise: 90 is 3 o'clock, -90 is 9 o'clock.
+  f32 start_angle = 0.0f;
+  bool clockwise = true;   ///< `false`: fills counter-clockwise.
+  bool round_caps = false; ///< Rounds both ends of the filled part.
+  bool show_track = true;  ///< Draw the background ring under the filled part.
+  rgba track{0.0f, 0.0f, 0.0f, 0.0f}; ///< Colour of the background ring. Alpha 0: uses ui_style::track.
+  rgba fill{0.0f, 0.0f, 0.0f, 0.0f};  ///< Colour of the filled part. Alpha 0: uses ui_style::fill.
+  const char *text = nullptr;         ///< Text in the middle. When null, see `percent`.
+  bool percent = false;               ///< When `text` is null: draws the progress as "75%" in the middle.
+  rgba text_color{0.0f, 0.0f, 0.0f, 0.0f}; ///< Text colour. Alpha 0: uses ui_style::panel.text.
+};
+
+/// A circular progress bar, not pressable: cooldowns, reloads, a ring-shaped health bar.
+/// Takes one line as tall as the diameter, centred in the panel (or in the column of a ui_row()).
+/// @code
+/// njin::ui_progress_circle(ctx, {.value = cooldown, .diameter = 64, .thickness = 8,
+///                                .round_caps = true, .fill = {0.9f, 0.3f, 0.2f, 1.0f}});
+/// @endcode
+/// @param ctx Engine context.
+/// @param desc The value and the look.
+void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &desc);
+
 /// An image, centered in the panel.
 /// @param ctx Engine context.
 /// @param texture Image.

@@ -36,6 +36,7 @@ const char *kind_name(ui_widget_kind k) {
   case ui_widget_kind::image: return "Image";
   case ui_widget_kind::row: return "Row";
   case ui_widget_kind::keybind: return "Keybind";
+  case ui_widget_kind::circle: return "Circle";
   }
   return "?";
 }
@@ -52,6 +53,7 @@ const char *kind_prefix(ui_widget_kind k) {
   case ui_widget_kind::image: return "img";
   case ui_widget_kind::row: return "row";
   case ui_widget_kind::keybind: return "key";
+  case ui_widget_kind::circle: return "cir";
   }
   return "w";
 }
@@ -68,6 +70,7 @@ ImVec4 kind_color(ui_widget_kind k) {
   case ui_widget_kind::image: return {0.95f, 0.4f, 0.6f, 1.0f};
   case ui_widget_kind::row: return {0.85f, 0.8f, 0.35f, 1.0f};
   case ui_widget_kind::keybind: return {0.8f, 0.6f, 0.4f, 1.0f};
+  case ui_widget_kind::circle: return {0.35f, 0.9f, 0.7f, 1.0f};
   }
   return {1, 1, 1, 1};
 }
@@ -261,6 +264,9 @@ void editor_app::set_widget_kind(ui_widget_data &w, ui_widget_kind kind) {
     break;
   case ui_widget_kind::space:
     if (w.height <= 0.0f) w.height = 10.0f;
+    break;
+  case ui_widget_kind::circle:
+    if (w.float_val <= 0.0f) w.float_val = 0.75f;
     break;
   case ui_widget_kind::image:
     break;

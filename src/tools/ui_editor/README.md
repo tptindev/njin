@@ -15,7 +15,7 @@ Các cửa sổ dock được (kéo tab để ghép, tách, đổi chỗ; **Cử
   đổi loại, nhân đôi, xóa. Ô tick bên phải: hiện/ẩn panel, mở/đóng popup. Widget sau một `Row`
   được thụt vào: đó là các cột của hàng.
 - **Nodes**: danh sách loại node (Panel, Popup, Row, Space, Label, Button, Toggle, Slider, Choice,
-  Progress, Image, Keybind). Kéo vào Viewport hoặc Scene để tạo, bấm đúp để thêm vào node đang chọn.
+  Progress, Circle, Image, Keybind). Kéo vào Viewport hoặc Scene để tạo, bấm đúp để thêm vào node đang chọn.
 - **Viewport**: layout được vẽ bằng **chính code UI của engine** (`ui_begin`, `ui_button`...) qua raylib
   vào một render texture, nên font, bo góc, màu và kích thước đúng như trong game. Trên đó:
   - bấm để chọn, kéo panel để dời (hít lưới, giữ Alt để tắt), kéo mép trái/phải để đổi chiều rộng;

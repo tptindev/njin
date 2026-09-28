@@ -19,6 +19,7 @@ Menu có nhiều widget hoặc hay đổi thì dựng bằng kéo thả trong nj
 | njin::ui_slider() | Thanh trượt, hiện số hoặc phần trăm | Giá trị đổi |
 | njin::ui_choice() | Chọn một trong nhiều mục bằng trái/phải | Lựa chọn đổi |
 | njin::ui_progress() | Thanh tiến độ: máu, thời gian nạp | |
+| njin::ui_progress_circle() | Vòng tiến độ: hồi chiêu, nạp đạn. Tùy chỉnh độ dày, màu, góc bắt đầu, chiều chạy, đầu bo tròn, chữ giữa | |
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Chữ, ảnh, khoảng trống | |
 | njin::ui_row() | Xếp vài widget tiếp theo thành một hàng ngang | |
 | njin::ui_back() | | Người chơi bấm quay lại |
@@ -28,6 +29,26 @@ Nhãn là định danh của widget trong panel. Hai widget cùng chữ thì th�
 
 Panel đặt theo `anchor` (điểm trên màn hình, theo tỉ lệ) và `pivot` (điểm của panel), nên
 `{.anchor = {1, 0}, .pivot = {1, 0}}` là góc trên phải. Chiều cao tự tính theo nội dung.
+
+### Vòng tiến độ
+
+njin::ui_progress_circle() nhận một njin::ui_circle_desc. Mọi trường đều tùy chọn; màu có alpha 0 thì lấy từ
+style của game (`track`, `fill`, `panel.text`), nên một vòng không chỉnh gì vẫn hợp với theme.
+
+```cpp
+njin::ui_progress_circle(ctx, {.value = cooldown, .diameter = 64.0f, .thickness = 8.0f,
+                               .round_caps = true, .fill = {0.95f, 0.35f, 0.25f, 1.0f}, .percent = true});
+```
+
+| Trường | Tác dụng |
+|---|---|
+| `diameter`, `thickness` | Đường kính ngoài và độ dày vòng. Độ dày từ nửa đường kính trở lên thì thành hình tròn đặc |
+| `start_angle`, `clockwise` | Vòng bắt đầu ở đâu (độ, 0 là đỉnh, 90 là 3 giờ) và đầy dần theo chiều nào |
+| `round_caps` | Hai đầu phần đầy bo tròn |
+| `show_track`, `track`, `fill` | Vòng nền có vẽ không, màu vòng nền, màu phần đầy |
+| `text`, `percent`, `text_color` | Chữ giữa vòng; hoặc `percent` để hiện "75%" |
+
+Widget chiếm một dòng cao bằng `diameter` và được căn giữa; trong njin::ui_row() nó thu nhỏ vừa cột.
 
 ## Chuột, bàn phím, tay cầm
 

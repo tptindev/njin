@@ -181,8 +181,8 @@ ImVec4 kind_color(ui_widget_kind k);
 inline constexpr ui_widget_kind k_all_kinds[] = {
     ui_widget_kind::label,    ui_widget_kind::button, ui_widget_kind::toggle,
     ui_widget_kind::slider,   ui_widget_kind::choice, ui_widget_kind::progress,
-    ui_widget_kind::image,    ui_widget_kind::keybind, ui_widget_kind::row,
-    ui_widget_kind::space,
+    ui_widget_kind::circle,   ui_widget_kind::image,  ui_widget_kind::keybind,
+    ui_widget_kind::row,      ui_widget_kind::space,
 };
 
 // std::string input for ImGui, which only knows char buffers.

@@ -120,6 +120,7 @@ ui_widget_kind kind_from_string(std::string_view s) {
   if (s == "image") return ui_widget_kind::image;
   if (s == "row") return ui_widget_kind::row;
   if (s == "keybind") return ui_widget_kind::keybind;
+  if (s == "circle") return ui_widget_kind::circle;
   return ui_widget_kind::label;
 }
 
@@ -134,6 +135,7 @@ const char *string_from_kind(ui_widget_kind k) {
   case ui_widget_kind::image: return "image";
   case ui_widget_kind::row: return "row";
   case ui_widget_kind::keybind: return "keybind";
+  case ui_widget_kind::circle: return "circle";
   default: return "label";
   }
 }
@@ -265,6 +267,15 @@ bool ui_layout_parse(const json_value &json, ui_layout &out) {
             w.source.size.x = wj["source"][(usize)2].f32_or(0.0f);
             w.source.size.y = wj["source"][(usize)3].f32_or(0.0f);
           }
+
+          w.diameter = wj["diameter"].f32_or(96.0f);
+          w.thickness = wj["thickness"].f32_or(10.0f);
+          w.start_angle = wj["start_angle"].f32_or(0.0f);
+          w.clockwise = wj["clockwise"].bool_or(true);
+          w.round_caps = wj["round_caps"].bool_or(false);
+          w.show_track = wj["show_track"].bool_or(true);
+          w.track_color = rgba_from_json(wj["track_color"], w.track_color);
+          w.fill_color = rgba_from_json(wj["fill_color"], w.fill_color);
 
           w.action_name = wj["action"].string_or("");
           w.pad = wj["pad"].bool_or(false);
@@ -448,6 +459,27 @@ json_value ui_layout_to_json(const ui_layout &layout) {
       case ui_widget_kind::row:
         wj.set("columns", w.columns);
         break;
+      case ui_widget_kind::circle:
+        wj.set("value", w.float_val);
+        wj.set("diameter", w.diameter);
+        wj.set("thickness", w.thickness);
+        if (w.start_angle != 0.0f)
+          wj.set("start_angle", w.start_angle);
+        if (!w.clockwise)
+          wj.set("clockwise", false);
+        if (w.round_caps)
+          wj.set("round_caps", true);
+        if (!w.show_track)
+          wj.set("show_track", false);
+        if (w.track_color.a > 0.0f)
+          wj.set("track_color", json_from_rgba(w.track_color));
+        if (w.fill_color.a > 0.0f)
+          wj.set("fill_color", json_from_rgba(w.fill_color));
+        if (!w.text.empty())
+          wj.set("text", w.text);
+        if (w.percent)
+          wj.set("percent", true);
+        break;
       case ui_widget_kind::keybind:
         wj.set("label", w.label);
         if (!w.action_name.empty())
@@ -622,6 +654,23 @@ bool ui_draw_panel(njin_ctx &ctx, ui_layout &layout, const char *panel_id,
     case ui_widget_kind::progress:
       ui_progress(ctx, w.float_val, w.text.empty() ? nullptr : w.text.c_str());
       break;
+
+    case ui_widget_kind::circle: {
+      ui_circle_desc d;
+      d.value = w.float_val;
+      d.diameter = w.diameter;
+      d.thickness = w.thickness;
+      d.start_angle = w.start_angle;
+      d.clockwise = w.clockwise;
+      d.round_caps = w.round_caps;
+      d.show_track = w.show_track;
+      d.track = w.track_color;
+      d.fill = w.fill_color;
+      d.text = w.text.empty() ? nullptr : w.text.c_str();
+      d.percent = w.percent;
+      ui_progress_circle(ctx, d);
+      break;
+    }
 
     case ui_widget_kind::image:
       if (w.texture.id != 0) {
@@ -803,6 +852,31 @@ std::string ui_panel_generate_cpp(const ui_panel_data &p, const char *func_name)
       else
         ss << "  njin::ui_progress(ctx, " << w.float_val << "f);\n";
       break;
+    case ui_widget_kind::circle: {
+      const ui_circle_desc def;
+      ss << "  njin::ui_progress_circle(ctx, {.value = " << w.float_val << "f, .diameter = " << w.diameter
+         << "f, .thickness = " << w.thickness << "f";
+      if (w.start_angle != def.start_angle)
+        ss << ", .start_angle = " << w.start_angle << "f";
+      if (!w.clockwise)
+        ss << ", .clockwise = false";
+      if (w.round_caps)
+        ss << ", .round_caps = true";
+      if (!w.show_track)
+        ss << ", .show_track = false";
+      const auto color = [&](const char *field, rgba c) {
+        if (c.a > 0.0f)
+          ss << ", ." << field << " = {" << c.r << "f, " << c.g << "f, " << c.b << "f, " << c.a << "f}";
+      };
+      color("track", w.track_color);
+      color("fill", w.fill_color);
+      if (!w.text.empty())
+        ss << ", .text = \"" << w.text << "\"";
+      else if (w.percent)
+        ss << ", .percent = true";
+      ss << "});\n";
+      break;
+    }
     case ui_widget_kind::image:
       ss << "  // njin::ui_image(ctx, texture, {" << w.size.x << "f, " << w.size.y << "f});\n";
       break;

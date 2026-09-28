@@ -133,11 +133,51 @@ void draw_skin(njin_ctx &ctx, const ui_cmd &c) {
     view_text_occlude(ctx.view, c.area, s.color, texture_slot_of(ctx.texture, s.texture) != nullptr);
 }
 
+// A ring (circular progress bar). Our angles start at 12 o'clock and run
+// clockwise; raylib's start at 3 o'clock, also clockwise on screen (y is down).
+void draw_ring(const ui_cmd &c) {
+  const vec2 center = rect_center(c.area);
+  const f32 outer = std::min(c.area.size.x, c.area.size.y) * 0.5f;
+  const f32 band = std::clamp(c.thickness, 1.0f, outer);
+  const f32 inner = outer - band;
+  if (outer < 1.0f)
+    return;
+  const Vector2 mid{center.x, center.y};
+  const i32 full_segments = std::clamp((i32)(outer * 0.8f), 32, 160);
+  const auto arc = [&](f32 from, f32 to, Color color) {
+    const i32 segments = std::max(2, (i32)std::ceil((f32)full_segments * (to - from) / 360.0f));
+    DrawRing(mid, inner, outer, from, to, segments, color);
+  };
+  Color track{}, fill{};
+  to_raylib(c.track, track);
+  to_raylib(c.color, fill);
+  if (c.show_track && c.track.a > 0.0f)
+    arc(0.0f, 360.0f, track);
+  const f32 v = std::clamp(c.value, 0.0f, 1.0f);
+  if (v <= 0.0f || c.color.a <= 0.0f)
+    return;
+  const f32 sweep = 360.0f * v;
+  const f32 start = c.start - 90.0f;
+  const f32 from = c.clockwise ? start : start - sweep;
+  arc(from, from + sweep, fill);
+  if (c.round_caps && v < 1.0f) {
+    const f32 radius = band * 0.5f;
+    const f32 path = inner + radius;
+    for (const f32 degrees : {start, c.clockwise ? start + sweep : start - sweep}) {
+      const f32 a = degrees * (3.14159265f / 180.0f);
+      DrawCircleV(Vector2{center.x + std::cos(a) * path, center.y + std::sin(a) * path}, radius, fill);
+    }
+  }
+}
+
 void flush(njin_ctx &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
   for (const ui_cmd &c : cmds) {
     switch (c.kind) {
     case ui_cmd::skin:
       draw_skin(ctx, c);
+      break;
+    case ui_cmd::ring:
+      draw_ring(c);
       break;
     case ui_cmd::text:
       draw_text(ctx, c.str.c_str(), c.area.pos, c.size, c.color, ui.style.font);
@@ -750,6 +790,39 @@ void ui_progress(njin_ctx &ctx, f32 value, const char *text) {
     push_skin(ui, ui.style.fill, state_normal, rect{r.pos, {r.size.x * t, r.size.y}}, t);
   if (text != nullptr)
     text_center(ctx, ui, text, r, ui.style.track.text);
+}
+
+void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &d) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_progress_circle");
+  const f32 diameter = std::max(sc(ui, d.diameter), 1.0f);
+  const rect slot = place(ui, diameter);
+  // In a narrow column the circle shrinks to fit; the row keeps its height.
+  const f32 size = std::min(diameter, slot.size.x);
+  const rect box{{rect_center(slot).x - size * 0.5f, slot.pos.y + (diameter - size) * 0.5f}, {size, size}};
+  const auto pick = [](rgba own, rgba style) { return own.a > 0.0f ? own : style; };
+  ui_cmd c{};
+  c.kind = ui_cmd::ring;
+  c.area = box;
+  c.value = d.value;
+  c.color = pick(d.fill, ui.style.fill.normal.color);
+  c.track = pick(d.track, ui.style.track.normal.color);
+  c.thickness = sc(ui, d.thickness);
+  c.start = d.start_angle;
+  c.clockwise = d.clockwise;
+  c.round_caps = d.round_caps;
+  c.show_track = d.show_track;
+  ui.cmds.push_back(std::move(c));
+
+  std::string text;
+  if (d.text != nullptr)
+    text = d.text;
+  else if (d.percent)
+    text = std::to_string((i32)std::lround(clamp(d.value, 0.0f, 1.0f) * 100.0f)) + "%";
+  if (!text.empty()) {
+    const vec2 m = measure(ctx, ui, text);
+    push_text(ctx, ui, text, rect_center(box) - m * 0.5f, pick(d.text_color, ui.style.panel.text));
+  }
 }
 
 void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source) {

@@ -19,6 +19,7 @@ A menu with many widgets, or one that changes often, can be built by drag and dr
 | njin::ui_slider() | A slider, shows a number or a percentage | The value changes |
 | njin::ui_choice() | Pick one of several items with left/right | The choice changes |
 | njin::ui_progress() | A progress bar: health, loading time | |
+| njin::ui_progress_circle() | A progress ring: cooldowns, reloads. Thickness, colours, start angle, direction, round caps and centre text are adjustable | |
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Text, image, empty space | |
 | njin::ui_row() | Lays out the next few widgets as a horizontal row | |
 | njin::ui_back() | | The player pressed back |
@@ -28,6 +29,26 @@ The label is the widget's identifier within the panel. If two widgets have the s
 
 A panel is positioned by `anchor` (a point on the screen, as a ratio) and `pivot` (a point on the panel), so
 `{.anchor = {1, 0}, .pivot = {1, 0}}` is the top-right corner. The height is computed from the content.
+
+### Progress ring
+
+njin::ui_progress_circle() takes a njin::ui_circle_desc. Every field is optional; a colour with alpha 0 comes from
+the game's style (`track`, `fill`, `panel.text`), so a ring you have not tuned still fits the theme.
+
+```cpp
+njin::ui_progress_circle(ctx, {.value = cooldown, .diameter = 64.0f, .thickness = 8.0f,
+                               .round_caps = true, .fill = {0.95f, 0.35f, 0.25f, 1.0f}, .percent = true});
+```
+
+| Field | Effect |
+|---|---|
+| `diameter`, `thickness` | Outer diameter and the width of the band. A thickness of half the diameter or more makes a solid disc |
+| `start_angle`, `clockwise` | Where the ring starts (degrees, 0 is the top, 90 is 3 o'clock) and which way it fills |
+| `round_caps` | Rounds both ends of the filled part |
+| `show_track`, `track`, `fill` | Whether the background ring is drawn, its colour, and the colour of the filled part |
+| `text`, `percent`, `text_color` | Text in the middle; or `percent` to show "75%" |
+
+The widget takes one line as tall as `diameter` and is centred; inside njin::ui_row() it shrinks to fit the column.
 
 ## Mouse, keyboard, gamepad
 

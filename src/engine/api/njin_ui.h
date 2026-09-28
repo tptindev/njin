@@ -205,6 +205,34 @@ bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
 /// @param text Chữ vẽ giữa thanh. Có thể null.
 void ui_progress(njin_ctx &ctx, f32 value, const char *text = nullptr);
 
+/// Mô tả một thanh tiến độ hình tròn, dùng với ui_progress_circle().
+/// Mọi cỡ tính bằng pixel trước `ui_style::scale`. Màu có alpha 0 thì lấy từ ui_style.
+struct ui_circle_desc {
+  f32 value = 0.0f;       ///< Tiến độ 0..1.
+  f32 diameter = 96.0f;   ///< Đường kính ngoài.
+  f32 thickness = 10.0f;  ///< Độ dày của vòng. Từ nửa đường kính trở lên thì thành hình tròn đặc.
+  /// Điểm bắt đầu, độ, tính từ đỉnh (12 giờ) theo chiều kim đồng hồ: 90 là 3 giờ, -90 là 9 giờ.
+  f32 start_angle = 0.0f;
+  bool clockwise = true;   ///< `false`: đầy dần theo chiều ngược kim đồng hồ.
+  bool round_caps = false; ///< Hai đầu của phần đầy bo tròn.
+  bool show_track = true;  ///< Vẽ vòng nền dưới phần đầy.
+  rgba track{0.0f, 0.0f, 0.0f, 0.0f}; ///< Màu vòng nền. Alpha 0: dùng ui_style::track.
+  rgba fill{0.0f, 0.0f, 0.0f, 0.0f};  ///< Màu phần đầy. Alpha 0: dùng ui_style::fill.
+  const char *text = nullptr;         ///< Chữ giữa vòng. Null thì xem `percent`.
+  bool percent = false;               ///< Khi `text` là null: vẽ tiến độ dạng "75%" giữa vòng.
+  rgba text_color{0.0f, 0.0f, 0.0f, 0.0f}; ///< Màu chữ. Alpha 0: dùng ui_style::panel.text.
+};
+
+/// Một thanh tiến độ hình tròn, không bấm được: hồi chiêu, nạp đạn, máu dạng vòng.
+/// Chiếm một dòng cao bằng đường kính, căn giữa trong panel (hoặc trong cột của ui_row()).
+/// @code
+/// njin::ui_progress_circle(ctx, {.value = cooldown, .diameter = 64, .thickness = 8,
+///                                .round_caps = true, .fill = {0.9f, 0.3f, 0.2f, 1.0f}});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Giá trị và kiểu dáng.
+void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &desc);
+
 /// Một ảnh, căn giữa trong panel.
 /// @param ctx Context của engine.
 /// @param texture Ảnh.

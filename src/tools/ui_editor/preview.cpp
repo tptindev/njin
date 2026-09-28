@@ -164,6 +164,13 @@ void measure_boxes(editor_app &app, const ui_layout &layout, const njin::ui_styl
       case ui_widget_kind::progress:
         r = place(sc(style.widget_height) * 0.6f);
         break;
+      case ui_widget_kind::circle: {
+        const float d = std::max(sc(w.diameter), 1.0f);
+        const rect slot = place(d);
+        const float side = std::min(d, slot.size.x);
+        r = rect{{slot.pos.x + (slot.size.x - side) * 0.5f, slot.pos.y + (d - side) * 0.5f}, {side, side}};
+        break;
+      }
       case ui_widget_kind::image:
         if (w.texture.id != 0) {
           const rect slot = place(w.size.y * style.scale);

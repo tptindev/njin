@@ -26,6 +26,7 @@ enum class ui_widget_kind {
   image,    ///< A still image.
   row,      ///< Lays the next widgets out in a horizontal row.
   keybind,  ///< A line for binding a control key.
+  circle,   ///< A circular progress bar.
 };
 
 /// Configuration and state of one widget.
@@ -42,7 +43,7 @@ struct ui_widget_data {
   f32 min_val = 0.0f;          ///< Smallest value of a slider.
   f32 max_val = 1.0f;          ///< Largest value of a slider.
   f32 step = 0.0f;             ///< Step of a slider.
-  bool percent = false;        ///< Show as % instead of a number.
+  bool percent = false;        ///< Show as % instead of a number (slider, circle).
 
   i32 int_val = 0;                     ///< Current choice of a choice widget (index).
   std::vector<std::string> options;    ///< The options of a choice widget.
@@ -56,6 +57,16 @@ struct ui_widget_data {
   texture_handle texture{};    ///< Image handle once loaded.
   vec2 size{64.0f, 64.0f};     ///< Size the image is drawn at.
   rect source{};               ///< Region cut from the image.
+
+  // Progress ring (kind == circle): also uses float_val, text and percent
+  f32 diameter = 96.0f;        ///< Diameter of the ring.
+  f32 thickness = 10.0f;       ///< Width of the ring.
+  f32 start_angle = 0.0f;      ///< Where it starts, degrees from the top, clockwise.
+  bool clockwise = true;       ///< `false`: fills counter-clockwise.
+  bool round_caps = false;     ///< Rounds both ends of the filled part.
+  bool show_track = true;      ///< Draw the background ring.
+  rgba track_color{0.0f, 0.0f, 0.0f, 0.0f}; ///< Background ring colour. Alpha 0: uses the style.
+  rgba fill_color{0.0f, 0.0f, 0.0f, 0.0f};  ///< Filled part colour. Alpha 0: uses the style.
 
   // Keybind (kind == keybind)
   std::string action_name;     ///< Name of the action to rebind.

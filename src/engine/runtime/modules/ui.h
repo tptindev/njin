@@ -34,7 +34,7 @@ struct ui_toast_rec {
 // One deferred draw inside a panel. Panels draw at ui_end, background first,
 // so the background can be sized to what the panel turned out to contain.
 struct ui_cmd {
-  enum kind_t { skin, text, image } kind = skin;
+  enum kind_t { skin, text, image, ring } kind = skin;
   rect area{};
   ui_skin look{};
   shader_handle shader{};
@@ -46,6 +46,13 @@ struct ui_cmd {
   texture_handle texture{};
   rect source{};
   vec2 scale{1.0f, 1.0f}; // image: target size over source size
+  // ring: `area` is the square it fits in, `color` the fill, `value` 0..1.
+  rgba track{};           // ring: the background circle
+  f32 thickness = 0.0f;   // ring: width of the band, pixels
+  f32 start = 0.0f;       // ring: degrees clockwise from 12 o'clock
+  bool clockwise = true;
+  bool round_caps = false;
+  bool show_track = true;
 };
 
 struct ui_state {

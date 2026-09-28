@@ -42,8 +42,8 @@ they are the columns of that row.
 
 ### Nodes
 
-Panel, Popup, Row, Space and the controls (Label, Button, Toggle, Slider, Choice, Progress, Image,
-Keybind). Drag into the Viewport or the Scene to create one, or double-click to add it to the
+Panel, Popup, Row, Space and the controls (Label, Button, Toggle, Slider, Choice, Progress, Circle,
+Image, Keybind). Drag into the Viewport or the Scene to create one, or double-click to add it to the
 selected node.
 
 ### Viewport
@@ -124,6 +124,8 @@ njin::ui_layout_generate_cpp() and njin::ui_panel_generate_cpp().
   drawing.
 - An `image` widget only stores a path; njin::ui_layout_load() does not load images. The game has to
   assign that widget's `texture` itself (njin::ui_layout::find_widget()) for the image to show.
+- A `circle` widget (njin::ui_progress_circle()) has its diameter, thickness, start angle, direction, round caps,
+  colours and centre text editable in the Inspector. Untick "own colour" and the ring takes its colour from the game's style.
 - A `keybind` widget is drawn as a line of text; the game does the key binding itself with
   njin::ui_keybind().
 - A panel's height comes from its content and is not stored in the file.
@@ -158,8 +160,8 @@ njin::ui_layout_generate_cpp() and njin::ui_panel_generate_cpp().
 }
 ```
 
-Widget types: `label`, `space`, `button`, `toggle`, `slider`, `choice`, `progress`, `image`, `row`,
-`keybind`. A field missing from the file takes its default. Add a `"style"` block when `custom_style`
+Widget types: `label`, `space`, `button`, `toggle`, `slider`, `choice`, `progress`, `circle`, `image`,
+`row`, `keybind`. A field missing from the file takes its default. Add a `"style"` block when `custom_style`
 is on.
 
 `design_resolution` is only the frame the editor previews in: the game draws at the real screen

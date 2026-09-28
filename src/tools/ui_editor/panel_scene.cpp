@@ -23,6 +23,7 @@ const char *kind_desc(ui_widget_kind k) {
   case ui_widget_kind::image: return "Ảnh tĩnh (ui_image)";
   case ui_widget_kind::row: return "Xếp N widget tiếp theo thành một hàng ngang (ui_row)";
   case ui_widget_kind::keybind: return "Dòng gán phím (ui_keybind)";
+  case ui_widget_kind::circle: return "Thanh tiến độ hình tròn (ui_progress_circle)";
   }
   return "";
 }

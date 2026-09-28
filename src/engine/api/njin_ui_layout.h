@@ -26,6 +26,7 @@ enum class ui_widget_kind {
   image,    ///< Ảnh tĩnh.
   row,      ///< Xếp hàng ngang cho các widget tiếp theo.
   keybind,  ///< Dòng gán phím điều khiển.
+  circle,   ///< Thanh tiến độ hình tròn.
 };
 
 /// Dữ liệu cấu hình và trạng thái của một widget.
@@ -42,7 +43,7 @@ struct ui_widget_data {
   f32 min_val = 0.0f;          ///< Giá trị nhỏ nhất của slider.
   f32 max_val = 1.0f;          ///< Giá trị lớn nhất của slider.
   f32 step = 0.0f;             ///< Bước nhảy của slider.
-  bool percent = false;        ///< Hiển thị dạng % thay vì con số.
+  bool percent = false;        ///< Hiển thị dạng % thay vì con số (slider, circle).
 
   i32 int_val = 0;                     ///< Lựa chọn hiện tại của choice (index).
   std::vector<std::string> options;    ///< Các lựa chọn cho choice.
@@ -56,6 +57,16 @@ struct ui_widget_data {
   texture_handle texture{};    ///< Handle ảnh khi đã nạp.
   vec2 size{64.0f, 64.0f};     ///< Kích thước vẽ ảnh.
   rect source{};               ///< Vùng cắt trong ảnh.
+
+  // Vòng tiến độ (kind == circle): dùng thêm float_val, text và percent
+  f32 diameter = 96.0f;        ///< Đường kính vòng.
+  f32 thickness = 10.0f;       ///< Độ dày vòng.
+  f32 start_angle = 0.0f;      ///< Điểm bắt đầu, độ từ đỉnh theo chiều kim đồng hồ.
+  bool clockwise = true;       ///< `false`: đầy dần ngược chiều kim đồng hồ.
+  bool round_caps = false;     ///< Hai đầu phần đầy bo tròn.
+  bool show_track = true;      ///< Vẽ vòng nền.
+  rgba track_color{0.0f, 0.0f, 0.0f, 0.0f}; ///< Màu vòng nền. Alpha 0: dùng style.
+  rgba fill_color{0.0f, 0.0f, 0.0f, 0.0f};  ///< Màu phần đầy. Alpha 0: dùng style.
 
   // Keybind (kind == keybind)
   std::string action_name;     ///< Tên action cần rebind.
