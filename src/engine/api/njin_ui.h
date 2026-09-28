@@ -2,6 +2,8 @@
 #include "_math.h"
 #include "_types.h"
 #include <initializer_list>
+#include <span>
+#include <string>
 
 namespace njin {
 struct njin_ctx;
@@ -187,6 +189,15 @@ bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max,
 /// @return `true` ở frame lựa chọn đổi.
 bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
                std::initializer_list<const char *> options);
+
+/// Chọn một trong nhiều lựa chọn (danh sách động).
+/// @param ctx Context của engine.
+/// @param label Nhãn.
+/// @param index Lựa chọn hiện tại.
+/// @param options Mảng các lựa chọn dạng chuỗi.
+/// @return `true` ở frame lựa chọn đổi.
+bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+               std::span<const std::string> options);
 
 /// Một thanh tiến độ, không bấm được: máu, thời gian nạp.
 /// @param ctx Context của engine.

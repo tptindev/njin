@@ -697,11 +697,11 @@ bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max, f
   return changed;
 }
 
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
-               std::initializer_list<const char *> options) {
+namespace {
+template <typename F>
+bool ui_choice_impl(njin_ctx &ctx, const char *label, i32 &index, i32 count, F &&get_option) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_choice");
-  const i32 count = (i32)options.size();
   if (label == nullptr || count == 0)
     return false;
   const interaction it = interact(ctx, label, true, true);
@@ -722,9 +722,22 @@ bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
   push_skin(ui, ui.style.button, it.state, it.area);
   const rgba color = text_for(ui.style.button, it.state);
   text_left(ctx, ui, shown(label), it.area, color);
-  const std::string value = std::string("<  ") + *(options.begin() + index) + "  >";
+  const std::string value = std::string("<  ") + get_option(index) + "  >";
   text_right(ctx, ui, value, it.area, color);
   return changed;
+}
+} // namespace
+
+bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+               std::initializer_list<const char *> options) {
+  return ui_choice_impl(ctx, label, index, (i32)options.size(),
+                        [&](i32 i) { return *(options.begin() + i); });
+}
+
+bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+               std::span<const std::string> options) {
+  return ui_choice_impl(ctx, label, index, (i32)options.size(),
+                        [&](i32 i) { return options[(size_t)i].c_str(); });
 }
 
 void ui_progress(njin_ctx &ctx, f32 value, const char *text) {
