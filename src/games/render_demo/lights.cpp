@@ -34,6 +34,7 @@ void build_lights(njin_ctx &ctx) {
   demo.lights.torch = demo.lights.mouse_light = demo.lights.flashlight = entt::null;
 
   lighting_desc d{};
+  d.shadow_reach = 44.0f; // a tree is about this tall over the low sun: shadows as long as its height allows
   d.enabled = demo.lights.lit;
   d.tonemap = (light_tonemap)demo.lights.tonemap;
   const vec2 centre = world_size * 0.5f;
