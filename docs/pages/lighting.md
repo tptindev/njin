@@ -77,7 +77,7 @@ njin::lighting_desc gồm:
 | `exposure` | Hệ số nhân toàn bộ ánh sáng **trước tonemap**, như độ phơi sáng máy ảnh. Đổi dần để làm bình minh, hoặc vào hang |
 | `tonemap` | Cách nén HDR về màn hình (bảng dưới) |
 | `scale` | 1 là chi tiết đầy đủ. Nhỏ hơn thì cả ảnh đã chiếu sáng tính ở độ phân giải thấp rồi phóng lên: nhanh hơn nhiều, nhưng mờ |
-| `shadow_reach` | Khoảng đèn hướng dò bóng của đa giác, đơn vị thế giới |
+| `shadow_reach` | **Độ dài bóng của đèn hướng**, đơn vị thế giới (xem dưới) |
 | `shadow_columns`, `pixel_alpha`, `occluder_margin` | Bóng từng pixel, xem dưới |
 
 | `tonemap` | Đặc điểm |
@@ -87,6 +87,13 @@ njin::lighting_desc gồm:
 | `tonemap_aces` | ACES filmic (xấp xỉ của Narkowicz): tương phản điện ảnh, bão hòa vừa. Nên đặt `exposure` cao hơn. Phím `T` trong demo đổi qua lại |
 
 `lighting_set()` gọi mỗi frame được. Đặt `ambient` và `exposure` theo giờ trong ngày là cách làm chu kỳ ngày đêm.
+
+### Độ dài bóng của mặt trời
+
+Một vật cao H bị mặt trời ở góc `elevation` chiếu thì đổ bóng dài `H / tan(elevation)`, không phải mãi mãi. **`shadow_reach` đặt độ dài đó**: một vật chắn xa hơn thế phía sau
+không đổ bóng lên điểm đang xét. Với cây cao 24 đơn vị và mặt trời 30 độ, khoảng 40 là hợp. Mặc định 600 là bóng gần như vô hạn: chỉ đúng khi vật chắn thưa; ở một khu rừng dày,
+bất kỳ tia nào cũng gặp một thân cây ở đâu đó phía trên, nên cả bản đồ chìm trong bóng. Áp dụng cho cả bóng đa giác và bóng từng pixel. Độ mềm của bóng (`size` của đèn hướng) là một đĩa mặt trời có kích thước
+góc cố định `size / 600`, không phụ thuộc `shadow_reach`.
 
 ## PBR: vật liệu của sprite
 
@@ -137,13 +144,15 @@ Vật chắn **đi theo entity**: di chuyển, xoay, co giãn cùng nó; nhân v
 
 @image html render_light_pixels.png "Từng pixel (ví dụ trên): cây bên trái để cả ảnh chắn sáng nên bóng có cả tán lá; cây bên phải dùng ảnh mặt nạ chỉ có thân cây nên bóng chỉ là một vệt hẹp. Bóng mờ dần theo khoảng cách từ vật chắn"
 
-Cách chạy, theo bài của mattdesl: các sprite có `light_occluder_pixels` được vẽ vào một ảnh (**bản đồ vật chắn**, lấy alpha); với mỗi đèn, một shader đi tia theo từng góc quanh đèn (cột của **bản đồ bóng 1D**), ghi chỗ vật chắn đầu tiên bắt đầu
-và kết thúc. Khi tô sáng, mỗi pixel của cảnh tra cột ứng với góc của nó: sau chỗ kết thúc là trong bóng. Nhiều mẫu lân cận, rộng đúng bằng vùng nửa tối mà `size` của đèn tạo ra từ độ sâu trung bình
-của vật chắn (tìm vật chắn rồi lọc, kiểu PCSS), làm bóng mềm. Đèn hướng dùng các dải song song thay cho các góc.
+Cách chạy, theo bài của mattdesl: các sprite có `light_occluder_pixels` được vẽ vào một ảnh (**bản đồ vật chắn**, lấy alpha); với mỗi đèn, một shader đi tia theo từng góc quanh đèn (cột của **bản đồ bóng 1D**), ghi các đoạn vật chắn
+mà tia đi qua (chỗ bắt đầu và kết thúc). Khi tô sáng, mỗi pixel của cảnh tra cột ứng với góc của nó: sau chỗ kết thúc của một đoạn là trong bóng của nó. Đèn điểm chỉ cần đoạn đầu tiên (bóng của nó không có điểm cuối);
+đèn hướng, vì bóng có độ dài, giữ tối đa 8 đoạn mỗi cột và lấy đoạn gần nhất phía sau điểm đang xét, nên một thân cây sau hòn đá vẫn đổ bóng riêng. Nhiều mẫu lân cận (16 mẫu, mỗi mẫu trong một phần bằng nhau của vùng nửa tối,
+dịch bằng một độ lệch riêng cho từng pixel) rộng đúng bằng vùng nửa tối mà `size` của đèn tạo ra từ độ sâu trung bình của vật chắn (tìm vật chắn rồi lọc, kiểu PCSS): mọi phần đều được lấy mẫu nên vật chắn mảnh không lọt giữa các mẫu và
+để lại các tia nan quạt; phần sai số còn lại là hạt mịn. Đèn hướng dùng các dải song song thay cho các góc.
 
 - **`mask`** chọn ảnh làm vật chắn (cùng kích thước và cách xếp frame với ảnh sprite). Để trống là dùng chính ảnh sprite. Dùng để chỉ thân cây chắn sáng chứ không phải cả tán lá.
-- **`lighting_desc::pixel_alpha`** là ngưỡng alpha coi là đặc (mặc định 0.5); **`shadow_columns`** là số cột của bản đồ bóng, nhiều thì bóng sắc hơn ở xa đèn (mặc định 1024);
-  **`occluder_margin`** là bề rộng dải ngoài màn hình được đọc (mặc định 96).
+- **`lighting_desc::pixel_alpha`** là ngưỡng alpha coi là đặc (mặc định 0.5); **`shadow_columns`** là số cột của bản đồ bóng, 0 (mặc định) là tự chọn sao cho tia cách nhau khoảng một pixel ở rìa đèn rộng nhất;
+  ít cột hơn thì vật chắn mảnh lọt giữa hai tia và bóng xa đèn vỡ thành các tia nan quạt; **`occluder_margin`** là bề rộng dải ngoài màn hình được đọc (mặc định 96).
 - Vật chắn **không tự che chính nó**: điểm nằm trong khối đầu tiên trên tia, tức chính vật đó, vẫn sáng; và đèn nằm trong một vật chắn (đuốc trên người) không bị nó chặn.
 - Lỗi cần biết: chỉ vật chắn trong ảnh màn hình mở rộng mới đổ bóng; bóng cỡ pixel của ảnh (không mượt hơn ảnh); vật chắn nhỏ hơn một texel của bản đồ (nếu `scale` nhỏ) có thể mất.
 
@@ -232,7 +241,9 @@ Số đo trên máy dev (RTX 3050 Laptop, 1280 x 720, 3000 sprite trên bản đ
 | Không ánh sáng | khoảng 1.9 ms |
 | 6 đèn, không bóng | khoảng 5.0 ms |
 | 6 đèn, bóng đa giác (2250 vật chắn) | khoảng 6.7 ms |
-| 6 đèn, bóng từng pixel (mọi cây, bụi, đá) | khoảng 5.7 ms |
+| 6 đèn, bóng từng pixel (mọi cây, bụi, đá) | khoảng 5.9 ms |
+| Một đèn hướng phủ cả màn hình, bóng đa giác | khoảng 5.4 ms |
+| Một đèn hướng phủ cả màn hình, bóng từng pixel | khoảng 8 ms |
 
 Con số của máy bạn sẽ khác; đo bằng `run_inspected.bat render_demo` và njin_inspector. Nếu cần nhanh hơn, theo thứ tự hiệu quả: giảm số đèn có bóng
 (`cast_shadows = false` cho đèn nhỏ), giảm `radius`, `scale = 0.5`, tắt vật liệu và normal (không tốn G-buffer), giảm `shadow_columns`, bớt số cạnh của vật chắn đa giác.
