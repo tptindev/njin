@@ -36,6 +36,7 @@
 #include "njin_settings.h"
 #include "njin_timer.h"
 #include "njin_ui.h"
+#include "njin_ui_layout.h"
 #include "njin_version.h"
 #include "njin_window.h"
 

@@ -2,6 +2,8 @@
 #include "_math.h"
 #include "_types.h"
 #include <initializer_list>
+#include <span>
+#include <string>
 
 namespace njin {
 struct njin_ctx;
@@ -187,6 +189,15 @@ bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max,
 /// @return `true` on the frame the choice changes.
 bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
                std::initializer_list<const char *> options);
+
+/// Picks one of several options (dynamic list).
+/// @param ctx Engine context.
+/// @param label Label.
+/// @param index Current choice.
+/// @param options The options as strings.
+/// @return `true` on the frame the choice changes.
+bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+               std::span<const std::string> options);
 
 /// A progress bar, not pressable: health, reload time.
 /// @param ctx Engine context.

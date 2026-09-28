@@ -9,6 +9,7 @@ menus and dialog boxes. The pages are independent of each other, so read whichev
 |---|---|
 | @subpage audio | Sound for short effects, music for background music, volume channels |
 | @subpage ui | Menus, buttons, sliders, popups, toasts; works with mouse, keyboard and gamepad |
+| @subpage ui_editor | Build menus by drag and drop in njin_ui_editor, save `.ui.json` and load it in the game |
 | @subpage dialog | Dialog boxes, character-by-character text, choices, portraits; localization with `tr`/`trf` |
 
 Suggested order: @ref ui first (every game needs menus), @ref audio, then @ref dialog if the game has characters who talk.

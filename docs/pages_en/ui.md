@@ -5,6 +5,8 @@ njin's UI is *immediate mode*: you do not create button objects, you just call f
 
 @include ui_menu.cpp
 
+A menu with many widgets, or one that changes often, can be built by drag and drop in njin_ui_editor and the file loaded into the game: see @ref ui_editor.
+
 @image html platformer_title.png "The main menu of the sample game Mầm Leo Núi, built with njin::ui_button(). The selected button has a blue outline; change buttons with the keyboard, mouse or gamepad"
 
 ## Widgets
