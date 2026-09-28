@@ -78,6 +78,54 @@ def new(w, h):
     return Image.new("RGBA", (w, h), (0, 0, 0, 0))
 
 
+def normal_map(img, strength=2.2, radius=2):
+    """Bulges a sprite: its opacity, blurred, is a height; the slope of that is the normal."""
+    w, h = img.size
+    alpha = [[img.getpixel((x, y))[3] / 255.0 for x in range(w)] for y in range(h)]
+
+    def at(grid, x, y):
+        return grid[min(max(y, 0), h - 1)][min(max(x, 0), w - 1)]
+
+    height = alpha
+    for _ in range(radius):  # a few box blurs are close enough to a gaussian
+        height = [[sum(at(height, x + dx, y + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)) / 9.0
+                   for x in range(w)] for y in range(h)]
+    out = Image.new("RGBA", (w, h), (128, 128, 255, 0))
+    for y in range(h):
+        for x in range(w):
+            if alpha[y][x] == 0:
+                continue
+            dx = (at(height, x + 1, y) - at(height, x - 1, y)) * 0.5 * strength
+            dy = (at(height, x, y + 1) - at(height, x, y - 1)) * 0.5 * strength
+            nx, ny, nz = -dx, dy, 1.0  # green up: down the picture is negative dy
+            n = math.sqrt(nx * nx + ny * ny + nz * nz)
+            out.putpixel((x, y), (int((nx / n * 0.5 + 0.5) * 255), int((ny / n * 0.5 + 0.5) * 255),
+                                  int((nz / n * 0.5 + 0.5) * 255), 255))
+    return out
+
+
+def material_map(img, rough, metal=0.0, occlusion_bottom=0.6, metal_where=None):
+    """A material map for the PBR lights, packed as raylib's pbr example does ("MRA"): red is
+    metallic, green is roughness, blue is ambient occlusion (1 = open, darker towards the
+    bottom of the sprite, where it meets the ground). `metal_where(color)` picks pixels that
+    are metal, with their own roughness."""
+    w, h = img.size
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = img.getpixel((x, y))
+            if a == 0:
+                continue
+            ro, me = rough, metal
+            if metal_where is not None:
+                picked = metal_where((r, g, b, a))
+                if picked is not None:
+                    ro, me = picked
+            ao = 1.0 - (1.0 - occlusion_bottom) * (y / max(h - 1, 1)) ** 1.5
+            out.putpixel((x, y), (int(me * 255), int(ro * 255), int(ao * 255), 255))
+    return out
+
+
 def make_sprites():
     d = os.path.join(OUT, "sprites")
     os.makedirs(d, exist_ok=True)
@@ -115,6 +163,43 @@ def make_sprites():
     rect(hero, 3, 12, 4, 15, OUTLINE)
     rect(hero, 7, 12, 8, 15, OUTLINE)
     hero.save(os.path.join(d, "hero.png"))
+
+    # Normal maps (key M): the silhouette blurred into a height map, whose slope
+    # is the normal. Green points up, as most tools export them.
+    # A gold ball, to see metal: bright reflections, tinted by the gold.
+    orb = new(12, 12)
+    disc(orb, 6, 6, 5, (226, 184, 72, 255))
+    disc(orb, 4, 4, 1, (255, 236, 160, 255))
+    orb.save(os.path.join(d, "orb.png"))
+
+    for name, img in (("tree", tree), ("bush", bush), ("rock", rock), ("hero", hero)):
+        normal_map(img).save(os.path.join(d, name + "_n.png"))
+    normal_map(orb, strength=4.0, radius=1).save(os.path.join(d, "orb_n.png"))
+
+    # Material maps (roughness, metallic, occlusion).
+    material_map(tree, 0.92, 0.0, 0.5).save(os.path.join(d, "tree_m.png"))
+    material_map(bush, 0.95, 0.0, 0.55).save(os.path.join(d, "bush_m.png"))
+    material_map(rock, 0.32, 0.0, 0.65).save(os.path.join(d, "rock_m.png"))  # polished stone
+    # The hero's dark red belt is metal; the rest is cloth.
+    material_map(hero, 0.7, 0.0, 0.8,
+                 metal_where=lambda c: (0.28, 1.0) if c[:3] == CLOTH_DARK[:3] else None).save(os.path.join(d, "hero_m.png"))
+    material_map(orb, 0.36, 1.0, 0.9).save(os.path.join(d, "orb_m.png"))
+
+    # Only the trunk of a tree blocks light for the pixel-perfect shadows: a mask with the trunk's own alpha.
+    trunk = Image.new("RGBA", tree.size, (0, 0, 0, 0))
+    for y in range(tree.height):
+        for x in range(tree.width):
+            if tree.getpixel((x, y))[:3] == TRUNK[:3]:
+                trunk.putpixel((x, y), (255, 255, 255, 255))
+    trunk.save(os.path.join(d, "tree_t.png"))
+
+    # The flowers glow: the emissive map is the flower without its stem.
+    glow = flower.copy()
+    for y in range(glow.height):
+        for x in range(glow.width):
+            if glow.getpixel((x, y))[:3] == LEAF[:3]:
+                glow.putpixel((x, y), (0, 0, 0, 0))
+    glow.save(os.path.join(d, "flower_e.png"))
 
     # A soft white blob for particles: tinted and faded by the emitter.
     spark = new(16, 16)

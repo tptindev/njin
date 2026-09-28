@@ -14,6 +14,7 @@ uniform sampler2D noise; // tiling grey noise
 
 uniform float time;
 uniform vec2 resolution; // logical screen size, in pixels
+uniform vec3 ambient; // the light everywhere at night, before any lamp
 uniform float night;
 uniform float dusk;
 uniform float haze;
@@ -41,7 +42,7 @@ void main() {
   c = mix(c, texture(ramp, vec2(lum, 0.5)).rgb, dusk);
 
   // Night: a dim blue everywhere, plus each light's pool.
-  vec3 lit = vec3(0.10, 0.13, 0.24);
+  vec3 lit = ambient;
   for (int i = 0; i < light_count; i++) {
     float d = clamp(1.0 - length(pixel - lights[i].xy) / lights[i].z, 0.0, 1.0);
     lit += light_colors[i].rgb * lights[i].w * d * d;
