@@ -8,6 +8,9 @@
 //   4  blur (a pause-menu look, half size when wide)
 //   5  bloom
 //   6  CRT
+//   7  night: the frame goes dark and eight lights (a vec4 array) light it
+//   8  dusk: brightness looked up in a colour ramp (a second texture)
+//   9  haze: the frame wobbles by a noise texture (a third one)
 //   F  a fountain of about 12,000 circles, the load to compare CPU and GPU with
 //   R  rain
 //   Space  an explosion at the mouse
@@ -19,9 +22,14 @@
 // sprites were drawn and how many were skipped for being off screen, and how
 // many draw calls the frame took (estimated: raylib does not report them).
 // Try 1 with 3000 trees on: the draw calls fall from about a thousand to a
-// handful, because sprites of one atlas page are one texture. njin_inspector
+// handful, because sprites of one atlas page are one texture. Keys 7 to 9 run
+// one shader over the whole frame (assets/scene.fs, camera_set_post_shader):
+// shader_set_texture gives it the ramp and the noise, shader_set_vec4_array the
+// lights. njin_inspector
 // (start it beside the game) shows the same numbers, per-system times and GPU
 // memory.
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <njin.h>
 #include <vector>
@@ -37,6 +45,7 @@ constexpr i32 layer_ground = 0;
 constexpr i32 layer_things = 1;
 constexpr f32 camera_zoom = 2.0f;
 constexpr i32 crowd_step = 500;
+constexpr u32 max_lights = 8; // the size of the arrays in scene.fs
 
 // One of the crowd's images.
 enum kind : i32 { k_tree, k_bush, k_rock, k_flower, k_hero, k_spark, kind_count };
@@ -65,6 +74,11 @@ struct demo_state {
   entt::entity fountain = entt::null;
   entt::entity rain = entt::null;
   f32 frame_ms = 16.0f; // smoothed
+  // Whole-frame pass (scene.fs). The switches are the keys 7 to 9; the amounts
+  // follow them so the frame fades instead of jumping.
+  shader_handle scene{};
+  bool night = false, dusk = false, haze = false;
+  f32 night_amount = 0.0f, dusk_amount = 0.0f, haze_amount = 0.0f;
 } demo;
 
 texture_handle image(i32 which) { return demo.use_atlas ? demo.packed[which] : demo.separate[which]; }
@@ -230,6 +244,54 @@ void apply_atlas(njin_ctx &ctx) {
   (void)ctx;
 }
 
+// --- the whole-frame shader ---
+
+f32 approach(f32 value, f32 target, f32 step) {
+  return value < target ? std::min(value + step, target) : std::max(value - step, target);
+}
+
+// Set every frame, before the world is drawn. The lights are in screen pixels:
+// the hero's torch, one at the mouse, and four lamps standing in the forest.
+void update_scene(njin_ctx &ctx) {
+  const f32 step = delta_real(ctx) * 3.0f;
+  demo.night_amount = approach(demo.night_amount, demo.night ? 1.0f : 0.0f, step);
+  demo.dusk_amount = approach(demo.dusk_amount, demo.dusk ? 1.0f : 0.0f, step);
+  demo.haze_amount = approach(demo.haze_amount, demo.haze ? 1.0f : 0.0f, step);
+  // Only pay for the extra pass while something is on.
+  const bool on = demo.night_amount > 0.0f || demo.dusk_amount > 0.0f || demo.haze_amount > 0.0f;
+  camera_set_post_shader(ctx, on ? demo.scene : shader_handle{});
+  if (!on)
+    return;
+
+  const f32 t = elapsed(ctx);
+  shader_set_f32(ctx, demo.scene, "time", t);
+  shader_set_vec2(ctx, demo.scene, "resolution", screen_size(ctx));
+  shader_set_f32(ctx, demo.scene, "night", demo.night_amount);
+  shader_set_f32(ctx, demo.scene, "dusk", demo.dusk_amount);
+  shader_set_f32(ctx, demo.scene, "haze", demo.haze_amount);
+
+  vec4 lights[max_lights];
+  vec4 colors[max_lights];
+  u32 n = 0;
+  const vec2 hero_at = world(ctx).get<transform>(demo.hero).pos;
+  const auto add = [&](vec2 screen_pos, f32 radius, f32 strength, vec4 color) {
+    if (n < max_lights) {
+      lights[n] = {screen_pos.x, screen_pos.y, radius, strength};
+      colors[n++] = color;
+    }
+  };
+  add(w2scr(ctx, hero_at - vec2{0.0f, 8.0f}), 190.0f * camera_zoom * 0.5f, 1.0f + 0.08f * std::sin(t * 11.0f),
+      {1.0f, 0.75f, 0.4f, 0.0f});
+  add(mouse_pos(ctx), 130.0f, 0.9f, {0.4f, 0.6f, 1.0f, 0.0f});
+  constexpr vec2 lamps[] = {{-140.0f, -70.0f}, {150.0f, -90.0f}, {-100.0f, 110.0f}, {170.0f, 90.0f}};
+  for (i32 i = 0; i < 4; i++)
+    add(w2scr(ctx, world_size * 0.5f + lamps[(usize)i]), 90.0f * camera_zoom, 0.85f + 0.1f * std::sin(t * 5.0f + (f32)i),
+        {1.0f, 0.85f, 0.55f, 0.0f});
+  shader_set_i32(ctx, demo.scene, "light_count", (i32)n);
+  shader_set_vec4_array(ctx, demo.scene, "lights", lights, n);
+  shader_set_vec4_array(ctx, demo.scene, "light_colors", colors, n);
+}
+
 // --- systems ---
 
 void startup(njin_ctx &ctx) {
@@ -240,6 +302,10 @@ void startup(njin_ctx &ctx) {
     demo.separate[i] = texture_load(ctx, image_paths[i]);
     texture_set_filter(ctx, demo.separate[i], filter_nearest);
   }
+  // The whole-frame shader and the two images it reads besides the frame.
+  demo.scene = shader_load(ctx, nullptr, "assets/scene.fs");
+  shader_set_texture(ctx, demo.scene, "ramp", texture_load(ctx, "assets/ramp.png"));
+  shader_set_texture(ctx, demo.scene, "noise", texture_load(ctx, "assets/noise.png"));
   draw_set_y_sort(ctx, layer_things, true);
   build_map(ctx);
   build_hero(ctx);
@@ -284,6 +350,12 @@ void input(njin_ctx &ctx) {
     demo.crt = !demo.crt;
     apply_post(ctx);
   }
+  if (key_pressed(ctx, key_7))
+    demo.night = !demo.night;
+  if (key_pressed(ctx, key_8))
+    demo.dusk = !demo.dusk;
+  if (key_pressed(ctx, key_9))
+    demo.haze = !demo.haze;
   if (key_pressed(ctx, key_f)) {
     particle_emitter &em = reg.get<particle_emitter>(demo.fountain);
     em.emitting = !em.emitting;
@@ -323,7 +395,7 @@ void hud(njin_ctx &ctx) {
   const bool fountain_on = reg.get<particle_emitter>(demo.fountain).emitting;
 
   char line[256];
-  draw_rect(ctx, rect{{0.0f, 0.0f}, {screen_size(ctx).x, 108.0f}}, {0.0f, 0.0f, 0.0f, 0.62f});
+  draw_rect(ctx, rect{{0.0f, 0.0f}, {screen_size(ctx).x, 128.0f}}, {0.0f, 0.0f, 0.0f, 0.62f});
   std::snprintf(line, sizeof line, "%.0f FPS   %.2f ms   vsync %s   entities %zu", 1000.0f / demo.frame_ms, demo.frame_ms,
                 window_vsync(ctx) ? "on" : "off", reg.view<entt::entity>().size());
   draw_line(ctx, line, 6.0f);
@@ -340,12 +412,16 @@ void hud(njin_ctx &ctx) {
                 "1 atlas  2 GPU/CPU particles  3 vsync  4 blur  5 bloom  6 CRT  F fountain (%s)  R rain  Space explode  +/- crowd %d  Tab hide",
                 fountain_on ? "on" : "off", demo.crowd);
   draw_line(ctx, line, 86.0f, {0.8f, 0.85f, 0.95f, 1.0f});
+  std::snprintf(line, sizeof line, "7 night + lights (%s)  8 dusk ramp (%s)  9 haze (%s)   these three run scene.fs over the whole frame",
+                demo.night ? "on" : "off", demo.dusk ? "on" : "off", demo.haze ? "on" : "off");
+  draw_line(ctx, line, 106.0f, {0.8f, 0.85f, 0.95f, 1.0f});
 }
 
 void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_startup, startup, "startup");
   ecs_register(ctx, phase_update, input, "input");
   ecs_register(ctx, phase_post_update, follow, "follow");
+  ecs_register(ctx, phase_pre_render, update_scene, "update_scene");
   ecs_register(ctx, phase_post_render, hud, "hud");
 }
 } // namespace

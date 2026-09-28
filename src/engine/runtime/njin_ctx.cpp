@@ -5,6 +5,7 @@
 #include "njin_render.h"
 #include "njin_ctx_impl.h"
 #include "njin_cfg.h"
+#include "njin_log.h"
 #include <algorithm>
 #include <entt/entity/registry.hpp>
 
@@ -174,6 +175,9 @@ void shader_unload(njin_ctx &ctx, shader_handle handle) {
 
 void shader_begin(const njin_ctx &ctx, shader_handle handle) {
   shader_store_begin(ctx.shader, handle);
+  const shader_slot *slot = shader_slot_of(ctx.shader, handle);
+  if (slot != nullptr)
+    shader_bind_textures(ctx, *slot);
 }
 
 void shader_end(const njin_ctx &) { shader_store_end(); }
@@ -196,6 +200,34 @@ void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
 void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec4 value) {
   shader_store_set_rgba(ctx.shader, handle, name, value);
+}
+
+void shader_set_vec4_array(njin_ctx &ctx, shader_handle handle, const char *name,
+                           const vec4 *values, u32 count) {
+  shader_store_set_vec4_array(ctx.shader, handle, name, values, count);
+}
+
+void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name, texture_handle texture) {
+  const texture_slot *slot = texture_slot_of(ctx.texture, texture);
+  if (slot == nullptr) {
+    NJIN_WARN("shader: '%s' not set, the texture is not valid", name != nullptr ? name : "");
+    return;
+  }
+  if (slot->packed) {
+    NJIN_WARN("shader: '%s' not set, the texture is packed in an atlas (load it with texture_load)",
+              name != nullptr ? name : "");
+    return;
+  }
+  shader_store_set_texture(ctx.shader, handle, name, false, texture.id);
+}
+
+void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name,
+                        render_texture_handle texture) {
+  if (render_texture_slot_of(ctx.render_texture, texture) == nullptr) {
+    NJIN_WARN("shader: '%s' not set, the render texture is not valid", name != nullptr ? name : "");
+    return;
+  }
+  shader_store_set_texture(ctx.shader, handle, name, true, texture.id);
 }
 
 texture_handle texture_load(njin_ctx &ctx, const char *path) {

@@ -8,6 +8,7 @@ atlas (or loads them one by one) so you can see what that does to the draw
 calls.
 """
 
+import math
 import os
 import random
 
@@ -126,8 +127,58 @@ def make_sprites():
     spark.save(os.path.join(d, "spark.png"))
 
 
+def make_lut():
+    """A 256 x 1 colour ramp for the dusk grade (key 8): the shader looks a pixel's
+    brightness up in it, so dark goes to blue-violet and light to warm cream."""
+    stops = [(0.0, (14, 12, 40)), (0.35, (96, 52, 120)), (0.7, (240, 132, 92)), (1.0, (255, 238, 196))]
+    img = Image.new("RGBA", (256, 1))
+    for x in range(256):
+        t = x / 255.0
+        for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
+            if t <= t1:
+                k = (t - t0) / (t1 - t0)
+                img.putpixel((x, 0), tuple(int(round(a + (b - a) * k)) for a, b in zip(c0, c1)) + (255,))
+                break
+    img.save(os.path.join(OUT, "ramp.png"))
+
+
+def make_noise():
+    """A 128 x 128 grey value noise that tiles, for the haze (key 9). Four octaves
+    of a lattice with wrapped corners, so the texture repeats without a seam."""
+    size = 128
+    rng = random.Random(7)
+    img = Image.new("RGBA", (size, size))
+    octaves = []
+    for cells in (4, 8, 16, 32):
+        octaves.append((cells, [[rng.random() for _ in range(cells)] for _ in range(cells)]))
+
+    def smooth(t):
+        return t * t * (3.0 - 2.0 * t)
+
+    def sample(cells, grid, x, y):
+        gx, gy = x / size * cells, y / size * cells
+        x0, y0 = int(math.floor(gx)), int(math.floor(gy))
+        fx, fy = smooth(gx - x0), smooth(gy - y0)
+        a, b = grid[y0 % cells][x0 % cells], grid[y0 % cells][(x0 + 1) % cells]
+        c, d = grid[(y0 + 1) % cells][x0 % cells], grid[(y0 + 1) % cells][(x0 + 1) % cells]
+        return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
+
+    for y in range(size):
+        for x in range(size):
+            v, total, amp = 0.0, 0.0, 1.0
+            for cells, grid in octaves:
+                v += sample(cells, grid, x, y) * amp
+                total += amp
+                amp *= 0.5
+            g = int(round(v / total * 255))
+            img.putpixel((x, y), (g, g, g, 255))
+    img.save(os.path.join(OUT, "noise.png"))
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     make_tiles()
     make_sprites()
+    make_lut()
+    make_noise()
     print("wrote", OUT)

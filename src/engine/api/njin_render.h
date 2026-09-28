@@ -68,6 +68,53 @@ void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param value Giá trị.
 void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
                      vec4 value);
+
+/// Đặt uniform kiểu mảng `vec4`, ví dụ `uniform vec4 lights[8];`.
+///
+/// `count` không được lớn hơn kích thước mảng khai báo trong shader. Muốn truyền
+/// mảng `vec2` hoặc `vec3`, đóng vào `vec4` (hai `vec2` một phần tử). Xem
+/// shader_set_i32() về uniform không tồn tại.
+/// @param ctx Context của engine.
+/// @param handle Shader cần đặt.
+/// @param name Tên mảng trong shader, không kèm `[0]`.
+/// @param values Các phần tử, nằm liền nhau trong bộ nhớ.
+/// @param count Số phần tử. 0 thì không làm gì.
+void shader_set_vec4_array(njin_ctx &ctx, shader_handle handle, const char *name,
+                           const vec4 *values, u32 count);
+
+/// Gắn một texture vào uniform `sampler2D` của shader, ngoài `texture0`.
+///
+/// Dùng cho ảnh phụ mà shader đọc: bảng màu (LUT), nhiễu, mặt nạ, normal map.
+/// Mỗi shader nhận tối đa 4 ảnh phụ; đặt lại cùng tên thì thay ảnh. Ảnh được gắn
+/// mỗi khi shader bật (shader_begin(), camera_set_post_shader(), draw_instanced()),
+/// nên gọi hàm này một lần là đủ. Ảnh nạp lại khi hot reload thì shader thấy ảnh mới.
+///
+/// - Dùng ảnh riêng, từ texture_load(). Ảnh xếp trong atlas bị từ chối, vì shader
+///   sẽ thấy cả trang atlas chứ không phải riêng ảnh đó.
+/// - Ảnh phụ không có bộ lọc riêng cho từng shader: nó lấy mẫu theo texture_set_filter()
+///   của chính ảnh.
+/// - Đường đáng tin cậy nhất: shader hậu kỳ của camera_set_post_shader(), và
+///   draw_instanced(). Qua shader_begin() thì ảnh phụ chỉ sống đến lần raylib đẩy
+///   batch kế tiếp (đầy 8192 hình, hoặc 256 lần đổi texture, hoặc có draw_instanced()
+///   hay đổi render texture xen vào); dùng cho vài lệnh vẽ, không cho hàng nghìn
+///   sprite.
+/// @param ctx Context của engine.
+/// @param handle Shader cần đặt.
+/// @param name Tên `uniform sampler2D` trong shader.
+/// @param texture Ảnh cần gắn.
+void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name, texture_handle texture);
+
+/// Như bản trên, với một render texture.
+///
+/// Đừng gắn render texture đang được vẽ vào (giữa render_texture_begin() và
+/// render_texture_end()). Render texture lưu ngược trục dọc: shader cần lật `v`
+/// (`1.0 - v`) để đọc đúng chiều.
+/// @param ctx Context của engine.
+/// @param handle Shader cần đặt.
+/// @param name Tên `uniform sampler2D` trong shader.
+/// @param texture Render texture cần gắn.
+void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name,
+                        render_texture_handle texture);
 /// @}
 
 /// @addtogroup grp_instancing

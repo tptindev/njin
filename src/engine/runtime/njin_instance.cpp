@@ -150,6 +150,8 @@ void draw_instanced_impl(njin_ctx &ctx, instance_buffer_handle handle, shader_ha
     rlEnableTexture(texture_id);
     rlSetUniform(rlGetLocationUniform(id, "texture0"), &unit, RL_SHADER_UNIFORM_INT, 1);
   }
+  // Extra samplers of the shader (shader_set_texture), on units 1 and up.
+  shader_bind_textures_instanced(ctx, *program);
 
   // Point this shader's instance attributes at the buffer, starting at
   // `first`. Pointing them per draw (not once per buffer) lets any shader and
@@ -173,6 +175,7 @@ void draw_instanced_impl(njin_ctx &ctx, instance_buffer_handle handle, shader_ha
   rlDrawVertexArrayInstanced(0, 6, (int)count);
   rlEnableBackfaceCulling();
   rlDisableVertexArray();
+  shader_unbind_textures_instanced(*program);
   if (texture_id != 0)
     rlDisableTexture();
   rlDisableShader();

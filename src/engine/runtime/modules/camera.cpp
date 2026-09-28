@@ -95,8 +95,10 @@ void finish_world_post(njin_ctx &ctx) {
   const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
   const Rectangle dest{0.0f, 0.0f, screen.x, screen.y};
   const shader_slot *slot = shader_slot_of(ctx.shader, post.shader);
-  if (slot != nullptr)
+  if (slot != nullptr) {
     BeginShaderMode(slot->shader);
+    shader_bind_textures(ctx, *slot);
+  }
   DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
   if (slot != nullptr)
     EndShaderMode();

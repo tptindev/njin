@@ -8,15 +8,30 @@
 #include <vector>
 
 namespace njin {
+// A texture bound to a sampler2D uniform besides texture0 (shader_set_texture).
+// It keeps the handle, not the GL id, so a reloaded texture is still the one
+// sampled.
+struct shader_texture_binding {
+  std::string name;
+  bool is_render = false; // `id` is a render_texture_handle, else a texture_handle
+  u32 id = 0;
+};
+
+// raylib's batch has room for this many extra samplers (RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS).
+inline constexpr usize shader_max_textures = 4;
+
 struct shader_slot {
   Shader shader{};
   bool alive = false;
   // Uniform name -> location. Querying the driver every frame is slow, so
-  // locations are looked up once and cached (-1 is cached too).
-  std::unordered_map<std::string, i32> uniforms;
+  // locations are looked up once and cached (-1 is cached too). Mutable so
+  // the cache fills from a const shader_slot (binding at shader_begin).
+  mutable std::unordered_map<std::string, i32> uniforms;
   // Resolved stage paths, for hot reload. Empty for a stage raylib supplies.
   std::string vs_path;
   std::string fs_path;
+  // In the order set; unit 1 + index when drawn.
+  std::vector<shader_texture_binding> textures;
 };
 
 // Owns the GPU programs of every live slot. The destructor frees them, so it
@@ -65,4 +80,22 @@ void shader_store_set_f32(shader_store &store, shader_handle handle,
 void shader_store_set_vec2(shader_store &store, shader_handle handle,
                            const char *name, vec2 value);
 void shader_store_set_rgba(shader_store &store, shader_handle handle, const char *name, vec4 value);
+void shader_store_set_vec4_array(shader_store &store, shader_handle handle, const char *name,
+                                 const vec4 *values, u32 count);
+// Binds `name` to a texture (or render texture) besides texture0. A name set
+// again replaces its texture. Packed atlas images are refused: a sampler would
+// see the whole page, not the image.
+void shader_store_set_texture(shader_store &store, shader_handle handle, const char *name,
+                              bool is_render, u32 id);
+
+struct njin_ctx;
+// Attach the shader's extra textures for the draws that follow. Both need the
+// shader to be the active one. The first is for raylib's batch (the sampler
+// lives until the batch is flushed: on the next full batch, 256 texture
+// changes, or an instanced draw / render texture switch in between). The
+// second is for draw_instanced, which draws itself: units 1.., undone by the
+// third.
+void shader_bind_textures(const njin_ctx &ctx, const shader_slot &slot);
+void shader_bind_textures_instanced(const njin_ctx &ctx, const shader_slot &slot);
+void shader_unbind_textures_instanced(const shader_slot &slot);
 } // namespace njin

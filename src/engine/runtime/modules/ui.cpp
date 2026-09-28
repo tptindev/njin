@@ -77,6 +77,7 @@ void draw_skin(njin_ctx &ctx, const ui_cmd &c) {
   shader_slot *sh = shader_slot_of(ctx.shader, c.shader);
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
+    shader_bind_textures(ctx, *sh);
     const f32 time = ctx.time.elapsed;
     f32 area[4] = {c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
     if (ctx.view.ui_window) {

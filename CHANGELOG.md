@@ -21,6 +21,14 @@ To release: edit that header, add a section here, commit, then
   `render_texture_set_filter` sets how it is sampled (nearest by default), and
   `render_texture_save` writes a render texture to an image file exactly as it
   holds it, top-down, alpha untouched.
+- **Shader inputs**: `shader_set_texture` gives a shader up to four more
+  `sampler2D` inputs besides `texture0` (a colour ramp, noise, a mask), from a
+  texture or a render texture; `shader_set_vec4_array` sets a `vec4[]` uniform
+  (a list of lights). The images are bound whenever the shader runs, through
+  `camera_set_post_shader`, `draw_instanced` and `shader_begin` (with
+  `shader_begin`, raylib's batch forgets them at its next flush, so use it for
+  a few draws). `njin_render_demo` keys 7 to 9 show it: night with lights, a
+  dusk colour ramp and haze from a noise image, in one whole-frame shader.
 - **Logo and icon**: the njin mark and wordmark (SVG, PNG, ICO) are in
   `docs/images/brand/`. `njin_icon(<target> [file.ico])` embeds an icon in a
   game's executable, its window and its taskbar button on Windows, and defaults
