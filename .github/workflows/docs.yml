@@ -50,21 +50,35 @@ jobs:
         run: |
           doxygen --version
           doxygen Doxyfile
+          doxygen Doxyfile.en
 
       # Doxygen writes its warnings to a file and exits 0. Surface them on the
       # run so a broken @ref or an undocumented parameter is not missed.
       - name: Report Doxygen warnings
         working-directory: docs
         run: |
-          if [ -s doxygen_warnings.txt ]; then
-            echo "::warning title=Doxygen::$(wc -l < doxygen_warnings.txt) warning(s), see the log"
-            cat doxygen_warnings.txt
-          else
-            echo "No Doxygen warnings."
+          for log in doxygen_warnings.txt doxygen_warnings_en.txt; do
+            if [ -s "$log" ]; then
+              echo "::warning title=Doxygen::$(wc -l < "$log") warning(s) in $log"
+              cat "$log"
+            else
+              echo "No Doxygen warnings in $log."
+            fi
+          done
+
+      # The English wiki is a translation of the Vietnamese one. Report copies
+      # that are missing, older than their source, or whose code has drifted.
+      - name: Check the translations
+        run: |
+          if ! python3 docs/i18n.py check > i18n.txt; then
+            echo "::warning title=Translations::$(grep -vc '^[0-9]* problem' i18n.txt) file(s) out of step"
           fi
+          cat i18n.txt
 
       - name: Check the site was generated
-        run: test -s docs/html/index.html
+        run: |
+          test -s docs/html/index.html
+          test -s docs/html/en/index.html
 
       - uses: actions/configure-pages@v5
 

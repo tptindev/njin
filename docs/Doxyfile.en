@@ -1,0 +1,23 @@
+# English build of the njin wiki. Everything not listed here comes from
+# Doxyfile (the Vietnamese wiki). Run from this folder (see build_docs.bat).
+#
+# Sources for this language live next to the Vietnamese ones:
+#   api_en/       copy of src/engine/api with English comments
+#   pages_en/     the wiki pages
+#   examples_en/  examples whose comments are translated. An example missing
+#                 here falls back to the Vietnamese one in examples/.
+# docs/i18n.py keeps them in step with the Vietnamese sources.
+
+@INCLUDE               = Doxyfile
+
+PROJECT_BRIEF          = "A small 2D engine for making games your own way. Vibe coding is welcome too"
+OUTPUT_LANGUAGE        = English
+HTML_OUTPUT            = html/en
+
+INPUT                  = api_en pages_en
+STRIP_FROM_PATH        = api_en
+STRIP_FROM_INC_PATH    = api_en
+EXAMPLE_PATH           = examples_en examples
+USE_MDFILE_AS_MAINPAGE = pages_en/index.md
+
+WARN_LOGFILE           = doxygen_warnings_en.txt

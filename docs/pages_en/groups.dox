@@ -1,0 +1,129 @@
+/// @defgroup grp_core Engine lifecycle
+/// Create, run and destroy the engine, plus window setup.
+
+/// @defgroup grp_module Modules and systems
+/// Register modules, systems and phases; access the EnTT registry and events.
+
+/// @defgroup grp_comps Built-in components
+/// The components the engine understands out of the box: transform, camera_2d, camera_on, sprite,
+/// sprite_anim, scene_owned, child_of.
+
+/// @defgroup grp_time Time
+/// Frame time and elapsed time.
+
+/// @defgroup grp_camera Camera
+/// The active camera and converting coordinates between world and screen.
+
+/// @defgroup grp_input Input
+/// Keyboard keys and actions.
+
+/// @defgroup grp_shader Shader
+/// Load shaders, set uniforms (arrays included), attach extra images, turn shaders on and off while drawing.
+
+/// @defgroup grp_instancing Instancing
+/// Draw thousands of identical shapes with one draw call, each with a little data of its own.
+
+/// @defgroup grp_texture Texture
+/// Load and draw textures from image files.
+
+/// @defgroup grp_render_texture Render texture
+/// Off-screen images to draw into, used for post-processing.
+
+/// @defgroup grp_sound Sound
+/// Short sounds loaded into memory: effects, overlapping playback, pitch, looping.
+
+/// @defgroup grp_music Music
+/// Music streamed from disk: background music, long ambient sounds.
+
+/// @defgroup grp_log Log
+/// Log by level, redirect where the log goes.
+
+/// @defgroup grp_draw Drawing shapes
+/// Rectangles, circles, lines, triangles; blend modes and scissoring.
+
+/// @defgroup grp_text Text and fonts
+/// Draw text, measure text, load fonts with Vietnamese support.
+
+/// @defgroup grp_tilemap Tilemap
+/// A grid of cells split into chunks, with no size limit, and collision against the grid.
+
+/// @defgroup grp_procgen Map generation
+/// Noise, natural-map rules, top-down and platformer level generation, Wave Function Collapse.
+
+/// @defgroup grp_scene Scene
+/// Split the game into screens: menu, playing, game over.
+
+/// @defgroup grp_window Window and application
+/// Quit the game, fullscreen, window size, mouse cursor.
+
+/// @defgroup grp_file Files and save games
+/// Read and write files and the user's save-game folder.
+
+/// @defgroup grp_math Math
+/// vec2 operations, rectangles, circles, interpolation, built-in colors.
+
+/// @defgroup grp_collide Collision
+/// Overlap tests and push-out between points, rectangles and circles.
+
+/// @defgroup grp_random Random numbers
+/// A reproducible random number generator.
+
+/// @defgroup grp_tween Timers and tweens
+/// Timers, easing curves and smooth value transitions.
+
+/// @defgroup grp_anim Animation
+/// Sprite sheets with clips, loading from Aseprite, animation state machines.
+
+/// @defgroup grp_particles Particles
+/// Particle emitters: explosions, dust, sparks, smoke, fire.
+
+/// @defgroup grp_fx Effects (FX)
+/// Camera shake, hitstop, screen flash, sprite flash and ready-made particle presets.
+
+/// @defgroup grp_light 2D lighting
+/// Point lights, spot lights, directional lights, ambient light, shadows from occluders, normal maps, physically based lights.
+
+/// @defgroup grp_post Built-in post-processing
+/// Bloom, vignette, CRT, color grading, blur and other ready-made effect sets.
+
+/// @defgroup grp_collision Entity collision
+/// Colliders, layers and masks, enter/stay/exit events, movement with obstacles, queries, raycasts.
+
+/// @defgroup grp_prefab Prefab
+/// Templates for creating entities, lookup by name, spawning as a child of another entity.
+
+/// @defgroup grp_json JSON
+/// Read and write JSON for save games and config files.
+
+/// @defgroup grp_level Level
+/// Load maps from Tiled and LDtk into entities, tilemaps and colliders.
+
+/// @defgroup grp_reload Hot reload
+/// Reload textures and shaders when the file changes, while the game is running.
+
+/// @defgroup grp_ui UI
+/// Panels, buttons, toggles, sliders, choices, popups, toasts; mouse, keyboard, gamepad; custom images and shaders.
+
+/// @defgroup grp_debug Debug
+/// The debug gateway for njin_inspector: metrics, entities, watches, log, time control.
+
+/// @defgroup grp_body Characters
+/// Platformer controller (coyote time, wall jump, slopes) and top-down controller (8 directions, dash), moving platforms.
+
+/// @defgroup grp_nav Pathfinding
+/// Grid, A*, line of sight and path following for enemies.
+
+/// @defgroup grp_timer Per-entity timers and tweens
+/// Run a function after a delay, repeat it, and smoothly tween an entity's position, scale and color.
+
+/// @defgroup grp_i18n Localization
+/// Per-language string tables, strings with parameters, fallback language.
+
+/// @defgroup grp_dialog Dialog
+/// Dialog scripts, character-by-character text, portraits, choices, events.
+
+/// @defgroup grp_settings Settings
+/// Save and load the player's volume, keys, fullscreen and language.
+
+/// @defgroup grp_types Basic types
+/// Integers, floats, vectors, colors and handles.

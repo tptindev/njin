@@ -35,6 +35,10 @@ def edited_path(payload: dict) -> Path | None:
 def is_docs_source(path: Path) -> bool:
     if any(path == ignored or ignored in path.parents for ignored in IGNORED):
         return False
+    # While many English files are written at once, one build per write would
+    # run Doxygen in parallel. Create this file to pause the hook, delete it after.
+    if (DOCS / ".i18n_bulk").exists():
+        return False
     return API in path.parents or DOCS in path.parents
 
 
@@ -60,14 +64,17 @@ def main() -> int:
     if result.returncode != 0:
         return 0
 
-    warnings_file = DOCS / "doxygen_warnings.txt"
-    if not warnings_file.exists():
-        return 0
-    warnings = warnings_file.read_text(encoding="utf-8", errors="replace").strip()
-    if not warnings:
+    sections = []
+    for name in ("doxygen_warnings.txt", "doxygen_warnings_en.txt"):
+        warnings_file = DOCS / name
+        if warnings_file.exists():
+            text = warnings_file.read_text(encoding="utf-8", errors="replace").strip()
+            if text:
+                sections.append(name + ":\n" + text)
+    if not sections:
         return 0
 
-    context = "Doxygen docs regenerated with warnings:\n" + warnings
+    context = "Doxygen docs regenerated with warnings:\n" + "\n".join(sections)
     print(
         json.dumps(
             {

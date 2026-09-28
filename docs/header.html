@@ -190,6 +190,20 @@ $extrastylesheet
     </td>
    <!--END PROJECT_BRIEF-->
   <!--END !PROJECT_NAME-->
+  <td style="text-align:right; padding-right:16px; white-space:nowrap">
+   <a id="lang-switch" href="#" style="font-weight:600"></a>
+   <script type="text/javascript">
+    // The English wiki is html/en/, the Vietnamese one html/. Pages have the
+    // same file name in both, so the switch keeps the page.
+    (function () {
+      var here = document.documentElement.lang.indexOf('vi') !== 0; // "en-US" or "vi"
+      var file = location.pathname.split('/').pop() || 'index.html';
+      var a = document.getElementById('lang-switch');
+      a.textContent = here ? 'Tiếng Việt' : 'English';
+      a.href = (here ? '../' : 'en/') + file + location.hash;
+    })();
+   </script>
+  </td>
   <!--BEGIN DISABLE_INDEX-->
    <!--BEGIN SEARCHENGINE-->
      <!--BEGIN !FULL_SIDEBAR-->
