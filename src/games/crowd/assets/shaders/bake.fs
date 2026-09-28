@@ -3,9 +3,7 @@
 // The minimalist stick figure, drawn once per cell into the sheets. Instead of
 // a colour it writes how much of each pixel belongs to the body's one colour
 // slot, so one sheet serves every DNA: crowd.fs multiplies the weight by the
-// person's own colour. Every shape is a thin outline (ring()): the torso's
-// interior stays at weight 0, same as the background; legs and arms are a
-// single stroke thinner than the ring, so it reads as solid there instead.
+// person's own colour. Every shape is filled solid.
 //
 //   u_pass 0, body A: r the body (torso, legs, arms)
 //   u_pass 1, body B: unused; the top-left texel of each cell holds the head
@@ -76,13 +74,6 @@ float smin(float a, float b, float k) {
 }
 
 float sdCircle(vec2 p, float r) { return length(p) - r; }
-
-// Outline instead of fill: a thin band straddling a shape's zero level-set,
-// `w` half its thickness either side, so the inside stays transparent.
-#define OUTLINE_R 0.0022
-float ring(float d, float px, float w) {
-  return smoothstep(px, -px, d - w) - smoothstep(px, -px, d + w);
-}
 
 float sdTaperedCapsule(vec2 p, vec2 a, vec2 b, float ra, float rb) {
   vec2 pa = p - a, ba = b - a;
@@ -181,7 +172,7 @@ vec2 forwardOf(int dir) {
 // feet stay on the ground).
 Pose basePose(int dir, float bT, vec2 hipOff) {
   Pose P;
-  float rShoulder = 0.013 * bT, rHip = 0.011 * bT;
+  float rShoulder = 0.013 * bT; // both ends of the torso capsule use this radius
   P.hip = vec2(0.0, -0.020) + hipOff;
   P.shoulder = P.hip + vec2(0.0, 0.024);
   P.head = P.shoulder + vec2(0.0, 0.013 + 0.008 + HEAD_R);
@@ -191,7 +182,7 @@ Pose basePose(int dir, float bT, vec2 hipOff) {
   // (chest depth), with the three-quarter views in between.
   if (dir == DIR_S || dir == DIR_N) {
     P.rSh = rShoulder * 1.32;
-    P.rHip = rHip * 1.15;
+    P.rHip = P.rSh;
     P.shL = P.shoulder + vec2(-P.rSh * 0.72, 0.0);
     P.shR = P.shoulder + vec2( P.rSh * 0.72, 0.0);
     P.hipL = P.hip + vec2(-P.rHip * 0.55, 0.0);
@@ -210,7 +201,7 @@ Pose basePose(int dir, float bT, vec2 hipOff) {
     P.tipR = P.shR + vec2(0.003, -0.028);
   } else if (dir == DIR_E) {
     P.rSh = rShoulder * 0.72;
-    P.rHip = rHip * 0.80;
+    P.rHip = P.rSh;
     P.shL = P.shoulder + vec2(-0.002, 0.0);
     P.shR = P.shoulder + vec2( 0.002, 0.0);
     P.hipL = P.hip + vec2(-0.003, 0.0);
@@ -229,7 +220,7 @@ Pose basePose(int dir, float bT, vec2 hipOff) {
     P.tipR = P.shR + vec2(0.004, -0.028);
   } else if (dir == DIR_SE) {
     P.rSh = rShoulder * 1.02;
-    P.rHip = rHip * 0.98;
+    P.rHip = P.rSh;
     P.shL = P.shoulder + vec2(-P.rSh * 0.60, 0.0);
     P.shR = P.shoulder + vec2( P.rSh * 0.75, 0.0);
     P.hipL = P.hip + vec2(-P.rHip * 0.45, 0.0);
@@ -249,7 +240,7 @@ Pose basePose(int dir, float bT, vec2 hipOff) {
     P.head.x += 0.002;
   } else {
     P.rSh = rShoulder * 1.02;
-    P.rHip = rHip * 0.98;
+    P.rHip = P.rSh;
     P.shL = P.shoulder + vec2(-P.rSh * 0.75, 0.0);
     P.shR = P.shoulder + vec2( P.rSh * 0.60, 0.0);
     P.hipL = P.hip + vec2(-P.rHip * 0.65, 0.0);
@@ -268,8 +259,10 @@ Pose basePose(int dir, float bT, vec2 hipOff) {
     P.tipR = P.shR + vec2(0.002, -0.028);
     P.head.x += 0.001;
   }
+  // Both ends push out by the same amount (rSh == rHip here), so the torso's
+  // height stays the same across every direction's radius.
   P.capUp = rShoulder * 1.32 - P.rSh;
-  P.capDown = rHip * 1.15 - P.rHip;
+  P.capDown = P.capUp;
   return P;
 }
 
@@ -567,11 +560,10 @@ Pose makePose(int dir, int pose, int frame, int frames, float bT) {
   return P;
 }
 
-// ---- body: torso outlined, legs and arms a single thin stroke ---------------
+// ---- body: torso filled, legs and arms a single thin stroke -----------------
 W drawBody(vec2 p, Pose P, int dir, float bL, float px) {
   // One flat colour for the whole person: legs and arms are a single stroke,
-  // one radius end to end (no taper), thinner than OUTLINE_R so ring() below
-  // reads as solid fill there instead of a hollow outline like the torso gets.
+  // one radius end to end (no taper).
   float rLimb = 0.0018 * bL;
   float legK = 0.005, armK = 0.0035; // half the old blend radius: a tighter joint to the torso
 
@@ -589,12 +581,12 @@ W drawBody(vec2 p, Pose P, int dir, float bL, float px) {
   dBody = smin(dBody, dLegR, legK);
   dBody = smin(dBody, dArmL, armK);
   dBody = smin(dBody, dArmR, armK);
-  return w_mix(W(vec3(0), vec3(0)), w_cloth(), ring(dBody, px, OUTLINE_R));
+  return w_mix(W(vec3(0), vec3(0)), w_cloth(), smoothstep(px, -px, dBody));
 }
 
 // ---- head: a plain circle, same one colour slot as the body ----------------
 vec3 drawHead(vec2 hp, int dir, int style, float px) {
-  return vec3(ring(sdCircle(hp, HEAD_R), px, OUTLINE_R), 0.0, 0.0);
+  return vec3(smoothstep(px, -px, sdCircle(hp, HEAD_R)), 0.0, 0.0);
 }
 
 void main() {
