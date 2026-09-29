@@ -26,7 +26,7 @@ jobs:
 
       - name: Header and CHANGELOG agree
         id: v
-        run: echo "version=$(.github/scripts/version.sh)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(bash .github/scripts/version.sh)" >> "$GITHUB_OUTPUT"
 
       - name: The version is tagged
         run: |
