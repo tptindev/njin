@@ -108,6 +108,39 @@ Queries run immediately when called, on the current positions, and walk through 
 colliders, but do not call them thousands of times per frame. A raycast returns the **nearest** thing hit, ignores
 triggers by default, and has an `ignore` parameter to skip the shooter.
 
+## Crowds: nearest neighbours and pushing apart
+
+Colliders suit a few hundred things. A swarm of a few thousand zombies or a crowd needs something else:
+they need no events, only to **not overlap** and to **know who is near**. That is the job of
+njin::spatial_index, in `njin_spatial.h`:
+
+| Function | Used for |
+|---|---|
+| njin::spatial_build() | Rebuilding the index every frame from njin::spatial_item circles |
+| njin::spatial_nearest() | The k items nearest a point: auto-aim, finding a partner, nearest enemy |
+| njin::spatial_separate() | Pushing overlapping items apart, each counting only its k nearest touching ones |
+
+@include spatial.cpp
+
+A `fixed` item is not pushed, others have to go round it: someone sitting, a guard at a post.
+Items of the same njin::spatial_item::group do not push each other, so a group can stand close. Each
+item only adds the pushes of its k nearest touching ones, so in a dense clump it is not thrown out;
+what overlap remains melts over a few frames. The denser the clump, the more items each query has
+to look at, so it is still slower than an even spread.
+
+njin::spatial_desc::kind picks the structure underneath. Both return **the same results** and differ
+only in speed, so switch between them and measure in your game:
+
+| Kind | Faster when |
+|---|---|
+| njin::spatial_grid (default) | Items of one size, spread fairly evenly over a screen: swarms, crowds, bullets. Builds 3 to 4 times faster than the quadtree. |
+| njin::spatial_quadtree | A very wide map with items gathered in a few clumps, and queries with a large radius. |
+
+Measured on the crowd game (radius 5, spread evenly): with 50,000 people, the whole simulation
+step including building the index and pushing apart takes 13.9 ms with the grid, 26.3 ms with the
+quadtree. On a 100,000 x 65,000 map with 20 clumps, 5000 queries for the 8 nearest within radius
+180 take 10.7 ms with the grid, 7.2 ms with the quadtree.
+
 ## Debugging
 
 njin::collision_set_debug() draws an outline around every box and circle collider: green is an obstacle, yellow is a

@@ -8,7 +8,8 @@
 // free people into a group entity: two to greet, shake hands or spar, or a
 // hand-in-hand chain of 2 .. max_chain. A group first gathers (everyone walks to
 // a slot), then acts together, then lets everyone go. Neighbours are found
-// through a uniform grid rebuilt every frame.
+// through a njin::spatial_index rebuilt at the end of every frame, which also
+// pushes overlapping people apart (collide()).
 //
 // Deciding can create a group and add `member` to other people, so the update
 // loops walk a copied list of entities and fetch components afresh instead of
@@ -29,11 +30,6 @@ constexpr f32 edge = 40.0f; // groups keep this far inside the world
 constexpr f32 leap_back = 16.0f;   // a leaping attack first steps this far back
 constexpr f32 leap_height = 10.0f;
 
-constexpr f32 grid_size = 64.0f;
-constexpr i32 grid_w = (i32)(world_size.x / grid_size) + 1;
-constexpr i32 grid_h = (i32)(world_size.y / grid_size) + 1;
-std::vector<entt::entity> crowd_list; // everyone but the gallery, this frame
-std::vector<i32> grid_head, grid_next; // indexes into crowd_list
 std::vector<label> labels;
 
 f32 fract(f32 v) { return v - std::floor(v); }
@@ -53,47 +49,80 @@ bool is_free(const entt::registry &reg, entt::entity e) {
   return act == act_idle || act == act_walk || act == act_run;
 }
 
-void grid_build(entt::registry &reg) {
+// ---- neighbours and collision ------------------------------------------------
+// Everyone is a disc at the feet, sized by build, in a njin::spatial_index
+// rebuilt at the end of every frame (grid or quadtree, sim.index). The next
+// frame finds free people for a group in it (nearest_free), and the same frame
+// pushes overlapping discs apart with spatial_separate(): each person by its k
+// nearest overlaps only (sim.neighbours). Someone who holds still for a reason
+// (sitting, lying, jumping, at a slot or acting in a group) is `fixed`, so the
+// others go round them and a chain walks through the crowd. Members of one
+// group share a spatial group and do not push each other: their slots are
+// closer than two discs.
+
+vec2 slot_pos(const group &g, u32 slot);
+
+constexpr f32 build_scale[builds] = {0.85f, 1.0f, 1.2f};
+
+std::vector<entt::entity> crowd_list; // everyone but the gallery, item i of the index
+std::vector<spatial_item> items;
+std::vector<vec2 *> item_pos; // the transform of item i, written when pushed
+spatial_index index;
+
+bool holds_still(u8 act) { return act != act_idle && act != act_walk && act != act_run && act != act_gather; }
+
+// Walks a view rather than looking components up by entity: a lookup apiece
+// costs several times the rest of the step.
+void index_build(entt::registry &reg) {
   crowd_list.clear();
-  for (const entt::entity e : reg.view<person, transform>(entt::exclude<gallery_pin>))
+  items.clear();
+  item_pos.clear();
+  const f32 near_slot = 2.0f * sim.radius * build_scale[builds - 1];
+  for (auto [e, p, tr, genes] : reg.view<const person, transform, const dna>(entt::exclude<gallery_pin>).each()) {
+    spatial_item it{.pos = tr.pos, .fixed = holds_still(p.act)};
+    const member *m = p.act == act_gather || it.fixed ? reg.try_get<member>(e) : nullptr;
+    if (m) {
+      it.group = (u32)entt::to_integral(m->group) + 1;
+      // The last steps to the slot are not pushed, or whoever stands there
+      // would keep a gatherer out until its group gives up.
+      if (p.act == act_gather && length_sq(slot_pos(reg.get<group>(m->group), m->slot) - tr.pos) < near_slot * near_slot)
+        it.fixed = true;
+    }
+    it.radius = sim.radius * build_scale[std::min(genes.get(g_build), builds - 1)];
     crowd_list.push_back(e);
-  grid_head.assign((std::size_t)(grid_w * grid_h), -1);
-  grid_next.assign(crowd_list.size(), -1);
-  for (std::size_t i = 0; i < crowd_list.size(); i++) {
-    const vec2 p = reg.get<transform>(crowd_list[i]).pos;
-    const i32 cx = std::clamp((i32)(p.x / grid_size), 0, grid_w - 1);
-    const i32 cy = std::clamp((i32)(p.y / grid_size), 0, grid_h - 1);
-    const i32 c = cy * grid_w + cx;
-    grid_next[i] = grid_head[(std::size_t)c];
-    grid_head[(std::size_t)c] = (i32)i;
+    items.push_back(it);
+    item_pos.push_back(&tr.pos);
   }
+  spatial_build(index, {.kind = sim.index, .bounds = {{0, 0}, world_size}}, items);
 }
 
-// Up to `want` free people nearest to `at` within `radius`, not `self`.
+void collide() {
+  static std::vector<vec2> push;
+  sim.contacts = spatial_separate(index, push, sim.neighbours);
+  for (u32 i = 0; i < push.size(); i++)
+    if (push[i].x != 0.0f || push[i].y != 0.0f)
+      *item_pos[i] = clamp(items[i].pos + push[i], {0, 0}, world_size);
+}
+
+bool free_only(u32 item, void *user) {
+  const entt::registry &reg = *static_cast<const entt::registry *>(user);
+  const entt::entity e = crowd_list[item];
+  return reg.valid(e) && is_free(reg, e);
+}
+
+// Up to `want` free people nearest to `at` within `radius`, not `self`, where
+// they stood at the end of the last frame.
 void nearest_free(const entt::registry &reg, vec2 at, f32 radius, entt::entity self, u32 want,
                   std::vector<entt::entity> &out) {
-  static std::vector<std::pair<f32, entt::entity>> found;
-  found.clear();
+  static std::vector<spatial_hit> hits;
   out.clear();
-  if (grid_head.empty()) // not built yet for this population
+  if (spatial_size(index) != crowd_list.size()) // not built for this population yet
     return;
-  const i32 x0 = std::max(0, (i32)((at.x - radius) / grid_size)), x1 = std::min(grid_w - 1, (i32)((at.x + radius) / grid_size));
-  const i32 y0 = std::max(0, (i32)((at.y - radius) / grid_size)), y1 = std::min(grid_h - 1, (i32)((at.y + radius) / grid_size));
-  for (i32 cy = y0; cy <= y1; cy++)
-    for (i32 cx = x0; cx <= x1; cx++)
-      for (i32 i = grid_head[(std::size_t)(cy * grid_w + cx)]; i >= 0; i = grid_next[(std::size_t)i]) {
-        const entt::entity e = crowd_list[(std::size_t)i];
-        if (e == self || !reg.valid(e))
-          continue;
-        const f32 d = length_sq(reg.get<transform>(e).pos - at);
-        if (d < radius * radius && is_free(reg, e))
-          found.push_back({d, e});
-      }
-  const std::size_t n = std::min<std::size_t>(want, found.size());
-  std::partial_sort(found.begin(), found.begin() + (std::ptrdiff_t)n, found.end(),
-                    [](const auto &a, const auto &b) { return a.first < b.first; });
-  for (std::size_t k = 0; k < n; k++)
-    out.push_back(found[k].second);
+  spatial_query q{.at = at, .radius = radius, .filter = free_only, .user = const_cast<entt::registry *>(&reg)};
+  spatial_nearest(index, q, hits, want + 1); // self may be among them
+  for (const spatial_hit &h : hits)
+    if (crowd_list[h.item] != self && out.size() < want)
+      out.push_back(crowd_list[h.item]);
 }
 
 vec2 slot_pos(const group &g, u32 slot) {
@@ -526,14 +555,14 @@ void sim_populate(njin_ctx &ctx, u32 crowd) {
   rng &r = random(ctx);
   destroy_all<group>(reg);
   destroy_all<person>(reg);
-  grid_head.clear(); // it indexes the old population
-  crowd_list.clear();
+  crowd_list.clear(); // the index holds the old population until rebuilt
   build_gallery(reg, r);
   for (u32 i = 0; i < crowd; i++) {
     const entt::entity e =
         spawn_random(reg, r, {r.range(0.0f, world_size.x), r.range(0.0f, world_size.y)}, dna::random(r));
     reg.get<person>(e).timer *= r.unit(); // not everyone decides on the same frame
   }
+  index_build(reg);
 }
 
 void sim_spawn_family(njin_ctx &ctx, entt::entity parent) {
@@ -557,12 +586,13 @@ void sim_spawn_family(njin_ctx &ctx, entt::entity parent) {
 void sim_update(njin_ctx &ctx, f32 dt) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
-  grid_build(reg);
   // Gallery: every pose loops at its own pace.
   static constexpr f32 rate[pose_count] = {0.5f, 1.3f, 2.2f, 0.8f, 0.35f, 0.35f, 1.6f, 2.8f, 1.3f, 1.3f, 1.3f, 1.5f, 1.5f, 1.0f, 1.0f};
   for (auto [e, p] : reg.view<person, gallery_pin>().each())
     p.phase = fract(p.phase + dt * rate[p.pose]);
 
+  // crowd_list is from the end of the last frame: someone born since then
+  // starts next frame. Deciding may add components, so no references are kept.
   for (const entt::entity e : crowd_list)
     if (reg.valid(e))
       update_person(reg, e, dt, r);
@@ -574,6 +604,11 @@ void sim_update(njin_ctx &ctx, f32 dt) {
   for (const entt::entity ge : groups)
     if (reg.valid(ge))
       update_group(reg, ge, dt, r);
+  index_build(reg); // also for the next frame's nearest_free
+  if (sim.collide)
+    collide();
+  else
+    sim.contacts = 0;
 }
 
 void sim_instance(const entt::registry &reg, entt::entity e, bool selected, instance &out) {

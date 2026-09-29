@@ -113,6 +113,9 @@
 /// @defgroup grp_nav Tìm đường
 /// Lưới ô, A*, tầm nhìn và đi theo đường cho quái.
 
+/// @defgroup grp_spatial Hàng xóm gần nhất
+/// Lưới hoặc quadtree cho hàng nghìn hình tròn: k vật gần nhất, đẩy các vật chồng nhau ra.
+
 /// @defgroup grp_timer Hẹn giờ và tween theo entity
 /// Chạy hàm sau một khoảng, lặp lại, và chuyển vị trí, tỉ lệ, màu của entity mượt mà.
 

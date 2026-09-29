@@ -150,6 +150,11 @@ struct group {
 
 struct sim_state {
   u32 max_chain = 8; // hand-in-hand chains of 2 .. max_chain people
+  bool collide = true;      // people push each other apart
+  f32 radius = 5.0f;        // of a normal build; slim and stocky scale it
+  u32 neighbours = 6;       // k: each person is pushed by its k nearest overlaps at most
+  njin::spatial_kind index = njin::spatial_grid; // grid or quadtree: same result, different speed
+  u32 contacts = 0;         // pushes in the last collision step (a pair of movers counts twice)
 };
 extern sim_state sim;
 

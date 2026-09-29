@@ -108,6 +108,38 @@ Truy vấn chạy ngay khi gọi, trên vị trí hiện tại, và duyệt qua 
 collider, nhưng đừng gọi hàng nghìn lần mỗi frame. Raycast trả về vật trúng **gần nhất**, mặc
 định bỏ qua trigger, và có tham số `ignore` để bỏ qua người bắn.
 
+## Đám đông: hàng xóm gần nhất và đẩy nhau ra
+
+Collider hợp với vài trăm vật. Một bầy vài nghìn con quái hay một đám đông thì cần thứ khác:
+chúng không cần event, chỉ cần **không chồng lên nhau** và **biết ai ở gần**. Việc đó là của
+njin::spatial_index, trong `njin_spatial.h`:
+
+| Hàm | Dùng cho |
+|---|---|
+| njin::spatial_build() | Dựng lại index mỗi frame từ các hình tròn njin::spatial_item |
+| njin::spatial_nearest() | k vật gần một điểm nhất: tự ngắm, tìm bạn, quái gần nhất |
+| njin::spatial_separate() | Đẩy các vật chồng nhau ra, mỗi vật chỉ xét k vật chạm gần nhất |
+
+@include spatial.cpp
+
+Vật `fixed` không bị đẩy, vật khác phải đi vòng qua nó: người đang ngồi, lính đang đứng gác.
+Vật cùng njin::spatial_item::group không đẩy nhau, để một nhóm đứng sát nhau được. Mỗi vật
+chỉ cộng lực đẩy của k vật chạm gần nhất, nên giữa một cụm dày nó không bị hất văng; phần chồng
+còn lại tan dần qua vài frame. Cụm càng dày thì mỗi lần hỏi càng phải xét nhiều vật, nên vẫn
+chậm hơn khi vật rải đều.
+
+njin::spatial_desc::kind chọn cấu trúc bên dưới. Hai loại trả **cùng kết quả**, chỉ khác tốc
+độ, nên đổi qua lại để đo trong game của bạn:
+
+| Loại | Nhanh hơn khi |
+|---|---|
+| njin::spatial_grid (mặc định) | Vật cùng cỡ, rải khá đều trong một màn: bầy quái, đám đông, đạn. Dựng nhanh gấp 3 đến 4 lần quadtree. |
+| njin::spatial_quadtree | Map rất rộng mà vật dồn thành vài cụm, và hỏi với bán kính lớn. |
+
+Đo trên game crowd (bán kính 5, rải đều): với 50 000 người, cả bước mô phỏng kể cả dựng index
+và đẩy nhau hết 13,9 ms với lưới, 26,3 ms với quadtree. Trên một map 100 000 x 65 000 có 20
+cụm, 5000 lần tìm 8 vật gần nhất trong bán kính 180 hết 10,7 ms với lưới, 7,2 ms với quadtree.
+
 ## Dò lỗi
 
 njin::collision_set_debug() vẽ khung mọi collider hộp và tròn: xanh lá là vật cản, vàng là

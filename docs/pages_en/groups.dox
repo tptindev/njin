@@ -113,6 +113,9 @@
 /// @defgroup grp_nav Pathfinding
 /// Grid, A*, line of sight and path following for enemies.
 
+/// @defgroup grp_spatial Nearest neighbours
+/// A grid or a quadtree for thousands of circles: the k nearest, and pushing overlapping ones apart.
+
 /// @defgroup grp_timer Per-entity timers and tweens
 /// Run a function after a delay, repeat it, and smoothly tween an entity's position, scale and color.
 

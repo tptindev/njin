@@ -15,7 +15,8 @@
 //             a body block and a hair style; the CPU never builds colours.
 //   draw      visible people are culled, sorted by feet y and uploaded as 8
 //             floats each, then drawn with one instanced draw call.
-//   simulate  one entity per person and per group, a grid for neighbours (sim.cpp).
+//   simulate  one entity per person and per group, and a njin::spatial_index for
+//             neighbours, where each person is pushed by its k nearest overlaps (sim.cpp).
 
 namespace crowd {
 namespace {
@@ -128,6 +129,8 @@ void game_input(njin_ctx &ctx) {
   if (key_pressed(ctx, key_f) && sim_people(world(ctx)) + 24 <= max_people)
     sim_spawn_family(ctx, g.selected);
   if (key_pressed(ctx, key_space)) g.frozen = !g.frozen;
+  if (key_pressed(ctx, key_c)) sim.collide = !sim.collide;
+  if (key_pressed(ctx, key_q)) sim.index = sim.index == spatial_grid ? spatial_quadtree : spatial_grid;
   if (key_pressed(ctx, key_g)) {
     g.in_gallery = !g.in_gallery;
     place_camera(ctx);
@@ -203,6 +206,10 @@ void debug_watches(njin_ctx &ctx) {
   debug_watch(ctx, "crowd.upload KB/frame", (f32)(g.visible.size() * sizeof(instance)) / 1024.0f);
   debug_watch(ctx, "crowd.frozen", g.frozen);
   debug_watch(ctx, "crowd.max_chain", sim.max_chain);
+  debug_watch(ctx, "collide.on", sim.collide);
+  debug_watch(ctx, "collide.k", sim.neighbours);
+  debug_watch(ctx, "collide.index", sim.index == spatial_grid ? "grid" : "quadtree");
+  debug_watch(ctx, "collide.pushes", sim.contacts);
 
   // How many people do what.
   u32 acts[act_pinned + 1] = {};
@@ -268,12 +275,14 @@ void draw_hud(njin_ctx &ctx) {
                             std::to_string(sim_acting_groups(reg, grp_shake)) + "  nắm tay " +
                             std::to_string(sim_acting_groups(reg, grp_chain)) + "  đấu võ " +
                             std::to_string(sim_acting_groups(reg, grp_spar)) + "  (tối đa " +
-                            std::to_string(sim.max_chain) + " người/chuỗi)";
-  draw_rect(ctx, rect{{8, 8}, {700, 98}}, rgba{1, 1, 1, 0.75f});
+                            std::to_string(sim.max_chain) + " người/chuỗi)   va chạm: " +
+                            (sim.collide ? std::to_string(sim.contacts) + " lần đẩy" : std::string("tắt")) +
+                            (sim.index == spatial_grid ? "  (lưới)" : "  (quadtree)");
+  draw_rect(ctx, rect{{8, 8}, {760, 98}}, rgba{1, 1, 1, 0.75f});
   draw_text(ctx, line1.c_str(), {16, 14}, 20.0f, ink);
   draw_text(ctx, line2.c_str(), {16, 38}, 15.0f, ink);
   draw_text(ctx, "WASD/chuột phải: di chuyển  Lăn: zoom  Click: chọn  G: phòng trưng bày  F: sinh 24 con\n"
-                 "1/2/3/4: 1k/5k/20k/50k người  R: DNA mới  [ ]: độ dài chuỗi  Space: dừng  F9: lưu sheet",
+                 "1/2/3/4: 1k/5k/20k/50k người  R: DNA mới  [ ]: độ dài chuỗi  C: va chạm  Q: lưới/quadtree  Space: dừng  F9: lưu sheet",
             {16, 60}, 14.0f, soft);
 
   if (reg.valid(g.selected)) {
