@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_collision
 /// @{
@@ -156,7 +156,7 @@ struct collision_move_opts {
 /// @param entity Entity with a transform and a box or circle collider.
 /// @param delta Desired displacement.
 /// @return The actual displacement and the blocker on each axis.
-collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta);
+collision_move_result collision_move(context &ctx, entt::entity entity, vec2 delta);
 
 /// Like the previous overload, with options: one-way platforms, slope sticking, probe only.
 ///
@@ -169,7 +169,7 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
 /// @param delta Desired displacement.
 /// @param opts Options.
 /// @return The actual displacement, the blockers, and the ground state.
-collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta,
+collision_move_result collision_move(context &ctx, entt::entity entity, vec2 delta,
                                      const collision_move_opts &opts);
 
 /// Moves a platform (an entity with a box collider, usually `one_way` or an obstacle)
@@ -184,7 +184,7 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
 /// @param ctx Engine context.
 /// @param platform Platform entity, with a transform and a collider.
 /// @param delta Displacement of the platform.
-void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta);
+void collision_move_platform(context &ctx, entt::entity platform, vec2 delta);
 
 /// Finds every entity whose collider overlaps the rectangle `area`.
 /// @param ctx Engine context.
@@ -193,7 +193,7 @@ void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta);
 /// @param mask Only consider colliders with `layer & mask != 0`.
 /// @param include_triggers Whether to consider trigger colliders.
 /// @return Number of entities found.
-i32 collision_overlap_rect(const njin_ctx &ctx, rect area,
+i32 collision_overlap_rect(const context &ctx, rect area,
                            std::vector<entt::entity> *out = nullptr,
                            u32 mask = layer_all, bool include_triggers = true);
 
@@ -204,7 +204,7 @@ i32 collision_overlap_rect(const njin_ctx &ctx, rect area,
 /// @param mask Only consider colliders with `layer & mask != 0`.
 /// @param include_triggers Whether to consider trigger colliders.
 /// @return Number of entities found.
-i32 collision_overlap_circle(const njin_ctx &ctx, circle area,
+i32 collision_overlap_circle(const context &ctx, circle area,
                              std::vector<entt::entity> *out = nullptr,
                              u32 mask = layer_all, bool include_triggers = true);
 
@@ -215,7 +215,7 @@ i32 collision_overlap_circle(const njin_ctx &ctx, circle area,
 /// @param mask Only consider colliders with `layer & mask != 0`.
 /// @param include_triggers Whether to consider trigger colliders.
 /// @return Number of entities found.
-i32 collision_overlap_point(const njin_ctx &ctx, vec2 point,
+i32 collision_overlap_point(const context &ctx, vec2 point,
                             std::vector<entt::entity> *out = nullptr,
                             u32 mask = layer_all, bool include_triggers = true);
 
@@ -239,7 +239,7 @@ struct raycast_hit {
 /// @param include_triggers Whether to consider trigger colliders. Off by default.
 /// @param ignore Entity to skip, usually the shooter itself.
 /// @return What was hit, or `hit == false`.
-raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to,
+raycast_hit collision_raycast(const context &ctx, vec2 from, vec2 to,
                               u32 mask = layer_all, bool include_triggers = false,
                               entt::entity ignore = entt::null);
 
@@ -253,7 +253,7 @@ raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to,
 /// @param mask Only consider colliders with `layer & mask != 0`.
 /// @param ignore Entity to skip, usually the viewer itself.
 /// @return `true` if nothing blocks between the two points.
-inline bool collision_line_of_sight(const njin_ctx &ctx, vec2 from, vec2 to,
+inline bool collision_line_of_sight(const context &ctx, vec2 from, vec2 to,
                                     u32 mask = layer_all, entt::entity ignore = entt::null) {
   return !collision_raycast(ctx, from, to, mask, false, ignore).hit;
 }
@@ -262,12 +262,12 @@ inline bool collision_line_of_sight(const njin_ctx &ctx, vec2 from, vec2 to,
 /// for obstacles, yellow for triggers. For debugging hitboxes.
 /// @param ctx Engine context.
 /// @param on On or off.
-void collision_set_debug(njin_ctx &ctx, bool on);
+void collision_set_debug(context &ctx, bool on);
 
 /// Cell size of the grid used to find collision pairs, in world units. Default 64. Should be close to
 /// the common collider size in the game; only affects speed, does not change results.
 /// @param ctx Engine context.
 /// @param size Cell size, greater than 0.
-void collision_set_cell_size(njin_ctx &ctx, f32 size);
+void collision_set_cell_size(context &ctx, f32 size);
 /// @}
 } // namespace njin

@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // Debug gizmos (njin_gizmo.h). Every call is broken down at once into what is
 // drawn: line segments, points (a cross of fixed screen size) and labels, in
@@ -58,9 +58,9 @@ struct gizmo_state {
 
 // Ages every gizmo by the frame's real time and drops the finished ones.
 // Called once per frame, before any system runs.
-void gizmo_frame_begin(njin_ctx &ctx);
+void gizmo_frame_begin(context &ctx);
 // 3D lines, inside a 3D pass seen through `camera`; projects the 3D marks.
-void gizmo_draw_3d(njin_ctx &ctx, const camera3d &camera);
+void gizmo_draw_3d(context &ctx, const camera3d &camera);
 // 2D lines, points and labels, in screen space.
-void gizmo_draw_screen(njin_ctx &ctx);
+void gizmo_draw_screen(context &ctx);
 } // namespace njin

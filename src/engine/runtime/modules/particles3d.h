@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // 3D particles (particles3d_spawn in njin_3d.h). Core module: moves and ages
 // every burst in phase_post_update, like the 2D particle module. Drawn by
@@ -46,5 +46,5 @@ struct particles3d_state {
 
 // Draws every live particle facing `camera`. Called by end_3d while its pass
 // (projection, view, depth test) is still set.
-void particles3d_draw(njin_ctx &ctx, const camera3d &camera);
+void particles3d_draw(context &ctx, const camera3d &camera);
 } // namespace njin

@@ -22,14 +22,14 @@
 #include "demo.h"
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "njin lighting demo",
+  njin::context *ctx = njin::create({.title = "njin lighting demo",
                                            .width = 1280,
                                            .height = 720,
                                            .target_fps = 144,
                                            .clear_bg_color = {0.0f, 0.0f, 0.0f, 1.0f}});
-  njin::njin_mod_register(*ctx, {.name = "lighting_demo", .setup = lighting_demo::setup});
+  njin::mod_register(*ctx, {.name = "lighting_demo", .setup = lighting_demo::setup});
   // Open for njin_inspector: the time of each lighting pass, per system.
   njin::debug_server_start(*ctx);
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

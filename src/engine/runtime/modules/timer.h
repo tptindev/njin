@@ -18,7 +18,7 @@ struct timer_job {
   timer_desc desc{};
   bool owned = false;
   u32 scene = 0;
-  std::function<void(njin_ctx &)> fn;
+  std::function<void(context &)> fn;
   bool dead = false;
 };
 
@@ -40,7 +40,7 @@ struct tween_job {
   bool forward = true;
   bool started = false; // `from` captured
   vec4 from{}, to{};
-  std::function<void(njin_ctx &, f32)> apply;
+  std::function<void(context &, f32)> apply;
   bool dead = false;
 };
 

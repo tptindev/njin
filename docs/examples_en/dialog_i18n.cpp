@@ -5,7 +5,7 @@
 namespace {
 njin::dialog_script owl;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   njin::i18n_load(ctx, "vi", "assets/lang/vi.json"); // the first language loaded is the default
   njin::i18n_load(ctx, "en", "assets/lang/en.json");
 
@@ -14,10 +14,10 @@ void startup(njin::njin_ctx &ctx) {
   njin::dialog_portrait(ctx, "owl", njin::texture_load(ctx, "assets/portraits.png"),
                         njin::rect{{0.0f, 0.0f}, {32.0f, 32.0f}});
   // Conditions in the script ("if": "has_key") use a syntax the game decides.
-  njin::dialog_set_condition(ctx, [](njin::njin_ctx &, const std::string &cond) { return cond == "always"; });
+  njin::dialog_set_condition(ctx, [](njin::context &, const std::string &cond) { return cond == "always"; });
 }
 
-void talk(njin::njin_ctx &ctx) {
+void talk(njin::context &ctx) {
   if (njin::key_pressed(ctx, njin::key_e) && !njin::dialog_active(ctx))
     njin::dialog_start(ctx, owl);
 }
@@ -25,7 +25,7 @@ void talk(njin::njin_ctx &ctx) {
 // The script sends an event: "event": "got_sword".
 void on_dialog_event(const njin::dialog_event &e) { (void)e; }
 
-void ui(njin::njin_ctx &ctx) {
+void ui(njin::context &ctx) {
   njin::ui_begin(ctx, {.id = "menu", .title = njin::tr(ctx, "menu.title")});
   // A sentence with parameters: "hud.coins": "Gold: {0}/{1}"
   njin::ui_label(ctx, njin::trf(ctx, "hud.coins", {"3", "10"}).c_str());
@@ -36,7 +36,7 @@ void ui(njin::njin_ctx &ctx) {
   njin::ui_end(ctx);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_update, talk);
   njin::ecs_register(ctx, njin::phase_post_render, ui);
@@ -45,8 +45,8 @@ void setup(njin::njin_ctx &ctx) {
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Dialog", .width = 1280, .height = 720, .target_fps = 60});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::context *ctx = njin::create({.title = "Dialog", .width = 1280, .height = 720, .target_fps = 60});
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

@@ -1,7 +1,7 @@
 #include "demo.h"
 
 namespace render_demo {
-void input(njin_ctx &ctx) {
+void input(context &ctx) {
   entt::registry &reg = world(ctx);
   vec2 move{};
   move.x = (key_held(ctx, key_d) || key_held(ctx, key_right) ? 1.0f : 0.0f) -

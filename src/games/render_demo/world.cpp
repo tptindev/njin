@@ -6,7 +6,7 @@ namespace render_demo {
 demo_state demo;
 
 // Every image twice, so key 1 can compare them: packed into one atlas, and loaded one by one.
-void load_images(njin_ctx &ctx) {
+void load_images(context &ctx) {
   // Pixel art: nearest sampling everywhere, atlas included.
   demo.images.atlas = atlas_create(ctx, {.size = 512, .padding = 1, .filter = filter_nearest});
   for (i32 i = 0; i < kind_count; i++) {
@@ -53,7 +53,7 @@ texture_handle image_emissive(i32 which) {
   return demo.images.use_atlas ? demo.images.packed_emissive[which] : demo.images.separate_emissive[which];
 }
 
-void build_map(njin_ctx &ctx) {
+void build_map(context &ctx) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
   const texture_handle tileset = texture_load(ctx, "assets/tiles.png");
@@ -89,7 +89,7 @@ void build_map(njin_ctx &ctx) {
 }
 
 namespace {
-void spawn_crowd_member(njin_ctx &ctx) {
+void spawn_crowd_member(context &ctx) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
   const i32 which = r.range(0, k_flower); // tree, bush, rock or flower (the range includes the top)
@@ -123,13 +123,13 @@ void set_occluder(entt::registry &reg, entt::entity e, i32 which) {
   }
 }
 
-void apply_occluders(njin_ctx &ctx) {
+void apply_occluders(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, member] : reg.view<const crowd_member>().each())
     set_occluder(reg, e, member.kind);
 }
 
-void build_orbs(njin_ctx &ctx) {
+void build_orbs(context &ctx) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
   for (i32 i = 0; i < 90; i++) {
@@ -141,7 +141,7 @@ void build_orbs(njin_ctx &ctx) {
   }
 }
 
-void set_crowd(njin_ctx &ctx, i32 wanted) {
+void set_crowd(context &ctx, i32 wanted) {
   entt::registry &reg = world(ctx);
   demo.crowd = std::clamp(wanted, 0, 40000);
   // The gold balls are not part of the crowd that + and - change.
@@ -164,7 +164,7 @@ void set_crowd(njin_ctx &ctx, i32 wanted) {
   }
 }
 
-void build_hero(njin_ctx &ctx) {
+void build_hero(context &ctx) {
   entt::registry &reg = world(ctx);
   demo.hero = reg.create();
   reg.emplace<transform>(demo.hero, transform{.pos = world_size * 0.5f});
@@ -184,7 +184,7 @@ void build_hero(njin_ctx &ctx) {
 }
 
 // The normal and material maps follow key 1 (atlas or not) and key M (on or off).
-void apply_normals(njin_ctx &ctx) {
+void apply_normals(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, spr, member] : reg.view<sprite, const crowd_member>().each()) {
     spr.normal = image_normal(member.kind);
@@ -195,7 +195,7 @@ void apply_normals(njin_ctx &ctx) {
   reg.get<sprite>(demo.hero).material = image_material(k_hero);
 }
 
-void apply_atlas(njin_ctx &ctx) {
+void apply_atlas(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, spr, member] : reg.view<sprite, const crowd_member>().each())
     spr.texture = image(member.kind);

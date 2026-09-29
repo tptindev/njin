@@ -2,13 +2,13 @@
 #include "_types.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_core
 /// @{
 
-/// Cấu hình cửa sổ và vòng lặp, truyền vào njin_create().
-struct njin_cfg {
+/// Cấu hình cửa sổ và vòng lặp, truyền vào create().
+struct config {
   const char *title;  ///< Tiêu đề cửa sổ.
   f32 width;          ///< Chiều rộng cửa sổ (pixel).
   f32 height;         ///< Chiều cao cửa sổ (pixel).
@@ -57,10 +57,10 @@ struct njin_cfg {
   ///
   /// Đây không phải MSAA của cửa sổ (raylib chỉ có đúng một mức 4x qua GLFW,
   /// không chọn được 2x/8x); cách này chạy trên mọi GPU giống nhau và cho
-  /// đúng số mức đã đặt. Không đổi được lúc đang chạy: `njin_create()` tạo
+  /// đúng số mức đã đặt. Không đổi được lúc đang chạy: `create()` tạo
   /// cửa sổ và các render texture theo đúng giá trị này một lần, nên đổi mức
   /// cần khởi động lại game (đọc giá trị người chơi chọn từ file cài đặt của
-  /// bạn, trước khi gọi njin_create() ở lần chạy sau). Xem render_scale().
+  /// bạn, trước khi gọi create() ở lần chạy sau). Xem render_scale().
   ///
   /// Không đổi tọa độ nào cả: screen_size(), chuột, camera vẫn tính như
   /// `virtual_size` (nếu có) hay kích thước cửa sổ (nếu không), không biết gì
@@ -75,7 +75,7 @@ struct njin_cfg {
 /// thì dùng delta().
 /// @param ctx Context của engine.
 /// @return FPS mục tiêu.
-f32 fps(const njin_ctx &ctx);
+f32 fps(const context &ctx);
 
 /// Trả về kích thước màn hình mà game vẽ lên, tính bằng pixel.
 ///
@@ -86,6 +86,6 @@ f32 fps(const njin_ctx &ctx);
 /// window_size().
 /// @param ctx Context của engine.
 /// @return Kích thước cửa sổ: `x` là rộng, `y` là cao.
-vec2 screen_size(const njin_ctx &ctx);
+vec2 screen_size(const context &ctx);
 /// @}
 }

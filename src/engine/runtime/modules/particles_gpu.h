@@ -15,7 +15,7 @@ namespace njin {
 // on the CPU at all.
 //
 // The state is created on first use, when the GL context is known. It is
-// declared in njin_ctx after the window, so its destructor frees the GL
+// declared in context after the window, so its destructor frees the GL
 // objects while the context is still alive.
 struct particle_gpu_state {
   particle_backend backend = particle_backend_auto;
@@ -85,9 +85,9 @@ usize particles_gpu_alive(const particle_emitter &emitter, const particle_gpu_bu
 // instanced draw call costs a few microseconds, and simulating and drawing one
 // circle on the CPU about 4 (a textured quad far less), so even a 20-particle
 // burst of circles is cheaper here.
-bool particles_gpu_wanted(njin_ctx &ctx);
+bool particles_gpu_wanted(context &ctx);
 
 // Draws the particles of one emitter with a single instanced draw call.
-void particles_gpu_draw(njin_ctx &ctx, entt::entity entity, const transform &tr,
+void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
                         const particle_emitter &emitter);
 } // namespace njin

@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 }
 
 namespace ui_editor {
@@ -74,7 +74,7 @@ struct panel_box {
 };
 
 struct editor_app {
-  njin::njin_ctx *ctx = nullptr;
+  njin::context *ctx = nullptr;
 
   ui_layout layout;
   std::string file_path;

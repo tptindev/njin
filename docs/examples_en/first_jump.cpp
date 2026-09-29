@@ -3,7 +3,7 @@
 namespace {
 using namespace njin;
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   // 1. Keys: one axis for left/right, one action for jumping.
   const axis_handle move = axis_define(ctx, "move", {{key_left, key_right}});
   const action_handle jump = action_define(ctx, "jump", {key_space, pad_face_down});
@@ -39,22 +39,22 @@ void startup(njin_ctx &ctx) {
 }
 
 // No sprite yet: draw the character as a rectangle.
-void draw_player(njin_ctx &ctx) {
+void draw_player(context &ctx) {
   world(ctx).view<transform, collider, platformer_body>().each(
       [&](const transform &tr, const collider &col, const platformer_body &) {
         draw_rect(ctx, rect_from_center(tr.pos + col.offset, col.size), colors::yellow);
       });
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup);
   ecs_register(ctx, phase_render, draw_player);
 }
 } // namespace
 
 int main() {
-  njin_ctx *ctx = njin_create({.title = "Jump", .width = 960, .height = 540, .target_fps = 60});
-  njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  context *ctx = create({.title = "Jump", .width = 960, .height = 540, .target_fps = 60});
+  mod_register(*ctx, {.name = "game", .setup = setup});
+  run(*ctx);
+  destroy(ctx);
 }

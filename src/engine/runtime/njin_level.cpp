@@ -588,7 +588,7 @@ struct tiled_loader {
   }
 };
 
-level_handle load_tiled(njin_ctx &ctx, const std::string &path, const level_desc &desc) {
+level_handle load_tiled(context &ctx, const std::string &path, const level_desc &desc) {
   json_value map;
   if (!read_tiled(path, map))
     return level_handle{};
@@ -789,7 +789,7 @@ struct prepare_data {
   level_object *object;
 };
 
-void attach_object(njin_ctx &ctx, entt::entity entity, void *user) {
+void attach_object(context &ctx, entt::entity entity, void *user) {
   world(ctx).emplace<level_object>(entity, std::move(*static_cast<prepare_data *>(user)->object));
 }
 } // namespace
@@ -832,7 +832,7 @@ entt::entity level_builder::add_object(level_object object, const transform &at,
   return e;
 }
 
-level_handle level_begin(njin_ctx &ctx) {
+level_handle level_begin(context &ctx) {
   level_slot slot{};
   slot.alive = true;
   slot.scene = scene_current(ctx);
@@ -840,7 +840,7 @@ level_handle level_begin(njin_ctx &ctx) {
   return level_handle{.id = (u32)ctx.level.levels.size()};
 }
 
-level_slot *level_slot_of(njin_ctx &ctx, level_handle level) {
+level_slot *level_slot_of(context &ctx, level_handle level) {
   if (level.id == 0 || level.id > ctx.level.levels.size())
     return nullptr;
   level_slot &slot = ctx.level.levels[level.id - 1];
@@ -848,14 +848,14 @@ level_slot *level_slot_of(njin_ctx &ctx, level_handle level) {
 }
 
 namespace {
-const level_slot *slot_of(const njin_ctx &ctx, level_handle level) {
-  return level_slot_of(const_cast<njin_ctx &>(ctx), level);
+const level_slot *slot_of(const context &ctx, level_handle level) {
+  return level_slot_of(const_cast<context &>(ctx), level);
 }
 } // namespace
 
-void level_abort(njin_ctx &ctx, level_handle level) { level_unload(ctx, level); }
+void level_abort(context &ctx, level_handle level) { level_unload(ctx, level); }
 
-void level_unload(njin_ctx &ctx, level_handle level) {
+void level_unload(context &ctx, level_handle level) {
   level_slot *slot = level_slot_of(ctx, level);
   if (slot == nullptr)
     return;
@@ -869,7 +869,7 @@ void level_unload(njin_ctx &ctx, level_handle level) {
   *slot = level_slot{};
 }
 
-void level_store_scene_exit(njin_ctx &ctx, scene_handle scene) {
+void level_store_scene_exit(context &ctx, scene_handle scene) {
   for (usize i = 0; i < ctx.level.levels.size(); i++) {
     const level_slot &slot = ctx.level.levels[i];
     if (slot.alive && slot.scene.id == scene.id && scene.id != 0)
@@ -877,7 +877,7 @@ void level_store_scene_exit(njin_ctx &ctx, scene_handle scene) {
   }
 }
 
-level_handle level_load(njin_ctx &ctx, const char *path, const level_desc &desc) {
+level_handle level_load(context &ctx, const char *path, const level_desc &desc) {
   if (path == nullptr) {
     NJIN_WARN("level_load: path is null");
     return level_handle{};
@@ -896,7 +896,7 @@ level_handle level_load(njin_ctx &ctx, const char *path, const level_desc &desc)
   return handle;
 }
 
-level_handle level_load_ldtk(njin_ctx &ctx, const char *path, const char *level,
+level_handle level_load_ldtk(context &ctx, const char *path, const char *level,
                              const level_desc &desc) {
   if (path == nullptr) {
     NJIN_WARN("level_load_ldtk: path is null");
@@ -905,23 +905,23 @@ level_handle level_load_ldtk(njin_ctx &ctx, const char *path, const char *level,
   return level_load_ldtk_file(ctx, asset_path(path).c_str(), level, desc);
 }
 
-vec2 level_size(const njin_ctx &ctx, level_handle level) {
+vec2 level_size(const context &ctx, level_handle level) {
   const level_slot *slot = slot_of(ctx, level);
   return slot != nullptr ? slot->size : vec2{};
 }
 
-vec2 level_origin(const njin_ctx &ctx, level_handle level) {
+vec2 level_origin(const context &ctx, level_handle level) {
   const level_slot *slot = slot_of(ctx, level);
   return slot != nullptr ? slot->origin : vec2{};
 }
 
-const json_value &level_properties(const njin_ctx &ctx, level_handle level) {
+const json_value &level_properties(const context &ctx, level_handle level) {
   static const json_value none{};
   const level_slot *slot = slot_of(ctx, level);
   return slot != nullptr ? slot->props : none;
 }
 
-entt::entity level_find(njin_ctx &ctx, level_handle level, const char *name) {
+entt::entity level_find(context &ctx, level_handle level, const char *name) {
   const level_slot *slot = level_slot_of(ctx, level);
   if (slot == nullptr || name == nullptr)
     return entt::null;

@@ -254,13 +254,13 @@ post_chain::~post_chain() {
   }
 }
 
-void post_chain_warmup(njin_ctx &ctx) { load(ctx.postfx); }
+void post_chain_warmup(context &ctx) { load(ctx.postfx); }
 
 bool post_chain_active(const post_chain &chain) {
   return !chain.failed && (chain.settings.blur > 0.0f || effects_in_uber(chain.settings));
 }
 
-const Texture2D &post_chain_run(njin_ctx &ctx, const Texture2D &scene) {
+const Texture2D &post_chain_run(context &ctx, const Texture2D &scene) {
   post_chain &c = ctx.postfx;
   const post_fx &p = c.settings;
   if (!post_chain_active(c) || !load(c))
@@ -354,9 +354,9 @@ const Texture2D &post_chain_run(njin_ctx &ctx, const Texture2D &scene) {
   return dst.texture;
 }
 
-void post_fx_set(njin_ctx &ctx, const post_fx &fx) { ctx.postfx.settings = fx; }
+void post_fx_set(context &ctx, const post_fx &fx) { ctx.postfx.settings = fx; }
 
-post_fx post_fx_get(const njin_ctx &ctx) { return ctx.postfx.settings; }
+post_fx post_fx_get(const context &ctx) { return ctx.postfx.settings; }
 
 post_fx post_fx_lerp(const post_fx &a, const post_fx &b, f32 t) {
   const auto mix = [t](f32 x, f32 y) { return x + (y - x) * t; };

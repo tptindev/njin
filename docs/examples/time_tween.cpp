@@ -9,7 +9,7 @@ njin::tween<njin::vec2> slide_in{.from = {-200, 40},
                                  .curve = njin::ease::out_back};
 bool paused = false;
 
-void update(njin::njin_ctx &ctx) {
+void update(njin::context &ctx) {
   const njin::f32 dt = njin::delta(ctx); // 0 khi tạm dừng
 
   if (spawn_every.tick(dt))
@@ -31,7 +31,7 @@ void update(njin::njin_ctx &ctx) {
   invincible.tick(dt);
 }
 
-void draw_ui(njin::njin_ctx &ctx) {
+void draw_ui(njin::context &ctx) {
   // Bảng trượt vào màn hình. Dùng delta_real để vẫn chạy khi tạm dừng.
   const njin::vec2 pos = slide_in.tick(njin::delta_real(ctx));
   njin::draw_text(ctx, paused ? "TAM DUNG" : "Dang choi", pos, 30,
@@ -45,7 +45,7 @@ void draw_ui(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_update, update);
   njin::ecs_register(ctx, njin::phase_post_render, draw_ui);
 }

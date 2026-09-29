@@ -13,7 +13,7 @@ const prefab_slot *slot_of(const prefab_store &store, prefab_handle prefab) {
 }
 } // namespace
 
-prefab_handle prefab_register(njin_ctx &ctx, const prefab_desc &desc) {
+prefab_handle prefab_register(context &ctx, const prefab_desc &desc) {
   if (desc.name == nullptr || desc.build == nullptr) {
     NJIN_WARN("prefab_register: name or build is null");
     return prefab_handle{};
@@ -26,7 +26,7 @@ prefab_handle prefab_register(njin_ctx &ctx, const prefab_desc &desc) {
   return prefab_handle{.id = (u32)ctx.prefab.prefabs.size()};
 }
 
-prefab_handle prefab_find(const njin_ctx &ctx, const char *name) {
+prefab_handle prefab_find(const context &ctx, const char *name) {
   if (name == nullptr)
     return prefab_handle{};
   for (usize i = 0; i < ctx.prefab.prefabs.size(); i++) {
@@ -36,14 +36,14 @@ prefab_handle prefab_find(const njin_ctx &ctx, const char *name) {
   return prefab_handle{};
 }
 
-entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn(context &ctx, prefab_handle prefab,
                           const transform &at) {
   return prefab_spawn_prepared(ctx, prefab, at, nullptr, nullptr);
 }
 
-entt::entity prefab_spawn_prepared(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn_prepared(context &ctx, prefab_handle prefab,
                                    const transform &at,
-                                   void (*prepare)(njin_ctx &, entt::entity, void *),
+                                   void (*prepare)(context &, entt::entity, void *),
                                    void *user) {
   const prefab_slot *slot = slot_of(ctx.prefab, prefab);
   if (slot == nullptr) {
@@ -65,7 +65,7 @@ entt::entity prefab_spawn_prepared(njin_ctx &ctx, prefab_handle prefab,
   return entity;
 }
 
-entt::entity prefab_spawn(njin_ctx &ctx, const char *name,
+entt::entity prefab_spawn(context &ctx, const char *name,
                           const transform &at) {
   const prefab_handle prefab = prefab_find(ctx, name);
   if (prefab.id == 0) {
@@ -75,7 +75,7 @@ entt::entity prefab_spawn(njin_ctx &ctx, const char *name,
   return prefab_spawn(ctx, prefab, at);
 }
 
-entt::entity prefab_spawn_child(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn_child(context &ctx, prefab_handle prefab,
                                 entt::entity parent, const transform &local) {
   entt::registry &registry = world(ctx);
   const transform *parent_tr =

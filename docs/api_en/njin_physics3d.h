@@ -2,7 +2,7 @@
 #include "njin_3d.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_physics3d
 /// @{
@@ -41,18 +41,18 @@ struct body3d_desc {
 /// @param ctx Engine context.
 /// @param desc Body description.
 /// @return Handle of the body, or invalid if the shape cannot be used.
-body3d_handle body3d_create(njin_ctx &ctx, const body3d_desc &desc);
+body3d_handle body3d_create(context &ctx, const body3d_desc &desc);
 
 /// Destroys a body. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Body to destroy.
-void body3d_destroy(njin_ctx &ctx, body3d_handle handle);
+void body3d_destroy(context &ctx, body3d_handle handle);
 
 /// The body's current position and rotation, to draw it (`scale` is always 1).
 /// @param ctx Engine context.
 /// @param handle Body.
 /// @return Position and rotation (degrees); the default if the handle is invalid.
-transform3d body3d_transform(const njin_ctx &ctx, body3d_handle handle);
+transform3d body3d_transform(const context &ctx, body3d_handle handle);
 
 /// Moves a body instantly to a new position (a teleport, no collision along
 /// the way), for example when resetting a level. Its velocity is kept.
@@ -60,7 +60,7 @@ transform3d body3d_transform(const njin_ctx &ctx, body3d_handle handle);
 /// @param handle Body.
 /// @param position New position.
 /// @param rotation New rotation, degrees.
-void body3d_set_position(njin_ctx &ctx, body3d_handle handle, vec3 position, vec3 rotation = {});
+void body3d_set_position(context &ctx, body3d_handle handle, vec3 position, vec3 rotation = {});
 
 /// Makes a kinematic body reach `position` by the end of the next simulation
 /// step. The engine sets the body's velocity so it gets there on time, so
@@ -71,32 +71,32 @@ void body3d_set_position(njin_ctx &ctx, body3d_handle handle, vec3 position, vec
 /// @param handle Kinematic body.
 /// @param position Position to reach.
 /// @param rotation Rotation to reach, degrees.
-void body3d_move_kinematic(njin_ctx &ctx, body3d_handle handle, vec3 position, vec3 rotation = {});
+void body3d_move_kinematic(context &ctx, body3d_handle handle, vec3 position, vec3 rotation = {});
 
 /// The body's linear velocity, units per second.
 /// @param ctx Engine context.
 /// @param handle Body.
 /// @return Velocity, or 0 if the handle is invalid.
-vec3 body3d_velocity(const njin_ctx &ctx, body3d_handle handle);
+vec3 body3d_velocity(const context &ctx, body3d_handle handle);
 
 /// Sets a dynamic body's linear velocity.
 /// @param ctx Engine context.
 /// @param handle Body.
 /// @param velocity New velocity, units per second.
-void body3d_set_velocity(njin_ctx &ctx, body3d_handle handle, vec3 velocity);
+void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 
 /// Gives a dynamic body a push (an impulse, kg * units per second) at its
 /// centre: an explosion, a kick, a bullet hit.
 /// @param ctx Engine context.
 /// @param handle Body.
 /// @param impulse Impulse.
-void body3d_add_impulse(njin_ctx &ctx, body3d_handle handle, vec3 impulse);
+void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse);
 
 /// The game's number attached to the body on creation (njin::body3d_desc::user).
 /// @param ctx Engine context.
 /// @param handle Body.
 /// @return That number, or 0 if the handle is invalid.
-u64 body3d_user(const njin_ctx &ctx, body3d_handle handle);
+u64 body3d_user(const context &ctx, body3d_handle handle);
 
 /// Describes a character for character3d_create(): an upright capsule that
 /// walks on floors, steps up low steps, does not slide on gentle slopes, is
@@ -117,45 +117,45 @@ struct character3d_desc {
 /// @param ctx Engine context.
 /// @param desc Character description.
 /// @return Handle of the character.
-character3d_handle character3d_create(njin_ctx &ctx, const character3d_desc &desc);
+character3d_handle character3d_create(context &ctx, const character3d_desc &desc);
 
 /// Destroys a character. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Character.
-void character3d_destroy(njin_ctx &ctx, character3d_handle handle);
+void character3d_destroy(context &ctx, character3d_handle handle);
 
 /// Sets the velocity it should have for the next simulation step, units per
 /// second.
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @param velocity Velocity.
-void character3d_set_velocity(njin_ctx &ctx, character3d_handle handle, vec3 velocity);
+void character3d_set_velocity(context &ctx, character3d_handle handle, vec3 velocity);
 
 /// The velocity after the last simulation step (cut down by walls and floors).
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @return Velocity.
-vec3 character3d_velocity(const njin_ctx &ctx, character3d_handle handle);
+vec3 character3d_velocity(const context &ctx, character3d_handle handle);
 
 /// Position of the character's feet.
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @return Position.
-vec3 character3d_position(const njin_ctx &ctx, character3d_handle handle);
+vec3 character3d_position(const context &ctx, character3d_handle handle);
 
 /// Moves the character instantly to a new feet position (a respawn, a
 /// teleporter).
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @param position New feet position.
-void character3d_set_position(njin_ctx &ctx, character3d_handle handle, vec3 position);
+void character3d_set_position(context &ctx, character3d_handle handle, vec3 position);
 
 /// Whether the character is standing on something flat enough (after the
 /// last simulation step).
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @return `true` if standing.
-bool character3d_grounded(const njin_ctx &ctx, character3d_handle handle);
+bool character3d_grounded(const context &ctx, character3d_handle handle);
 
 /// Velocity of what the character stands on: 0 on a static floor, the
 /// platform's velocity on a kinematic body. Add it to the wanted velocity so
@@ -163,13 +163,13 @@ bool character3d_grounded(const njin_ctx &ctx, character3d_handle handle);
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @return Velocity of the ground, or 0 if standing on nothing.
-vec3 character3d_ground_velocity(const njin_ctx &ctx, character3d_handle handle);
+vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle);
 
 /// The body the character stands on (to know which platform it reached).
 /// @param ctx Engine context.
 /// @param handle Character.
 /// @return Body, or invalid if it stands on no body.
-body3d_handle character3d_ground_body(const njin_ctx &ctx, character3d_handle handle);
+body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle);
 
 /// Casts a ray against the bodies (characters are not hit): bullets, line of
 /// sight, mouse picking.
@@ -178,18 +178,18 @@ body3d_handle character3d_ground_body(const njin_ctx &ctx, character3d_handle ha
 /// @param max_distance Farthest distance still counted, world units.
 /// @param body If not nullptr, receives the body hit (invalid on a miss).
 /// @return The nearest hit, if any.
-ray3d_hit physics3d_raycast(const njin_ctx &ctx, const ray3d &ray, f32 max_distance,
+ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance,
                             body3d_handle *body = nullptr);
 
 /// Sets gravity for dynamic bodies. Defaults to `{0, -9.81, 0}`. Characters
 /// do not use this value: the game adds gravity to their velocity itself.
 /// @param ctx Engine context.
 /// @param gravity Acceleration, units per second squared.
-void physics3d_set_gravity(njin_ctx &ctx, vec3 gravity);
+void physics3d_set_gravity(context &ctx, vec3 gravity);
 
 /// The gravity used for dynamic bodies.
 /// @param ctx Engine context.
 /// @return Acceleration.
-vec3 physics3d_gravity(const njin_ctx &ctx);
+vec3 physics3d_gravity(const context &ctx);
 /// @}
 } // namespace njin

@@ -11,7 +11,7 @@ struct game {
   entt::entity player = entt::null;
 } g;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   g.move = njin::axis_define(ctx, "move", {{njin::key_left, njin::key_right}}, {njin::pad_axis_left_x});
   g.jump = njin::action_define(ctx, "jump", {njin::key_space, njin::pad_face_down});
   g.down = njin::action_define(ctx, "down", {njin::key_down});
@@ -47,15 +47,15 @@ void startup(njin::njin_ctx &ctx) {
 // Rơi mạnh thì rung màn hình: nghe sự kiện body_landed.
 void on_landed(const njin::body_landed &e) { (void)e; }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::events(ctx).sink<njin::body_landed>().connect<&on_landed>();
 }
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Platformer", .width = 1280, .height = 720, .target_fps = 60});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::context *ctx = njin::create({.title = "Platformer", .width = 1280, .height = 720, .target_fps = 60});
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

@@ -86,30 +86,30 @@ fx_state::~fx_state() {
     UnloadShader(dissolve_shader);
 }
 
-void camera_shake(njin_ctx &ctx, f32 trauma) {
+void camera_shake(context &ctx, f32 trauma) {
   ctx.fx.trauma = clamp(ctx.fx.trauma + trauma, 0.0f, 1.0f);
 }
 
-void camera_shake_config(njin_ctx &ctx, const shake_config &config) {
+void camera_shake_config(context &ctx, const shake_config &config) {
   ctx.fx.shake = config;
 }
 
-f32 camera_shake_amount(const njin_ctx &ctx) { return ctx.fx.trauma; }
+f32 camera_shake_amount(const context &ctx) { return ctx.fx.trauma; }
 
-void hitstop(njin_ctx &ctx, f32 seconds) {
+void hitstop(context &ctx, f32 seconds) {
   if (seconds > ctx.fx.hitstop)
     ctx.fx.hitstop = seconds;
 }
 
-bool hitstop_active(const njin_ctx &ctx) { return ctx.fx.hitstop > 0.0f; }
+bool hitstop_active(const context &ctx) { return ctx.fx.hitstop > 0.0f; }
 
-void screen_flash(njin_ctx &ctx, rgba color, f32 duration) {
+void screen_flash(context &ctx, rgba color, f32 duration) {
   ctx.fx.flash_color = color;
   ctx.fx.flash_duration = duration;
   ctx.fx.flash_time = 0.0f;
 }
 
-void sprite_flash(njin_ctx &ctx, entt::entity entity, rgba color, f32 duration) {
+void sprite_flash(context &ctx, entt::entity entity, rgba color, f32 duration) {
   entt::registry &registry = world(ctx);
   if (!registry.valid(entity))
     return;
@@ -117,14 +117,14 @@ void sprite_flash(njin_ctx &ctx, entt::entity entity, rgba color, f32 duration) 
                                         flash_fx{.color = color, .duration = duration});
 }
 
-void sprite_dissolve(njin_ctx &ctx, entt::entity entity, f32 duration, rgba edge_color) {
+void sprite_dissolve(context &ctx, entt::entity entity, f32 duration, rgba edge_color) {
   entt::registry &registry = world(ctx);
   if (!registry.valid(entity))
     return;
   registry.emplace_or_replace<dissolve_fx>(entity, dissolve_fx{.edge_color = edge_color, .duration = duration});
 }
 
-void fx_frame_begin(njin_ctx &ctx) {
+void fx_frame_begin(context &ctx) {
   fx_state &fx = ctx.fx;
   time_state &time = ctx.time;
   const f32 real = time.dt_real;
@@ -141,7 +141,7 @@ void fx_frame_begin(njin_ctx &ctx) {
   }
 }
 
-bool fx_shake_sample(const njin_ctx &ctx, vec2 &offset, f32 &angle) {
+bool fx_shake_sample(const context &ctx, vec2 &offset, f32 &angle) {
   const fx_state &fx = ctx.fx;
   if (fx.trauma <= 0.0f)
     return false;
@@ -152,7 +152,7 @@ bool fx_shake_sample(const njin_ctx &ctx, vec2 &offset, f32 &angle) {
   return true;
 }
 
-void fx_apply_shake(const njin_ctx &ctx, Camera2D &camera) {
+void fx_apply_shake(const context &ctx, Camera2D &camera) {
   vec2 offset{};
   f32 angle = 0.0f;
   if (!fx_shake_sample(ctx, offset, angle))
@@ -162,7 +162,7 @@ void fx_apply_shake(const njin_ctx &ctx, Camera2D &camera) {
   camera.rotation += angle;
 }
 
-void fx_draw_screen_flash(njin_ctx &ctx) {
+void fx_draw_screen_flash(context &ctx) {
   const fx_state &fx = ctx.fx;
   if (fx.flash_duration <= 0.0f)
     return;
@@ -172,7 +172,7 @@ void fx_draw_screen_flash(njin_ctx &ctx) {
     draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, color);
 }
 
-void fx_update_sprite_flashes(njin_ctx &ctx) {
+void fx_update_sprite_flashes(context &ctx) {
   const f32 dt = delta(ctx);
   entt::registry &registry = world(ctx);
   std::vector<entt::entity> done;
@@ -184,7 +184,7 @@ void fx_update_sprite_flashes(njin_ctx &ctx) {
   registry.remove<flash_fx>(done.begin(), done.end());
 }
 
-void fx_update_sprite_dissolves(njin_ctx &ctx) {
+void fx_update_sprite_dissolves(context &ctx) {
   const f32 dt = delta(ctx);
   entt::registry &registry = world(ctx);
   std::vector<entt::entity> appeared; // reverse dissolves that finished: back to a plain sprite
@@ -204,7 +204,7 @@ void fx_update_sprite_dissolves(njin_ctx &ctx) {
       registry.destroy(entity);
 }
 
-void fx_warmup(njin_ctx &ctx) {
+void fx_warmup(context &ctx) {
   fx_state &fx = ctx.fx;
   if (fx.flash_loaded)
     return;
@@ -224,7 +224,7 @@ void fx_warmup(njin_ctx &ctx) {
   }
 }
 
-bool fx_flash_begin(njin_ctx &ctx, const flash_fx &flash) {
+bool fx_flash_begin(context &ctx, const flash_fx &flash) {
   fx_state &fx = ctx.fx;
   const f32 amount = flash_amount(flash);
   if (amount <= 0.0f)
@@ -240,7 +240,7 @@ bool fx_flash_begin(njin_ctx &ctx, const flash_fx &flash) {
 
 bool fx_dissolve_hidden(const dissolve_fx &dissolve) { return dissolve_progress(dissolve) >= 1.0f; }
 
-bool fx_dissolve_begin(njin_ctx &ctx, const dissolve_fx &dissolve, const flash_fx *flash) {
+bool fx_dissolve_begin(context &ctx, const dissolve_fx &dissolve, const flash_fx *flash) {
   fx_state &fx = ctx.fx;
   fx_warmup(ctx);
   if (!IsShaderValid(fx.dissolve_shader))

@@ -4,7 +4,7 @@
 
 ## Cấu hình khi tạo
 
-Ngoài tiêu đề, kích thước, FPS và màu nền, njin::njin_cfg có:
+Ngoài tiêu đề, kích thước, FPS và màu nền, njin::config có:
 
 | Trường | Mặc định | Ý nghĩa |
 |---|---|---|
@@ -25,7 +25,7 @@ Ngoài tiêu đề, kích thước, FPS và màu nền, njin::njin_cfg có:
 | njin::window_set_size(), njin::window_set_title() | Đổi kích thước, tiêu đề |
 | njin::cursor_set_visible() | Ẩn hiện con trỏ chuột |
 | njin::cursor_set_locked() | Khóa con trỏ trong cửa sổ; đọc njin::mouse_delta() |
-| njin::njin_quit() | Thoát ở cuối frame. `phase_shutdown` vẫn chạy |
+| njin::quit() | Thoát ở cuối frame. `phase_shutdown` vẫn chạy |
 
 **Giữ màn chơi vừa mọi kích thước cửa sổ.** Thiết kế game theo một kích thước cố định,
 rồi mỗi frame đặt zoom của camera cho vừa cửa sổ:

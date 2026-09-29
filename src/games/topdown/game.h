@@ -72,12 +72,12 @@ struct game_state {
 extern game_state g;
 
 mod_desc play_module();
-void register_prefabs(njin_ctx &ctx);
-void play_enter(njin_ctx &ctx);
-void play_exit(njin_ctx &ctx);
+void register_prefabs(context &ctx);
+void play_enter(context &ctx);
+void play_exit(context &ctx);
 mod_desc menus_module();
-void title_enter(njin_ctx &ctx);
-void end_enter(njin_ctx &ctx);
+void title_enter(context &ctx);
+void end_enter(context &ctx);
 std::string format_time(f32 seconds);
 
 // Source rectangle of sprite-sheet cell `index` (8 cells per row, 16 x 16 each).

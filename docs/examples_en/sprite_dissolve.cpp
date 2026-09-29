@@ -4,7 +4,7 @@ namespace {
 njin::texture_handle sheet;
 entt::entity enemy = entt::null;
 
-entt::entity spawn_enemy(njin::njin_ctx &ctx) {
+entt::entity spawn_enemy(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<njin::transform>(e, njin::transform{.pos = {480.0f, 270.0f}, .scale = 6.0f});
@@ -12,13 +12,13 @@ entt::entity spawn_enemy(njin::njin_ctx &ctx) {
   return e;
 }
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   sheet = njin::texture_load(ctx, "assets/sprites.png");
   njin::texture_set_filter(ctx, sheet, njin::filter_nearest);
   enemy = spawn_enemy(ctx);
 }
 
-void update(njin::njin_ctx &ctx) {
+void update(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   if (njin::key_pressed(ctx, njin::key_space) && reg.valid(enemy)) {
     // The enemy dies: flashes white then dissolves away, with an orange burning edge.
@@ -34,16 +34,16 @@ void update(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_update, update);
 }
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Dissolve", .width = 960, .height = 540, .target_fps = 60,
+  njin::context *ctx = njin::create({.title = "Dissolve", .width = 960, .height = 540, .target_fps = 60,
                                            .clear_bg_color = {0.37f, 0.80f, 0.89f, 1.0f}});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

@@ -1,5 +1,5 @@
 // The Viewport shows the layout as the game draws it: the real njin UI code
-// (ui_begin, ui_button, ...) runs against the editor's njin_ctx and draws with
+// (ui_begin, ui_button, ...) runs against the editor's context and draws with
 // raylib into a render texture, which the Viewport window shows. Only the
 // selection and drag gizmos on top are ImGui.
 #include "preview.h"
@@ -205,7 +205,7 @@ void measure_boxes(editor_app &app, const ui_layout &layout, const njin::ui_styl
 } // namespace
 
 void preview_begin_frame(editor_app &app) {
-  njin::njin_ctx &ctx = *app.ctx;
+  njin::context &ctx = *app.ctx;
   ctx.time.dt_real = GetFrameTime();
   ctx.time.dt = ctx.time.dt_real;
   ctx.time.elapsed = (float)GetTime();
@@ -218,7 +218,7 @@ void preview_begin_frame(editor_app &app) {
 }
 
 void preview_render(editor_app &app) {
-  njin::njin_ctx &ctx = *app.ctx;
+  njin::context &ctx = *app.ctx;
   ui_layout &layout = app.shown_layout();
 
   // Rendered at k times the design size when zoomed in, so text is baked at the

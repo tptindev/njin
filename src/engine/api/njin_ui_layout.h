@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_ui
 /// @{
@@ -171,7 +171,7 @@ ui_style ui_pixel_style();
 /// @param path Đường dẫn file JSON.
 /// @param out Nhận layout đọc được.
 /// @return `true` nếu nạp thành công.
-bool ui_layout_load(njin_ctx &ctx, const char *path, ui_layout &out);
+bool ui_layout_load(context &ctx, const char *path, ui_layout &out);
 
 /// Phân tích dữ liệu JSON thành ui_layout.
 /// @param json Đối tượng json_value gốc.
@@ -199,7 +199,7 @@ bool ui_layout_save(const char *path, const ui_layout &layout, bool pretty = tru
 /// @param panel_id ID của panel cần vẽ.
 /// @param on_event Callback tùy chọn khi có tương tác widget.
 /// @return `true` nếu có bất kỳ tương tác nào xảy ra ở frame này.
-bool ui_draw_panel(njin_ctx &ctx, ui_layout &layout, const char *panel_id,
+bool ui_draw_panel(context &ctx, ui_layout &layout, const char *panel_id,
                    const ui_event_callback &on_event = nullptr);
 
 /// Vẽ tất cả các panel có cờ `visible == true` và các popup đang `open`.
@@ -207,7 +207,7 @@ bool ui_draw_panel(njin_ctx &ctx, ui_layout &layout, const char *panel_id,
 /// @param ctx Context engine.
 /// @param layout Layout cần vẽ.
 /// @param on_event Callback tùy chọn khi có tương tác widget.
-void ui_draw_layout(njin_ctx &ctx, ui_layout &layout,
+void ui_draw_layout(context &ctx, ui_layout &layout,
                     const ui_event_callback &on_event = nullptr);
 
 // --- Các hàm tiện ích đọc / ghi trạng thái widget ---

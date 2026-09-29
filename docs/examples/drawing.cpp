@@ -3,14 +3,14 @@
 namespace {
 njin::font_handle title_font;
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   // Font có tiếng Việt. Dựng ở cỡ 32 pixel: vẽ đúng cỡ này thì nét sắc nhất.
   title_font = njin::font_load(ctx, "assets/fonts/roboto.ttf", 32);
 }
 
 // [pixel_text]
 // Font pixel thiết kế ở 8 pixel: vẽ ở 8, 16, 24. Chữ luôn nằm trong ảnh ảo.
-void load_pixel_font(njin::njin_ctx &ctx) {
+void load_pixel_font(njin::context &ctx) {
   const njin::font_handle pixel =
       njin::font_load(ctx, "assets/fonts/PressStart2P.ttf", 8, njin::font_pixel);
   njin::ui_style style = njin::ui_default_style();
@@ -22,7 +22,7 @@ void load_pixel_font(njin::njin_ctx &ctx) {
 // [pixel_text]
 
 // Trong không gian thế giới: đi qua camera.
-void draw_world(njin::njin_ctx &ctx) {
+void draw_world(njin::context &ctx) {
   using namespace njin;
   draw_rect(ctx, rect{{0, 0}, {200, 20}}, colors::gray);         // mặt đất
   draw_circle(ctx, {100, -30}, 20, colors::yellow);             // quả bóng
@@ -38,7 +38,7 @@ void draw_world(njin::njin_ctx &ctx) {
 }
 
 // Trong không gian màn hình: UI, không bị camera dịch hay phóng.
-void draw_ui(njin::njin_ctx &ctx) {
+void draw_ui(njin::context &ctx) {
   using namespace njin;
   const vec2 screen = screen_size(ctx);
 
@@ -61,7 +61,7 @@ void draw_ui(njin::njin_ctx &ctx) {
   draw_rect_lines(ctx, panel, 2.0f, colors::yellow);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load);
   njin::ecs_register(ctx, njin::phase_render, draw_world);
   njin::ecs_register(ctx, njin::phase_post_render, draw_ui);

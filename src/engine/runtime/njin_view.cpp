@@ -11,7 +11,7 @@ namespace njin {
 namespace {
 // A GL texture side this big is safe on every desktop GPU njin targets (the
 // GL 3.3 core minimum is 1024; real hardware from the last decade+ is 8192 or
-// 16384). render_scale is clamped against it in njin_create() so a big window
+// 16384). render_scale is clamped against it in create() so a big window
 // at a high render_scale cannot ask LoadRenderTexture() for a texture no GPU
 // will create.
 constexpr i32 max_render_scale_dim = 8192;
@@ -186,24 +186,24 @@ void view_draw_end(view_state &view) {
 
 // Public API (njin_window.h / njin_cfg.h).
 
-void window_set_virtual_size(njin_ctx &ctx, vec2 size, bool integer_scale) {
+void window_set_virtual_size(context &ctx, vec2 size, bool integer_scale) {
   ctx.view.size = size.x >= 1.0f && size.y >= 1.0f ? vec2{std::floor(size.x), std::floor(size.y)}
                                                    : vec2{};
   ctx.view.integer_scale = integer_scale;
   view_frame_begin(ctx.view);
 }
 
-void window_set_bar_color(njin_ctx &ctx, rgba color) { ctx.view.bars = color; }
+void window_set_bar_color(context &ctx, rgba color) { ctx.view.bars = color; }
 
-vec2 window_size(const njin_ctx &) { return {(f32)GetScreenWidth(), (f32)GetScreenHeight()}; }
+vec2 window_size(const context &) { return {(f32)GetScreenWidth(), (f32)GetScreenHeight()}; }
 
-rect window_viewport(const njin_ctx &ctx) {
+rect window_viewport(const context &ctx) {
   if (!view_active(ctx.view))
     return rect{{0.0f, 0.0f}, window_size(ctx)};
   return rect{ctx.view.offset, view_logical_size(ctx.view) * ctx.view.scale};
 }
 
-vec2 screen_size(const njin_ctx &ctx) {
+vec2 screen_size(const context &ctx) {
   if (view_active(ctx.view))
     return view_logical_size(ctx.view);
   return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};

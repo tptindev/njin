@@ -3,7 +3,7 @@
 #include "njin_particles.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_3d
 /// @{
@@ -34,14 +34,14 @@ struct camera3d {
 /// screen_flash(), post_fx_set() và camera_set_post_shader().
 /// @param ctx Context của engine.
 /// @param camera Camera dùng cho lần vẽ này.
-void begin_3d(njin_ctx &ctx, const camera3d &camera);
+void begin_3d(context &ctx, const camera3d &camera);
 
 /// Kết thúc vẽ 3D và quay về vẽ 2D trong không gian thế giới.
 ///
 /// Không có begin_3d() tương ứng thì không làm gì. Nếu game quên gọi, engine tự
 /// đóng ở cuối `phase_render` và cảnh báo.
 /// @param ctx Context của engine.
-void end_3d(njin_ctx &ctx);
+void end_3d(context &ctx);
 
 /// Ánh sáng chung của cảnh 3D: mặt trời (ánh sáng hướng), ánh sáng nền, bóng đổ
 /// của mặt trời và sương mù. Đèn điểm và đèn nón thêm bằng light3d_add().
@@ -70,12 +70,12 @@ struct light3d {
 /// Đặt ánh sáng chung. Có hiệu lực từ begin_3d() tiếp theo.
 /// @param ctx Context của engine.
 /// @param light Ánh sáng mới.
-void light3d_set(njin_ctx &ctx, const light3d &light);
+void light3d_set(context &ctx, const light3d &light);
 
 /// Ánh sáng chung đang dùng.
 /// @param ctx Context của engine.
 /// @return Giá trị đặt bởi light3d_set(), hoặc mặc định của njin::light3d.
-light3d light3d_get(const njin_ctx &ctx);
+light3d light3d_get(const context &ctx);
 
 /// Loại đèn của njin::light3d_source.
 enum light3d_kind {
@@ -102,7 +102,7 @@ inline constexpr i32 light3d_max = 16;
 /// (thứ tự với các lệnh vẽ không quan trọng: mọi đèn chiếu lên mọi hình của lần vẽ).
 /// @param ctx Context của engine.
 /// @param light Đèn.
-void light3d_add(njin_ctx &ctx, const light3d_source &light);
+void light3d_add(context &ctx, const light3d_source &light);
 
 /// Bề mặt của các hình 3D vẽ sau material3d_set().
 struct material3d {
@@ -126,7 +126,7 @@ struct material3d {
 /// engine dùng giá trị này.
 /// @param ctx Context của engine.
 /// @param material Bề mặt.
-void material3d_set(njin_ctx &ctx, const material3d &material);
+void material3d_set(context &ctx, const material3d &material);
 
 /// Vẽ hộp đặc, các cạnh song song với trục.
 ///
@@ -142,21 +142,21 @@ void material3d_set(njin_ctx &ctx, const material3d &material);
 /// @param center Tâm hộp.
 /// @param size Kích thước theo x, y, z.
 /// @param color Màu.
-void draw_cube3d(const njin_ctx &ctx, vec3 center, vec3 size, rgba color);
+void draw_cube3d(const context &ctx, vec3 center, vec3 size, rgba color);
 
 /// Vẽ hình cầu đặc.
 /// @param ctx Context của engine.
 /// @param center Tâm.
 /// @param radius Bán kính.
 /// @param color Màu.
-void draw_sphere3d(const njin_ctx &ctx, vec3 center, f32 radius, rgba color);
+void draw_sphere3d(const context &ctx, vec3 center, f32 radius, rgba color);
 
 /// Vẽ mặt phẳng nằm ngang (song song mặt xz), mặt trên hướng `+y`.
 /// @param ctx Context của engine.
 /// @param center Tâm.
 /// @param size Kích thước theo x và z.
 /// @param color Màu.
-void draw_plane3d(const njin_ctx &ctx, vec3 center, vec2 size, rgba color);
+void draw_plane3d(const context &ctx, vec3 center, vec2 size, rgba color);
 
 /// Vẽ hình trụ đặc nối hai điểm (lưới tam giác). Dùng cho vệt đạn, dây, cột.
 /// @param ctx Context của engine.
@@ -164,7 +164,7 @@ void draw_plane3d(const njin_ctx &ctx, vec3 center, vec2 size, rgba color);
 /// @param to Tâm đáy thứ hai.
 /// @param radius Bán kính.
 /// @param color Màu.
-void draw_cylinder3d(const njin_ctx &ctx, vec3 from, vec3 to, f32 radius, rgba color);
+void draw_cylinder3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba color);
 
 /// Vẽ viên nang (capsule) đặc bằng lưới tam giác: hình trụ nối hai điểm, hai đầu
 /// tròn. Nối được hai điểm bất kỳ; cần viền tròn mịn khi nhìn gần thì dùng
@@ -174,7 +174,7 @@ void draw_cylinder3d(const njin_ctx &ctx, vec3 from, vec3 to, f32 radius, rgba c
 /// @param to Tâm nửa cầu thứ hai.
 /// @param radius Bán kính.
 /// @param color Màu.
-void draw_capsule3d(const njin_ctx &ctx, vec3 from, vec3 to, f32 radius, rgba color);
+void draw_capsule3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba color);
 
 /// Loại hình của njin::shape3d.
 enum shape3d_kind {
@@ -217,7 +217,7 @@ struct shape3d {
 /// @param ctx Context của engine.
 /// @param shape Hình.
 /// @param color Màu.
-void draw_shape3d(const njin_ctx &ctx, const shape3d &shape, rgba color);
+void draw_shape3d(const context &ctx, const shape3d &shape, rgba color);
 
 /// Nạp model 3D từ file glTF (`.glb`, `.gltf`) hoặc OBJ.
 ///
@@ -226,12 +226,12 @@ void draw_shape3d(const njin_ctx &ctx, const shape3d &shape, rgba color);
 /// @param ctx Context của engine.
 /// @param path Đường dẫn file.
 /// @return Handle của model, hoặc handle không hợp lệ nếu file thiếu hay lỗi.
-model_handle model_load(njin_ctx &ctx, const char *path);
+model_handle model_load(context &ctx, const char *path);
 
 /// Giải phóng model cùng các texture của nó. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Model cần giải phóng.
-void model_unload(njin_ctx &ctx, model_handle handle);
+void model_unload(context &ctx, model_handle handle);
 
 /// Vị trí, hướng và tỉ lệ của một vật 3D.
 ///
@@ -266,14 +266,14 @@ struct model_material {
 /// @param ctx Context của engine.
 /// @param handle Model.
 /// @return Số vật liệu, 0 nếu handle không hợp lệ.
-i32 model_material_count(const njin_ctx &ctx, model_handle handle);
+i32 model_material_count(const context &ctx, model_handle handle);
 
 /// Vật liệu thứ `index` của model.
 /// @param ctx Context của engine.
 /// @param handle Model.
 /// @param index 0..model_material_count() - 1.
 /// @return Vật liệu, hoặc mặc định nếu handle hay `index` không hợp lệ.
-model_material model_material_get(const njin_ctx &ctx, model_handle handle, i32 index);
+model_material model_material_get(const context &ctx, model_handle handle, i32 index);
 
 /// Đặt vật liệu thứ `index` của model, cho mọi lần vẽ sau đó.
 ///
@@ -288,7 +288,7 @@ model_material model_material_get(const njin_ctx &ctx, model_handle handle, i32 
 /// @param handle Model.
 /// @param index 0..model_material_count() - 1, hoặc -1 cho mọi vật liệu.
 /// @param material Vật liệu mới.
-void model_material_set(njin_ctx &ctx, model_handle handle, i32 index, const model_material &material);
+void model_material_set(context &ctx, model_handle handle, i32 index, const model_material &material);
 
 /// Vẽ model tại `transform`, với vật liệu của nó (model_material_set()).
 /// material3d_set() không áp dụng cho model; fx3d_set() thì có. Shader của game
@@ -297,7 +297,7 @@ void model_material_set(njin_ctx &ctx, model_handle handle, i32 index, const mod
 /// @param handle Model từ model_load(). Handle không hợp lệ bị bỏ qua.
 /// @param transform Vị trí, hướng và tỉ lệ.
 /// @param tint Màu nhân vào màu của model. Trắng là giữ nguyên.
-void draw_model(const njin_ctx &ctx, model_handle handle, const transform3d &transform,
+void draw_model(const context &ctx, model_handle handle, const transform3d &transform,
                 rgba tint = colors::white);
 
 /// Một tia trong thế giới 3D, dùng để chọn vật bằng chuột, bắn đạn, kiểm tra
@@ -322,7 +322,7 @@ struct ray3d_hit {
 /// @param camera Camera đã (hoặc sẽ) dùng cho begin_3d().
 /// @param screen Điểm trên màn hình, pixel (như mouse_pos()).
 /// @return Tia có gốc ở vị trí camera.
-ray3d camera3d_ray(const njin_ctx &ctx, const camera3d &camera, vec2 screen);
+ray3d camera3d_ray(const context &ctx, const camera3d &camera, vec2 screen);
 
 /// Vị trí trên màn hình của một điểm 3D, để đặt nhãn hay thanh máu trên đầu nhân vật.
 /// @param ctx Context của engine.
@@ -331,7 +331,7 @@ ray3d camera3d_ray(const njin_ctx &ctx, const camera3d &camera, vec2 screen);
 /// @param visible Nếu khác nullptr, nhận `false` khi điểm ở sau camera (vị trí
 /// trả về khi đó không có nghĩa).
 /// @return Vị trí, pixel màn hình (cùng hệ với mouse_pos()).
-vec2 camera3d_to_screen(const njin_ctx &ctx, const camera3d &camera, vec3 point, bool *visible = nullptr);
+vec2 camera3d_to_screen(const context &ctx, const camera3d &camera, vec3 point, bool *visible = nullptr);
 
 /// Tia với hộp có các cạnh song song với trục. Gốc tia nằm trong hộp thì chạm ở
 /// mặt tia đi ra.
@@ -368,7 +368,7 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape);
 /// @param model Model từ model_load().
 /// @param transform Vị trí, hướng và tỉ lệ.
 /// @return Điểm chạm gần nhất, hoặc không chạm nếu handle không hợp lệ.
-ray3d_hit ray3d_model(const njin_ctx &ctx, const ray3d &ray, model_handle model, const transform3d &transform);
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle model, const transform3d &transform);
 
 /// Hình lưới có sẵn để vẽ nhiều bản một lúc bằng draw_instanced3d().
 enum mesh3d_kind {
@@ -400,7 +400,7 @@ enum mesh3d_kind {
 /// @param first Instance đầu tiên.
 /// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
 /// @param shader Shader của game, hoặc không hợp lệ để dùng shader có sẵn.
-void draw_instanced3d(const njin_ctx &ctx, mesh3d_kind mesh, instance_buffer_handle buffer, u32 first, u32 count,
+void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader = {});
 
 /// Vẽ `count` bản của một model bằng một lệnh vẽ cho mỗi phần của model, cùng quy
@@ -412,7 +412,7 @@ void draw_instanced3d(const njin_ctx &ctx, mesh3d_kind mesh, instance_buffer_han
 /// @param first Instance đầu tiên.
 /// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
 /// @param shader Shader của game, hoặc không hợp lệ để dùng shader có sẵn.
-void draw_instanced3d(const njin_ctx &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader = {});
 
 /// Hiệu ứng cho các hình 3D vẽ sau fx3d_set(): nháy màu và tan biến, như
@@ -445,7 +445,7 @@ struct fx3d {
 /// @endcode
 /// @param ctx Context của engine.
 /// @param fx Hiệu ứng.
-void fx3d_set(njin_ctx &ctx, const fx3d &fx);
+void fx3d_set(context &ctx, const fx3d &fx);
 
 /// Cách đặt một loạt hạt vào thế giới 3D, dùng với particles3d_spawn().
 struct particles3d_desc {
@@ -471,16 +471,16 @@ struct particles3d_desc {
 /// @param pos Vị trí phát.
 /// @param count Số hạt.
 /// @param desc Hướng phát và tỉ lệ đơn vị.
-void particles3d_spawn(njin_ctx &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
+void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
                        const particles3d_desc &desc = {});
 
 /// Xóa mọi hạt 3D đang bay, ví dụ khi đổi màn.
 /// @param ctx Context của engine.
-void particles3d_clear(njin_ctx &ctx);
+void particles3d_clear(context &ctx);
 
 /// Số hạt 3D đang sống.
 /// @param ctx Context của engine.
 /// @return Số hạt.
-i32 particles3d_count(const njin_ctx &ctx);
+i32 particles3d_count(const context &ctx);
 /// @}
 } // namespace njin

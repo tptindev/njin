@@ -5,7 +5,7 @@
 #include <entt/entity/fwd.hpp>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_fx
 /// @{
@@ -31,17 +31,17 @@ struct shake_config {
 /// Tính theo giờ thật, nên vẫn rung trong hitstop().
 /// @param ctx Context của engine.
 /// @param trauma Độ rung cộng thêm, giới hạn tổng ở 1.
-void camera_shake(njin_ctx &ctx, f32 trauma);
+void camera_shake(context &ctx, f32 trauma);
 
 /// Đổi cách rung của camera_shake().
 /// @param ctx Context của engine.
 /// @param config Cách rung mới.
-void camera_shake_config(njin_ctx &ctx, const shake_config &config);
+void camera_shake_config(context &ctx, const shake_config &config);
 
 /// Độ rung hiện tại, 0..1.
 /// @param ctx Context của engine.
 /// @return Độ rung.
-f32 camera_shake_amount(const njin_ctx &ctx);
+f32 camera_shake_amount(const context &ctx);
 
 /// Dừng hình trong chốc lát (hitstop, freeze frame) để cú đánh có "lực".
 ///
@@ -50,12 +50,12 @@ f32 camera_shake_amount(const njin_ctx &ctx);
 /// thì lấy thời gian dài hơn, không cộng dồn. Thường 0.03 đến 0.12 giây.
 /// @param ctx Context của engine.
 /// @param seconds Thời gian dừng, giây thật.
-void hitstop(njin_ctx &ctx, f32 seconds);
+void hitstop(context &ctx, f32 seconds);
 
 /// Có đang hitstop không.
 /// @param ctx Context của engine.
 /// @return `true` nếu đang dừng hình.
-bool hitstop_active(const njin_ctx &ctx);
+bool hitstop_active(const context &ctx);
 
 /// Nháy cả màn hình một màu rồi mờ dần: trắng khi nổ lớn, đỏ khi bị thương.
 ///
@@ -64,7 +64,7 @@ bool hitstop_active(const njin_ctx &ctx);
 /// @param ctx Context của engine.
 /// @param color Màu nháy. `color.a` là độ đục lúc đầu.
 /// @param duration Thời gian mờ hết, giây.
-void screen_flash(njin_ctx &ctx, rgba color, f32 duration);
+void screen_flash(context &ctx, rgba color, f32 duration);
 /// @}
 
 /// @name Nháy sprite
@@ -87,7 +87,7 @@ struct flash_fx {
 /// @param entity Entity có sprite.
 /// @param color Màu tô.
 /// @param duration Thời gian, giây (theo delta(), nên dừng trong hitstop).
-void sprite_flash(njin_ctx &ctx, entt::entity entity,
+void sprite_flash(context &ctx, entt::entity entity,
                   rgba color = {1.0f, 1.0f, 1.0f, 1.0f}, f32 duration = 0.1f);
 /// @}
 
@@ -130,7 +130,7 @@ struct dissolve_fx {
 /// @param entity Entity có sprite.
 /// @param duration Thời gian, giây (theo delta(), nên dừng trong hitstop).
 /// @param edge_color Màu viền cháy. `a` bằng 0 là không có viền.
-void sprite_dissolve(njin_ctx &ctx, entt::entity entity, f32 duration = 0.6f,
+void sprite_dissolve(context &ctx, entt::entity entity, f32 duration = 0.6f,
                      rgba edge_color = {1.0f, 0.55f, 0.1f, 1.0f});
 /// @}
 

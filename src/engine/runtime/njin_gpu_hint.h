@@ -3,7 +3,7 @@
 
 namespace njin {
 // Asks the system to run the game on the discrete GPU of a laptop that has two,
-// instead of the integrated one it would start on. Called by njin_create()
+// instead of the integrated one it would start on. Called by create()
 // before the window (and so the OpenGL context) exists, which is the only time
 // it can still have an effect.
 //

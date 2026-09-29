@@ -23,7 +23,7 @@ struct instance_slot {
 };
 
 // Owns every instance buffer and the quad they share. The destructor frees the
-// GL objects, so it must run while the GL context is still alive (njin_ctx
+// GL objects, so it must run while the GL context is still alive (context
 // declares it after the window).
 struct instance_store {
   std::vector<instance_slot> slots;

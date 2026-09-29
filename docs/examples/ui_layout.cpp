@@ -5,12 +5,12 @@ namespace {
 njin::ui_layout menu;
 bool in_game = false;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   // File do njin_ui_editor lưu. Nạp lỗi thì game vẫn chạy, chỉ không có menu.
   njin::ui_layout_load(ctx, "assets/ui/menu.ui.json", menu);
 }
 
-void draw_menu(njin::njin_ctx &ctx) {
+void draw_menu(njin::context &ctx) {
   if (in_game)
     return;
   // Vẽ mọi panel đang `visible` và mọi popup đang `open` của file.
@@ -23,7 +23,7 @@ void draw_menu(njin::njin_ctx &ctx) {
       else if (id == "btn_settings")
         njin::ui_layout_set_bool(menu, "tog_fullscreen", false);
       else if (id == "btn_quit")
-        njin::njin_quit(ctx);
+        njin::quit(ctx);
     }
   });
   // Đọc giá trị widget bất kỳ lúc nào, không cần callback.
@@ -31,7 +31,7 @@ void draw_menu(njin::njin_ctx &ctx) {
   (void)volume;
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_post_render, draw_menu);
 }

@@ -4,13 +4,13 @@ namespace {
 njin::texture_handle player_tex;
 njin::shader_handle gray;
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   player_tex = njin::texture_load(ctx, "assets/player.png");
   // nullptr: giữ vertex shader mặc định, chỉ thay fragment shader.
   gray = njin::shader_load(ctx, nullptr, "assets/shaders/gray.fs");
 }
 
-void draw(njin::njin_ctx &ctx) {
+void draw(njin::context &ctx) {
   const njin::rgba white{1.0f, 1.0f, 1.0f, 1.0f};
 
   // Đặt uniform TRƯỚC shader_begin.
@@ -23,7 +23,7 @@ void draw(njin::njin_ctx &ctx) {
   njin::texture_draw(ctx, player_tex, {300.0f, 100.0f}, white);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load);
   njin::ecs_register(ctx, njin::phase_render, draw);
 }

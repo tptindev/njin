@@ -4,17 +4,17 @@
 
 namespace xiangqi {
 
-void sim_init(njin_ctx &ctx);
-void sim_reset(njin_ctx &ctx);
-void sim_update(njin_ctx &ctx);
+void sim_init(context &ctx);
+void sim_reset(context &ctx);
+void sim_update(context &ctx);
 
-entt::entity spawn_unit(njin_ctx &ctx, piece_type type, faction side, vec2 pos);
-bool recruit_unit(njin_ctx &ctx, piece_type type);
-void trigger_rally(njin_ctx &ctx);
+entt::entity spawn_unit(context &ctx, piece_type type, faction side, vec2 pos);
+bool recruit_unit(context &ctx, piece_type type);
+void trigger_rally(context &ctx);
 
-void issue_move_order(njin_ctx &ctx, const std::vector<entt::entity> &units, vec2 target_pos, bool attack_move = false);
-void issue_attack_order(njin_ctx &ctx, const std::vector<entt::entity> &units, entt::entity target);
-void stop_units(njin_ctx &ctx, const std::vector<entt::entity> &units);
+void issue_move_order(context &ctx, const std::vector<entt::entity> &units, vec2 target_pos, bool attack_move = false);
+void issue_attack_order(context &ctx, const std::vector<entt::entity> &units, entt::entity target);
+void stop_units(context &ctx, const std::vector<entt::entity> &units);
 
 bool is_point_on_bridge(vec2 pos);
 bool is_point_in_river(vec2 pos);

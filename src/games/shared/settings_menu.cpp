@@ -14,7 +14,7 @@ void square(ui_look &look) {
 }
 } // namespace
 
-void apply_style(njin_ctx &ctx, const char *font_path, font_style style) {
+void apply_style(context &ctx, const char *font_path, font_style style) {
   const bool pixel = style == font_pixel;
   const font_handle font = font_load(ctx, font_path, 16, style);
   ui_style s = ui_default_style();
@@ -43,7 +43,7 @@ void apply_style(njin_ctx &ctx, const char *font_path, font_style style) {
   dialog_set_style(ctx, d);
 }
 
-bool settings_panel(njin_ctx &ctx, std::span<const rebind_row> rows) {
+bool settings_panel(context &ctx, std::span<const rebind_row> rows) {
   ui_begin(ctx, {.id = "settings", .title = tr(ctx, "settings.title"), .width = 340.0f});
 
   static const struct {

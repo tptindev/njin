@@ -25,7 +25,7 @@ constexpr camera_view default_view{.zoom = 1.0f,
                                    .offset = {0.0f, 0.0f},
                                    .target = {0.0f, 0.0f}};
 
-Camera2D active_raylib_camera(const njin_ctx &ctx) {
+Camera2D active_raylib_camera(const context &ctx) {
   Camera2D camera{};
   to_raylib(camera_active(ctx), camera);
   return camera;
@@ -35,7 +35,7 @@ Camera2D active_raylib_camera(const njin_ctx &ctx) {
 // render_scale like view.target, and bound the same way, so a game's post_fx
 // or its own post shader do not bake the world in at 1x before render_scale
 // gets a chance to smooth it.
-bool ensure_post_target(const njin_ctx &ctx, camera_post &post) {
+bool ensure_post_target(const context &ctx, camera_post &post) {
   const vec2 screen = screen_size(ctx);
   const i32 scale = ctx.view.render_scale;
   const i32 w = (i32)screen.x * scale;
@@ -52,7 +52,7 @@ bool ensure_post_target(const njin_ctx &ctx, camera_post &post) {
   return true;
 }
 
-void begin_world_space(njin_ctx &ctx) {
+void begin_world_space(context &ctx) {
   camera_post &post = ctx.post;
   const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
                       post_chain_active(ctx.postfx) || lighting_active(ctx.light);
@@ -72,9 +72,9 @@ void begin_world_space(njin_ctx &ctx) {
   ctx.view.world_depth++;
 }
 
-void finish_world_post(njin_ctx &ctx);
+void finish_world_post(context &ctx);
 
-void end_world_space(njin_ctx &ctx) {
+void end_world_space(context &ctx) {
   render3d_close(ctx);
   EndMode2D();
   ctx.view.world_depth = std::max(0, ctx.view.world_depth - 1);
@@ -86,7 +86,7 @@ void end_world_space(njin_ctx &ctx) {
   gizmo_draw_screen(ctx);
 }
 
-void finish_world_post(njin_ctx &ctx) {
+void finish_world_post(context &ctx) {
   camera_post &post = ctx.post;
   if (!post.drawing)
     return;
@@ -114,13 +114,13 @@ void finish_world_post(njin_ctx &ctx) {
     EndShaderMode();
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_pre_render, begin_world_space, "begin_world_space");
   ecs_register(ctx, phase_post_render, end_world_space, "end_world_space");
 }
 } // namespace
 
-void world_target_rebind(njin_ctx &ctx) {
+void world_target_rebind(context &ctx) {
   if (ctx.post.drawing) {
     bind_view_target(ctx.post.target, screen_size(ctx));
   } else if (ctx.view.drawing) {
@@ -152,11 +152,11 @@ camera_post::~camera_post() {
     UnloadRenderTexture(target);
 }
 
-void camera_set_post_shader(njin_ctx &ctx, shader_handle shader) {
+void camera_set_post_shader(context &ctx, shader_handle shader) {
   ctx.post.shader = shader;
 }
 
-rect camera_bounds(const njin_ctx &ctx) {
+rect camera_bounds(const context &ctx) {
   const Camera2D camera = active_raylib_camera(ctx);
   const vec2 screen = screen_size(ctx);
   const f32 w = screen.x;
@@ -176,7 +176,7 @@ rect camera_bounds(const njin_ctx &ctx) {
   return rect{{lo.x, lo.y}, {hi.x - lo.x, hi.y - lo.y}};
 }
 
-camera_view camera_active(const njin_ctx &ctx) {
+camera_view camera_active(const context &ctx) {
   const auto cameras =
       ctx.ecs.registry
           .view<const camera_on, const camera_2d, const transform>();
@@ -191,7 +191,7 @@ camera_view camera_active(const njin_ctx &ctx) {
   return default_view;
 }
 
-vec2 w2scr(const njin_ctx &ctx, vec2 pos) {
+vec2 w2scr(const context &ctx, vec2 pos) {
   Vector2 point{};
   to_raylib(pos, point);
   vec2 result{};
@@ -199,7 +199,7 @@ vec2 w2scr(const njin_ctx &ctx, vec2 pos) {
   return result;
 }
 
-vec2 scr2w(const njin_ctx &ctx, vec2 pos) {
+vec2 scr2w(const context &ctx, vec2 pos) {
   Vector2 point{};
   to_raylib(pos, point);
   vec2 result{};

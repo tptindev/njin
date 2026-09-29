@@ -8,7 +8,7 @@ namespace {
 constexpr const char *scene_names[scene_count] = {"night torches", "low sun", "flashlight"};
 constexpr const char *falloff_names[4] = {"physical", "linear", "smooth", "none"};
 
-entt::entity add_light(njin_ctx &ctx, vec2 pos, const light_2d &light) {
+entt::entity add_light(context &ctx, vec2 pos, const light_2d &light) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e, transform{.pos = pos});
@@ -25,7 +25,7 @@ const char *tonemap_name(i32 tonemap) {
 }
 
 // Sets up the lights of the current scene from scratch.
-void build_lights(njin_ctx &ctx) {
+void build_lights(context &ctx) {
   entt::registry &reg = world(ctx);
   std::vector<entt::entity> old;
   for (const entt::entity e : reg.view<light_2d>())
@@ -65,7 +65,7 @@ void build_lights(njin_ctx &ctx) {
 }
 
 // Every frame: the lights that follow the hero and the mouse, and the two settings the keys flip.
-void update_lights(njin_ctx &ctx) {
+void update_lights(context &ctx) {
   entt::registry &reg = world(ctx);
   const vec2 hero_at = reg.get<transform>(demo.hero).pos - vec2{0.0f, 6.0f};
   const vec2 mouse_at = scr2w(ctx, mouse_pos(ctx));

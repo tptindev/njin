@@ -3,7 +3,7 @@
 namespace {
 using namespace njin;
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   // 1. Keys: two axes (horizontal, vertical) and a dash action.
   const axis_handle move_x = axis_define(ctx, "move_x", {{key_left, key_right}, {key_a, key_d}}, {pad_axis_left_x});
   const axis_handle move_y = axis_define(ctx, "move_y", {{key_up, key_down}, {key_w, key_s}}, {pad_axis_left_y});
@@ -40,22 +40,22 @@ void startup(njin_ctx &ctx) {
 }
 
 // No sprite yet: draw the character as a rectangle.
-void draw_player(njin_ctx &ctx) {
+void draw_player(context &ctx) {
   world(ctx).view<transform, collider, topdown_body>().each(
       [&](const transform &tr, const collider &col, const topdown_body &) {
         draw_rect(ctx, rect_from_center(tr.pos + col.offset, col.size), colors::yellow);
       });
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup);
   ecs_register(ctx, phase_render, draw_player);
 }
 } // namespace
 
 int main() {
-  njin_ctx *ctx = njin_create({.title = "Walk", .width = 960, .height = 540, .target_fps = 60});
-  njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  context *ctx = create({.title = "Walk", .width = 960, .height = 540, .target_fps = 60});
+  mod_register(*ctx, {.name = "game", .setup = setup});
+  run(*ctx);
+  destroy(ctx);
 }

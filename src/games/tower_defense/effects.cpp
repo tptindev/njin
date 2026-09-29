@@ -6,7 +6,7 @@
 
 namespace defense {
 namespace {
-void spawn_damage_number(njin_ctx &ctx, vec2 at, i32 amount, rgba color) {
+void spawn_damage_number(context &ctx, vec2 at, i32 amount, rgba color) {
   entt::registry &reg = world(ctx);
   const entt::entity number = reg.create();
   const vec2 start = at + vec2{0.0f, -11.0f};
@@ -16,20 +16,20 @@ void spawn_damage_number(njin_ctx &ctx, vec2 at, i32 amount, rgba color) {
   constexpr f32 lifetime = 0.62f;
   tween_move(ctx, number, start + vec2{0.0f, -30.0f}, lifetime, ease::out_cubic);
   tween_value(ctx, 1.0f, 0.0f, lifetime,
-              [number](njin_ctx &c, f32 alpha) {
+              [number](context &c, f32 alpha) {
                 entt::registry &registry = world(c);
                 if (registry.valid(number) && registry.all_of<damage_number_component>(number))
                   registry.get<damage_number_component>(number).alpha = alpha;
               },
               ease::out_quad,
-              {.done = [number](njin_ctx &c) {
+              {.done = [number](context &c) {
                  entt::registry &registry = world(c);
                  if (registry.valid(number))
                    registry.destroy(number);
                }});
 }
 
-void spawn_impact_particles(njin_ctx &ctx, vec2 at, tower_kind source) {
+void spawn_impact_particles(context &ctx, vec2 at, tower_kind source) {
   particle_emitter emitter{};
   i32 count = 0;
   if (source == tower_kind::mage) {
@@ -56,11 +56,11 @@ void spawn_impact_particles(njin_ctx &ctx, vec2 at, tower_kind source) {
 }
 } // namespace
 
-void tower_fired_effect(njin_ctx &ctx, entt::entity tower) {
+void tower_fired_effect(context &ctx, entt::entity tower) {
   tween_scale(ctx, tower, 1.2f, 0.075f, ease::out_back, {.repeat = 1, .yoyo = true});
 }
 
-void enemy_hit_effect(njin_ctx &ctx, entt::entity enemy, f32 damage, tower_kind source, bool killed) {
+void enemy_hit_effect(context &ctx, entt::entity enemy, f32 damage, tower_kind source, bool killed) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(enemy) || !reg.all_of<transform, enemy_component, sprite>(enemy))
     return;
@@ -81,7 +81,7 @@ void enemy_hit_effect(njin_ctx &ctx, entt::entity enemy, f32 damage, tower_kind 
   }
 }
 
-void draw_damage_numbers(njin_ctx &ctx) {
+void draw_damage_numbers(context &ctx) {
   for (auto [e, tr, number] : world(ctx).view<const transform, const damage_number_component>().each()) {
     (void)e;
     char label[16];

@@ -3,7 +3,7 @@
 int main() {
   // Pixel art vẽ trên màn 320 x 180, engine phóng ra cửa sổ theo bội số nguyên:
   // pixel sắc nét ở mọi cỡ cửa sổ, phần thừa là viền.
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Pixel art",
+  njin::context *ctx = njin::create({.title = "Pixel art",
                                            .width = 1280,
                                            .height = 720,
                                            .target_fps = 60,
@@ -14,5 +14,5 @@ int main() {
   njin::window_set_bar_color(*ctx, {0.05f, 0.05f, 0.08f, 1.0f});
   // screen_size() trả 320 x 180 và mouse_pos() tính theo pixel ảo.
   // window_size() và window_viewport() cho cỡ thật của cửa sổ.
-  njin::njin_destroy(ctx);
+  njin::destroy(ctx);
 }

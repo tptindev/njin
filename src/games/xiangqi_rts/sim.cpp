@@ -67,7 +67,7 @@ void add_particle(vec2 pos, vec2 vel, rgba col, f32 size, f32 life, bool ring) {
   state.particles.push_back(p);
 }
 
-entt::entity spawn_unit(njin_ctx &ctx, piece_type type, faction side, vec2 pos) {
+entt::entity spawn_unit(context &ctx, piece_type type, faction side, vec2 pos) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
 
@@ -107,7 +107,7 @@ entt::entity spawn_unit(njin_ctx &ctx, piece_type type, faction side, vec2 pos) 
   return e;
 }
 
-bool recruit_unit(njin_ctx &ctx, piece_type type) {
+bool recruit_unit(context &ctx, piece_type type) {
   if (type == piece_type::general)
     return false;
   const i32 idx = static_cast<i32>(type);
@@ -130,7 +130,7 @@ bool recruit_unit(njin_ctx &ctx, piece_type type) {
   return true;
 }
 
-void trigger_rally(njin_ctx &ctx) {
+void trigger_rally(context &ctx) {
   if (state.rally_cooldown > 0.0f)
     return;
   state.rally_cooldown = 24.0f;
@@ -147,7 +147,7 @@ void trigger_rally(njin_ctx &ctx) {
   }
 }
 
-void issue_move_order(njin_ctx &ctx, const std::vector<entt::entity> &units, vec2 target_pos, bool attack_move) {
+void issue_move_order(context &ctx, const std::vector<entt::entity> &units, vec2 target_pos, bool attack_move) {
   (void)attack_move;
   if (units.empty())
     return;
@@ -181,7 +181,7 @@ void issue_move_order(njin_ctx &ctx, const std::vector<entt::entity> &units, vec
   audio_play(ctx, sfx_type::command, 0.65f);
 }
 
-void issue_attack_order(njin_ctx &ctx, const std::vector<entt::entity> &units, entt::entity target) {
+void issue_attack_order(context &ctx, const std::vector<entt::entity> &units, entt::entity target) {
   if (units.empty() || !world(ctx).valid(target))
     return;
   entt::registry &reg = world(ctx);
@@ -207,7 +207,7 @@ void issue_attack_order(njin_ctx &ctx, const std::vector<entt::entity> &units, e
   audio_play(ctx, sfx_type::slash, 0.8f);
 }
 
-void stop_units(njin_ctx &ctx, const std::vector<entt::entity> &units) {
+void stop_units(context &ctx, const std::vector<entt::entity> &units) {
   entt::registry &reg = world(ctx);
   for (entt::entity e : units) {
     if (!reg.valid(e))
@@ -220,7 +220,7 @@ void stop_units(njin_ctx &ctx, const std::vector<entt::entity> &units) {
   }
 }
 
-void sim_reset(njin_ctx &ctx) {
+void sim_reset(context &ctx) {
   entt::registry &reg = world(ctx);
   reg.clear();
 
@@ -308,12 +308,12 @@ void sim_reset(njin_ctx &ctx) {
   }
 }
 
-void sim_init(njin_ctx &ctx) {
+void sim_init(context &ctx) {
   audio_init(ctx);
   sim_reset(ctx);
 }
 
-void update_economy_and_outposts(njin_ctx &ctx, f32 dt) {
+void update_economy_and_outposts(context &ctx, f32 dt) {
   entt::registry &reg = world(ctx);
 
   // Passive gold generation: 7 gold/sec
@@ -366,7 +366,7 @@ void update_economy_and_outposts(njin_ctx &ctx, f32 dt) {
   }
 }
 
-void update_projectiles(njin_ctx &ctx, f32 dt) {
+void update_projectiles(context &ctx, f32 dt) {
   entt::registry &reg = world(ctx);
   const auto view = reg.view<projectile_component>();
   std::vector<entt::entity> dead_projectiles;
@@ -421,7 +421,7 @@ void update_projectiles(njin_ctx &ctx, f32 dt) {
   reg.destroy(dead_projectiles.begin(), dead_projectiles.end());
 }
 
-void apply_damage(njin_ctx &ctx, entt::entity target_entity, f32 raw_damage, piece_type source_type, bool is_crit) {
+void apply_damage(context &ctx, entt::entity target_entity, f32 raw_damage, piece_type source_type, bool is_crit) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(target_entity))
     return;
@@ -480,7 +480,7 @@ void apply_damage(njin_ctx &ctx, entt::entity target_entity, f32 raw_damage, pie
   }
 }
 
-void ai_decision_tick(njin_ctx &ctx) {
+void ai_decision_tick(context &ctx) {
   entt::registry &reg = world(ctx);
 
   // 1. Production AI: Train units matching need
@@ -588,7 +588,7 @@ void ai_decision_tick(njin_ctx &ctx) {
   }
 }
 
-void sim_update(njin_ctx &ctx) {
+void sim_update(context &ctx) {
   const f32 dt = delta(ctx);
   if (dt <= 0.0f || state.screen != game_screen::playing)
     return;

@@ -58,7 +58,7 @@ khó đọc. Chữ pixel luôn vẽ trong ảnh ảo, không đi qua lớp chữ
 ### UI mịn trên màn hình có độ phân giải ảo
 
 Ngoài chữ, panel bo góc, nút, thanh trượt và mọi hình vẽ trong ảnh nhỏ cũng bị vỡ hạt khi
-phóng bằng lọc nearest. Đặt njin::njin_cfg::smooth_ui thì **world vẫn vẽ trong ảnh ảo** (pixel
+phóng bằng lọc nearest. Đặt njin::config::smooth_ui thì **world vẫn vẽ trong ảnh ảo** (pixel
 art), còn `phase_post_render` (UI, HUD), hội thoại, toast, flash và fade được vẽ **sau khi ảnh đã
 phóng**, thẳng vào cửa sổ: engine đặt một phép biến đổi (dời và nhân với mức phóng) nên tọa độ
 vẫn theo pixel ảo, nhưng hình khối được rasterize ở độ phân giải cửa sổ, và chữ dựng ở cỡ chữ
@@ -74,9 +74,9 @@ Lưu ý:
 
 ### Chữ nét trên màn hình có độ phân giải ảo
 
-Với njin::njin_cfg::virtual_size, cả frame được vẽ vào một ảnh nhỏ (ví dụ 640x360) rồi phóng
+Với njin::config::virtual_size, cả frame được vẽ vào một ảnh nhỏ (ví dụ 640x360) rồi phóng
 lên cửa sổ, nên chữ vẽ trong ảnh đó nhòe theo mức phóng. Khi máy có **GPU thật** và
-njin::njin_cfg::crisp_text bật (mặc định), chữ trên màn hình (UI, HUD, hội thoại, thông báo)
+njin::config::crisp_text bật (mặc định), chữ trên màn hình (UI, HUD, hội thoại, thông báo)
 không vẽ vào ảnh nhỏ mà xếp hàng đợi, rồi vẽ **sau khi ảnh đã phóng**, thẳng vào cửa sổ, từ
 ảnh glyph dựng ở cỡ chữ nhân với mức phóng. Chữ nét ở mọi cỡ cửa sổ, kể cả mức phóng lẻ.
 Vị trí vẫn theo pixel ảo, và mỗi dòng được dãn khoảng cách chữ cho đúng bằng độ rộng
@@ -97,14 +97,14 @@ njin::text_measure() đã đo.
 
 ### Khử răng cưa bằng supersampling {#render_scale}
 
-njin::njin_cfg::render_scale vẽ cả world và UI ở độ phân giải gấp `render_scale`
+njin::config::render_scale vẽ cả world và UI ở độ phân giải gấp `render_scale`
 lần (2, 4 hay 8) rồi thu nhỏ lại bằng lọc mượt khi lên cửa sổ, làm mượt cạnh
 hình khối, sprite xoay và đường cong. `1` (mặc định) là tắt.
 
 ```cpp
-njin::njin_cfg cfg{};
+njin::config cfg{};
 cfg.render_scale = 4; // đọc từ file cài đặt của game, không hardcode
-njin::njin_ctx *ctx = njin::njin_create(cfg);
+njin::context *ctx = njin::create(cfg);
 ```
 
 Đây **không phải** MSAA của cửa sổ (raylib chỉ có đúng một mức 4x qua GLFW,
@@ -115,7 +115,7 @@ Lưu ý:
 - Không đổi tọa độ nào: njin::screen_size(), chuột, camera vẫn tính như
   `virtual_size` (nếu có) hay kích thước cửa sổ (nếu không) — game không biết
   gì về `render_scale`.
-- **Không đổi được lúc đang chạy.** njin_create() tạo cửa sổ và các render
+- **Không đổi được lúc đang chạy.** create() tạo cửa sổ và các render
   texture theo đúng giá trị này một lần; đổi mức trong menu cài đặt cần lưu
   lựa chọn rồi khởi động lại game để áp dụng, như đổi độ phân giải ở hầu hết
   game khác.

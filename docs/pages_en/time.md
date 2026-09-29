@@ -22,7 +22,7 @@ is stopped: the pause menu, UI effects.
 ## Fixed update
 
 `phase_fixed_update` runs at a **fixed tick**, 60 times per second by default
-(`njin_cfg::fixed_hz`). Each frame it runs 0, 1 or a few times depending on FPS, so that the total number of ticks
+(`config::fixed_hz`). Each frame it runs 0, 1 or a few times depending on FPS, so that the total number of ticks
 matches real time.
 
 ```mermaid

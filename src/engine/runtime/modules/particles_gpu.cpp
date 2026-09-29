@@ -271,22 +271,22 @@ usize particles_gpu_alive(const particle_emitter &em, const particle_gpu_buffer 
   return alive;
 }
 
-void particles_set_backend(njin_ctx &ctx, particle_backend backend) {
+void particles_set_backend(context &ctx, particle_backend backend) {
   ctx.particles_gpu.backend = backend;
 }
 
-particle_backend particles_backend(const njin_ctx &ctx) { return ctx.particles_gpu.backend; }
+particle_backend particles_backend(const context &ctx) { return ctx.particles_gpu.backend; }
 
-bool particles_gpu_available(njin_ctx &ctx) {
+bool particles_gpu_available(context &ctx) {
   probe(ctx.particles_gpu);
   return ctx.particles_gpu.available;
 }
 
-bool particles_gpu_wanted(njin_ctx &ctx) {
+bool particles_gpu_wanted(context &ctx) {
   return ctx.particles_gpu.backend != particle_backend_cpu && particles_gpu_available(ctx);
 }
 
-void particles_gpu_draw(njin_ctx &ctx, entt::entity entity, const transform &tr,
+void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
                         const particle_emitter &em) {
   particle_gpu_state &gpu = ctx.particles_gpu;
   particle_gpu_buffer *buffer = ctx.ecs.registry.try_get<particle_gpu_buffer>(entity);

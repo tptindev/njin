@@ -20,7 +20,7 @@ namespace njin {
 /// The generators (generate_topdown(), generate_platformer(), wfc_generate()) and the rules
 /// (grid_majority(), grid_border()...) all work on this grid; when done,
 /// tilemap_from_grid() places it into a tilemap. The grid is just data: it needs no window and no
-/// njin::njin_ctx, so it can be generated anywhere, even before the window is opened.
+/// njin::context, so it can be generated anywhere, even before the window is opened.
 struct tile_grid {
   i32 width = 0;           ///< Number of columns.
   i32 height = 0;          ///< Number of rows.

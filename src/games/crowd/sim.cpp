@@ -516,7 +516,7 @@ const char *group_kind_name(group_kind kind) {
 
 const std::vector<label> &gallery_labels() { return labels; }
 
-void sim_debug_components(njin_ctx &ctx) {
+void sim_debug_components(context &ctx) {
   debug_component<person>(ctx, "person", [](const person &p) {
     return json_value::make_object()
         .set("activity", activity_name(p.act))
@@ -550,7 +550,7 @@ void sim_debug_components(njin_ctx &ctx) {
   debug_component<gallery_pin>(ctx, "gallery_pin", [](const gallery_pin &) { return json_value::make_object(); });
 }
 
-void sim_populate(njin_ctx &ctx, u32 crowd) {
+void sim_populate(context &ctx, u32 crowd) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
   destroy_all<group>(reg);
@@ -565,7 +565,7 @@ void sim_populate(njin_ctx &ctx, u32 crowd) {
   index_build(reg);
 }
 
-void sim_spawn_family(njin_ctx &ctx, entt::entity parent) {
+void sim_spawn_family(context &ctx, entt::entity parent) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(parent) || !reg.all_of<person, dna>(parent) || reg.all_of<gallery_pin>(parent) ||
       crowd_list.empty())
@@ -583,7 +583,7 @@ void sim_spawn_family(njin_ctx &ctx, entt::entity parent) {
   }
 }
 
-void sim_update(njin_ctx &ctx, f32 dt) {
+void sim_update(context &ctx, f32 dt) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
   // Gallery: every pose loops at its own pace.

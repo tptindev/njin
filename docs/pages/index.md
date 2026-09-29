@@ -54,7 +54,7 @@ nhóm API, và kiến trúc bên trong engine.
 
 @include minimal_main.cpp
 
-Hàm `njin_run` chạy vòng lặp đến khi cửa sổ đóng. Mọi logic của game nằm trong
+Hàm `run` chạy vòng lặp đến khi cửa sổ đóng. Mọi logic của game nằm trong
 **module**, xem @ref modules_systems.
 
 ## Một game hoàn chỉnh

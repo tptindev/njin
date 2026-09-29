@@ -1,6 +1,6 @@
 # Vòng lặp game {#game_loop}
 
-njin_run() chạy vòng lặp sau:
+run() chạy vòng lặp sau:
 
 ```mermaid
 flowchart TD
@@ -63,4 +63,4 @@ không bị camera dịch chuyển hay phóng to. Xem @ref camera.
 - `phase_shutdown` chạy **một lần** sau khi cửa sổ đóng.
 
 Tài nguyên (texture, shader, render texture, sound, music) được giải phóng tự động khi gọi
-njin_destroy(), bạn không bắt buộc phải unload trong `phase_shutdown`.
+destroy(), bạn không bắt buộc phải unload trong `phase_shutdown`.

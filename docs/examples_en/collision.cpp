@@ -21,7 +21,7 @@ entt::entity hero = entt::null;
 njin::i32 score = 0;
 
 // Each collision pair sends two events, one for each side: only look at `self`.
-void on_enter(njin::njin_ctx &ctx, njin::collision_enter &e) {
+void on_enter(njin::context &ctx, njin::collision_enter &e) {
   entt::registry &reg = njin::world(ctx);
   // An earlier handler in the same frame may have destroyed one of the two.
   if (!reg.valid(e.self) || !reg.valid(e.other))
@@ -37,7 +37,7 @@ void on_enter(njin::njin_ctx &ctx, njin::collision_enter &e) {
   }
 }
 
-void spawn(njin::njin_ctx &ctx) {
+void spawn(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   njin::events(ctx).sink<njin::collision_enter>().connect<&on_enter>(ctx);
 
@@ -67,7 +67,7 @@ void spawn(njin::njin_ctx &ctx) {
   njin::collision_set_debug(ctx, true); // draw collider outlines for debugging
 }
 
-void move_hero(njin::njin_ctx &ctx) {
+void move_hero(njin::context &ctx) {
   njin::vec2 dir{};
   if (njin::key_held(ctx, njin::key_a)) dir.x -= 1;
   if (njin::key_held(ctx, njin::key_d)) dir.x += 1;
@@ -77,7 +77,7 @@ void move_hero(njin::njin_ctx &ctx) {
   njin::collision_move(ctx, hero, njin::normalize(dir) * 200.0f * njin::delta(ctx));
 }
 
-void shoot(njin::njin_ctx &ctx) {
+void shoot(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   if (njin::key_pressed(ctx, njin::key_j)) {
     const entt::entity b = reg.create();
@@ -103,7 +103,7 @@ void shoot(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, spawn);
   njin::ecs_register(ctx, njin::phase_fixed_update, move_hero);
   njin::ecs_register(ctx, njin::phase_update, shoot);

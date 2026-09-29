@@ -99,13 +99,13 @@ int main() {
 a=10 b=2
 ```
 
-**Trong njin**: chữ ký `void njin_run(njin_ctx &ctx)` nói "cần một context, và nó phải tồn tại". Hàm tạo thì trả
+**Trong njin**: chữ ký `void run(context &ctx)` nói "cần một context, và nó phải tồn tại". Hàm tạo thì trả
 về **con trỏ**, vì đến lúc đó nó chưa có, và hàm hủy nhận con trỏ được phép null:
 
 ```cpp
-njin::njin_ctx *ctx = njin::njin_create(cfg);  // con trỏ
-njin::njin_run(*ctx);                          // *ctx: từ con trỏ ra "chính đối tượng", để làm tham chiếu
-njin::njin_destroy(ctx);                       // nhận con trỏ; nullptr thì bị bỏ qua
+njin::context *ctx = njin::create(cfg);  // con trỏ
+njin::run(*ctx);                          // *ctx: từ con trỏ ra "chính đối tượng", để làm tham chiếu
+njin::destroy(ctx);                       // nhận con trỏ; nullptr thì bị bỏ qua
 ```
 
 Quy tắc dễ nhớ: **tham chiếu khi "phải có"**, **con trỏ khi "có thể không có"**.
@@ -128,8 +128,8 @@ Hứa rồi mà vi phạm thì trình biên dịch báo lỗi ngay, xem thông b
 **Trong njin**, `const` cho bạn biết hàm có thay đổi engine hay không, ngay từ chữ ký, không cần đọc thân hàm:
 
 ```cpp
-f32 time_scale(const njin_ctx &ctx);              // chỉ hỏi
-void time_set_scale(njin_ctx &ctx, f32 scale);    // sẽ thay đổi
+f32 time_scale(const context &ctx);              // chỉ hỏi
+void time_set_scale(context &ctx, f32 scale);    // sẽ thay đổi
 ```
 
 ## 3. Namespace
@@ -258,10 +258,10 @@ defarg2.cpp:1:6: note: previous specification in 'void spawn(float)' here
 `camera_spawn(ctx, 3.0f, {100, 50})` đều hợp lệ:
 
 ```cpp
-entt::entity camera_spawn(njin_ctx &ctx, f32 zoom = 1.0f, vec2 pos = {});
+entt::entity camera_spawn(context &ctx, f32 zoom = 1.0f, vec2 pos = {});
 ```
 
-Nạp chồng cũng có trong njin: `njin_mod_register` có ba bản, nhận một module, một danh sách module, hoặc một
+Nạp chồng cũng có trong njin: `mod_register` có ba bản, nhận một module, một danh sách module, hoặc một
 `std::span` các module; `render_texture_begin` có hai bản, có hoặc không có màu xóa. Còn khi hai việc thật sự khác nhau,
 engine dùng tên khác nhau: `sound_play_once`, `sound_play_loop`, `sound_play_at`.
 
@@ -411,7 +411,7 @@ giữa các file và không lộ ra ngoài file chứa chúng.
 1. Khác biệt giữa `void f(vec2 *p)` và `void f(vec2 &p)` khi gọi và khi dùng trong thân hàm?
 2. Vì sao `const vec2 &v` là kiểu tham số phổ biến hơn `vec2 v` cho struct lớn?
 3. `int &r = a; r = b;` làm gì: `r` chỉ sang `b`, hay chép `b` vào `a`?
-4. Trong njin, nhìn chữ ký `f32 delta(const njin_ctx &ctx)` và `void time_set_scale(njin_ctx &ctx, f32 scale)`, bạn kết luận gì
+4. Trong njin, nhìn chữ ký `f32 delta(const context &ctx)` và `void time_set_scale(context &ctx, f32 scale)`, bạn kết luận gì
    chỉ từ `const`?
 5. Vì sao không nên viết `using namespace njin;` trong một header?
 

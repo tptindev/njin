@@ -84,7 +84,7 @@ void advance(const anim_sheet &sheet, animator &anim, f32 dt) {
   }
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   const f32 dt = delta(ctx);
   for (auto [entity, anim, spr] : world(ctx).view<animator, sprite>().each()) {
     const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph);
@@ -115,7 +115,7 @@ void update(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
+void setup(context &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
 } // namespace
 
 mod_desc anim_module() { return mod_desc{.name = "njin.anim", .setup = setup}; }

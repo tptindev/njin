@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // The 3D pass (njin_3d.h): begin_3d/end_3d open it inside the world pass of
 // the camera module, which closes one the game left open (render3d_close).
@@ -97,7 +97,7 @@ struct debug3d_frame {
 };
 
 // Copies the open pass for the inspector. Called by end_3d before drawing.
-void render3d_capture_debug(njin_ctx &ctx);
+void render3d_capture_debug(context &ctx);
 
 struct render3d_state {
   bool ready = false;  // shaders and meshes created
@@ -146,5 +146,5 @@ struct shape_frame {
 shape_frame shape3d_frame(const shape3d &shape);
 
 // Closes a 3D pass the game left open. Called at the end of the world pass.
-void render3d_close(njin_ctx &ctx);
+void render3d_close(context &ctx);
 } // namespace njin

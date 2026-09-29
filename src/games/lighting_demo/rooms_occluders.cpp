@@ -16,7 +16,7 @@ struct ring_shape {
 };
 
 // Draws every light_occluder of the room that has no picture of its own (not a sprite, not a wall).
-void draw_all_shapes(njin_ctx &ctx) {
+void draw_all_shapes(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, o, t] : reg.view<const light_occluder, const transform>().each()) {
     if (reg.all_of<sprite>(e) || o.hole)
@@ -41,13 +41,13 @@ struct mouse_light {
   entt::entity e = entt::null;
   i32 label = -1;
 
-  void make(njin_ctx &ctx, f32 radius, f32 size) {
+  void make(context &ctx, f32 radius, f32 size) {
     e = add_light(ctx, mouse_world(ctx), {.temperature = 3400.0f, .intensity = 3.0f, .radius = radius, .size = size,
                                           .falloff = falloff_smooth});
     add_label({0.0f, 0.0f}, "");
     label = (i32)demo.labels.size() - 1;
   }
-  void update(njin_ctx &ctx) {
+  void update(context &ctx) {
     entt::registry &reg = world(ctx);
     light_2d &l = reg.get<light_2d>(e);
     l.size = std::clamp(l.size + mouse_wheel(ctx) * 2.0f, 0.0f, 60.0f);
@@ -74,7 +74,7 @@ light_occluder star(f32 outer, f32 inner, i32 points) {
 }
 
 // A ring: a closed shape, and a hole inside it (hole = true): the inside is open, light passes there.
-void add_ring(njin_ctx &ctx, vec2 at, f32 outer, f32 inner) {
+void add_ring(context &ctx, vec2 at, f32 outer, f32 inner) {
   const entt::entity e = add_occluder(ctx, at, light_occluder_circle(outer, {}, 20));
   world(ctx).emplace<ring_shape>(e, ring_shape{outer, inner});
   light_occluder hole = light_occluder_circle(inner, {}, 20);
@@ -82,7 +82,7 @@ void add_ring(njin_ctx &ctx, vec2 at, f32 outer, f32 inner) {
   add_occluder(ctx, at, std::move(hole));
 }
 
-void shapes_build(njin_ctx &ctx) {
+void shapes_build(context &ctx) {
   fill_floor(ctx, t_stone, t_stone2);
   const f32 y1 = 140.0f, y2 = 270.0f;
   add_occluder(ctx, {80.0f, y1}, light_occluder_box({28.0f, 20.0f}));
@@ -106,9 +106,9 @@ void shapes_build(njin_ctx &ctx) {
   lighting_set(ctx, base_lighting());
 }
 
-void shapes_update(njin_ctx &ctx) { shapes_light.update(ctx); }
+void shapes_update(context &ctx) { shapes_light.update(ctx); }
 
-void shapes_draw(njin_ctx &ctx) { draw_all_shapes(ctx); }
+void shapes_draw(context &ctx) { draw_all_shapes(ctx); }
 
 // --- 6. occluders that move, turn, grow and change shape ---
 
@@ -120,7 +120,7 @@ struct moving_room {
   f32 time = 0.0f;
 } moving;
 
-void moving_build(njin_ctx &ctx) {
+void moving_build(context &ctx) {
   fill_floor(ctx, t_wood);
   moving.time = 0.0f;
   // Slembcke's demo: a spinning box between two coloured lights. Light adds up, so where both reach the
@@ -145,7 +145,7 @@ void moving_build(njin_ctx &ctx) {
   lighting_set(ctx, d);
 }
 
-void moving_update(njin_ctx &ctx) {
+void moving_update(context &ctx) {
   entt::registry &reg = world(ctx);
   moving.time += delta(ctx);
   const f32 t = moving.time;
@@ -159,7 +159,7 @@ void moving_update(njin_ctx &ctx) {
   p[1] = from_angle(-80.0f * open) * 40.0f;
 }
 
-void moving_draw(njin_ctx &ctx) { draw_all_shapes(ctx); }
+void moving_draw(context &ctx) { draw_all_shapes(ctx); }
 
 // --- 7. walls from a tilemap, and a top-down hero with a torch ---
 
@@ -169,7 +169,7 @@ struct dungeon_room {
   entt::entity torch = entt::null;
 } dungeon;
 
-void dungeon_build(njin_ctx &ctx) {
+void dungeon_build(context &ctx) {
   fill_floor(ctx, t_stone, t_stone2);
   // The first four rows are under the text. '#' is a wall; the rest is open floor.
   dungeon.walls = build_walls(ctx, {
@@ -211,7 +211,7 @@ void dungeon_build(njin_ctx &ctx) {
   lighting_set(ctx, d);
 }
 
-void dungeon_update(njin_ctx &ctx) {
+void dungeon_update(context &ctx) {
   entt::registry &reg = world(ctx);
   vec2 move{};
   move.x = (key_held(ctx, key_d) || key_held(ctx, key_right) ? 1.0f : 0.0f) - (key_held(ctx, key_a) || key_held(ctx, key_left) ? 1.0f : 0.0f);
@@ -240,7 +240,7 @@ struct sprites_room {
   f32 time = 0.0f;
 } sprites;
 
-void sprites_build(njin_ctx &ctx) {
+void sprites_build(context &ctx) {
   fill_floor(ctx, t_grass);
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
@@ -277,7 +277,7 @@ void sprites_build(njin_ctx &ctx) {
   lighting_set(ctx, base_lighting());
 }
 
-void sprites_update(njin_ctx &ctx) {
+void sprites_update(context &ctx) {
   entt::registry &reg = world(ctx);
   sprites.time += delta(ctx);
   for (i32 column = 0; column < 3; column++) {

@@ -5,7 +5,7 @@ using namespace njin;
 
 // An object standing on the ground, blocking light with each pixel of its image. If `mask` is given, only the sufficiently
 // opaque pixels of the mask image block light (same size as the sprite image).
-void place(njin_ctx &ctx, const char *image, vec2 pos, f32 scale, const char *mask = nullptr) {
+void place(context &ctx, const char *image, vec2 pos, f32 scale, const char *mask = nullptr) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e, transform{.pos = pos, .scale = scale});
@@ -13,7 +13,7 @@ void place(njin_ctx &ctx, const char *image, vec2 pos, f32 scale, const char *ma
   reg.emplace<light_occluder_pixels>(e, light_occluder_pixels{.mask = mask != nullptr ? texture_load(ctx, mask) : texture_handle{}});
 }
 
-void load(njin_ctx &ctx) {
+void load(context &ctx) {
   entt::registry &reg = world(ctx);
   lighting_set(ctx, {.enabled = true, .ambient = {0.34f, 0.38f, 0.55f, 1.0f}});
 
@@ -27,7 +27,7 @@ void load(njin_ctx &ctx) {
   place(ctx, "assets/sprites/bush.png", {400.0f, 480.0f}, 5.0f);
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_startup, load, "load"); }
+void setup(context &ctx) { ecs_register(ctx, phase_startup, load, "load"); }
 } // namespace
 
 mod_desc light_pixels_module() { return {.name = "light_pixels", .setup = setup}; }

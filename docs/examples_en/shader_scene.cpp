@@ -6,7 +6,7 @@ namespace {
 njin::shader_handle scene;
 entt::entity hero = entt::null; // the character, created by the game elsewhere
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   // nullptr: keep the default vertex shader, only replace the fragment shader.
   scene = njin::shader_load(ctx, nullptr, "assets/scene.fs");
 
@@ -20,7 +20,7 @@ void load(njin::njin_ctx &ctx) {
 }
 
 // Set the uniforms every frame, before the world is drawn.
-void update_scene(njin::njin_ctx &ctx) {
+void update_scene(njin::context &ctx) {
   const float t = njin::elapsed(ctx);
   njin::shader_set_f32(ctx, scene, "time", t);
   njin::shader_set_vec2(ctx, scene, "resolution", njin::screen_size(ctx));
@@ -45,7 +45,7 @@ void update_scene(njin::njin_ctx &ctx) {
   njin::shader_set_vec4_array(ctx, scene, "light_colors", colors, 2);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load, "load");
   njin::ecs_register(ctx, njin::phase_pre_render, update_scene, "update_scene");
 }

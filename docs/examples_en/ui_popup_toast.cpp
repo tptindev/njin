@@ -4,14 +4,14 @@ namespace {
 bool quit_popup_open = false;
 bool has_unsaved = true;
 
-void save_game(njin::njin_ctx &ctx) {
+void save_game(njin::context &ctx) {
   // ... write the file ...
   has_unsaved = false;
   // Toast: call it from anywhere, no ui_begin needed.
   njin::ui_toast(ctx, "Game saved", {.kind = njin::ui_toast_success});
 }
 
-void menus(njin::njin_ctx &ctx) {
+void menus(njin::context &ctx) {
   njin::ui_begin(ctx, {.id = "pause", .title = "Paused"});
   if (njin::ui_button(ctx, "Save"))
     save_game(ctx);
@@ -33,9 +33,9 @@ void menus(njin::njin_ctx &ctx) {
         quit_popup_open);
     if (pick == 1) {
       save_game(ctx);
-      njin::njin_quit(ctx);
+      njin::quit(ctx);
     } else if (pick == 2) {
-      njin::njin_quit(ctx);
+      njin::quit(ctx);
     }
   }
 }
@@ -44,7 +44,7 @@ void menus(njin::njin_ctx &ctx) {
 bool settings_open = false;
 njin::f32 volume = 0.8f;
 
-void settings_popup(njin::njin_ctx &ctx) {
+void settings_popup(njin::context &ctx) {
   if (!settings_open)
     return;
   njin::ui_popup_begin(ctx, {.id = "settings", .title = "Settings", .width = 460});
@@ -54,7 +54,7 @@ void settings_popup(njin::njin_ctx &ctx) {
   njin::ui_popup_end(ctx);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_post_render, menus);
   njin::ecs_register(ctx, njin::phase_post_render, settings_popup);
 }

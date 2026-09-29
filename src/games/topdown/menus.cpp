@@ -17,16 +17,16 @@ std::span<const shared::rebind_row> rows() {
   return r;
 }
 
-void text_centered(njin_ctx &ctx, const char *text, f32 y, f32 size, rgba color, font_handle font) {
+void text_centered(context &ctx, const char *text, f32 y, f32 size, rgba color, font_handle font) {
   const vec2 m = text_measure(ctx, text, size, font);
   const f32 x = (screen_size(ctx).x - m.x) * 0.5f;
   draw_text(ctx, text, {x + 2.0f, y + 2.0f}, size, {0.05f, 0.1f, 0.05f, 0.6f}, font);
   draw_text(ctx, text, {x, y}, size, color, font);
 }
 
-void start_run(njin_ctx &ctx) { scene_fade(ctx, g.play); }
+void start_run(context &ctx) { scene_fade(ctx, g.play); }
 
-void title_draw(njin_ctx &ctx) {
+void title_draw(context &ctx) {
   draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, {0.23f, 0.49f, 0.27f, 1.0f});
   const f32 t = elapsed(ctx);
   text_centered(ctx, tr(ctx, "game.title"), 50.0f + std::sin(t * 2.0f) * 3.0f, 40.0f, {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
@@ -46,11 +46,11 @@ void title_draw(njin_ctx &ctx) {
   if (ui_button(ctx, tr(ctx, "menu.settings")))
     g.settings_open = true;
   if (ui_button(ctx, tr(ctx, "menu.quit")))
-    njin_quit(ctx);
+    quit(ctx);
   ui_end(ctx);
 }
 
-void hud(njin_ctx &ctx) {
+void hud(context &ctx) {
   entt::registry &reg = world(ctx);
   const font_handle font = ui_style_get(ctx).font;
   i32 hp = 0;
@@ -99,7 +99,7 @@ void hud(njin_ctx &ctx) {
   }
 }
 
-void win_draw(njin_ctx &ctx) {
+void win_draw(context &ctx) {
   draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, {0.10f, 0.20f, 0.12f, 1.0f});
   text_centered(ctx, tr(ctx, "win.title"), 44.0f, 36.0f, {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
   ui_begin(ctx, {.id = "win", .anchor = {0.5f, 0.62f}, .width = 280.0f});
@@ -114,7 +114,7 @@ void win_draw(njin_ctx &ctx) {
   ui_end(ctx);
 }
 
-void over_draw(njin_ctx &ctx) {
+void over_draw(context &ctx) {
   draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, {0.15f, 0.06f, 0.06f, 1.0f});
   text_centered(ctx, tr(ctx, "over.title"), 70.0f, 36.0f, {1.0f, 0.5f, 0.5f, 1.0f}, g_big);
   ui_begin(ctx, {.id = "over", .anchor = {0.5f, 0.62f}, .width = 260.0f});
@@ -125,7 +125,7 @@ void over_draw(njin_ctx &ctx) {
   ui_end(ctx);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   g_big = font_load(ctx, "assets/fonts/BeVietnamPro-Bold.ttf", 40);
   ecs_register(ctx, phase_post_render, sys_desc{.fnc = title_draw, .scene = g.title, .name = "title_draw"});
   ecs_register(ctx, phase_post_render, sys_desc{.fnc = hud, .scene = g.play, .name = "hud"});
@@ -136,12 +136,12 @@ void setup(njin_ctx &ctx) {
 
 mod_desc menus_module() { return mod_desc{.name = "td.menus", .setup = setup}; }
 
-void title_enter(njin_ctx &ctx) {
+void title_enter(context &ctx) {
   g.settings_open = false;
   music_crossfade(ctx, g.m_forest, 1.0f);
 }
 
-void end_enter(njin_ctx &ctx) {
+void end_enter(context &ctx) {
   music_crossfade(ctx, g.m_forest, 1.0f);
   ui_focus(ctx, tr(ctx, "menu.again"));
 }

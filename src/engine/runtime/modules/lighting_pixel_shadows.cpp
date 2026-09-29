@@ -33,7 +33,7 @@ void set_v2(const Shader &s, i32 loc, vec2 v) {
 }
 } // namespace
 
-bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camera, const rect &steady, f32 texel_scale,
+bool build_pixel_shadows(context &ctx, lighting_state &s, const Camera2D &camera, const rect &steady, f32 texel_scale,
                          const std::vector<light_job> &lights, std::vector<pixel_light> &out) {
   const lighting_desc &d = s.desc;
   entt::registry &registry = ctx.ecs.registry;

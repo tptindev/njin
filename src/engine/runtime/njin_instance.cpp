@@ -60,12 +60,12 @@ instance_store::~instance_store() {
     rlUnloadVertexBuffer(quad_vbo);
 }
 
-bool instancing_available(const njin_ctx &ctx) {
+bool instancing_available(const context &ctx) {
   // Probing only reads the GL version and makes the shared quad once.
-  return probe(const_cast<njin_ctx &>(ctx).instances);
+  return probe(const_cast<context &>(ctx).instances);
 }
 
-instance_buffer_handle instance_buffer_create(njin_ctx &ctx, u32 floats_per_instance) {
+instance_buffer_handle instance_buffer_create(context &ctx, u32 floats_per_instance) {
   instance_store &store = ctx.instances;
   if (floats_per_instance == 0 || floats_per_instance > 16 || floats_per_instance % 4 != 0) {
     NJIN_WARN("instance_buffer_create: floats_per_instance must be 4, 8, 12 or 16, not %u",
@@ -87,7 +87,7 @@ instance_buffer_handle instance_buffer_create(njin_ctx &ctx, u32 floats_per_inst
   return instance_buffer_handle{(u32)store.slots.size()};
 }
 
-void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle) {
+void instance_buffer_destroy(context &ctx, instance_buffer_handle handle) {
   instance_slot *slot = instance_slot_of(ctx.instances, handle);
   if (slot == nullptr)
     return;
@@ -98,7 +98,7 @@ void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle) {
   *slot = instance_slot{};
 }
 
-void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const f32 *data,
+void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f32 *data,
                             u32 count) {
   instance_slot *slot = instance_slot_of(ctx.instances, handle);
   if (slot == nullptr)
@@ -125,7 +125,7 @@ void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const 
 
 namespace {
 // `texture_id` is bound to texture0 when not 0.
-void draw_instanced_impl(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader,
+void draw_instanced_impl(context &ctx, instance_buffer_handle handle, shader_handle shader,
                          u32 first, u32 count, unsigned int texture_id) {
   instance_store &store = ctx.instances;
   instance_slot *slot = instance_slot_of(store, handle);
@@ -186,19 +186,19 @@ void draw_instanced_impl(njin_ctx &ctx, instance_buffer_handle handle, shader_ha
 }
 } // namespace
 
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count) {
   draw_instanced_impl(ctx, handle, shader, first, count, 0);
 }
 
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, texture_handle texture) {
   const texture_slot *slot = texture_slot_of(ctx.texture, texture);
   if (slot != nullptr)
     draw_instanced_impl(ctx, handle, shader, first, count, slot->texture.id);
 }
 
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, render_texture_handle texture) {
   const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, texture);
   if (slot != nullptr)

@@ -2,7 +2,7 @@
 #include <njin.h>
 
 int main() {
-  const njin::njin_cfg cfg{.title = "njin pong",
+  const njin::config cfg{.title = "njin pong",
                            .width = 960.0f,
                            .height = 540.0f,
                            .target_fps = 60.0f,
@@ -12,12 +12,12 @@ int main() {
                            .resizable = true,
                            .app_name = "njin pong"};
 
-  njin::njin_ctx *ctx = njin::njin_create(cfg);
-  njin::njin_mod_register(*ctx, pong::pong_module());
+  njin::context *ctx = njin::create(cfg);
+  njin::mod_register(*ctx, pong::pong_module());
 #ifndef NDEBUG
   njin::debug_server_start(*ctx); // njin_inspector, in a debug build
 #endif
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::run(*ctx);
+  njin::destroy(ctx);
   return 0;
 }

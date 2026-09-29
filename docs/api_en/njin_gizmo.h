@@ -2,7 +2,7 @@
 #include "_math.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_debug
 /// @{
@@ -36,7 +36,7 @@ struct njin_ctx;
 /// @param b End point.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_line(njin_ctx &ctx, vec2 a, vec2 b, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_line(context &ctx, vec2 a, vec2 b, rgba color = colors::green, f32 duration = 0.0f);
 
 /// 2D arrow from `from` to `to`.
 /// @param ctx Engine context.
@@ -44,14 +44,14 @@ void gizmo_line(njin_ctx &ctx, vec2 a, vec2 b, rgba color = colors::green, f32 d
 /// @param to Tip.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_arrow(njin_ctx &ctx, vec2 from, vec2 to, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_arrow(context &ctx, vec2 from, vec2 to, rgba color = colors::green, f32 duration = 0.0f);
 
 /// 2D rectangle outline.
 /// @param ctx Engine context.
 /// @param r Rectangle, world coordinates.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_rect(njin_ctx &ctx, rect r, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_rect(context &ctx, rect r, rgba color = colors::green, f32 duration = 0.0f);
 
 /// 2D circle outline.
 /// @param ctx Engine context.
@@ -59,14 +59,14 @@ void gizmo_rect(njin_ctx &ctx, rect r, rgba color = colors::green, f32 duration 
 /// @param radius Radius.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_circle(njin_ctx &ctx, vec2 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_circle(context &ctx, vec2 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
 
 /// A 2D point: a small cross, fixed size on screen.
 /// @param ctx Engine context.
 /// @param p Position.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_point(njin_ctx &ctx, vec2 p, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_point(context &ctx, vec2 p, rgba color = colors::green, f32 duration = 0.0f);
 
 /// A text label at a 2D world point, fixed size on screen.
 /// @param ctx Engine context.
@@ -74,7 +74,7 @@ void gizmo_point(njin_ctx &ctx, vec2 p, rgba color = colors::green, f32 duration
 /// @param text Text (UTF-8). nullptr is ignored.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_text(njin_ctx &ctx, vec2 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
+void gizmo_text(context &ctx, vec2 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
 
 /// 3D line segment.
 /// @param ctx Engine context.
@@ -82,7 +82,7 @@ void gizmo_text(njin_ctx &ctx, vec2 pos, const char *text, rgba color = colors::
 /// @param b End point.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_line3d(njin_ctx &ctx, vec3 a, vec3 b, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_line3d(context &ctx, vec3 a, vec3 b, rgba color = colors::green, f32 duration = 0.0f);
 
 /// 3D arrow from `from` to `to`.
 /// @param ctx Engine context.
@@ -90,7 +90,7 @@ void gizmo_line3d(njin_ctx &ctx, vec3 a, vec3 b, rgba color = colors::green, f32
 /// @param to Tip.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_arrow3d(njin_ctx &ctx, vec3 from, vec3 to, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_arrow3d(context &ctx, vec3 from, vec3 to, rgba color = colors::green, f32 duration = 0.0f);
 
 /// 3D box outline, edges parallel to the axes.
 /// @param ctx Engine context.
@@ -98,7 +98,7 @@ void gizmo_arrow3d(njin_ctx &ctx, vec3 from, vec3 to, rgba color = colors::green
 /// @param size Size along x, y, z.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_box3d(njin_ctx &ctx, vec3 center, vec3 size, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_box3d(context &ctx, vec3 center, vec3 size, rgba color = colors::green, f32 duration = 0.0f);
 
 /// 3D sphere outline: three great circles.
 /// @param ctx Engine context.
@@ -106,21 +106,21 @@ void gizmo_box3d(njin_ctx &ctx, vec3 center, vec3 size, rgba color = colors::gre
 /// @param radius Radius.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_sphere3d(njin_ctx &ctx, vec3 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_sphere3d(context &ctx, vec3 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Three coordinate axes at `pos`: x red, y green, z blue.
 /// @param ctx Engine context.
 /// @param pos Origin.
 /// @param size Length of each axis.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_axes3d(njin_ctx &ctx, vec3 pos, f32 size = 1.0f, f32 duration = 0.0f);
+void gizmo_axes3d(context &ctx, vec3 pos, f32 size = 1.0f, f32 duration = 0.0f);
 
 /// A 3D point: a small cross, fixed size on screen.
 /// @param ctx Engine context.
 /// @param p Position.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_point3d(njin_ctx &ctx, vec3 p, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_point3d(context &ctx, vec3 p, rgba color = colors::green, f32 duration = 0.0f);
 
 /// A text label attached to a 3D point, fixed size on screen. Does not show
 /// when the point is behind the camera.
@@ -129,19 +129,19 @@ void gizmo_point3d(njin_ctx &ctx, vec3 p, rgba color = colors::green, f32 durati
 /// @param text Text (UTF-8). nullptr is ignored.
 /// @param color Colour.
 /// @param duration Seconds still shown. 0 is just this frame.
-void gizmo_text3d(njin_ctx &ctx, vec3 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
+void gizmo_text3d(context &ctx, vec3 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
 
 /// Turns gizmo drawing on or off. On by default. When off, `gizmo_*` calls
 /// cost almost nothing; use it for a debug toggle key, or to turn them off in
 /// a release build.
 /// @param ctx Engine context.
 /// @param visible `true` to draw them.
-void gizmos_set_visible(njin_ctx &ctx, bool visible);
+void gizmos_set_visible(context &ctx, bool visible);
 
 /// Whether gizmos are being drawn.
 /// @param ctx Engine context.
 /// @return The value set by gizmos_set_visible().
-bool gizmos_visible(const njin_ctx &ctx);
+bool gizmos_visible(const context &ctx);
 /// @}
 /// @}
 } // namespace njin

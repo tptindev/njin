@@ -143,7 +143,7 @@ vec3 world_of(vec2 c);
 vec3 world_of(cell c);
 
 // The floor and the walls of the level as two instance buffers.
-void build_blocks(njin_ctx &ctx) {
+void build_blocks(context &ctx) {
   std::vector<f32> floor, walls;
   for (i32 y = 0; y < g.h; y++) {
     for (i32 x = 0; x < g.w; x++) {
@@ -164,7 +164,7 @@ void build_blocks(njin_ctx &ctx) {
   instance_buffer_upload(ctx, g.wall_blocks, walls.data(), (u32)(walls.size() / 16));
 }
 
-void load_level(njin_ctx &ctx, usize index) {
+void load_level(context &ctx, usize index) {
   const std::vector<std::string> &rows = levels[index];
   g.level = index;
   g.h = (i32)rows.size();
@@ -223,7 +223,7 @@ bool all_on_goals() {
 }
 
 // One step of the rules. Returns false when the move is blocked.
-bool try_move(njin_ctx &ctx, cell d) {
+bool try_move(context &ctx, cell d) {
   // Turning toward a wall still counts: the player looks that way.
   const cell was_facing = g.facing;
   g.facing = d;
@@ -265,7 +265,7 @@ bool try_move(njin_ctx &ctx, cell d) {
   return true;
 }
 
-void undo(njin_ctx &ctx) {
+void undo(context &ctx) {
   if (g.history.empty())
     return;
   const snapshot &s = g.history.back();
@@ -283,7 +283,7 @@ void undo(njin_ctx &ctx) {
 
 // The direction asked for this frame, or {0, 0}. A fresh press always
 // counts; a held key repeats every repeat_time.
-cell input_direction(const njin_ctx &ctx) {
+cell input_direction(const context &ctx) {
   struct binding {
     key_code a, b;
     cell d;
@@ -324,7 +324,7 @@ vec2 slid(cell from, cell to) {
   return lerp(vec2{(f32)from.x, (f32)from.y}, vec2{(f32)to.x, (f32)to.y}, t);
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   g = game_state{};
   g.crate_texture = texture_load(ctx, "assets/crate.png");
   g.floor_tiles = instance_buffer_create(ctx, 16);
@@ -340,7 +340,7 @@ void startup(njin_ctx &ctx) {
   load_level(ctx, 0);
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   const f32 dt = delta(ctx);
   if (g.slide < 1.0f)
     g.slide = std::min(1.0f, g.slide + dt / step_time);
@@ -380,12 +380,12 @@ void update(njin_ctx &ctx) {
 }
 
 // Crates and player come in dissolving, reversed, when a level starts.
-void set_appear(njin_ctx &ctx) {
+void set_appear(context &ctx) {
   const f32 t = std::min(g.appear / appear_time, 1.0f);
   fx3d_set(ctx, {.dissolve = 1.0f - t, .edge_color = {0.6f, 0.85f, 1.0f, 1.0f}, .grain = 0.06f});
 }
 
-void render(njin_ctx &ctx) {
+void render(context &ctx) {
   // Framed to the level: the bigger side sets the distance.
   const f32 size = (f32)std::max(g.w, g.h);
   const vec3 target{0.0f, 0.0f, 0.4f};
@@ -448,7 +448,7 @@ void render(njin_ctx &ctx) {
   end_3d(ctx);
 }
 
-void render_ui(njin_ctx &ctx) {
+void render_ui(context &ctx) {
   char line[96];
   std::snprintf(line, sizeof line, "Màn %zu/%zu   Bước %d   Đẩy %d", g.level + 1, levels.size(),
                 g.moves, g.pushes);
@@ -464,7 +464,7 @@ void render_ui(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "sokoban_startup");
   ecs_register(ctx, phase_update, update, "sokoban_update");
   ecs_register(ctx, phase_render, render, "sokoban_render");

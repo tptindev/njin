@@ -4,7 +4,7 @@ To make games with njin you need to be able to read C++, know how CMake builds a
 exactly those parts, **from zero**, in a single thread. You do not have to pick a "level": you start at the first lesson, and
 skip any lesson you already know.
 
-Everything here is distilled from njin itself: the examples take their shape from the engine's code (handles, `njin_ctx &`, the repo's CMake,
+Everything here is distilled from njin itself: the examples take their shape from the engine's code (handles, `context &`, the repo's CMake,
 the post-processing shaders), plus the game patterns every game runs into. **No lesson needs njin**: all you need is a compiler, and
 CMake for the last part. Install them by following @ref setup.
 
@@ -31,7 +31,7 @@ CMake for the last part. Install them by following @ref setup.
 | Lesson | Content |
 |---|---|
 | @subpage learn_cpp_from_c | References, `const`, namespaces, `std::string`, `std::vector`, `struct` with functions, overloading, default arguments |
-| @subpage learn_cpp_types | Values and references, copy and move, RAII, ownership, and why njin uses handles and `njin_ctx &` |
+| @subpage learn_cpp_types | Values and references, copy and move, RAII, ownership, and why njin uses handles and `context &` |
 | @subpage learn_cpp_modern | `auto`, structured bindings, lambdas, designated initializers, `initializer_list`, `constexpr`, `enum class`, templates to **use** |
 | @subpage learn_errors | Reading compile errors, link errors and runtime errors, and the debugging workflow with `-Wall`, `printf`, `gdb` |
 

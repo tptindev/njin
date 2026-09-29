@@ -5,7 +5,7 @@
 #include <entt/entity/fwd.hpp>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_fx
 /// @{
@@ -31,17 +31,17 @@ struct shake_config {
 /// It uses real time, so it still shakes during hitstop().
 /// @param ctx Engine context.
 /// @param trauma Extra shake amount, with the total capped at 1.
-void camera_shake(njin_ctx &ctx, f32 trauma);
+void camera_shake(context &ctx, f32 trauma);
 
 /// Changes how camera_shake() shakes.
 /// @param ctx Engine context.
 /// @param config New shake settings.
-void camera_shake_config(njin_ctx &ctx, const shake_config &config);
+void camera_shake_config(context &ctx, const shake_config &config);
 
 /// Current shake amount, 0..1.
 /// @param ctx Engine context.
 /// @return Shake amount.
-f32 camera_shake_amount(const njin_ctx &ctx);
+f32 camera_shake_amount(const context &ctx);
 
 /// Freezes the game briefly (hitstop, freeze frame) to give a hit "weight".
 ///
@@ -50,12 +50,12 @@ f32 camera_shake_amount(const njin_ctx &ctx);
 /// takes the longer time, it does not accumulate. Usually 0.03 to 0.12 seconds.
 /// @param ctx Engine context.
 /// @param seconds Freeze duration, in real seconds.
-void hitstop(njin_ctx &ctx, f32 seconds);
+void hitstop(context &ctx, f32 seconds);
 
 /// Whether a hitstop is active.
 /// @param ctx Engine context.
 /// @return `true` if the game is frozen.
-bool hitstop_active(const njin_ctx &ctx);
+bool hitstop_active(const context &ctx);
 
 /// Flashes the whole screen in one color and then fades it out: white for a big explosion, red when hurt.
 ///
@@ -64,7 +64,7 @@ bool hitstop_active(const njin_ctx &ctx);
 /// @param ctx Engine context.
 /// @param color Flash color. `color.a` is the initial opacity.
 /// @param duration Time to fade out completely, in seconds.
-void screen_flash(njin_ctx &ctx, rgba color, f32 duration);
+void screen_flash(context &ctx, rgba color, f32 duration);
 /// @}
 
 /// @name Sprite flash
@@ -87,7 +87,7 @@ struct flash_fx {
 /// @param entity Entity with a sprite.
 /// @param color Paint color.
 /// @param duration Duration, in seconds (follows delta(), so it pauses during hitstop).
-void sprite_flash(njin_ctx &ctx, entt::entity entity,
+void sprite_flash(context &ctx, entt::entity entity,
                   rgba color = {1.0f, 1.0f, 1.0f, 1.0f}, f32 duration = 0.1f);
 /// @}
 
@@ -130,7 +130,7 @@ struct dissolve_fx {
 /// @param entity Entity with a sprite.
 /// @param duration Duration, in seconds (follows delta(), so it pauses during hitstop).
 /// @param edge_color Burnt edge color. `a` equal to 0 means no edge.
-void sprite_dissolve(njin_ctx &ctx, entt::entity entity, f32 duration = 0.6f,
+void sprite_dissolve(context &ctx, entt::entity entity, f32 duration = 0.6f,
                      rgba edge_color = {1.0f, 0.55f, 0.1f, 1.0f});
 /// @}
 

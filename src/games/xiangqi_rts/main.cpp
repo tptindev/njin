@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  njin_ctx *ctx = njin_create({
+  context *ctx = create({
       .title = "Chiến Trận Cờ Tướng - Xiangqi RTS",
       .width = 1280.0f,
       .height = 720.0f,
@@ -27,13 +27,13 @@ int main(int argc, char **argv) {
       .smooth_ui = true
   });
 
-  njin_mod_register(*ctx, xiangqi::module(test_mode));
+  mod_register(*ctx, xiangqi::module(test_mode));
 
 #ifndef NDEBUG
   debug_server_start(*ctx);
 #endif
 
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  run(*ctx);
+  destroy(ctx);
   return 0;
 }

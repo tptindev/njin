@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_draw
 /// @{
@@ -17,14 +17,14 @@ struct njin_ctx;
 /// @param ctx Context của engine.
 /// @param r Hình chữ nhật.
 /// @param color Màu.
-void draw_rect(const njin_ctx &ctx, rect r, rgba color);
+void draw_rect(const context &ctx, rect r, rgba color);
 
 /// Vẽ viền hình chữ nhật. Viền nằm bên trong `r`.
 /// @param ctx Context của engine.
 /// @param r Hình chữ nhật.
 /// @param thickness Độ dày viền.
 /// @param color Màu.
-void draw_rect_lines(const njin_ctx &ctx, rect r, f32 thickness, rgba color);
+void draw_rect_lines(const context &ctx, rect r, f32 thickness, rgba color);
 
 /// Vẽ hình chữ nhật đặc xoay quanh tâm của nó.
 /// @param ctx Context của engine.
@@ -32,7 +32,7 @@ void draw_rect_lines(const njin_ctx &ctx, rect r, f32 thickness, rgba color);
 /// @param size Kích thước.
 /// @param rotation Góc xoay tính bằng độ, theo chiều kim đồng hồ.
 /// @param color Màu.
-void draw_rect_rotated(const njin_ctx &ctx, vec2 center, vec2 size,
+void draw_rect_rotated(const context &ctx, vec2 center, vec2 size,
                        f32 rotation, rgba color);
 
 /// Vẽ hình tròn đặc.
@@ -40,7 +40,7 @@ void draw_rect_rotated(const njin_ctx &ctx, vec2 center, vec2 size,
 /// @param center Tâm.
 /// @param radius Bán kính.
 /// @param color Màu.
-void draw_circle(const njin_ctx &ctx, vec2 center, f32 radius, rgba color);
+void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color);
 
 /// Vẽ viền hình tròn. Viền nằm bên trong bán kính.
 /// @param ctx Context của engine.
@@ -48,7 +48,7 @@ void draw_circle(const njin_ctx &ctx, vec2 center, f32 radius, rgba color);
 /// @param radius Bán kính.
 /// @param thickness Độ dày viền.
 /// @param color Màu.
-void draw_circle_lines(const njin_ctx &ctx, vec2 center, f32 radius,
+void draw_circle_lines(const context &ctx, vec2 center, f32 radius,
                        f32 thickness, rgba color);
 
 /// Vẽ đoạn thẳng.
@@ -57,7 +57,7 @@ void draw_circle_lines(const njin_ctx &ctx, vec2 center, f32 radius,
 /// @param b Điểm cuối.
 /// @param thickness Độ dày.
 /// @param color Màu.
-void draw_line(const njin_ctx &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
+void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 
 /// Vẽ tam giác đặc. Thứ tự ba đỉnh không quan trọng.
 /// @param ctx Context của engine.
@@ -65,7 +65,7 @@ void draw_line(const njin_ctx &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 /// @param b Đỉnh thứ hai.
 /// @param c Đỉnh thứ ba.
 /// @param color Màu.
-void draw_triangle(const njin_ctx &ctx, vec2 a, vec2 b, vec2 c, rgba color);
+void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color);
 /// @}
 
 /// @addtogroup grp_text
@@ -89,7 +89,7 @@ enum font_style : u8 {
 /// phải chờ. Bỏ qua hoặc 0 thì dựng thử ở cỡ 16 để biết file có đọc được không.
 /// @param style Kiểu dựng chữ, mặc định là font_smooth.
 /// @return Handle của font, hoặc handle id 0 (font mặc định) nếu nạp thất bại.
-font_handle font_load(njin_ctx &ctx, const char *path, i32 size = 0,
+font_handle font_load(context &ctx, const char *path, i32 size = 0,
                       font_style style = font_smooth);
 
 /// Đổi kiểu dựng chữ của một font, kể cả font mặc định (handle id 0). Các ảnh
@@ -100,18 +100,18 @@ font_handle font_load(njin_ctx &ctx, const char *path, i32 size = 0,
 /// pixel thì vẽ ở 8, 16, 24. Font vector thường (như JetBrains Mono) dựng ở cỡ
 /// nhỏ theo kiểu này sẽ răng cưa. Chữ kiểu này luôn vẽ trong ảnh ảo, phóng bằng
 /// cùng bộ lọc nearest với sprite, và không đi qua lớp chữ nét của
-/// njin_cfg::crisp_text. Nên bật `integer_scale` cho độ phân giải ảo để mọi
+/// config::crisp_text. Nên bật `integer_scale` cho độ phân giải ảo để mọi
 /// pixel chữ to bằng nhau.
 /// @param ctx Context của engine.
 /// @param font Font cần đổi, handle id 0 là font mặc định.
 /// @param style Kiểu mới.
-void font_set_style(njin_ctx &ctx, font_handle font, font_style style);
+void font_set_style(context &ctx, font_handle font, font_style style);
 
 /// Giải phóng font. Handle không hợp lệ bị bỏ qua. Vẽ bằng handle đã giải
 /// phóng thì dùng font mặc định.
 /// @param ctx Context của engine.
 /// @param font Font cần giải phóng.
-void font_unload(njin_ctx &ctx, font_handle font);
+void font_unload(context &ctx, font_handle font);
 
 /// Vẽ chữ với góc trên trái tại `pos`. Hỗ trợ xuống dòng bằng `\n`.
 ///
@@ -119,14 +119,14 @@ void font_unload(njin_ctx &ctx, font_handle font);
 /// tiếng Việt. Vị trí được làm tròn về pixel để chữ không bị nhòe.
 ///
 /// Với độ phân giải ảo và GPU thật, chữ trên màn hình (ngoài world) được vẽ ở
-/// độ phân giải cửa sổ, xem njin_cfg::crisp_text.
+/// độ phân giải cửa sổ, xem config::crisp_text.
 /// @param ctx Context của engine.
 /// @param text Chuỗi UTF-8.
 /// @param pos Vị trí góc trên trái.
 /// @param size Cỡ chữ, tính bằng pixel.
 /// @param color Màu.
 /// @param font Font, mặc định là font của engine.
-void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
                rgba color, font_handle font = {});
 
 /// Kích thước một chuỗi khi vẽ bằng draw_text() với cùng tham số.
@@ -137,7 +137,7 @@ void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
 /// @param size Cỡ chữ, tính bằng pixel.
 /// @param font Font, mặc định là font của engine.
 /// @return Chiều rộng và chiều cao, tính bằng pixel.
-vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
+vec2 text_measure(const context &ctx, const char *text, f32 size,
                   font_handle font = {});
 
 /// Chia một đoạn chữ thành các dòng không rộng quá `max_width` khi vẽ bằng
@@ -151,7 +151,7 @@ vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
 /// @param max_width Chiều rộng tối đa của một dòng, pixel.
 /// @param font Font.
 /// @return Các dòng, theo thứ tự.
-std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,
+std::vector<std::string> text_wrap(const context &ctx, const char *text, f32 size,
                                    f32 max_width, font_handle font = {});
 
 /// Vẽ một đoạn chữ tự xuống dòng trong bề rộng `max_width`, góc trên trái tại
@@ -165,7 +165,7 @@ std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 si
 /// @param font Font.
 /// @param line_spacing Khoảng cách dòng, nhân với chiều cao dòng. 1 là sát nhau.
 /// @return Kích thước của khối chữ đã vẽ.
-vec2 draw_text_wrapped(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
                        f32 max_width, rgba color, font_handle font = {},
                        f32 line_spacing = 1.1f);
 /// @}
@@ -183,7 +183,7 @@ enum texture_filter {
 /// @param ctx Context của engine.
 /// @param handle Texture cần đổi.
 /// @param filter Cách lấy mẫu.
-void texture_set_filter(njin_ctx &ctx, texture_handle handle,
+void texture_set_filter(context &ctx, texture_handle handle,
                         texture_filter filter);
 
 /// Đổi cách lấy mẫu của render texture.
@@ -194,7 +194,7 @@ void texture_set_filter(njin_ctx &ctx, texture_handle handle,
 /// @param ctx Context của engine.
 /// @param handle Render texture cần đổi.
 /// @param filter Cách lấy mẫu.
-void render_texture_set_filter(njin_ctx &ctx, render_texture_handle handle,
+void render_texture_set_filter(context &ctx, render_texture_handle handle,
                                texture_filter filter);
 
 /// Tham số đầy đủ cho texture_draw_ex().
@@ -217,7 +217,7 @@ struct texture_draw_desc {
 /// @param ctx Context của engine.
 /// @param handle Texture cần vẽ.
 /// @param desc Tham số vẽ.
-void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
+void texture_draw_ex(const context &ctx, texture_handle handle,
                      const texture_draw_desc &desc);
 
 /// Gắn một shader "vật liệu" cố định vào texture: không cần bọc
@@ -236,7 +236,7 @@ void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
 /// @param ctx Context của engine.
 /// @param handle Texture cần gắn.
 /// @param shader Shader cần gắn, hoặc handle có id 0 để gỡ vật liệu.
-void texture_set_shader(njin_ctx &ctx, texture_handle handle,
+void texture_set_shader(context &ctx, texture_handle handle,
                         shader_handle shader);
 /// @}
 
@@ -253,7 +253,7 @@ enum blend_mode {
 /// Đổi cách trộn màu cho mọi thứ vẽ sau đó, cho đến blend_end().
 /// @param ctx Context của engine.
 /// @param mode Cách trộn.
-void blend_begin(const njin_ctx &ctx, blend_mode mode);
+void blend_begin(const context &ctx, blend_mode mode);
 
 /// Bật sắp xếp theo Y cho một lớp vẽ: trong lớp đó, sprite và particle có
 /// `y` lớn hơn (thấp hơn trên màn hình) được vẽ sau, nên đè lên thứ đứng phía
@@ -266,11 +266,11 @@ void blend_begin(const njin_ctx &ctx, blend_mode mode);
 /// @param ctx Context của engine.
 /// @param layer Lớp vẽ (njin::sprite::layer).
 /// @param on `true` để bật.
-void draw_set_y_sort(njin_ctx &ctx, i32 layer, bool on);
+void draw_set_y_sort(context &ctx, i32 layer, bool on);
 
 /// Trở lại cách trộn mặc định.
 /// @param ctx Context của engine.
-void blend_end(const njin_ctx &ctx);
+void blend_end(const context &ctx);
 
 /// Chỉ vẽ bên trong một vùng của màn hình, cho đến clip_end().
 ///
@@ -278,10 +278,10 @@ void blend_end(const njin_ctx &ctx);
 /// trong UI.
 /// @param ctx Context của engine.
 /// @param area Vùng được vẽ, pixel màn hình.
-void clip_begin(const njin_ctx &ctx, rect area);
+void clip_begin(const context &ctx, rect area);
 
 /// Bỏ giới hạn vùng vẽ.
 /// @param ctx Context của engine.
-void clip_end(const njin_ctx &ctx);
+void clip_end(const context &ctx);
 /// @}
 } // namespace njin

@@ -24,7 +24,7 @@ ui_style hud_style{};
 
 constexpr rgba col_panel_border = rgb(180, 150, 80, 220);
 
-void draw_quad_sdf(njin_ctx &ctx, rect r) {
+void draw_quad_sdf(context &ctx, rect r) {
   if (white_tex.id != 0) {
     const vec2 sz = texture_size(ctx, white_tex);
     texture_draw_ex(ctx, white_tex, texture_draw_desc{
@@ -37,14 +37,14 @@ void draw_quad_sdf(njin_ctx &ctx, rect r) {
   }
 }
 
-void draw_text_centered(njin_ctx &ctx, const char *str, vec2 center, f32 size, rgba col) {
+void draw_text_centered(context &ctx, const char *str, vec2 center, f32 size, rgba col) {
   const vec2 sz = text_measure(ctx, str, size);
   draw_text(ctx, str, center - sz * 0.5f, size, col);
 }
 
 // --- SDF DRAWING HELPERS ---
 
-void draw_sdf_piece(njin_ctx &ctx, vec2 pos, piece_type type, faction side, f32 radius,
+void draw_sdf_piece(context &ctx, vec2 pos, piece_type type, faction side, f32 radius,
                     bool selected, bool crossed_river, f32 anim_timer, vec2 facing = {0.0f, -1.0f}) {
   const i32 idx = static_cast<i32>(type);
   const piece_spec &sp = specs[idx];
@@ -97,7 +97,7 @@ void draw_sdf_piece(njin_ctx &ctx, vec2 pos, piece_type type, faction side, f32 
   draw_text_centered(ctx, label, pos + vec2{0.0f, -radius * 0.12f}, font_size, text_color);
 }
 
-void draw_sdf_panel(njin_ctx &ctx, rect r, rgba bg_top, rgba bg_bottom, rgba border_col,
+void draw_sdf_panel(context &ctx, rect r, rgba bg_top, rgba bg_bottom, rgba border_col,
                     f32 roundness = 4.0f, f32 border_width = 1.5f, bool has_corners = true) {
   if (sh_hud.id != 0) {
     shader_set_vec2(ctx, sh_hud, "u_resolution", r.size);
@@ -119,7 +119,7 @@ void draw_sdf_panel(njin_ctx &ctx, rect r, rgba bg_top, rgba bg_bottom, rgba bor
   }
 }
 
-void draw_sdf_bar(njin_ctx &ctx, rect r, f32 value, rgba bar_col, rgba bar_col2,
+void draw_sdf_bar(context &ctx, rect r, f32 value, rgba bar_col, rgba bar_col2,
                   rgba border_col = col_white, f32 roundness = 3.0f, f32 border_width = 1.0f,
                   bool right_to_left = false) {
   if (sh_hud.id != 0) {
@@ -149,7 +149,7 @@ void draw_sdf_bar(njin_ctx &ctx, rect r, f32 value, rgba bar_col, rgba bar_col2,
   }
 }
 
-void draw_sdf_ring(njin_ctx &ctx, rect r, f32 progress, rgba bg_col, rgba border_col) {
+void draw_sdf_ring(context &ctx, rect r, f32 progress, rgba bg_col, rgba border_col) {
   if (sh_hud.id != 0) {
     shader_set_vec2(ctx, sh_hud, "u_resolution", r.size);
     shader_set_i32(ctx, sh_hud, "u_mode", 3); // Ring
@@ -167,7 +167,7 @@ void draw_sdf_ring(njin_ctx &ctx, rect r, f32 progress, rgba bg_col, rgba border
   }
 }
 
-void draw_sdf_marquee(njin_ctx &ctx, rect r) {
+void draw_sdf_marquee(context &ctx, rect r) {
   if (sh_hud.id != 0) {
     shader_set_vec2(ctx, sh_hud, "u_resolution", r.size);
     shader_set_i32(ctx, sh_hud, "u_mode", 4); // Box select
@@ -182,7 +182,7 @@ void draw_sdf_marquee(njin_ctx &ctx, rect r) {
   }
 }
 
-void draw_sdf_badge(njin_ctx &ctx, rect r, rgba bg_col, rgba border_col, bool is_diamond = false) {
+void draw_sdf_badge(context &ctx, rect r, rgba bg_col, rgba border_col, bool is_diamond = false) {
   if (sh_hud.id != 0) {
     shader_set_vec2(ctx, sh_hud, "u_resolution", r.size);
     shader_set_i32(ctx, sh_hud, "u_mode", 5); // Badge
@@ -201,7 +201,7 @@ void draw_sdf_badge(njin_ctx &ctx, rect r, rgba bg_col, rgba border_col, bool is
   }
 }
 
-void draw_grid_and_palaces(njin_ctx &ctx) {
+void draw_grid_and_palaces(context &ctx) {
   constexpr f32 step_x = 240.0f;
   constexpr f32 step_y = 160.0f;
 
@@ -232,7 +232,7 @@ void draw_grid_and_palaces(njin_ctx &ctx) {
   draw_text_centered(ctx, "CỬU CUNG NAM QUÂN", {1200.0f, 1515.0f}, 13.0f, rgb(220, 90, 80, 130));
 }
 
-void draw_river_and_bridges(njin_ctx &ctx) {
+void draw_river_and_bridges(context &ctx) {
   const f32 time = elapsed(ctx);
 
   draw_rect(ctx, {{0.0f, river_top}, {world_width, river_bottom - river_top}}, col_river_deep);
@@ -270,7 +270,7 @@ void draw_river_and_bridges(njin_ctx &ctx) {
   }
 }
 
-void draw_outposts(njin_ctx &ctx) {
+void draw_outposts(context &ctx) {
   const auto &reg = world(ctx);
   for (const auto [oe, op] : reg.view<const outpost_component>().each()) {
     rgba ring_col = col_muted;
@@ -311,7 +311,7 @@ void draw_outposts(njin_ctx &ctx) {
 
 // Loads sdf_ui.fs as a njin ui_look shader in `mode` (0 panel, 1 bar, 2 button).
 // The skin colour reaches the shader as fragColor; the rest is fixed per look.
-shader_handle load_look_shader(njin_ctx &ctx, i32 mode, f32 roundness, f32 border_width, rgba border,
+shader_handle load_look_shader(context &ctx, i32 mode, f32 roundness, f32 border_width, rgba border,
                                f32 shade, bool corners) {
   const shader_handle sh = shader_load(ctx, nullptr, "assets/shaders/sdf_ui.fs");
   if (sh.id == 0)
@@ -370,7 +370,7 @@ ui_style make_hud_style() {
 }
 
 // ui_label in its own colour.
-void hud_label(njin_ctx &ctx, const char *text, rgba color) {
+void hud_label(context &ctx, const char *text, rgba color) {
   ui_style s = ui_style_get(ctx);
   const rgba old = s.label.text;
   s.label.text = color;
@@ -381,7 +381,7 @@ void hud_label(njin_ctx &ctx, const char *text, rgba color) {
 }
 
 // ui_progress with its own fill colour.
-void hud_bar(njin_ctx &ctx, f32 value, const char *text, rgba color) {
+void hud_bar(context &ctx, f32 value, const char *text, rgba color) {
   ui_style s = ui_style_get(ctx);
   const ui_look old = s.track;
   s.track.normal.color = color;
@@ -400,7 +400,7 @@ f32 hp_ratio(const entt::registry &reg, entt::entity e) {
 
 } // namespace
 
-void render_init(njin_ctx &ctx) {
+void render_init(context &ctx) {
   sh_piece = shader_load(ctx, nullptr, "assets/shaders/sdf_piece.fs");
   sh_hud = shader_load(ctx, nullptr, "assets/shaders/sdf_ui.fs");
   white_tex = texture_load(ctx, "assets/white.png");
@@ -411,7 +411,7 @@ void render_init(njin_ctx &ctx) {
   hud_style = make_hud_style();
 }
 
-void render_cleanup(njin_ctx &ctx) {
+void render_cleanup(context &ctx) {
   for (shader_handle *sh : {&sh_piece, &sh_hud, &sh_look_panel, &sh_look_button, &sh_look_bar}) {
     if (sh->id != 0) {
       shader_unload(ctx, *sh);
@@ -424,7 +424,7 @@ void render_cleanup(njin_ctx &ctx) {
   }
 }
 
-void render_world(njin_ctx &ctx) {
+void render_world(context &ctx) {
   // 1. Terrain Grass Background
   draw_rect(ctx, {{0.0f, 0.0f}, {world_width, world_height}}, col_ground);
 
@@ -510,7 +510,7 @@ void render_world(njin_ctx &ctx) {
   }
 }
 
-void render_ui(njin_ctx &ctx) {
+void render_ui(context &ctx) {
   const vec2 scr = screen_size(ctx);
   const auto &reg = world(ctx);
   ui_style_set(ctx, hud_style);

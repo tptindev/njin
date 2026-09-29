@@ -30,8 +30,8 @@ namespace njin {
 // needs the hierarchy to have run, and its debug outlines then draw over the
 // sprites. Body moves characters in fixed_update, before any game module's
 // fixed systems.
-void register_core_modules(njin_ctx &ctx) {
-  njin_mod_register(ctx, {reload_module(), debug_module(), ui_module(), dialog_module(), camera_module(),
+void register_core_modules(context &ctx) {
+  mod_register(ctx, {reload_module(), debug_module(), ui_module(), dialog_module(), camera_module(),
                           audio_module(), hierarchy_module(), camera_follow_module(),
                           anim_module(), particles_module(), particles3d_module(), sprite_module(),
                           collision_module(), body_module(), timer_module()});

@@ -14,7 +14,7 @@
 namespace njin {
 namespace {
 // A string from a script: '@key' is looked up in the string tables.
-std::string resolve(const njin_ctx &ctx, const std::string &s) {
+std::string resolve(const context &ctx, const std::string &s) {
   if (!s.empty() && s[0] == '@')
     return tr(ctx, s.c_str() + 1);
   return s;
@@ -43,7 +43,7 @@ std::string first_codepoints(const std::string &s, i32 n) {
   return s.substr(0, i);
 }
 
-bool cond_ok(njin_ctx &ctx, const dialog_state &d, const std::string &cond) {
+bool cond_ok(context &ctx, const dialog_state &d, const std::string &cond) {
   return cond.empty() || !d.condition || d.condition(ctx, cond);
 }
 
@@ -54,7 +54,7 @@ i32 find_node(const dialog_script &script, const std::string &id) {
   return -1;
 }
 
-void finish(njin_ctx &ctx) {
+void finish(context &ctx) {
   dialog_state &d = ctx.dialog;
   if (!d.active)
     return;
@@ -68,7 +68,7 @@ void finish(njin_ctx &ctx) {
 }
 
 // Shows node `id`, skipping those whose condition is false. Empty id ends.
-void go_to(njin_ctx &ctx, std::string id) {
+void go_to(context &ctx, std::string id) {
   dialog_state &d = ctx.dialog;
   for (i32 guard = 0; guard < 256; guard++) {
     if (id.empty()) {
@@ -111,7 +111,7 @@ void go_to(njin_ctx &ctx, std::string id) {
   finish(ctx);
 }
 
-void open(njin_ctx &ctx, const char *start) {
+void open(context &ctx, const char *start) {
   dialog_state &d = ctx.dialog;
   const bool was_active = d.active;
   d.active = true;
@@ -125,19 +125,19 @@ void open(njin_ctx &ctx, const char *start) {
   go_to(ctx, first);
 }
 
-void play(njin_ctx &ctx, sound_handle s) {
+void play(context &ctx, sound_handle s) {
   if (s.id != 0)
     sound_play_once(ctx, s);
 }
 
-bool any_pad(const njin_ctx &ctx, gamepad_button b) {
+bool any_pad(const context &ctx, gamepad_button b) {
   for (i32 p = 0; p < gamepad_max; p++)
     if (pad_available(ctx, p) && pad_pressed(ctx, p, b))
       return true;
   return false;
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   dialog_state &d = ctx.dialog;
   if (!d.active || d.node < 0)
     return;
@@ -206,7 +206,7 @@ void update(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, update, "update"); }
+void setup(context &ctx) { ecs_register(ctx, phase_pre_update, update, "update"); }
 } // namespace
 
 mod_desc dialog_module() { return mod_desc{.name = "njin.dialog", .setup = setup}; }
@@ -222,15 +222,15 @@ dialog_style dialog_default_style() {
   return s;
 }
 
-void dialog_set_style(njin_ctx &ctx, const dialog_style &style) { ctx.dialog.style = style; }
-dialog_style dialog_get_style(const njin_ctx &ctx) { return ctx.dialog.style; }
+void dialog_set_style(context &ctx, const dialog_style &style) { ctx.dialog.style = style; }
+dialog_style dialog_get_style(const context &ctx) { return ctx.dialog.style; }
 
-void dialog_portrait(njin_ctx &ctx, const char *name, texture_handle texture, rect source) {
+void dialog_portrait(context &ctx, const char *name, texture_handle texture, rect source) {
   if (name != nullptr)
     ctx.dialog.portraits[name] = dialog_portrait_rec{texture, source};
 }
 
-void dialog_set_condition(njin_ctx &ctx, std::function<bool(njin_ctx &, const std::string &)> fn) {
+void dialog_set_condition(context &ctx, std::function<bool(context &, const std::string &)> fn) {
   ctx.dialog.condition = std::move(fn);
 }
 
@@ -277,12 +277,12 @@ bool dialog_load(const char *path, dialog_script &out) {
   return dialog_parse(root, out);
 }
 
-void dialog_start(njin_ctx &ctx, const dialog_script &script, const char *start) {
+void dialog_start(context &ctx, const dialog_script &script, const char *start) {
   ctx.dialog.script = script;
   open(ctx, start);
 }
 
-void dialog_say(njin_ctx &ctx, const char *speaker, const char *text, const char *portrait) {
+void dialog_say(context &ctx, const char *speaker, const char *text, const char *portrait) {
   dialog_script s;
   dialog_node n;
   n.id = "say";
@@ -293,11 +293,11 @@ void dialog_say(njin_ctx &ctx, const char *speaker, const char *text, const char
   dialog_start(ctx, s);
 }
 
-bool dialog_active(const njin_ctx &ctx) { return ctx.dialog.active; }
+bool dialog_active(const context &ctx) { return ctx.dialog.active; }
 
-void dialog_stop(njin_ctx &ctx) { finish(ctx); }
+void dialog_stop(context &ctx) { finish(ctx); }
 
-void dialog_draw(njin_ctx &ctx) {
+void dialog_draw(context &ctx) {
   dialog_state &d = ctx.dialog;
   if (!d.active || d.node < 0)
     return;

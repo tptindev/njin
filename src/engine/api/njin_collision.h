@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_collision
 /// @{
@@ -156,7 +156,7 @@ struct collision_move_opts {
 /// @param entity Entity có transform và collider hộp hoặc tròn.
 /// @param delta Độ dời mong muốn.
 /// @return Độ dời thật và vật chặn trên từng trục.
-collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta);
+collision_move_result collision_move(context &ctx, entt::entity entity, vec2 delta);
 
 /// Như bản trên, kèm tùy chọn: bục một chiều, dính dốc, chỉ dò.
 ///
@@ -169,7 +169,7 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
 /// @param delta Độ dời mong muốn.
 /// @param opts Tùy chọn.
 /// @return Độ dời thật, vật chặn, và trạng thái mặt đất.
-collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta,
+collision_move_result collision_move(context &ctx, entt::entity entity, vec2 delta,
                                      const collision_move_opts &opts);
 
 /// Di chuyển một bục (entity có collider hộp, thường là `one_way` hoặc vật cản)
@@ -184,7 +184,7 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
 /// @param ctx Context của engine.
 /// @param platform Entity bục, có transform và collider.
 /// @param delta Độ dời của bục.
-void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta);
+void collision_move_platform(context &ctx, entt::entity platform, vec2 delta);
 
 /// Tìm mọi entity có collider chồng lên hình chữ nhật `area`.
 /// @param ctx Context của engine.
@@ -193,7 +193,7 @@ void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta);
 /// @param mask Chỉ xét collider có `layer & mask != 0`.
 /// @param include_triggers Có xét collider trigger không.
 /// @return Số entity tìm thấy.
-i32 collision_overlap_rect(const njin_ctx &ctx, rect area,
+i32 collision_overlap_rect(const context &ctx, rect area,
                            std::vector<entt::entity> *out = nullptr,
                            u32 mask = layer_all, bool include_triggers = true);
 
@@ -204,7 +204,7 @@ i32 collision_overlap_rect(const njin_ctx &ctx, rect area,
 /// @param mask Chỉ xét collider có `layer & mask != 0`.
 /// @param include_triggers Có xét collider trigger không.
 /// @return Số entity tìm thấy.
-i32 collision_overlap_circle(const njin_ctx &ctx, circle area,
+i32 collision_overlap_circle(const context &ctx, circle area,
                              std::vector<entt::entity> *out = nullptr,
                              u32 mask = layer_all, bool include_triggers = true);
 
@@ -215,7 +215,7 @@ i32 collision_overlap_circle(const njin_ctx &ctx, circle area,
 /// @param mask Chỉ xét collider có `layer & mask != 0`.
 /// @param include_triggers Có xét collider trigger không.
 /// @return Số entity tìm thấy.
-i32 collision_overlap_point(const njin_ctx &ctx, vec2 point,
+i32 collision_overlap_point(const context &ctx, vec2 point,
                             std::vector<entt::entity> *out = nullptr,
                             u32 mask = layer_all, bool include_triggers = true);
 
@@ -239,7 +239,7 @@ struct raycast_hit {
 /// @param include_triggers Có xét collider trigger không. Mặc định không.
 /// @param ignore Entity bỏ qua, thường là chính người bắn.
 /// @return Vật trúng, hoặc `hit == false`.
-raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to,
+raycast_hit collision_raycast(const context &ctx, vec2 from, vec2 to,
                               u32 mask = layer_all, bool include_triggers = false,
                               entt::entity ignore = entt::null);
 
@@ -253,7 +253,7 @@ raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to,
 /// @param mask Chỉ xét collider có `layer & mask != 0`.
 /// @param ignore Entity bỏ qua, thường là chính người nhìn.
 /// @return `true` nếu không có gì chắn giữa hai điểm.
-inline bool collision_line_of_sight(const njin_ctx &ctx, vec2 from, vec2 to,
+inline bool collision_line_of_sight(const context &ctx, vec2 from, vec2 to,
                                     u32 mask = layer_all, entt::entity ignore = entt::null) {
   return !collision_raycast(ctx, from, to, mask, false, ignore).hit;
 }
@@ -262,12 +262,12 @@ inline bool collision_line_of_sight(const njin_ctx &ctx, vec2 from, vec2 to,
 /// lá cho vật cản, vàng cho trigger. Để dò lỗi hitbox.
 /// @param ctx Context của engine.
 /// @param on Bật hay tắt.
-void collision_set_debug(njin_ctx &ctx, bool on);
+void collision_set_debug(context &ctx, bool on);
 
 /// Cỡ ô của lưới tìm cặp va chạm, đơn vị thế giới. Mặc định 64. Nên gần bằng
 /// cỡ collider phổ biến trong game; chỉ ảnh hưởng tốc độ, không đổi kết quả.
 /// @param ctx Context của engine.
 /// @param size Cỡ ô, lớn hơn 0.
-void collision_set_cell_size(njin_ctx &ctx, f32 size);
+void collision_set_cell_size(context &ctx, f32 size);
 /// @}
 } // namespace njin

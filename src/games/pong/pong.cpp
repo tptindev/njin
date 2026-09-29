@@ -66,7 +66,7 @@ rect body_rect(const transform &tr, const body &b) {
 }
 
 // A short square-wave blip, made in memory so the game ships without files.
-sound_handle make_blip(njin_ctx &ctx, f32 freq, f32 seconds) {
+sound_handle make_blip(context &ctx, f32 freq, f32 seconds) {
   const i32 rate = 44100;
   const i32 count = (i32)((f32)rate * seconds);
   std::vector<f32> samples((std::size_t)count);
@@ -79,7 +79,7 @@ sound_handle make_blip(njin_ctx &ctx, f32 freq, f32 seconds) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-void load_best(njin_ctx &ctx) {
+void load_best(context &ctx) {
   g.save_file = save_path(ctx, "best_rally.txt");
   std::string text;
   if (file_read(g.save_file.c_str(), text))
@@ -91,13 +91,13 @@ void save_best() {
 }
 
 // Draws text centred on `center`, in screen space.
-void text_centered(njin_ctx &ctx, const char *text, vec2 center, f32 size,
+void text_centered(context &ctx, const char *text, vec2 center, f32 size,
                    rgba color) {
   const vec2 m = text_measure(ctx, text, size, g.font);
   draw_text(ctx, text, center - m * 0.5f, size, color, g.font);
 }
 
-void serve(njin_ctx &ctx, entt::registry &reg, i32 toward) {
+void serve(context &ctx, entt::registry &reg, i32 toward) {
   for (auto [e, tr, b] : reg.view<transform, ball>().each()) {
     tr.pos = field * 0.5f;
     // A random angle within 35 degrees of horizontal, never straight up.
@@ -110,7 +110,7 @@ void serve(njin_ctx &ctx, entt::registry &reg, i32 toward) {
 
 // Scenes.
 
-void enter_play(njin_ctx &ctx) {
+void enter_play(context &ctx) {
   entt::registry &reg = world(ctx);
   g.score[0] = g.score[1] = 0;
   g.winner = -1;
@@ -135,7 +135,7 @@ void enter_play(njin_ctx &ctx) {
   serve(ctx, reg, random(ctx).range(0, 1));
 }
 
-void exit_play(njin_ctx &ctx) {
+void exit_play(context &ctx) {
   time_set_paused(ctx, false);
   time_set_scale(ctx, 1.0f);
   save_best();
@@ -143,7 +143,7 @@ void exit_play(njin_ctx &ctx) {
 
 // Systems.
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   entt::registry &reg = world(ctx);
   g.camera = reg.create();
   reg.emplace<transform>(g.camera, transform{.pos = field * 0.5f});
@@ -185,7 +185,7 @@ void startup(njin_ctx &ctx) {
 }
 
 // Fits the 960x540 field into the window and applies screen shake.
-void fit_camera(njin_ctx &ctx) {
+void fit_camera(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.camera))
     return;
@@ -202,7 +202,7 @@ void fit_camera(njin_ctx &ctx) {
   }
 }
 
-void global_input(njin_ctx &ctx) {
+void global_input(context &ctx) {
   if (action_pressed(ctx, g.fullscreen))
     window_set_fullscreen(ctx, !window_fullscreen(ctx));
   // Saved to %APPDATA%/njin pong/screenshots, taken at the end of the frame.
@@ -210,16 +210,16 @@ void global_input(njin_ctx &ctx) {
     screenshot(ctx);
 }
 
-void menu_update(njin_ctx &ctx) {
+void menu_update(context &ctx) {
   if (action_pressed(ctx, g.toggle_players))
     g.two_players = !g.two_players;
   if (action_pressed(ctx, g.confirm))
     scene_set(ctx, g.play);
   if (action_pressed(ctx, g.back))
-    njin_quit(ctx);
+    quit(ctx);
 }
 
-void play_input(njin_ctx &ctx) {
+void play_input(context &ctx) {
   if (action_pressed(ctx, g.pause) || action_pressed(ctx, g.back)) {
     g.paused = !g.paused;
     time_set_paused(ctx, g.paused);
@@ -232,7 +232,7 @@ void play_input(njin_ctx &ctx) {
 }
 
 // Physics runs at a fixed 60 Hz, so the ball behaves the same at any FPS.
-void play_physics(njin_ctx &ctx) {
+void play_physics(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 dt = delta(ctx); // one fixed step here
 
@@ -301,7 +301,7 @@ void play_physics(njin_ctx &ctx) {
   }
 }
 
-void over_update(njin_ctx &ctx) {
+void over_update(context &ctx) {
   if (action_pressed(ctx, g.confirm))
     scene_set(ctx, g.play);
   if (action_pressed(ctx, g.back))
@@ -309,7 +309,7 @@ void over_update(njin_ctx &ctx) {
 }
 
 // Drawing: the field in world space (through the camera)...
-void draw_field(njin_ctx &ctx) {
+void draw_field(context &ctx) {
   draw_rect_lines(ctx, rect{{0.0f, 0.0f}, field}, 3.0f, rgba{1, 1, 1, 0.25f});
   for (f32 y = 10.0f; y < field.y; y += 36.0f)
     draw_rect(ctx, rect{{field.x * 0.5f - 2.0f, y}, {4.0f, 18.0f}}, rgba{1, 1, 1, 0.2f});
@@ -329,7 +329,7 @@ void draw_field(njin_ctx &ctx) {
 }
 
 // ...and the UI in screen space.
-void draw_play_ui(njin_ctx &ctx) {
+void draw_play_ui(context &ctx) {
   const vec2 screen = screen_size(ctx);
   const std::string score =
       std::to_string(g.score[0]) + "   " + std::to_string(g.score[1]);
@@ -346,7 +346,7 @@ void draw_play_ui(njin_ctx &ctx) {
   }
 }
 
-void draw_menu(njin_ctx &ctx) {
+void draw_menu(context &ctx) {
   const vec2 screen = screen_size(ctx);
   // A title that bobs, eased with a sine wave.
   const f32 bob = std::sin(elapsed(ctx) * 2.0f) * 6.0f;
@@ -363,7 +363,7 @@ void draw_menu(njin_ctx &ctx) {
                 rgba{1, 1, 1, 0.5f});
 }
 
-void draw_over(njin_ctx &ctx) {
+void draw_over(context &ctx) {
   const vec2 screen = screen_size(ctx);
   const char *title = g.winner == 0 ? "Người 1 thắng!"
                       : g.two_players ? "Người 2 thắng!"
@@ -378,7 +378,7 @@ void draw_over(njin_ctx &ctx) {
                 {screen.x * 0.5f, screen.y * 0.7f}, 24.0f, rgba{1, 1, 1, 0.7f});
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   g.menu = scene_register(ctx, {.name = "menu"});
   g.play = scene_register(ctx, {.name = "play", .on_enter = enter_play, .on_exit = exit_play});
   g.over = scene_register(ctx, {.name = "over"});

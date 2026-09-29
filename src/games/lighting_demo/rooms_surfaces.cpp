@@ -21,7 +21,7 @@ struct pbr_room {
   std::vector<maps> saved;
 } pbr;
 
-entt::entity pbr_sprite(njin_ctx &ctx, vec2 at, f32 scale, texture_handle tex, texture_handle normal, texture_handle material,
+entt::entity pbr_sprite(context &ctx, vec2 at, f32 scale, texture_handle tex, texture_handle normal, texture_handle material,
                         const char *name) {
   const entt::entity e = add_sprite(ctx, at, tex, normal, material);
   world(ctx).get<transform>(e).scale = scale;
@@ -30,7 +30,7 @@ entt::entity pbr_sprite(njin_ctx &ctx, vec2 at, f32 scale, texture_handle tex, t
   return e;
 }
 
-void pbr_build(njin_ctx &ctx) {
+void pbr_build(context &ctx) {
   fill_floor(ctx, t_stone, t_stone2);
   pbr.saved.clear();
   const images &i = demo.img;
@@ -58,7 +58,7 @@ void pbr_build(njin_ctx &ctx) {
   lighting_set(ctx, d);
 }
 
-void pbr_update(njin_ctx &ctx) {
+void pbr_update(context &ctx) {
   entt::registry &reg = world(ctx);
   light_2d &l = reg.get<light_2d>(pbr.light);
   // Height over the scene: a low light grazes the surfaces and brings out the relief of the normal maps.
@@ -86,7 +86,7 @@ struct colour_room {
   entt::entity rgb[3]{};
 } colour;
 
-void colour_build(njin_ctx &ctx) {
+void colour_build(context &ctx) {
   fill_floor(ctx, t_stone, t_stone2);
   // Colour temperature: the colour of a glowing black body, from candle to blue sky.
   constexpr f32 kelvin[6] = {1900.0f, 2700.0f, 4000.0f, 5500.0f, 6500.0f, 10000.0f};
@@ -107,7 +107,7 @@ void colour_build(njin_ctx &ctx) {
   colour.exposure = 1.0f;
 }
 
-void colour_update(njin_ctx &ctx) {
+void colour_update(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 t = elapsed(ctx);
   for (i32 k = 0; k < 3; k++)
@@ -136,7 +136,7 @@ struct swarm_room {
   bool shadows = true;
 } swarm;
 
-void swarm_set(njin_ctx &ctx, i32 wanted) {
+void swarm_set(context &ctx, i32 wanted) {
   entt::registry &reg = world(ctx);
   rng &r = random(ctx);
   // The engine draws at most 64 lights a frame (the ones nearest the middle of the view); more are skipped.
@@ -153,7 +153,7 @@ void swarm_set(njin_ctx &ctx, i32 wanted) {
   }
 }
 
-void swarm_build(njin_ctx &ctx) {
+void swarm_build(context &ctx) {
   fill_floor(ctx, t_wood);
   swarm.flies.clear();
   for (i32 y = 0; y < 3; y++)
@@ -165,7 +165,7 @@ void swarm_build(njin_ctx &ctx) {
   lighting_set(ctx, d);
 }
 
-void swarm_update(njin_ctx &ctx) {
+void swarm_update(context &ctx) {
   entt::registry &reg = world(ctx);
   if (key_pressed(ctx, key_equal))
     swarm_set(ctx, swarm.wanted + 8);
@@ -187,7 +187,7 @@ void swarm_update(njin_ctx &ctx) {
   }
 }
 
-void swarm_draw(njin_ctx &ctx) {
+void swarm_draw(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, o, t] : reg.view<const light_occluder, const transform>().each())
     draw_rect(ctx, rect{t.pos - vec2{7.0f, 7.0f}, {14.0f, 14.0f}}, {0.45f, 0.42f, 0.40f, 1.0f});
@@ -203,7 +203,7 @@ struct side_room {
   entt::entity lantern = entt::null;
 } side;
 
-void side_build(njin_ctx &ctx) {
+void side_build(context &ctx) {
   entt::registry &reg = world(ctx);
   fill_floor(ctx, t_back);
   // The same helper as the dungeon: the ground is a tilemap, solid for the body and outlined into occluders.
@@ -264,7 +264,7 @@ void side_build(njin_ctx &ctx) {
   lighting_set(ctx, d);
 }
 
-void side_update(njin_ctx &ctx) {
+void side_update(context &ctx) {
   entt::registry &reg = world(ctx);
   platformer_body &body = reg.get<platformer_body>(side.hero);
   body.input.move_x = (key_held(ctx, key_d) || key_held(ctx, key_right) ? 1.0f : 0.0f) -

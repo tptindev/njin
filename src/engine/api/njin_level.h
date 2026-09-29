@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_level
 /// @{
@@ -53,7 +53,7 @@ struct level_desc {
 /// entity trong LDtk), entity được dựng bằng prefab đó; component này được
 /// gắn **trước** khi hàm dựng chạy, nên hàm dựng đọc được thuộc tính:
 /// @code
-/// void build_door(njin::njin_ctx &ctx, entt::entity e) {
+/// void build_door(njin::context &ctx, entt::entity e) {
 ///   const auto &obj = njin::world(ctx).get<njin::level_object>(e);
 ///   const char *target = obj.props["target"].string_or("start");
 ///   ...
@@ -97,7 +97,7 @@ struct level_object {
 /// @param path Đường dẫn file bản đồ.
 /// @param desc Cách nạp.
 /// @return Handle của level, hoặc handle id 0 nếu lỗi (có ghi log).
-level_handle level_load(njin_ctx &ctx, const char *path, const level_desc &desc = {});
+level_handle level_load(context &ctx, const char *path, const level_desc &desc = {});
 
 /// Nạp một level cụ thể từ project LDtk.
 /// @param ctx Context của engine.
@@ -105,7 +105,7 @@ level_handle level_load(njin_ctx &ctx, const char *path, const level_desc &desc 
 /// @param level Tên level (identifier), hoặc null cho level đầu tiên.
 /// @param desc Cách nạp.
 /// @return Handle của level, hoặc handle id 0 nếu lỗi.
-level_handle level_load_ldtk(njin_ctx &ctx, const char *path, const char *level,
+level_handle level_load_ldtk(context &ctx, const char *path, const char *level,
                              const level_desc &desc = {});
 
 /// Tên mọi level trong một project LDtk, theo thứ tự trong editor.
@@ -118,21 +118,21 @@ bool level_list_ldtk(const char *path, std::vector<std::string> &out);
 /// scene (mặc định) tự được unload khi rời scene.
 /// @param ctx Context của engine.
 /// @param level Level. Handle không hợp lệ bị bỏ qua.
-void level_unload(njin_ctx &ctx, level_handle level);
+void level_unload(context &ctx, level_handle level);
 
 /// Kích thước level, pixel. @param ctx Context của engine. @param level Level.
 /// @return Kích thước, hoặc `{0, 0}` nếu handle không hợp lệ.
-vec2 level_size(const njin_ctx &ctx, level_handle level);
+vec2 level_size(const context &ctx, level_handle level);
 
 /// Góc trên trái của level trong thế giới. @param ctx Context của engine.
 /// @param level Level. @return Vị trí.
-vec2 level_origin(const njin_ctx &ctx, level_handle level);
+vec2 level_origin(const context &ctx, level_handle level);
 
 /// Thuộc tính tùy chỉnh của cả bản đồ (Tiled) hoặc của level (LDtk).
 /// @param ctx Context của engine.
 /// @param level Level.
 /// @return Object JSON, hoặc giá trị null nếu handle không hợp lệ.
-const json_value &level_properties(const njin_ctx &ctx, level_handle level);
+const json_value &level_properties(const context &ctx, level_handle level);
 
 /// Tìm object đầu tiên của level có tên (hoặc, nếu không có tên nào khớp,
 /// lớp) là `name`. Tiện cho điểm xuất hiện: `level_find(ctx, lv, "spawn")`.
@@ -140,6 +140,6 @@ const json_value &level_properties(const njin_ctx &ctx, level_handle level);
 /// @param level Level.
 /// @param name Tên hoặc lớp.
 /// @return Entity, hoặc `entt::null`.
-entt::entity level_find(njin_ctx &ctx, level_handle level, const char *name);
+entt::entity level_find(context &ctx, level_handle level, const char *name);
 /// @}
 } // namespace njin

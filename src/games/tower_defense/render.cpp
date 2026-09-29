@@ -8,11 +8,11 @@ bool inside(rect r, vec2 p) {
   return p.x >= r.pos.x && p.y >= r.pos.y && p.x <= r.pos.x + r.size.x && p.y <= r.pos.y + r.size.y;
 }
 
-void text(njin_ctx &ctx, const char *value, f32 x, f32 y, f32 size, rgba color) {
+void text(context &ctx, const char *value, f32 x, f32 y, f32 size, rgba color) {
   draw_text(ctx, value, {x, y}, size, color);
 }
 
-void draw_road(njin_ctx &ctx) {
+void draw_road(context &ctx) {
   draw_rect(ctx, field, field_green);
   // Quiet ground marks give the field texture without competing with the route.
   for (i32 y = 0; y < 12; ++y) {
@@ -57,7 +57,7 @@ void draw_road(njin_ctx &ctx) {
   draw_rect_lines(ctx, field, 2.0f, rgb(131, 164, 129));
 }
 
-void draw_tower(njin_ctx &ctx, vec2 pos, tower_kind kind, i32 level, f32 rotation, bool selected, f32 scale = 1.0f) {
+void draw_tower(context &ctx, vec2 pos, tower_kind kind, i32 level, f32 rotation, bool selected, f32 scale = 1.0f) {
   const tower_spec &spec = specs[static_cast<usize>(kind)];
   draw_circle(ctx, pos + vec2{1.0f, 5.0f} * scale, 18.5f * scale, rgba{0.04f, 0.1f, 0.1f, 0.32f});
   draw_circle(ctx, pos, 18.0f * scale, rgb(33, 47, 53));
@@ -90,7 +90,7 @@ void draw_tower(njin_ctx &ctx, vec2 pos, tower_kind kind, i32 level, f32 rotatio
   }
 }
 
-void draw_field_actors(njin_ctx &ctx) {
+void draw_field_actors(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, tr, tw] : reg.view<const transform, const tower_component>().each()) {
     const bool selected = game.selected == e;
@@ -126,9 +126,9 @@ void draw_field_actors(njin_ctx &ctx) {
   }
 }
 
-void draw_background(njin_ctx &ctx) { draw_road(ctx); }
+void draw_background(context &ctx) { draw_road(ctx); }
 
-void draw_field(njin_ctx &ctx) {
+void draw_field(context &ctx) {
   if (game.screen == game_screen::playing) {
     const vec2 mouse = mouse_pos(ctx);
     if (game.build_kind >= 0 && inside(field, mouse)) {
@@ -149,7 +149,7 @@ void draw_field(njin_ctx &ctx) {
   }
 }
 
-void draw_sidebar(njin_ctx &ctx) {
+void draw_sidebar(context &ctx) {
   if (game.screen != game_screen::playing)
     return;
   ui_begin(ctx, {.id = "armory", .title = "Kho vũ khí", .anchor = {1.0f, 0.0f}, .pivot = {1.0f, 0.0f}, .width = 340.0f});
@@ -210,7 +210,7 @@ void draw_sidebar(njin_ctx &ctx) {
   ui_end(ctx);
 }
 
-void draw_overlay(njin_ctx &ctx) {
+void draw_overlay(context &ctx) {
   if (game.screen == game_screen::intro) {
     ui_begin(ctx, {.id = "title", .title = "Thành Trì Bình Minh", .anchor = {0.5f, 0.5f},
                    .pivot = {0.5f, 0.5f}, .width = 460.0f});

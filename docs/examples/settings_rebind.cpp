@@ -4,7 +4,7 @@ namespace {
 njin::action_handle jump;
 bool open_settings = true;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   jump = njin::action_register(ctx, "jump");
   njin::action_bind_key(ctx, jump, njin::key_space);
   njin::action_bind_pad(ctx, jump, njin::pad_face_down);
@@ -13,7 +13,7 @@ void startup(njin::njin_ctx &ctx) {
   njin::settings_load(ctx);
 }
 
-void settings_menu(njin::njin_ctx &ctx) {
+void settings_menu(njin::context &ctx) {
   if (!open_settings)
     return;
   njin::ui_begin(ctx, {.id = "settings", .title = "Cài đặt"});
@@ -36,22 +36,22 @@ void settings_menu(njin::njin_ctx &ctx) {
 }
 
 // Rung tay cầm khi trúng đòn.
-void on_hit(njin::njin_ctx &ctx) { njin::pad_rumble(ctx, 0, 0.6f, 0.8f, 0.25f); }
+void on_hit(njin::context &ctx) { njin::pad_rumble(ctx, 0, 0.6f, 0.8f, 0.25f); }
 
 // Chuyển nhạc mượt giữa hai bản, theo giờ thật nên chạy cả khi game pause.
-void enter_boss(njin::njin_ctx &ctx, njin::music_handle boss) { njin::music_crossfade(ctx, boss, 1.5f); }
+void enter_boss(njin::context &ctx, njin::music_handle boss) { njin::music_crossfade(ctx, boss, 1.5f); }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_post_render, settings_menu);
 }
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Settings", .width = 1280, .height = 720, .target_fps = 60});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::context *ctx = njin::create({.title = "Settings", .width = 1280, .height = 720, .target_fps = 60});
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
   (void)on_hit;
   (void)enter_boss;
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

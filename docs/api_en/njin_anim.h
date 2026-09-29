@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_anim
 /// @{
@@ -47,7 +47,7 @@ struct anim_clip_desc {
 /// @param ctx Engine context.
 /// @param json_path Path of the JSON file.
 /// @return Handle of the sheet, or a handle with id 0 if the file is missing or broken (logged).
-anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path);
+anim_sheet_handle anim_sheet_load(context &ctx, const char *json_path);
 
 /// Creates a sprite sheet from an image split into an even grid, with no clips.
 ///
@@ -59,7 +59,7 @@ anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path);
 /// @param frame_size Size of one frame, in pixels.
 /// @param fps Frames per second, used for every frame.
 /// @return Handle of the sheet, or a handle with id 0 if the image or the size is invalid.
-anim_sheet_handle anim_sheet_grid(njin_ctx &ctx, texture_handle texture,
+anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
                                   vec2 frame_size, f32 fps);
 
 /// Adds a clip to the sheet.
@@ -67,20 +67,20 @@ anim_sheet_handle anim_sheet_grid(njin_ctx &ctx, texture_handle texture,
 /// @param sheet Sheet.
 /// @param desc Clip description.
 /// @return `false` if the sheet is invalid, the name is a duplicate, or a frame is outside the sheet.
-bool anim_sheet_add_clip(njin_ctx &ctx, anim_sheet_handle sheet,
+bool anim_sheet_add_clip(context &ctx, anim_sheet_handle sheet,
                          const anim_clip_desc &desc);
 
 /// Frees the sheet, and its image if the sheet was loaded from Aseprite.
 /// @param ctx Engine context.
 /// @param sheet Sheet. An invalid handle is ignored.
-void anim_sheet_unload(njin_ctx &ctx, anim_sheet_handle sheet);
+void anim_sheet_unload(context &ctx, anim_sheet_handle sheet);
 
 /// Finds a clip by name.
 /// @param ctx Engine context.
 /// @param sheet Sheet.
 /// @param name Clip name.
 /// @return Index of the clip, or -1 if there is none.
-i32 anim_clip_find(const njin_ctx &ctx, anim_sheet_handle sheet,
+i32 anim_clip_find(const context &ctx, anim_sheet_handle sheet,
                    const char *name);
 
 /// Duration of one run of the clip, in seconds. Use it to time an attack or an effect
@@ -89,7 +89,7 @@ i32 anim_clip_find(const njin_ctx &ctx, anim_sheet_handle sheet,
 /// @param sheet Sheet.
 /// @param name Clip name.
 /// @return Total duration of the frames, or 0 if there is no such clip.
-f32 anim_clip_duration(const njin_ctx &ctx, anim_sheet_handle sheet,
+f32 anim_clip_duration(const context &ctx, anim_sheet_handle sheet,
                        const char *name);
 
 /// Comparison of a transition condition.
@@ -172,7 +172,7 @@ inline constexpr i32 anim_max_params = 16;
 /// @param desc Graph description.
 /// @return Handle of the graph, or a handle with id 0 if a clip or state name does
 /// not exist, or there are more than anim_max_params parameters (logged).
-anim_graph_handle anim_graph_create(njin_ctx &ctx, const anim_graph_desc &desc);
+anim_graph_handle anim_graph_create(context &ctx, const anim_graph_desc &desc);
 
 /// Plays animation from a sheet with clips, for an entity that has a sprite.
 ///
@@ -214,7 +214,7 @@ struct animator {
 /// @param name Clip name, or state name if there is a graph.
 /// @param restart Start over even if it is already playing that one.
 /// @return `false` if the name is not found.
-bool animator_play(const njin_ctx &ctx, animator &anim, const char *name,
+bool animator_play(const context &ctx, animator &anim, const char *name,
                    bool restart = false);
 
 /// Sets a numeric parameter of the graph, for example run speed.
@@ -222,7 +222,7 @@ bool animator_play(const njin_ctx &ctx, animator &anim, const char *name,
 /// @param anim Animator.
 /// @param param Parameter name (the name used in anim_cond).
 /// @param value Value.
-void animator_set(const njin_ctx &ctx, animator &anim, const char *param,
+void animator_set(const context &ctx, animator &anim, const char *param,
                   f32 value);
 
 /// Sets a bool parameter of the graph, for example standing on the ground.
@@ -230,26 +230,26 @@ void animator_set(const njin_ctx &ctx, animator &anim, const char *param,
 /// @param anim Animator.
 /// @param param Parameter name.
 /// @param value Value.
-void animator_set_bool(const njin_ctx &ctx, animator &anim, const char *param,
+void animator_set_bool(const context &ctx, animator &anim, const char *param,
                        bool value);
 
 /// Sets a trigger of the graph for this frame, for example the attack button was just pressed.
 /// @param ctx Engine context.
 /// @param anim Animator.
 /// @param param Parameter name (used with anim_trigger).
-void animator_trigger(const njin_ctx &ctx, animator &anim, const char *param);
+void animator_trigger(const context &ctx, animator &anim, const char *param);
 
 /// Whether it is in this state (with a graph) or clip (without a graph).
 /// @param ctx Engine context.
 /// @param anim Animator.
 /// @param name State or clip name.
 /// @return `true` if it is.
-bool animator_in(const njin_ctx &ctx, const animator &anim, const char *name);
+bool animator_in(const context &ctx, const animator &anim, const char *name);
 
 /// Name of the current state (with a graph) or clip (without a graph).
 /// @param ctx Engine context.
 /// @param anim Animator.
 /// @return The name, or an empty string if there is none yet. Never null.
-const char *animator_current(const njin_ctx &ctx, const animator &anim);
+const char *animator_current(const context &ctx, const animator &anim);
 /// @}
 } // namespace njin

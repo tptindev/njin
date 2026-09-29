@@ -165,7 +165,7 @@ vec2 grid_cell(rng &r) {
 }
 
 // Gives every dead target a new cell: not its old one, not a live target's.
-void place_targets(njin_ctx &ctx) {
+void place_targets(context &ctx) {
   for (target &t : g.targets) {
     if (!t.dead)
       continue;
@@ -182,7 +182,7 @@ void place_targets(njin_ctx &ctx) {
   }
 }
 
-void shoot(njin_ctx &ctx) {
+void shoot(context &ctx) {
   // The ray through the crosshair: the centre of the screen.
   const ray3d ray{.origin = g.pos, .direction = forward_of(g.yaw, g.pitch)};
   const vec3 dir = ray.direction;
@@ -237,7 +237,7 @@ void shoot(njin_ctx &ctx) {
   g.tracers.push_back({.from = muzzle, .to = end, .lifetime = distance(muzzle, end) / tracer_speed});
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   g = game_state{};
   g.gun = model_load(ctx, "assets/models/ak.glb");
   g.targets.resize(target_count, target{.pos = {0.0f, 0.0f, target_z}});
@@ -264,7 +264,7 @@ void startup(njin_ctx &ctx) {
   }
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   if (key_pressed(ctx, key_f))
     g.flashlight = !g.flashlight;
   if (key_pressed(ctx, key_g))
@@ -294,7 +294,7 @@ void update(njin_ctx &ctx) {
   g.muzzle = std::max(0.0f, g.muzzle - dt);
 }
 
-void fixed_update(njin_ctx &ctx) {
+void fixed_update(context &ctx) {
   const f32 dt = delta(ctx);
   // Standing on something cancels the fall, as the tutorial's controller does.
   if (g.grounded)
@@ -321,7 +321,7 @@ void fixed_update(njin_ctx &ctx) {
   g.grounded = move_axis(&vec3::y, g.velocity.y * dt, boxes) && g.velocity.y < 0.0f;
 }
 
-void render(njin_ctx &ctx) {
+void render(context &ctx) {
   const vec3 forward = forward_of(g.yaw, g.pitch);
   begin_3d(ctx, {.position = g.pos, .target = g.pos + forward, .fovy = fov, .far_plane = 3000.0f});
   for (const lamp &l : lamps)
@@ -379,7 +379,7 @@ void render(njin_ctx &ctx) {
   end_3d(ctx);
 }
 
-void render_ui(njin_ctx &ctx) {
+void render_ui(context &ctx) {
   const vec2 screen = screen_size(ctx);
   constexpr f32 size = 2.0f;
   draw_rect(ctx, {{screen.x / 2.0f - size / 2.0f, screen.y / 2.0f - size / 2.0f}, {size, size}},
@@ -393,7 +393,7 @@ void render_ui(njin_ctx &ctx) {
             16.0f, {0.8f, 0.82f, 0.88f, 1.0f});
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "fps_startup");
   ecs_register(ctx, phase_update, update, "fps_update");
   ecs_register(ctx, phase_fixed_update, fixed_update, "fps_move");

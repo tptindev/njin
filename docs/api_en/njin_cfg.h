@@ -2,13 +2,13 @@
 #include "_types.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_core
 /// @{
 
-/// Window and loop configuration, passed to njin_create().
-struct njin_cfg {
+/// Window and loop configuration, passed to create().
+struct config {
   const char *title;  ///< Window title.
   f32 width;          ///< Window width (pixels).
   f32 height;         ///< Window height (pixels).
@@ -57,10 +57,10 @@ struct njin_cfg {
   ///
   /// This is not the window's MSAA (raylib has only a single 4x level through GLFW,
   /// and 2x/8x cannot be chosen); this approach runs the same on every GPU and gives
-  /// exactly the level that was set. It cannot be changed while running: `njin_create()` creates
+  /// exactly the level that was set. It cannot be changed while running: `create()` creates
   /// the window and the render textures with exactly this value once, so changing the level
   /// needs a game restart (read the value the player chose from your own settings file,
-  /// before calling njin_create() on the next run). See render_scale().
+  /// before calling create() on the next run). See render_scale().
   ///
   /// It changes no coordinates: screen_size(), mouse and camera are still computed as with
   /// `virtual_size` (if set) or the window size (if not), and know nothing
@@ -75,7 +75,7 @@ struct njin_cfg {
 /// use delta().
 /// @param ctx Engine context.
 /// @return Target FPS.
-f32 fps(const njin_ctx &ctx);
+f32 fps(const context &ctx);
 
 /// Returns the size of the screen the game draws to, in pixels.
 ///
@@ -86,6 +86,6 @@ f32 fps(const njin_ctx &ctx);
 /// window_size().
 /// @param ctx Engine context.
 /// @return Window size: `x` is width, `y` is height.
-vec2 screen_size(const njin_ctx &ctx);
+vec2 screen_size(const context &ctx);
 /// @}
 }

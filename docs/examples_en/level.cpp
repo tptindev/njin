@@ -16,7 +16,7 @@ struct door {
 
 // The prefab name matches the object's class in Tiled / the entity name in LDtk.
 // level_object is attached before the build function runs, so properties can be read.
-void build_coin(njin::njin_ctx &ctx, entt::entity e) {
+void build_coin(njin::context &ctx, entt::entity e) {
   entt::registry &reg = njin::world(ctx);
   const auto &obj = reg.get<njin::level_object>(e);
   reg.emplace<coin>(e, coin{obj.props["value"].int_or(1)});
@@ -24,7 +24,7 @@ void build_coin(njin::njin_ctx &ctx, entt::entity e) {
                                                 .mask = layer_player, .trigger = true});
 }
 
-void build_door(njin::njin_ctx &ctx, entt::entity e) {
+void build_door(njin::context &ctx, entt::entity e) {
   entt::registry &reg = njin::world(ctx);
   const auto &obj = reg.get<njin::level_object>(e);
   reg.emplace<door>(e, door{obj.props["target"].string_or("start")});
@@ -32,7 +32,7 @@ void build_door(njin::njin_ctx &ctx, entt::entity e) {
                                                 .trigger = true});
 }
 
-void enter_play(njin::njin_ctx &ctx) {
+void enter_play(njin::context &ctx) {
   // Tiled (.tmx / .tmj) or LDtk (.ldtk): the same call.
   level = njin::level_load(ctx, "assets/levels/forest.tmx",
                            {.solid = njin::collider{.layer = layer_wall}});
@@ -52,7 +52,7 @@ void enter_play(njin::njin_ctx &ctx) {
   NJIN_INFO("background music: %s", props["music"].string_or("none"));
 }
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   njin::prefab_register(ctx, {.name = "coin", .build = build_coin});
   njin::prefab_register(ctx, {.name = "door", .build = build_door});
   // On leaving the scene, the level's entities are destroyed and its image is freed.
@@ -60,7 +60,7 @@ void startup(njin::njin_ctx &ctx) {
   njin::scene_set(ctx, play);
 }
 
-void setup(njin::njin_ctx &ctx) { njin::ecs_register(ctx, njin::phase_startup, startup); }
+void setup(njin::context &ctx) { njin::ecs_register(ctx, njin::phase_startup, startup); }
 } // namespace
 
 njin::mod_desc level_module() { return {.name = "level", .setup = setup}; }

@@ -12,7 +12,7 @@ particle_emitter glow_emitter() {
 }
 } // namespace
 
-void explode(njin_ctx &ctx, vec2 at) {
+void explode(context &ctx, vec2 at) {
   particle_emitter e = glow_emitter();
   e.max_particles = 600;
   e.life = {0.6f, 1.4f};
@@ -26,7 +26,7 @@ void explode(njin_ctx &ctx, vec2 at) {
   particles_spawn(ctx, e, at, 500);
 }
 
-void build_emitters(njin_ctx &ctx) {
+void build_emitters(context &ctx) {
   entt::registry &reg = world(ctx);
 
   particle_emitter fountain = glow_emitter();
@@ -62,7 +62,7 @@ void build_emitters(njin_ctx &ctx) {
 }
 
 // The fountain stays at the hero's feet; the rain follows the camera.
-void follow_emitters(njin_ctx &ctx) {
+void follow_emitters(context &ctx) {
   entt::registry &reg = world(ctx);
   reg.get<transform>(demo.fountain).pos = reg.get<transform>(demo.hero).pos;
   const vec2 view = screen_size(ctx) / camera_zoom;

@@ -2,7 +2,7 @@
 #include "_mod.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_scene
 /// @{
@@ -24,13 +24,13 @@ struct scene_desc {
 /// @param ctx Context của engine.
 /// @param desc Mô tả scene.
 /// @return Handle của scene, hoặc handle id 0 nếu `desc.name` là null.
-scene_handle scene_register(njin_ctx &ctx, const scene_desc &desc);
+scene_handle scene_register(context &ctx, const scene_desc &desc);
 
 /// Tìm scene theo tên.
 /// @param ctx Context của engine.
 /// @param name Tên scene.
 /// @return Handle của scene, hoặc handle id 0 nếu không có.
-scene_handle scene_find(const njin_ctx &ctx, const char *name);
+scene_handle scene_find(const context &ctx, const char *name);
 
 /// Chuyển sang một scene khác.
 ///
@@ -44,12 +44,12 @@ scene_handle scene_find(const njin_ctx &ctx, const char *name);
 /// đang chạy thì không làm gì.
 /// @param ctx Context của engine.
 /// @param scene Scene đích.
-void scene_set(njin_ctx &ctx, scene_handle scene);
+void scene_set(context &ctx, scene_handle scene);
 
 /// Scene đang chạy.
 /// @param ctx Context của engine.
 /// @return Scene đang chạy, hoặc handle id 0 nếu chưa có.
-scene_handle scene_current(const njin_ctx &ctx);
+scene_handle scene_current(const context &ctx);
 
 /// Hiệu ứng chuyển scene, dùng với scene_fade().
 ///
@@ -82,17 +82,17 @@ struct scene_transition {
 /// @param ctx Context của engine.
 /// @param scene Scene đích.
 /// @param transition Hiệu ứng.
-void scene_fade(njin_ctx &ctx, scene_handle scene,
+void scene_fade(context &ctx, scene_handle scene,
                 const scene_transition &transition = {});
 
 /// Có đang chuyển scene bằng scene_fade() không.
 /// @param ctx Context của engine.
 /// @return `true` từ lúc gọi scene_fade() đến khi màn hình mở hết.
-bool scene_transitioning(const njin_ctx &ctx);
+bool scene_transitioning(const context &ctx);
 
 /// Độ phủ hiện tại của hiệu ứng chuyển scene.
 /// @param ctx Context của engine.
 /// @return 0 là không phủ, 1 là phủ kín.
-f32 scene_transition_cover(const njin_ctx &ctx);
+f32 scene_transition_cover(const context &ctx);
 /// @}
 } // namespace njin

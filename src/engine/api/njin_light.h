@@ -8,7 +8,7 @@
 
 namespace njin {
 // Opaque, see njin_ctx.h.
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_light
 /// @{
@@ -278,12 +278,12 @@ struct lighting_desc {
 /// Đặt cài đặt ánh sáng. Đổi mỗi frame được (ví dụ ambient theo giờ trong ngày).
 /// @param ctx Context của engine.
 /// @param desc Cài đặt mới.
-void lighting_set(njin_ctx &ctx, const lighting_desc &desc);
+void lighting_set(context &ctx, const lighting_desc &desc);
 
 /// Cài đặt ánh sáng đang dùng. Sửa bản sao rồi lighting_set() lại.
 /// @param ctx Context của engine.
 /// @return Cài đặt hiện tại.
-lighting_desc lighting_get(const njin_ctx &ctx);
+lighting_desc lighting_get(const context &ctx);
 
 /// Màu của một vật đen phát sáng ở nhiệt độ cho trước.
 ///

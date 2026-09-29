@@ -42,7 +42,7 @@ const std::string *lookup(const i18n_store &store, const char *key) {
 }
 } // namespace
 
-bool i18n_load(njin_ctx &ctx, const char *lang, const char *path) {
+bool i18n_load(context &ctx, const char *lang, const char *path) {
   if (lang == nullptr || path == nullptr)
     return false;
   json_value root;
@@ -64,7 +64,7 @@ bool i18n_load(njin_ctx &ctx, const char *lang, const char *path) {
   return true;
 }
 
-void i18n_set_language(njin_ctx &ctx, const char *lang) {
+void i18n_set_language(context &ctx, const char *lang) {
   if (lang == nullptr || find_table(ctx.i18n, lang) == nullptr) {
     NJIN_WARN("i18n_set_language: language '%s' is not loaded", lang != nullptr ? lang : "");
     return;
@@ -72,21 +72,21 @@ void i18n_set_language(njin_ctx &ctx, const char *lang) {
   ctx.i18n.current = lang;
 }
 
-const char *i18n_language(const njin_ctx &ctx) { return ctx.i18n.current.c_str(); }
+const char *i18n_language(const context &ctx) { return ctx.i18n.current.c_str(); }
 
-void i18n_set_fallback(njin_ctx &ctx, const char *lang) {
+void i18n_set_fallback(context &ctx, const char *lang) {
   if (lang != nullptr)
     ctx.i18n.fallback = lang;
 }
 
-std::vector<std::string> i18n_languages(const njin_ctx &ctx) {
+std::vector<std::string> i18n_languages(const context &ctx) {
   std::vector<std::string> out;
   for (const i18n_table &t : ctx.i18n.tables)
     out.push_back(t.lang);
   return out;
 }
 
-const char *i18n_language_name(const njin_ctx &ctx, const char *lang) {
+const char *i18n_language_name(const context &ctx, const char *lang) {
   if (lang == nullptr)
     return "";
   if (const i18n_table *t = find_table(ctx.i18n, lang)) {
@@ -98,7 +98,7 @@ const char *i18n_language_name(const njin_ctx &ctx, const char *lang) {
   return lang;
 }
 
-const char *tr(const njin_ctx &ctx, const char *key) {
+const char *tr(const context &ctx, const char *key) {
   if (key == nullptr)
     return "";
   if (const std::string *s = lookup(ctx.i18n, key))
@@ -108,7 +108,7 @@ const char *tr(const njin_ctx &ctx, const char *key) {
   return key;
 }
 
-std::string trf(const njin_ctx &ctx, const char *key, std::initializer_list<std::string_view> args) {
+std::string trf(const context &ctx, const char *key, std::initializer_list<std::string_view> args) {
   const std::string text = tr(ctx, key);
   std::string out;
   out.reserve(text.size());
@@ -132,7 +132,7 @@ std::string trf(const njin_ctx &ctx, const char *key, std::initializer_list<std:
   return out;
 }
 
-bool i18n_has(const njin_ctx &ctx, const char *key) {
+bool i18n_has(const context &ctx, const char *key) {
   return key != nullptr && lookup(ctx.i18n, key) != nullptr;
 }
 } // namespace njin

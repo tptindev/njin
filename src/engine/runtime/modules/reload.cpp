@@ -34,7 +34,7 @@ change check(reload_state &state, const std::string &path, bool immediate) {
   return change::settled;
 }
 
-i32 scan(njin_ctx &ctx, bool immediate) {
+i32 scan(context &ctx, bool immediate) {
   reload_state &state = ctx.reload;
   entt::dispatcher &dispatcher = events(ctx);
   i32 reloaded = 0;
@@ -73,7 +73,7 @@ i32 scan(njin_ctx &ctx, bool immediate) {
   return reloaded;
 }
 
-void poll(njin_ctx &ctx) {
+void poll(context &ctx) {
   reload_state &state = ctx.reload;
   if (!state.enabled)
     return;
@@ -84,12 +84,12 @@ void poll(njin_ctx &ctx) {
   scan(ctx, false);
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, poll, "poll"); }
+void setup(context &ctx) { ecs_register(ctx, phase_pre_update, poll, "poll"); }
 } // namespace
 
 mod_desc reload_module() { return mod_desc{.name = "njin.reload", .setup = setup}; }
 
-void hot_reload_enable(njin_ctx &ctx, bool on, f32 interval) {
+void hot_reload_enable(context &ctx, bool on, f32 interval) {
   reload_state &state = ctx.reload;
   state.enabled = on;
   state.interval = interval > 0.0f ? interval : 0.25f;
@@ -111,7 +111,7 @@ void hot_reload_enable(njin_ctx &ctx, bool on, f32 interval) {
   }
 }
 
-bool hot_reload_enabled(const njin_ctx &ctx) { return ctx.reload.enabled; }
+bool hot_reload_enabled(const context &ctx) { return ctx.reload.enabled; }
 
-i32 hot_reload_now(njin_ctx &ctx) { return scan(ctx, true); }
+i32 hot_reload_now(context &ctx) { return scan(ctx, true); }
 } // namespace njin

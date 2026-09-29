@@ -7,7 +7,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // 2D lighting (njin_light.h), run by the camera module on the finished world
 // image, before the built-in post effects.
@@ -112,5 +112,5 @@ bool lighting_active(const lighting_state &state);
 // through `camera`, the one the world was drawn with. Returns the texture with
 // the result, or `scene` itself when lighting is off or failed. Stored
 // bottom-up like any render texture.
-const Texture2D &lighting_apply(njin_ctx &ctx, const Camera2D &camera, const Texture2D &scene);
+const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Texture2D &scene);
 } // namespace njin

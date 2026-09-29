@@ -39,7 +39,7 @@ rgba hue_color(i32 hue) {
   return palette[(usize)hue % 5];
 }
 
-void spawn_ball(njin_ctx &ctx) {
+void spawn_ball(context &ctx) {
   entt::registry &reg = world(ctx);
   const vec2 screen = screen_size(ctx);
   rng &r = random(ctx);
@@ -52,7 +52,7 @@ void spawn_ball(njin_ctx &ctx) {
                             .hue = r.range(0, 5)});
 }
 
-void keep_count(njin_ctx &ctx) {
+void keep_count(context &ctx) {
   entt::registry &reg = world(ctx);
   const i32 have = (i32)reg.view<ball>().size();
   for (i32 i = have; i < demo.wanted; i++)
@@ -69,7 +69,7 @@ void keep_count(njin_ctx &ctx) {
   }
 }
 
-void input(njin_ctx &ctx) {
+void input(context &ctx) {
   if (key_pressed(ctx, key_up))
     demo.wanted = std::min(demo.wanted + 50, 5000);
   if (key_pressed(ctx, key_down))
@@ -99,7 +99,7 @@ void input(njin_ctx &ctx) {
   keep_count(ctx);
 }
 
-void move_balls(njin_ctx &ctx) {
+void move_balls(context &ctx) {
   entt::registry &reg = world(ctx);
   const vec2 screen = screen_size(ctx);
   const f32 dt = delta(ctx);
@@ -118,7 +118,7 @@ void move_balls(njin_ctx &ctx) {
 }
 
 // Burns CPU on purpose, so it shows up in the Systems window.
-void busy_work(njin_ctx &) {
+void busy_work(context &) {
   if (!demo.busy)
     return;
   const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(3000);
@@ -129,13 +129,13 @@ void busy_work(njin_ctx &) {
 
 void on_collision(const collision_enter &) { demo.collisions++; }
 
-void draw(njin_ctx &ctx) {
+void draw(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, tr, b] : reg.view<const transform, const ball>().each())
     draw_circle(ctx, tr.pos, b.radius, hue_color(b.hue));
 }
 
-void hud(njin_ctx &ctx) {
+void hud(context &ctx) {
   char text[256];
   std::snprintf(text, sizeof text,
                 "balls %d   Up/Down: more/fewer   Space: burst   H: burn CPU (%s)   M: 64 MB RAM (%s)   "
@@ -148,7 +148,7 @@ void hud(njin_ctx &ctx) {
             16, {0.8f, 0.85f, 0.95f, 1});
 }
 
-void publish(njin_ctx &ctx) {
+void publish(context &ctx) {
   entt::registry &reg = world(ctx);
   debug_watch(ctx, "balls", (i32)reg.view<ball>().size());
   debug_watch(ctx, "collision events", demo.collisions);
@@ -156,7 +156,7 @@ void publish(njin_ctx &ctx) {
   debug_watch(ctx, "ram hog MB", (i32)(demo.ram_hog.size() >> 20));
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   // Views and sizes for the game's own component: without this the inspector
   // shows its name only, and no size in the Memory window.
   debug_component<ball>(ctx, "ball", [](const ball &b) {
@@ -167,7 +167,7 @@ void startup(njin_ctx &ctx) {
   keep_count(ctx);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "startup");
   ecs_register(ctx, phase_update, input, "input");
   ecs_register(ctx, phase_update, move_balls, "move_balls");
@@ -179,14 +179,14 @@ void setup(njin_ctx &ctx) {
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "njin debug demo",
+  njin::context *ctx = njin::create({.title = "njin debug demo",
                                            .width = 1100,
                                            .height = 640,
                                            .target_fps = 60,
                                            .clear_bg_color = {0.09f, 0.10f, 0.13f, 1.0f}});
-  njin::njin_mod_register(*ctx, {.name = "demo", .setup = setup});
+  njin::mod_register(*ctx, {.name = "demo", .setup = setup});
   // Always on here: this game exists to be inspected.
   njin::debug_server_start(*ctx);
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

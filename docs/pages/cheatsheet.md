@@ -11,9 +11,9 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 
 | Muốn | Dùng | Xem |
 |---|---|---|
-| Mở cửa sổ, chạy, đóng | njin::njin_create(), njin::njin_run(), njin::njin_destroy() | @ref getting_started |
-| Thoát game từ trong game | njin::njin_quit() | @ref window_files |
-| Gom logic của game vào một chỗ | njin::mod_desc với `setup`, đăng ký bằng njin::njin_mod_register() | @ref modules_systems |
+| Mở cửa sổ, chạy, đóng | njin::create(), njin::run(), njin::destroy() | @ref getting_started |
+| Thoát game từ trong game | njin::quit() | @ref window_files |
+| Gom logic của game vào một chỗ | njin::mod_desc với `setup`, đăng ký bằng njin::mod_register() | @ref modules_systems |
 | Chạy một hàm mỗi frame, hay một lần lúc bắt đầu | njin::ecs_register() với một njin::sys_phase | @ref game_loop |
 | Vật lý chạy đều, không phụ thuộc FPS | `phase_fixed_update` | @ref time |
 | Tạo entity, gắn component | njin::world() rồi `registry.create()`, `emplace<>()` | @ref ecs |
@@ -74,7 +74,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Đổi vị trí chuột thành vị trí trong thế giới | njin::scr2w() (ngược lại njin::w2scr()) | @ref camera |
 | Bỏ qua vẽ những gì ngoài màn hình | njin::camera_bounds() | @ref camera |
 | Rung màn hình | njin::camera_shake() | @ref particles |
-| Pixel art với độ phân giải cố định | njin::window_set_virtual_size(), hoặc `virtual_size` trong njin::njin_cfg | @ref drawing, @ref screen_timers |
+| Pixel art với độ phân giải cố định | njin::window_set_virtual_size(), hoặc `virtual_size` trong njin::config | @ref drawing, @ref screen_timers |
 
 ## Nhập liệu
 

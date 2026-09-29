@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_draw
 /// @{
@@ -17,14 +17,14 @@ struct njin_ctx;
 /// @param ctx Engine context.
 /// @param r Rectangle.
 /// @param color Color.
-void draw_rect(const njin_ctx &ctx, rect r, rgba color);
+void draw_rect(const context &ctx, rect r, rgba color);
 
 /// Draws a rectangle outline. The outline lies inside `r`.
 /// @param ctx Engine context.
 /// @param r Rectangle.
 /// @param thickness Outline thickness.
 /// @param color Color.
-void draw_rect_lines(const njin_ctx &ctx, rect r, f32 thickness, rgba color);
+void draw_rect_lines(const context &ctx, rect r, f32 thickness, rgba color);
 
 /// Draws a filled rectangle rotated around its center.
 /// @param ctx Engine context.
@@ -32,7 +32,7 @@ void draw_rect_lines(const njin_ctx &ctx, rect r, f32 thickness, rgba color);
 /// @param size Size.
 /// @param rotation Rotation angle in degrees, clockwise.
 /// @param color Color.
-void draw_rect_rotated(const njin_ctx &ctx, vec2 center, vec2 size,
+void draw_rect_rotated(const context &ctx, vec2 center, vec2 size,
                        f32 rotation, rgba color);
 
 /// Draws a filled circle.
@@ -40,7 +40,7 @@ void draw_rect_rotated(const njin_ctx &ctx, vec2 center, vec2 size,
 /// @param center Center.
 /// @param radius Radius.
 /// @param color Color.
-void draw_circle(const njin_ctx &ctx, vec2 center, f32 radius, rgba color);
+void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color);
 
 /// Draws a circle outline. The outline lies inside the radius.
 /// @param ctx Engine context.
@@ -48,7 +48,7 @@ void draw_circle(const njin_ctx &ctx, vec2 center, f32 radius, rgba color);
 /// @param radius Radius.
 /// @param thickness Outline thickness.
 /// @param color Color.
-void draw_circle_lines(const njin_ctx &ctx, vec2 center, f32 radius,
+void draw_circle_lines(const context &ctx, vec2 center, f32 radius,
                        f32 thickness, rgba color);
 
 /// Draws a line segment.
@@ -57,7 +57,7 @@ void draw_circle_lines(const njin_ctx &ctx, vec2 center, f32 radius,
 /// @param b End point.
 /// @param thickness Thickness.
 /// @param color Color.
-void draw_line(const njin_ctx &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
+void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 
 /// Draws a filled triangle. The order of the three vertices does not matter.
 /// @param ctx Engine context.
@@ -65,7 +65,7 @@ void draw_line(const njin_ctx &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 /// @param b Second vertex.
 /// @param c Third vertex.
 /// @param color Color.
-void draw_triangle(const njin_ctx &ctx, vec2 a, vec2 b, vec2 c, rgba color);
+void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color);
 /// @}
 
 /// @addtogroup grp_text
@@ -89,7 +89,7 @@ enum font_style : u8 {
 /// have to wait. Omitted or 0 makes a trial build at size 16 to check that the file is readable.
 /// @param style Text rendering style, font_smooth by default.
 /// @return Font handle, or a handle with id 0 (the default font) if loading fails.
-font_handle font_load(njin_ctx &ctx, const char *path, i32 size = 0,
+font_handle font_load(context &ctx, const char *path, i32 size = 0,
                       font_style style = font_smooth);
 
 /// Changes the text rendering style of a font, including the default font (handle id 0). Glyph
@@ -100,18 +100,18 @@ font_handle font_load(njin_ctx &ctx, const char *path, i32 size = 0,
 /// pixels is drawn at 8, 16, 24. A regular vector font (like JetBrains Mono) built at a small
 /// size this way will look jagged. Text of this style is always drawn in the virtual image, scaled with
 /// the same nearest filter as sprites, and does not go through the crisp text layer of
-/// njin_cfg::crisp_text. Enable `integer_scale` for the virtual resolution so every text
+/// config::crisp_text. Enable `integer_scale` for the virtual resolution so every text
 /// pixel has the same size.
 /// @param ctx Engine context.
 /// @param font Font to change, handle id 0 is the default font.
 /// @param style New style.
-void font_set_style(njin_ctx &ctx, font_handle font, font_style style);
+void font_set_style(context &ctx, font_handle font, font_style style);
 
 /// Frees a font. An invalid handle is ignored. Drawing with a freed handle uses
 /// the default font.
 /// @param ctx Engine context.
 /// @param font Font to free.
-void font_unload(njin_ctx &ctx, font_handle font);
+void font_unload(context &ctx, font_handle font);
 
 /// Draws text with its top-left corner at `pos`. Supports line breaks with `\n`.
 ///
@@ -119,14 +119,14 @@ void font_unload(njin_ctx &ctx, font_handle font);
 /// Vietnamese text. The position is rounded to a pixel so text does not blur.
 ///
 /// With a virtual resolution and a real GPU, on-screen text (outside the world) is drawn at the
-/// window resolution, see njin_cfg::crisp_text.
+/// window resolution, see config::crisp_text.
 /// @param ctx Engine context.
 /// @param text UTF-8 string.
 /// @param pos Top-left corner position.
 /// @param size Text size, in pixels.
 /// @param color Color.
 /// @param font Font, defaults to the engine's font.
-void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
                rgba color, font_handle font = {});
 
 /// Size of a string when drawn with draw_text() with the same parameters.
@@ -137,7 +137,7 @@ void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
 /// @param size Text size, in pixels.
 /// @param font Font, defaults to the engine's font.
 /// @return Width and height, in pixels.
-vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
+vec2 text_measure(const context &ctx, const char *text, f32 size,
                   font_handle font = {});
 
 /// Splits a piece of text into lines no wider than `max_width` when drawn with
@@ -151,7 +151,7 @@ vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
 /// @param max_width Maximum width of a line, pixels.
 /// @param font Font.
 /// @return The lines, in order.
-std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,
+std::vector<std::string> text_wrap(const context &ctx, const char *text, f32 size,
                                    f32 max_width, font_handle font = {});
 
 /// Draws a piece of text that wraps automatically within the width `max_width`, top-left corner at
@@ -165,7 +165,7 @@ std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 si
 /// @param font Font.
 /// @param line_spacing Line spacing, multiplied by the line height. 1 is tight.
 /// @return Size of the block of text drawn.
-vec2 draw_text_wrapped(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
                        f32 max_width, rgba color, font_handle font = {},
                        f32 line_spacing = 1.1f);
 /// @}
@@ -183,7 +183,7 @@ enum texture_filter {
 /// @param ctx Engine context.
 /// @param handle Texture to change.
 /// @param filter Sampling method.
-void texture_set_filter(njin_ctx &ctx, texture_handle handle,
+void texture_set_filter(context &ctx, texture_handle handle,
                         texture_filter filter);
 
 /// Changes the sampling method of a render texture.
@@ -194,7 +194,7 @@ void texture_set_filter(njin_ctx &ctx, texture_handle handle,
 /// @param ctx Engine context.
 /// @param handle Render texture to change.
 /// @param filter Sampling method.
-void render_texture_set_filter(njin_ctx &ctx, render_texture_handle handle,
+void render_texture_set_filter(context &ctx, render_texture_handle handle,
                                texture_filter filter);
 
 /// Full parameters for texture_draw_ex().
@@ -217,7 +217,7 @@ struct texture_draw_desc {
 /// @param ctx Engine context.
 /// @param handle Texture to draw.
 /// @param desc Draw parameters.
-void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
+void texture_draw_ex(const context &ctx, texture_handle handle,
                      const texture_draw_desc &desc);
 
 /// Attaches a fixed "material" shader to a texture: no need to wrap every draw
@@ -238,7 +238,7 @@ void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
 /// @param ctx Engine context.
 /// @param handle Texture to attach to.
 /// @param shader Shader to attach, or a handle with id 0 to remove the material.
-void texture_set_shader(njin_ctx &ctx, texture_handle handle,
+void texture_set_shader(context &ctx, texture_handle handle,
                         shader_handle shader);
 /// @}
 
@@ -255,7 +255,7 @@ enum blend_mode {
 /// Changes the blend mode for everything drawn afterwards, until blend_end().
 /// @param ctx Engine context.
 /// @param mode Blend mode.
-void blend_begin(const njin_ctx &ctx, blend_mode mode);
+void blend_begin(const context &ctx, blend_mode mode);
 
 /// Enables Y sorting for a draw layer: within that layer, sprites and particles with a
 /// larger `y` (lower on the screen) are drawn later, so they cover what stands
@@ -268,11 +268,11 @@ void blend_begin(const njin_ctx &ctx, blend_mode mode);
 /// @param ctx Engine context.
 /// @param layer Draw layer (njin::sprite::layer).
 /// @param on `true` to enable.
-void draw_set_y_sort(njin_ctx &ctx, i32 layer, bool on);
+void draw_set_y_sort(context &ctx, i32 layer, bool on);
 
 /// Returns to the default blend mode.
 /// @param ctx Engine context.
-void blend_end(const njin_ctx &ctx);
+void blend_end(const context &ctx);
 
 /// Only draw inside a region of the screen, until clip_end().
 ///
@@ -280,10 +280,10 @@ void blend_end(const njin_ctx &ctx);
 /// in the UI.
 /// @param ctx Engine context.
 /// @param area Region allowed to be drawn, screen pixels.
-void clip_begin(const njin_ctx &ctx, rect area);
+void clip_begin(const context &ctx, rect area);
 
 /// Removes the draw region limit.
 /// @param ctx Engine context.
-void clip_end(const njin_ctx &ctx);
+void clip_end(const context &ctx);
 /// @}
 } // namespace njin

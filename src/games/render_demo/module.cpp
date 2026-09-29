@@ -2,7 +2,7 @@
 
 namespace render_demo {
 namespace {
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   load_images(ctx);
   load_frame_pass(ctx);
   draw_set_y_sort(ctx, layer_things, true);
@@ -17,7 +17,7 @@ void startup(njin_ctx &ctx) {
 }
 } // namespace
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "startup");
   ecs_register(ctx, phase_update, input, "input");
   ecs_register(ctx, phase_post_update, follow_emitters, "follow");

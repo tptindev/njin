@@ -45,11 +45,11 @@
 #include "njin_window.h"
 
 namespace njin {
-/// Opaque engine handle. Created by njin_create(), freed by
-/// njin_destroy().
+/// Opaque engine handle. Created by create(), freed by
+/// destroy().
 ///
-/// Use it only through functions that take `njin_ctx &`. Every system receives it.
-struct njin_ctx;
+/// Use it only through functions that take `context &`. Every system receives it.
+struct context;
 
 /// @addtogroup grp_core
 /// @{
@@ -57,19 +57,19 @@ struct njin_ctx;
 /// Opens the window and returns the engine context. Never returns nullptr.
 ///
 /// The engine's core module (camera) is already registered. Register the game's modules
-/// with njin_mod_register() before calling njin_run().
+/// with mod_register() before calling run().
 /// @param cfg Window and loop configuration.
 /// @return Engine context. Never nullptr.
-njin_ctx *njin_create(const njin_cfg &cfg);
+context *create(const config &cfg);
 
 /// Runs the main loop until the window closes.
 ///
 /// Calls the phases in the order of sys_phase. A second call is ignored.
-/// @param ctx Context from njin_create().
-void njin_run(njin_ctx &ctx);
+/// @param ctx Context from create().
+void run(context &ctx);
 
 /// Frees every engine resource and closes the window. nullptr is ignored.
-/// @param ctx Context from njin_create(), or nullptr.
-void njin_destroy(njin_ctx *ctx);
+/// @param ctx Context from create(), or nullptr.
+void destroy(context *ctx);
 /// @}
 } // namespace njin

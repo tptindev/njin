@@ -10,7 +10,7 @@ namespace plat {
 game_state g;
 
 namespace {
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   g.sprites = texture_load(ctx, "assets/sprites.png");
   texture_set_filter(ctx, g.sprites, filter_nearest);
   g.s_jump = sound_load(ctx, "assets/sounds/jump.wav");
@@ -56,7 +56,7 @@ void startup(njin_ctx &ctx) {
 int main() {
   using namespace njin;
   using namespace plat;
-  njin_ctx *ctx = njin_create({.title = "Sprout's Climb",
+  context *ctx = create({.title = "Sprout's Climb",
                                .width = 1280,
                                .height = 720,
                                .target_fps = 60,
@@ -73,13 +73,13 @@ int main() {
   scene_register(*ctx, {.name = "card", .on_enter = card_scene_enter});
   g.play = scene_register(*ctx, {.name = "play", .on_enter = play_enter, .on_exit = play_exit});
   g.win = scene_register(*ctx, {.name = "win", .on_enter = win_enter});
-  njin_mod_register(*ctx, {.name = "plat.startup", .setup = [](njin_ctx &c) {
+  mod_register(*ctx, {.name = "plat.startup", .setup = [](context &c) {
                              ecs_register(c, phase_startup, startup, "startup");
                            }});
-  njin_mod_register(*ctx, {play_module(), menus_module()});
+  mod_register(*ctx, {play_module(), menus_module()});
 #ifndef NDEBUG
   debug_server_start(*ctx);
 #endif
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  run(*ctx);
+  destroy(ctx);
 }

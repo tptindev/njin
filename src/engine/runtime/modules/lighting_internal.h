@@ -58,7 +58,7 @@ struct pixel_light {
 // Pixel-perfect shadows (mattdesl, "2D Pixel-Perfect Shadows"): draws the sprites with light_occluder_pixels into
 // the occluder map, then one row of the shadow map per light by ray-marching it. `out[i]` describes light i.
 // Returns whether any row was made (so the shader has a texture to read).
-bool build_pixel_shadows(njin_ctx &ctx, lighting_state &s, const Camera2D &camera, const rect &steady, f32 texel_scale,
+bool build_pixel_shadows(context &ctx, lighting_state &s, const Camera2D &camera, const rect &steady, f32 texel_scale,
                          const std::vector<light_job> &lights, std::vector<pixel_light> &out);
 
 // --- lighting_occluders.cpp ---
@@ -81,6 +81,6 @@ bool inside_owner(const std::vector<occluder_edge> &edges, const occluder_edge &
 
 // Every occluder that touches one of `areas` (where the lights reach) as edges: the shapes of
 // light_occluder, and the outlines of light_occluder_sprite frames.
-void gather_edges(njin_ctx &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas);
+void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas);
 } // namespace light_impl
 } // namespace njin

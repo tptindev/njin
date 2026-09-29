@@ -13,7 +13,7 @@ std::vector<njin::spatial_item> items;
 std::vector<njin::vec2> push;
 entt::entity aimed = entt::null; // con quái người chơi đang ngắm
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   njin::rng &r = njin::random(ctx);
   hero = reg.create();
@@ -25,7 +25,7 @@ void startup(njin::njin_ctx &ctx) {
   }
 }
 
-void update(njin::njin_ctx &ctx) {
+void update(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   const njin::vec2 target = reg.get<njin::transform>(hero).pos;
   const njin::f32 dt = njin::delta(ctx);
@@ -53,7 +53,7 @@ void update(njin::njin_ctx &ctx) {
                                                                                          : entt::null;
 }
 
-void draw(njin::njin_ctx &ctx) {
+void draw(njin::context &ctx) {
   const entt::registry &reg = njin::world(ctx);
   for (auto [e, tr, z] : reg.view<const njin::transform, const zombie>().each())
     njin::draw_circle(ctx, tr.pos, 6.0f, {0.4f, 0.7f, 0.3f, 1});
@@ -63,7 +63,7 @@ void draw(njin::njin_ctx &ctx) {
   njin::draw_circle(ctx, me, 8.0f, {0.2f, 0.4f, 0.9f, 1});
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup, "startup");
   njin::ecs_register(ctx, njin::phase_update, update, "zombies");
   njin::ecs_register(ctx, njin::phase_render, draw, "draw");
@@ -71,8 +71,8 @@ void setup(njin::njin_ctx &ctx) {
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "spatial", .width = 1280, .height = 720});
-  njin::njin_mod_register(*ctx, {.name = "spatial", .setup = setup});
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::context *ctx = njin::create({.title = "spatial", .width = 1280, .height = 720});
+  njin::mod_register(*ctx, {.name = "spatial", .setup = setup});
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

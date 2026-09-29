@@ -55,7 +55,7 @@ reference by API group, and the engine's internal architecture.
 
 @include minimal_main.cpp
 
-The `njin_run` function runs the loop until the window closes. All of your game's logic lives in
+The `run` function runs the loop until the window closes. All of your game's logic lives in
 **modules**, see @ref modules_systems.
 
 ## A complete game

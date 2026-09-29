@@ -13,7 +13,7 @@ void on_hit(const hit &event) {
             event.damage);
 }
 
-void deal_damage(njin::njin_ctx &ctx) {
+void deal_damage(njin::context &ctx) {
   entt::registry &registry = njin::world(ctx);
   auto view = registry.view<njin::transform>();
   for (const entt::entity entity : view) {
@@ -22,7 +22,7 @@ void deal_damage(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::events(ctx).sink<hit>().connect<&on_hit>();
   njin::ecs_register(ctx, njin::phase_update, deal_damage);
 }

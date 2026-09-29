@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_ui
 /// @{
@@ -171,7 +171,7 @@ ui_style ui_pixel_style();
 /// @param path Path of the JSON file.
 /// @param out Receives the layout that was read.
 /// @return `true` if it loaded.
-bool ui_layout_load(njin_ctx &ctx, const char *path, ui_layout &out);
+bool ui_layout_load(context &ctx, const char *path, ui_layout &out);
 
 /// Parses JSON data into a ui_layout.
 /// @param json The root json_value.
@@ -199,7 +199,7 @@ bool ui_layout_save(const char *path, const ui_layout &layout, bool pretty = tru
 /// @param panel_id ID of the panel to draw.
 /// @param on_event Optional callback for widget interactions.
 /// @return `true` if anything was interacted with this frame.
-bool ui_draw_panel(njin_ctx &ctx, ui_layout &layout, const char *panel_id,
+bool ui_draw_panel(context &ctx, ui_layout &layout, const char *panel_id,
                    const ui_event_callback &on_event = nullptr);
 
 /// Draws every panel with `visible == true` and every popup that is `open`.
@@ -207,7 +207,7 @@ bool ui_draw_panel(njin_ctx &ctx, ui_layout &layout, const char *panel_id,
 /// @param ctx Engine context.
 /// @param layout The layout to draw.
 /// @param on_event Optional callback for widget interactions.
-void ui_draw_layout(njin_ctx &ctx, ui_layout &layout,
+void ui_draw_layout(context &ctx, ui_layout &layout,
                     const ui_event_callback &on_event = nullptr);
 
 // --- Helpers to read and write widget state ---

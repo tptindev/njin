@@ -3,7 +3,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_module
 /// @{
@@ -12,7 +12,7 @@ struct njin_ctx;
 ///
 /// A system is registered into a sys_phase with ecs_register() and is called each
 /// time that phase runs.
-using sys_fnc = void (*)(njin_ctx &ctx);
+using sys_fnc = void (*)(context &ctx);
 
 /// The phases of a frame, running in exactly the declared order.
 ///
@@ -25,7 +25,7 @@ using sys_fnc = void (*)(njin_ctx &ctx);
 /// space, so use `phase_post_render` for UI.
 ///
 /// `phase_fixed_update` runs at a fixed rate (default 60 times per second, see
-/// `njin_cfg::fixed_hz`): 0, 1 or several times in a frame depending on FPS. In
+/// `config::fixed_hz`): 0, 1 or several times in a frame depending on FPS. In
 /// this phase delta() returns exactly one step. Put physics here so the result does not
 /// depend on FPS.
 enum sys_phase {
@@ -62,11 +62,11 @@ struct sys_desc {
 
 /// Describes a module: a named group of systems.
 ///
-/// `setup` is called exactly once by njin_mod_register() and must register the
+/// `setup` is called exactly once by mod_register() and must register the
 /// module's systems with ecs_register().
 struct mod_desc {
   const char *name = nullptr;          ///< Module name, must be unique.
-  void (*setup)(njin_ctx &ctx) = nullptr; ///< Registers the module's systems.
+  void (*setup)(context &ctx) = nullptr; ///< Registers the module's systems.
 };
 /// @}
 } // namespace njin

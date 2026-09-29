@@ -5,7 +5,7 @@
 #include <raylib.h>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // Built-in post-processing (njin_post.h), run by the camera module on the
 // finished world image before the game's own post shader.
@@ -54,7 +54,7 @@ struct post_chain {
 
 // Compiles the three shaders now instead of when an effect is first switched
 // on (a pause menu blur would stall the frame it opens on). Safe to call again.
-void post_chain_warmup(njin_ctx &ctx);
+void post_chain_warmup(context &ctx);
 
 // True when any built-in effect is on, so the world must be drawn into an
 // offscreen target first.
@@ -64,5 +64,5 @@ bool post_chain_active(const post_chain &chain);
 // size of the screen). Returns the texture holding the result: `scene`
 // itself when nothing ran. The result is stored bottom-up like any render
 // texture, so draw it with a negative source height.
-const Texture2D &post_chain_run(njin_ctx &ctx, const Texture2D &scene);
+const Texture2D &post_chain_run(context &ctx, const Texture2D &scene);
 } // namespace njin

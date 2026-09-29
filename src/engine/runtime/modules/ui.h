@@ -114,10 +114,10 @@ struct ui_state {
 
 // Draws and ages the toasts. Called by the main loop after post_render, so
 // they land over the game's UI.
-void ui_draw_toasts(njin_ctx &ctx);
+void ui_draw_toasts(context &ctx);
 
 // Draws one face of `look` (0 normal, 1 focused, 2 pressed, 3 disabled) over
 // `area`, with its texture, 9-slice and shader. For other engine overlays
 // (the dialogue box) that dress like the UI.
-void ui_draw_look(njin_ctx &ctx, const ui_look &look, i32 state, rect area, f32 value = 0.0f);
+void ui_draw_look(context &ctx, const ui_look &look, i32 state, rect area, f32 value = 0.0f);
 } // namespace njin

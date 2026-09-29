@@ -23,7 +23,7 @@ Color rl(rgba c) {
   return out;
 }
 
-gizmo_state *live(njin_ctx &ctx) {
+gizmo_state *live(context &ctx) {
   gizmo_state &g = ctx.gizmos;
   return g.visible ? &g : nullptr;
 }
@@ -52,7 +52,7 @@ template <typename T> void age(std::vector<T> &items, f32 dt) {
 }
 
 // A cross of fixed screen size, then the label to its right.
-void draw_mark(const njin_ctx &ctx, vec2 p, const std::string &text, rgba color) {
+void draw_mark(const context &ctx, vec2 p, const std::string &text, rgba color) {
   if (text.empty()) {
     draw_line(ctx, p + vec2{-4.0f, -4.0f}, p + vec2{4.0f, 4.0f}, 1.5f, color);
     draw_line(ctx, p + vec2{-4.0f, 4.0f}, p + vec2{4.0f, -4.0f}, 1.5f, color);
@@ -64,7 +64,7 @@ void draw_mark(const njin_ctx &ctx, vec2 p, const std::string &text, rgba color)
 }
 } // namespace
 
-void gizmo_frame_begin(njin_ctx &ctx) {
+void gizmo_frame_begin(context &ctx) {
   gizmo_state &g = ctx.gizmos;
   const f32 dt = ctx.time.dt_real;
   age(g.lines, dt);
@@ -74,7 +74,7 @@ void gizmo_frame_begin(njin_ctx &ctx) {
   g.projected.clear();
 }
 
-void gizmo_draw_3d(njin_ctx &ctx, const camera3d &view) {
+void gizmo_draw_3d(context &ctx, const camera3d &view) {
   gizmo_state &g = ctx.gizmos;
   if (!g.visible)
     return;
@@ -107,7 +107,7 @@ void gizmo_draw_3d(njin_ctx &ctx, const camera3d &view) {
   }
 }
 
-void gizmo_draw_screen(njin_ctx &ctx) {
+void gizmo_draw_screen(context &ctx) {
   const gizmo_state &g = ctx.gizmos;
   if (!g.visible)
     return;
@@ -121,12 +121,12 @@ void gizmo_draw_screen(njin_ctx &ctx) {
     draw_mark(ctx, m.pos, m.text, m.color);
 }
 
-void gizmo_line(njin_ctx &ctx, vec2 a, vec2 b, rgba color, f32 duration) {
+void gizmo_line(context &ctx, vec2 a, vec2 b, rgba color, f32 duration) {
   if (gizmo_state *g = live(ctx))
     add_line(*g, a, b, color, duration);
 }
 
-void gizmo_arrow(njin_ctx &ctx, vec2 from, vec2 to, rgba color, f32 duration) {
+void gizmo_arrow(context &ctx, vec2 from, vec2 to, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g == nullptr)
     return;
@@ -139,7 +139,7 @@ void gizmo_arrow(njin_ctx &ctx, vec2 from, vec2 to, rgba color, f32 duration) {
   add_line(*g, to, to + rotate(back, -25.0f), color, duration);
 }
 
-void gizmo_rect(njin_ctx &ctx, rect r, rgba color, f32 duration) {
+void gizmo_rect(context &ctx, rect r, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g == nullptr)
     return;
@@ -150,7 +150,7 @@ void gizmo_rect(njin_ctx &ctx, rect r, rgba color, f32 duration) {
   add_line(*g, d, a, color, duration);
 }
 
-void gizmo_circle(njin_ctx &ctx, vec2 center, f32 radius, rgba color, f32 duration) {
+void gizmo_circle(context &ctx, vec2 center, f32 radius, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g == nullptr)
     return;
@@ -160,24 +160,24 @@ void gizmo_circle(njin_ctx &ctx, vec2 center, f32 radius, rgba color, f32 durati
   }
 }
 
-void gizmo_point(njin_ctx &ctx, vec2 p, rgba color, f32 duration) {
+void gizmo_point(context &ctx, vec2 p, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g != nullptr && g->marks.size() < max_gizmos)
     g->marks.push_back({p, {}, color, std::max(duration, 0.0f)});
 }
 
-void gizmo_text(njin_ctx &ctx, vec2 pos, const char *text, rgba color, f32 duration) {
+void gizmo_text(context &ctx, vec2 pos, const char *text, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g != nullptr && text != nullptr && *text != '\0' && g->marks.size() < max_gizmos)
     g->marks.push_back({pos, text, color, std::max(duration, 0.0f)});
 }
 
-void gizmo_line3d(njin_ctx &ctx, vec3 a, vec3 b, rgba color, f32 duration) {
+void gizmo_line3d(context &ctx, vec3 a, vec3 b, rgba color, f32 duration) {
   if (gizmo_state *g = live(ctx))
     add_line3d(*g, a, b, color, duration);
 }
 
-void gizmo_arrow3d(njin_ctx &ctx, vec3 from, vec3 to, rgba color, f32 duration) {
+void gizmo_arrow3d(context &ctx, vec3 from, vec3 to, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g == nullptr)
     return;
@@ -193,7 +193,7 @@ void gizmo_arrow3d(njin_ctx &ctx, vec3 from, vec3 to, rgba color, f32 duration) 
     add_line3d(*g, to, to - d * head + side * (head * 0.4f), color, duration);
 }
 
-void gizmo_box3d(njin_ctx &ctx, vec3 center, vec3 size, rgba color, f32 duration) {
+void gizmo_box3d(context &ctx, vec3 center, vec3 size, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g == nullptr)
     return;
@@ -210,7 +210,7 @@ void gizmo_box3d(njin_ctx &ctx, vec3 center, vec3 size, rgba color, f32 duration
   }
 }
 
-void gizmo_sphere3d(njin_ctx &ctx, vec3 center, f32 radius, rgba color, f32 duration) {
+void gizmo_sphere3d(context &ctx, vec3 center, f32 radius, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g == nullptr)
     return;
@@ -225,25 +225,25 @@ void gizmo_sphere3d(njin_ctx &ctx, vec3 center, f32 radius, rgba color, f32 dura
   }
 }
 
-void gizmo_axes3d(njin_ctx &ctx, vec3 pos, f32 size, f32 duration) {
+void gizmo_axes3d(context &ctx, vec3 pos, f32 size, f32 duration) {
   gizmo_arrow3d(ctx, pos, pos + vec3{size, 0.0f, 0.0f}, colors::red, duration);
   gizmo_arrow3d(ctx, pos, pos + vec3{0.0f, size, 0.0f}, colors::green, duration);
   gizmo_arrow3d(ctx, pos, pos + vec3{0.0f, 0.0f, size}, colors::blue, duration);
 }
 
-void gizmo_point3d(njin_ctx &ctx, vec3 p, rgba color, f32 duration) {
+void gizmo_point3d(context &ctx, vec3 p, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g != nullptr && g->marks3d.size() < max_gizmos)
     g->marks3d.push_back({p, {}, color, std::max(duration, 0.0f)});
 }
 
-void gizmo_text3d(njin_ctx &ctx, vec3 pos, const char *text, rgba color, f32 duration) {
+void gizmo_text3d(context &ctx, vec3 pos, const char *text, rgba color, f32 duration) {
   gizmo_state *g = live(ctx);
   if (g != nullptr && text != nullptr && *text != '\0' && g->marks3d.size() < max_gizmos)
     g->marks3d.push_back({pos, text, color, std::max(duration, 0.0f)});
 }
 
-void gizmos_set_visible(njin_ctx &ctx, bool visible) { ctx.gizmos.visible = visible; }
+void gizmos_set_visible(context &ctx, bool visible) { ctx.gizmos.visible = visible; }
 
-bool gizmos_visible(const njin_ctx &ctx) { return ctx.gizmos.visible; }
+bool gizmos_visible(const context &ctx) { return ctx.gizmos.visible; }
 } // namespace njin

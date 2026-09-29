@@ -12,7 +12,7 @@ Textures, shaders and render textures are managed through **handles**, a small s
   without raising an error.
 - An unloaded handle never points to a new resource by mistake.
 
-Resources are released automatically when you call njin::njin_destroy(). You only need to call
+Resources are released automatically when you call njin::destroy(). You only need to call
 `*_unload` when you want to release something early.
 
 ## Textures

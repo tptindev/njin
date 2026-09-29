@@ -10,7 +10,7 @@ the same map.
 
 ## Three steps
 
-Everything goes through a temporary grid, njin::tile_grid, which is only data, so no window or njin::njin_ctx is needed:
+Everything goes through a temporary grid, njin::tile_grid, which is only data, so no window or njin::context is needed:
 
 | Step | What it does | Functions |
 |---|---|---|

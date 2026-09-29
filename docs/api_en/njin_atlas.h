@@ -3,7 +3,7 @@
 #include "njin_draw.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_texture
 /// @{
@@ -32,7 +32,7 @@ struct atlas_desc {
 /// @param ctx Engine context.
 /// @param desc Page size, border and filter.
 /// @return Handle of the atlas.
-atlas_handle atlas_create(njin_ctx &ctx, const atlas_desc &desc = {});
+atlas_handle atlas_create(context &ctx, const atlas_desc &desc = {});
 
 /// Loads an image file and packs it into the atlas.
 ///
@@ -52,12 +52,12 @@ atlas_handle atlas_create(njin_ctx &ctx, const atlas_desc &desc = {});
 /// @param atlas Atlas to pack into.
 /// @param path Path of the image file.
 /// @return Handle of the texture, or a handle with id 0 if the file is missing or cannot be decoded.
-texture_handle atlas_load(njin_ctx &ctx, atlas_handle atlas, const char *path);
+texture_handle atlas_load(context &ctx, atlas_handle atlas, const char *path);
 
 /// Destroys the atlas: frees the pages. Every texture_handle taken from this atlas becomes
 /// invalid. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param atlas Atlas to destroy.
-void atlas_destroy(njin_ctx &ctx, atlas_handle atlas);
+void atlas_destroy(context &ctx, atlas_handle atlas);
 /// @}
 } // namespace njin

@@ -416,9 +416,9 @@ Trường hợp 3 xảy ra thật với njin. Đây là `minimal_main.cpp` của
 kết engine:
 
 ```
-...minimal_main.cpp:(.text+0xb0): undefined reference to `njin::njin_create(njin::njin_cfg const&)'
-...minimal_main.cpp:(.text+0xc0): undefined reference to `njin::njin_run(njin::njin_ctx&)'
-...minimal_main.cpp:(.text+0xcc): undefined reference to `njin::njin_destroy(njin::njin_ctx*)'
+...minimal_main.cpp:(.text+0xb0): undefined reference to `njin::create(njin::config const&)'
+...minimal_main.cpp:(.text+0xc0): undefined reference to `njin::run(njin::context&)'
+...minimal_main.cpp:(.text+0xcc): undefined reference to `njin::destroy(njin::context*)'
 collect2.exe: error: ld returned 1 exit status
 ```
 

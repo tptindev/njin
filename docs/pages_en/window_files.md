@@ -4,7 +4,7 @@
 
 ## Configuration at creation
 
-Besides the title, size, FPS and background color, njin::njin_cfg has:
+Besides the title, size, FPS and background color, njin::config has:
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -25,7 +25,7 @@ Besides the title, size, FPS and background color, njin::njin_cfg has:
 | njin::window_set_size(), njin::window_set_title() | Change the size, the title |
 | njin::cursor_set_visible() | Show or hide the mouse cursor |
 | njin::cursor_set_locked() | Lock the cursor inside the window; read njin::mouse_delta() |
-| njin::njin_quit() | Quit at the end of the frame. `phase_shutdown` still runs |
+| njin::quit() | Quit at the end of the frame. `phase_shutdown` still runs |
 
 **Keep the game view fitting every window size.** Design the game for one fixed size,
 then every frame set the camera's zoom to fit the window:

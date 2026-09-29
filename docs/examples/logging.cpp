@@ -9,7 +9,7 @@ void my_sink(njin::log_level level, const char *file, njin::i32 line,
               file != nullptr ? file : "?", (int)line, msg);
 }
 
-void setup(njin::njin_ctx &) {
+void setup(njin::context &) {
   njin::log_set_level(njin::log_warn); // ẩn trace/debug/info
   njin::log_set_sink(my_sink);         // nullptr để về mặc định (stderr)
 

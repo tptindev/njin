@@ -3,7 +3,7 @@
 namespace {
 using namespace njin;
 
-void load(njin_ctx &ctx) {
+void load(context &ctx) {
   entt::registry &reg = world(ctx);
 
   // Turn lighting on. Ambient is the light that exists everywhere: at night, a dark blue.
@@ -37,7 +37,7 @@ void load(njin_ctx &ctx) {
                                        .angle = 35.0f, .elevation = 30.0f});
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_startup, load, "load"); }
+void setup(context &ctx) { ecs_register(ctx, phase_startup, load, "load"); }
 } // namespace
 
 mod_desc light_basic_module() { return {.name = "light_basic", .setup = setup}; }

@@ -113,32 +113,32 @@ extern demo_state demo;
 // --- world.cpp ---
 
 // Loads every image and normal map, in the atlas and on its own.
-void load_images(njin_ctx &ctx);
+void load_images(context &ctx);
 // The image of a kind, from the atlas or loaded on its own, and its normal map (empty when off).
 texture_handle image(i32 which);
 texture_handle image_normal(i32 which);
 texture_handle image_material(i32 which);
 texture_handle image_emissive(i32 which);
-void build_map(njin_ctx &ctx);
-void build_hero(njin_ctx &ctx);
+void build_map(context &ctx);
+void build_hero(context &ctx);
 // Makes or removes crowd members until there are `wanted`.
-void set_crowd(njin_ctx &ctx, i32 wanted);
+void set_crowd(context &ctx, i32 wanted);
 // Points every sprite at the images of the current setting (keys 1 and M).
-void apply_atlas(njin_ctx &ctx);
-void apply_normals(njin_ctx &ctx);
+void apply_atlas(context &ctx);
+void apply_normals(context &ctx);
 // What blocks light on one crowd member, by the current shadow method (key B).
 void set_occluder(entt::registry &reg, entt::entity e, i32 which);
 // Gives every tree, bush and rock the occluders of the current shadow method (key B).
-void apply_occluders(njin_ctx &ctx);
+void apply_occluders(context &ctx);
 // Scatters gold balls over the map, to see metal in the light.
-void build_orbs(njin_ctx &ctx);
+void build_orbs(context &ctx);
 
 // --- emitters.cpp ---
 
-void build_emitters(njin_ctx &ctx);
-void explode(njin_ctx &ctx, vec2 at);
+void build_emitters(context &ctx);
+void explode(context &ctx, vec2 at);
 // A system: the fountain stays at the hero's feet, the rain follows the camera.
-void follow_emitters(njin_ctx &ctx);
+void follow_emitters(context &ctx);
 
 // --- lights.cpp ---
 
@@ -147,21 +147,21 @@ const char *scene_name(i32 preset);
 const char *falloff_name(i32 falloff);
 const char *tonemap_name(i32 tonemap);
 // Sets up the lights of the current scene from scratch.
-void build_lights(njin_ctx &ctx);
+void build_lights(context &ctx);
 // A system: the lights that follow the hero and the mouse, and the two settings the keys flip.
-void update_lights(njin_ctx &ctx);
+void update_lights(context &ctx);
 
 // --- frame_pass.cpp ---
 
 // Sends the keys 4 to 6 to the engine's post effects.
-void apply_post(njin_ctx &ctx);
-void load_frame_pass(njin_ctx &ctx);
+void apply_post(context &ctx);
+void load_frame_pass(context &ctx);
 // A system: fades the amounts and sets the uniforms of scene.fs before the world is drawn.
-void update_frame_pass(njin_ctx &ctx);
+void update_frame_pass(context &ctx);
 
 // --- systems ---
 
-void input(njin_ctx &ctx);
-void hud(njin_ctx &ctx);
-void setup(njin_ctx &ctx); // registers everything for njin_mod_register
+void input(context &ctx);
+void hud(context &ctx);
+void setup(context &ctx); // registers everything for mod_register
 } // namespace render_demo

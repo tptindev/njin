@@ -122,7 +122,7 @@ vec3 cam_forward() {
   return {std::sin(y) * std::cos(p), -std::sin(p), std::cos(y) * std::cos(p)};
 }
 
-vec3 player_pos(const njin_ctx &ctx) { return character3d_position(ctx, g.player); }
+vec3 player_pos(const context &ctx) { return character3d_position(ctx, g.player); }
 
 vec3 mover_at(f32 t) {
   const f32 k = (std::sin(t * (2.0f * pi / g.mover_period)) + 1.0f) * 0.5f;
@@ -130,7 +130,7 @@ vec3 mover_at(f32 t) {
 }
 
 // Crates back on the start platform, at rest.
-void place_crates(njin_ctx &ctx) {
+void place_crates(context &ctx) {
   const vec3 spots[] = {{-1.8f, 1.0f, -1.2f}, {-1.8f, 1.95f, -1.2f}, {1.8f, 1.0f, -1.8f}};
   for (usize i = 0; i < g.crates.size(); i++) {
     body3d_set_position(ctx, g.crates[i], spots[i]);
@@ -138,7 +138,7 @@ void place_crates(njin_ctx &ctx) {
   }
 }
 
-void start_run(njin_ctx &ctx) {
+void start_run(context &ctx) {
   character3d_set_position(ctx, g.player, start_pos);
   g.move_vel = {};
   g.vertical = 0.0f;
@@ -151,7 +151,7 @@ void start_run(njin_ctx &ctx) {
   particles3d_clear(ctx);
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   g = game_state{};
   i32 index = 0;
   for (const platform &p : platform_layout) {
@@ -187,7 +187,7 @@ void startup(njin_ctx &ctx) {
   post_fx_set(ctx, {.vignette = 0.2f, .bloom = 0.6f, .bloom_threshold = 0.85f});
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   const f32 dt = delta(ctx);
   if (key_pressed(ctx, key_escape)) {
     g.locked = !g.locked;
@@ -215,7 +215,7 @@ void update(njin_ctx &ctx) {
   }
 }
 
-void fixed_update(njin_ctx &ctx) {
+void fixed_update(context &ctx) {
   const f32 dt = delta(ctx);
   g.clock += dt;
   body3d_move_kinematic(ctx, g.mover.body, mover_at(g.clock));
@@ -319,7 +319,7 @@ void fixed_update(njin_ctx &ctx) {
 
 // Behind and above the player, orbiting with the mouse, pulled in when a
 // body is between the camera and the player.
-camera3d third_person_camera(const njin_ctx &ctx) {
+camera3d third_person_camera(const context &ctx) {
   const vec3 look_at = player_pos(ctx) + vec3{0.0f, player_height + 0.3f, 0.0f};
   const vec3 back = -cam_forward();
   const ray3d_hit hit = physics3d_raycast(ctx, {.origin = look_at, .direction = back}, cam_distance);
@@ -327,13 +327,13 @@ camera3d third_person_camera(const njin_ctx &ctx) {
   return camera3d{.position = look_at + back * dist, .target = look_at, .fovy = 60.0f, .far_plane = 300.0f};
 }
 
-void draw_platform(const njin_ctx &ctx, const platform &p, rgba color) {
+void draw_platform(const context &ctx, const platform &p, rgba color) {
   draw_cube3d(ctx, p.center, p.half * 2.0f, color);
   draw_cube3d(ctx, p.center + vec3{0.0f, p.half.y, 0.0f}, {p.half.x * 2.0f, 0.06f, p.half.z * 2.0f},
               platform_top_color);
 }
 
-void render(njin_ctx &ctx) {
+void render(context &ctx) {
   begin_3d(ctx, third_person_camera(ctx));
   light3d_add(ctx, {.position = {0.0f, 12.0f, -10.0f}, .color = {1.0f, 0.9f, 0.7f, 1.0f}, .intensity = 1.2f,
                     .radius = 30.0f});
@@ -395,7 +395,7 @@ void render(njin_ctx &ctx) {
   end_3d(ctx);
 }
 
-void render_ui(njin_ctx &ctx) {
+void render_ui(context &ctx) {
   const vec2 screen = screen_size(ctx);
   char line[64];
   std::snprintf(line, sizeof line, "Lần nhảy: %d", g.jumps);
@@ -412,7 +412,7 @@ void render_ui(njin_ctx &ctx) {
     draw_text(ctx, "Esc: khóa chuột để chơi", {16.0f, 44.0f}, 18.0f, colors::white);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "p3d_startup");
   ecs_register(ctx, phase_update, update, "p3d_update");
   ecs_register(ctx, phase_fixed_update, fixed_update, "p3d_move");

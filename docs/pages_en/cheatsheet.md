@@ -11,9 +11,9 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 
 | I want to | Use | See |
 |---|---|---|
-| Open a window, run, close | njin::njin_create(), njin::njin_run(), njin::njin_destroy() | @ref getting_started |
-| Quit the game from inside the game | njin::njin_quit() | @ref window_files |
-| Keep your game logic in one place | njin::mod_desc with `setup`, registered with njin::njin_mod_register() | @ref modules_systems |
+| Open a window, run, close | njin::create(), njin::run(), njin::destroy() | @ref getting_started |
+| Quit the game from inside the game | njin::quit() | @ref window_files |
+| Keep your game logic in one place | njin::mod_desc with `setup`, registered with njin::mod_register() | @ref modules_systems |
 | Run a function every frame, or once at the start | njin::ecs_register() with a njin::sys_phase | @ref game_loop |
 | Steady physics, independent of FPS | `phase_fixed_update` | @ref time |
 | Create an entity, attach components | njin::world() then `registry.create()`, `emplace<>()` | @ref ecs |
@@ -74,7 +74,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Turn a mouse position into a world position | njin::scr2w() (the reverse is njin::w2scr()) | @ref camera |
 | Skip drawing whatever is off screen | njin::camera_bounds() | @ref camera |
 | Shake the screen | njin::camera_shake() | @ref particles |
-| Pixel art at a fixed resolution | njin::window_set_virtual_size(), or `virtual_size` in njin::njin_cfg | @ref drawing, @ref screen_timers |
+| Pixel art at a fixed resolution | njin::window_set_virtual_size(), or `virtual_size` in njin::config | @ref drawing, @ref screen_timers |
 
 ## Input
 

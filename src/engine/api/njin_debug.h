@@ -8,7 +8,7 @@
 #include <type_traits>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_debug
 /// @{
@@ -40,18 +40,18 @@ struct debug_server_desc {
 /// **Log:** khi một inspector đang kết nối, log đi sang inspector và **không in ra
 /// console của game** nữa; chưa có inspector (hoặc nó đã ngắt) thì log vẫn ra
 /// console như thường. Các dòng đã ra trước đó, kể cả lúc mở cửa sổ (tối đa 2000
-/// dòng, chỉ tính từ njin_create()), được gửi cho inspector ngay khi nó kết nối.
+/// dòng, chỉ tính từ create()), được gửi cho inspector ngay khi nó kết nối.
 /// @param ctx Context của engine.
 /// @param desc Cổng và nhịp gửi.
 /// @return `false` nếu cổng đang bị chiếm (ví dụ một bản game khác đang chạy).
-bool debug_server_start(njin_ctx &ctx, const debug_server_desc &desc = {});
+bool debug_server_start(context &ctx, const debug_server_desc &desc = {});
 
 /// Đóng cổng debug và ngắt inspector đang kết nối. @param ctx Context của engine.
-void debug_server_stop(njin_ctx &ctx);
+void debug_server_stop(context &ctx);
 
 /// Có inspector nào đang kết nối không. @param ctx Context của engine.
 /// @return `true` nếu có.
-bool debug_server_connected(const njin_ctx &ctx);
+bool debug_server_connected(const context &ctx);
 
 /// Đặt một giá trị để xem trực tiếp trong bảng "Watches" của inspector: vận
 /// tốc nhân vật, trạng thái AI, số quái còn sống. Gọi mỗi frame hay mỗi khi
@@ -64,11 +64,11 @@ bool debug_server_connected(const njin_ctx &ctx);
 /// @param ctx Context của engine.
 /// @param name Tên hiển thị.
 /// @param value Giá trị: số, bool, chuỗi, hoặc njin::json_value bất kỳ.
-void debug_watch(njin_ctx &ctx, const char *name, json_value value);
+void debug_watch(context &ctx, const char *name, json_value value);
 
 /// Như debug_watch() cho một vec2. @param ctx Context của engine.
 /// @param name Tên hiển thị. @param value Giá trị.
-void debug_watch(njin_ctx &ctx, const char *name, vec2 value);
+void debug_watch(context &ctx, const char *name, vec2 value);
 
 /// Hàm chuyển một component thành JSON để inspector hiện giá trị của nó.
 using debug_component_fn = std::function<json_value(const entt::registry &, entt::entity)>;
@@ -82,7 +82,7 @@ using debug_component_fn = std::function<json_value(const entt::registry &, entt
 /// @param fn Hàm chuyển sang JSON.
 /// @param bytes Kích thước một component (`sizeof`), để bảng Memory của
 /// inspector tính bộ nhớ. 0 là chưa biết.
-void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn,
+void debug_component(context &ctx, entt::id_type type, const char *name, debug_component_fn fn,
                      std::size_t bytes = 0);
 
 /// Đăng ký cách hiện component `T` của game bằng một hàm nhận `const T &`.
@@ -98,7 +98,7 @@ void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_
 /// @param name Tên hiển thị.
 /// @param fn Hàm chuyển sang JSON.
 template <class T, class Fn>
-void debug_component(njin_ctx &ctx, const char *name, Fn fn) {
+void debug_component(context &ctx, const char *name, Fn fn) {
   debug_component(ctx, entt::type_hash<T>::value(), name,
                   [fn](const entt::registry &reg, entt::entity e) -> json_value {
                     if constexpr (std::is_empty_v<T>) {
@@ -132,6 +132,6 @@ struct render_info {
 /// thì có số của cả frame; đọc trước đó thì thiếu phần chưa vẽ.
 /// @param ctx Context của engine.
 /// @return Số liệu.
-render_info render_info_get(const njin_ctx &ctx);
+render_info render_info_get(const context &ctx);
 /// @}
 } // namespace njin

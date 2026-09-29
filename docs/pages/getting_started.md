@@ -58,16 +58,16 @@ build, xem @ref window_files.
 
 Ba hàm cần biết:
 
-- njin_create() mở cửa sổ và trả về context của engine.
-- njin_run() chạy vòng lặp đến khi cửa sổ đóng.
-- njin_destroy() giải phóng mọi tài nguyên.
+- create() mở cửa sổ và trả về context của engine.
+- run() chạy vòng lặp đến khi cửa sổ đóng.
+- destroy() giải phóng mọi tài nguyên.
 
 Chương trình này mở một cửa sổ trống. Để làm được điều gì đó, bạn viết
 **module**: xem @ref modules_systems.
 
 ## Thêm module của game
 
-Tạo module trong một file `.cpp`, đăng ký nó trong `main` trước njin_run():
+Tạo module trong một file `.cpp`, đăng ký nó trong `main` trước run():
 
 @include hello_module.cpp
 

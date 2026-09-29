@@ -3,7 +3,7 @@
 #include <string>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_reload
 /// @{
@@ -40,15 +40,15 @@ struct asset_reloaded {
 /// @param ctx Engine context.
 /// @param on On or off.
 /// @param interval Time between two checks, in real seconds.
-void hot_reload_enable(njin_ctx &ctx, bool on, f32 interval = 0.25f);
+void hot_reload_enable(context &ctx, bool on, f32 interval = 0.25f);
 
 /// Whether hot reload is on. @param ctx Engine context. @return `true` if on.
-bool hot_reload_enabled(const njin_ctx &ctx);
+bool hot_reload_enabled(const context &ctx);
 
 /// Checks every file right now and reloads the ones that changed, without waiting. Works
 /// even when hot reload is off, for example bound to the F5 key.
 /// @param ctx Engine context.
 /// @return Number of resources reloaded successfully.
-i32 hot_reload_now(njin_ctx &ctx);
+i32 hot_reload_now(context &ctx);
 /// @}
 } // namespace njin

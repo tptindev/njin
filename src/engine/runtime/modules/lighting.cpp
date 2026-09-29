@@ -274,7 +274,7 @@ struct gbuffer_map {
 // Draws `pick(sprite)` (the map a sprite has, or an empty handle) of the
 // sprites, in the order they are drawn, over `background`.
 template <class Pick>
-void draw_gbuffer(njin_ctx &ctx, RenderTexture2D &target, const Camera2D &camera, Color background,
+void draw_gbuffer(context &ctx, RenderTexture2D &target, const Camera2D &camera, Color background,
                   const std::vector<gbuffer_sprite> &sprites, Pick pick) {
   entt::registry &registry = ctx.ecs.registry;
   BeginTextureMode(target);
@@ -303,7 +303,7 @@ void draw_gbuffer(njin_ctx &ctx, RenderTexture2D &target, const Camera2D &camera
 
 // Draws the normal, material and emissive maps of the sprites that have them
 // into their images (a flat, default, dark surface elsewhere). Says which were needed.
-void draw_gbuffers(njin_ctx &ctx, lighting_state &s, frame_scratch &sc, const Camera2D &camera, const rect &view,
+void draw_gbuffers(context &ctx, lighting_state &s, frame_scratch &sc, const Camera2D &camera, const rect &view,
                    i32 w, i32 h, bool &use_normals, bool &use_material, bool &use_emissive) {
   use_normals = use_material = use_emissive = false;
   entt::registry &registry = ctx.ecs.registry;
@@ -464,7 +464,7 @@ lighting_state::~lighting_state() {
 
 bool lighting_active(const lighting_state &state) { return state.desc.enabled && !state.failed; }
 
-const Texture2D &lighting_apply(njin_ctx &ctx, const Camera2D &camera, const Texture2D &scene) {
+const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Texture2D &scene) {
   lighting_state &s = ctx.light;
   if (!lighting_active(s))
     return scene;
@@ -691,9 +691,9 @@ const Texture2D &lighting_apply(njin_ctx &ctx, const Camera2D &camera, const Tex
   return s.lit.texture;
 }
 
-void lighting_set(njin_ctx &ctx, const lighting_desc &desc) { ctx.light.desc = desc; }
+void lighting_set(context &ctx, const lighting_desc &desc) { ctx.light.desc = desc; }
 
-lighting_desc lighting_get(const njin_ctx &ctx) { return ctx.light.desc; }
+lighting_desc lighting_get(const context &ctx) { return ctx.light.desc; }
 
 rgba light_color_kelvin(f32 kelvin) {
   const f64 t = std::clamp((f64)kelvin, 1000.0, 40000.0) / 100.0;

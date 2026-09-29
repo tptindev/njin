@@ -33,5 +33,5 @@ struct camera_post {
 // virtual image or the window), after something drew into another one in the
 // middle of the pass (render3d's shadow map). Viewport and framebuffer only
 // matter to the caller; the matrices are reset to the world pass's.
-void world_target_rebind(njin_ctx &ctx);
+void world_target_rebind(context &ctx);
 } // namespace njin

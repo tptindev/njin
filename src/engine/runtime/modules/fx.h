@@ -39,38 +39,38 @@ struct fx_state {
 
 // Called once per frame right after the frame's delta is computed: runs down
 // hitstop (zeroing delta while it lasts), shake and the screen flash.
-void fx_frame_begin(njin_ctx &ctx);
+void fx_frame_begin(context &ctx);
 
 // Adds the current shake to the camera used for drawing the world.
-void fx_apply_shake(const njin_ctx &ctx, Camera2D &camera);
+void fx_apply_shake(const context &ctx, Camera2D &camera);
 // This frame's shake as a screen offset (pixels) and a roll (degrees), for the
 // 3D camera (render3d.cpp) to turn into angles. False when there is none.
-bool fx_shake_sample(const njin_ctx &ctx, vec2 &offset, f32 &angle);
+bool fx_shake_sample(const context &ctx, vec2 &offset, f32 &angle);
 
 // Draws the screen flash over the whole frame. Called after post_render.
-void fx_draw_screen_flash(njin_ctx &ctx);
+void fx_draw_screen_flash(context &ctx);
 
 // Advances every flash_fx by delta() and removes finished ones.
-void fx_update_sprite_flashes(njin_ctx &ctx);
+void fx_update_sprite_flashes(context &ctx);
 
 // Advances every dissolve_fx by delta(). A finished reverse dissolve is removed;
 // a finished dissolve stays (the sprite stays hidden) unless destroy_when_done.
-void fx_update_sprite_dissolves(njin_ctx &ctx);
+void fx_update_sprite_dissolves(context &ctx);
 
 // Compiles the sprite shaders now instead of on the first hit, when the driver
 // would stall the frame for it. Safe to call again.
-void fx_warmup(njin_ctx &ctx);
+void fx_warmup(context &ctx);
 
 // Begins drawing with the flash shader for `flash`; returns false (and begins
 // nothing) when the shader is unavailable or the flash is invisible.
-bool fx_flash_begin(njin_ctx &ctx, const flash_fx &flash);
+bool fx_flash_begin(context &ctx, const flash_fx &flash);
 
 // True while a dissolve has taken the whole sprite: nothing of it would be drawn.
 bool fx_dissolve_hidden(const dissolve_fx &dissolve);
 
 // Begins drawing with the dissolve shader; `flash` (may be null) is mixed in the
 // same pass. Returns false (and begins nothing) when the shader is unavailable.
-bool fx_dissolve_begin(njin_ctx &ctx, const dissolve_fx &dissolve, const flash_fx *flash);
+bool fx_dissolve_begin(context &ctx, const dissolve_fx &dissolve, const flash_fx *flash);
 
 // Ends whichever sprite shader fx_flash_begin() or fx_dissolve_begin() began.
 void fx_sprite_shader_end();

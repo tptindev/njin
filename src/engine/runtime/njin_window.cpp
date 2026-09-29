@@ -9,9 +9,9 @@
 #include <rlgl.h>
 
 namespace njin {
-void njin_quit(njin_ctx &ctx) { ctx.quit = true; }
+void quit(context &ctx) { ctx.quit = true; }
 
-void screenshot(njin_ctx &ctx, const char *path) {
+void screenshot(context &ctx, const char *path) {
   if (path != nullptr) {
     ctx.screenshots.emplace_back(path);
     return;
@@ -32,7 +32,7 @@ void screenshot(njin_ctx &ctx, const char *path) {
   ctx.screenshots.push_back(full);
 }
 
-void take_pending_screenshots(njin_ctx &ctx) {
+void take_pending_screenshots(context &ctx) {
   if (ctx.screenshots.empty())
     return;
   // Draw calls are batched: flush them, or the image misses the last ones.
@@ -53,44 +53,44 @@ void take_pending_screenshots(njin_ctx &ctx) {
   ctx.screenshots.clear();
 }
 
-void window_set_size(njin_ctx &, vec2 size) {
+void window_set_size(context &, vec2 size) {
   if (size.x >= 1.0f && size.y >= 1.0f && !IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE))
     SetWindowSize((int)size.x, (int)size.y);
 }
 
-void window_set_title(njin_ctx &, const char *title) {
+void window_set_title(context &, const char *title) {
   if (title != nullptr)
     SetWindowTitle(title);
 }
 
-void window_set_fullscreen(njin_ctx &ctx, bool fullscreen) {
+void window_set_fullscreen(context &ctx, bool fullscreen) {
   if (fullscreen != window_fullscreen(ctx))
     ToggleBorderlessWindowed();
 }
 
-bool window_fullscreen(const njin_ctx &) {
+bool window_fullscreen(const context &) {
   return IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
 }
 
-void window_set_vsync(njin_ctx &, bool vsync) {
+void window_set_vsync(context &, bool vsync) {
   if (vsync)
     SetWindowState(FLAG_VSYNC_HINT);
   else
     ClearWindowState(FLAG_VSYNC_HINT);
 }
 
-bool window_vsync(const njin_ctx &) { return IsWindowState(FLAG_VSYNC_HINT); }
+bool window_vsync(const context &) { return IsWindowState(FLAG_VSYNC_HINT); }
 
-bool window_resized(const njin_ctx &) { return IsWindowResized(); }
+bool window_resized(const context &) { return IsWindowResized(); }
 
-void cursor_set_visible(njin_ctx &, bool visible) {
+void cursor_set_visible(context &, bool visible) {
   if (visible)
     ShowCursor();
   else
     HideCursor();
 }
 
-void cursor_set_locked(njin_ctx &, bool locked) {
+void cursor_set_locked(context &, bool locked) {
   if (locked)
     DisableCursor();
   else

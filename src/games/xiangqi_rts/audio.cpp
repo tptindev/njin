@@ -14,7 +14,7 @@ inline f32 noise_val(u32 &seed) {
   return static_cast<f32>(seed) / 4294967295.0f * 2.0f - 1.0f;
 }
 
-sound_handle make_click(njin_ctx &ctx) {
+sound_handle make_click(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.05f);
   std::vector<f32> samples(count);
@@ -28,7 +28,7 @@ sound_handle make_click(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_command(njin_ctx &ctx) {
+sound_handle make_command(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.28f);
   std::vector<f32> samples(count);
@@ -44,7 +44,7 @@ sound_handle make_command(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_slash(njin_ctx &ctx) {
+sound_handle make_slash(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.18f);
   std::vector<f32> samples(count);
@@ -60,7 +60,7 @@ sound_handle make_slash(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_cannon(njin_ctx &ctx) {
+sound_handle make_cannon(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.45f);
   std::vector<f32> samples(count);
@@ -76,7 +76,7 @@ sound_handle make_cannon(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_charge(njin_ctx &ctx) {
+sound_handle make_charge(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.35f);
   std::vector<f32> samples(count);
@@ -91,7 +91,7 @@ sound_handle make_charge(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_river_cross(njin_ctx &ctx) {
+sound_handle make_river_cross(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.55f);
   std::vector<f32> samples(count);
@@ -112,7 +112,7 @@ sound_handle make_river_cross(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_rally(njin_ctx &ctx) {
+sound_handle make_rally(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.75f);
   std::vector<f32> samples(count);
@@ -129,7 +129,7 @@ sound_handle make_rally(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_victory(njin_ctx &ctx) {
+sound_handle make_victory(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 1.1f);
   std::vector<f32> samples(count);
@@ -152,7 +152,7 @@ sound_handle make_victory(njin_ctx &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-sound_handle make_defeat(njin_ctx &ctx) {
+sound_handle make_defeat(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 1.2f);
   std::vector<f32> samples(count);
@@ -169,7 +169,7 @@ sound_handle make_defeat(njin_ctx &ctx) {
 
 } // namespace
 
-void audio_init(njin_ctx &ctx) {
+void audio_init(context &ctx) {
   if (initialized)
     return;
   sfx_handles[static_cast<i32>(sfx_type::click)] = make_click(ctx);
@@ -184,7 +184,7 @@ void audio_init(njin_ctx &ctx) {
   initialized = true;
 }
 
-void audio_play(njin_ctx &ctx, sfx_type type, f32 volume) {
+void audio_play(context &ctx, sfx_type type, f32 volume) {
   const i32 idx = static_cast<i32>(type);
   if (idx >= 0 && idx < 9 && sfx_handles[idx].id != 0) {
     sound_play_once_at(ctx, sfx_handles[idx], 1.0f, volume);

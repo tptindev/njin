@@ -5,12 +5,12 @@ namespace {
 njin::texture_handle white_card; // bất kỳ ảnh nào: shader bỏ qua màu của nó, chỉ dùng toạ độ 0..1
 njin::shader_handle ui_shader;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   white_card = njin::texture_load(ctx, "assets/sprites.png");
   ui_shader = njin::shader_load(ctx, nullptr, "assets/learn_shader_sdf_ui.fs");
 }
 
-void draw(njin::njin_ctx &ctx) {
+void draw(njin::context &ctx) {
   const njin::vec2 size{400.0f, 225.0f};
   const njin::vec2 image = njin::texture_size(ctx, white_card);
 
@@ -25,16 +25,16 @@ void draw(njin::njin_ctx &ctx) {
   njin::shader_end(ctx);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_post_render, draw);
 }
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "SDF trong njin", .width = 960, .height = 540, .target_fps = 60,
+  njin::context *ctx = njin::create({.title = "SDF trong njin", .width = 960, .height = 540, .target_fps = 60,
                                            .clear_bg_color = {0.2f, 0.25f, 0.3f, 1.0f}});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

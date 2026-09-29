@@ -54,9 +54,9 @@ struct room {
   const char *code;
   // The room's own keys, or empty.
   const char *keys;
-  void (*build)(njin_ctx &ctx);  // makes the room's entities and sets lighting_desc
-  void (*update)(njin_ctx &ctx); // every frame, may be null
-  void (*draw)(njin_ctx &ctx);   // in the world, under the lighting, may be null
+  void (*build)(context &ctx);  // makes the room's entities and sets lighting_desc
+  void (*update)(context &ctx); // every frame, may be null
+  void (*draw)(context &ctx);   // in the world, under the lighting, may be null
 };
 
 // A tag on every entity a room makes, so leaving the room can destroy them all.
@@ -100,31 +100,31 @@ extern demo_state demo;
 
 // --- common.cpp ---
 
-void load_images(njin_ctx &ctx);
+void load_images(context &ctx);
 // A new entity of the current room, with a transform.
-entt::entity spawn(njin_ctx &ctx, vec2 pos, f32 rot = 0.0f, f32 scale = 1.0f);
+entt::entity spawn(context &ctx, vec2 pos, f32 rot = 0.0f, f32 scale = 1.0f);
 // A light at `pos`.
-entt::entity add_light(njin_ctx &ctx, vec2 pos, const light_2d &light);
+entt::entity add_light(context &ctx, vec2 pos, const light_2d &light);
 // A shape that blocks light at `pos`.
-entt::entity add_occluder(njin_ctx &ctx, vec2 pos, light_occluder shape, f32 rot = 0.0f);
+entt::entity add_occluder(context &ctx, vec2 pos, light_occluder shape, f32 rot = 0.0f);
 // A sprite standing on the ground at `pos` (its bottom centre).
-entt::entity add_sprite(njin_ctx &ctx, vec2 pos, texture_handle texture, texture_handle normal = {},
+entt::entity add_sprite(context &ctx, vec2 pos, texture_handle texture, texture_handle normal = {},
                         texture_handle material = {});
 // Covers the room with floor tile `id` (two ids alternate in a checker when `id2` >= 0).
-entt::entity fill_floor(njin_ctx &ctx, i32 id, i32 id2 = -1);
+entt::entity fill_floor(context &ctx, i32 id, i32 id2 = -1);
 // A tilemap of walls from rows of text ('#' is a wall) at the room's origin: drawn, solid for bodies, and
 // its outlines made into occluders (light_occluders_from_tiles). Returns the tilemap's entity.
-entt::entity build_walls(njin_ctx &ctx, std::initializer_list<std::string_view> rows, i32 wall_tile = t_brick);
+entt::entity build_walls(context &ctx, std::initializer_list<std::string_view> rows, i32 wall_tile = t_brick);
 // Rebuilds the occluders of the wall tilemap `walls` after its tiles changed.
-void rebuild_wall_occluders(njin_ctx &ctx, entt::entity walls);
+void rebuild_wall_occluders(context &ctx, entt::entity walls);
 // The lighting settings every room starts from: on (unless key L turned it off), the night ambient.
 lighting_desc base_lighting();
 void add_label(vec2 at, std::string text, rgba color = {0.92f, 0.94f, 1.0f, 1.0f});
 // The mouse, in the world.
-vec2 mouse_world(njin_ctx &ctx);
+vec2 mouse_world(context &ctx);
 // Draws the filled shape of an occluder (a convex or star shaped polygon, around its first point's centre)
 // in the world, so there is something to see where the shadow comes from.
-void draw_occluder_shape(njin_ctx &ctx, const light_occluder &o, const transform &t, rgba fill, rgba edge);
+void draw_occluder_shape(context &ctx, const light_occluder &o, const transform &t, rgba fill, rgba edge);
 
 // printf into a std::string, for the labels that show a value.
 template <typename... A> std::string fmt(const char *format, A... args) {
@@ -143,11 +143,11 @@ const room &room_at(i32 index);
 
 // --- hud.cpp ---
 
-void hud(njin_ctx &ctx);
+void hud(context &ctx);
 // Where the two room buttons of the bottom bar are, on the screen: previous and next.
-void nav_buttons(const njin_ctx &ctx, rect &prev, rect &next);
+void nav_buttons(const context &ctx, rect &prev, rect &next);
 // In the world: the current room's own drawing, and the occluder outlines of key G.
-void draw_world(njin_ctx &ctx);
+void draw_world(context &ctx);
 
-void setup(njin_ctx &ctx);
+void setup(context &ctx);
 } // namespace lighting_demo

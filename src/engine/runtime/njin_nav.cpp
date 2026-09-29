@@ -42,7 +42,7 @@ nav_grid nav_grid_make(vec2 origin, vec2 cell_size, i32 width, i32 height, u8 co
   return g;
 }
 
-nav_grid nav_grid_from_world(const njin_ctx &ctx, rect area, vec2 cell_size, u32 mask) {
+nav_grid nav_grid_from_world(const context &ctx, rect area, vec2 cell_size, u32 mask) {
   const i32 w = cell_size.x > 0.0f ? (i32)std::ceil(area.size.x / cell_size.x) : 0;
   const i32 h = cell_size.y > 0.0f ? (i32)std::ceil(area.size.y / cell_size.y) : 0;
   nav_grid g = nav_grid_make(area.pos, cell_size, w, h, 1);

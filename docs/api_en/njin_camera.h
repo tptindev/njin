@@ -4,7 +4,7 @@
 #include <entt/entity/entity.hpp>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 struct level_handle;
 
 /// @addtogroup grp_camera
@@ -65,13 +65,13 @@ struct camera_follow {
 /// @param zoom Zoom. 2 makes everything twice as big.
 /// @param pos Initial look point in the world.
 /// @return The camera entity. Add njin::camera_follow to make it follow a character.
-entt::entity camera_spawn(njin_ctx &ctx, f32 zoom = 1.0f, vec2 pos = {});
+entt::entity camera_spawn(context &ctx, f32 zoom = 1.0f, vec2 pos = {});
 
 /// Frame of a level in the world, for camera_follow::bounds.
 /// @param ctx Engine context.
 /// @param level A loaded level.
 /// @return `{level_origin, level_size}`, or an empty rectangle if the handle is invalid.
-rect level_bounds(const njin_ctx &ctx, level_handle level);
+rect level_bounds(const context &ctx, level_handle level);
 
 /// Limits a camera position so the view stays inside `bounds`.
 /// @param ctx Engine context (to know the screen size).
@@ -79,7 +79,7 @@ rect level_bounds(const njin_ctx &ctx, level_handle level);
 /// @param cam Camera.
 /// @param bounds World region. A size of 0 means unbounded.
 /// @return The limited position.
-vec2 camera_clamp(const njin_ctx &ctx, vec2 pos, const camera_2d &cam, rect bounds);
+vec2 camera_clamp(const context &ctx, vec2 pos, const camera_2d &cam, rect bounds);
 
 /// Returns the view used for this frame.
 ///
@@ -88,13 +88,13 @@ vec2 camera_clamp(const njin_ctx &ctx, vec2 pos, const camera_2d &cam, rect boun
 /// Read directly from the registry, so changes take effect immediately.
 /// @param ctx Engine context.
 /// @return The view in use.
-camera_view camera_active(const njin_ctx &ctx);
+camera_view camera_active(const context &ctx);
 
 /// Converts a point from the world to screen pixels, through camera_active().
 /// @param ctx Engine context.
 /// @param pos Point in the world.
 /// @return The corresponding position on the screen.
-vec2 w2scr(const njin_ctx &ctx, vec2 pos);
+vec2 w2scr(const context &ctx, vec2 pos);
 
 /// Converts a point from screen pixels to the world, through camera_active().
 ///
@@ -102,7 +102,7 @@ vec2 w2scr(const njin_ctx &ctx, vec2 pos);
 /// @param ctx Engine context.
 /// @param pos Point on the screen (pixels).
 /// @return The corresponding position in the world.
-vec2 scr2w(const njin_ctx &ctx, vec2 pos);
+vec2 scr2w(const context &ctx, vec2 pos);
 
 /// World region currently shown on the screen.
 ///
@@ -110,7 +110,7 @@ vec2 scr2w(const njin_ctx &ctx, vec2 pos);
 /// Use it to skip drawing things that are off screen.
 /// @param ctx Engine context.
 /// @return Rectangle in the world.
-rect camera_bounds(const njin_ctx &ctx);
+rect camera_bounds(const context &ctx);
 
 /// Applies a post-processing shader to the whole world seen through the camera.
 ///
@@ -120,6 +120,6 @@ rect camera_bounds(const njin_ctx &ctx);
 /// uniforms as usual with the shader_set_*() functions.
 /// @param ctx Engine context.
 /// @param shader Post-processing shader. A handle with id 0 turns it off.
-void camera_set_post_shader(njin_ctx &ctx, shader_handle shader);
+void camera_set_post_shader(context &ctx, shader_handle shader);
 /// @}
 } // namespace njin

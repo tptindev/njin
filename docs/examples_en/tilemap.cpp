@@ -10,7 +10,7 @@ njin::vec2 player_pos{40, 0};
 njin::vec2 player_vel{};
 bool on_ground = false;
 
-void build(njin::njin_ctx &ctx) {
+void build(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   njin::tilemap map;
   map.tileset = njin::texture_load(ctx, "assets/tiles.png");
@@ -29,7 +29,7 @@ void build(njin::njin_ctx &ctx) {
 }
 
 // Platformer physics in the fixed phase: the result does not depend on FPS.
-void physics(njin::njin_ctx &ctx) {
+void physics(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   const auto &map = reg.get<njin::tilemap>(level);
   const njin::vec2 origin = reg.get<njin::transform>(level).pos;
@@ -55,7 +55,7 @@ void physics(njin::njin_ctx &ctx) {
 }
 
 // Dig tiles with the mouse: tilemap_set marks the chunk for redrawing.
-void dig(njin::njin_ctx &ctx) {
+void dig(njin::context &ctx) {
   if (!njin::mouse_pressed(ctx, njin::mouse_left))
     return;
   entt::registry &reg = njin::world(ctx);
@@ -66,11 +66,11 @@ void dig(njin::njin_ctx &ctx) {
   njin::tilemap_set(map, c.x, c.y, -1);
 }
 
-void draw_player(njin::njin_ctx &ctx) {
+void draw_player(njin::context &ctx) {
   njin::draw_rect(ctx, njin::rect{player_pos, player_size}, njin::colors::yellow);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, build);
   njin::ecs_register(ctx, njin::phase_fixed_update, physics);
   njin::ecs_register(ctx, njin::phase_update, dig);

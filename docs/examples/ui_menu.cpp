@@ -7,7 +7,7 @@ bool fullscreen = false;
 njin::f32 volume = 0.8f;
 njin::i32 difficulty = 1;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   // Phông có chữ tiếng Việt, và kích thước co giãn theo cửa sổ.
   njin::ui_style style = njin::ui_default_style();
   style.font = njin::font_load(ctx, "assets/fonts/Inter.ttf", 32);
@@ -15,7 +15,7 @@ void startup(njin::njin_ctx &ctx) {
   njin::ui_style_set(ctx, style);
 }
 
-void menus(njin::njin_ctx &ctx) {
+void menus(njin::context &ctx) {
   if (open == screen::main) {
     njin::ui_begin(ctx, {.id = "main", .title = "Tên game"});
     if (njin::ui_button(ctx, "Chơi"))
@@ -23,7 +23,7 @@ void menus(njin::njin_ctx &ctx) {
     if (njin::ui_button(ctx, "Cài đặt"))
       open = screen::settings;
     if (njin::ui_button(ctx, "Thoát"))
-      njin::njin_quit(ctx);
+      njin::quit(ctx);
     njin::ui_end(ctx);
   } else if (open == screen::settings) {
     njin::ui_begin(ctx, {.id = "settings", .title = "Cài đặt", .width = 480});
@@ -45,7 +45,7 @@ void menus(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_post_render, menus);
 }

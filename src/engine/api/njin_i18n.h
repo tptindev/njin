@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_i18n
 /// @{
@@ -26,31 +26,31 @@ struct njin_ctx;
 /// @param lang Mã ngôn ngữ, ví dụ `"vi"`, `"en"`.
 /// @param path Đường dẫn file JSON.
 /// @return `false` nếu không đọc được file (có ghi log).
-bool i18n_load(njin_ctx &ctx, const char *lang, const char *path);
+bool i18n_load(context &ctx, const char *lang, const char *path);
 
 /// Chọn ngôn ngữ đang dùng. Ngôn ngữ chưa nạp bị bỏ qua (có ghi log).
 /// @param ctx Context của engine.
 /// @param lang Mã ngôn ngữ.
-void i18n_set_language(njin_ctx &ctx, const char *lang);
+void i18n_set_language(context &ctx, const char *lang);
 
 /// Mã ngôn ngữ đang dùng, hoặc chuỗi rỗng nếu chưa nạp ngôn ngữ nào.
 /// @param ctx Context của engine. @return Mã ngôn ngữ.
-const char *i18n_language(const njin_ctx &ctx);
+const char *i18n_language(const context &ctx);
 
 /// Ngôn ngữ dự phòng: khi ngôn ngữ đang dùng thiếu một khóa thì lấy ở đây
 /// (thường là ngôn ngữ gốc của game). Mặc định là ngôn ngữ nạp đầu tiên.
 /// @param ctx Context của engine.
 /// @param lang Mã ngôn ngữ.
-void i18n_set_fallback(njin_ctx &ctx, const char *lang);
+void i18n_set_fallback(context &ctx, const char *lang);
 
 /// Mã các ngôn ngữ đã nạp, theo thứ tự nạp. Dùng cho lựa chọn ngôn ngữ trong
 /// menu cài đặt.
 /// @param ctx Context của engine. @return Danh sách mã.
-std::vector<std::string> i18n_languages(const njin_ctx &ctx);
+std::vector<std::string> i18n_languages(const context &ctx);
 
 /// Tên hiện của một ngôn ngữ: khóa `_name` trong file của nó, hoặc chính mã.
 /// @param ctx Context của engine. @param lang Mã ngôn ngữ. @return Tên.
-const char *i18n_language_name(const njin_ctx &ctx, const char *lang);
+const char *i18n_language_name(const context &ctx, const char *lang);
 
 /// Chuỗi đã dịch của `key` trong ngôn ngữ đang dùng.
 ///
@@ -63,7 +63,7 @@ const char *i18n_language_name(const njin_ctx &ctx, const char *lang);
 /// @param ctx Context của engine.
 /// @param key Khóa.
 /// @return Chuỗi UTF-8.
-const char *tr(const njin_ctx &ctx, const char *key);
+const char *tr(const context &ctx, const char *key);
 
 /// Như tr(), rồi thay `{0}`, `{1}`... bằng các tham số theo thứ tự: câu dịch
 /// được đổi trật tự từ theo từng ngôn ngữ.
@@ -75,10 +75,10 @@ const char *tr(const njin_ctx &ctx, const char *key);
 /// @param key Khóa.
 /// @param args Giá trị thay vào.
 /// @return Chuỗi đã thay.
-std::string trf(const njin_ctx &ctx, const char *key, std::initializer_list<std::string_view> args);
+std::string trf(const context &ctx, const char *key, std::initializer_list<std::string_view> args);
 
 /// Có khóa này trong ngôn ngữ đang dùng hoặc ngôn ngữ dự phòng không.
 /// @param ctx Context của engine. @param key Khóa. @return `true` nếu có.
-bool i18n_has(const njin_ctx &ctx, const char *key);
+bool i18n_has(const context &ctx, const char *key);
 /// @}
 } // namespace njin

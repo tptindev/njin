@@ -111,7 +111,7 @@ void each_tile_in(const tilemap &map, vec2 origin, rect area, Fnc &&fnc) {
 
 // --- detection ---
 
-void detect(njin_ctx &ctx) {
+void detect(context &ctx) {
   entt::registry &registry = world(ctx);
   collision_state &state = ctx.collision;
   const f32 cell = state.cell_size;
@@ -211,7 +211,7 @@ void detect(njin_ctx &ctx) {
   state.touching = std::move(now);
 }
 
-void draw_debug(njin_ctx &ctx) {
+void draw_debug(context &ctx) {
   if (!ctx.collision.debug)
     return;
   const rgba solid{0.2f, 1.0f, 0.3f, 0.9f};
@@ -229,7 +229,7 @@ void draw_debug(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_post_update, detect, "detect");
   ecs_register(ctx, phase_render, draw_debug, "draw_debug");
 }
@@ -301,9 +301,9 @@ mod_desc collision_module() {
   return mod_desc{.name = "njin.collision", .setup = setup};
 }
 
-void collision_set_debug(njin_ctx &ctx, bool on) { ctx.collision.debug = on; }
+void collision_set_debug(context &ctx, bool on) { ctx.collision.debug = on; }
 
-void collision_set_cell_size(njin_ctx &ctx, f32 size) {
+void collision_set_cell_size(context &ctx, f32 size) {
   if (size > 0.0f)
     ctx.collision.cell_size = size;
   else
@@ -445,11 +445,11 @@ struct mover {
 };
 } // namespace
 
-collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta) {
+collision_move_result collision_move(context &ctx, entt::entity entity, vec2 delta) {
   return collision_move(ctx, entity, delta, collision_move_opts{});
 }
 
-collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 delta,
+collision_move_result collision_move(context &ctx, entt::entity entity, vec2 delta,
                                      const collision_move_opts &opts) {
   entt::registry &registry = world(ctx);
   collision_move_result result{};
@@ -561,7 +561,7 @@ collision_move_result collision_move(njin_ctx &ctx, entt::entity entity, vec2 de
   return result;
 }
 
-void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta) {
+void collision_move_platform(context &ctx, entt::entity platform, vec2 delta) {
   entt::registry &registry = world(ctx);
   transform *tr = registry.valid(platform) ? registry.try_get<transform>(platform) : nullptr;
   const collider *col = tr != nullptr ? registry.try_get<collider>(platform) : nullptr;
@@ -613,7 +613,7 @@ void collision_move_platform(njin_ctx &ctx, entt::entity platform, vec2 delta) {
 
 namespace {
 template <class Test, class TileTest>
-i32 overlap_query(const njin_ctx &ctx, rect area, std::vector<entt::entity> *out,
+i32 overlap_query(const context &ctx, rect area, std::vector<entt::entity> *out,
                   u32 mask, bool include_triggers, Test &&test, TileTest &&tile_test) {
   const entt::registry &registry = ctx.ecs.registry;
   i32 count = 0;
@@ -641,7 +641,7 @@ i32 overlap_query(const njin_ctx &ctx, rect area, std::vector<entt::entity> *out
 }
 } // namespace
 
-i32 collision_overlap_rect(const njin_ctx &ctx, rect area, std::vector<entt::entity> *out,
+i32 collision_overlap_rect(const context &ctx, rect area, std::vector<entt::entity> *out,
                            u32 mask, bool include_triggers) {
   return overlap_query(
       ctx, area, out, mask, include_triggers,
@@ -649,7 +649,7 @@ i32 collision_overlap_rect(const njin_ctx &ctx, rect area, std::vector<entt::ent
       [&](rect tile) { return rects_overlap(tile, area); });
 }
 
-i32 collision_overlap_circle(const njin_ctx &ctx, circle area, std::vector<entt::entity> *out,
+i32 collision_overlap_circle(const context &ctx, circle area, std::vector<entt::entity> *out,
                              u32 mask, bool include_triggers) {
   const rect bounds = rect_from_center(area.center, vec2{area.radius, area.radius} * 2.0f);
   return overlap_query(
@@ -658,7 +658,7 @@ i32 collision_overlap_circle(const njin_ctx &ctx, circle area, std::vector<entt:
       [&](rect tile) { return circle_rect_overlap(area, tile); });
 }
 
-i32 collision_overlap_point(const njin_ctx &ctx, vec2 point, std::vector<entt::entity> *out,
+i32 collision_overlap_point(const context &ctx, vec2 point, std::vector<entt::entity> *out,
                             u32 mask, bool include_triggers) {
   // A tiny area so the tile lookup finds the one cell holding the point.
   const rect area{point, {1e-3f, 1e-3f}};
@@ -668,7 +668,7 @@ i32 collision_overlap_point(const njin_ctx &ctx, vec2 point, std::vector<entt::e
       [&](rect tile) { return point_in_rect(point, tile); });
 }
 
-raycast_hit collision_raycast(const njin_ctx &ctx, vec2 from, vec2 to, u32 mask,
+raycast_hit collision_raycast(const context &ctx, vec2 from, vec2 to, u32 mask,
                               bool include_triggers, entt::entity ignore) {
   const entt::registry &registry = ctx.ecs.registry;
   const vec2 d = to - from;

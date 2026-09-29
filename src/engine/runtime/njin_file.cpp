@@ -105,7 +105,7 @@ bool file_write(const char *path, std::string_view data) {
   return true;
 }
 
-std::string save_path(const njin_ctx &ctx, const char *file_name) {
+std::string save_path(const context &ctx, const char *file_name) {
   const char *app = ctx.cfg.app_name != nullptr ? ctx.cfg.app_name : ctx.cfg.title;
   const fs::path dir = user_data_dir() / to_path(folder_name(app).c_str());
   std::error_code ec;

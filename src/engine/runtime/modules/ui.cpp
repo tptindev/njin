@@ -73,7 +73,7 @@ void set_uniform_quiet(shader_slot &slot, const char *name, const void *value,
     SetShaderValue(slot.shader, it->second, value, type);
 }
 
-void draw_skin(njin_ctx &ctx, const ui_cmd &c) {
+void draw_skin(context &ctx, const ui_cmd &c) {
   shader_slot *sh = shader_slot_of(ctx.shader, c.shader);
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
@@ -170,7 +170,7 @@ void draw_ring(const ui_cmd &c) {
   }
 }
 
-void flush(njin_ctx &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
+void flush(context &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
   for (const ui_cmd &c : cmds) {
     switch (c.kind) {
     case ui_cmd::skin:
@@ -195,14 +195,14 @@ void flush(njin_ctx &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
 
 // --- input ---
 
-bool any_pad_pressed(const njin_ctx &ctx, gamepad_button b) {
+bool any_pad_pressed(const context &ctx, gamepad_button b) {
   for (i32 p = 0; p < max_pads; p++)
     if (pad_available(ctx, p) && pad_pressed(ctx, p, b))
       return true;
   return false;
 }
 
-bool any_pad_held(const njin_ctx &ctx, gamepad_button b) {
+bool any_pad_held(const context &ctx, gamepad_button b) {
   for (i32 p = 0; p < max_pads; p++)
     if (pad_available(ctx, p) && pad_held(ctx, p, b))
       return true;
@@ -210,7 +210,7 @@ bool any_pad_held(const njin_ctx &ctx, gamepad_button b) {
 }
 
 // Direction held on any stick of any pad: 1 up, 2 down, 3 left, 4 right.
-i32 stick_dir(const njin_ctx &ctx) {
+i32 stick_dir(const context &ctx) {
   for (i32 p = 0; p < max_pads; p++) {
     if (!pad_available(ctx, p))
       continue;
@@ -266,12 +266,12 @@ const ui_widget_rec *next_in(const std::vector<ui_widget_rec> &list, const ui_wi
   return best != nullptr && best->id != from.id ? best : nullptr;
 }
 
-void play(njin_ctx &ctx, sound_handle s) {
+void play(context &ctx, sound_handle s) {
   if (s.id != 0)
     sound_play_once(ctx, s);
 }
 
-void frame_begin(njin_ctx &ctx) {
+void frame_begin(context &ctx) {
   ui_state &ui = ctx.ui;
   ui.last = std::move(ui.current);
   ui.current.clear();
@@ -395,7 +395,7 @@ void frame_begin(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_pre_update, frame_begin, "frame_begin"); }
+void setup(context &ctx) { ecs_register(ctx, phase_pre_update, frame_begin, "frame_begin"); }
 
 // --- layout ---
 
@@ -435,7 +435,7 @@ void push_skin(ui_state &ui, const ui_look &look, widget_state s, rect area, f32
   ui.cmds.push_back(std::move(c));
 }
 
-void push_text(njin_ctx &ctx, ui_state &ui, const std::string &text, vec2 pos, rgba color,
+void push_text(context &ctx, ui_state &ui, const std::string &text, vec2 pos, rgba color,
                f32 size = 0.0f) {
   ui_cmd c{};
   c.kind = ui_cmd::text;
@@ -447,24 +447,24 @@ void push_text(njin_ctx &ctx, ui_state &ui, const std::string &text, vec2 pos, r
   ui.cmds.push_back(std::move(c));
 }
 
-vec2 measure(const njin_ctx &ctx, const ui_state &ui, const std::string &text, f32 size = 0.0f) {
+vec2 measure(const context &ctx, const ui_state &ui, const std::string &text, f32 size = 0.0f) {
   return text_measure(ctx, text.c_str(), size > 0.0f ? size : font_px(ui), ui.style.font);
 }
 
 // Text centred in `area`.
-void text_center(njin_ctx &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
+void text_center(context &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
   const vec2 m = measure(ctx, ui, text);
   push_text(ctx, ui, text, rect_center(area) - m * 0.5f, color);
 }
 
 // Text at the left of `area`, vertically centred.
-void text_left(njin_ctx &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
+void text_left(context &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
   const vec2 m = measure(ctx, ui, text);
   push_text(ctx, ui, text, {area.pos.x + sc(ui, 14.0f), rect_center(area).y - m.y * 0.5f}, color);
 }
 
 // Text at the right of `area`, vertically centred.
-void text_right(njin_ctx &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
+void text_right(context &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
   const vec2 m = measure(ctx, ui, text);
   push_text(ctx, ui, text,
             {area.pos.x + area.size.x - sc(ui, 14.0f) - m.x, rect_center(area).y - m.y * 0.5f}, color);
@@ -479,7 +479,7 @@ struct interaction {
 };
 
 // Places a focusable widget and works out its state from the input.
-interaction interact(njin_ctx &ctx, const char *label, bool enabled, bool adjustable) {
+interaction interact(context &ctx, const char *label, bool enabled, bool adjustable) {
   ui_state &ui = ctx.ui;
   interaction it;
   it.id = hash_id(ui.panel_id, label);
@@ -559,10 +559,10 @@ ui_style ui_default_style() {
   return s;
 }
 
-void ui_style_set(njin_ctx &ctx, const ui_style &style) { ctx.ui.style = style; }
-ui_style ui_style_get(const njin_ctx &ctx) { return ctx.ui.style; }
+void ui_style_set(context &ctx, const ui_style &style) { ctx.ui.style = style; }
+ui_style ui_style_get(const context &ctx) { return ctx.ui.style; }
 
-void ui_begin(njin_ctx &ctx, const ui_panel_desc &desc) {
+void ui_begin(context &ctx, const ui_panel_desc &desc) {
   ui_state &ui = ctx.ui;
   if (ui.in_panel) {
     NJIN_WARN("ui_begin: panel '%s' opened inside another; close it with ui_end first",
@@ -605,7 +605,7 @@ void ui_begin(njin_ctx &ctx, const ui_panel_desc &desc) {
   }
 }
 
-void ui_end(njin_ctx &ctx) {
+void ui_end(context &ctx) {
   ui_state &ui = ctx.ui;
   if (!ui.in_panel) {
     NJIN_WARN("ui_end without ui_begin");
@@ -637,7 +637,7 @@ void ui_end(njin_ctx &ctx) {
   ui.cmds.clear();
 }
 
-void ui_row(njin_ctx &ctx, i32 columns) {
+void ui_row(context &ctx, i32 columns) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_row");
   if (columns <= 0)
@@ -647,7 +647,7 @@ void ui_row(njin_ctx &ctx, i32 columns) {
   ui.row_y = ui.cursor;
 }
 
-void ui_label(njin_ctx &ctx, const char *text) {
+void ui_label(context &ctx, const char *text) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_label");
   if (text == nullptr)
@@ -657,7 +657,7 @@ void ui_label(njin_ctx &ctx, const char *text) {
   push_text(ctx, ui, text, r.pos, ui.style.label.text);
 }
 
-void ui_space(njin_ctx &ctx, f32 height) {
+void ui_space(context &ctx, f32 height) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_space");
   const f32 pad = sc(ui, ui.style.padding);
@@ -665,7 +665,7 @@ void ui_space(njin_ctx &ctx, f32 height) {
   ui.cursor += sc(ui, height);
 }
 
-bool ui_button(njin_ctx &ctx, const char *label, bool enabled) {
+bool ui_button(context &ctx, const char *label, bool enabled) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_button");
   if (label == nullptr)
@@ -678,7 +678,7 @@ bool ui_button(njin_ctx &ctx, const char *label, bool enabled) {
   return it.clicked;
 }
 
-bool ui_toggle(njin_ctx &ctx, const char *label, bool &value) {
+bool ui_toggle(context &ctx, const char *label, bool &value) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_toggle");
   if (label == nullptr)
@@ -708,7 +708,7 @@ bool ui_toggle(njin_ctx &ctx, const char *label, bool &value) {
   return changed;
 }
 
-bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max, f32 step,
+bool ui_slider(context &ctx, const char *label, f32 &value, f32 min, f32 max, f32 step,
                bool percent) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_slider");
@@ -760,7 +760,7 @@ bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max, f
 
 namespace {
 template <typename F>
-bool ui_choice_impl(njin_ctx &ctx, const char *label, i32 &index, i32 count, F &&get_option) {
+bool ui_choice_impl(context &ctx, const char *label, i32 &index, i32 count, F &&get_option) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_choice");
   if (label == nullptr || count == 0)
@@ -789,19 +789,19 @@ bool ui_choice_impl(njin_ctx &ctx, const char *label, i32 &index, i32 count, F &
 }
 } // namespace
 
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+bool ui_choice(context &ctx, const char *label, i32 &index,
                std::initializer_list<const char *> options) {
   return ui_choice_impl(ctx, label, index, (i32)options.size(),
                         [&](i32 i) { return *(options.begin() + i); });
 }
 
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+bool ui_choice(context &ctx, const char *label, i32 &index,
                std::span<const std::string> options) {
   return ui_choice_impl(ctx, label, index, (i32)options.size(),
                         [&](i32 i) { return options[(size_t)i].c_str(); });
 }
 
-void ui_progress(njin_ctx &ctx, f32 value, const char *text) {
+void ui_progress(context &ctx, f32 value, const char *text) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_progress");
   const f32 t = clamp(value, 0.0f, 1.0f);
@@ -813,7 +813,7 @@ void ui_progress(njin_ctx &ctx, f32 value, const char *text) {
     text_center(ctx, ui, text, r, ui.style.track.text);
 }
 
-void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &d) {
+void ui_progress_circle(context &ctx, const ui_circle_desc &d) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_progress_circle");
   const f32 diameter = std::max(sc(ui, d.diameter), 1.0f);
@@ -846,7 +846,7 @@ void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &d) {
   }
 }
 
-void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source) {
+void ui_image(context &ctx, texture_handle texture, vec2 size, rect source) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_image");
   const vec2 s = size * ui.style.scale;
@@ -866,7 +866,7 @@ void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source) {
   ui.cmds.push_back(std::move(c));
 }
 
-void ui_draw_look(njin_ctx &ctx, const ui_look &look, i32 state, rect area, f32 value) {
+void ui_draw_look(context &ctx, const ui_look &look, i32 state, rect area, f32 value) {
   ui_cmd c{};
   c.kind = ui_cmd::skin;
   c.area = area;
@@ -877,7 +877,7 @@ void ui_draw_look(njin_ctx &ctx, const ui_look &look, i32 state, rect area, f32 
   flush(ctx, ctx.ui, {c});
 }
 
-bool ui_keybind(njin_ctx &ctx, const char *label, action_handle action, bool pad) {
+bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_keybind");
   if (label == nullptr)
@@ -926,9 +926,9 @@ bool ui_keybind(njin_ctx &ctx, const char *label, action_handle action, bool pad
   return changed;
 }
 
-bool ui_keybind_listening(const njin_ctx &ctx) { return ctx.ui.listening != 0; }
+bool ui_keybind_listening(const context &ctx) { return ctx.ui.listening != 0; }
 
-bool ui_back(njin_ctx &ctx) {
+bool ui_back(context &ctx) {
   ui_state &ui = ctx.ui;
   if (!ui.back || ui.last_panels.empty())
     return false;
@@ -942,17 +942,17 @@ bool ui_back(njin_ctx &ctx) {
   return true;
 }
 
-void ui_focus(njin_ctx &ctx, const char *label) {
+void ui_focus(context &ctx, const char *label) {
   ui_state &ui = ctx.ui;
   if (label != nullptr)
     ui.focus = hash_id(ui.panel_id, label);
 }
 
-bool ui_active(const njin_ctx &ctx) { return ctx.ui.navigable_last; }
+bool ui_active(const context &ctx) { return ctx.ui.navigable_last; }
 
-rect ui_last_rect(const njin_ctx &ctx) { return ctx.ui.last_rect; }
+rect ui_last_rect(const context &ctx) { return ctx.ui.last_rect; }
 
-bool ui_mouse_over(const njin_ctx &ctx) { return ctx.ui.mouse_over; }
+bool ui_mouse_over(const context &ctx) { return ctx.ui.mouse_over; }
 
 // --- popup ---
 
@@ -960,13 +960,13 @@ namespace {
 // Greedy word wrap of `text` (which may hold newlines) to `max_w` pixels.
 // Breaks only at spaces, so UTF-8 sequences are never split; a word wider than
 // the line stays whole.
-std::vector<std::string> wrap_lines(const njin_ctx &ctx, const ui_state &ui, const char *text,
+std::vector<std::string> wrap_lines(const context &ctx, const ui_state &ui, const char *text,
                                     f32 max_w, f32 size) {
   return text_wrap(ctx, text, size, max_w, ui.style.font);
 }
 } // namespace
 
-void ui_popup_begin(njin_ctx &ctx, const ui_popup_desc &desc) {
+void ui_popup_begin(context &ctx, const ui_popup_desc &desc) {
   ui_state &ui = ctx.ui;
   const char *name = desc.id != nullptr ? desc.id : "popup";
   const u64 id = hash_id(0, name);
@@ -978,9 +978,9 @@ void ui_popup_begin(njin_ctx &ctx, const ui_popup_desc &desc) {
   ui_begin(ctx, ui_panel_desc{.id = name, .title = desc.title, .width = desc.width});
 }
 
-void ui_popup_end(njin_ctx &ctx) { ui_end(ctx); }
+void ui_popup_end(context &ctx) { ui_end(ctx); }
 
-i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open) {
+i32 ui_popup(context &ctx, const ui_popup_desc &desc, bool &open) {
   if (!open)
     return -1;
   ui_state &ui = ctx.ui;
@@ -1033,7 +1033,7 @@ i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open) {
 
 // --- toast ---
 
-void ui_toast(njin_ctx &ctx, const char *text, const ui_toast_desc &desc) {
+void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc) {
   if (text == nullptr || *text == '\0')
     return;
   ui_state &ui = ctx.ui;
@@ -1046,9 +1046,9 @@ void ui_toast(njin_ctx &ctx, const char *text, const ui_toast_desc &desc) {
     ui.toasts.erase(ui.toasts.begin());
 }
 
-void ui_toast_clear(njin_ctx &ctx) { ctx.ui.toasts.clear(); }
+void ui_toast_clear(context &ctx) { ctx.ui.toasts.clear(); }
 
-void ui_draw_toasts(njin_ctx &ctx) {
+void ui_draw_toasts(context &ctx) {
   ui_state &ui = ctx.ui;
   if (ui.toasts.empty())
     return;

@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_nav
 /// @{
@@ -46,7 +46,7 @@ nav_grid nav_grid_make(vec2 origin, vec2 cell_size, i32 width, i32 height, u8 co
 /// @param cell_size Kích thước ô, thường bằng ô tilemap.
 /// @param mask Lớp va chạm được coi là vật cản.
 /// @return Lưới.
-nav_grid nav_grid_from_world(const njin_ctx &ctx, rect area, vec2 cell_size, u32 mask = 0xFFFFFFFFu);
+nav_grid nav_grid_from_world(const context &ctx, rect area, vec2 cell_size, u32 mask = 0xFFFFFFFFu);
 
 /// Ô chứa một điểm trong thế giới (có thể nằm ngoài lưới).
 /// @param grid Lưới.

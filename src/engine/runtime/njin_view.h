@@ -8,7 +8,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // A line of text waiting for the window-resolution pass (see view_state).
 struct queued_text {
@@ -43,12 +43,12 @@ struct view_state {
   f32 scale = 1.0f;         // window pixels per virtual pixel
   vec2 offset{};            // top-left of the image in the window
 
-  // Supersampling (njin_cfg::render_scale). `target` is `render_scale` times
+  // Supersampling (config::render_scale). `target` is `render_scale` times
   // bigger than the logical size in each dimension (view_logical_size()) and
   // downscaled with a bilinear filter in view_draw_end(); the projection stays
   // at logical size (see bind_view_target() in njin_view.cpp), so it survives
   // the world camera's own matrix resets untouched. `1` is off. Set once from
-  // njin_create() and never changed afterwards, and clamped there so `target`
+  // create() and never changed afterwards, and clamped there so `target`
   // never asks for a texture bigger than max_render_scale_dim on a side.
   i32 render_scale = 1;
 
@@ -71,7 +71,7 @@ struct view_state {
   mutable i32 offscreen_depth = 0;     // inside a render texture
   mutable rect clip{};                 // clip_begin() area; size 0 when none
 
-  // Smooth UI (njin_cfg::smooth_ui): after the world, the virtual image is put
+  // Smooth UI (config::smooth_ui): after the world, the virtual image is put
   // on the window and the rest of the frame is drawn straight into the window,
   // under a scale-and-offset transform that maps virtual pixels to window ones.
   // Shapes are then rasterized at window resolution, and text is baked at
@@ -126,13 +126,13 @@ void view_ui_end(view_state &view);
 // texture: view_rebind() (called when it ends) puts it back.
 void view_ui_suspend(const view_state &view);
 
-// Clamps a requested njin_cfg::render_scale so `window_size * requested`
+// Clamps a requested config::render_scale so `window_size * requested`
 // never exceeds a GL texture side every desktop GPU can create. Called once
-// from njin_create(), against the just-opened window's real size.
+// from create(), against the just-opened window's real size.
 i32 view_clamp_render_scale(i32 requested, vec2 window_size);
 
 // Binds `target` for drawing at `logical` coordinates, `target` itself
-// possibly bigger (njin_cfg::render_scale). See njin_view.cpp for why this is
+// possibly bigger (config::render_scale). See njin_view.cpp for why this is
 // not just BeginTextureMode(target). Used by view_draw_begin()/view_rebind()
 // for the virtual/window screen, and by camera.cpp for the world's own
 // post-processing target, so render_scale covers both.

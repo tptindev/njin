@@ -1,12 +1,12 @@
 #include <njin.h>
 
 namespace {
-void read_input(njin::njin_ctx &) {}
-void move(njin::njin_ctx &) {}
-void clamp_to_screen(njin::njin_ctx &) {}
-void debug_overlay(njin::njin_ctx &) {}
+void read_input(njin::context &) {}
+void move(njin::context &) {}
+void clamp_to_screen(njin::context &) {}
+void debug_overlay(njin::context &) {}
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   // Không ràng buộc: chạy theo thứ tự đăng ký (order mặc định là 100).
   njin::ecs_register(ctx, njin::phase_update, read_input);
 

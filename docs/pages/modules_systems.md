@@ -13,7 +13,7 @@ Logic của game trong njin được chia thành ba khái niệm:
 System là một hàm thường, nhận context của engine và không trả về gì:
 
 ```cpp
-void move(njin::njin_ctx &ctx);
+void move(njin::context &ctx);
 ```
 
 Nó không có trạng thái riêng. Dữ liệu nằm trong component của entity (xem
@@ -43,23 +43,23 @@ Module là nơi bạn khai báo system. Nó gồm một cái tên và một hàm
 
 Cách hoạt động:
 
-1. njin_mod_register() gọi `setup` đúng một lần.
+1. mod_register() gọi `setup` đúng một lần.
 2. Trong `setup`, bạn gọi ecs_register() cho từng system để gắn nó vào một phase.
 3. Từ đó, system chạy mỗi khi phase của nó chạy.
 
 Các quy tắc:
 
-- njin_mod_register() phải được gọi **trước** njin_run().
+- mod_register() phải được gọi **trước** run().
 - Tên module phải **duy nhất**. Đăng ký hai lần cùng một tên bị bỏ qua và ghi cảnh báo.
 - ecs_register() chỉ hợp lệ **bên trong `setup`**. Gọi ở nơi khác bị bỏ qua và ghi cảnh báo.
-- Module lõi của engine (camera, âm thanh, sprite) đã được đăng ký sẵn bởi njin_create().
+- Module lõi của engine (camera, âm thanh, sprite) đã được đăng ký sẵn bởi create().
 
 ### Đăng ký nhiều module một lần
 
-Thay vì gọi njin_mod_register() cho từng module, truyền cả danh sách:
+Thay vì gọi mod_register() cho từng module, truyền cả danh sách:
 
 ```cpp
-njin::njin_mod_register(*ctx, {input_module(), physics_module(), ui_module()});
+njin::mod_register(*ctx, {input_module(), physics_module(), ui_module()});
 ```
 
 Danh sách tạo lúc chạy (`std::vector<njin::mod_desc>`, `std::array`) cũng được:
@@ -68,7 +68,7 @@ Danh sách tạo lúc chạy (`std::vector<njin::mod_desc>`, `std::array`) cũng
 std::vector<njin::mod_desc> mods{input_module(), physics_module()};
 if (debug)
   mods.push_back(debug_overlay_module());
-njin::njin_mod_register(*ctx, mods);
+njin::mod_register(*ctx, mods);
 ```
 
 Kết quả giống hệt gọi từng module lần lượt: module đứng trước chạy trước trong cùng phase,

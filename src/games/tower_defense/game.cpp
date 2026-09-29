@@ -38,7 +38,7 @@ f32 distance_to_road(vec2 p) {
   return closest;
 }
 
-void toast(njin_ctx &ctx, const char *message) {
+void toast(context &ctx, const char *message) {
   ui_toast(ctx, message, {.kind = ui_toast_info, .seconds = 2.0f});
 }
 
@@ -49,7 +49,7 @@ void recalc_path() {
   game.path_total = game.path_lengths.back();
 }
 
-entt::entity spawn_enemy(njin_ctx &ctx, i32 index) {
+entt::entity spawn_enemy(context &ctx, i32 index) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   const f32 wave_strength = static_cast<f32>(game.wave - 1);
@@ -86,7 +86,7 @@ entt::entity spawn_enemy(njin_ctx &ctx, i32 index) {
   return e;
 }
 
-void launch_wave(njin_ctx &ctx) {
+void launch_wave(context &ctx) {
   if (game.wave_active || game.paused || game.screen != game_screen::playing)
     return;
   if (game.wave >= wave_limit) {
@@ -103,7 +103,7 @@ void launch_wave(njin_ctx &ctx) {
   toast(ctx, line);
 }
 
-void clear_game_entities(njin_ctx &ctx) {
+void clear_game_entities(context &ctx) {
   entt::registry &reg = world(ctx);
   std::vector<entt::entity> old;
   for (auto [e, foe] : reg.view<enemy_component>().each()) {
@@ -131,7 +131,7 @@ void clear_game_entities(njin_ctx &ctx) {
   reg.destroy(old.begin(), old.end());
 }
 
-void reset_game(njin_ctx &ctx) {
+void reset_game(context &ctx) {
   clear_game_entities(ctx);
   game.gold = 265;
   game.lives = 20;
@@ -150,7 +150,7 @@ void reset_game(njin_ctx &ctx) {
   toast(ctx, "Đặt tháp trước khi bấm BẮT ĐẦU ĐỢT!");
 }
 
-void return_to_title(njin_ctx &ctx) {
+void return_to_title(context &ctx) {
   clear_game_entities(ctx);
   game.build_kind = -1;
   game.speed = 1;
@@ -168,7 +168,7 @@ vec2 snapped(vec2 point) {
   return {x, y};
 }
 
-bool placement_ok(njin_ctx &ctx, vec2 pos) {
+bool placement_ok(context &ctx, vec2 pos) {
   if (pos.x < field_x + 24.0f || pos.y < field_y + 24.0f || pos.x > field_x + field_w - 24.0f ||
       pos.y > field_y + field_h - 24.0f || distance_to_road(pos) < road_width * 0.5f + 17.0f)
     return false;
@@ -181,7 +181,7 @@ bool placement_ok(njin_ctx &ctx, vec2 pos) {
   return true;
 }
 
-void place_tower(njin_ctx &ctx, vec2 pos) {
+void place_tower(context &ctx, vec2 pos) {
   if (game.build_kind < 0 || game.build_kind >= static_cast<i32>(specs.size()))
     return;
   if (!placement_ok(ctx, pos)) {
@@ -203,7 +203,7 @@ void place_tower(njin_ctx &ctx, vec2 pos) {
   toast(ctx, "Đã dựng tháp phòng thủ");
 }
 
-void select_tower(njin_ctx &ctx, vec2 pos) {
+void select_tower(context &ctx, vec2 pos) {
   entt::entity nearest = entt::null;
   f32 best = 27.0f;
   for (auto [e, tr, tw] : world(ctx).view<const transform, const tower_component>().each()) {
@@ -217,7 +217,7 @@ void select_tower(njin_ctx &ctx, vec2 pos) {
   game.selected = nearest;
 }
 
-void upgrade_selected(njin_ctx &ctx) {
+void upgrade_selected(context &ctx) {
   if (game.selected == entt::null || !world(ctx).valid(game.selected) || !world(ctx).all_of<tower_component>(game.selected))
     return;
   tower_component &tw = world(ctx).get<tower_component>(game.selected);
@@ -229,7 +229,7 @@ void upgrade_selected(njin_ctx &ctx) {
   toast(ctx, "Tháp đã được nâng cấp");
 }
 
-void sell_selected(njin_ctx &ctx) {
+void sell_selected(context &ctx) {
   if (game.selected == entt::null || !world(ctx).valid(game.selected) || !world(ctx).all_of<tower_component>(game.selected))
     return;
   const tower_component &tw = world(ctx).get<tower_component>(game.selected);
@@ -239,7 +239,7 @@ void sell_selected(njin_ctx &ctx) {
   toast(ctx, "Đã thu hồi tháp");
 }
 
-void input(njin_ctx &ctx) {
+void input(context &ctx) {
   if (game.screen != game_screen::playing || !mouse_pressed(ctx, mouse_left))
     return;
   const vec2 mouse = mouse_pos(ctx);
@@ -251,7 +251,7 @@ void input(njin_ctx &ctx) {
     select_tower(ctx, mouse);
 }
 
-void damage_enemy(njin_ctx &ctx, vec2 at, f32 damage, f32 radius, tower_kind source) {
+void damage_enemy(context &ctx, vec2 at, f32 damage, f32 radius, tower_kind source) {
   entt::registry &reg = world(ctx);
   struct hit_record {
     entt::entity entity;
@@ -274,7 +274,7 @@ void damage_enemy(njin_ctx &ctx, vec2 at, f32 damage, f32 radius, tower_kind sou
     enemy_hit_effect(ctx, hit.entity, damage, source, hit.killed);
 }
 
-void update_game(njin_ctx &ctx) {
+void update_game(context &ctx) {
   if (game.paused)
     return;
   const f32 dt = delta(ctx) * static_cast<f32>(game.speed);
@@ -402,13 +402,13 @@ void update_game(njin_ctx &ctx) {
   }
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   recalc_path();
   enemy_sheet = texture_load(ctx, "assets/slime_sheet.png");
   texture_set_filter(ctx, enemy_sheet, filter_nearest);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "startup");
   ecs_register(ctx, phase_pre_update, input, "input");
   ecs_register(ctx, phase_update, update_game, "tower_defense");

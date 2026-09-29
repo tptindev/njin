@@ -41,7 +41,7 @@
 namespace njin {
 // Opens the window on construction and closes it on destruction.
 struct window_guard {
-  explicit window_guard(const njin_cfg &cfg);
+  explicit window_guard(const config &cfg);
   ~window_guard();
   window_guard(const window_guard &) = delete;
   window_guard &operator=(const window_guard &) = delete;
@@ -61,22 +61,22 @@ struct time_state {
   bool in_fixed = false; // delta() answers fixed_dt while this is set
 };
 
-// Definition of the opaque njin_ctx handle. Only the runtime sees this.
+// Definition of the opaque context handle. Only the runtime sees this.
 //
 // Members are destroyed in reverse order, so `window` (declared before the
 // stores) closes last: GPU resources in the stores, the camera's post target
 // and the tilemap chunk cache, and the audio buffers in `audio`, are freed
 // while the GL context and the audio device are still alive. `ecs` goes
 // first, so component destructors never outlive the resources they name.
-struct njin_ctx {
-  explicit njin_ctx(const njin_cfg &config) : cfg(config), window(config) {}
+struct context {
+  explicit context(const config &config) : cfg(config), window(config) {}
 
   time_state time;
   bool quit = false;
   // Paths requested by screenshot() this frame, taken at its end.
   std::vector<std::string> screenshots;
   rng random;
-  njin_cfg cfg;
+  config cfg;
   window_guard window;
   view_state view;
   input_store input;
@@ -114,8 +114,8 @@ struct njin_ctx {
 };
 // Saves every screenshot requested this frame. Called after post_render and
 // before EndDrawing, while the back buffer still holds the finished frame.
-void take_pending_screenshots(njin_ctx &ctx);
+void take_pending_screenshots(context &ctx);
 // Draws the text queued for window resolution (view_state::text_layer) onto the
 // window, over the scaled virtual image. Called right after view_draw_end.
-void text_layer_flush(njin_ctx &ctx);
+void text_layer_flush(context &ctx);
 } // namespace njin

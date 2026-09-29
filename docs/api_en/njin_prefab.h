@@ -4,7 +4,7 @@
 #include <entt/entity/fwd.hpp>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_prefab
 /// @{
@@ -14,7 +14,7 @@ struct njin_ctx;
 /// The entity already has a transform (and njin::scene_owned if the prefab asks for it) when
 /// the function is called. The function may spawn other prefabs and attach them as children with
 /// njin::child_of, for example a character with a weapon.
-using prefab_fnc = void (*)(njin_ctx &ctx, entt::entity entity);
+using prefab_fnc = void (*)(context &ctx, entt::entity entity);
 
 /// Description of a prefab, used with prefab_register().
 ///
@@ -33,13 +33,13 @@ struct prefab_desc {
 /// @param ctx Engine context.
 /// @param desc Prefab description.
 /// @return Prefab handle, or a handle with id 0 if the name or builder function is missing.
-prefab_handle prefab_register(njin_ctx &ctx, const prefab_desc &desc);
+prefab_handle prefab_register(context &ctx, const prefab_desc &desc);
 
 /// Finds a prefab by name.
 /// @param ctx Engine context.
 /// @param name Prefab name.
 /// @return Prefab handle, or a handle with id 0 if there is none.
-prefab_handle prefab_find(const njin_ctx &ctx, const char *name);
+prefab_handle prefab_find(const context &ctx, const char *name);
 
 /// Creates an entity from a prefab, placed at `at`.
 ///
@@ -54,7 +54,7 @@ prefab_handle prefab_find(const njin_ctx &ctx, const char *name);
 /// @param prefab Prefab to create.
 /// @param at Initial transform.
 /// @return The entity just created, or `entt::null` if the handle is invalid.
-entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn(context &ctx, prefab_handle prefab,
                           const transform &at = {});
 
 /// Like prefab_spawn(), looking up the prefab by name.
@@ -62,7 +62,7 @@ entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
 /// @param name Prefab name.
 /// @param at Initial transform.
 /// @return The entity just created, or `entt::null` if there is no prefab of that name.
-entt::entity prefab_spawn(njin_ctx &ctx, const char *name,
+entt::entity prefab_spawn(context &ctx, const char *name,
                           const transform &at = {});
 
 /// Creates an entity from a prefab and attaches it as a child of `parent`.
@@ -74,7 +74,7 @@ entt::entity prefab_spawn(njin_ctx &ctx, const char *name,
 /// @param parent Parent entity. Must have a transform.
 /// @param local Transform relative to the parent.
 /// @return The entity just created, or `entt::null` if the handle is invalid.
-entt::entity prefab_spawn_child(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn_child(context &ctx, prefab_handle prefab,
                                 entt::entity parent,
                                 const transform &local = {});
 /// @}

@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_anim
 /// @{
@@ -46,7 +46,7 @@ struct anim_clip_desc {
 /// @param ctx Context của engine.
 /// @param json_path Đường dẫn file JSON.
 /// @return Handle của sheet, hoặc handle id 0 nếu file thiếu hoặc lỗi (có ghi log).
-anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path);
+anim_sheet_handle anim_sheet_load(context &ctx, const char *json_path);
 
 /// Tạo sprite sheet từ một ảnh chia lưới đều, không có clip nào.
 ///
@@ -58,7 +58,7 @@ anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path);
 /// @param frame_size Kích thước một frame, pixel.
 /// @param fps Số frame mỗi giây, dùng cho mọi frame.
 /// @return Handle của sheet, hoặc handle id 0 nếu ảnh hoặc kích thước không hợp lệ.
-anim_sheet_handle anim_sheet_grid(njin_ctx &ctx, texture_handle texture,
+anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
                                   vec2 frame_size, f32 fps);
 
 /// Thêm một clip vào sheet.
@@ -66,20 +66,20 @@ anim_sheet_handle anim_sheet_grid(njin_ctx &ctx, texture_handle texture,
 /// @param sheet Sheet.
 /// @param desc Mô tả clip.
 /// @return `false` nếu sheet không hợp lệ, trùng tên, hoặc frame ngoài sheet.
-bool anim_sheet_add_clip(njin_ctx &ctx, anim_sheet_handle sheet,
+bool anim_sheet_add_clip(context &ctx, anim_sheet_handle sheet,
                          const anim_clip_desc &desc);
 
 /// Giải phóng sheet, và ảnh của nó nếu sheet nạp từ Aseprite.
 /// @param ctx Context của engine.
 /// @param sheet Sheet. Handle không hợp lệ bị bỏ qua.
-void anim_sheet_unload(njin_ctx &ctx, anim_sheet_handle sheet);
+void anim_sheet_unload(context &ctx, anim_sheet_handle sheet);
 
 /// Tìm clip theo tên.
 /// @param ctx Context của engine.
 /// @param sheet Sheet.
 /// @param name Tên clip.
 /// @return Số thứ tự của clip, hoặc -1 nếu không có.
-i32 anim_clip_find(const njin_ctx &ctx, anim_sheet_handle sheet,
+i32 anim_clip_find(const context &ctx, anim_sheet_handle sheet,
                    const char *name);
 
 /// Thời lượng một lượt chạy của clip, giây. Dùng để canh thời gian của đòn
@@ -88,7 +88,7 @@ i32 anim_clip_find(const njin_ctx &ctx, anim_sheet_handle sheet,
 /// @param sheet Sheet.
 /// @param name Tên clip.
 /// @return Tổng thời lượng các frame, hoặc 0 nếu không có clip.
-f32 anim_clip_duration(const njin_ctx &ctx, anim_sheet_handle sheet,
+f32 anim_clip_duration(const context &ctx, anim_sheet_handle sheet,
                        const char *name);
 
 /// Phép so sánh của một điều kiện chuyển trạng thái.
@@ -171,7 +171,7 @@ inline constexpr i32 anim_max_params = 16;
 /// @param desc Mô tả graph.
 /// @return Handle của graph, hoặc handle id 0 nếu có tên clip hoặc trạng thái
 /// không tồn tại, hay quá anim_max_params tham số (có ghi log).
-anim_graph_handle anim_graph_create(njin_ctx &ctx, const anim_graph_desc &desc);
+anim_graph_handle anim_graph_create(context &ctx, const anim_graph_desc &desc);
 
 /// Chạy animation từ một sheet có clip, cho entity có sprite.
 ///
@@ -214,7 +214,7 @@ struct animator {
 /// @param name Tên clip, hoặc tên trạng thái nếu có graph.
 /// @param restart Bắt đầu lại kể cả khi đang chạy đúng nó.
 /// @return `false` nếu không tìm thấy tên.
-bool animator_play(const njin_ctx &ctx, animator &anim, const char *name,
+bool animator_play(const context &ctx, animator &anim, const char *name,
                    bool restart = false);
 
 /// Đặt một tham số số của graph, ví dụ tốc độ chạy.
@@ -222,7 +222,7 @@ bool animator_play(const njin_ctx &ctx, animator &anim, const char *name,
 /// @param anim Animator.
 /// @param param Tên tham số (tên dùng trong anim_cond).
 /// @param value Giá trị.
-void animator_set(const njin_ctx &ctx, animator &anim, const char *param,
+void animator_set(const context &ctx, animator &anim, const char *param,
                   f32 value);
 
 /// Đặt một tham số bool của graph, ví dụ đang đứng trên đất.
@@ -230,26 +230,26 @@ void animator_set(const njin_ctx &ctx, animator &anim, const char *param,
 /// @param anim Animator.
 /// @param param Tên tham số.
 /// @param value Giá trị.
-void animator_set_bool(const njin_ctx &ctx, animator &anim, const char *param,
+void animator_set_bool(const context &ctx, animator &anim, const char *param,
                        bool value);
 
 /// Bật một trigger của graph cho frame này, ví dụ vừa bấm nút đánh.
 /// @param ctx Context của engine.
 /// @param anim Animator.
 /// @param param Tên tham số (dùng với anim_trigger).
-void animator_trigger(const njin_ctx &ctx, animator &anim, const char *param);
+void animator_trigger(const context &ctx, animator &anim, const char *param);
 
 /// Đang ở trạng thái (có graph) hoặc clip (không graph) này không.
 /// @param ctx Context của engine.
 /// @param anim Animator.
 /// @param name Tên trạng thái hoặc clip.
 /// @return `true` nếu đúng.
-bool animator_in(const njin_ctx &ctx, const animator &anim, const char *name);
+bool animator_in(const context &ctx, const animator &anim, const char *name);
 
 /// Tên trạng thái (có graph) hoặc clip (không graph) hiện tại.
 /// @param ctx Context của engine.
 /// @param anim Animator.
 /// @return Tên, hoặc chuỗi rỗng nếu chưa có. Không bao giờ null.
-const char *animator_current(const njin_ctx &ctx, const animator &anim);
+const char *animator_current(const context &ctx, const animator &anim);
 /// @}
 } // namespace njin

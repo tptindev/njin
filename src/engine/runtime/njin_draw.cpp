@@ -93,16 +93,16 @@ std::vector<text_piece> visible_pieces(const view_state &view, const queued_text
 
 // Shapes
 
-void draw_rect(const njin_ctx &ctx, rect r, rgba color) {
+void draw_rect(const context &ctx, rect r, rgba color) {
   DrawRectangleRec(rect_of(r), color_of(color));
   view_text_occlude(ctx.view, r, color);
 }
 
-void draw_rect_lines(const njin_ctx &, rect r, f32 thickness, rgba color) {
+void draw_rect_lines(const context &, rect r, f32 thickness, rgba color) {
   DrawRectangleLinesEx(rect_of(r), thickness, color_of(color));
 }
 
-void draw_rect_rotated(const njin_ctx &, vec2 center, vec2 size, f32 rotation,
+void draw_rect_rotated(const context &, vec2 center, vec2 size, f32 rotation,
                        rgba color) {
   // DrawRectanglePro places the rectangle's origin point at (x, y) and turns
   // it around that point; an origin of half the size makes (x, y) the centre.
@@ -111,22 +111,22 @@ void draw_rect_rotated(const njin_ctx &, vec2 center, vec2 size, f32 rotation,
                    color_of(color));
 }
 
-void draw_circle(const njin_ctx &, vec2 center, f32 radius, rgba color) {
+void draw_circle(const context &, vec2 center, f32 radius, rgba color) {
   DrawCircleV(vec_of(center), radius, color_of(color));
 }
 
-void draw_circle_lines(const njin_ctx &, vec2 center, f32 radius,
+void draw_circle_lines(const context &, vec2 center, f32 radius,
                        f32 thickness, rgba color) {
   const f32 inner = radius - thickness > 0.0f ? radius - thickness : 0.0f;
   // 0 segments lets raylib pick enough for the radius.
   DrawRing(vec_of(center), inner, radius, 0.0f, 360.0f, 0, color_of(color));
 }
 
-void draw_line(const njin_ctx &, vec2 a, vec2 b, f32 thickness, rgba color) {
+void draw_line(const context &, vec2 a, vec2 b, f32 thickness, rgba color) {
   DrawLineEx(vec_of(a), vec_of(b), thickness, color_of(color));
 }
 
-void draw_triangle(const njin_ctx &, vec2 a, vec2 b, vec2 c, rgba color) {
+void draw_triangle(const context &, vec2 a, vec2 b, vec2 c, rgba color) {
   // raylib culls triangles whose vertices are not counter-clockwise on screen
   // (y down), which is cross < 0 there. Swap two vertices for the other order
   // so callers never have to think about winding.
@@ -138,15 +138,15 @@ void draw_triangle(const njin_ctx &, vec2 a, vec2 b, vec2 c, rgba color) {
 
 // Text
 
-font_handle font_load(njin_ctx &ctx, const char *path, i32 size, font_style style) {
+font_handle font_load(context &ctx, const char *path, i32 size, font_style style) {
   return font_store_load(ctx.font, path, size, style == font_pixel);
 }
 
-void font_set_style(njin_ctx &ctx, font_handle font, font_style style) {
+void font_set_style(context &ctx, font_handle font, font_style style) {
   font_store_set_pixel(ctx.font, font, style == font_pixel);
 }
 
-void font_unload(njin_ctx &ctx, font_handle font) {
+void font_unload(context &ctx, font_handle font) {
   font_store_unload(ctx.font, font);
 }
 
@@ -157,7 +157,7 @@ namespace {
 // size is what the game measured and aligned with: stretch the gaps until the
 // line is as wide as that, so centred and right-aligned text stays where it was
 // put.
-void draw_text_window(const njin_ctx &ctx, const char *text, vec2 pos, f32 size, rgba color,
+void draw_text_window(const context &ctx, const char *text, vec2 pos, f32 size, rgba color,
                       font_handle font) {
   const view_state &view = ctx.view;
   const Font *atlas = font_store_atlas(ctx.font, font, font_px(size * view.scale));
@@ -186,7 +186,7 @@ void draw_text_window(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
 }
 } // namespace
 
-void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
                rgba color, font_handle font) {
   if (text == nullptr || text[0] == '\0' || size < 1.0f)
     return;
@@ -215,7 +215,7 @@ void draw_text(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
              (f32)atlas->baseSize, 0.0f, color_of(color));
 }
 
-vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
+vec2 text_measure(const context &ctx, const char *text, f32 size,
                   font_handle font) {
   if (text == nullptr)
     return vec2{0.0f, 0.0f};
@@ -228,7 +228,7 @@ vec2 text_measure(const njin_ctx &ctx, const char *text, f32 size,
   return vec2{m.x, m.y};
 }
 
-void text_layer_flush(njin_ctx &ctx) {
+void text_layer_flush(context &ctx) {
   view_state &view = ctx.view;
   std::vector<queued_text> queue;
   queue.swap(view.text_layer);
@@ -271,7 +271,7 @@ void text_layer_flush(njin_ctx &ctx) {
   view.occluders.clear();
 }
 
-std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 size,
+std::vector<std::string> text_wrap(const context &ctx, const char *text, f32 size,
                                    f32 max_width, font_handle font) {
   std::vector<std::string> lines;
   if (text == nullptr)
@@ -305,7 +305,7 @@ std::vector<std::string> text_wrap(const njin_ctx &ctx, const char *text, f32 si
   return lines;
 }
 
-vec2 draw_text_wrapped(const njin_ctx &ctx, const char *text, vec2 pos, f32 size,
+vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
                        f32 max_width, rgba color, font_handle font, f32 line_spacing) {
   vec2 extent{};
   f32 y = pos.y;
@@ -322,12 +322,12 @@ vec2 draw_text_wrapped(const njin_ctx &ctx, const char *text, vec2 pos, f32 size
 
 // Textures
 
-void texture_set_filter(njin_ctx &ctx, texture_handle handle,
+void texture_set_filter(context &ctx, texture_handle handle,
                         texture_filter filter) {
   texture_store_set_filter(ctx.texture, handle, filter);
 }
 
-void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
+void texture_draw_ex(const context &ctx, texture_handle handle,
                      const texture_draw_desc &desc) {
   const texture_slot *slot = texture_slot_of(ctx.texture, handle);
   // A material shader (texture_set_shader) auto-binds only when nothing else
@@ -342,7 +342,7 @@ void texture_draw_ex(const njin_ctx &ctx, texture_handle handle,
 
 // Blend and clip
 
-void blend_begin(const njin_ctx &, blend_mode mode) {
+void blend_begin(const context &, blend_mode mode) {
   switch (mode) {
   case blend_additive:
     BeginBlendMode(BLEND_ADDITIVE);
@@ -357,9 +357,9 @@ void blend_begin(const njin_ctx &, blend_mode mode) {
   }
 }
 
-void blend_end(const njin_ctx &) { EndBlendMode(); }
+void blend_end(const context &) { EndBlendMode(); }
 
-void clip_begin(const njin_ctx &ctx, rect area) {
+void clip_begin(const context &ctx, rect area) {
   ctx.view.clip = area;
   if (ctx.view.ui_window) {
     // Scissor works in window pixels, whatever the transform is.
@@ -375,7 +375,7 @@ void clip_begin(const njin_ctx &ctx, rect area) {
                    (int)area.size.y);
 }
 
-void clip_end(const njin_ctx &ctx) {
+void clip_end(const context &ctx) {
   ctx.view.clip = {};
   EndScissorMode();
   // The UI pass stays inside the image.

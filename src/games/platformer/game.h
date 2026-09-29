@@ -76,15 +76,15 @@ extern game_state g;
 
 // play.cpp
 mod_desc play_module();
-void register_prefabs(njin_ctx &ctx);
-void play_enter(njin_ctx &ctx);
-void play_exit(njin_ctx &ctx);
+void register_prefabs(context &ctx);
+void play_enter(context &ctx);
+void play_exit(context &ctx);
 
 // menus.cpp
 mod_desc menus_module();
-void title_enter(njin_ctx &ctx);
-void card_scene_enter(njin_ctx &ctx);
-void win_enter(njin_ctx &ctx);
-void draw_backdrop(njin_ctx &ctx, vec2 camera_pos);
+void title_enter(context &ctx);
+void card_scene_enter(context &ctx);
+void win_enter(context &ctx);
+void draw_backdrop(context &ctx, vec2 camera_pos);
 std::string format_time(f32 seconds);
 } // namespace plat

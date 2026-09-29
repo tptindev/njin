@@ -8,9 +8,9 @@
 #include <span>
 
 namespace njin {
-// Opaque: created with njin_create (njin.h), only accessed through the
+// Opaque: created with create (njin.h), only accessed through the
 // functions below.
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_module
 /// @{
@@ -21,14 +21,14 @@ struct njin_ctx;
 /// và truy vấn registry trực tiếp.
 /// @param ctx Context của engine.
 /// @return Registry của game.
-entt::registry &world(njin_ctx &ctx);
+entt::registry &world(context &ctx);
 
 /// Trả về dispatcher của EnTT để gửi và nhận event giữa các system.
 ///
 /// Event đã `enqueue` được phát ngay sau `phase_post_update`.
 /// @param ctx Context của engine.
 /// @return Dispatcher của game.
-entt::dispatcher &events(njin_ctx &ctx);
+entt::dispatcher &events(context &ctx);
 
 /// Thêm một system vào lịch chạy của một phase.
 ///
@@ -38,7 +38,7 @@ entt::dispatcher &events(njin_ctx &ctx);
 /// @param phase Phase mà system chạy trong đó.
 /// @param fnc Hàm system.
 /// @param name Tên system, hiện trong njin_inspector. Có thể null.
-void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc, const char *name = nullptr);
+void ecs_register(context &ctx, sys_phase phase, sys_fnc fnc, const char *name = nullptr);
 
 /// Thêm một system kèm ràng buộc thứ tự vào lịch chạy của một phase.
 ///
@@ -48,33 +48,33 @@ void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc, const char *name 
 /// @param ctx Context của engine.
 /// @param phase Phase mà system chạy trong đó.
 /// @param desc Mô tả system và thứ tự của nó.
-void ecs_register(njin_ctx &ctx, sys_phase phase, const sys_desc &desc);
+void ecs_register(context &ctx, sys_phase phase, const sys_desc &desc);
 
 /// Chạy `setup` của module và đưa các system của nó vào lịch chạy.
 ///
-/// Phải gọi trước njin_run(). Tên module chỉ được đăng ký một lần.
+/// Phải gọi trước run(). Tên module chỉ được đăng ký một lần.
 /// @param ctx Context của engine.
 /// @param desc Mô tả module.
-void njin_mod_register(njin_ctx &ctx, const mod_desc &desc);
+void mod_register(context &ctx, const mod_desc &desc);
 
 /// Đăng ký nhiều module một lần, theo đúng thứ tự trong danh sách.
 ///
-/// Giống hệt gọi njin_mod_register() cho từng module lần lượt: module đứng
+/// Giống hệt gọi mod_register() cho từng module lần lượt: module đứng
 /// trước chạy trước trong cùng phase, và một module lỗi (trùng tên, đăng ký
-/// sau njin_run()) chỉ bị bỏ qua riêng nó.
+/// sau run()) chỉ bị bỏ qua riêng nó.
 /// @code
-/// njin::njin_mod_register(*ctx, {input_module(), physics_module(), ui_module()});
+/// njin::mod_register(*ctx, {input_module(), physics_module(), ui_module()});
 /// @endcode
 /// @param ctx Context của engine.
 /// @param mods Các module, theo thứ tự đăng ký.
-void njin_mod_register(njin_ctx &ctx, std::initializer_list<mod_desc> mods);
+void mod_register(context &ctx, std::initializer_list<mod_desc> mods);
 
 /// Đăng ký nhiều module từ một danh sách tạo lúc chạy, ví dụ một
 /// `std::vector<mod_desc>` hay `std::array`. Cùng quy tắc với bản nhận danh
 /// sách trực tiếp.
 /// @param ctx Context của engine.
 /// @param mods Các module, theo thứ tự đăng ký.
-void njin_mod_register(njin_ctx &ctx, std::span<const mod_desc> mods);
+void mod_register(context &ctx, std::span<const mod_desc> mods);
 /// @}
 
 /// @addtogroup grp_time
@@ -87,13 +87,13 @@ void njin_mod_register(njin_ctx &ctx, std::span<const mod_desc> mods);
 /// về đúng một nhịp cố định, xem fixed_delta().
 /// @param ctx Context của engine.
 /// @return Thời gian của frame, tính bằng giây.
-f32 delta(const njin_ctx &ctx);
+f32 delta(const context &ctx);
 
 /// Thời gian thật của frame trước, không bị tốc độ thời gian hay tạm dừng ảnh
 /// hưởng. Dùng cho thứ vẫn phải chạy khi game dừng, như menu tạm dừng.
 /// @param ctx Context của engine.
 /// @return Thời gian thật của frame, tính bằng giây.
-f32 delta_real(const njin_ctx &ctx);
+f32 delta_real(const context &ctx);
 
 /// Đặt tốc độ thời gian của game. 1 là bình thường, 0.5 là chậm một nửa.
 ///
@@ -101,12 +101,12 @@ f32 delta_real(const njin_ctx &ctx);
 /// được coi là 0.
 /// @param ctx Context của engine.
 /// @param scale Tốc độ thời gian.
-void time_set_scale(njin_ctx &ctx, f32 scale);
+void time_set_scale(context &ctx, f32 scale);
 
 /// Tốc độ thời gian hiện tại.
 /// @param ctx Context của engine.
 /// @return Tốc độ thời gian, mặc định 1.
-f32 time_scale(const njin_ctx &ctx);
+f32 time_scale(const context &ctx);
 
 /// Tạm dừng hoặc chạy tiếp thời gian của game.
 ///
@@ -115,17 +115,17 @@ f32 time_scale(const njin_ctx &ctx);
 /// nguyên tốc độ thời gian đã đặt.
 /// @param ctx Context của engine.
 /// @param paused `true` để tạm dừng.
-void time_set_paused(njin_ctx &ctx, bool paused);
+void time_set_paused(context &ctx, bool paused);
 
 /// Game có đang tạm dừng không.
 /// @param ctx Context của engine.
 /// @return `true` nếu đang tạm dừng.
-bool time_paused(const njin_ctx &ctx);
+bool time_paused(const context &ctx);
 
-/// Độ dài một nhịp của `phase_fixed_update`, bằng `1 / njin_cfg::fixed_hz`.
+/// Độ dài một nhịp của `phase_fixed_update`, bằng `1 / config::fixed_hz`.
 /// @param ctx Context của engine.
 /// @return Độ dài một nhịp, tính bằng giây.
-f32 fixed_delta(const njin_ctx &ctx);
+f32 fixed_delta(const context &ctx);
 
 /// Phần nhịp cố định còn dư sau `phase_fixed_update` của frame này, từ 0 đến 1.
 ///
@@ -133,12 +133,12 @@ f32 fixed_delta(const njin_ctx &ctx);
 /// `draw_pos = lerp(prev_pos, pos, fixed_alpha(ctx))`.
 /// @param ctx Context của engine.
 /// @return Tỉ lệ từ 0 đến 1.
-f32 fixed_alpha(const njin_ctx &ctx);
+f32 fixed_alpha(const context &ctx);
 
 /// Thời gian đã trôi qua kể từ lúc mở cửa sổ, tính bằng giây.
 /// @param ctx Context của engine.
 /// @return Thời gian đã chạy, tính bằng giây.
-f32 elapsed(const njin_ctx &ctx);
+f32 elapsed(const context &ctx);
 /// @}
 
 /// @addtogroup grp_random
@@ -150,6 +150,6 @@ f32 elapsed(const njin_ctx &ctx);
 /// Gọi `random(ctx).reseed(n)` để có dãy số lặp lại được, ví dụ khi thử lỗi.
 /// @param ctx Context của engine.
 /// @return Bộ sinh số ngẫu nhiên.
-rng &random(njin_ctx &ctx);
+rng &random(context &ctx);
 /// @}
 } // namespace njin

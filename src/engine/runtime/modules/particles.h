@@ -30,6 +30,6 @@ bool particles_on_screen(const transform &tr, const particle_emitter &emitter,
 // Draws the particles of one emitter in world space, with its blend mode, on
 // the CPU or the GPU depending on where the emitter runs (particle_emitter::gpu,
 // see particles_gpu.h).
-void particles_draw(njin_ctx &ctx, entt::entity entity, const transform &tr,
+void particles_draw(context &ctx, entt::entity entity, const transform &tr,
                     const particle_emitter &emitter);
 } // namespace njin

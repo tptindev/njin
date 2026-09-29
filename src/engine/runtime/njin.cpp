@@ -20,7 +20,7 @@ namespace {
 // one frame, which would only make the next frame longer still.
 constexpr i32 fixed_max_steps = 8;
 
-void run_fixed_steps(njin_ctx &ctx) {
+void run_fixed_steps(context &ctx) {
   time_state &time = ctx.time;
   if (time.paused) {
     time.fixed_alpha = time.fixed_dt > 0.0f ? time.fixed_accum / time.fixed_dt : 0.0f;
@@ -43,7 +43,7 @@ void run_fixed_steps(njin_ctx &ctx) {
 }
 } // namespace
 
-window_guard::window_guard(const njin_cfg &cfg) {
+window_guard::window_guard(const config &cfg) {
   log_capture_raylib();
   unsigned int flags = 0;
   if (cfg.resizable)
@@ -68,12 +68,12 @@ window_guard::~window_guard() {
   CloseWindow();
 }
 
-njin_ctx *njin_create(const njin_cfg &cfg) {
+context *create(const config &cfg) {
   prefer_discrete_gpu();
   // Keep the log lines from here (the window's own GL and audio messages) for an
-  // inspector that a game may attach before njin_run; njin_run lets go of them.
+  // inspector that a game may attach before run; run lets go of them.
   log_hold(true);
-  njin_ctx *ctx = new njin_ctx(cfg);
+  context *ctx = new context(cfg);
   ctx->time.fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
   ctx->random.reseed(
       (u64)std::chrono::high_resolution_clock::now().time_since_epoch().count());
@@ -82,7 +82,7 @@ njin_ctx *njin_create(const njin_cfg &cfg) {
   ctx->view.render_scale =
       view_clamp_render_scale(cfg.render_scale, {(f32)GetScreenWidth(), (f32)GetScreenHeight()});
   if (ctx->view.render_scale != cfg.render_scale && cfg.render_scale > 1)
-    NJIN_WARN("njin_cfg::render_scale %d at the window's size would need a texture "
+    NJIN_WARN("config::render_scale %d at the window's size would need a texture "
              "bigger than any GPU guarantees; using %dx instead",
              cfg.render_scale, ctx->view.render_scale);
   register_core_modules(*ctx);
@@ -97,7 +97,7 @@ const char *version() {
   return text.c_str();
 }
 
-void njin_run(njin_ctx &ctx) {
+void run(context &ctx) {
   if (ctx.ecs.started) {
     return;
   }
@@ -163,5 +163,5 @@ void njin_run(njin_ctx &ctx) {
   ecs_run(ctx, phase_shutdown);
 }
 
-void njin_destroy(njin_ctx *ctx) { delete ctx; }
+void destroy(context *ctx) { delete ctx; }
 } // namespace njin

@@ -13,12 +13,12 @@ njin::texture_handle atlas{};
 njin::prefab_handle sword{};
 
 // Build function: the entity already has a transform (the spawn position) and scene_owned.
-void build_sword(njin::njin_ctx &ctx, entt::entity e) {
+void build_sword(njin::context &ctx, entt::entity e) {
   njin::world(ctx).emplace<njin::sprite>(
       e, njin::sprite{.texture = atlas, .source = {{64, 0}, {16, 32}}, .layer = 11});
 }
 
-void build_goblin(njin::njin_ctx &ctx, entt::entity e) {
+void build_goblin(njin::context &ctx, entt::entity e) {
   entt::registry &reg = njin::world(ctx);
   reg.emplace<enemy>(e);
   reg.emplace<health>(e, health{.hp = 3});
@@ -30,7 +30,7 @@ void build_goblin(njin::njin_ctx &ctx, entt::entity e) {
   reg.emplace<orbit>(blade);
 }
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   atlas = njin::texture_load(ctx, "assets/atlas.png");
   sword = njin::prefab_register(ctx, {.name = "sword", .build = build_sword});
   njin::prefab_register(ctx, {.name = "goblin", .build = build_goblin});
@@ -41,13 +41,13 @@ void startup(njin::njin_ctx &ctx) {
 }
 
 // Rotate the sword around the hand: edit the `local` of child_of, not the transform.
-void spin(njin::njin_ctx &ctx) {
+void spin(njin::context &ctx) {
   const njin::f32 dt = njin::delta(ctx);
   for (auto [e, link, o] : njin::world(ctx).view<njin::child_of, orbit>().each())
     link.local.rot += o.speed * dt;
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_update, spin);
 }

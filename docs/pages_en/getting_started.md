@@ -58,16 +58,16 @@ build, see @ref window_files.
 
 Three functions to know:
 
-- njin_create() opens the window and returns the engine's context.
-- njin_run() runs the loop until the window is closed.
-- njin_destroy() releases all resources.
+- create() opens the window and returns the engine's context.
+- run() runs the loop until the window is closed.
+- destroy() releases all resources.
 
 This program opens an empty window. To make it do something, you write a
 **module**: see @ref modules_systems.
 
 ## Adding your game's module
 
-Create the module in a `.cpp` file, and register it in `main` before njin_run():
+Create the module in a `.cpp` file, and register it in `main` before run():
 
 @include hello_module.cpp
 

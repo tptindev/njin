@@ -4,7 +4,7 @@
 #include <entt/entity/fwd.hpp>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_prefab
 /// @{
@@ -14,7 +14,7 @@ struct njin_ctx;
 /// Entity đã có sẵn transform (và njin::scene_owned nếu prefab yêu cầu) khi
 /// hàm được gọi. Hàm có thể spawn thêm prefab khác và gắn chúng làm con bằng
 /// njin::child_of, ví dụ nhân vật kèm vũ khí.
-using prefab_fnc = void (*)(njin_ctx &ctx, entt::entity entity);
+using prefab_fnc = void (*)(context &ctx, entt::entity entity);
 
 /// Mô tả một prefab, dùng với prefab_register().
 ///
@@ -33,13 +33,13 @@ struct prefab_desc {
 /// @param ctx Context của engine.
 /// @param desc Mô tả prefab.
 /// @return Handle của prefab, hoặc handle id 0 nếu thiếu tên hoặc hàm dựng.
-prefab_handle prefab_register(njin_ctx &ctx, const prefab_desc &desc);
+prefab_handle prefab_register(context &ctx, const prefab_desc &desc);
 
 /// Tìm prefab theo tên.
 /// @param ctx Context của engine.
 /// @param name Tên prefab.
 /// @return Handle của prefab, hoặc handle id 0 nếu không có.
-prefab_handle prefab_find(const njin_ctx &ctx, const char *name);
+prefab_handle prefab_find(const context &ctx, const char *name);
 
 /// Tạo một entity từ prefab, đặt tại `at`.
 ///
@@ -54,7 +54,7 @@ prefab_handle prefab_find(const njin_ctx &ctx, const char *name);
 /// @param prefab Prefab cần tạo.
 /// @param at Transform ban đầu.
 /// @return Entity vừa tạo, hoặc `entt::null` nếu handle không hợp lệ.
-entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn(context &ctx, prefab_handle prefab,
                           const transform &at = {});
 
 /// Như prefab_spawn(), tìm prefab theo tên.
@@ -62,7 +62,7 @@ entt::entity prefab_spawn(njin_ctx &ctx, prefab_handle prefab,
 /// @param name Tên prefab.
 /// @param at Transform ban đầu.
 /// @return Entity vừa tạo, hoặc `entt::null` nếu không có prefab tên đó.
-entt::entity prefab_spawn(njin_ctx &ctx, const char *name,
+entt::entity prefab_spawn(context &ctx, const char *name,
                           const transform &at = {});
 
 /// Tạo một entity từ prefab và gắn nó làm con của `parent`.
@@ -74,7 +74,7 @@ entt::entity prefab_spawn(njin_ctx &ctx, const char *name,
 /// @param parent Entity cha. Phải có transform.
 /// @param local Transform so với cha.
 /// @return Entity vừa tạo, hoặc `entt::null` nếu handle không hợp lệ.
-entt::entity prefab_spawn_child(njin_ctx &ctx, prefab_handle prefab,
+entt::entity prefab_spawn_child(context &ctx, prefab_handle prefab,
                                 entt::entity parent,
                                 const transform &local = {});
 /// @}

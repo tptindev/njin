@@ -3,7 +3,7 @@
 namespace {
 entt::entity player = entt::null;
 
-void spawn(njin::njin_ctx &ctx) {
+void spawn(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
 
   // A campfire that emits continuously, with smoke rising above it.
@@ -36,7 +36,7 @@ void spawn(njin::njin_ctx &ctx) {
 }
 
 // Called when a strike hits an enemy at `at`.
-void on_hit(njin::njin_ctx &ctx, entt::entity enemy, njin::vec2 at) {
+void on_hit(njin::context &ctx, entt::entity enemy, njin::vec2 at) {
   njin::particle_emitter sparks = njin::fx::sparks();
   sparks.angle = -45.0f; // shoots diagonally upward
   sparks.spread = 90.0f;
@@ -47,14 +47,14 @@ void on_hit(njin::njin_ctx &ctx, entt::entity enemy, njin::vec2 at) {
 }
 
 // Called when an explosive barrel explodes.
-void on_explode(njin::njin_ctx &ctx, njin::vec2 at) {
+void on_explode(njin::context &ctx, njin::vec2 at) {
   njin::particles_spawn(ctx, njin::fx::explosion(), at, 60);
   njin::particles_spawn(ctx, njin::fx::debris(), at, 12);
   njin::camera_shake(ctx, 0.8f);
   njin::screen_flash(ctx, {1.0f, 0.95f, 0.8f, 0.5f}, 0.25f);
 }
 
-void control(njin::njin_ctx &ctx) {
+void control(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   const njin::vec2 pos = reg.get<njin::transform>(player).pos;
   if (njin::key_pressed(ctx, njin::key_j))
@@ -66,7 +66,7 @@ void control(njin::njin_ctx &ctx) {
     njin::particles_spawn(ctx, njin::fx::dust(), pos + njin::vec2{0, 16}, 8);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, spawn);
   njin::ecs_register(ctx, njin::phase_update, control);
 }

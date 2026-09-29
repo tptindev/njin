@@ -15,14 +15,14 @@ constexpr const char *next_text = "phòng sau >";
 
 bool inside(rect r, vec2 p) { return p.x >= r.pos.x && p.x < r.pos.x + r.size.x && p.y >= r.pos.y && p.y < r.pos.y + r.size.y; }
 
-void draw_button(njin_ctx &ctx, rect r, const char *text) {
+void draw_button(context &ctx, rect r, const char *text) {
   const bool hot = inside(r, mouse_pos(ctx));
   draw_rect(ctx, r, hot ? rgba{0.30f, 0.40f, 0.65f, 1.0f} : rgba{0.18f, 0.22f, 0.34f, 1.0f});
   draw_text(ctx, text, {r.pos.x + 8.0f, r.pos.y + 3.0f}, 16.0f, colors::white);
 }
 } // namespace
 
-void nav_buttons(const njin_ctx &ctx, rect &prev, rect &next) {
+void nav_buttons(const context &ctx, rect &prev, rect &next) {
   const vec2 screen = screen_size(ctx);
   const f32 wn = text_measure(ctx, next_text, 16.0f).x + 16.0f;
   const f32 wp = text_measure(ctx, prev_text, 16.0f).x + 16.0f;
@@ -32,13 +32,13 @@ void nav_buttons(const njin_ctx &ctx, rect &prev, rect &next) {
 
 // In the world, before the lighting: what the room draws itself (so it is lit like the rest), and the
 // outlines of every occluder on top when key G is on.
-void draw_world(njin_ctx &ctx) {
+void draw_world(context &ctx) {
   const room &r = room_at(demo.current);
   if (r.draw != nullptr)
     r.draw(ctx);
 }
 
-void hud(njin_ctx &ctx) {
+void hud(context &ctx) {
   demo.frame_ms += (delta_real(ctx) * 1000.0f - demo.frame_ms) * 0.05f;
   entt::registry &reg = world(ctx);
 

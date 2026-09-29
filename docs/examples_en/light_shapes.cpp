@@ -9,7 +9,7 @@ using namespace njin;
 std::vector<entt::entity> shapes; // to draw their outline
 
 // An occluder: put light_occluder on an entity that has a transform.
-entt::entity place(njin_ctx &ctx, vec2 pos, light_occluder shape) {
+entt::entity place(context &ctx, vec2 pos, light_occluder shape) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e, transform{.pos = pos});
@@ -18,7 +18,7 @@ entt::entity place(njin_ctx &ctx, vec2 pos, light_occluder shape) {
   return e;
 }
 
-void load(njin_ctx &ctx) {
+void load(context &ctx) {
   entt::registry &reg = world(ctx);
 
   // Turn lighting on: night, a dark blue sky.
@@ -47,7 +47,7 @@ void load(njin_ctx &ctx) {
 }
 
 // Draw the shapes' outlines so they are easy to see. Lighting does not draw occluders itself.
-void outline(njin_ctx &ctx) {
+void outline(context &ctx) {
   entt::registry &reg = world(ctx);
   for (const entt::entity e : shapes) {
     const transform &tr = reg.get<transform>(e);
@@ -59,7 +59,7 @@ void outline(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, load, "load");
   ecs_register(ctx, phase_render, outline, "outline");
 }

@@ -10,7 +10,7 @@ cùng một bản đồ.
 
 ## Ba bước
 
-Mọi thứ đều đi qua một lưới tạm, njin::tile_grid, chỉ là dữ liệu nên không cần cửa sổ hay njin::njin_ctx:
+Mọi thứ đều đi qua một lưới tạm, njin::tile_grid, chỉ là dữ liệu nên không cần cửa sổ hay njin::context:
 
 | Bước | Việc | Hàm |
 |---|---|---|

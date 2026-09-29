@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_input
 /// @{
@@ -44,26 +44,26 @@ const char *key_name(key_code key);
 /// @param ctx Context của engine.
 /// @param out Nhận nguồn vừa nhấn.
 /// @return `true` nếu có một nguồn vừa được nhấn.
-bool input_any_pressed(const njin_ctx &ctx, input_source &out);
+bool input_any_pressed(const context &ctx, input_source &out);
 
 /// Các nguồn đang gắn vào một action, theo thứ tự: phím, chuột, tay cầm.
 /// @param ctx Context của engine.
 /// @param action Action.
 /// @return Danh sách nguồn (rỗng nếu handle không hợp lệ).
-std::vector<input_source> action_sources(const njin_ctx &ctx, action_handle action);
+std::vector<input_source> action_sources(const context &ctx, action_handle action);
 
 /// Gắn một nguồn vào action (như action_bind_key(), action_bind_mouse(),
 /// action_bind_pad() tùy loại).
 /// @param ctx Context của engine.
 /// @param action Action.
 /// @param source Nguồn.
-void action_bind(njin_ctx &ctx, action_handle action, input_source source);
+void action_bind(context &ctx, action_handle action, input_source source);
 
 /// Gỡ một nguồn khỏi action.
 /// @param ctx Context của engine.
 /// @param action Action.
 /// @param source Nguồn.
-void action_unbind(njin_ctx &ctx, action_handle action, input_source source);
+void action_unbind(context &ctx, action_handle action, input_source source);
 
 /// Gắn `source` vào `action` thay cho nguồn **cùng loại** đang có (phím thay
 /// phím, nút tay cầm thay nút tay cầm), và gỡ nó khỏi mọi action khác để một
@@ -71,7 +71,7 @@ void action_unbind(njin_ctx &ctx, action_handle action, input_source source);
 /// @param ctx Context của engine.
 /// @param action Action.
 /// @param source Nguồn mới.
-void action_rebind(njin_ctx &ctx, action_handle action, input_source source);
+void action_rebind(context &ctx, action_handle action, input_source source);
 
 /// Một nguồn viết gọn cho action_define(): truyền thẳng một phím, một nút chuột
 /// hoặc một nút tay cầm, không cần dựng njin::input_source.
@@ -99,7 +99,7 @@ struct binding {
 /// @param name Tên action.
 /// @param sources Các phím, nút chuột và nút tay cầm, theo bất kỳ thứ tự nào.
 /// @return Handle của action, hoặc handle không hợp lệ (id 0) nếu `name` là null.
-inline action_handle action_define(njin_ctx &ctx, const char *name, std::initializer_list<binding> sources) {
+inline action_handle action_define(context &ctx, const char *name, std::initializer_list<binding> sources) {
   const action_handle handle = action_register(ctx, name);
   for (const binding &b : sources)
     action_bind(ctx, handle, b.source);
@@ -126,7 +126,7 @@ struct axis_keys {
 /// @param keys Các cặp phím (âm, dương).
 /// @param pads Các trục tay cầm. Có thể bỏ trống.
 /// @return Handle của axis, hoặc handle không hợp lệ (id 0) nếu `name` là null.
-inline axis_handle axis_define(njin_ctx &ctx, const char *name, std::initializer_list<axis_keys> keys,
+inline axis_handle axis_define(context &ctx, const char *name, std::initializer_list<axis_keys> keys,
                                std::initializer_list<gamepad_axis> pads = {}) {
   const axis_handle handle = axis_register(ctx, name);
   for (const axis_keys &k : keys)
@@ -141,7 +141,7 @@ inline axis_handle axis_define(njin_ctx &ctx, const char *name, std::initializer
 /// {"keys": [["left", "right"]], "pad": ["left_x"]}}}`.
 /// @param ctx Context của engine.
 /// @return Object JSON.
-json_value input_bindings_save(const njin_ctx &ctx);
+json_value input_bindings_save(const context &ctx);
 
 /// Nạp phím từ JSON của input_bindings_save(). Action và axis có trong JSON
 /// được **thay** toàn bộ phím; cái không có giữ nguyên, nên thêm action mới
@@ -149,7 +149,7 @@ json_value input_bindings_save(const njin_ctx &ctx);
 /// @param ctx Context của engine.
 /// @param json Dữ liệu.
 /// @return `false` nếu `json` không phải object.
-bool input_bindings_load(njin_ctx &ctx, const json_value &json);
+bool input_bindings_load(context &ctx, const json_value &json);
 
 /// Rung tay cầm.
 /// @param ctx Context của engine.
@@ -157,6 +157,6 @@ bool input_bindings_load(njin_ctx &ctx, const json_value &json);
 /// @param low Độ mạnh mô-tơ trái (rung trầm), 0..1.
 /// @param high Độ mạnh mô-tơ phải (rung nhanh), 0..1.
 /// @param seconds Thời gian rung.
-void pad_rumble(njin_ctx &ctx, i32 pad, f32 low, f32 high, f32 seconds);
+void pad_rumble(context &ctx, i32 pad, f32 low, f32 high, f32 seconds);
 /// @}
 } // namespace njin

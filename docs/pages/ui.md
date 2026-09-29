@@ -76,8 +76,8 @@ Backspace) và click chuột lên panel: game không thấy chúng, nên nhân v
 chơi đang chọn menu. Kiểm tra bằng njin::ui_active(). UI chỉ nuốt nút trái; game bấm chuột phải hay
 cuộn bánh xe vào thế giới thì hỏi njin::ui_mouse_over() trước, để cú bấm lên HUD không lọt xuống.
 
-@note Esc mặc định đóng cửa sổ (`njin_cfg::exit_key`). Menu dùng Esc để quay lại thì đặt
-`.exit_key = njin::key_none` trong njin_cfg và thoát bằng một nút "Thoát".
+@note Esc mặc định đóng cửa sổ (`config::exit_key`). Menu dùng Esc để quay lại thì đặt
+`.exit_key = njin::key_none` trong config và thoát bằng một nút "Thoát".
 
 ## Popup
 

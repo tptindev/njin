@@ -160,13 +160,13 @@ void atlas_store_destroy(texture_store &store, atlas_handle handle) {
   *atlas = atlas_slot{};
 }
 
-atlas_handle atlas_create(njin_ctx &ctx, const atlas_desc &desc) {
+atlas_handle atlas_create(context &ctx, const atlas_desc &desc) {
   return atlas_store_create(ctx.texture, desc);
 }
 
-texture_handle atlas_load(njin_ctx &ctx, atlas_handle atlas, const char *path) {
+texture_handle atlas_load(context &ctx, atlas_handle atlas, const char *path) {
   return atlas_store_load(ctx.texture, atlas, path);
 }
 
-void atlas_destroy(njin_ctx &ctx, atlas_handle atlas) { atlas_store_destroy(ctx.texture, atlas); }
+void atlas_destroy(context &ctx, atlas_handle atlas) { atlas_store_destroy(ctx.texture, atlas); }
 } // namespace njin

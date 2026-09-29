@@ -84,7 +84,7 @@ template <class T> void builtin_tag(debug_state &d, const char *name) {
                    [](const entt::registry &, entt::entity) { return json_value::make_object(); }, 0);
 }
 
-void register_builtins(njin_ctx &ctx) {
+void register_builtins(context &ctx) {
   debug_state &d = ctx.debug;
   builtin<transform>(d, "transform", [](const transform &t) {
     return json_value::make_object().set("pos", vec(t.pos)).set("rot", t.rot).set("scale", t.scale);
@@ -130,7 +130,7 @@ void register_builtins(njin_ctx &ctx) {
   });
   builtin_tag<camera_on>(d, "camera_on");
   // Needs the scene names, so it captures the context.
-  njin_ctx *pctx = &ctx;
+  context *pctx = &ctx;
   builtin<scene_owned>(d, "scene_owned", [pctx](const scene_owned &s) {
     const auto &scenes = pctx->scene.scenes;
     const char *name = s.scene.id >= 1 && s.scene.id <= scenes.size() ? scenes[s.scene.id - 1].name.c_str() : "?";
@@ -291,7 +291,7 @@ void apply_set(entt::registry &reg, const json_value &cmd) {
   }
 }
 
-void apply(njin_ctx &ctx, const json_value &cmd) {
+void apply(context &ctx, const json_value &cmd) {
   debug_state &d = ctx.debug;
   entt::registry &reg = world(ctx);
   const std::string c = cmd["cmd"].string_or("");
@@ -324,7 +324,7 @@ void apply(njin_ctx &ctx, const json_value &cmd) {
 
 // --- snapshots ---
 
-void send_hello(njin_ctx &ctx) {
+void send_hello(context &ctx) {
   debug_state &d = ctx.debug;
   d.link.send(json_dump(json_value::make_object()
                             .set("t", "hello")
@@ -336,7 +336,7 @@ void send_hello(njin_ctx &ctx) {
                         false));
 }
 
-void send_stats(njin_ctx &ctx) {
+void send_stats(context &ctx) {
   debug_state &d = ctx.debug;
   json_value frames = json_value::make_array();
   for (const f32 ms : d.frame_ms)
@@ -367,7 +367,7 @@ void send_stats(njin_ctx &ctx) {
                         false));
 }
 
-void send_world(njin_ctx &ctx) {
+void send_world(context &ctx) {
   debug_state &d = ctx.debug;
   const entt::registry &reg = world(ctx);
   // Type table: each entity lists indexes into it instead of repeating names.
@@ -639,7 +639,7 @@ void send_world(njin_ctx &ctx) {
   d.link.send(msg);
 }
 
-void send_entity(njin_ctx &ctx) {
+void send_entity(context &ctx) {
   debug_state &d = ctx.debug;
   if (d.selected < 0)
     return;
@@ -663,7 +663,7 @@ void send_entity(njin_ctx &ctx) {
   d.link.send(json_dump(msg, false));
 }
 
-void send_watches(njin_ctx &ctx) {
+void send_watches(context &ctx) {
   debug_state &d = ctx.debug;
   if (d.watches.empty())
     return;
@@ -675,7 +675,7 @@ void send_watches(njin_ctx &ctx) {
 
 // --- systems ---
 
-void begin_frame(njin_ctx &ctx) {
+void begin_frame(context &ctx) {
   debug_state &d = ctx.debug;
   if (!d.running) {
     ctx.ecs.profile = false;
@@ -727,7 +727,7 @@ void begin_frame(njin_ctx &ctx) {
   }
 }
 
-void end_frame(njin_ctx &ctx) {
+void end_frame(context &ctx) {
   debug_state &d = ctx.debug;
   if (!d.running || !d.link.connected())
     return;
@@ -761,13 +761,13 @@ void end_frame(njin_ctx &ctx) {
     d.selected = -1;
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_pre_update, begin_frame, "begin_frame");
   ecs_register(ctx, phase_post_update, end_frame, "end_frame");
 }
 } // namespace
 
-render_info render_info_get(const njin_ctx &ctx) {
+render_info render_info_get(const context &ctx) {
   const render_stats &s = ctx.stats;
   return render_info{.sprites = s.sprites,
                      .sprites_culled = s.sprites_culled,
@@ -784,7 +784,7 @@ render_info render_info_get(const njin_ctx &ctx) {
 
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }
 
-bool debug_server_start(njin_ctx &ctx, const debug_server_desc &desc) {
+bool debug_server_start(context &ctx, const debug_server_desc &desc) {
   debug_state &d = ctx.debug;
   if (d.running)
     debug_server_stop(ctx);
@@ -812,7 +812,7 @@ debug_state::~debug_state() {
   }
 }
 
-void debug_server_stop(njin_ctx &ctx) {
+void debug_server_stop(context &ctx) {
   debug_state &d = ctx.debug;
   if (tap_target == &d) {
     log_set_tap(nullptr, nullptr);
@@ -827,9 +827,9 @@ void debug_server_stop(njin_ctx &ctx) {
   d.selected = -1;
 }
 
-bool debug_server_connected(const njin_ctx &ctx) { return ctx.debug.link.connected(); }
+bool debug_server_connected(const context &ctx) { return ctx.debug.link.connected(); }
 
-void debug_watch(njin_ctx &ctx, const char *name, json_value value) {
+void debug_watch(context &ctx, const char *name, json_value value) {
   debug_state &d = ctx.debug;
   if (!d.running || name == nullptr)
     return;
@@ -842,9 +842,9 @@ void debug_watch(njin_ctx &ctx, const char *name, json_value value) {
   d.watches.emplace_back(name, std::move(value));
 }
 
-void debug_watch(njin_ctx &ctx, const char *name, vec2 value) { debug_watch(ctx, name, vec(value)); }
+void debug_watch(context &ctx, const char *name, vec2 value) { debug_watch(ctx, name, vec(value)); }
 
-void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn,
+void debug_component(context &ctx, entt::id_type type, const char *name, debug_component_fn fn,
                      std::size_t bytes) {
   if (name == nullptr || !fn)
     return;

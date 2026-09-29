@@ -15,14 +15,14 @@ src/engine/
 của njin (`vec2`, `rgba`...) và kiểu của raylib. Nhờ vậy game chỉ phụ thuộc vào
 `njin::api`, còn raylib là chi tiết cài đặt của `njin::rt`.
 
-## njin_ctx
+## context
 
-njin::njin_ctx là một struct **mờ** với game: chỉ dùng qua các hàm. Định nghĩa thật
+njin::context là một struct **mờ** với game: chỉ dùng qua các hàm. Định nghĩa thật
 nằm trong `runtime/njin_ctx_impl.h`:
 
 | Thành viên | Vai trò |
 |---|---|
-| `cfg` | Cấu hình đã truyền vào njin_create() |
+| `cfg` | Cấu hình đã truyền vào create() |
 | `time` | Thời gian, tốc độ, tạm dừng, bộ tích lũy fixed update |
 | `random` | Bộ sinh số ngẫu nhiên dùng chung |
 | `window` | Mở cửa sổ và thiết bị âm thanh khi tạo, đóng khi hủy |
@@ -68,7 +68,7 @@ flowchart LR
 - `pending`: system của module **đang** chạy `setup`.
 - `schedule`: thứ tự cuối cùng của mọi module đã đăng ký.
 
-Khi njin_mod_register() được gọi:
+Khi mod_register() được gọi:
 
 1. Bật cờ `in_setup` để ecs_register() biết nó đang được gọi hợp lệ.
 2. Gọi `setup` của module. Mỗi ecs_register() đẩy vào `pending[phase]`.
@@ -85,7 +85,7 @@ và nối số còn lại theo thứ tự đăng ký.
 
 ## Module lõi
 
-njin_create() đăng ký sẵn các module lõi trước khi trả về, trong `runtime/modules/`,
+create() đăng ký sẵn các module lõi trước khi trả về, trong `runtime/modules/`,
 theo thứ tự:
 
 | Module | Việc làm |
@@ -112,6 +112,6 @@ hierarchy chạy trước anim, particle và sprite để chúng thấy vị tr�
 ## Thêm một module lõi
 
 1. Tạo `runtime/modules/<tên>.cpp` và `.h`, khai báo một hàm trả về njin::mod_desc.
-2. Gọi njin_mod_register() cho nó trong `register_core_modules()` (`runtime/modules/core_modules.cpp`).
+2. Gọi mod_register() cho nó trong `register_core_modules()` (`runtime/modules/core_modules.cpp`).
 
 CMake tự tìm mọi file `.cpp` dưới `runtime/`, không cần sửa danh sách file.

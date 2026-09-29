@@ -3,7 +3,7 @@
 
 namespace njin {
 // Opaque, see njin_ctx.h.
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_shader
 /// @{
@@ -16,13 +16,13 @@ struct njin_ctx;
 /// @param vspath Đường dẫn vertex shader, hoặc nullptr.
 /// @param fspath Đường dẫn fragment shader, hoặc nullptr.
 /// @return Handle của shader, hoặc handle có id 0 nếu file thiếu hoặc biên dịch lỗi.
-shader_handle shader_load(njin_ctx &ctx, const char *vspath,
+shader_handle shader_load(context &ctx, const char *vspath,
                           const char *fspath);
 
 /// Giải phóng shader. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Shader cần giải phóng.
-void shader_unload(njin_ctx &ctx, shader_handle handle);
+void shader_unload(context &ctx, shader_handle handle);
 
 /// Bật shader cho mọi thứ vẽ sau đó, cho đến shader_end().
 ///
@@ -30,11 +30,11 @@ void shader_unload(njin_ctx &ctx, shader_handle handle);
 /// gọi hàm này.
 /// @param ctx Context của engine.
 /// @param handle Shader cần bật.
-void shader_begin(const njin_ctx &ctx, shader_handle handle);
+void shader_begin(const context &ctx, shader_handle handle);
 
 /// Tắt shader đã bật bằng shader_begin().
 /// @param ctx Context của engine.
-void shader_end(const njin_ctx &ctx);
+void shader_end(const context &ctx);
 
 /// Đặt uniform kiểu `int`. Uniform không tồn tại chỉ được ghi cảnh báo một lần
 /// rồi bị bỏ qua.
@@ -42,7 +42,7 @@ void shader_end(const njin_ctx &ctx);
 /// @param handle Shader cần đặt.
 /// @param name Tên uniform trong shader.
 /// @param value Giá trị.
-void shader_set_i32(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_i32(context &ctx, shader_handle handle, const char *name,
                     i32 value);
 
 /// Đặt uniform kiểu `float`. Xem shader_set_i32() về uniform không tồn tại.
@@ -50,7 +50,7 @@ void shader_set_i32(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader cần đặt.
 /// @param name Tên uniform trong shader.
 /// @param value Giá trị.
-void shader_set_f32(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_f32(context &ctx, shader_handle handle, const char *name,
                     f32 value);
 
 /// Đặt uniform kiểu `vec2`. Xem shader_set_i32() về uniform không tồn tại.
@@ -58,7 +58,7 @@ void shader_set_f32(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader cần đặt.
 /// @param name Tên uniform trong shader.
 /// @param value Giá trị.
-void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec2(context &ctx, shader_handle handle, const char *name,
                      vec2 value);
 
 /// Đặt uniform kiểu `vec3`. Xem shader_set_i32() về uniform không tồn tại.
@@ -66,7 +66,7 @@ void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader cần đặt.
 /// @param name Tên uniform trong shader.
 /// @param value Giá trị.
-void shader_set_vec3(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec3(context &ctx, shader_handle handle, const char *name,
                      vec3 value);
 
 /// Đặt uniform kiểu `vec4`. Xem shader_set_i32() về uniform không tồn tại.
@@ -74,7 +74,7 @@ void shader_set_vec3(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader cần đặt.
 /// @param name Tên uniform trong shader.
 /// @param value Giá trị.
-void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec4(context &ctx, shader_handle handle, const char *name,
                      vec4 value);
 
 /// Đặt uniform kiểu mảng `vec4`, ví dụ `uniform vec4 lights[8];`.
@@ -87,7 +87,7 @@ void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param name Tên mảng trong shader, không kèm `[0]`.
 /// @param values Các phần tử, nằm liền nhau trong bộ nhớ.
 /// @param count Số phần tử. 0 thì không làm gì.
-void shader_set_vec4_array(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec4_array(context &ctx, shader_handle handle, const char *name,
                            const vec4 *values, u32 count);
 
 /// Gắn một texture vào uniform `sampler2D` của shader, ngoài `texture0`.
@@ -110,7 +110,7 @@ void shader_set_vec4_array(njin_ctx &ctx, shader_handle handle, const char *name
 /// @param handle Shader cần đặt.
 /// @param name Tên `uniform sampler2D` trong shader.
 /// @param texture Ảnh cần gắn.
-void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name, texture_handle texture);
+void shader_set_texture(context &ctx, shader_handle handle, const char *name, texture_handle texture);
 
 /// Như bản trên, với một render texture.
 ///
@@ -121,7 +121,7 @@ void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name, t
 /// @param handle Shader cần đặt.
 /// @param name Tên `uniform sampler2D` trong shader.
 /// @param texture Render texture cần gắn.
-void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_texture(context &ctx, shader_handle handle, const char *name,
                         render_texture_handle texture);
 /// @}
 
@@ -134,7 +134,7 @@ void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name,
 /// gì; game nên có sẵn một cách vẽ khác (ví dụ texture_draw_ex() từng cái).
 /// @param ctx Context của engine.
 /// @return `true` nếu draw_instanced() vẽ được.
-bool instancing_available(const njin_ctx &ctx);
+bool instancing_available(const context &ctx);
 
 /// Tạo một bộ đệm instance trên GPU: mỗi instance là `floats_per_instance`
 /// số thực, do game tự quyết định ý nghĩa.
@@ -146,12 +146,12 @@ bool instancing_available(const njin_ctx &ctx);
 /// @param floats_per_instance 4, 8, 12 hoặc 16.
 /// @return Handle, hoặc handle có id 0 nếu số không hợp lệ hay máy không hỗ trợ
 /// (xem instancing_available()).
-instance_buffer_handle instance_buffer_create(njin_ctx &ctx, u32 floats_per_instance);
+instance_buffer_handle instance_buffer_create(context &ctx, u32 floats_per_instance);
 
 /// Hủy bộ đệm instance. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Bộ đệm cần hủy.
-void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle);
+void instance_buffer_destroy(context &ctx, instance_buffer_handle handle);
 
 /// Ghi `count` instance vào bộ đệm, thay toàn bộ nội dung cũ.
 ///
@@ -161,7 +161,7 @@ void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle);
 /// @param handle Bộ đệm cần ghi.
 /// @param data Dữ liệu các instance.
 /// @param count Số instance.
-void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const f32 *data,
+void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f32 *data,
                             u32 count);
 
 /// Vẽ `count` hình vuông, bắt đầu từ instance `first`, bằng **một** lệnh vẽ.
@@ -185,7 +185,7 @@ void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const 
 /// @param shader Shader có vertex shader đọc các thuộc tính trên.
 /// @param first Instance đầu tiên được vẽ.
 /// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count);
 
 /// Như bản trên, và gắn `texture` vào uniform `sampler2D texture0` của shader.
@@ -199,7 +199,7 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
 /// @param first Instance đầu tiên được vẽ.
 /// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
 /// @param texture Texture gắn vào `texture0`. Handle không hợp lệ thì không vẽ gì.
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, texture_handle texture);
 
 /// Như bản trên, với một render texture, ví dụ sprite sheet vừa vẽ ra (bake) một lần
@@ -214,7 +214,7 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
 /// @param first Instance đầu tiên được vẽ.
 /// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
 /// @param texture Render texture gắn vào `texture0`. Handle không hợp lệ thì không vẽ gì.
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, render_texture_handle texture);
 /// @}
 
@@ -227,18 +227,18 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
 /// @param ctx Context của engine.
 /// @param path Đường dẫn file ảnh.
 /// @return Handle của texture, hoặc handle có id 0 nếu file thiếu hoặc không giải mã được.
-texture_handle texture_load(njin_ctx &ctx, const char *path);
+texture_handle texture_load(context &ctx, const char *path);
 
 /// Giải phóng texture. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Texture cần giải phóng.
-void texture_unload(njin_ctx &ctx, texture_handle handle);
+void texture_unload(context &ctx, texture_handle handle);
 
 /// Kích thước texture (pixel).
 /// @param ctx Context của engine.
 /// @param handle Texture cần hỏi.
 /// @return Kích thước, hoặc `{0, 0}` nếu handle không hợp lệ.
-vec2 texture_size(const njin_ctx &ctx, texture_handle handle);
+vec2 texture_size(const context &ctx, texture_handle handle);
 
 /// Vẽ texture với góc trên trái tại `pos`.
 ///
@@ -248,7 +248,7 @@ vec2 texture_size(const njin_ctx &ctx, texture_handle handle);
 /// @param handle Texture cần vẽ.
 /// @param pos Vị trí góc trên trái.
 /// @param tint Màu nhân vào ảnh.
-void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
+void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
                   rgba tint);
 /// @}
 
@@ -263,19 +263,19 @@ void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
 /// @param width Chiều rộng (pixel).
 /// @param height Chiều cao (pixel).
 /// @return Handle, hoặc handle có id 0 nếu kích thước bằng 0 hoặc tạo thất bại.
-render_texture_handle render_texture_load(njin_ctx &ctx, u32 width,
+render_texture_handle render_texture_load(context &ctx, u32 width,
                                           u32 height);
 
 /// Giải phóng render texture. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Render texture cần giải phóng.
-void render_texture_unload(njin_ctx &ctx, render_texture_handle handle);
+void render_texture_unload(context &ctx, render_texture_handle handle);
 
 /// Kích thước render texture (pixel).
 /// @param ctx Context của engine.
 /// @param handle Render texture cần hỏi.
 /// @return Kích thước, hoặc `{0, 0}` nếu handle không hợp lệ.
-vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle);
+vec2 render_texture_size(const context &ctx, render_texture_handle handle);
 
 /// Bắt đầu vẽ vào render texture, giữ nguyên nội dung cũ.
 ///
@@ -287,18 +287,18 @@ vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle);
 /// `phase_post_update` hoặc `phase_post_render`.
 /// @param ctx Context của engine.
 /// @param handle Render texture cần vẽ vào. Handle không hợp lệ bị bỏ qua.
-void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle);
+void render_texture_begin(const context &ctx, render_texture_handle handle);
 
 /// Giống bản trên nhưng xóa render texture bằng màu `clear` trước.
 /// @param ctx Context của engine.
 /// @param handle Render texture cần vẽ vào. Handle không hợp lệ bị bỏ qua.
 /// @param clear Màu dùng để xóa.
-void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
+void render_texture_begin(const context &ctx, render_texture_handle handle,
                           rgba clear);
 
 /// Kết thúc vẽ vào render texture.
 /// @param ctx Context của engine.
-void render_texture_end(const njin_ctx &ctx);
+void render_texture_end(const context &ctx);
 
 /// Lưu nội dung render texture ra file ảnh, ngay lập tức.
 ///
@@ -315,14 +315,14 @@ void render_texture_end(const njin_ctx &ctx);
 /// @param handle Render texture cần lưu. Handle không hợp lệ thì trả về `false`.
 /// @param path Đường dẫn file. Muốn lưu vào thư mục lưu game thì dùng save_path().
 /// @return `true` nếu đã lưu. Lý do thất bại (đuôi file lạ, không ghi được) ghi vào log.
-bool render_texture_save(njin_ctx &ctx, render_texture_handle handle, const char *path);
+bool render_texture_save(context &ctx, render_texture_handle handle, const char *path);
 
 /// Vẽ nội dung render texture theo đúng chiều, góc trên trái tại `pos`.
 /// @param ctx Context của engine.
 /// @param handle Render texture cần vẽ.
 /// @param pos Vị trí góc trên trái.
 /// @param tint Màu nhân vào ảnh. Màu trắng `{1, 1, 1, 1}` giữ nguyên ảnh.
-void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
+void render_texture_draw(const context &ctx, render_texture_handle handle,
                          vec2 pos, rgba tint);
 /// @}
 } // namespace njin

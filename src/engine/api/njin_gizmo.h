@@ -2,7 +2,7 @@
 #include "_math.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_debug
 /// @{
@@ -34,7 +34,7 @@ struct njin_ctx;
 /// @param b Điểm cuối.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_line(njin_ctx &ctx, vec2 a, vec2 b, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_line(context &ctx, vec2 a, vec2 b, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Mũi tên 2D từ `from` tới `to`.
 /// @param ctx Context của engine.
@@ -42,14 +42,14 @@ void gizmo_line(njin_ctx &ctx, vec2 a, vec2 b, rgba color = colors::green, f32 d
 /// @param to Mũi.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_arrow(njin_ctx &ctx, vec2 from, vec2 to, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_arrow(context &ctx, vec2 from, vec2 to, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Khung hình chữ nhật 2D.
 /// @param ctx Context của engine.
 /// @param r Hình chữ nhật, tọa độ thế giới.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_rect(njin_ctx &ctx, rect r, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_rect(context &ctx, rect r, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Đường tròn 2D.
 /// @param ctx Context của engine.
@@ -57,14 +57,14 @@ void gizmo_rect(njin_ctx &ctx, rect r, rgba color = colors::green, f32 duration 
 /// @param radius Bán kính.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_circle(njin_ctx &ctx, vec2 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_circle(context &ctx, vec2 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Một điểm 2D: dấu chữ thập nhỏ, cỡ cố định trên màn hình.
 /// @param ctx Context của engine.
 /// @param p Vị trí.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_point(njin_ctx &ctx, vec2 p, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_point(context &ctx, vec2 p, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Nhãn chữ tại một điểm của thế giới 2D, cỡ cố định trên màn hình.
 /// @param ctx Context của engine.
@@ -72,7 +72,7 @@ void gizmo_point(njin_ctx &ctx, vec2 p, rgba color = colors::green, f32 duration
 /// @param text Chữ (UTF-8). nullptr bị bỏ qua.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_text(njin_ctx &ctx, vec2 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
+void gizmo_text(context &ctx, vec2 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
 
 /// Đoạn thẳng 3D.
 /// @param ctx Context của engine.
@@ -80,7 +80,7 @@ void gizmo_text(njin_ctx &ctx, vec2 pos, const char *text, rgba color = colors::
 /// @param b Điểm cuối.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_line3d(njin_ctx &ctx, vec3 a, vec3 b, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_line3d(context &ctx, vec3 a, vec3 b, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Mũi tên 3D từ `from` tới `to`.
 /// @param ctx Context của engine.
@@ -88,7 +88,7 @@ void gizmo_line3d(njin_ctx &ctx, vec3 a, vec3 b, rgba color = colors::green, f32
 /// @param to Mũi.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_arrow3d(njin_ctx &ctx, vec3 from, vec3 to, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_arrow3d(context &ctx, vec3 from, vec3 to, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Khung hộp 3D, các cạnh song song với trục.
 /// @param ctx Context của engine.
@@ -96,7 +96,7 @@ void gizmo_arrow3d(njin_ctx &ctx, vec3 from, vec3 to, rgba color = colors::green
 /// @param size Kích thước theo x, y, z.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_box3d(njin_ctx &ctx, vec3 center, vec3 size, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_box3d(context &ctx, vec3 center, vec3 size, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Khung cầu 3D: ba đường tròn lớn.
 /// @param ctx Context của engine.
@@ -104,21 +104,21 @@ void gizmo_box3d(njin_ctx &ctx, vec3 center, vec3 size, rgba color = colors::gre
 /// @param radius Bán kính.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_sphere3d(njin_ctx &ctx, vec3 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_sphere3d(context &ctx, vec3 center, f32 radius, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Ba trục tọa độ tại `pos`: x đỏ, y xanh lá, z xanh dương.
 /// @param ctx Context của engine.
 /// @param pos Gốc.
 /// @param size Độ dài mỗi trục.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_axes3d(njin_ctx &ctx, vec3 pos, f32 size = 1.0f, f32 duration = 0.0f);
+void gizmo_axes3d(context &ctx, vec3 pos, f32 size = 1.0f, f32 duration = 0.0f);
 
 /// Một điểm 3D: dấu chữ thập nhỏ, cỡ cố định trên màn hình.
 /// @param ctx Context của engine.
 /// @param p Vị trí.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_point3d(njin_ctx &ctx, vec3 p, rgba color = colors::green, f32 duration = 0.0f);
+void gizmo_point3d(context &ctx, vec3 p, rgba color = colors::green, f32 duration = 0.0f);
 
 /// Nhãn chữ gắn vào một điểm 3D, cỡ cố định trên màn hình. Không hiện khi điểm ở
 /// sau camera.
@@ -127,18 +127,18 @@ void gizmo_point3d(njin_ctx &ctx, vec3 p, rgba color = colors::green, f32 durati
 /// @param text Chữ (UTF-8). nullptr bị bỏ qua.
 /// @param color Màu.
 /// @param duration Số giây còn hiện. 0 là chỉ frame này.
-void gizmo_text3d(njin_ctx &ctx, vec3 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
+void gizmo_text3d(context &ctx, vec3 pos, const char *text, rgba color = colors::white, f32 duration = 0.0f);
 
 /// Bật hay tắt việc vẽ gizmo. Mặc định bật. Khi tắt, các lệnh `gizmo_*` gần như
 /// không tốn gì; dùng để có một phím bật tắt, hoặc tắt trong bản phát hành.
 /// @param ctx Context của engine.
 /// @param visible `true` để vẽ.
-void gizmos_set_visible(njin_ctx &ctx, bool visible);
+void gizmos_set_visible(context &ctx, bool visible);
 
 /// Gizmo có đang được vẽ không.
 /// @param ctx Context của engine.
 /// @return Giá trị đặt bởi gizmos_set_visible().
-bool gizmos_visible(const njin_ctx &ctx);
+bool gizmos_visible(const context &ctx);
 /// @}
 /// @}
 } // namespace njin

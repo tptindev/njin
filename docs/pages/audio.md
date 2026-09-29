@@ -102,6 +102,6 @@ frame. Với tiếng nền ngắn thì không đáng kể. Với nhạc nền d�
 
 ## Giải phóng
 
-Tài nguyên được giải phóng tự động khi gọi njin::njin_destroy(). Chỉ gọi njin::sound_unload()
+Tài nguyên được giải phóng tự động khi gọi njin::destroy(). Chỉ gọi njin::sound_unload()
 hoặc njin::music_unload() khi muốn giải phóng sớm. Thiết bị âm thanh được mở cùng cửa sổ và
 đóng sau khi mọi tài nguyên đã được giải phóng.

@@ -11,7 +11,7 @@ struct enemy_ai {
 
 entt::entity player = entt::null;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   // Game components: register them so the inspector shows values, not just names.
   njin::debug_component<health>(ctx, "health", [](const health &h) {
     return njin::json_value::make_object().set("hp", h.hp).set("max", h.max);
@@ -21,7 +21,7 @@ void startup(njin::njin_ctx &ctx) {
   });
 }
 
-void update(njin::njin_ctx &ctx) {
+void update(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   if (!reg.valid(player))
     return;
@@ -30,19 +30,19 @@ void update(njin::njin_ctx &ctx) {
   njin::debug_watch(ctx, "enemies", (njin::i32)reg.view<enemy_ai>().size());
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_update, update);
 }
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Game", .width = 1280, .height = 720, .target_fps = 60});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::context *ctx = njin::create({.title = "Game", .width = 1280, .height = 720, .target_fps = 60});
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
 #ifndef NDEBUG
   // Only debug builds open the port for njin_inspector.
   njin::debug_server_start(*ctx);
 #endif
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

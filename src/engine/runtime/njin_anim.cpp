@@ -117,7 +117,7 @@ bool read_frame(const json_value &entry, anim_frame &out, bool &trimmed) {
 }
 } // namespace
 
-anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path) {
+anim_sheet_handle anim_sheet_load(context &ctx, const char *json_path) {
   if (json_path == nullptr) {
     NJIN_WARN("anim_sheet_load: path is null");
     return anim_sheet_handle{};
@@ -199,7 +199,7 @@ anim_sheet_handle anim_sheet_load(njin_ctx &ctx, const char *json_path) {
   return anim_sheet_handle{.id = (u32)ctx.anim.sheets.size()};
 }
 
-anim_sheet_handle anim_sheet_grid(njin_ctx &ctx, texture_handle texture,
+anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
                                   vec2 frame_size, f32 fps) {
   const vec2 size = texture_store_size(ctx.texture, texture);
   if (size.x <= 0.0f || frame_size.x <= 0.0f || frame_size.y <= 0.0f) {
@@ -226,7 +226,7 @@ anim_sheet_handle anim_sheet_grid(njin_ctx &ctx, texture_handle texture,
   return anim_sheet_handle{.id = (u32)ctx.anim.sheets.size()};
 }
 
-bool anim_sheet_add_clip(njin_ctx &ctx, anim_sheet_handle handle,
+bool anim_sheet_add_clip(context &ctx, anim_sheet_handle handle,
                          const anim_clip_desc &desc) {
   anim_sheet *sheet = sheet_of(ctx.anim, handle);
   if (sheet == nullptr) {
@@ -236,7 +236,7 @@ bool anim_sheet_add_clip(njin_ctx &ctx, anim_sheet_handle handle,
   return add_clip(*sheet, desc);
 }
 
-void anim_sheet_unload(njin_ctx &ctx, anim_sheet_handle handle) {
+void anim_sheet_unload(context &ctx, anim_sheet_handle handle) {
   anim_sheet *sheet = sheet_of(ctx.anim, handle);
   if (sheet == nullptr)
     return;
@@ -245,13 +245,13 @@ void anim_sheet_unload(njin_ctx &ctx, anim_sheet_handle handle) {
   *sheet = anim_sheet{};
 }
 
-i32 anim_clip_find(const njin_ctx &ctx, anim_sheet_handle handle,
+i32 anim_clip_find(const context &ctx, anim_sheet_handle handle,
                    const char *name) {
   const anim_sheet *sheet = anim_sheet_of(ctx.anim, handle);
   return sheet != nullptr ? clip_index(*sheet, name) : -1;
 }
 
-f32 anim_clip_duration(const njin_ctx &ctx, anim_sheet_handle handle,
+f32 anim_clip_duration(const context &ctx, anim_sheet_handle handle,
                        const char *name) {
   const anim_sheet *sheet = anim_sheet_of(ctx.anim, handle);
   const i32 clip = sheet != nullptr ? clip_index(*sheet, name) : -1;
@@ -263,7 +263,7 @@ f32 anim_clip_duration(const njin_ctx &ctx, anim_sheet_handle handle,
   return total;
 }
 
-anim_graph_handle anim_graph_create(njin_ctx &ctx, const anim_graph_desc &desc) {
+anim_graph_handle anim_graph_create(context &ctx, const anim_graph_desc &desc) {
   const anim_sheet *sheet = anim_sheet_of(ctx.anim, desc.sheet);
   if (sheet == nullptr) {
     NJIN_WARN("anim_graph_create: invalid sheet handle %u", desc.sheet.id);
@@ -347,7 +347,7 @@ void animator_enter_state(const anim_graph &graph, const anim_sheet &sheet,
   animator_enter_clip(anim, s.clip, s.repeat >= 0 ? s.repeat : clip_repeat);
 }
 
-bool animator_play(const njin_ctx &ctx, animator &anim, const char *name,
+bool animator_play(const context &ctx, animator &anim, const char *name,
                    bool restart) {
   if (const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph)) {
     const anim_sheet *sheet = anim_sheet_of(ctx.anim, graph->sheet);
@@ -369,7 +369,7 @@ bool animator_play(const njin_ctx &ctx, animator &anim, const char *name,
   return true;
 }
 
-void animator_set(const njin_ctx &ctx, animator &anim, const char *param,
+void animator_set(const context &ctx, animator &anim, const char *param,
                   f32 value) {
   const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph);
   const i32 index = graph != nullptr ? param_index(*graph, param) : -1;
@@ -377,20 +377,20 @@ void animator_set(const njin_ctx &ctx, animator &anim, const char *param,
     anim.params[(usize)index] = value;
 }
 
-void animator_set_bool(const njin_ctx &ctx, animator &anim, const char *param,
+void animator_set_bool(const context &ctx, animator &anim, const char *param,
                        bool value) {
   animator_set(ctx, anim, param, value ? 1.0f : 0.0f);
 }
 
-void animator_trigger(const njin_ctx &ctx, animator &anim, const char *param) {
+void animator_trigger(const context &ctx, animator &anim, const char *param) {
   animator_set(ctx, anim, param, 1.0f);
 }
 
-bool animator_in(const njin_ctx &ctx, const animator &anim, const char *name) {
+bool animator_in(const context &ctx, const animator &anim, const char *name) {
   return name != nullptr && std::strcmp(animator_current(ctx, anim), name) == 0;
 }
 
-const char *animator_current(const njin_ctx &ctx, const animator &anim) {
+const char *animator_current(const context &ctx, const animator &anim) {
   if (const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph)) {
     if (anim.state >= 0 && anim.state < (i32)graph->states.size())
       return graph->states[(usize)anim.state].name.c_str();

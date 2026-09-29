@@ -6,7 +6,7 @@
 #include <functional>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_timer
 /// @{
@@ -36,7 +36,7 @@ struct timer_desc {
 
 /// Calls `fn` once after `seconds` seconds.
 /// @code
-/// njin::timer_after(ctx, 0.4f, [](njin::njin_ctx &c) { njin::scene_fade(c, next); });
+/// njin::timer_after(ctx, 0.4f, [](njin::context &c) { njin::scene_fade(c, next); });
 /// njin::timer_after(ctx, 1.5f, respawn, {.owner = player});
 /// @endcode
 /// The function runs in `phase_update` (before the game's systems), so it may add
@@ -46,7 +46,7 @@ struct timer_desc {
 /// @param fn Function to call.
 /// @param desc Options.
 /// @return Handle for cancelling with timer_cancel().
-timer_handle timer_after(njin_ctx &ctx, f32 seconds, std::function<void(njin_ctx &)> fn,
+timer_handle timer_after(context &ctx, f32 seconds, std::function<void(context &)> fn,
                          const timer_desc &desc = {});
 
 /// Calls `fn` every `interval` seconds: spawn monsters on a beat, heal gradually.
@@ -56,19 +56,19 @@ timer_handle timer_after(njin_ctx &ctx, f32 seconds, std::function<void(njin_ctx
 /// @param count Number of calls, -1 means forever (until timer_cancel()).
 /// @param desc Options.
 /// @return Handle for cancelling with timer_cancel().
-timer_handle timer_every(njin_ctx &ctx, f32 interval, std::function<void(njin_ctx &)> fn,
+timer_handle timer_every(context &ctx, f32 interval, std::function<void(context &)> fn,
                          i32 count = -1, const timer_desc &desc = {});
 
 /// Cancels a timer. An expired or invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param timer Timer.
-void timer_cancel(njin_ctx &ctx, timer_handle timer);
+void timer_cancel(context &ctx, timer_handle timer);
 
 /// Whether a timer is still pending.
 /// @param ctx Engine context.
 /// @param timer Timer.
 /// @return `true` if it has not finished and has not been cancelled.
-bool timer_active(const njin_ctx &ctx, timer_handle timer);
+bool timer_active(const context &ctx, timer_handle timer);
 
 /// Options for a tween.
 struct tween_desc {
@@ -79,7 +79,7 @@ struct tween_desc {
   bool yoyo = false;
   bool real_time = false; ///< Measured in real time, like timer_desc::real_time.
   /// Called when the tween finishes (not called when it is cancelled).
-  std::function<void(njin_ctx &)> done{};
+  std::function<void(context &)> done{};
 };
 
 /// Moves the entity's `transform.pos` to `to` over `seconds` seconds.
@@ -99,28 +99,28 @@ struct tween_desc {
 /// @param curve Curve.
 /// @param desc Options.
 /// @return Handle for cancelling with tween_cancel().
-tween_handle tween_move(njin_ctx &ctx, entt::entity entity, vec2 to, f32 seconds,
+tween_handle tween_move(context &ctx, entt::entity entity, vec2 to, f32 seconds,
                         ease curve = ease::out_quad, const tween_desc &desc = {});
 
 /// Changes the entity's `transform.scale` to `to`. See tween_move().
 /// @param ctx Engine context. @param entity Entity with a transform.
 /// @param to Target scale. @param seconds Duration. @param curve Curve.
 /// @param desc Options. @return Handle.
-tween_handle tween_scale(njin_ctx &ctx, entt::entity entity, f32 to, f32 seconds,
+tween_handle tween_scale(context &ctx, entt::entity entity, f32 to, f32 seconds,
                          ease curve = ease::out_quad, const tween_desc &desc = {});
 
 /// Rotates the entity's `transform.rot` to `to` degrees. See tween_move().
 /// @param ctx Engine context. @param entity Entity with a transform.
 /// @param to Target angle, in degrees. @param seconds Duration. @param curve Curve.
 /// @param desc Options. @return Handle.
-tween_handle tween_rotate(njin_ctx &ctx, entt::entity entity, f32 to, f32 seconds,
+tween_handle tween_rotate(context &ctx, entt::entity entity, f32 to, f32 seconds,
                           ease curve = ease::out_quad, const tween_desc &desc = {});
 
 /// Changes the entity's `sprite.tint` to `to` (including opacity). See tween_move().
 /// @param ctx Engine context. @param entity Entity with njin::sprite.
 /// @param to Target color. @param seconds Duration. @param curve Curve.
 /// @param desc Options. @return Handle.
-tween_handle tween_tint(njin_ctx &ctx, entt::entity entity, rgba to, f32 seconds,
+tween_handle tween_tint(context &ctx, entt::entity entity, rgba to, f32 seconds,
                         ease curve = ease::linear, const tween_desc &desc = {});
 
 /// Runs a value from `from` to `to` and passes it to `apply` every frame: a tween
@@ -134,24 +134,24 @@ tween_handle tween_tint(njin_ctx &ctx, entt::entity entity, rgba to, f32 seconds
 /// @param desc Options.
 /// @param owner Owning entity: when it is destroyed the tween stops. May be null.
 /// @return Handle.
-tween_handle tween_value(njin_ctx &ctx, f32 from, f32 to, f32 seconds,
-                         std::function<void(njin_ctx &, f32)> apply, ease curve = ease::linear,
+tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
+                         std::function<void(context &, f32)> apply, ease curve = ease::linear,
                          const tween_desc &desc = {}, entt::entity owner = entt::null);
 
 /// Cancels a tween, keeping the current value. Does not call `done`.
 /// @param ctx Engine context.
 /// @param tween Tween.
-void tween_cancel(njin_ctx &ctx, tween_handle tween);
+void tween_cancel(context &ctx, tween_handle tween);
 
 /// Cancels every tween running on an entity.
 /// @param ctx Engine context.
 /// @param entity Entity.
-void tween_cancel_all(njin_ctx &ctx, entt::entity entity);
+void tween_cancel_all(context &ctx, entt::entity entity);
 
 /// Whether a tween is still running (including while waiting out `delay`).
 /// @param ctx Engine context.
 /// @param tween Tween.
 /// @return `true` if it is still running.
-bool tween_active(const njin_ctx &ctx, tween_handle tween);
+bool tween_active(const context &ctx, tween_handle tween);
 /// @}
 } // namespace njin

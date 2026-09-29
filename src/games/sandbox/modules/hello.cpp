@@ -4,13 +4,13 @@
 namespace sandbox {
 namespace {
 
-void spawn(njin::njin_ctx &ctx) {
+void spawn(njin::context &ctx) {
   entt::registry &registry = njin::world(ctx);
   const entt::entity entity = registry.create();
   registry.emplace<njin::transform>(entity);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, spawn);
 }
 

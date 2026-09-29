@@ -21,7 +21,7 @@ struct dialog_portrait_rec {
 struct dialog_state {
   dialog_style style = dialog_default_style();
   std::unordered_map<std::string, dialog_portrait_rec> portraits;
-  std::function<bool(njin_ctx &, const std::string &)> condition;
+  std::function<bool(context &, const std::string &)> condition;
 
   dialog_script script;
   bool active = false;
@@ -43,5 +43,5 @@ struct dialog_state {
 
 // Draws the open dialogue box, if any. Called by the main loop after
 // phase_post_render and before toasts.
-void dialog_draw(njin_ctx &ctx);
+void dialog_draw(context &ctx);
 } // namespace njin

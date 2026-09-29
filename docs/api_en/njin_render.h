@@ -3,7 +3,7 @@
 
 namespace njin {
 // Opaque, see njin_ctx.h.
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_shader
 /// @{
@@ -16,13 +16,13 @@ struct njin_ctx;
 /// @param vspath Vertex shader path, or nullptr.
 /// @param fspath Fragment shader path, or nullptr.
 /// @return Shader handle, or a handle with id 0 if a file is missing or compilation fails.
-shader_handle shader_load(njin_ctx &ctx, const char *vspath,
+shader_handle shader_load(context &ctx, const char *vspath,
                           const char *fspath);
 
 /// Frees a shader. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Shader to free.
-void shader_unload(njin_ctx &ctx, shader_handle handle);
+void shader_unload(context &ctx, shader_handle handle);
 
 /// Enables the shader for everything drawn afterwards, until shader_end().
 ///
@@ -30,11 +30,11 @@ void shader_unload(njin_ctx &ctx, shader_handle handle);
 /// uniforms before calling this.
 /// @param ctx Engine context.
 /// @param handle Shader to enable.
-void shader_begin(const njin_ctx &ctx, shader_handle handle);
+void shader_begin(const context &ctx, shader_handle handle);
 
 /// Disables the shader enabled by shader_begin().
 /// @param ctx Engine context.
-void shader_end(const njin_ctx &ctx);
+void shader_end(const context &ctx);
 
 /// Sets an `int` uniform. A uniform that does not exist is logged as a warning
 /// once and then ignored.
@@ -42,7 +42,7 @@ void shader_end(const njin_ctx &ctx);
 /// @param handle Shader to set.
 /// @param name Uniform name in the shader.
 /// @param value Value.
-void shader_set_i32(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_i32(context &ctx, shader_handle handle, const char *name,
                     i32 value);
 
 /// Sets a `float` uniform. See shader_set_i32() about missing uniforms.
@@ -50,7 +50,7 @@ void shader_set_i32(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader to set.
 /// @param name Uniform name in the shader.
 /// @param value Value.
-void shader_set_f32(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_f32(context &ctx, shader_handle handle, const char *name,
                     f32 value);
 
 /// Sets a `vec2` uniform. See shader_set_i32() about missing uniforms.
@@ -58,7 +58,7 @@ void shader_set_f32(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader to set.
 /// @param name Uniform name in the shader.
 /// @param value Value.
-void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec2(context &ctx, shader_handle handle, const char *name,
                      vec2 value);
 
 /// Sets a `vec3` uniform. See shader_set_i32() about missing uniforms.
@@ -66,7 +66,7 @@ void shader_set_vec2(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader to set.
 /// @param name Uniform name in the shader.
 /// @param value Value.
-void shader_set_vec3(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec3(context &ctx, shader_handle handle, const char *name,
                      vec3 value);
 
 /// Sets a `vec4` uniform. See shader_set_i32() about missing uniforms.
@@ -74,7 +74,7 @@ void shader_set_vec3(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param handle Shader to set.
 /// @param name Uniform name in the shader.
 /// @param value Value.
-void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec4(context &ctx, shader_handle handle, const char *name,
                      vec4 value);
 
 /// Sets a `vec4` array uniform, for example `uniform vec4 lights[8];`.
@@ -87,7 +87,7 @@ void shader_set_vec4(njin_ctx &ctx, shader_handle handle, const char *name,
 /// @param name Array name in the shader, without `[0]`.
 /// @param values The elements, contiguous in memory.
 /// @param count Number of elements. 0 does nothing.
-void shader_set_vec4_array(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_vec4_array(context &ctx, shader_handle handle, const char *name,
                            const vec4 *values, u32 count);
 
 /// Binds a texture to a `sampler2D` uniform of the shader, besides `texture0`.
@@ -112,7 +112,7 @@ void shader_set_vec4_array(njin_ctx &ctx, shader_handle handle, const char *name
 /// @param handle Shader to set.
 /// @param name Name of the `uniform sampler2D` in the shader.
 /// @param texture Image to bind.
-void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name, texture_handle texture);
+void shader_set_texture(context &ctx, shader_handle handle, const char *name, texture_handle texture);
 
 /// Like the previous overload, with a render texture.
 ///
@@ -124,7 +124,7 @@ void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name, t
 /// @param handle Shader to set.
 /// @param name Name of the `uniform sampler2D` in the shader.
 /// @param texture Render texture to bind.
-void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name,
+void shader_set_texture(context &ctx, shader_handle handle, const char *name,
                         render_texture_handle texture);
 /// @}
 
@@ -138,7 +138,7 @@ void shader_set_texture(njin_ctx &ctx, shader_handle handle, const char *name,
 /// texture_draw_ex() one by one).
 /// @param ctx Engine context.
 /// @return `true` if draw_instanced() can draw.
-bool instancing_available(const njin_ctx &ctx);
+bool instancing_available(const context &ctx);
 
 /// Creates an instance buffer on the GPU: each instance is `floats_per_instance`
 /// floats, whose meaning the game decides.
@@ -150,12 +150,12 @@ bool instancing_available(const njin_ctx &ctx);
 /// @param floats_per_instance 4, 8, 12 or 16.
 /// @return Handle, or a handle with id 0 if the number is invalid or the machine
 /// does not support it (see instancing_available()).
-instance_buffer_handle instance_buffer_create(njin_ctx &ctx, u32 floats_per_instance);
+instance_buffer_handle instance_buffer_create(context &ctx, u32 floats_per_instance);
 
 /// Destroys an instance buffer. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Buffer to destroy.
-void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle);
+void instance_buffer_destroy(context &ctx, instance_buffer_handle handle);
 
 /// Writes `count` instances into the buffer, replacing all previous content.
 ///
@@ -165,7 +165,7 @@ void instance_buffer_destroy(njin_ctx &ctx, instance_buffer_handle handle);
 /// @param handle Buffer to write.
 /// @param data Instance data.
 /// @param count Number of instances.
-void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const f32 *data,
+void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f32 *data,
                             u32 count);
 
 /// Draws `count` squares, starting at instance `first`, with **one** draw call.
@@ -190,7 +190,7 @@ void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const 
 /// @param shader Shader whose vertex shader reads the attributes above.
 /// @param first First instance to draw.
 /// @param count Number of instances, clamped if it exceeds the number written.
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count);
 
 /// Like the previous overload, and binds `texture` to the shader's `sampler2D texture0` uniform.
@@ -204,7 +204,7 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
 /// @param first First instance to draw.
 /// @param count Number of instances, clamped if it exceeds the number written.
 /// @param texture Texture bound to `texture0`. An invalid handle draws nothing.
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, texture_handle texture);
 
 /// Like the previous overload, with a render texture, for example a sprite sheet just drawn (baked) once
@@ -220,7 +220,7 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
 /// @param first First instance to draw.
 /// @param count Number of instances, clamped if it exceeds the number written.
 /// @param texture Render texture bound to `texture0`. An invalid handle draws nothing.
-void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
+void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, render_texture_handle texture);
 /// @}
 
@@ -233,18 +233,18 @@ void draw_instanced(njin_ctx &ctx, instance_buffer_handle handle, shader_handle 
 /// @param ctx Engine context.
 /// @param path Image file path.
 /// @return Texture handle, or a handle with id 0 if the file is missing or cannot be decoded.
-texture_handle texture_load(njin_ctx &ctx, const char *path);
+texture_handle texture_load(context &ctx, const char *path);
 
 /// Frees a texture. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Texture to free.
-void texture_unload(njin_ctx &ctx, texture_handle handle);
+void texture_unload(context &ctx, texture_handle handle);
 
 /// Texture size (pixels).
 /// @param ctx Engine context.
 /// @param handle Texture to query.
 /// @return The size, or `{0, 0}` if the handle is invalid.
-vec2 texture_size(const njin_ctx &ctx, texture_handle handle);
+vec2 texture_size(const context &ctx, texture_handle handle);
 
 /// Draws the texture with its top-left corner at `pos`.
 ///
@@ -254,7 +254,7 @@ vec2 texture_size(const njin_ctx &ctx, texture_handle handle);
 /// @param handle Texture to draw.
 /// @param pos Top-left corner position.
 /// @param tint Color multiplied into the image.
-void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
+void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
                   rgba tint);
 /// @}
 
@@ -269,19 +269,19 @@ void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
 /// @param width Width (pixels).
 /// @param height Height (pixels).
 /// @return Handle, or a handle with id 0 if the size is 0 or creation fails.
-render_texture_handle render_texture_load(njin_ctx &ctx, u32 width,
+render_texture_handle render_texture_load(context &ctx, u32 width,
                                           u32 height);
 
 /// Frees a render texture. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Render texture to free.
-void render_texture_unload(njin_ctx &ctx, render_texture_handle handle);
+void render_texture_unload(context &ctx, render_texture_handle handle);
 
 /// Render texture size (pixels).
 /// @param ctx Engine context.
 /// @param handle Render texture to query.
 /// @return The size, or `{0, 0}` if the handle is invalid.
-vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle);
+vec2 render_texture_size(const context &ctx, render_texture_handle handle);
 
 /// Starts drawing into a render texture, keeping the old content.
 ///
@@ -293,18 +293,18 @@ vec2 render_texture_size(const njin_ctx &ctx, render_texture_handle handle);
 /// `phase_post_update` or `phase_post_render`.
 /// @param ctx Engine context.
 /// @param handle Render texture to draw into. An invalid handle is ignored.
-void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle);
+void render_texture_begin(const context &ctx, render_texture_handle handle);
 
 /// Same as the previous overload but first clears the render texture with the `clear` color.
 /// @param ctx Engine context.
 /// @param handle Render texture to draw into. An invalid handle is ignored.
 /// @param clear Color used to clear.
-void render_texture_begin(const njin_ctx &ctx, render_texture_handle handle,
+void render_texture_begin(const context &ctx, render_texture_handle handle,
                           rgba clear);
 
 /// Ends drawing into the render texture.
 /// @param ctx Engine context.
-void render_texture_end(const njin_ctx &ctx);
+void render_texture_end(const context &ctx);
 
 /// Saves the render texture content to an image file, immediately.
 ///
@@ -322,14 +322,14 @@ void render_texture_end(const njin_ctx &ctx);
 /// @param handle Render texture to save. An invalid handle returns `false`.
 /// @param path File path. To save into the game's save folder, use save_path().
 /// @return `true` if saved. The reason for a failure (unknown extension, cannot write) is written to the log.
-bool render_texture_save(njin_ctx &ctx, render_texture_handle handle, const char *path);
+bool render_texture_save(context &ctx, render_texture_handle handle, const char *path);
 
 /// Draws the render texture content the right way up, top-left corner at `pos`.
 /// @param ctx Engine context.
 /// @param handle Render texture to draw.
 /// @param pos Top-left corner position.
 /// @param tint Color multiplied into the image. White `{1, 1, 1, 1}` leaves the image unchanged.
-void render_texture_draw(const njin_ctx &ctx, render_texture_handle handle,
+void render_texture_draw(const context &ctx, render_texture_handle handle,
                          vec2 pos, rgba tint);
 /// @}
 } // namespace njin

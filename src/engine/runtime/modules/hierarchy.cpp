@@ -29,7 +29,7 @@ struct pending_child {
   entt::entity entity{};
 };
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   entt::registry &registry = world(ctx);
   std::vector<pending_child> children;
   std::vector<entt::entity> cyclic;
@@ -73,7 +73,7 @@ void update(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
+void setup(context &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
 } // namespace
 
 mod_desc hierarchy_module() {

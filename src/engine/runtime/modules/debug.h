@@ -76,9 +76,9 @@ struct debug_state {
 
 // Screen recording (see debug_recorder). Start and stop come from the inspector; debug_record_frame() is called
 // once per frame, after the world is drawn, and grabs a frame when one is due.
-bool debug_record_start(njin_ctx &ctx, f32 fps, f32 scale, f32 max_seconds);
-void debug_record_stop(njin_ctx &ctx);
-void debug_record_frame(njin_ctx &ctx);
+bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds);
+void debug_record_stop(context &ctx);
+void debug_record_frame(context &ctx);
 // The `rec` message for the inspector.
-json_value debug_record_status(const njin_ctx &ctx);
+json_value debug_record_status(const context &ctx);
 } // namespace njin

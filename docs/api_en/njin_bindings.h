@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_input
 /// @{
@@ -44,26 +44,26 @@ const char *key_name(key_code key);
 /// @param ctx Engine context.
 /// @param out Receives the source just pressed.
 /// @return `true` if a source was just pressed.
-bool input_any_pressed(const njin_ctx &ctx, input_source &out);
+bool input_any_pressed(const context &ctx, input_source &out);
 
 /// The sources bound to an action, in order: keys, mouse, gamepad.
 /// @param ctx Engine context.
 /// @param action The action.
 /// @return The list of sources (empty if the handle is invalid).
-std::vector<input_source> action_sources(const njin_ctx &ctx, action_handle action);
+std::vector<input_source> action_sources(const context &ctx, action_handle action);
 
 /// Binds a source to an action (like action_bind_key(), action_bind_mouse(),
 /// action_bind_pad() depending on the kind).
 /// @param ctx Engine context.
 /// @param action The action.
 /// @param source The source.
-void action_bind(njin_ctx &ctx, action_handle action, input_source source);
+void action_bind(context &ctx, action_handle action, input_source source);
 
 /// Removes a source from an action.
 /// @param ctx Engine context.
 /// @param action The action.
 /// @param source The source.
-void action_unbind(njin_ctx &ctx, action_handle action, input_source source);
+void action_unbind(context &ctx, action_handle action, input_source source);
 
 /// Binds `source` to `action` in place of the existing source of the **same
 /// kind** (key replaces key, gamepad button replaces gamepad button), and
@@ -72,7 +72,7 @@ void action_unbind(njin_ctx &ctx, action_handle action, input_source source);
 /// @param ctx Engine context.
 /// @param action The action.
 /// @param source The new source.
-void action_rebind(njin_ctx &ctx, action_handle action, input_source source);
+void action_rebind(context &ctx, action_handle action, input_source source);
 
 /// A source in shorthand for action_define(): pass a key, a mouse button or a
 /// gamepad button directly, without building a njin::input_source.
@@ -100,7 +100,7 @@ struct binding {
 /// @param name Action name.
 /// @param sources The keys, mouse buttons and gamepad buttons, in any order.
 /// @return The action's handle, or an invalid handle (id 0) if `name` is null.
-inline action_handle action_define(njin_ctx &ctx, const char *name, std::initializer_list<binding> sources) {
+inline action_handle action_define(context &ctx, const char *name, std::initializer_list<binding> sources) {
   const action_handle handle = action_register(ctx, name);
   for (const binding &b : sources)
     action_bind(ctx, handle, b.source);
@@ -127,7 +127,7 @@ struct axis_keys {
 /// @param keys The key pairs (negative, positive).
 /// @param pads The gamepad axes. May be left empty.
 /// @return The axis's handle, or an invalid handle (id 0) if `name` is null.
-inline axis_handle axis_define(njin_ctx &ctx, const char *name, std::initializer_list<axis_keys> keys,
+inline axis_handle axis_define(context &ctx, const char *name, std::initializer_list<axis_keys> keys,
                                std::initializer_list<gamepad_axis> pads = {}) {
   const axis_handle handle = axis_register(ctx, name);
   for (const axis_keys &k : keys)
@@ -142,7 +142,7 @@ inline axis_handle axis_define(njin_ctx &ctx, const char *name, std::initializer
 /// {"keys": [["left", "right"]], "pad": ["left_x"]}}}`.
 /// @param ctx Engine context.
 /// @return A JSON object.
-json_value input_bindings_save(const njin_ctx &ctx);
+json_value input_bindings_save(const context &ctx);
 
 /// Loads keys from the JSON of input_bindings_save(). Actions and axes present
 /// in the JSON have all their keys **replaced**; those not present are left
@@ -151,7 +151,7 @@ json_value input_bindings_save(const njin_ctx &ctx);
 /// @param ctx Engine context.
 /// @param json The data.
 /// @return `false` if `json` is not an object.
-bool input_bindings_load(njin_ctx &ctx, const json_value &json);
+bool input_bindings_load(context &ctx, const json_value &json);
 
 /// Rumbles the gamepad.
 /// @param ctx Engine context.
@@ -159,6 +159,6 @@ bool input_bindings_load(njin_ctx &ctx, const json_value &json);
 /// @param low Strength of the left motor (low rumble), 0..1.
 /// @param high Strength of the right motor (fast rumble), 0..1.
 /// @param seconds Rumble duration.
-void pad_rumble(njin_ctx &ctx, i32 pad, f32 low, f32 high, f32 seconds);
+void pad_rumble(context &ctx, i32 pad, f32 low, f32 high, f32 seconds);
 /// @}
 } // namespace njin

@@ -2,7 +2,7 @@
 #include "_mod.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_scene
 /// @{
@@ -24,13 +24,13 @@ struct scene_desc {
 /// @param ctx Engine context.
 /// @param desc Scene description.
 /// @return Handle of the scene, or a handle with id 0 if `desc.name` is null.
-scene_handle scene_register(njin_ctx &ctx, const scene_desc &desc);
+scene_handle scene_register(context &ctx, const scene_desc &desc);
 
 /// Find a scene by name.
 /// @param ctx Engine context.
 /// @param name Scene name.
 /// @return Handle of the scene, or a handle with id 0 if there is none.
-scene_handle scene_find(const njin_ctx &ctx, const char *name);
+scene_handle scene_find(const context &ctx, const char *name);
 
 /// Switch to another scene.
 ///
@@ -44,12 +44,12 @@ scene_handle scene_find(const njin_ctx &ctx, const char *name);
 /// scene that is already running does nothing.
 /// @param ctx Engine context.
 /// @param scene Target scene.
-void scene_set(njin_ctx &ctx, scene_handle scene);
+void scene_set(context &ctx, scene_handle scene);
 
 /// The scene that is running.
 /// @param ctx Engine context.
 /// @return The running scene, or a handle with id 0 if there is none yet.
-scene_handle scene_current(const njin_ctx &ctx);
+scene_handle scene_current(const context &ctx);
 
 /// Scene transition effect, used with scene_fade().
 ///
@@ -85,17 +85,17 @@ struct scene_transition {
 /// @param ctx Engine context.
 /// @param scene Target scene.
 /// @param transition Effect.
-void scene_fade(njin_ctx &ctx, scene_handle scene,
+void scene_fade(context &ctx, scene_handle scene,
                 const scene_transition &transition = {});
 
 /// Whether a scene_fade() transition is in progress.
 /// @param ctx Engine context.
 /// @return `true` from the scene_fade() call until the screen is fully uncovered.
-bool scene_transitioning(const njin_ctx &ctx);
+bool scene_transitioning(const context &ctx);
 
 /// Current coverage of the scene transition effect.
 /// @param ctx Engine context.
 /// @return 0 is not covered, 1 is fully covered.
-f32 scene_transition_cover(const njin_ctx &ctx);
+f32 scene_transition_cover(const context &ctx);
 /// @}
 } // namespace njin

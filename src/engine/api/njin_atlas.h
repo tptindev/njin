@@ -3,7 +3,7 @@
 #include "njin_draw.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_texture
 /// @{
@@ -32,7 +32,7 @@ struct atlas_desc {
 /// @param ctx Context của engine.
 /// @param desc Kích thước trang, viền và bộ lọc.
 /// @return Handle của atlas.
-atlas_handle atlas_create(njin_ctx &ctx, const atlas_desc &desc = {});
+atlas_handle atlas_create(context &ctx, const atlas_desc &desc = {});
 
 /// Nạp một file ảnh và xếp vào atlas.
 ///
@@ -52,12 +52,12 @@ atlas_handle atlas_create(njin_ctx &ctx, const atlas_desc &desc = {});
 /// @param atlas Atlas cần xếp vào.
 /// @param path Đường dẫn file ảnh.
 /// @return Handle của texture, hoặc handle có id 0 nếu file thiếu hoặc không giải mã được.
-texture_handle atlas_load(njin_ctx &ctx, atlas_handle atlas, const char *path);
+texture_handle atlas_load(context &ctx, atlas_handle atlas, const char *path);
 
 /// Hủy atlas: giải phóng các trang. Mọi texture_handle lấy từ atlas này thành
 /// không hợp lệ. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param atlas Atlas cần hủy.
-void atlas_destroy(njin_ctx &ctx, atlas_handle atlas);
+void atlas_destroy(context &ctx, atlas_handle atlas);
 /// @}
 } // namespace njin

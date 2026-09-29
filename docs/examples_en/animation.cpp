@@ -7,7 +7,7 @@ entt::entity hero = entt::null;
 bool grounded = true;
 njin::f32 vel_y = 0.0f;
 
-void spawn(njin::njin_ctx &ctx) {
+void spawn(njin::context &ctx) {
   const njin::anim_sheet_handle sheet = njin::anim_sheet_load(ctx, "assets/hero.json");
   hero_anim = njin::anim_graph_create(ctx, {
       .sheet = sheet,
@@ -33,7 +33,7 @@ void spawn(njin::njin_ctx &ctx) {
   reg.emplace<njin::animator>(hero, njin::animator{.graph = hero_anim});
 }
 
-void control(njin::njin_ctx &ctx) {
+void control(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   auto &tr = reg.get<njin::transform>(hero);
   auto &anim = reg.get<njin::animator>(hero);
@@ -69,7 +69,7 @@ void control(njin::njin_ctx &ctx) {
     tr.pos.x -= dir * 160.0f * dt;
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, spawn);
   njin::ecs_register(ctx, njin::phase_update, control);
 }

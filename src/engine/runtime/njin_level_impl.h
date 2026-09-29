@@ -25,7 +25,7 @@ struct level_store {
 
 // Frees the textures of every level owned by `scene`, whose entities were just
 // destroyed with the scene. Called by scene_store_apply.
-void level_store_scene_exit(njin_ctx &ctx, scene_handle scene);
+void level_store_scene_exit(context &ctx, scene_handle scene);
 
 // Where a tile image comes from: one texture cut into a grid.
 struct level_tileset {
@@ -63,7 +63,7 @@ struct level_tile_layer {
 // Everything the Tiled and LDtk loaders share: textures, entity creation,
 // solidity rules and bookkeeping for level_unload.
 struct level_builder {
-  njin_ctx &ctx;
+  context &ctx;
   const level_desc &desc;
   level_handle handle;
   level_slot &slot;
@@ -104,11 +104,11 @@ bool level_base64(std::string_view text, std::vector<u8> &out);
 bool level_decompress(const std::vector<u8> &in, const char *method, std::vector<u8> &out);
 
 // The LDtk loader, in njin_ldtk.cpp.
-level_handle level_load_ldtk_file(njin_ctx &ctx, const char *path, const char *level,
+level_handle level_load_ldtk_file(context &ctx, const char *path, const char *level,
                                   const level_desc &desc);
 // Starts a new level slot; the loaders fill it through a level_builder.
-level_handle level_begin(njin_ctx &ctx);
+level_handle level_begin(context &ctx);
 // Undoes a level whose load failed halfway.
-void level_abort(njin_ctx &ctx, level_handle level);
-level_slot *level_slot_of(njin_ctx &ctx, level_handle level);
+void level_abort(context &ctx, level_handle level);
+level_slot *level_slot_of(context &ctx, level_handle level);
 } // namespace njin

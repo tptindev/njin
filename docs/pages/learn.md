@@ -4,7 +4,7 @@ Muốn làm game với njin thì cần đọc được C++, biết CMake dựng 
 đúng những phần đó, **từ con số không**, theo một mạch duy nhất. Không cần chọn "mức" nào: bạn bắt đầu ở bài đầu, và
 bài nào đã biết thì bỏ qua.
 
-Mọi thứ trong đây đúc kết từ chính njin: các ví dụ lấy hình dạng từ code của engine (handle, `njin_ctx &`, CMake của
+Mọi thứ trong đây đúc kết từ chính njin: các ví dụ lấy hình dạng từ code của engine (handle, `context &`, CMake của
 repo, shader hậu kỳ), cộng những pattern game nào cũng gặp. **Không bài nào cần njin**: chỉ cần trình biên dịch, và
 CMake ở phần cuối. Cài chúng theo @ref setup.
 
@@ -31,7 +31,7 @@ CMake ở phần cuối. Cài chúng theo @ref setup.
 | Bài | Nội dung |
 |---|---|
 | @subpage learn_cpp_from_c | Tham chiếu, `const`, namespace, `std::string`, `std::vector`, `struct` có hàm, nạp chồng, tham số mặc định |
-| @subpage learn_cpp_types | Giá trị và tham chiếu, sao chép và di chuyển, RAII, quyền sở hữu, và vì sao njin dùng handle và `njin_ctx &` |
+| @subpage learn_cpp_types | Giá trị và tham chiếu, sao chép và di chuyển, RAII, quyền sở hữu, và vì sao njin dùng handle và `context &` |
 | @subpage learn_cpp_modern | `auto`, structured binding, lambda, khởi tạo chỉ định, `initializer_list`, `constexpr`, `enum class`, template để **dùng** |
 | @subpage learn_errors | Đọc lỗi biên dịch, lỗi liên kết và lỗi lúc chạy, và quy trình gỡ lỗi với `-Wall`, `printf`, `gdb` |
 

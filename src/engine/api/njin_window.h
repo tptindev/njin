@@ -3,7 +3,7 @@
 #include "_types.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_window
 /// @{
@@ -11,17 +11,17 @@ struct njin_ctx;
 /// Yêu cầu thoát game. Vòng lặp dừng ở cuối frame hiện tại, `phase_shutdown`
 /// vẫn chạy như bình thường.
 /// @param ctx Context của engine.
-void njin_quit(njin_ctx &ctx);
+void quit(context &ctx);
 
 /// Đổi kích thước cửa sổ. Không có tác dụng khi đang toàn màn hình.
 /// @param ctx Context của engine.
 /// @param size Kích thước mới, tính bằng pixel.
-void window_set_size(njin_ctx &ctx, vec2 size);
+void window_set_size(context &ctx, vec2 size);
 
 /// Đổi tiêu đề cửa sổ.
 /// @param ctx Context của engine.
 /// @param title Tiêu đề mới.
-void window_set_title(njin_ctx &ctx, const char *title);
+void window_set_title(context &ctx, const char *title);
 
 /// Bật hoặc tắt toàn màn hình.
 ///
@@ -29,33 +29,33 @@ void window_set_title(njin_ctx &ctx, const char *title);
 /// không đổi độ phân giải của màn hình.
 /// @param ctx Context của engine.
 /// @param fullscreen `true` để bật.
-void window_set_fullscreen(njin_ctx &ctx, bool fullscreen);
+void window_set_fullscreen(context &ctx, bool fullscreen);
 
 /// Cửa sổ có đang toàn màn hình không.
 /// @param ctx Context của engine.
 /// @return `true` nếu đang toàn màn hình.
-bool window_fullscreen(const njin_ctx &ctx);
+bool window_fullscreen(const context &ctx);
 
-/// Bật hoặc tắt đồng bộ dọc lúc đang chạy, xem njin_cfg::vsync.
+/// Bật hoặc tắt đồng bộ dọc lúc đang chạy, xem config::vsync.
 /// @param ctx Context của engine.
 /// @param vsync `true` để bật.
-void window_set_vsync(njin_ctx &ctx, bool vsync);
+void window_set_vsync(context &ctx, bool vsync);
 
 /// Đồng bộ dọc có đang bật không.
 /// @param ctx Context của engine.
 /// @return `true` nếu đang bật.
-bool window_vsync(const njin_ctx &ctx);
+bool window_vsync(const context &ctx);
 
 /// Cửa sổ có vừa đổi kích thước ở frame này không (người dùng kéo cửa sổ, hoặc
 /// bật tắt toàn màn hình).
 /// @param ctx Context của engine.
 /// @return `true` nếu kích thước vừa đổi.
-bool window_resized(const njin_ctx &ctx);
+bool window_resized(const context &ctx);
 
 /// Hiện hoặc ẩn con trỏ chuột khi nó nằm trong cửa sổ.
 /// @param ctx Context của engine.
 /// @param visible `true` để hiện.
-void cursor_set_visible(njin_ctx &ctx, bool visible);
+void cursor_set_visible(context &ctx, bool visible);
 
 /// Chụp màn hình và lưu ra file ảnh.
 ///
@@ -68,7 +68,7 @@ void cursor_set_visible(njin_ctx &ctx, bool visible);
 /// @param ctx Context của engine.
 /// @param path Đường dẫn file. Để nullptr thì lưu vào thư mục `screenshots`
 /// trong thư mục lưu game (xem save_path()), tên theo ngày giờ.
-void screenshot(njin_ctx &ctx, const char *path = nullptr);
+void screenshot(context &ctx, const char *path = nullptr);
 
 /// Bật độ phân giải ảo: game vẽ lên một màn hình cố định `size` pixel (ví dụ
 /// 320 x 180), rồi engine phóng nó ra cửa sổ, giữ tỉ lệ, phần thừa là viền.
@@ -83,28 +83,28 @@ void screenshot(njin_ctx &ctx, const char *path = nullptr);
 /// @param ctx Context của engine.
 /// @param size Kích thước ảo, pixel. `{0, 0}` để tắt và vẽ thẳng lên cửa sổ.
 /// @param integer_scale Chỉ phóng theo bội số nguyên.
-void window_set_virtual_size(njin_ctx &ctx, vec2 size, bool integer_scale = true);
+void window_set_virtual_size(context &ctx, vec2 size, bool integer_scale = true);
 
 /// Màu viền quanh màn hình ảo. Mặc định là đen.
 /// @param ctx Context của engine.
 /// @param color Màu.
-void window_set_bar_color(njin_ctx &ctx, rgba color);
+void window_set_bar_color(context &ctx, rgba color);
 
 /// Kích thước thật của cửa sổ, pixel, kể cả khi có độ phân giải ảo.
 /// @param ctx Context của engine.
 /// @return Kích thước cửa sổ.
-vec2 window_size(const njin_ctx &ctx);
+vec2 window_size(const context &ctx);
 
 /// Vùng của cửa sổ mà màn hình ảo đang chiếm, pixel cửa sổ. Không có độ phân
 /// giải ảo thì là cả cửa sổ.
 /// @param ctx Context của engine.
 /// @return Vùng ảnh trong cửa sổ.
-rect window_viewport(const njin_ctx &ctx);
+rect window_viewport(const context &ctx);
 
 /// Khóa con trỏ chuột trong cửa sổ và ẩn nó, như game bắn súng góc nhìn thứ
 /// nhất. Khi khóa, dùng mouse_delta() thay cho mouse_pos().
 /// @param ctx Context của engine.
 /// @param locked `true` để khóa.
-void cursor_set_locked(njin_ctx &ctx, bool locked);
+void cursor_set_locked(context &ctx, bool locked);
 /// @}
 } // namespace njin

@@ -6,6 +6,15 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## Unreleased
+
+- **Breaking: names without the `njin_` prefix.** Inside `namespace njin`,
+  `njin_ctx` is now `context`, `njin_cfg` is `config`, `njin_create`,
+  `njin_destroy`, `njin_run` and `njin_quit` are `create`, `destroy`, `run` and
+  `quit`, and `njin_mod_register` is `mod_register`. No aliases remain: a game
+  renames its uses (`njin::context &ctx`, `njin::create(cfg)`). Header file
+  names are unchanged.
+
 ## 0.5.0
 
 - **Supersampling**: `njin_cfg::render_scale` draws the world and UI at 2x, 4x or

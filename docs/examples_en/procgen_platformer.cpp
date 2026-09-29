@@ -11,7 +11,7 @@ constexpr i32 ground_set = 0, stone_set = 47, plank = 94, bush = 95, flower = 96
 entt::entity level = entt::null, player = entt::null;
 u32 seed = 1;
 
-void build(njin_ctx &ctx) {
+void build(context &ctx) {
   // 1. Parameters. max_step and platform_height stay at 2 and 3 tiles: the character jumps almost 3 tiles high by default.
   platformer_gen_desc d;
   d.width = 160;
@@ -47,7 +47,7 @@ void build(njin_ctx &ctx) {
   reg.get<platformer_body>(player).velocity = {};
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   entt::registry &reg = world(ctx);
   tilemap map;
   map.tileset = texture_load(ctx, "assets/terrain.png");
@@ -73,19 +73,19 @@ void startup(njin_ctx &ctx) {
   build(ctx);
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   if (key_pressed(ctx, key_r)) { // R: new level
     seed++;
     build(ctx);
   }
 }
 
-void draw_player(njin_ctx &ctx) {
+void draw_player(context &ctx) {
   const transform &tr = world(ctx).get<transform>(player);
   draw_rect(ctx, rect_from_center(tr.pos - vec2{0.0f, 7.0f}, {10.0f, 14.0f}), colors::yellow);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup);
   ecs_register(ctx, phase_update, update);
   ecs_register(ctx, phase_render, draw_player);
@@ -93,9 +93,9 @@ void setup(njin_ctx &ctx) {
 } // namespace
 
 int main() {
-  njin_ctx *ctx = njin_create({.title = "Platformer level generation", .width = 960, .height = 540, .target_fps = 60,
+  context *ctx = create({.title = "Platformer level generation", .width = 960, .height = 540, .target_fps = 60,
                                .clear_bg_color = {0.37f, 0.80f, 0.89f, 1.0f}});
-  njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  mod_register(*ctx, {.name = "game", .setup = setup});
+  run(*ctx);
+  destroy(ctx);
 }

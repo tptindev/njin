@@ -13,7 +13,7 @@ namespace {
 constexpr const char *bus_names[audio_bus_count] = {"master", "music", "sfx", "ui", "voice"};
 } // namespace
 
-json_value settings_to_json(const njin_ctx &ctx) {
+json_value settings_to_json(const context &ctx) {
   json_value audio = json_value::make_object();
   json_value muted = json_value::make_array();
   for (i32 b = 0; b < audio_bus_count; b++) {
@@ -32,7 +32,7 @@ json_value settings_to_json(const njin_ctx &ctx) {
   return out;
 }
 
-void settings_apply(njin_ctx &ctx, const json_value &json) {
+void settings_apply(context &ctx, const json_value &json) {
   const json_value &audio = json["audio"];
   if (audio.is(json_value::object)) {
     for (i32 b = 0; b < audio_bus_count; b++) {
@@ -57,7 +57,7 @@ void settings_apply(njin_ctx &ctx, const json_value &json) {
   }
 }
 
-bool settings_save(const njin_ctx &ctx, const char *file, const json_value *game) {
+bool settings_save(const context &ctx, const char *file, const json_value *game) {
   json_value root = settings_to_json(ctx);
   if (game != nullptr)
     root.set("game", *game);
@@ -69,7 +69,7 @@ bool settings_save(const njin_ctx &ctx, const char *file, const json_value *game
   return true;
 }
 
-bool settings_load(njin_ctx &ctx, const char *file, json_value *game) {
+bool settings_load(context &ctx, const char *file, json_value *game) {
   const std::string path = save_path(ctx, file != nullptr ? file : "settings.json");
   if (!file_exists(path.c_str()))
     return false;

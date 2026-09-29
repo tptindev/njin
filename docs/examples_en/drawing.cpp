@@ -3,14 +3,14 @@
 namespace {
 njin::font_handle title_font;
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   // A font with Vietnamese support. Built at size 32 pixels: drawing at exactly this size gives the sharpest strokes.
   title_font = njin::font_load(ctx, "assets/fonts/roboto.ttf", 32);
 }
 
 // [pixel_text]
 // A pixel font designed at 8 pixels: draw it at 8, 16, 24. Text always sits inside the virtual image.
-void load_pixel_font(njin::njin_ctx &ctx) {
+void load_pixel_font(njin::context &ctx) {
   const njin::font_handle pixel =
       njin::font_load(ctx, "assets/fonts/PressStart2P.ttf", 8, njin::font_pixel);
   njin::ui_style style = njin::ui_default_style();
@@ -22,7 +22,7 @@ void load_pixel_font(njin::njin_ctx &ctx) {
 // [pixel_text]
 
 // In world space: goes through the camera.
-void draw_world(njin::njin_ctx &ctx) {
+void draw_world(njin::context &ctx) {
   using namespace njin;
   draw_rect(ctx, rect{{0, 0}, {200, 20}}, colors::gray);         // ground
   draw_circle(ctx, {100, -30}, 20, colors::yellow);             // ball
@@ -38,7 +38,7 @@ void draw_world(njin::njin_ctx &ctx) {
 }
 
 // In screen space: UI, not shifted or zoomed by the camera.
-void draw_ui(njin::njin_ctx &ctx) {
+void draw_ui(njin::context &ctx) {
   using namespace njin;
   const vec2 screen = screen_size(ctx);
 
@@ -61,7 +61,7 @@ void draw_ui(njin::njin_ctx &ctx) {
   draw_rect_lines(ctx, panel, 2.0f, colors::yellow);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load);
   njin::ecs_register(ctx, njin::phase_render, draw_world);
   njin::ecs_register(ctx, njin::phase_post_render, draw_ui);

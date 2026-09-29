@@ -5,7 +5,7 @@
 #include <memory>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 // 3D physics (njin_physics3d.h) on Jolt Physics. The Jolt world lives behind
 // `world` (defined in njin_physics3d.cpp only), so no other runtime file
@@ -26,5 +26,5 @@ struct physics3d_state {
 // One fixed step: kinematic targets, then characters, then every body.
 // Called by the main loop right after each run of phase_fixed_update, so what
 // the game set in that phase moves in the same step.
-void physics3d_step(njin_ctx &ctx, f32 dt);
+void physics3d_step(context &ctx, f32 dt);
 } // namespace njin

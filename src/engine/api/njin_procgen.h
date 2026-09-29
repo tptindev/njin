@@ -20,7 +20,7 @@ namespace njin {
 /// Các bộ sinh (generate_topdown(), generate_platformer(), wfc_generate()) và các luật
 /// (grid_majority(), grid_border()...) đều làm việc trên lưới này; xong thì
 /// tilemap_from_grid() đặt nó vào tilemap. Lưới chỉ là dữ liệu: không cần cửa sổ, không cần
-/// njin::njin_ctx, nên sinh được ở bất kỳ đâu, kể cả trước khi mở cửa sổ.
+/// njin::context, nên sinh được ở bất kỳ đâu, kể cả trước khi mở cửa sổ.
 struct tile_grid {
   i32 width = 0;           ///< Số cột.
   i32 height = 0;          ///< Số hàng.

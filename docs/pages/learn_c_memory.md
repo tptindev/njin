@@ -242,7 +242,7 @@ GCC và Clang có sẵn; trên Windows thì dùng WSL, hoặc MSVC (có `/fsanit
 
 Mọi quy tắc trên hiện ra trong thiết kế API của njin:
 
-- **Đường dẫn là `const char *`**, chỉ đọc: `texture_load(njin_ctx &ctx, const char *path)`, `shader_load(ctx, const char *vspath, const char *fspath)`. `const` nghĩa là hàm chỉ đọc chuỗi, không sửa nó.
+- **Đường dẫn là `const char *`**, chỉ đọc: `texture_load(context &ctx, const char *path)`, `shader_load(ctx, const char *vspath, const char *fspath)`. `const` nghĩa là hàm chỉ đọc chuỗi, không sửa nó.
 - **Struct đầy giá trị mặc định**: `platformer_body`, `topdown_body`, `collider`... khai báo mặc định ngay trong struct; game chỉ chỉnh vài trường.
 - **Handle thay cho con trỏ.** `njin` không trả con trỏ tới tài nguyên mà trả handle: một struct chỉ chứa số `id`.
 

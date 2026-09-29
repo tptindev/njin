@@ -159,7 +159,7 @@ const char *input_source_name(input_source s) {
   }
 }
 
-bool input_any_pressed(const njin_ctx &ctx, input_source &out) {
+bool input_any_pressed(const context &ctx, input_source &out) {
   // Raw edges, before any consume: a rebind screen sits inside the UI, which
   // swallows Enter, Esc and the arrows for the game.
   const input_store &in = ctx.input;
@@ -182,7 +182,7 @@ bool input_any_pressed(const njin_ctx &ctx, input_source &out) {
   return false;
 }
 
-std::vector<input_source> action_sources(const njin_ctx &ctx, action_handle action) {
+std::vector<input_source> action_sources(const context &ctx, action_handle action) {
   std::vector<input_source> out;
   const action_slot *slot = action_slot_of(ctx.input, action);
   if (slot == nullptr)
@@ -200,7 +200,7 @@ std::vector<input_source> action_sources(const njin_ctx &ctx, action_handle acti
   return out;
 }
 
-void action_bind(njin_ctx &ctx, action_handle action, input_source s) {
+void action_bind(context &ctx, action_handle action, input_source s) {
   switch (s.kind) {
   case input_source::key: action_bind_key(ctx, action, (key_code)s.code); break;
   case input_source::mouse: action_bind_mouse(ctx, action, (mouse_button)s.code); break;
@@ -209,7 +209,7 @@ void action_bind(njin_ctx &ctx, action_handle action, input_source s) {
   }
 }
 
-void action_unbind(njin_ctx &ctx, action_handle action, input_source s) {
+void action_unbind(context &ctx, action_handle action, input_source s) {
   action_slot *slot = action_slot_of(ctx.input, action);
   if (slot == nullptr)
     return;
@@ -221,7 +221,7 @@ void action_unbind(njin_ctx &ctx, action_handle action, input_source s) {
   }
 }
 
-void action_rebind(njin_ctx &ctx, action_handle action, input_source s) {
+void action_rebind(context &ctx, action_handle action, input_source s) {
   action_slot *slot = action_slot_of(ctx.input, action);
   if (slot == nullptr || s.kind == input_source::none)
     return;
@@ -238,7 +238,7 @@ void action_rebind(njin_ctx &ctx, action_handle action, input_source s) {
   action_bind(ctx, action, s);
 }
 
-json_value input_bindings_save(const njin_ctx &ctx) {
+json_value input_bindings_save(const context &ctx) {
   json_value actions = json_value::make_object();
   for (usize i = 0; i < ctx.input.actions.size(); i++) {
     json_value list = json_value::make_array();
@@ -265,7 +265,7 @@ json_value input_bindings_save(const njin_ctx &ctx) {
   return json_value::make_object().set("actions", std::move(actions)).set("axes", std::move(axes));
 }
 
-bool input_bindings_load(njin_ctx &ctx, const json_value &json) {
+bool input_bindings_load(context &ctx, const json_value &json) {
   if (!json.is(json_value::object))
     return false;
   for (const auto &[name, list] : json["actions"].members) {
@@ -298,7 +298,7 @@ bool input_bindings_load(njin_ctx &ctx, const json_value &json) {
   return true;
 }
 
-void pad_rumble(njin_ctx &, i32 pad, f32 low, f32 high, f32 seconds) {
+void pad_rumble(context &, i32 pad, f32 low, f32 high, f32 seconds) {
   if (pad < 0 || pad >= gamepad_max || !IsGamepadAvailable(pad) || seconds <= 0.0f)
     return;
   const auto unit = [](f32 v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };

@@ -8,7 +8,7 @@
 
 namespace njin {
 // Opaque, see njin_ctx.h.
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_light
 /// @{
@@ -278,12 +278,12 @@ struct lighting_desc {
 /// Sets the lighting settings. May be changed every frame (for example ambient by time of day).
 /// @param ctx Engine context.
 /// @param desc New settings.
-void lighting_set(njin_ctx &ctx, const lighting_desc &desc);
+void lighting_set(context &ctx, const lighting_desc &desc);
 
 /// Lighting settings currently in use. Edit the copy, then call lighting_set() again.
 /// @param ctx Engine context.
 /// @return Current settings.
-lighting_desc lighting_get(const njin_ctx &ctx);
+lighting_desc lighting_get(const context &ctx);
 
 /// Color of a glowing black body at a given temperature.
 ///

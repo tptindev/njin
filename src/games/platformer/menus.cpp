@@ -17,7 +17,7 @@ std::span<const shared::rebind_row> rows() {
   return r;
 }
 
-void text_centered(njin_ctx &ctx, const char *text, f32 y, f32 size, rgba color, font_handle font) {
+void text_centered(context &ctx, const char *text, f32 y, f32 size, rgba color, font_handle font) {
   const vec2 m = text_measure(ctx, text, size, font);
   const f32 x = (screen_size(ctx).x - m.x) * 0.5f;
   draw_text(ctx, text, {x + 2.0f, y + 2.0f}, size, {0.1f, 0.1f, 0.2f, 0.6f}, font);
@@ -26,7 +26,7 @@ void text_centered(njin_ctx &ctx, const char *text, f32 y, f32 size, rgba color,
 
 // --- title ---
 
-void title_draw(njin_ctx &ctx) {
+void title_draw(context &ctx) {
   const f32 t = elapsed(ctx);
   text_centered(ctx, tr(ctx, "game.title"), 60.0f + std::sin(t * 2.0f) * 3.0f, 32.0f,
                 {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
@@ -51,15 +51,15 @@ void title_draw(njin_ctx &ctx) {
   if (ui_button(ctx, tr(ctx, "menu.settings")))
     g.settings_open = true;
   if (ui_button(ctx, tr(ctx, "menu.quit")))
-    njin_quit(ctx);
+    quit(ctx);
   ui_end(ctx);
 }
 
-void screen_backdrop(njin_ctx &ctx) { draw_backdrop(ctx, {elapsed(ctx) * 20.0f, 0.0f}); }
+void screen_backdrop(context &ctx) { draw_backdrop(ctx, {elapsed(ctx) * 20.0f, 0.0f}); }
 
 // --- level card: the level's name for a moment, then the level ---
 
-void card_draw(njin_ctx &ctx) {
+void card_draw(context &ctx) {
   const bool second = g.level_file.find("level2") != std::string::npos;
   const char *name = tr(ctx, second ? "level.2" : "level.1");
   draw_rect(ctx, rect{{0.0f, 0.0f}, screen_size(ctx)}, {0.08f, 0.09f, 0.14f, 1.0f});
@@ -68,7 +68,7 @@ void card_draw(njin_ctx &ctx) {
 
 // --- play: HUD and pause ---
 
-void hud(njin_ctx &ctx) {
+void hud(context &ctx) {
   // Coins, top left.
   texture_draw_ex(ctx, g.sprites,
                   texture_draw_desc{.pos = {12.0f, 10.0f},
@@ -115,7 +115,7 @@ void hud(njin_ctx &ctx) {
 
 // --- win ---
 
-void win_draw(njin_ctx &ctx) {
+void win_draw(context &ctx) {
   text_centered(ctx, tr(ctx, "win.title"), 50.0f, 32.0f, {1.0f, 0.95f, 0.6f, 1.0f}, g_big);
   ui_begin(ctx, {.id = "win", .anchor = {0.5f, 0.62f}, .width = 260.0f});
   ui_label(ctx, trf(ctx, "win.coins", {std::to_string(g.run_coins), std::to_string(g.run_total)}).c_str());
@@ -133,7 +133,7 @@ void win_draw(njin_ctx &ctx) {
   ui_end(ctx);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   // VT323 is drawn at multiples of 16: 32 for titles, 16 for the rest.
   g_big = font_load(ctx, "assets/fonts/VT323-Regular.ttf", 32, font_pixel);
   const scene_handle card = scene_find(ctx, "card");
@@ -148,21 +148,21 @@ void setup(njin_ctx &ctx) {
 
 mod_desc menus_module() { return mod_desc{.name = "plat.menus", .setup = setup}; }
 
-void title_enter(njin_ctx &ctx) {
+void title_enter(context &ctx) {
   g.settings_open = false;
   music_crossfade(ctx, g.m_title, 1.0f);
 }
 
-void card_scene_enter(njin_ctx &ctx) {
-  timer_after(ctx, 1.1f, [](njin_ctx &c) { scene_fade(c, g.play); }, {.real_time = true});
+void card_scene_enter(context &ctx) {
+  timer_after(ctx, 1.1f, [](context &c) { scene_fade(c, g.play); }, {.real_time = true});
 }
 
-void win_enter(njin_ctx &ctx) {
+void win_enter(context &ctx) {
   music_crossfade(ctx, g.m_title, 1.0f);
   ui_focus(ctx, tr(ctx, "menu.again"));
 }
 
-void draw_backdrop(njin_ctx &ctx, vec2 camera_pos) {
+void draw_backdrop(context &ctx, vec2 camera_pos) {
   const rect view = camera_bounds(ctx);
   const f32 bottom = view.pos.y + view.size.y;
   // Clouds drift on their own.

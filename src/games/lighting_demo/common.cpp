@@ -7,14 +7,14 @@ namespace lighting_demo {
 demo_state demo;
 
 namespace {
-texture_handle load(njin_ctx &ctx, const char *path) {
+texture_handle load(context &ctx, const char *path) {
   const texture_handle t = texture_load(ctx, path);
   texture_set_filter(ctx, t, filter_nearest); // pixel art
   return t;
 }
 } // namespace
 
-void load_images(njin_ctx &ctx) {
+void load_images(context &ctx) {
   images &i = demo.img;
   i.tiles = load(ctx, "assets/tiles.png");
   i.tree = load(ctx, "assets/sprites/tree.png");
@@ -43,7 +43,7 @@ void load_images(njin_ctx &ctx) {
   i.lamp_e = load(ctx, "assets/sprites/lamp_e.png");
 }
 
-entt::entity spawn(njin_ctx &ctx, vec2 pos, f32 rot, f32 scale) {
+entt::entity spawn(context &ctx, vec2 pos, f32 rot, f32 scale) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e, transform{.pos = pos, .rot = rot, .scale = scale});
@@ -51,26 +51,26 @@ entt::entity spawn(njin_ctx &ctx, vec2 pos, f32 rot, f32 scale) {
   return e;
 }
 
-entt::entity add_light(njin_ctx &ctx, vec2 pos, const light_2d &light) {
+entt::entity add_light(context &ctx, vec2 pos, const light_2d &light) {
   const entt::entity e = spawn(ctx, pos);
   world(ctx).emplace<light_2d>(e, light);
   return e;
 }
 
-entt::entity add_occluder(njin_ctx &ctx, vec2 pos, light_occluder shape, f32 rot) {
+entt::entity add_occluder(context &ctx, vec2 pos, light_occluder shape, f32 rot) {
   const entt::entity e = spawn(ctx, pos, rot);
   world(ctx).emplace<light_occluder>(e, std::move(shape));
   return e;
 }
 
-entt::entity add_sprite(njin_ctx &ctx, vec2 pos, texture_handle texture, texture_handle normal, texture_handle material) {
+entt::entity add_sprite(context &ctx, vec2 pos, texture_handle texture, texture_handle normal, texture_handle material) {
   const entt::entity e = spawn(ctx, pos);
   world(ctx).emplace<sprite>(e, sprite{.texture = texture, .origin = {0.5f, 1.0f}, .layer = layer_things,
                                        .normal = normal, .material = material});
   return e;
 }
 
-entt::entity fill_floor(njin_ctx &ctx, i32 id, i32 id2) {
+entt::entity fill_floor(context &ctx, i32 id, i32 id2) {
   tilemap map{};
   map.tileset = demo.img.tiles;
   map.tile_size = tile;
@@ -86,7 +86,7 @@ entt::entity fill_floor(njin_ctx &ctx, i32 id, i32 id2) {
 
 // Walls block light twice over: the tilemap's outline becomes light_occluder shapes (one closed loop per
 // block of wall, holes marked), and the same tilemap is solid for bodies (collider_tiles).
-entt::entity build_walls(njin_ctx &ctx, std::initializer_list<std::string_view> rows, i32 wall_tile) {
+entt::entity build_walls(context &ctx, std::initializer_list<std::string_view> rows, i32 wall_tile) {
   tilemap map{};
   map.tileset = demo.img.tiles;
   map.tile_size = tile;
@@ -107,7 +107,7 @@ struct wall_occluder {
 };
 } // namespace
 
-void rebuild_wall_occluders(njin_ctx &ctx, entt::entity walls) {
+void rebuild_wall_occluders(context &ctx, entt::entity walls) {
   entt::registry &reg = world(ctx);
   std::vector<entt::entity> old;
   for (auto [e, w] : reg.view<const wall_occluder>().each())
@@ -131,9 +131,9 @@ lighting_desc base_lighting() {
 
 void add_label(vec2 at, std::string text, rgba color) { demo.labels.push_back({at, std::move(text), color}); }
 
-vec2 mouse_world(njin_ctx &ctx) { return scr2w(ctx, mouse_pos(ctx)); }
+vec2 mouse_world(context &ctx) { return scr2w(ctx, mouse_pos(ctx)); }
 
-void draw_occluder_shape(njin_ctx &ctx, const light_occluder &o, const transform &t, rgba fill, rgba edge) {
+void draw_occluder_shape(context &ctx, const light_occluder &o, const transform &t, rgba fill, rgba edge) {
   if (o.points.size() < 2)
     return;
   const f32 a = t.rot * (3.14159265f / 180.0f);

@@ -6,7 +6,7 @@ namespace {
 constexpr njin::vec2 frame_size{32, 32};
 entt::entity hero = entt::null;
 
-void spawn(njin::njin_ctx &ctx) {
+void spawn(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   const njin::texture_handle sheet = njin::texture_load(ctx, "assets/hero.png");
   njin::texture_set_filter(ctx, sheet, njin::filter_nearest); // pixel art
@@ -28,7 +28,7 @@ void spawn(njin::njin_ctx &ctx) {
                                                .layer = 5});
 }
 
-void control(njin::njin_ctx &ctx) {
+void control(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   auto &tr = reg.get<njin::transform>(hero);
   auto &spr = reg.get<njin::sprite>(hero);
@@ -51,7 +51,7 @@ void control(njin::njin_ctx &ctx) {
     njin::anim_play(anim, 0, 4, 6.0f);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, spawn);
   njin::ecs_register(ctx, njin::phase_update, control);
 }

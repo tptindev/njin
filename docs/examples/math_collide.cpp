@@ -9,7 +9,7 @@ struct bullet {
 std::vector<bullet> bullets;
 njin::rect enemy{{300, 100}, {40, 40}};
 
-void shoot(njin::njin_ctx &ctx) {
+void shoot(njin::context &ctx) {
   if (!njin::mouse_pressed(ctx, njin::mouse_left))
     return;
   const njin::vec2 from{100, 200};
@@ -20,7 +20,7 @@ void shoot(njin::njin_ctx &ctx) {
   bullets.push_back({from, dir * 400.0f});
 }
 
-void move(njin::njin_ctx &ctx) {
+void move(njin::context &ctx) {
   const njin::f32 dt = njin::delta(ctx);
   for (bullet &b : bullets) {
     b.pos += b.vel * dt;
@@ -37,13 +37,13 @@ void move(njin::njin_ctx &ctx) {
   });
 }
 
-void draw(njin::njin_ctx &ctx) {
+void draw(njin::context &ctx) {
   njin::draw_rect(ctx, enemy, njin::colors::red);
   for (const bullet &b : bullets)
     njin::draw_circle(ctx, b.pos, 4, njin::colors::yellow);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_update, shoot);
   njin::ecs_register(ctx, njin::phase_fixed_update, move);
   njin::ecs_register(ctx, njin::phase_render, draw);

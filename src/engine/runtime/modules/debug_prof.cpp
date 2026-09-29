@@ -56,7 +56,7 @@ json_value item(const char *kind, const std::string &name, usize bytes, bool gpu
 
 std::string dim(i32 w, i32 h) { return std::to_string(w) + " x " + std::to_string(h); }
 
-usize chunk_bytes_of(const njin_ctx &ctx, entt::entity e) {
+usize chunk_bytes_of(const context &ctx, entt::entity e) {
   const auto it = ctx.sprites.chunks.find(e);
   if (it == ctx.sprites.chunks.end())
     return 0;
@@ -67,7 +67,7 @@ usize chunk_bytes_of(const njin_ctx &ctx, entt::entity e) {
 }
 } // namespace
 
-json_value debug_build_prof(const njin_ctx &ctx) {
+json_value debug_build_prof(const context &ctx) {
   static const char *phase_names[phase_count] = {"startup",    "pre_update", "fixed_update", "update", "post_update",
                                                  "pre_render", "render",     "post_render",  "shutdown"};
   const ecs_store &ecs = ctx.ecs;
@@ -94,7 +94,7 @@ json_value debug_build_prof(const njin_ctx &ctx) {
       .set("systems", std::move(systems));
 }
 
-json_value debug_build_mem(const njin_ctx &ctx) {
+json_value debug_build_mem(const context &ctx) {
   const debug_state &d = ctx.debug;
   const entt::registry &reg = ctx.ecs.registry;
   json_value types = json_value::make_array();
@@ -135,7 +135,7 @@ json_value debug_build_mem(const njin_ctx &ctx) {
       .set("registry_bytes", (i64)(entities * sizeof(entt::entity)));
 }
 
-json_value debug_build_res(const njin_ctx &ctx) {
+json_value debug_build_res(const context &ctx) {
   json_value items = json_value::make_array();
   usize gpu = 0, ram = 0;
   const auto add = [&](json_value v) {
@@ -237,7 +237,7 @@ json_value debug_build_res(const njin_ctx &ctx) {
       .set("ram_bytes", (i64)ram);
 }
 
-entity_cost debug_entity_cost(const njin_ctx &ctx, entt::entity entity) {
+entity_cost debug_entity_cost(const context &ctx, entt::entity entity) {
   const debug_state &d = ctx.debug;
   const entt::registry &reg = ctx.ecs.registry;
   entity_cost cost;
@@ -255,7 +255,7 @@ entity_cost debug_entity_cost(const njin_ctx &ctx, entt::entity entity) {
   return cost;
 }
 
-usize debug_entity_gpu(const njin_ctx &ctx, entt::entity entity) {
+usize debug_entity_gpu(const context &ctx, entt::entity entity) {
   const entt::registry &reg = ctx.ecs.registry;
   usize gpu = 0;
   if (reg.all_of<tilemap>(entity))

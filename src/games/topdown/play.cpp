@@ -6,20 +6,20 @@
 namespace td {
 namespace {
 constexpr vec2 tile{16.0f, 16.0f};
-njin_ctx *g_ctx = nullptr;
+context *g_ctx = nullptr;
 
 rect cell(i32 index) { return rect{{(f32)(index % 8) * 16.0f, (f32)(index / 8) * 16.0f}, tile}; }
 
-const level_object *object_of(njin_ctx &ctx, entt::entity e) { return world(ctx).try_get<level_object>(e); }
+const level_object *object_of(context &ctx, entt::entity e) { return world(ctx).try_get<level_object>(e); }
 
-void add_sprite(njin_ctx &ctx, entt::entity e, i32 frame) {
+void add_sprite(context &ctx, entt::entity e, i32 frame) {
   world(ctx).emplace<sprite>(e, sprite{.texture = g.sprites, .source = cell(frame), .origin = {0.5f, 1.0f},
                                        .layer = draw_things});
 }
 
 // --- prefabs ---
 
-void build_player(njin_ctx &ctx, entt::entity e) {
+void build_player(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 0);
   reg.emplace<sprite_anim>(e, sprite_anim{.frame_size = tile, .first = 0, .count = 1, .fps = 8.0f});
@@ -36,7 +36,7 @@ void build_player(njin_ctx &ctx, entt::entity e) {
   g.player = e;
 }
 
-void build_slime(njin_ctx &ctx, entt::entity e) {
+void build_slime(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 8);
   reg.emplace<sprite_anim>(e, sprite_anim{.frame_size = tile, .first = 8, .count = 2, .fps = 3.0f});
@@ -51,14 +51,14 @@ void build_slime(njin_ctx &ctx, entt::entity e) {
   g.slimes_left++;
 }
 
-void build_chest(njin_ctx &ctx, entt::entity e) {
+void build_chest(context &ctx, entt::entity e) {
   add_sprite(ctx, e, 16);
   world(ctx).emplace<collider>(e, collider{.size = {12.0f, 8.0f}, .offset = {0.0f, -4.0f}, .layer = layer_thing,
                                            .mask = layer_player});
   world(ctx).emplace<chest_tag>(e);
 }
 
-void build_sign(njin_ctx &ctx, entt::entity e) {
+void build_sign(context &ctx, entt::entity e) {
   add_sprite(ctx, e, 22);
   const level_object *obj = object_of(ctx, e);
   world(ctx).emplace<collider>(e, collider{.size = {12.0f, 8.0f}, .offset = {0.0f, -4.0f}, .layer = layer_thing,
@@ -66,7 +66,7 @@ void build_sign(njin_ctx &ctx, entt::entity e) {
   world(ctx).emplace<sign_tag>(e, sign_tag{obj != nullptr ? obj->props["text"].string_or("") : ""});
 }
 
-void build_npc(njin_ctx &ctx, entt::entity e) {
+void build_npc(context &ctx, entt::entity e) {
   add_sprite(ctx, e, 20);
   world(ctx).emplace<sprite_anim>(e, sprite_anim{.frame_size = tile, .first = 20, .count = 2, .fps = 0.7f});
   world(ctx).emplace<collider>(e, collider{.size = {12.0f, 8.0f}, .offset = {0.0f, -4.0f}, .layer = layer_thing,
@@ -76,7 +76,7 @@ void build_npc(njin_ctx &ctx, entt::entity e) {
 }
 
 // A tree: a big sprite sorted by its trunk, with a small collider at the base.
-void build_tree(njin_ctx &ctx, entt::entity e) {
+void build_tree(context &ctx, entt::entity e) {
   world(ctx).emplace<sprite>(e, sprite{.texture = g.sprites,
                                        .source = rect{{0.0f, 96.0f}, {32.0f, 32.0f}},
                                        .origin = {0.5f, 1.0f},
@@ -86,7 +86,7 @@ void build_tree(njin_ctx &ctx, entt::entity e) {
 
 // --- helpers ---
 
-void hurt_player(njin_ctx &ctx, vec2 from) {
+void hurt_player(context &ctx, vec2 from) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.player))
     return;
@@ -104,10 +104,10 @@ void hurt_player(njin_ctx &ctx, vec2 from) {
   sprite_flash(ctx, g.player, {1.0f, 0.3f, 0.3f, 1.0f}, 0.2f);
   pad_rumble(ctx, 0, 0.5f, 0.7f, 0.2f);
   if (p.hp <= 0)
-    timer_after(ctx, 0.5f, [](njin_ctx &c) { scene_fade(c, g.over); }, {.real_time = true});
+    timer_after(ctx, 0.5f, [](context &c) { scene_fade(c, g.over); }, {.real_time = true});
 }
 
-void hit_slime(njin_ctx &ctx, entt::entity e, vec2 from) {
+void hit_slime(context &ctx, entt::entity e, vec2 from) {
   entt::registry &reg = world(ctx);
   slime &s = reg.get<slime>(e);
   if (s.stun > 0.05f)
@@ -129,7 +129,7 @@ void hit_slime(njin_ctx &ctx, entt::entity e, vec2 from) {
   }
 }
 
-void swing(njin_ctx &ctx) {
+void swing(context &ctx) {
   entt::registry &reg = world(ctx);
   player_tag &p = reg.get<player_tag>(g.player);
   const topdown_body &body = reg.get<topdown_body>(g.player);
@@ -142,7 +142,7 @@ void swing(njin_ctx &ctx) {
   reg.emplace<child_of>(sword, child_of{.parent = g.player, .local = transform{.pos = body.facing * 13.0f + vec2{0.0f, -6.0f}}});
   reg.emplace<sword_tag>(sword);
   reg.emplace<scene_owned>(sword, scene_owned{g.play});
-  timer_after(ctx, 0.16f, [sword](njin_ctx &c) {
+  timer_after(ctx, 0.16f, [sword](context &c) {
     if (world(c).valid(sword))
       world(c).destroy(sword);
   }, {.owner = sword});
@@ -151,7 +151,7 @@ void swing(njin_ctx &ctx) {
 // --- events ---
 
 void on_enter(const collision_enter &e) {
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   entt::registry &reg = world(ctx);
   if (scene_current(ctx).id != g.play.id || !reg.valid(e.self) || !reg.valid(e.other))
     return;
@@ -162,7 +162,7 @@ void on_enter(const collision_enter &e) {
 }
 
 void on_stay(const collision_stay &e) {
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   entt::registry &reg = world(ctx);
   if (scene_current(ctx).id != g.play.id || e.self != g.player || !reg.valid(e.other))
     return;
@@ -171,14 +171,14 @@ void on_stay(const collision_stay &e) {
 }
 
 void on_dash(const body_dashed &e) {
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   sound_play_once(ctx, g.s_dash);
   particles_spawn(ctx, fx::dust(), world(ctx).get<transform>(e.entity).pos, 6);
 }
 
 // --- systems ---
 
-void slimes(njin_ctx &ctx) {
+void slimes(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.player))
     return;
@@ -233,7 +233,7 @@ void slimes(njin_ctx &ctx) {
   }
 }
 
-void player_update(njin_ctx &ctx) {
+void player_update(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.player) || g.paused)
     return;
@@ -284,13 +284,13 @@ void player_update(njin_ctx &ctx) {
       reg.get<sprite>(g.near_talk).source = cell(17);
       sound_play_once(ctx, g.s_win);
       particles_spawn(ctx, fx::sparkle(), reg.get<transform>(g.near_talk).pos + vec2{0.0f, -8.0f}, 24);
-      timer_after(ctx, 1.0f, [](njin_ctx &c2) { scene_fade(c2, g.win); }, {.real_time = true});
+      timer_after(ctx, 1.0f, [](context &c2) { scene_fade(c2, g.win); }, {.real_time = true});
     }
   }
 }
 
 // The sword swing, drawn as a pale arc over the hitbox.
-void draw_swing(njin_ctx &ctx) {
+void draw_swing(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, tr, col] : reg.view<const transform, const collider, const sword_tag>().each()) {
     const rect r = collider_bounds(tr, col);
@@ -299,7 +299,7 @@ void draw_swing(njin_ctx &ctx) {
   }
 }
 
-void talk_hint(njin_ctx &ctx) {
+void talk_hint(context &ctx) {
   entt::registry &reg = world(ctx);
   if (g.near_talk == entt::null || !reg.valid(g.near_talk) || dialog_active(ctx))
     return;
@@ -310,7 +310,7 @@ void talk_hint(njin_ctx &ctx) {
   draw_text(ctx, key, pos - text_measure(ctx, key, 8.0f) * 0.5f, 8.0f, colors::white);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   g_ctx = &ctx;
   events(ctx).sink<collision_enter>().connect<&on_enter>();
   events(ctx).sink<collision_stay>().connect<&on_stay>();
@@ -324,7 +324,7 @@ void setup(njin_ctx &ctx) {
 
 mod_desc play_module() { return mod_desc{.name = "td.play", .setup = setup}; }
 
-void register_prefabs(njin_ctx &ctx) {
+void register_prefabs(context &ctx) {
   prefab_register(ctx, {.name = "player", .build = build_player});
   prefab_register(ctx, {.name = "slime", .build = build_slime});
   prefab_register(ctx, {.name = "chest", .build = build_chest});
@@ -333,7 +333,7 @@ void register_prefabs(njin_ctx &ctx) {
   prefab_register(ctx, {.name = "tree", .build = build_tree});
 }
 
-void play_enter(njin_ctx &ctx) {
+void play_enter(context &ctx) {
   g.slimes_left = 0;
   g.hits_taken = 0;
   g.run_time = 0.0f;
@@ -360,7 +360,7 @@ void play_enter(njin_ctx &ctx) {
   music_crossfade(ctx, g.m_forest, 0.8f);
 }
 
-void play_exit(njin_ctx &ctx) {
+void play_exit(context &ctx) {
   time_set_paused(ctx, false);
   dialog_stop(ctx);
   g.player = entt::null;

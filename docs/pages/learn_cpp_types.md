@@ -1,7 +1,7 @@
 # Bài 5: Giá trị, tham chiếu và quyền sở hữu {#learn_cpp_types}
 
 **Bài này dạy gì**: sao chép hay dùng chung, di chuyển, RAII, ai sở hữu một tài nguyên và nó sống bao lâu; vì sao
-njin dùng handle (id) thay cho con trỏ, và vì sao mọi hàm của engine nhận một `njin_ctx &`.
+njin dùng handle (id) thay cho con trỏ, và vì sao mọi hàm của engine nhận một `context &`.
 
 **Cần biết trước**: tham chiếu, `const`, `std::vector` và `std::string`, xem @ref learn_cpp_from_c.
 
@@ -344,18 +344,18 @@ bên trong engine.
 
 Con trỏ mà `sound_slot_of` trả về cũng chỉ dùng **ngay**, không lưu: đó chính là quy tắc "lấy lại mỗi lần" ở mục 5.
 
-## 8. Vì sao njin truyền `njin_ctx &` thay vì dùng biến toàn cục
+## 8. Vì sao njin truyền `context &` thay vì dùng biến toàn cục
 
-Trạng thái của engine (cửa sổ, kho tài nguyên, thời gian, registry...) nằm trong một đối tượng, `njin_ctx`, và mọi hàm
+Trạng thái của engine (cửa sổ, kho tài nguyên, thời gian, registry...) nằm trong một đối tượng, `context`, và mọi hàm
 của engine nhận nó. Header `njin_ctx.h` ghi:
 
 ```cpp
-// Opaque: created with njin_create (njin.h), only accessed through the
+// Opaque: created with create (njin.h), only accessed through the
 // functions below.
-struct njin_ctx;
+struct context;
 ```
 
-và mọi system của game là `void system(njin_ctx &ctx)`. So sánh hai cách giữ trạng thái:
+và mọi system của game là `void system(context &ctx)`. So sánh hai cách giữ trạng thái:
 
 @include learn_cpp_context.cpp
 
@@ -374,7 +374,7 @@ cho mỗi bài thử.
 
 Đây là đánh đổi chứ không phải luật: với game nhỏ, biến toàn cục đơn giản hơn. Game của njin cũng dùng biến toàn cục cho trạng
 thái **riêng của game** (`game_state g;` trong `src/games/pong/pong.cpp`), còn những gì **engine** sở hữu thì nằm trong
-`njin_ctx`, cái giá là viết thêm `ctx` ở đầu mỗi hàm. Để ý thêm: `njin_ctx` được khai báo mà không định nghĩa trong header công khai
+`context`, cái giá là viết thêm `ctx` ở đầu mỗi hàm. Để ý thêm: `context` được khai báo mà không định nghĩa trong header công khai
 ("opaque"). Game không thể tự tạo hay đọc trường bên trong, chỉ dùng được các hàm engine cho, nên engine đổi cách lưu mà
 không phá game.
 

@@ -4,7 +4,7 @@
 #include <string_view>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_file
 /// @{
@@ -33,11 +33,11 @@ bool file_write(const char *path, std::string_view data);
 ///
 /// The folder is `%APPDATA%/<game name>` on Windows,
 /// `~/Library/Application Support/<game name>` on macOS and
-/// `~/.local/share/<game name>` on Linux. The game name comes from `njin_cfg::app_name`,
+/// `~/.local/share/<game name>` on Linux. The game name comes from `config::app_name`,
 /// or from the window title if that is empty. The folder is created if missing.
 /// @param ctx Engine context.
 /// @param file_name File name, for example `"save.txt"`.
 /// @return Full path.
-std::string save_path(const njin_ctx &ctx, const char *file_name);
+std::string save_path(const context &ctx, const char *file_name);
 /// @}
 } // namespace njin

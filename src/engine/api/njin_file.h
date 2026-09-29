@@ -4,7 +4,7 @@
 #include <string_view>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_file
 /// @{
@@ -33,11 +33,11 @@ bool file_write(const char *path, std::string_view data);
 ///
 /// Thư mục là `%APPDATA%/<tên game>` trên Windows,
 /// `~/Library/Application Support/<tên game>` trên macOS và
-/// `~/.local/share/<tên game>` trên Linux. Tên game lấy từ `njin_cfg::app_name`,
+/// `~/.local/share/<tên game>` trên Linux. Tên game lấy từ `config::app_name`,
 /// hoặc từ tiêu đề cửa sổ nếu để trống. Thư mục được tạo nếu chưa có.
 /// @param ctx Context của engine.
 /// @param file_name Tên file, ví dụ `"save.txt"`.
 /// @return Đường dẫn đầy đủ.
-std::string save_path(const njin_ctx &ctx, const char *file_name);
+std::string save_path(const context &ctx, const char *file_name);
 /// @}
 } // namespace njin

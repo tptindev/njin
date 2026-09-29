@@ -36,7 +36,7 @@ void shrink(const u8 *src, i32 sw, i32 sh, u8 *dst, i32 dw, i32 dh) {
   }
 }
 
-void finish(njin_ctx &ctx, const char *why) {
+void finish(context &ctx, const char *why) {
   debug_recorder &r = ctx.debug.rec;
   if (!r.active)
     return;
@@ -53,7 +53,7 @@ void finish(njin_ctx &ctx, const char *why) {
 }
 } // namespace
 
-bool debug_record_start(njin_ctx &ctx, f32 fps, f32 scale, f32 max_seconds) {
+bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds) {
   debug_recorder &r = ctx.debug.rec;
   if (r.active)
     return true;
@@ -92,9 +92,9 @@ bool debug_record_start(njin_ctx &ctx, f32 fps, f32 scale, f32 max_seconds) {
   return true;
 }
 
-void debug_record_stop(njin_ctx &ctx) { finish(ctx, "stopped"); }
+void debug_record_stop(context &ctx) { finish(ctx, "stopped"); }
 
-void debug_record_frame(njin_ctx &ctx) {
+void debug_record_frame(context &ctx) {
   debug_recorder &r = ctx.debug.rec;
   if (!r.active)
     return;
@@ -133,7 +133,7 @@ void debug_record_frame(njin_ctx &ctx) {
     finish(ctx, "time limit");
 }
 
-json_value debug_record_status(const njin_ctx &ctx) {
+json_value debug_record_status(const context &ctx) {
   const debug_recorder &r = ctx.debug.rec;
   json_value m = json_value::make_object();
   m.set("t", "rec").set("on", r.active).set("frames", r.frames).set("secs", r.elapsed).set("bytes", (i64)r.gif.bytes());

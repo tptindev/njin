@@ -77,7 +77,7 @@ void destroy_owned(entt::registry &registry, scene_handle scene) {
 }
 } // namespace
 
-scene_handle scene_register(njin_ctx &ctx, const scene_desc &desc) {
+scene_handle scene_register(context &ctx, const scene_desc &desc) {
   if (desc.name == nullptr) {
     NJIN_WARN("scene_register: name is null");
     return scene_handle{};
@@ -90,7 +90,7 @@ scene_handle scene_register(njin_ctx &ctx, const scene_desc &desc) {
   return scene_handle{.id = (u32)ctx.scene.scenes.size()};
 }
 
-scene_handle scene_find(const njin_ctx &ctx, const char *name) {
+scene_handle scene_find(const context &ctx, const char *name) {
   if (name == nullptr)
     return scene_handle{};
   for (usize i = 0; i < ctx.scene.scenes.size(); i++) {
@@ -100,7 +100,7 @@ scene_handle scene_find(const njin_ctx &ctx, const char *name) {
   return scene_handle{};
 }
 
-void scene_set(njin_ctx &ctx, scene_handle scene) {
+void scene_set(context &ctx, scene_handle scene) {
   if (slot_of(ctx.scene, scene) == nullptr) {
     NJIN_WARN("scene_set: invalid scene handle %u", scene.id);
     return;
@@ -110,7 +110,7 @@ void scene_set(njin_ctx &ctx, scene_handle scene) {
   ctx.scene.fade = scene_fade_state{};
 }
 
-void scene_fade(njin_ctx &ctx, scene_handle scene,
+void scene_fade(context &ctx, scene_handle scene,
                 const scene_transition &transition) {
   if (slot_of(ctx.scene, scene) == nullptr) {
     NJIN_WARN("scene_fade: invalid scene handle %u", scene.id);
@@ -143,13 +143,13 @@ void scene_fade(njin_ctx &ctx, scene_handle scene,
   }
 }
 
-bool scene_transitioning(const njin_ctx &ctx) {
+bool scene_transitioning(const context &ctx) {
   return ctx.scene.fade.stage != fade_stage::none;
 }
 
-f32 scene_transition_cover(const njin_ctx &ctx) { return ctx.scene.fade.cover; }
+f32 scene_transition_cover(const context &ctx) { return ctx.scene.fade.cover; }
 
-void scene_fade_draw(njin_ctx &ctx) {
+void scene_fade_draw(context &ctx) {
   const scene_fade_state &fade = ctx.scene.fade;
   if (fade.stage == fade_stage::none || fade.cover <= 0.0f)
     return;
@@ -161,9 +161,9 @@ void scene_fade_draw(njin_ctx &ctx) {
     fade.transition.draw_loading(ctx);
 }
 
-scene_handle scene_current(const njin_ctx &ctx) { return ctx.scene.current; }
+scene_handle scene_current(const context &ctx) { return ctx.scene.current; }
 
-void scene_store_apply(njin_ctx &ctx) {
+void scene_store_apply(context &ctx) {
   scene_store &store = ctx.scene;
   advance_fade(store, ctx.time.dt_real);
   if (!store.has_pending)

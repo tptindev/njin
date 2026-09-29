@@ -44,7 +44,7 @@ void set_uniform(shader_store &store, shader_handle handle, const char *name,
 
 // The GL texture behind a binding, or 0 when the handle is stale (unloaded) or
 // names an image packed into an atlas.
-u32 gl_id_of(const njin_ctx &ctx, const shader_texture_binding &b) {
+u32 gl_id_of(const context &ctx, const shader_texture_binding &b) {
   if (b.is_render) {
     const render_texture_slot *rt = render_texture_slot_of(ctx.render_texture, render_texture_handle{.id = b.id});
     return rt != nullptr ? rt->target.texture.id : 0;
@@ -197,7 +197,7 @@ void shader_store_set_texture(shader_store &store, shader_handle handle, const c
   slot->textures.push_back(shader_texture_binding{.name = name, .is_render = is_render, .id = id});
 }
 
-void shader_bind_textures(const njin_ctx &ctx, const shader_slot &slot) {
+void shader_bind_textures(const context &ctx, const shader_slot &slot) {
   for (const shader_texture_binding &b : slot.textures) {
     const u32 gl = gl_id_of(ctx, b);
     const i32 loc = uniform_loc(slot, b.name.c_str());
@@ -209,7 +209,7 @@ void shader_bind_textures(const njin_ctx &ctx, const shader_slot &slot) {
   }
 }
 
-void shader_bind_textures_instanced(const njin_ctx &ctx, const shader_slot &slot) {
+void shader_bind_textures_instanced(const context &ctx, const shader_slot &slot) {
   int unit = 1;
   for (const shader_texture_binding &b : slot.textures) {
     const u32 gl = gl_id_of(ctx, b);

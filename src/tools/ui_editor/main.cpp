@@ -228,11 +228,11 @@ void load_font() {
 
 int main(int argc, char **argv) {
   using namespace ui_editor;
-  njin::njin_cfg cfg{.title = "njin UI Editor", .width = 1600.0f, .height = 920.0f, .target_fps = 60.0f};
+  njin::config cfg{.title = "njin UI Editor", .width = 1600.0f, .height = 920.0f, .target_fps = 60.0f};
   cfg.exit_key = njin::key_none;
   cfg.resizable = true;
   cfg.vsync = true;
-  njin::njin_ctx *ctx = njin::njin_create(cfg);
+  njin::context *ctx = njin::create(cfg);
 
   editor_app app;
   app.ctx = ctx;
@@ -284,6 +284,6 @@ int main(int argc, char **argv) {
 
   preview_shutdown();
   rlImGuiShutdown();
-  njin::njin_destroy(ctx);
+  njin::destroy(ctx);
   return 0;
 }

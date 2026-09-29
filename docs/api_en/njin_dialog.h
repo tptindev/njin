@@ -8,7 +8,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_dialog
 /// @{
@@ -94,24 +94,24 @@ struct dialog_style {
 dialog_style dialog_default_style();
 
 /// Sets the look of the dialog box. @param ctx Engine context. @param style Style.
-void dialog_set_style(njin_ctx &ctx, const dialog_style &style);
+void dialog_set_style(context &ctx, const dialog_style &style);
 
 /// Current look. @param ctx Engine context. @return Style.
-dialog_style dialog_get_style(const njin_ctx &ctx);
+dialog_style dialog_get_style(const context &ctx);
 
 /// Registers a portrait for lines to refer to by name (`"portrait": "oldman"`).
 /// @param ctx Engine context.
 /// @param name Name.
 /// @param texture Image.
 /// @param source Region in the image. A size of 0 means the whole image.
-void dialog_portrait(njin_ctx &ctx, const char *name, texture_handle texture, rect source = {});
+void dialog_portrait(context &ctx, const char *name, texture_handle texture, rect source = {});
 
 /// Function that checks the `cond` condition of lines and choices: takes the
 /// condition string and returns true or false. The game decides the syntax, for
 /// example the name of a flag in the save game (`"has_key"`), with a leading `!` to negate.
 /// @param ctx Engine context.
 /// @param fn Check function. If left empty, every condition is true.
-void dialog_set_condition(njin_ctx &ctx, std::function<bool(njin_ctx &, const std::string &)> fn);
+void dialog_set_condition(context &ctx, std::function<bool(context &, const std::string &)> fn);
 
 /// Starts a conversation. The engine draws and drives the dialog box until it
 /// ends; the game only needs to listen for events.
@@ -122,20 +122,20 @@ void dialog_set_condition(njin_ctx &ctx, std::function<bool(njin_ctx &, const st
 /// @param ctx Engine context.
 /// @param script The conversation. It is copied, so it may be destroyed right after.
 /// @param start Start node, or null for `script.start`.
-void dialog_start(njin_ctx &ctx, const dialog_script &script, const char *start = nullptr);
+void dialog_start(context &ctx, const dialog_script &script, const char *start = nullptr);
 
 /// Says a single line, no script needed: signs, objects.
 /// @param ctx Engine context.
 /// @param speaker Speaker, may be null.
 /// @param text Content.
 /// @param portrait Portrait name, may be null.
-void dialog_say(njin_ctx &ctx, const char *speaker, const char *text, const char *portrait = nullptr);
+void dialog_say(context &ctx, const char *speaker, const char *text, const char *portrait = nullptr);
 
 /// Whether the dialog is open. @param ctx Engine context. @return `true` if open.
-bool dialog_active(const njin_ctx &ctx);
+bool dialog_active(const context &ctx);
 
 /// Closes the dialog immediately (sends njin::dialog_ended). @param ctx Engine context.
-void dialog_stop(njin_ctx &ctx);
+void dialog_stop(context &ctx);
 
 /// Event: a line or choice with an `event` was just triggered.
 struct dialog_event {

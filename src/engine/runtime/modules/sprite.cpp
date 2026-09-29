@@ -144,7 +144,7 @@ void bake(chunk_image &image, const texture_slot &tileset, const tilemap &map,
   image.texture_version = tileset.version;
 }
 
-void animate(njin_ctx &ctx) {
+void animate(context &ctx) {
   const f32 dt = ctx.time.dt;
   ctx.sprites.tile_time += dt;
   auto view = ctx.ecs.registry.view<sprite, sprite_anim>();
@@ -180,7 +180,7 @@ void animate(njin_ctx &ctx) {
   }
 }
 
-void bake_tilemaps(njin_ctx &ctx) {
+void bake_tilemaps(context &ctx) {
   sprite_cache &cache = ctx.sprites;
   const u32 frame = ++cache.frame;
   ctx.stats.reset();
@@ -225,7 +225,7 @@ void bake_tilemaps(njin_ctx &ctx) {
   }
 }
 
-void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
+void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
                   const tilemap &map, const rect &view) {
   const texture_slot *tileset = texture_slot_of(ctx.texture, map.tileset);
   if (tileset == nullptr)
@@ -280,7 +280,7 @@ void draw_tilemap(njin_ctx &ctx, entt::entity entity, const transform &tr,
 
 // False when `spr` is certainly outside `view`. The box is a circle around the
 // anchor that reaches the farthest corner, so rotation cannot pull it back in.
-bool sprite_on_screen(const njin_ctx &ctx, const transform &tr, const sprite &spr,
+bool sprite_on_screen(const context &ctx, const transform &tr, const sprite &spr,
                       const rect &view) {
   const texture_slot *slot = texture_slot_of(ctx.texture, spr.texture);
   if (slot == nullptr)
@@ -304,7 +304,7 @@ struct draw_item {
   f32 y = 0.0f; // for layers sorted by y
 };
 
-void draw(njin_ctx &ctx) {
+void draw(context &ctx) {
   entt::registry &registry = ctx.ecs.registry;
   render_stats &stats = ctx.stats;
   const rect view = camera_bounds(ctx);
@@ -386,7 +386,7 @@ void draw(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_post_update, animate, "animate");
   ecs_register(ctx, phase_post_update, fx_update_sprite_flashes, "fx_update_sprite_flashes");
   ecs_register(ctx, phase_post_update, fx_update_sprite_dissolves, "fx_update_sprite_dissolves");
@@ -402,7 +402,7 @@ sprite_cache::~sprite_cache() {
   }
 }
 
-void draw_set_y_sort(njin_ctx &ctx, i32 layer, bool on) {
+void draw_set_y_sort(context &ctx, i32 layer, bool on) {
   if (on)
     ctx.sprites.y_sorted.insert(layer);
   else

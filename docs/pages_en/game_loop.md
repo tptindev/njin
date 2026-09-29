@@ -1,6 +1,6 @@
 # The game loop {#game_loop}
 
-njin_run() runs the following loop:
+run() runs the following loop:
 
 ```mermaid
 flowchart TD
@@ -63,4 +63,4 @@ camera does not shift or zoom it. See @ref camera.
 - `phase_shutdown` runs **once** after the window closes.
 
 Resources (textures, shaders, render textures, sounds, music) are freed automatically when you call
-njin_destroy(), so you are not required to unload them in `phase_shutdown`.
+destroy(), so you are not required to unload them in `phase_shutdown`.

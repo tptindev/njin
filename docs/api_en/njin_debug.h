@@ -8,7 +8,7 @@
 #include <type_traits>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_debug
 /// @{
@@ -40,18 +40,18 @@ struct debug_server_desc {
 /// **Log:** while an inspector is connected, logs go to the inspector and are **no longer printed
 /// to the game's console**; with no inspector (or after it disconnects) logs still go to the
 /// console as usual. Lines already emitted before, including while the window was opening (at most 2000
-/// lines, counted only from njin_create()), are sent to the inspector as soon as it connects.
+/// lines, counted only from create()), are sent to the inspector as soon as it connects.
 /// @param ctx Engine context.
 /// @param desc Port and send rate.
 /// @return `false` if the port is taken (for example another copy of the game is running).
-bool debug_server_start(njin_ctx &ctx, const debug_server_desc &desc = {});
+bool debug_server_start(context &ctx, const debug_server_desc &desc = {});
 
 /// Closes the debug port and disconnects the connected inspector. @param ctx Engine context.
-void debug_server_stop(njin_ctx &ctx);
+void debug_server_stop(context &ctx);
 
 /// Whether any inspector is connected. @param ctx Engine context.
 /// @return `true` if there is one.
-bool debug_server_connected(const njin_ctx &ctx);
+bool debug_server_connected(const context &ctx);
 
 /// Sets a value to watch live in the inspector's "Watches" panel: character
 /// velocity, AI state, number of monsters alive. Call it every frame or whenever it
@@ -64,11 +64,11 @@ bool debug_server_connected(const njin_ctx &ctx);
 /// @param ctx Engine context.
 /// @param name Display name.
 /// @param value Value: a number, bool, string, or any njin::json_value.
-void debug_watch(njin_ctx &ctx, const char *name, json_value value);
+void debug_watch(context &ctx, const char *name, json_value value);
 
 /// Like debug_watch() for a vec2. @param ctx Engine context.
 /// @param name Display name. @param value Value.
-void debug_watch(njin_ctx &ctx, const char *name, vec2 value);
+void debug_watch(context &ctx, const char *name, vec2 value);
 
 /// Function that turns a component into JSON so the inspector can show its value.
 using debug_component_fn = std::function<json_value(const entt::registry &, entt::entity)>;
@@ -82,7 +82,7 @@ using debug_component_fn = std::function<json_value(const entt::registry &, entt
 /// @param fn Function that converts to JSON.
 /// @param bytes Size of one component (`sizeof`), so the inspector's Memory panel
 /// can compute memory. 0 means unknown.
-void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_component_fn fn,
+void debug_component(context &ctx, entt::id_type type, const char *name, debug_component_fn fn,
                      std::size_t bytes = 0);
 
 /// Registers how to show a game component `T` with a function taking `const T &`.
@@ -98,7 +98,7 @@ void debug_component(njin_ctx &ctx, entt::id_type type, const char *name, debug_
 /// @param name Display name.
 /// @param fn Function that converts to JSON.
 template <class T, class Fn>
-void debug_component(njin_ctx &ctx, const char *name, Fn fn) {
+void debug_component(context &ctx, const char *name, Fn fn) {
   debug_component(ctx, entt::type_hash<T>::value(), name,
                   [fn](const entt::registry &reg, entt::entity e) -> json_value {
                     if constexpr (std::is_empty_v<T>) {
@@ -132,6 +132,6 @@ struct render_info {
 /// to get the numbers for the whole frame; read earlier, the parts not yet drawn are missing.
 /// @param ctx Engine context.
 /// @return The statistics.
-render_info render_info_get(const njin_ctx &ctx);
+render_info render_info_get(const context &ctx);
 /// @}
 } // namespace njin

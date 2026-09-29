@@ -97,14 +97,14 @@ void shader_store_set_vec4_array(shader_store &store, shader_handle handle, cons
 void shader_store_set_texture(shader_store &store, shader_handle handle, const char *name,
                               bool is_render, u32 id);
 
-struct njin_ctx;
+struct context;
 // Attach the shader's extra textures for the draws that follow. Both need the
 // shader to be the active one. The first is for raylib's batch (the sampler
 // lives until the batch is flushed: on the next full batch, 256 texture
 // changes, or an instanced draw / render texture switch in between). The
 // second is for draw_instanced, which draws itself: units 1.., undone by the
 // third.
-void shader_bind_textures(const njin_ctx &ctx, const shader_slot &slot);
-void shader_bind_textures_instanced(const njin_ctx &ctx, const shader_slot &slot);
+void shader_bind_textures(const context &ctx, const shader_slot &slot);
+void shader_bind_textures_instanced(const context &ctx, const shader_slot &slot);
 void shader_unbind_textures_instanced(const shader_slot &slot);
 } // namespace njin

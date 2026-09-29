@@ -15,7 +15,7 @@ f32 approach(f32 dt, f32 tau) { return tau > 0.0f ? 1.0f - std::exp(-dt / tau) :
 
 f32 sign_of(f32 v, f32 dead) { return v > dead ? 1.0f : (v < -dead ? -1.0f : 0.0f); }
 
-void follow(njin_ctx &ctx) {
+void follow(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 dt = delta(ctx);
   const vec2 screen = screen_size(ctx);
@@ -66,14 +66,14 @@ void follow(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, follow, "follow"); }
+void setup(context &ctx) { ecs_register(ctx, phase_post_update, follow, "follow"); }
 } // namespace
 
 mod_desc camera_follow_module() {
   return mod_desc{.name = "njin.camera_follow", .setup = setup};
 }
 
-entt::entity camera_spawn(njin_ctx &ctx, f32 zoom, vec2 pos) {
+entt::entity camera_spawn(context &ctx, f32 zoom, vec2 pos) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e, transform{.pos = pos});
@@ -83,11 +83,11 @@ entt::entity camera_spawn(njin_ctx &ctx, f32 zoom, vec2 pos) {
   return e;
 }
 
-rect level_bounds(const njin_ctx &ctx, level_handle level) {
+rect level_bounds(const context &ctx, level_handle level) {
   return rect{level_origin(ctx, level), level_size(ctx, level)};
 }
 
-vec2 camera_clamp(const njin_ctx &ctx, vec2 pos, const camera_2d &cam, rect bounds) {
+vec2 camera_clamp(const context &ctx, vec2 pos, const camera_2d &cam, rect bounds) {
   if (bounds.size.x <= 0.0f || bounds.size.y <= 0.0f)
     return pos;
   const f32 z = cam.zoom > 0.0f ? cam.zoom : 1.0f;

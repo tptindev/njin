@@ -16,7 +16,7 @@ struct game {
   entt::entity player = entt::null;
 } g;
 
-void startup(njin::njin_ctx &ctx) {
+void startup(njin::context &ctx) {
   // Mọi thứ đứng trên bản đồ vẽ cùng một lớp, sắp theo y: đi vòng ra sau cây.
   njin::draw_set_y_sort(ctx, draw_things, true);
 
@@ -26,7 +26,7 @@ void startup(njin::njin_ctx &ctx) {
 }
 
 // Quái đuổi người chơi: A* mỗi 0.4 giây, rồi đi theo đường.
-void chase(njin::njin_ctx &ctx) {
+void chase(njin::context &ctx) {
   entt::registry &reg = njin::world(ctx);
   const njin::vec2 target = reg.get<njin::transform>(g.player).pos;
   for (auto [e, tr, c, body] : reg.view<njin::transform, chaser, njin::topdown_body>().each()) {
@@ -45,15 +45,15 @@ void chase(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, startup);
   njin::ecs_register(ctx, njin::phase_fixed_update, chase);
 }
 } // namespace
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "Top-down", .width = 1280, .height = 720, .target_fps = 60});
-  njin::njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::context *ctx = njin::create({.title = "Top-down", .width = 1280, .height = 720, .target_fps = 60});
+  njin::mod_register(*ctx, {.name = "game", .setup = setup});
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

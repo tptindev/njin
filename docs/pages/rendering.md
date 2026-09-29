@@ -12,7 +12,7 @@ Texture, shader và render texture được quản lý qua **handle**, một str
   không gây lỗi.
 - Handle đã unload không bao giờ trỏ nhầm sang tài nguyên mới.
 
-Tài nguyên được giải phóng tự động khi gọi njin::njin_destroy(). Chỉ cần gọi
+Tài nguyên được giải phóng tự động khi gọi njin::destroy(). Chỉ cần gọi
 `*_unload` khi muốn giải phóng sớm.
 
 ## Texture

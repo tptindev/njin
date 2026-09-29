@@ -48,5 +48,5 @@ struct ecs_store {
 // a new frame. Call once per frame, before any system runs.
 void ecs_profile_roll(ecs_store &ecs);
 
-void ecs_run(njin_ctx &ctx, sys_phase phase);
+void ecs_run(context &ctx, sys_phase phase);
 } // namespace njin

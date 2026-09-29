@@ -2,7 +2,7 @@
 #include "_types.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_post
 /// @{
@@ -57,12 +57,12 @@ struct post_fx {
 /// Đặt các hiệu ứng post-processing dựng sẵn. `post_fx{}` là tắt hết.
 /// @param ctx Context của engine.
 /// @param fx Các hiệu ứng.
-void post_fx_set(njin_ctx &ctx, const post_fx &fx);
+void post_fx_set(context &ctx, const post_fx &fx);
 
 /// Các hiệu ứng đang đặt. Sửa bản sao rồi post_fx_set() lại.
 /// @param ctx Context của engine.
 /// @return Các hiệu ứng hiện tại.
-post_fx post_fx_get(const njin_ctx &ctx);
+post_fx post_fx_get(const context &ctx);
 
 /// Nội suy giữa hai bộ hiệu ứng, để chuyển mượt (ví dụ vào menu pause).
 /// @param a Bộ ở `t = 0`.

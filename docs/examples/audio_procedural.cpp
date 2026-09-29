@@ -6,7 +6,7 @@ namespace {
 njin::sound_handle beep;
 
 // Âm thanh do game tự sinh ra lúc khởi động, không đọc từ file.
-void make_beep(njin::njin_ctx &ctx) {
+void make_beep(njin::context &ctx) {
   const njin::i32 sample_rate = 44100;
   const njin::i32 count = sample_rate / 5; // 0,2 giây
 
@@ -22,7 +22,7 @@ void make_beep(njin::njin_ctx &ctx) {
   beep = njin::sound_load_samples(ctx, samples.data(), count, sample_rate);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, make_beep);
 }
 } // namespace

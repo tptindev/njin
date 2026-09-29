@@ -38,14 +38,14 @@
 #include "demo.h"
 
 int main() {
-  njin::njin_ctx *ctx = njin::njin_create({.title = "njin render demo",
+  njin::context *ctx = njin::create({.title = "njin render demo",
                                            .width = 1280,
                                            .height = 720,
                                            .target_fps = 240,
                                            .clear_bg_color = {0.05f, 0.07f, 0.06f, 1.0f}});
-  njin::njin_mod_register(*ctx, {.name = "render_demo", .setup = render_demo::setup});
+  njin::mod_register(*ctx, {.name = "render_demo", .setup = render_demo::setup});
   // Open for njin_inspector: the same numbers as the HUD, and more.
   njin::debug_server_start(*ctx);
-  njin::njin_run(*ctx);
-  njin::njin_destroy(ctx);
+  njin::run(*ctx);
+  njin::destroy(ctx);
 }

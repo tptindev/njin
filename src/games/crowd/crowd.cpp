@@ -42,7 +42,7 @@ struct game_state {
 game_state g;
 
 // Moves the camera to the gallery or to the middle of the crowd.
-void place_camera(njin_ctx &ctx) {
+void place_camera(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.camera))
     return;
@@ -57,13 +57,13 @@ void place_camera(njin_ctx &ctx) {
   }
 }
 
-void populate(njin_ctx &ctx, u32 count) {
+void populate(context &ctx, u32 count) {
   sim_populate(ctx, count);
   g.population = count;
   g.selected = entt::null;
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   g.gpu_ok = sheet_load(ctx);
   sim_debug_components(ctx);
   g.camera = camera_spawn(ctx, 0.6f, world_size * 0.5f);
@@ -79,7 +79,7 @@ void startup(njin_ctx &ctx) {
   shader_set_vec2(ctx, g.ground, "resolution", g.ground_area.size);
 }
 
-void camera_input(njin_ctx &ctx) {
+void camera_input(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.camera))
     return;
@@ -120,7 +120,7 @@ void camera_input(njin_ctx &ctx) {
   }
 }
 
-void game_input(njin_ctx &ctx) {
+void game_input(context &ctx) {
   if (key_pressed(ctx, key_1)) populate(ctx, 1000);
   if (key_pressed(ctx, key_2)) populate(ctx, 5000);
   if (key_pressed(ctx, key_3)) populate(ctx, 20000);
@@ -145,12 +145,12 @@ void game_input(njin_ctx &ctx) {
   }
 }
 
-void simulate(njin_ctx &ctx) {
+void simulate(context &ctx) {
   if (!g.frozen)
     sim_update(ctx, delta(ctx));
 }
 
-void bake(njin_ctx &ctx) {
+void bake(context &ctx) {
   if (!g.gpu_ok || sheet_ready())
     return;
   sheet_bake(ctx);
@@ -160,7 +160,7 @@ void bake(njin_ctx &ctx) {
 }
 
 // Drawing is three systems so the inspector times each step.
-void draw_background(njin_ctx &ctx) {
+void draw_background(context &ctx) {
   shader_begin(ctx, g.ground);
   draw_rect(ctx, g.ground_area, rgba{1.0f, 1.0f, 1.0f, 1.0f});
   shader_end(ctx);
@@ -170,7 +170,7 @@ void draw_background(njin_ctx &ctx) {
 }
 
 // Cull to the camera, with room for a lying or jumping figure at the edge.
-void crowd_cull(njin_ctx &ctx) {
+void crowd_cull(context &ctx) {
   g.visible.clear();
   if (!sheet_ready())
     return;
@@ -188,15 +188,15 @@ void crowd_cull(njin_ctx &ctx) {
 }
 
 // Whoever stands lower on screen is in front.
-void crowd_sort(njin_ctx &) {
+void crowd_sort(context &) {
   std::sort(g.visible.begin(), g.visible.end(), [](const instance &a, const instance &b) { return a.y < b.y; });
 }
 
-void crowd_draw(njin_ctx &ctx) { sheet_draw(ctx, g.visible); }
+void crowd_draw(context &ctx) { sheet_draw(ctx, g.visible); }
 
 // Totals for the inspector's Watches panel; each person and group is also an
 // entity in its Entities panel. Skipped when no inspector is connected.
-void debug_watches(njin_ctx &ctx) {
+void debug_watches(context &ctx) {
   if (!debug_server_connected(ctx))
     return;
   const entt::registry &reg = world(ctx);
@@ -260,7 +260,7 @@ void debug_watches(njin_ctx &ctx) {
                                                             : json_value("(click a person)"));
 }
 
-void draw_hud(njin_ctx &ctx) {
+void draw_hud(context &ctx) {
   g.frame_ms = lerp(g.frame_ms, delta_real(ctx) * 1000.0f, 0.05f);
   const rgba ink{0.15f, 0.13f, 0.14f, 1.0f}, soft{0.15f, 0.13f, 0.14f, 0.7f};
   if (!g.gpu_ok) {
@@ -302,7 +302,7 @@ void draw_hud(njin_ctx &ctx) {
     draw_text(ctx, g.status.c_str(), {16, screen_size(ctx).y - 30}, 16.0f, soft);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "startup");
   ecs_register(ctx, phase_pre_update, camera_input, "camera_input");
   ecs_register(ctx, phase_pre_update, game_input, "game_input");

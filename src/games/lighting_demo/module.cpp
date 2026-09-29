@@ -6,7 +6,7 @@
 namespace lighting_demo {
 namespace {
 // Leaves the current room (every entity it made is destroyed) and builds room `index`.
-void enter_room(njin_ctx &ctx, i32 index) {
+void enter_room(context &ctx, i32 index) {
   entt::registry &reg = world(ctx);
   const auto view = reg.view<room_entity>();
   const std::vector<entt::entity> old(view.begin(), view.end());
@@ -16,14 +16,14 @@ void enter_room(njin_ctx &ctx, i32 index) {
   room_at(demo.current).build(ctx);
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   load_images(ctx);
   draw_set_y_sort(ctx, layer_things, true); // things standing on the ground overlap by their feet
   demo.camera = camera_spawn(ctx, camera_zoom, room_centre);
   enter_room(ctx, 0);
 }
 
-void input(njin_ctx &ctx) {
+void input(context &ctx) {
   // Going from room to room. On a laptop Page Up / Down and F1..F12 often need Fn, so Tab, the number
   // keys and the two buttons of the bottom bar do it too.
   const bool shift = key_held(ctx, key_left_shift) || key_held(ctx, key_right_shift);
@@ -64,7 +64,7 @@ void input(njin_ctx &ctx) {
 }
 } // namespace
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "startup");
   ecs_register(ctx, phase_update, input, "input");
   ecs_register(ctx, phase_render, draw_world, "draw_world");

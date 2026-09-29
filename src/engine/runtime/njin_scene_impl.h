@@ -40,9 +40,9 @@ struct scene_store {
 // Advances a running fade by `dt_real` and requests the switch once the
 // screen is covered. Then runs a pending switch: on_exit of the old scene,
 // destroys the entities it owned, then on_enter of the new one.
-void scene_store_apply(njin_ctx &ctx);
+void scene_store_apply(context &ctx);
 
 // Draws the fade overlay and the loading screen, in screen space, on top of
 // everything else. Called after phase_post_render.
-void scene_fade_draw(njin_ctx &ctx);
+void scene_fade_draw(context &ctx);
 } // namespace njin

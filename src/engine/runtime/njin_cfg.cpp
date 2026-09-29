@@ -4,7 +4,7 @@
 
 namespace njin {
 
-f32 fps(const njin_ctx &ctx) { return ctx.cfg.target_fps; }
+f32 fps(const context &ctx) { return ctx.cfg.target_fps; }
 // screen_size lives in njin_view.cpp: it answers the virtual size when one is set.
 
 } // namespace njin

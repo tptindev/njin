@@ -74,7 +74,7 @@ cell_ref cell_for(pose_id pose, u8 dir, u32 frame) {
   return {flip ? -cell : cell, (u8)base};
 }
 
-bool sheet_load(njin_ctx &ctx) {
+bool sheet_load(context &ctx) {
   if (!instancing_available(ctx))
     return false;
   u32 next = 0;
@@ -118,7 +118,7 @@ bool sheet_load(njin_ctx &ctx) {
   return true;
 }
 
-void sheet_bake(njin_ctx &ctx) {
+void sheet_bake(context &ctx) {
   if (s.baked || s.bake.id == 0)
     return;
   s.baked = true;
@@ -169,14 +169,14 @@ sheet_stats sheet_get_stats() {
           (2 * sheet_w * sheet_h + head_sheet_w * head_sheet_h) * 4};
 }
 
-void sheet_draw(njin_ctx &ctx, const std::vector<instance> &instances) {
+void sheet_draw(context &ctx, const std::vector<instance> &instances) {
   if (!s.baked || instances.empty())
     return;
   instance_buffer_upload(ctx, s.crowd, &instances.data()->x, (u32)instances.size());
   draw_instanced(ctx, s.crowd, s.draw, 0, (u32)instances.size(), s.body[0]);
 }
 
-bool sheet_save(njin_ctx &ctx, std::string &folder) {
+bool sheet_save(context &ctx, std::string &folder) {
   if (!s.baked)
     return false;
   folder = save_path(ctx, "sheet_*.png");

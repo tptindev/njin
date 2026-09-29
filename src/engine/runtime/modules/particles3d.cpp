@@ -39,7 +39,7 @@ usize live_count(const particles3d_state &s) {
   return n;
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   const f32 dt = delta(ctx);
   if (dt <= 0.0f)
     return;
@@ -60,7 +60,7 @@ void update(njin_ctx &ctx) {
   std::erase_if(ctx.particles3d.bursts, [](const particle3d_burst &b) { return b.particles.empty(); });
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
+void setup(context &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
 
 // A white disc with a one-pixel soft edge, so small particles stay round.
 Texture2D make_disc() {
@@ -88,7 +88,7 @@ particles3d_state::~particles3d_state() {
     UnloadTexture(disc);
 }
 
-void particles3d_spawn(njin_ctx &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
+void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
                        const particles3d_desc &desc) {
   particles3d_state &s = ctx.particles3d;
   const usize room = max_particles - std::min(max_particles, live_count(s));
@@ -118,11 +118,11 @@ void particles3d_spawn(njin_ctx &ctx, const particle_emitter &emitter, vec3 pos,
   s.bursts.push_back(std::move(burst));
 }
 
-void particles3d_clear(njin_ctx &ctx) { ctx.particles3d.bursts.clear(); }
+void particles3d_clear(context &ctx) { ctx.particles3d.bursts.clear(); }
 
-i32 particles3d_count(const njin_ctx &ctx) { return (i32)live_count(ctx.particles3d); }
+i32 particles3d_count(const context &ctx) { return (i32)live_count(ctx.particles3d); }
 
-void particles3d_draw(njin_ctx &ctx, const camera3d &view) {
+void particles3d_draw(context &ctx, const camera3d &view) {
   particles3d_state &s = ctx.particles3d;
   if (s.bursts.empty())
     return;

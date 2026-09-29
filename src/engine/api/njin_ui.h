@@ -6,7 +6,7 @@
 #include <string>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_ui
 /// @{
@@ -94,10 +94,10 @@ ui_style ui_default_style();
 /// cảnh báo màu đỏ).
 /// @param ctx Context của engine.
 /// @param style Style mới.
-void ui_style_set(njin_ctx &ctx, const ui_style &style);
+void ui_style_set(context &ctx, const ui_style &style);
 
 /// Style hiện tại. @param ctx Context của engine. @return Style.
-ui_style ui_style_get(const njin_ctx &ctx);
+ui_style ui_style_get(const context &ctx);
 
 /// Vị trí và kích thước của một panel, dùng với ui_begin().
 struct ui_panel_desc {
@@ -125,35 +125,35 @@ struct ui_panel_desc {
 /// Gọi trong `phase_post_render` (không gian màn hình). Chỉ panel nào được
 /// gọi trong frame mới hiện; muốn ẩn menu thì đừng gọi nó.
 /// @code
-/// void menu(njin::njin_ctx &ctx) {
+/// void menu(njin::context &ctx) {
 ///   njin::ui_begin(ctx, {.id = "main", .title = "Tên game"});
 ///   if (njin::ui_button(ctx, "Chơi"))
 ///     njin::scene_fade(ctx, g.play);
 ///   if (njin::ui_button(ctx, "Cài đặt"))
 ///     g.settings_open = true;
 ///   if (njin::ui_button(ctx, "Thoát"))
-///     njin::njin_quit(ctx);
+///     njin::quit(ctx);
 ///   njin::ui_end(ctx);
 /// }
 /// @endcode
 /// @param ctx Context của engine.
 /// @param desc Vị trí và kích thước.
-void ui_begin(njin_ctx &ctx, const ui_panel_desc &desc = {});
+void ui_begin(context &ctx, const ui_panel_desc &desc = {});
 
 /// Kết thúc panel và vẽ nó. @param ctx Context của engine.
-void ui_end(njin_ctx &ctx);
+void ui_end(context &ctx);
 
 /// Xếp `columns` widget tiếp theo thành một hàng ngang, chia đều bề rộng.
 /// Mũi tên trái/phải di chuyển giữa chúng.
 /// @param ctx Context của engine.
 /// @param columns Số widget trong hàng.
-void ui_row(njin_ctx &ctx, i32 columns);
+void ui_row(context &ctx, i32 columns);
 
 /// Một dòng chữ. @param ctx Context của engine. @param text Chữ (UTF-8).
-void ui_label(njin_ctx &ctx, const char *text);
+void ui_label(context &ctx, const char *text);
 
 /// Khoảng trống. @param ctx Context của engine. @param height Chiều cao, pixel (trước `scale`).
-void ui_space(njin_ctx &ctx, f32 height);
+void ui_space(context &ctx, f32 height);
 
 /// Một nút bấm.
 ///
@@ -163,14 +163,14 @@ void ui_space(njin_ctx &ctx, f32 height);
 /// @param label Nhãn (UTF-8).
 /// @param enabled `false` thì nút xám và không bấm được.
 /// @return `true` ở frame nút được bấm (chuột, Enter, Space, nút A).
-bool ui_button(njin_ctx &ctx, const char *label, bool enabled = true);
+bool ui_button(context &ctx, const char *label, bool enabled = true);
 
 /// Một công tắc bật/tắt. Bấm để đổi.
 /// @param ctx Context của engine.
 /// @param label Nhãn.
 /// @param value Giá trị, được sửa khi bấm.
 /// @return `true` ở frame giá trị đổi.
-bool ui_toggle(njin_ctx &ctx, const char *label, bool &value);
+bool ui_toggle(context &ctx, const char *label, bool &value);
 
 /// Một thanh trượt. Kéo bằng chuột, hoặc trái/phải khi đang được chọn.
 /// @param ctx Context của engine.
@@ -181,7 +181,7 @@ bool ui_toggle(njin_ctx &ctx, const char *label, bool &value);
 /// @param step Bước khi dùng phím hay tay cầm, và làm tròn khi kéo. 0 là 1/20 khoảng.
 /// @param percent Hiện giá trị dạng phần trăm của khoảng thay vì con số.
 /// @return `true` ở frame giá trị đổi.
-bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max,
+bool ui_slider(context &ctx, const char *label, f32 &value, f32 min, f32 max,
                f32 step = 0.0f, bool percent = false);
 
 /// Chọn một trong nhiều lựa chọn bằng trái/phải hoặc bấm: độ khó, độ phân
@@ -191,7 +191,7 @@ bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max,
 /// @param index Lựa chọn hiện tại, được sửa khi đổi. Vòng lại ở hai đầu.
 /// @param options Các lựa chọn.
 /// @return `true` ở frame lựa chọn đổi.
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+bool ui_choice(context &ctx, const char *label, i32 &index,
                std::initializer_list<const char *> options);
 
 /// Chọn một trong nhiều lựa chọn (danh sách động).
@@ -200,14 +200,14 @@ bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
 /// @param index Lựa chọn hiện tại.
 /// @param options Mảng các lựa chọn dạng chuỗi.
 /// @return `true` ở frame lựa chọn đổi.
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+bool ui_choice(context &ctx, const char *label, i32 &index,
                std::span<const std::string> options);
 
 /// Một thanh tiến độ, không bấm được: máu, thời gian nạp.
 /// @param ctx Context của engine.
 /// @param value Tiến độ 0..1.
 /// @param text Chữ vẽ giữa thanh. Có thể null.
-void ui_progress(njin_ctx &ctx, f32 value, const char *text = nullptr);
+void ui_progress(context &ctx, f32 value, const char *text = nullptr);
 
 /// Mô tả một thanh tiến độ hình tròn, dùng với ui_progress_circle().
 /// Mọi cỡ tính bằng pixel trước `ui_style::scale`. Màu có alpha 0 thì lấy từ ui_style.
@@ -235,14 +235,14 @@ struct ui_circle_desc {
 /// @endcode
 /// @param ctx Context của engine.
 /// @param desc Giá trị và kiểu dáng.
-void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &desc);
+void ui_progress_circle(context &ctx, const ui_circle_desc &desc);
 
 /// Một ảnh, căn giữa trong panel.
 /// @param ctx Context của engine.
 /// @param texture Ảnh.
 /// @param size Kích thước vẽ, pixel (trước `scale`).
 /// @param source Vùng trong ảnh. Kích thước 0 là cả ảnh.
-void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source = {});
+void ui_image(context &ctx, texture_handle texture, vec2 size, rect source = {});
 
 /// Một dòng đổi phím cho màn hình cài đặt: bên trái là tên, bên phải là phím
 /// đang gắn vào `action`. Bấm vào thì dòng chờ phím mới ("..."); phím (hoặc
@@ -258,25 +258,25 @@ void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source = {}
 /// @param action Action cần đổi phím.
 /// @param pad `true` để đổi nút tay cầm thay vì phím.
 /// @return `true` ở frame phím vừa được đổi.
-bool ui_keybind(njin_ctx &ctx, const char *label, action_handle action, bool pad = false);
+bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad = false);
 
 /// Có dòng ui_keybind() nào đang chờ phím không. Trong lúc đó đừng coi Esc là
 /// "đóng menu".
 /// @param ctx Context của engine.
 /// @return `true` nếu đang chờ.
-bool ui_keybind_listening(const njin_ctx &ctx);
+bool ui_keybind_listening(const context &ctx);
 
 /// `true` ở frame người chơi bấm quay lại (Esc, Backspace, nút B) trong lúc
 /// có panel đang hiện. Dùng để đóng menu con hay quay về màn trước.
 /// @param ctx Context của engine.
 /// @return `true` nếu vừa bấm quay lại.
-bool ui_back(njin_ctx &ctx);
+bool ui_back(context &ctx);
 
 /// Chọn sẵn widget có nhãn `label` (trong panel đang mở), thường gọi khi vừa
 /// mở menu để nút mặc định được chọn cho tay cầm.
 /// @param ctx Context của engine.
 /// @param label Nhãn đầy đủ, kể cả phần `##`.
-void ui_focus(njin_ctx &ctx, const char *label);
+void ui_focus(context &ctx, const char *label);
 
 /// Có panel nào nhận phím được vẽ ở frame trước không (panel HUD với
 /// `navigable = false` không tính). Trong lúc đó UI nhận các phím điều hướng
@@ -284,7 +284,7 @@ void ui_focus(njin_ctx &ctx, const char *label);
 /// chạy khi người chơi đang chọn menu.
 /// @param ctx Context của engine.
 /// @return `true` nếu UI đang hiện.
-bool ui_active(const njin_ctx &ctx);
+bool ui_active(const context &ctx);
 
 /// Khung của widget vừa đặt trong panel đang mở (ui_label(), ui_button(),
 /// ui_space()...), pixel màn hình. Dùng để vẽ thêm lên một widget: hình trong
@@ -299,14 +299,14 @@ bool ui_active(const njin_ctx &ctx);
 /// @endcode
 /// @param ctx Context của engine.
 /// @return Khung của widget đặt gần nhất.
-rect ui_last_rect(const njin_ctx &ctx);
+rect ui_last_rect(const context &ctx);
 
 /// Chuột có đang nằm trên một panel không (các panel của frame trước). Ở đó UI
 /// đã nuốt nút chuột trái; hàm này để game bỏ qua cả nút phải, bánh xe hay con
 /// trỏ riêng của nó, ví dụ không ra lệnh cho quân khi bấm chuột phải lên HUD.
 /// @param ctx Context của engine.
 /// @return `true` nếu chuột đang trên một panel.
-bool ui_mouse_over(const njin_ctx &ctx);
+bool ui_mouse_over(const context &ctx);
 
 /// Loại toast: quyết định màu vạch bên trái (xem ui_style::toast_accent).
 enum ui_toast_kind {
@@ -339,10 +339,10 @@ struct ui_toast_desc {
 /// @param ctx Context của engine.
 /// @param text Nội dung (UTF-8).
 /// @param desc Loại và thời gian hiện.
-void ui_toast(njin_ctx &ctx, const char *text, const ui_toast_desc &desc = {});
+void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc = {});
 
 /// Xóa mọi toast đang hiện, ví dụ khi đổi scene. @param ctx Context của engine.
-void ui_toast_clear(njin_ctx &ctx);
+void ui_toast_clear(context &ctx);
 
 /// Mô tả một popup, dùng với ui_popup() và ui_popup_begin().
 struct ui_popup_desc {
@@ -368,7 +368,7 @@ struct ui_popup_desc {
 ///   const njin::i32 pick = njin::ui_popup(ctx, {.id = "quit", .title = "Thoát game?",
 ///       .message = "Tiến trình chưa lưu sẽ mất.", .buttons = {"Ở lại", "Thoát"},
 ///       .cancel_button = 0}, want_quit);
-///   if (pick == 1) njin::njin_quit(ctx);
+///   if (pick == 1) njin::quit(ctx);
 /// }
 /// @endcode
 /// Popup là **modal**: các panel khác vẫn được vẽ nhưng không nhận chuột, phím
@@ -381,7 +381,7 @@ struct ui_popup_desc {
 /// @param open Popup đang mở. Được đặt `false` khi đóng.
 /// @return Số thứ tự nút vừa được bấm ở frame này (theo `desc.buttons`,
 /// `desc.cancel_button` nếu bấm quay lại), hoặc -1 nếu chưa có gì.
-i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open);
+i32 ui_popup(context &ctx, const ui_popup_desc &desc, bool &open);
 
 /// Bắt đầu một popup có nội dung tùy ý: làm tối nền, mở panel modal. Gọi các
 /// widget bình thường (ui_button, ui_slider...), rồi ui_popup_end(). Đóng popup
@@ -390,9 +390,9 @@ i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open);
 /// Chỉ dùng `id`, `title` và `width` của `desc`.
 /// @param ctx Context của engine.
 /// @param desc Mô tả popup.
-void ui_popup_begin(njin_ctx &ctx, const ui_popup_desc &desc);
+void ui_popup_begin(context &ctx, const ui_popup_desc &desc);
 
 /// Kết thúc popup bắt đầu bằng ui_popup_begin(). @param ctx Context của engine.
-void ui_popup_end(njin_ctx &ctx);
+void ui_popup_end(context &ctx);
 /// @}
 } // namespace njin

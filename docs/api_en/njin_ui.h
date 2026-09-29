@@ -6,7 +6,7 @@
 #include <string>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_ui
 /// @{
@@ -94,10 +94,10 @@ ui_style ui_default_style();
 /// warning panel).
 /// @param ctx Engine context.
 /// @param style New style.
-void ui_style_set(njin_ctx &ctx, const ui_style &style);
+void ui_style_set(context &ctx, const ui_style &style);
 
 /// Current style. @param ctx Engine context. @return Style.
-ui_style ui_style_get(const njin_ctx &ctx);
+ui_style ui_style_get(const context &ctx);
 
 /// Position and size of a panel, used with ui_begin().
 struct ui_panel_desc {
@@ -126,35 +126,35 @@ struct ui_panel_desc {
 /// Call it in `phase_post_render` (screen space). Only panels
 /// called during the frame are shown; to hide a menu, do not call it.
 /// @code
-/// void menu(njin::njin_ctx &ctx) {
+/// void menu(njin::context &ctx) {
 ///   njin::ui_begin(ctx, {.id = "main", .title = "Game name"});
 ///   if (njin::ui_button(ctx, "Play"))
 ///     njin::scene_fade(ctx, g.play);
 ///   if (njin::ui_button(ctx, "Settings"))
 ///     g.settings_open = true;
 ///   if (njin::ui_button(ctx, "Quit"))
-///     njin::njin_quit(ctx);
+///     njin::quit(ctx);
 ///   njin::ui_end(ctx);
 /// }
 /// @endcode
 /// @param ctx Engine context.
 /// @param desc Position and size.
-void ui_begin(njin_ctx &ctx, const ui_panel_desc &desc = {});
+void ui_begin(context &ctx, const ui_panel_desc &desc = {});
 
 /// Ends the panel and draws it. @param ctx Engine context.
-void ui_end(njin_ctx &ctx);
+void ui_end(context &ctx);
 
 /// Lays out the next `columns` widgets as a horizontal row, sharing the width equally.
 /// Left/right arrows move between them.
 /// @param ctx Engine context.
 /// @param columns Number of widgets in the row.
-void ui_row(njin_ctx &ctx, i32 columns);
+void ui_row(context &ctx, i32 columns);
 
 /// A line of text. @param ctx Engine context. @param text Text (UTF-8).
-void ui_label(njin_ctx &ctx, const char *text);
+void ui_label(context &ctx, const char *text);
 
 /// Empty space. @param ctx Engine context. @param height Height, pixels (before `scale`).
-void ui_space(njin_ctx &ctx, f32 height);
+void ui_space(context &ctx, f32 height);
 
 /// A button.
 ///
@@ -164,14 +164,14 @@ void ui_space(njin_ctx &ctx, f32 height);
 /// @param label Label (UTF-8).
 /// @param enabled `false` makes the button gray and not pressable.
 /// @return `true` on the frame the button is pressed (mouse, Enter, Space, A button).
-bool ui_button(njin_ctx &ctx, const char *label, bool enabled = true);
+bool ui_button(context &ctx, const char *label, bool enabled = true);
 
 /// An on/off switch. Press to change.
 /// @param ctx Engine context.
 /// @param label Label.
 /// @param value Value, modified when pressed.
 /// @return `true` on the frame the value changes.
-bool ui_toggle(njin_ctx &ctx, const char *label, bool &value);
+bool ui_toggle(context &ctx, const char *label, bool &value);
 
 /// A slider. Drag with the mouse, or use left/right when focused.
 /// @param ctx Engine context.
@@ -182,7 +182,7 @@ bool ui_toggle(njin_ctx &ctx, const char *label, bool &value);
 /// @param step Step when using keys or gamepad, and rounding when dragging. 0 means 1/20 of the range.
 /// @param percent Show the value as a percentage of the range instead of a number.
 /// @return `true` on the frame the value changes.
-bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max,
+bool ui_slider(context &ctx, const char *label, f32 &value, f32 min, f32 max,
                f32 step = 0.0f, bool percent = false);
 
 /// Picks one of several options with left/right or by pressing: difficulty, resolution,
@@ -192,7 +192,7 @@ bool ui_slider(njin_ctx &ctx, const char *label, f32 &value, f32 min, f32 max,
 /// @param index Current choice, modified when changed. Wraps around at both ends.
 /// @param options The options.
 /// @return `true` on the frame the choice changes.
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+bool ui_choice(context &ctx, const char *label, i32 &index,
                std::initializer_list<const char *> options);
 
 /// Picks one of several options (dynamic list).
@@ -201,14 +201,14 @@ bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
 /// @param index Current choice.
 /// @param options The options as strings.
 /// @return `true` on the frame the choice changes.
-bool ui_choice(njin_ctx &ctx, const char *label, i32 &index,
+bool ui_choice(context &ctx, const char *label, i32 &index,
                std::span<const std::string> options);
 
 /// A progress bar, not pressable: health, reload time.
 /// @param ctx Engine context.
 /// @param value Progress 0..1.
 /// @param text Text drawn in the middle of the bar. May be null.
-void ui_progress(njin_ctx &ctx, f32 value, const char *text = nullptr);
+void ui_progress(context &ctx, f32 value, const char *text = nullptr);
 
 /// Describes a circular progress bar, for ui_progress_circle().
 /// Every size is in pixels before `ui_style::scale`. A colour with alpha 0 comes from ui_style.
@@ -236,14 +236,14 @@ struct ui_circle_desc {
 /// @endcode
 /// @param ctx Engine context.
 /// @param desc The value and the look.
-void ui_progress_circle(njin_ctx &ctx, const ui_circle_desc &desc);
+void ui_progress_circle(context &ctx, const ui_circle_desc &desc);
 
 /// An image, centered in the panel.
 /// @param ctx Engine context.
 /// @param texture Image.
 /// @param size Drawn size, pixels (before `scale`).
 /// @param source Region in the image. Size 0 means the whole image.
-void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source = {});
+void ui_image(context &ctx, texture_handle texture, vec2 size, rect source = {});
 
 /// A key rebind row for the settings screen: the name on the left, the key
 /// currently bound to `action` on the right. Pressing it makes the row wait for a new key ("..."); the next key (or
@@ -259,25 +259,25 @@ void ui_image(njin_ctx &ctx, texture_handle texture, vec2 size, rect source = {}
 /// @param action Action to rebind.
 /// @param pad `true` to rebind the gamepad button instead of the key.
 /// @return `true` on the frame the key was just changed.
-bool ui_keybind(njin_ctx &ctx, const char *label, action_handle action, bool pad = false);
+bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad = false);
 
 /// Whether any ui_keybind() row is waiting for a key. While that is the case, do not treat Esc as
 /// "close menu".
 /// @param ctx Engine context.
 /// @return `true` if waiting.
-bool ui_keybind_listening(const njin_ctx &ctx);
+bool ui_keybind_listening(const context &ctx);
 
 /// `true` on the frame the player presses back (Esc, Backspace, B button) while
 /// a panel is shown. Use it to close a submenu or return to the previous screen.
 /// @param ctx Engine context.
 /// @return `true` if back was just pressed.
-bool ui_back(njin_ctx &ctx);
+bool ui_back(context &ctx);
 
 /// Preselects the widget with label `label` (in the currently open panel), usually called right after
 /// opening a menu so the default button is selected for the gamepad.
 /// @param ctx Engine context.
 /// @param label Full label, including the `##` part.
-void ui_focus(njin_ctx &ctx, const char *label);
+void ui_focus(context &ctx, const char *label);
 
 /// Whether a panel that takes the keys was drawn in the previous frame (HUD
 /// panels with `navigable = false` do not count). While that is the case the UI
@@ -285,7 +285,7 @@ void ui_focus(njin_ctx &ctx, const char *label);
 /// see them, so the character does not move while the player is choosing from a menu.
 /// @param ctx Engine context.
 /// @return `true` if the UI is shown.
-bool ui_active(const njin_ctx &ctx);
+bool ui_active(const context &ctx);
 
 /// Frame of the widget just placed in the open panel (ui_label(), ui_button(),
 /// ui_space()...), in screen pixels. Use it to draw more on a widget: a picture
@@ -300,7 +300,7 @@ bool ui_active(const njin_ctx &ctx);
 /// @endcode
 /// @param ctx Engine context.
 /// @return Frame of the widget placed last.
-rect ui_last_rect(const njin_ctx &ctx);
+rect ui_last_rect(const context &ctx);
 
 /// Whether the mouse is over a panel (last frame's panels). There the UI has
 /// already taken the left mouse button; this lets the game skip the right
@@ -308,7 +308,7 @@ rect ui_last_rect(const njin_ctx &ctx);
 /// when the right button is clicked on the HUD.
 /// @param ctx Engine context.
 /// @return `true` if the mouse is over a panel.
-bool ui_mouse_over(const njin_ctx &ctx);
+bool ui_mouse_over(const context &ctx);
 
 /// Toast kind: decides the color of the left stripe (see ui_style::toast_accent).
 enum ui_toast_kind {
@@ -341,10 +341,10 @@ struct ui_toast_desc {
 /// @param ctx Engine context.
 /// @param text Content (UTF-8).
 /// @param desc Kind and display time.
-void ui_toast(njin_ctx &ctx, const char *text, const ui_toast_desc &desc = {});
+void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc = {});
 
 /// Clears every toast being shown, for example when changing scene. @param ctx Engine context.
-void ui_toast_clear(njin_ctx &ctx);
+void ui_toast_clear(context &ctx);
 
 /// Describes a popup, used with ui_popup() and ui_popup_begin().
 struct ui_popup_desc {
@@ -370,7 +370,7 @@ struct ui_popup_desc {
 ///   const njin::i32 pick = njin::ui_popup(ctx, {.id = "quit", .title = "Quit game?",
 ///       .message = "Unsaved progress will be lost.", .buttons = {"Stay", "Quit"},
 ///       .cancel_button = 0}, want_quit);
-///   if (pick == 1) njin::njin_quit(ctx);
+///   if (pick == 1) njin::quit(ctx);
 /// }
 /// @endcode
 /// The popup is **modal**: other panels are still drawn but receive no mouse, keys
@@ -383,7 +383,7 @@ struct ui_popup_desc {
 /// @param open Whether the popup is open. Set to `false` when it closes.
 /// @return Index of the button just pressed this frame (per `desc.buttons`,
 /// `desc.cancel_button` if back was pressed), or -1 if nothing yet.
-i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open);
+i32 ui_popup(context &ctx, const ui_popup_desc &desc, bool &open);
 
 /// Begins a popup with arbitrary content: darkens the background, opens a modal panel. Call normal
 /// widgets (ui_button, ui_slider...), then ui_popup_end(). Close the popup
@@ -392,9 +392,9 @@ i32 ui_popup(njin_ctx &ctx, const ui_popup_desc &desc, bool &open);
 /// Only `id`, `title` and `width` of `desc` are used.
 /// @param ctx Engine context.
 /// @param desc Popup description.
-void ui_popup_begin(njin_ctx &ctx, const ui_popup_desc &desc);
+void ui_popup_begin(context &ctx, const ui_popup_desc &desc);
 
 /// Ends a popup begun with ui_popup_begin(). @param ctx Engine context.
-void ui_popup_end(njin_ctx &ctx);
+void ui_popup_end(context &ctx);
 /// @}
 } // namespace njin

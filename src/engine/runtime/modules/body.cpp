@@ -16,7 +16,7 @@ f32 sign_of(f32 v) { return v > 0.0f ? 1.0f : (v < 0.0f ? -1.0f : 0.0f); }
 // Actions to body inputs, once per frame. The press flags only ever get set
 // here: the body clears them when a fixed step has used them, so a press on a
 // frame without any fixed step still reaches the next one.
-void read_inputs(njin_ctx &ctx) {
+void read_inputs(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, body, map] : reg.view<platformer_body, const platformer_input_map>().each()) {
     body.input.move_x = axis_value(ctx, map.move);
@@ -36,7 +36,7 @@ void read_inputs(njin_ctx &ctx) {
   }
 }
 
-void move_paths(njin_ctx &ctx) {
+void move_paths(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 dt = delta(ctx);
   for (auto [e, tr, path] : reg.view<transform, path_mover>().each()) {
@@ -81,7 +81,7 @@ void move_paths(njin_ctx &ctx) {
   }
 }
 
-void step_platformers(njin_ctx &ctx) {
+void step_platformers(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 dt = delta(ctx);
   entt::dispatcher &bus = events(ctx);
@@ -210,7 +210,7 @@ void step_platformers(njin_ctx &ctx) {
   }
 }
 
-void step_topdowns(njin_ctx &ctx) {
+void step_topdowns(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 dt = delta(ctx);
   entt::dispatcher &bus = events(ctx);
@@ -256,7 +256,7 @@ void step_topdowns(njin_ctx &ctx) {
   }
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_pre_update, read_inputs, "read_inputs");
   ecs_register(ctx, phase_fixed_update, sys_desc{.fnc = move_paths, .order = 10, .name = "move_paths"});
   ecs_register(ctx, phase_fixed_update, sys_desc{.fnc = step_platformers, .order = 20, .name = "step_platformers"});

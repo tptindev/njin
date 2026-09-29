@@ -22,7 +22,7 @@ dừng: menu tạm dừng, hiệu ứng UI.
 ## Fixed update
 
 `phase_fixed_update` chạy theo **nhịp cố định**, mặc định 60 lần mỗi giây
-(`njin_cfg::fixed_hz`). Mỗi frame nó chạy 0, 1 hoặc vài lần tùy FPS, sao cho tổng số nhịp
+(`config::fixed_hz`). Mỗi frame nó chạy 0, 1 hoặc vài lần tùy FPS, sao cho tổng số nhịp
 khớp thời gian thật.
 
 ```mermaid

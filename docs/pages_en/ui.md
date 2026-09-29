@@ -76,8 +76,8 @@ Backspace) and mouse clicks on the panel: the game does not see them, so the cha
 player is choosing from the menu. Check with njin::ui_active(). The UI only takes the left button; a game that
 uses the right button or the wheel in the world asks njin::ui_mouse_over() first, so a click on the HUD does not fall through.
 
-@note Esc closes the window by default (`njin_cfg::exit_key`). If your menu uses Esc to go back, set
-`.exit_key = njin::key_none` in njin_cfg and quit with a "Quit" button.
+@note Esc closes the window by default (`config::exit_key`). If your menu uses Esc to go back, set
+`.exit_key = njin::key_none` in config and quit with a "Quit" button.
 
 ## Popups
 

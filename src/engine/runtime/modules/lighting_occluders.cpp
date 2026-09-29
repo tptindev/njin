@@ -157,7 +157,7 @@ bool inside_owner(const std::vector<occluder_edge> &edges, const occluder_edge &
 
 // Every occluder near the view as edges: the shapes of light_occluder, and the
 // outlines of light_occluder_sprite frames.
-void gather_edges(njin_ctx &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas) {
+void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas) {
   entt::registry &registry = ctx.ecs.registry;
   edge_builder builder{edges, areas, {}};
 

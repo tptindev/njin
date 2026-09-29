@@ -3,7 +3,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_module
 /// @{
@@ -12,7 +12,7 @@ struct njin_ctx;
 ///
 /// System được đăng ký vào một sys_phase bằng ecs_register() và được gọi mỗi
 /// lần phase đó chạy.
-using sys_fnc = void (*)(njin_ctx &ctx);
+using sys_fnc = void (*)(context &ctx);
 
 /// Các phase của một frame, chạy theo đúng thứ tự khai báo.
 ///
@@ -25,7 +25,7 @@ using sys_fnc = void (*)(njin_ctx &ctx);
 /// gian màn hình, nên dùng `phase_post_render` cho UI.
 ///
 /// `phase_fixed_update` chạy theo nhịp cố định (mặc định 60 lần mỗi giây, xem
-/// `njin_cfg::fixed_hz`): 0, 1 hay nhiều lần trong một frame tùy FPS. Trong
+/// `config::fixed_hz`): 0, 1 hay nhiều lần trong một frame tùy FPS. Trong
 /// phase này delta() trả về đúng một nhịp. Đặt vật lý ở đây để kết quả không
 /// phụ thuộc FPS.
 enum sys_phase {
@@ -62,11 +62,11 @@ struct sys_desc {
 
 /// Mô tả một module: một nhóm system có tên.
 ///
-/// `setup` được njin_mod_register() gọi đúng một lần và phải đăng ký các
+/// `setup` được mod_register() gọi đúng một lần và phải đăng ký các
 /// system của module bằng ecs_register().
 struct mod_desc {
   const char *name = nullptr;          ///< Tên module, phải là duy nhất.
-  void (*setup)(njin_ctx &ctx) = nullptr; ///< Đăng ký system của module.
+  void (*setup)(context &ctx) = nullptr; ///< Đăng ký system của module.
 };
 /// @}
 } // namespace njin

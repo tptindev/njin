@@ -119,11 +119,11 @@ bool is_registered(const ecs_store &ecs, const char *name) {
 }
 } // namespace
 
-void ecs_register(njin_ctx &ctx, sys_phase phase, sys_fnc fnc, const char *name) {
+void ecs_register(context &ctx, sys_phase phase, sys_fnc fnc, const char *name) {
   ecs_register(ctx, phase, sys_desc{.fnc = fnc, .name = name});
 }
 
-void ecs_register(njin_ctx &ctx, sys_phase phase, const sys_desc &desc) {
+void ecs_register(context &ctx, sys_phase phase, const sys_desc &desc) {
   if (phase < 0 || phase >= phase_count || desc.fnc == nullptr) {
     NJIN_WARN("ecs_register: invalid phase or null system");
     return;
@@ -135,11 +135,11 @@ void ecs_register(njin_ctx &ctx, sys_phase phase, const sys_desc &desc) {
   ctx.ecs.pending[phase].push_back(desc);
 }
 
-void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
+void mod_register(context &ctx, const mod_desc &desc) {
   ecs_store &ecs = ctx.ecs;
   const char *label = module_label(desc);
   if (ecs.started) {
-    NJIN_WARN("module %s: cannot register after njin_run", label);
+    NJIN_WARN("module %s: cannot register after run", label);
     return;
   }
   if (ecs.in_setup) {
@@ -178,16 +178,16 @@ void njin_mod_register(njin_ctx &ctx, const mod_desc &desc) {
   NJIN_INFO("module registered: %s", label);
 }
 
-void njin_mod_register(njin_ctx &ctx, std::span<const mod_desc> mods) {
+void mod_register(context &ctx, std::span<const mod_desc> mods) {
   for (const mod_desc &desc : mods)
-    njin_mod_register(ctx, desc);
+    mod_register(ctx, desc);
 }
 
-void njin_mod_register(njin_ctx &ctx, std::initializer_list<mod_desc> mods) {
-  njin_mod_register(ctx, std::span<const mod_desc>(mods.begin(), mods.size()));
+void mod_register(context &ctx, std::initializer_list<mod_desc> mods) {
+  mod_register(ctx, std::span<const mod_desc>(mods.begin(), mods.size()));
 }
 
-void ecs_run(njin_ctx &ctx, sys_phase phase) {
+void ecs_run(context &ctx, sys_phase phase) {
   const u32 current = ctx.scene.current.id;
   ecs_store &ecs = ctx.ecs;
   if (!ecs.profile) {

@@ -16,10 +16,10 @@ struct rebind_row {
 // `style` font_pixel makes it a pixel-art UI: the font is drawn without
 // anti-aliasing (use a pixel font, at a multiple of its design size), panels and
 // widgets are square, and the layout is tighter so the settings fit 360 pixels.
-void apply_style(njin::njin_ctx &ctx, const char *font_path,
+void apply_style(njin::context &ctx, const char *font_path,
                  njin::font_style style = njin::font_smooth);
 
 // Draws the settings panel. Returns true on the frame the player leaves it
 // (the Back button, Esc, or pad B); settings are saved then.
-bool settings_panel(njin::njin_ctx &ctx, std::span<const rebind_row> rows);
+bool settings_panel(njin::context &ctx, std::span<const rebind_row> rows);
 } // namespace shared

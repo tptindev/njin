@@ -7,7 +7,7 @@ std::string typed;
 
 // Nhập văn bản: dùng text_count/text_char, không dùng key_pressed. Ký tự đã qua
 // bố cục bàn phím, nên gõ dấu tiếng Việt hay chữ hoa vẫn đúng.
-void read_text(njin::njin_ctx &ctx) {
+void read_text(njin::context &ctx) {
   for (njin::i32 i = 0; i < njin::text_count(ctx); i++) {
     const njin::i32 codepoint = njin::text_char(ctx, i);
     if (codepoint >= 32 && codepoint < 127) // ví dụ chỉ nhận ASCII
@@ -23,20 +23,20 @@ void read_text(njin::njin_ctx &ctx) {
 
 // Menu chạy TRƯỚC thế giới và nuốt cú nhấp, để thế giới bên dưới không nhận
 // cùng cú nhấp đó.
-void menu_click(njin::njin_ctx &ctx) {
+void menu_click(njin::context &ctx) {
   if (menu_open && njin::mouse_pressed(ctx, njin::mouse_left)) {
     NJIN_INFO("menu nhận cú nhấp");
     njin::mouse_consume(ctx, njin::mouse_left);
   }
 }
 
-void world_click(njin::njin_ctx &ctx) {
+void world_click(njin::context &ctx) {
   // Khi menu đã nuốt cú nhấp, hàm này trả về false.
   if (njin::mouse_pressed(ctx, njin::mouse_left))
     NJIN_INFO("thế giới nhận cú nhấp");
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_update, read_text);
   njin::ecs_register(ctx, njin::phase_pre_update, menu_click);
   njin::ecs_register(ctx, njin::phase_update, world_click);

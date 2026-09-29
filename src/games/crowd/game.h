@@ -75,11 +75,11 @@ struct cell_ref {
 cell_ref cell_for(pose_id pose, u8 dir, u32 frame);
 
 // false when the GPU cannot draw instanced (the game shows a message instead).
-bool sheet_load(njin::njin_ctx &ctx);
-void sheet_bake(njin::njin_ctx &ctx); // once, in the first frame
+bool sheet_load(njin::context &ctx);
+void sheet_bake(njin::context &ctx); // once, in the first frame
 bool sheet_ready();
-void sheet_draw(njin::njin_ctx &ctx, const std::vector<instance> &instances);
-bool sheet_save(njin::njin_ctx &ctx, std::string &folder);
+void sheet_draw(njin::context &ctx, const std::vector<instance> &instances);
+bool sheet_save(njin::context &ctx, std::string &folder);
 
 struct sheet_stats {
   u32 body_cells, body_w, body_h, head_w, head_h;
@@ -159,7 +159,7 @@ struct sim_state {
 extern sim_state sim;
 
 // Shows the components above in njin_inspector.
-void sim_debug_components(njin::njin_ctx &ctx);
+void sim_debug_components(njin::context &ctx);
 
 // Where the gallery is, left of the world.
 inline constexpr vec2 gallery_origin{-660.0f, 40.0f};
@@ -170,10 +170,10 @@ struct label {
 const std::vector<label> &gallery_labels();
 
 // Replaces every person and group: the gallery, then `crowd` random people.
-void sim_populate(njin::njin_ctx &ctx, u32 crowd);
+void sim_populate(njin::context &ctx, u32 crowd);
 // 24 children of `parent` and a random partner, around the parent.
-void sim_spawn_family(njin::njin_ctx &ctx, entt::entity parent);
-void sim_update(njin::njin_ctx &ctx, f32 dt);
+void sim_spawn_family(njin::context &ctx, entt::entity parent);
+void sim_update(njin::context &ctx, f32 dt);
 void sim_instance(const entt::registry &reg, entt::entity e, bool selected, instance &out);
 u32 sim_people(const entt::registry &reg); // not counting the gallery
 u32 sim_acting_groups(const entt::registry &reg, group_kind kind);

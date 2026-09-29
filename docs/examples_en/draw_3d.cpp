@@ -6,7 +6,7 @@ using namespace njin;
 model_handle crate;
 instance_buffer_handle trees;
 
-void load(njin_ctx &ctx) {
+void load(context &ctx) {
   crate = model_load(ctx, "assets/crate.glb");
   // The sun shines at an angle and casts shadows, ambient light is slightly blue.
   light3d_set(ctx, {.direction = {-0.5f, -1.0f, -0.3f},
@@ -24,12 +24,12 @@ void load(njin_ctx &ctx) {
   instance_buffer_upload(ctx, trees, data, 20);
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   // A gizmo can be called from any phase: an arrow pointing up at the model.
   gizmo_arrow3d(ctx, {2.0f, 2.5f, 0.0f}, {2.0f, 1.2f, 0.0f}, colors::yellow);
 }
 
-void render(njin_ctx &ctx) {
+void render(context &ctx) {
   // Camera at (0, 6, 8), looking at the origin.
   begin_3d(ctx, {.position = {0.0f, 6.0f, 8.0f}, .target = {0.0f, 0.0f, 0.0f}, .fovy = 50.0f});
   // An orange point light next to the box.
@@ -51,7 +51,7 @@ void render(njin_ctx &ctx) {
   end_3d(ctx);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, load, "load");
   ecs_register(ctx, phase_update, update, "update");
   ecs_register(ctx, phase_render, render, "render");

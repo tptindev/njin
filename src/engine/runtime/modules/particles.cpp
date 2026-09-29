@@ -69,7 +69,7 @@ void simulate(particle_emitter &em, f32 dt) {
   std::erase_if(em.particles, [](const particle &p) { return p.age >= p.life; });
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   const f32 dt = delta(ctx);
   entt::registry &registry = world(ctx);
   rng &random = njin::random(ctx);
@@ -114,7 +114,7 @@ void update(njin_ctx &ctx) {
   registry.destroy(done.begin(), done.end());
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
+void setup(context &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
 } // namespace
 
 mod_desc particles_module() {
@@ -141,7 +141,7 @@ bool particles_on_screen(const transform &tr, const particle_emitter &em,
   return rects_overlap(box, view);
 }
 
-void particles_draw(njin_ctx &ctx, entt::entity entity, const transform &tr,
+void particles_draw(context &ctx, entt::entity entity, const transform &tr,
                     const particle_emitter &em) {
   if (em.particles.empty())
     return;
@@ -193,7 +193,7 @@ void particles_draw(njin_ctx &ctx, entt::entity entity, const transform &tr,
   blend_end(ctx);
 }
 
-entt::entity particles_spawn(njin_ctx &ctx, const particle_emitter &preset,
+entt::entity particles_spawn(context &ctx, const particle_emitter &preset,
                              vec2 pos, i32 count) {
   entt::registry &registry = world(ctx);
   const entt::entity entity = registry.create();

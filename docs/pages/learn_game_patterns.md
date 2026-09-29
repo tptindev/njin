@@ -36,7 +36,7 @@ giật. Cách chữa là **nội suy**: vẽ ở giữa vị trí trước và s
 Đây là bài tập 2 ở cuối.
 
 **Trong njin:**
-- `njin::phase_fixed_update` chạy đúng vòng `while` này, mặc định 60 lần mỗi giây (`njin_cfg::fixed_hz`), tối đa 8 nhịp
+- `njin::phase_fixed_update` chạy đúng vòng `while` này, mặc định 60 lần mỗi giây (`config::fixed_hz`), tối đa 8 nhịp
   mỗi frame (`src/engine/runtime/njin.cpp`). Trong phase đó, `njin::delta()` luôn bằng một nhịp cố định.
 - `njin::fixed_alpha()` chính là `alpha` ở trên. Xem @ref game_loop và @ref time.
 

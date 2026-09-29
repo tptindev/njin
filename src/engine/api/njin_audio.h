@@ -3,7 +3,7 @@
 
 namespace njin {
 // Opaque, see njin_ctx.h.
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_sound
 /// @{
@@ -27,27 +27,27 @@ enum audio_bus {
 /// @param ctx Context của engine.
 /// @param bus Kênh.
 /// @param volume Âm lượng. Giá trị âm được coi là 0.
-void audio_set_bus_volume(njin_ctx &ctx, audio_bus bus, f32 volume);
+void audio_set_bus_volume(context &ctx, audio_bus bus, f32 volume);
 
 /// Âm lượng một kênh. @param ctx Context của engine. @param bus Kênh.
 /// @return Âm lượng, mặc định 1.
-f32 audio_bus_volume(const njin_ctx &ctx, audio_bus bus);
+f32 audio_bus_volume(const context &ctx, audio_bus bus);
 
 /// Tắt hoặc bật tiếng cả một kênh, không đụng đến âm lượng đã đặt.
 /// @param ctx Context của engine.
 /// @param bus Kênh.
 /// @param muted `true` để tắt tiếng.
-void audio_set_bus_muted(njin_ctx &ctx, audio_bus bus, bool muted);
+void audio_set_bus_muted(context &ctx, audio_bus bus, bool muted);
 
 /// Kênh có đang tắt tiếng không. @param ctx Context của engine. @param bus Kênh.
 /// @return `true` nếu đang tắt.
-bool audio_bus_muted(const njin_ctx &ctx, audio_bus bus);
+bool audio_bus_muted(const context &ctx, audio_bus bus);
 
 /// Đưa một sound vào kênh khác, ví dụ `bus_ui` cho tiếng nhấp menu.
 /// @param ctx Context của engine.
 /// @param handle Sound.
 /// @param bus Kênh.
-void sound_set_bus(njin_ctx &ctx, sound_handle handle, audio_bus bus);
+void sound_set_bus(context &ctx, sound_handle handle, audio_bus bus);
 
 /// Nạp một âm thanh ngắn vào bộ nhớ.
 ///
@@ -58,7 +58,7 @@ void sound_set_bus(njin_ctx &ctx, sound_handle handle, audio_bus bus);
 /// @param path Đường dẫn file âm thanh (wav, ogg, mp3, flac...).
 /// @return Handle của sound, hoặc handle có id 0 nếu không có thiết bị, file thiếu
 /// hoặc không giải mã được.
-sound_handle sound_load(njin_ctx &ctx, const char *path);
+sound_handle sound_load(context &ctx, const char *path);
 
 /// Tạo một âm thanh từ các mẫu đã có trong bộ nhớ.
 ///
@@ -70,13 +70,13 @@ sound_handle sound_load(njin_ctx &ctx, const char *path);
 /// @param count Số mẫu.
 /// @param sample_rate Tần số lấy mẫu, ví dụ 44100.
 /// @return Handle của sound, hoặc handle có id 0 nếu tham số sai hoặc tạo thất bại.
-sound_handle sound_load_samples(njin_ctx &ctx, const f32 *samples, i32 count,
+sound_handle sound_load_samples(context &ctx, const f32 *samples, i32 count,
                                 i32 sample_rate);
 
 /// Giải phóng sound. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Sound cần giải phóng.
-void sound_unload(njin_ctx &ctx, sound_handle handle);
+void sound_unload(context &ctx, sound_handle handle);
 
 /// Đặt âm lượng của sound, từ 0 trở lên (1 là âm lượng gốc).
 ///
@@ -84,7 +84,7 @@ void sound_unload(njin_ctx &ctx, sound_handle handle);
 /// @param ctx Context của engine.
 /// @param handle Sound cần đặt.
 /// @param volume Âm lượng.
-void sound_set_volume(njin_ctx &ctx, sound_handle handle, f32 volume);
+void sound_set_volume(context &ctx, sound_handle handle, f32 volume);
 
 /// Tắt hoặc bật tiếng sound.
 ///
@@ -93,7 +93,7 @@ void sound_set_volume(njin_ctx &ctx, sound_handle handle, f32 volume);
 /// @param ctx Context của engine.
 /// @param handle Sound cần đặt.
 /// @param muted `true` để tắt tiếng.
-void sound_set_muted(njin_ctx &ctx, sound_handle handle, bool muted);
+void sound_set_muted(context &ctx, sound_handle handle, bool muted);
 
 /// Phát sound mà không cắt các bản đang phát.
 ///
@@ -102,7 +102,7 @@ void sound_set_muted(njin_ctx &ctx, sound_handle handle, bool muted);
 /// kích hoạt, để một đám đông được nghe như một đám đông.
 /// @param ctx Context của engine.
 /// @param handle Sound cần phát.
-void sound_play_once(njin_ctx &ctx, sound_handle handle);
+void sound_play_once(context &ctx, sound_handle handle);
 
 /// Giống sound_play_once() nhưng chỉnh cao độ và độ lớn cho riêng bản này.
 ///
@@ -114,7 +114,7 @@ void sound_play_once(njin_ctx &ctx, sound_handle handle);
 /// @param handle Sound cần phát.
 /// @param pitch Cao độ. Giá trị rất nhỏ được nâng lên mức tối thiểu.
 /// @param gain Hệ số âm lượng cho bản này. Giá trị âm được coi là 0.
-void sound_play_once_at(njin_ctx &ctx, sound_handle handle, f32 pitch, f32 gain);
+void sound_play_once_at(context &ctx, sound_handle handle, f32 pitch, f32 gain);
 
 /// Cắt mọi bản đang phát rồi phát lại từ đầu, nên lúc nào cũng chỉ nghe một bản.
 ///
@@ -122,7 +122,7 @@ void sound_play_once_at(njin_ctx &ctx, sound_handle handle, f32 pitch, f32 gain)
 /// lần thay vì chồng thành một đống.
 /// @param ctx Context của engine.
 /// @param handle Sound cần phát.
-void sound_play_restart(njin_ctx &ctx, sound_handle handle);
+void sound_play_restart(context &ctx, sound_handle handle);
 
 /// Đánh dấu sound là lặp lại và phát nếu nó chưa phát.
 ///
@@ -132,7 +132,7 @@ void sound_play_restart(njin_ctx &ctx, sound_handle handle);
 /// để không có quãng lặng. Gọi sound_stop() để dừng.
 /// @param ctx Context của engine.
 /// @param handle Sound cần phát lặp.
-void sound_play_loop(njin_ctx &ctx, sound_handle handle);
+void sound_play_loop(context &ctx, sound_handle handle);
 
 /// Phát sound như sound_play_once(), kèm vị trí trong thế giới.
 ///
@@ -142,7 +142,7 @@ void sound_play_loop(njin_ctx &ctx, sound_handle handle);
 /// @param ctx Context của engine.
 /// @param handle Sound cần phát.
 /// @param world_pos Nơi phát ra tiếng, trong thế giới.
-void sound_play_at(njin_ctx &ctx, sound_handle handle, vec2 world_pos);
+void sound_play_at(context &ctx, sound_handle handle, vec2 world_pos);
 
 /// Khoảng cách nghe được của sound_play_at().
 ///
@@ -152,12 +152,12 @@ void sound_play_at(njin_ctx &ctx, sound_handle handle, vec2 world_pos);
 /// @param full_until Khoảng cách bắt đầu nhỏ dần.
 /// @param silent_from Khoảng cách im lặng hẳn. Nhỏ hơn `full_until` thì được
 /// nâng bằng `full_until`.
-void audio_set_range(njin_ctx &ctx, f32 full_until, f32 silent_from);
+void audio_set_range(context &ctx, f32 full_until, f32 silent_from);
 
 /// Dừng mọi bản đang phát của sound và bỏ chế độ lặp.
 /// @param ctx Context của engine.
 /// @param handle Sound cần dừng.
-void sound_stop(njin_ctx &ctx, sound_handle handle);
+void sound_stop(context &ctx, sound_handle handle);
 /// @}
 
 /// @addtogroup grp_music
@@ -172,69 +172,69 @@ void sound_stop(njin_ctx &ctx, sound_handle handle);
 /// @param path Đường dẫn file nhạc (ogg, mp3, wav, flac...).
 /// @return Handle của music, hoặc handle có id 0 nếu không có thiết bị, file thiếu
 /// hoặc không giải mã được.
-music_handle music_load(njin_ctx &ctx, const char *path);
+music_handle music_load(context &ctx, const char *path);
 
 /// Giải phóng music. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Music cần giải phóng.
-void music_unload(njin_ctx &ctx, music_handle handle);
+void music_unload(context &ctx, music_handle handle);
 
 /// Đặt âm lượng của music, từ 0 trở lên (1 là âm lượng gốc). Mặc định là 1.
 /// @param ctx Context của engine.
 /// @param handle Music cần đặt.
 /// @param volume Âm lượng. Giá trị âm được coi là 0.
-void music_set_volume(njin_ctx &ctx, music_handle handle, f32 volume);
+void music_set_volume(context &ctx, music_handle handle, f32 volume);
 
 /// Tắt hoặc bật tiếng music, không đụng đến âm lượng đã lưu.
 /// @param ctx Context của engine.
 /// @param handle Music cần đặt.
 /// @param muted `true` để tắt tiếng.
-void music_set_muted(njin_ctx &ctx, music_handle handle, bool muted);
+void music_set_muted(context &ctx, music_handle handle, bool muted);
 
 /// Bật hoặc tắt chế độ lặp. Mặc định là bật. Có hiệu lực ngay cả giữa bài.
 /// @param ctx Context của engine.
 /// @param handle Music cần đặt.
 /// @param looping `true` để lặp.
-void music_set_looping(njin_ctx &ctx, music_handle handle, bool looping);
+void music_set_looping(context &ctx, music_handle handle, bool looping);
 
 /// Phát từ đầu, kể cả khi đang tạm dừng hoặc đang phát.
 /// @param ctx Context của engine.
 /// @param handle Music cần phát.
-void music_play(njin_ctx &ctx, music_handle handle);
+void music_play(context &ctx, music_handle handle);
 
 /// Dừng và đưa vị trí về đầu bài.
 /// @param ctx Context của engine.
 /// @param handle Music cần dừng.
-void music_stop(njin_ctx &ctx, music_handle handle);
+void music_stop(context &ctx, music_handle handle);
 
 /// Tạm dừng nhưng giữ nguyên vị trí. Dùng music_resume() để phát tiếp.
 /// @param ctx Context của engine.
 /// @param handle Music cần tạm dừng.
-void music_pause(njin_ctx &ctx, music_handle handle);
+void music_pause(context &ctx, music_handle handle);
 
 /// Phát tiếp từ chỗ music_pause() đã dừng.
 /// @param ctx Context của engine.
 /// @param handle Music cần phát tiếp.
-void music_resume(njin_ctx &ctx, music_handle handle);
+void music_resume(context &ctx, music_handle handle);
 
 /// Music có đang phát không (không tính lúc tạm dừng).
 /// @param ctx Context của engine.
 /// @param handle Music.
 /// @return `true` nếu đang phát.
-bool music_playing(njin_ctx &ctx, music_handle handle);
+bool music_playing(context &ctx, music_handle handle);
 
 /// Phát từ đầu, to dần từ im lặng trong `seconds` giây. Đang phát thì chỉ to
 /// dần lên mức đầy từ mức hiện tại.
 /// @param ctx Context của engine.
 /// @param handle Music.
 /// @param seconds Thời gian to dần, giây (giờ thật).
-void music_fade_in(njin_ctx &ctx, music_handle handle, f32 seconds);
+void music_fade_in(context &ctx, music_handle handle, f32 seconds);
 
 /// Nhỏ dần rồi dừng.
 /// @param ctx Context của engine.
 /// @param handle Music.
 /// @param seconds Thời gian nhỏ dần, giây (giờ thật).
-void music_fade_out(njin_ctx &ctx, music_handle handle, f32 seconds);
+void music_fade_out(context &ctx, music_handle handle, f32 seconds);
 
 /// Chuyển nhạc: mọi music khác đang phát nhỏ dần rồi dừng, trong lúc `handle`
 /// to dần. Gọi khi vào màn mới, khi gặp trùm. `handle` đang phát rồi thì nó
@@ -245,6 +245,6 @@ void music_fade_out(njin_ctx &ctx, music_handle handle, f32 seconds);
 /// @param ctx Context của engine.
 /// @param handle Music cần chuyển sang. Handle id 0 thì chỉ tắt dần mọi nhạc.
 /// @param seconds Thời gian chuyển, giây (giờ thật).
-void music_crossfade(njin_ctx &ctx, music_handle handle, f32 seconds);
+void music_crossfade(context &ctx, music_handle handle, f32 seconds);
 /// @}
 } // namespace njin

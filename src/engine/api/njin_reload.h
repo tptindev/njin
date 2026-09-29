@@ -3,7 +3,7 @@
 #include <string>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_reload
 /// @{
@@ -40,15 +40,15 @@ struct asset_reloaded {
 /// @param ctx Context của engine.
 /// @param on Bật hay tắt.
 /// @param interval Khoảng giữa hai lần kiểm tra, giây thật.
-void hot_reload_enable(njin_ctx &ctx, bool on, f32 interval = 0.25f);
+void hot_reload_enable(context &ctx, bool on, f32 interval = 0.25f);
 
 /// Hot reload có đang bật không. @param ctx Context của engine. @return `true` nếu bật.
-bool hot_reload_enabled(const njin_ctx &ctx);
+bool hot_reload_enabled(const context &ctx);
 
 /// Kiểm tra ngay mọi file và nạp lại những file đã đổi, không đợi. Chạy được
 /// cả khi hot reload đang tắt, ví dụ gắn vào phím F5.
 /// @param ctx Context của engine.
 /// @return Số tài nguyên đã nạp lại thành công.
-i32 hot_reload_now(njin_ctx &ctx);
+i32 hot_reload_now(context &ctx);
 /// @}
 } // namespace njin

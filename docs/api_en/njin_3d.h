@@ -3,7 +3,7 @@
 #include "njin_particles.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_3d
 /// @{
@@ -35,14 +35,14 @@ struct camera3d {
 /// screen_flash(), post_fx_set() and camera_set_post_shader().
 /// @param ctx Engine context.
 /// @param camera Camera for this draw.
-void begin_3d(njin_ctx &ctx, const camera3d &camera);
+void begin_3d(context &ctx, const camera3d &camera);
 
 /// Ends 3D drawing and returns to 2D drawing in world space.
 ///
 /// Does nothing without a matching begin_3d(). If the game forgets to call it,
 /// the engine closes it at the end of `phase_render`, with a warning.
 /// @param ctx Engine context.
-void end_3d(njin_ctx &ctx);
+void end_3d(context &ctx);
 
 /// The 3D scene's shared lighting: the sun (directional light), ambient
 /// light, the sun's shadow and fog. Point and spot lights are added with
@@ -74,12 +74,12 @@ struct light3d {
 /// Sets the shared lighting. Takes effect from the next begin_3d().
 /// @param ctx Engine context.
 /// @param light New lighting.
-void light3d_set(njin_ctx &ctx, const light3d &light);
+void light3d_set(context &ctx, const light3d &light);
 
 /// The shared lighting in use.
 /// @param ctx Engine context.
 /// @return The value set by light3d_set(), or njin::light3d's default.
-light3d light3d_get(const njin_ctx &ctx);
+light3d light3d_get(const context &ctx);
 
 /// Kind of light for njin::light3d_source.
 enum light3d_kind {
@@ -107,7 +107,7 @@ inline constexpr i32 light3d_max = 16;
 /// every light lights every shape of that draw).
 /// @param ctx Engine context.
 /// @param light Light.
-void light3d_add(njin_ctx &ctx, const light3d_source &light);
+void light3d_add(context &ctx, const light3d_source &light);
 
 /// The surface of 3D shapes drawn after material3d_set().
 struct material3d {
@@ -133,7 +133,7 @@ struct material3d {
 /// engine's built-in shader uses this value.
 /// @param ctx Engine context.
 /// @param material Surface.
-void material3d_set(njin_ctx &ctx, const material3d &material);
+void material3d_set(context &ctx, const material3d &material);
 
 /// Draws a solid box, edges parallel to the axes.
 ///
@@ -151,21 +151,21 @@ void material3d_set(njin_ctx &ctx, const material3d &material);
 /// @param center Box centre.
 /// @param size Size along x, y, z.
 /// @param color Colour.
-void draw_cube3d(const njin_ctx &ctx, vec3 center, vec3 size, rgba color);
+void draw_cube3d(const context &ctx, vec3 center, vec3 size, rgba color);
 
 /// Draws a solid sphere.
 /// @param ctx Engine context.
 /// @param center Centre.
 /// @param radius Radius.
 /// @param color Colour.
-void draw_sphere3d(const njin_ctx &ctx, vec3 center, f32 radius, rgba color);
+void draw_sphere3d(const context &ctx, vec3 center, f32 radius, rgba color);
 
 /// Draws a horizontal plane (parallel to the xz plane), top face facing `+y`.
 /// @param ctx Engine context.
 /// @param center Centre.
 /// @param size Size along x and z.
 /// @param color Colour.
-void draw_plane3d(const njin_ctx &ctx, vec3 center, vec2 size, rgba color);
+void draw_plane3d(const context &ctx, vec3 center, vec2 size, rgba color);
 
 /// Draws a solid cylinder joining two points (triangle mesh). For tracers,
 /// ropes, poles.
@@ -174,7 +174,7 @@ void draw_plane3d(const njin_ctx &ctx, vec3 center, vec2 size, rgba color);
 /// @param to Centre of the second base.
 /// @param radius Radius.
 /// @param color Colour.
-void draw_cylinder3d(const njin_ctx &ctx, vec3 from, vec3 to, f32 radius, rgba color);
+void draw_cylinder3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba color);
 
 /// Draws a solid capsule with a triangle mesh: a cylinder joining two points,
 /// with rounded ends. Joins any two points; when a smooth round edge is
@@ -184,7 +184,7 @@ void draw_cylinder3d(const njin_ctx &ctx, vec3 from, vec3 to, f32 radius, rgba c
 /// @param to Centre of the second hemisphere.
 /// @param radius Radius.
 /// @param color Colour.
-void draw_capsule3d(const njin_ctx &ctx, vec3 from, vec3 to, f32 radius, rgba color);
+void draw_capsule3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba color);
 
 /// Shape kind of njin::shape3d.
 enum shape3d_kind {
@@ -232,7 +232,7 @@ struct shape3d {
 /// @param ctx Engine context.
 /// @param shape Shape.
 /// @param color Colour.
-void draw_shape3d(const njin_ctx &ctx, const shape3d &shape, rgba color);
+void draw_shape3d(const context &ctx, const shape3d &shape, rgba color);
 
 /// Loads a 3D model from a glTF (`.glb`, `.gltf`) or OBJ file.
 ///
@@ -242,12 +242,12 @@ void draw_shape3d(const njin_ctx &ctx, const shape3d &shape, rgba color);
 /// @param path File path.
 /// @return Handle of the model, or an invalid handle if the file is missing
 /// or broken.
-model_handle model_load(njin_ctx &ctx, const char *path);
+model_handle model_load(context &ctx, const char *path);
 
 /// Frees a model along with its textures. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Model to free.
-void model_unload(njin_ctx &ctx, model_handle handle);
+void model_unload(context &ctx, model_handle handle);
 
 /// Position, orientation and scale of a 3D object.
 ///
@@ -284,14 +284,14 @@ struct model_material {
 /// @param ctx Engine context.
 /// @param handle Model.
 /// @return Number of materials, 0 if the handle is invalid.
-i32 model_material_count(const njin_ctx &ctx, model_handle handle);
+i32 model_material_count(const context &ctx, model_handle handle);
 
 /// The `index`th material of a model.
 /// @param ctx Engine context.
 /// @param handle Model.
 /// @param index 0..model_material_count() - 1.
 /// @return The material, or the default if the handle or `index` is invalid.
-model_material model_material_get(const njin_ctx &ctx, model_handle handle, i32 index);
+model_material model_material_get(const context &ctx, model_handle handle, i32 index);
 
 /// Sets the `index`th material of a model, for every draw from then on.
 ///
@@ -306,7 +306,7 @@ model_material model_material_get(const njin_ctx &ctx, model_handle handle, i32 
 /// @param handle Model.
 /// @param index 0..model_material_count() - 1, or -1 for every material.
 /// @param material New material.
-void model_material_set(njin_ctx &ctx, model_handle handle, i32 index, const model_material &material);
+void model_material_set(context &ctx, model_handle handle, i32 index, const model_material &material);
 
 /// Draws a model at `transform`, with its own material (model_material_set()).
 /// material3d_set() does not apply to a model; fx3d_set() does. A game
@@ -316,7 +316,7 @@ void model_material_set(njin_ctx &ctx, model_handle handle, i32 index, const mod
 /// @param handle Model from model_load(). An invalid handle is ignored.
 /// @param transform Position, orientation and scale.
 /// @param tint Colour multiplied into the model's colour. White keeps it as is.
-void draw_model(const njin_ctx &ctx, model_handle handle, const transform3d &transform,
+void draw_model(const context &ctx, model_handle handle, const transform3d &transform,
                 rgba tint = colors::white);
 
 /// A ray in the 3D world, used to pick something under the mouse, fire a
@@ -342,7 +342,7 @@ struct ray3d_hit {
 /// @param camera Camera already (or about to be) used for begin_3d().
 /// @param screen Point on the screen, pixels (as mouse_pos() gives it).
 /// @return A ray with its origin at the camera's position.
-ray3d camera3d_ray(const njin_ctx &ctx, const camera3d &camera, vec2 screen);
+ray3d camera3d_ray(const context &ctx, const camera3d &camera, vec2 screen);
 
 /// Screen position of a 3D point, to place a label or a health bar over a
 /// character's head.
@@ -352,7 +352,7 @@ ray3d camera3d_ray(const njin_ctx &ctx, const camera3d &camera, vec2 screen);
 /// @param visible If not nullptr, set to `false` when the point is behind the
 /// camera (the returned position is then meaningless).
 /// @return Position, screen pixels (same system as mouse_pos()).
-vec2 camera3d_to_screen(const njin_ctx &ctx, const camera3d &camera, vec3 point, bool *visible = nullptr);
+vec2 camera3d_to_screen(const context &ctx, const camera3d &camera, vec3 point, bool *visible = nullptr);
 
 /// A ray against a box with edges parallel to the axes. A ray whose origin is
 /// inside the box hits the face it exits through.
@@ -392,7 +392,7 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape);
 /// @param model Model from model_load().
 /// @param transform Position, orientation and scale.
 /// @return The nearest hit, or no hit if the handle is invalid.
-ray3d_hit ray3d_model(const njin_ctx &ctx, const ray3d &ray, model_handle model, const transform3d &transform);
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle model, const transform3d &transform);
 
 /// Built-in mesh to draw many copies of at once with draw_instanced3d().
 enum mesh3d_kind {
@@ -429,7 +429,7 @@ enum mesh3d_kind {
 /// @param first First instance.
 /// @param count Number of instances, cut down if it exceeds what was written.
 /// @param shader The game's shader, or invalid to use the built-in one.
-void draw_instanced3d(const njin_ctx &ctx, mesh3d_kind mesh, instance_buffer_handle buffer, u32 first, u32 count,
+void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader = {});
 
 /// Draws `count` copies of a model with one draw call per part of the model,
@@ -442,7 +442,7 @@ void draw_instanced3d(const njin_ctx &ctx, mesh3d_kind mesh, instance_buffer_han
 /// @param first First instance.
 /// @param count Number of instances, cut down if it exceeds what was written.
 /// @param shader The game's shader, or invalid to use the built-in one.
-void draw_instanced3d(const njin_ctx &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader = {});
 
 /// Effect for 3D shapes drawn after fx3d_set(): a colour flash and dissolving
@@ -478,7 +478,7 @@ struct fx3d {
 /// @endcode
 /// @param ctx Engine context.
 /// @param fx Effect.
-void fx3d_set(njin_ctx &ctx, const fx3d &fx);
+void fx3d_set(context &ctx, const fx3d &fx);
 
 /// How to place a burst of particles in the 3D world, used with
 /// particles3d_spawn().
@@ -509,16 +509,16 @@ struct particles3d_desc {
 /// @param pos Spawn position.
 /// @param count Number of particles.
 /// @param desc Emission direction and the unit scale.
-void particles3d_spawn(njin_ctx &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
+void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
                        const particles3d_desc &desc = {});
 
 /// Clears every flying 3D particle, e.g. on a scene change.
 /// @param ctx Engine context.
-void particles3d_clear(njin_ctx &ctx);
+void particles3d_clear(context &ctx);
 
 /// Number of live 3D particles.
 /// @param ctx Engine context.
 /// @return Particle count.
-i32 particles3d_count(const njin_ctx &ctx);
+i32 particles3d_count(const context &ctx);
 /// @}
 } // namespace njin

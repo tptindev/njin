@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_nav
 /// @{
@@ -46,7 +46,7 @@ nav_grid nav_grid_make(vec2 origin, vec2 cell_size, i32 width, i32 height, u8 co
 /// @param cell_size Cell size, usually equal to the tilemap cell.
 /// @param mask Collision layers treated as obstacles.
 /// @return The grid.
-nav_grid nav_grid_from_world(const njin_ctx &ctx, rect area, vec2 cell_size, u32 mask = 0xFFFFFFFFu);
+nav_grid nav_grid_from_world(const context &ctx, rect area, vec2 cell_size, u32 mask = 0xFFFFFFFFu);
 
 /// The cell containing a point in the world (may lie outside the grid).
 /// @param grid Grid.

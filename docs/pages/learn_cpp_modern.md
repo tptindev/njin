@@ -151,19 +151,19 @@ Sau 4 lần `tick`, đầu ra cho thấy `frame 2: respawn` và `frame 3: lives=
 hai vẫn nhớ `lives`. **Trong njin**, chữ ký thật (`src/engine/api/njin_timer.h`):
 
 ```cpp
-timer_handle timer_after(njin_ctx &ctx, f32 seconds, std::function<void(njin_ctx &)> fn,
+timer_handle timer_after(context &ctx, f32 seconds, std::function<void(context &)> fn,
                          const timer_desc &desc = {});
 // dùng:
-njin::timer_after(ctx, 0.4f, [](njin::njin_ctx &c) { njin::scene_fade(c, next); });
+njin::timer_after(ctx, 0.4f, [](njin::context &c) { njin::scene_fade(c, next); });
 ```
 
 **Con trỏ hàm so với lambda.** njin có **hai** loại gọi được, vì hai nhu cầu khác nhau:
 
-- **System** (`sys_fnc`) là con trỏ hàm thuần, không có trạng thái (`using sys_fnc = void (*)(njin_ctx &ctx);`
+- **System** (`sys_fnc`) là con trỏ hàm thuần, không có trạng thái (`using sys_fnc = void (*)(context &ctx);`
   trong `_mod.h`). Trạng thái của game nằm trong `ctx` và registry, không nằm trong hàm.
 - **Hẹn giờ** là `std::function`: cần nhớ ngữ cảnh lúc hẹn (`lives`, entity cần hồi sinh).
 
-Lambda **không capture** đổi được sang con trỏ hàm (đó là cách platformer viết `.setup = [](njin_ctx &c) { ... }` cho
+Lambda **không capture** đổi được sang con trỏ hàm (đó là cách platformer viết `.setup = [](context &c) { ... }` cho
 `mod_desc`). Lambda **có capture** thì không, vì nó mang theo dữ liệu mà con trỏ hàm không chứa được:
 
 File `lambda_ptr.cpp`:
@@ -233,11 +233,11 @@ desig_order.cpp:8:61: error: designator order for field 'Cfg::width' does not ma
 
 Chỉ áp dụng cho `struct` đơn giản (aggregate): không có hàm khởi tạo do bạn viết.
 
-**Trong njin**, đây là cách mở game (`src/games/pong/main.cpp`). `njin_cfg` có nhiều trường với giá trị mặc định, nên game
+**Trong njin**, đây là cách mở game (`src/games/pong/main.cpp`). `config` có nhiều trường với giá trị mặc định, nên game
 chỉ ghi những trường muốn đổi:
 
 ```cpp
-const njin::njin_cfg cfg{.title = "njin pong",
+const njin::config cfg{.title = "njin pong",
                          .width = 960.0f,
                          .height = 540.0f,
                          .target_fps = 60.0f,
@@ -413,7 +413,7 @@ Ba lời gọi ra `6`, `30`, `3`. `span` **không sở hữu**: nó chịu chung
 gốc phải còn sống khi dùng. **Trong njin**, hàm đăng ký module có bản nhận `span`:
 
 ```cpp
-void njin_mod_register(njin_ctx &ctx, std::span<const mod_desc> mods);
+void mod_register(context &ctx, std::span<const mod_desc> mods);
 ```
 
 ## Còn `[[nodiscard]]`

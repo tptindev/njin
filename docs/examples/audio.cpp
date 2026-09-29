@@ -9,7 +9,7 @@ njin::action_handle fire;
 njin::action_handle pause_music;
 bool paused = false;
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   // Sound: ngắn, nằm hết trong bộ nhớ. Music: dài, stream từ đĩa.
   click = njin::sound_load(ctx, "assets/click.wav");
   hit = njin::sound_load(ctx, "assets/hit.wav");
@@ -30,7 +30,7 @@ void load(njin::njin_ctx &ctx) {
   njin::action_bind_key(ctx, pause_music, njin::key_p);
 }
 
-void update(njin::njin_ctx &ctx) {
+void update(njin::context &ctx) {
   // Bấm dồn cũng nghe rõ từng tiếng nhấp: mỗi lần cắt bản trước rồi phát lại.
   if (njin::key_pressed(ctx, njin::key_enter))
     njin::sound_play_restart(ctx, click);
@@ -52,7 +52,7 @@ void update(njin::njin_ctx &ctx) {
   }
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load);
   njin::ecs_register(ctx, njin::phase_update, update);
 }

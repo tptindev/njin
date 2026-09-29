@@ -10,9 +10,9 @@ struct progress {
 };
 progress p;
 
-std::string file(njin::njin_ctx &ctx) { return njin::save_path(ctx, "save.json"); }
+std::string file(njin::context &ctx) { return njin::save_path(ctx, "save.json"); }
 
-void save(njin::njin_ctx &ctx) {
+void save(njin::context &ctx) {
   njin::json_value items = njin::json_value::make_array();
   for (const std::string &it : p.items)
     items.push(it);
@@ -21,7 +21,7 @@ void save(njin::njin_ctx &ctx) {
   njin::json_save(file(ctx).c_str(), doc); // ghi ra file tạm rồi đổi tên: không bao giờ hỏng nửa chừng
 }
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   njin::json_value doc;
   if (!njin::json_load(file(ctx).c_str(), doc))
     return; // lần chạy đầu: giữ giá trị mặc định
@@ -34,7 +34,7 @@ void load(njin::njin_ctx &ctx) {
     p.items.push_back(it.string_or(""));
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load);
   njin::ecs_register(ctx, njin::phase_shutdown, save);
 }

@@ -9,7 +9,7 @@ struct player_state {
 };
 player_state p;
 
-void update(njin::njin_ctx &ctx) {
+void update(njin::context &ctx) {
   if (njin::key_pressed(ctx, njin::key_p)) {
     p.paused = !p.paused;
     njin::time_set_paused(ctx, p.paused);
@@ -27,7 +27,7 @@ void update(njin::njin_ctx &ctx) {
   njin::post_fx_set(ctx, njin::post_fx_lerp(hurt, njin::post::paused(), p.pause_blend));
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_update, update);
 }
 } // namespace

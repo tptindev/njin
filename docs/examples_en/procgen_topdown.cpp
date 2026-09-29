@@ -20,7 +20,7 @@ tile_grid select(const tile_grid &g, i32 keep, i32 tile) {
   return out;
 }
 
-void build(njin_ctx &ctx) {
+void build(context &ctx) {
   // 1. Parameters: height from noise, split into zones by height (as percentages of the map).
   topdown_gen_desc d;
   d.width = 64;
@@ -64,7 +64,7 @@ void build(njin_ctx &ctx) {
 }
 
 // A tilemap entity sharing the tileset, drawn on layer `layer`; `collide` turns on collision with solid tiles.
-entt::entity make_layer(njin_ctx &ctx, const tilemap &shared, i32 layer, bool collide) {
+entt::entity make_layer(context &ctx, const tilemap &shared, i32 layer, bool collide) {
   entt::registry &reg = world(ctx);
   const entt::entity e = reg.create();
   reg.emplace<transform>(e);
@@ -75,7 +75,7 @@ entt::entity make_layer(njin_ctx &ctx, const tilemap &shared, i32 layer, bool co
   return e;
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   entt::registry &reg = world(ctx);
   tilemap map;
   map.tileset = texture_load(ctx, "assets/terrain.png");
@@ -101,19 +101,19 @@ void startup(njin_ctx &ctx) {
   build(ctx);
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   if (key_pressed(ctx, key_r)) { // R: new map
     seed++;
     build(ctx);
   }
 }
 
-void draw_player(njin_ctx &ctx) {
+void draw_player(context &ctx) {
   const transform &tr = world(ctx).get<transform>(player);
   draw_rect(ctx, rect_from_center(tr.pos - vec2{0.0f, 4.0f}, {10.0f, 8.0f}), colors::yellow);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup);
   ecs_register(ctx, phase_update, update);
   ecs_register(ctx, phase_render, draw_player);
@@ -121,8 +121,8 @@ void setup(njin_ctx &ctx) {
 } // namespace
 
 int main() {
-  njin_ctx *ctx = njin_create({.title = "Top-down map generation", .width = 960, .height = 540, .target_fps = 60});
-  njin_mod_register(*ctx, {.name = "game", .setup = setup});
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  context *ctx = create({.title = "Top-down map generation", .width = 960, .height = 540, .target_fps = 60});
+  mod_register(*ctx, {.name = "game", .setup = setup});
+  run(*ctx);
+  destroy(ctx);
 }

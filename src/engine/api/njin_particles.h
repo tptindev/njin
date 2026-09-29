@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_particles
 /// @{
@@ -127,12 +127,12 @@ enum particle_backend {
 /// không làm hạt đang bay bị giật.
 /// @param ctx Context của engine.
 /// @param backend Lựa chọn.
-void particles_set_backend(njin_ctx &ctx, particle_backend backend);
+void particles_set_backend(context &ctx, particle_backend backend);
 
 /// Lựa chọn đang đặt bằng particles_set_backend().
 /// @param ctx Context của engine.
 /// @return Lựa chọn hiện tại.
-particle_backend particles_backend(const njin_ctx &ctx);
+particle_backend particles_backend(const context &ctx);
 
 /// Máy này có chạy được hạt trên GPU không: OpenGL 3.3 trở lên, có instancing,
 /// và không phải bộ vẽ bằng phần mềm (llvmpipe, SwiftShader, Microsoft Basic
@@ -140,7 +140,7 @@ particle_backend particles_backend(const njin_ctx &ctx);
 /// của game.
 /// @param ctx Context của engine.
 /// @return `true` nếu GPU dùng được.
-bool particles_gpu_available(njin_ctx &ctx);
+bool particles_gpu_available(context &ctx);
 
 /// Xếp hàng `count` hạt để sinh cùng lúc ở lần cập nhật tới.
 ///
@@ -162,7 +162,7 @@ inline void particles_burst(particle_emitter &emitter, i32 count) {
 /// @param pos Vị trí trong thế giới.
 /// @param count Số hạt.
 /// @return Entity vừa tạo.
-entt::entity particles_spawn(njin_ctx &ctx, const particle_emitter &preset,
+entt::entity particles_spawn(context &ctx, const particle_emitter &preset,
                              vec2 pos, i32 count);
 /// @}
 } // namespace njin

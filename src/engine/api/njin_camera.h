@@ -4,7 +4,7 @@
 #include <entt/entity/entity.hpp>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 struct level_handle;
 
 /// @addtogroup grp_camera
@@ -65,13 +65,13 @@ struct camera_follow {
 /// @param zoom Độ phóng. 2 là mọi thứ to gấp đôi.
 /// @param pos Điểm nhìn ban đầu trong thế giới.
 /// @return Entity camera. Thêm njin::camera_follow để nó bám theo nhân vật.
-entt::entity camera_spawn(njin_ctx &ctx, f32 zoom = 1.0f, vec2 pos = {});
+entt::entity camera_spawn(context &ctx, f32 zoom = 1.0f, vec2 pos = {});
 
 /// Khung của một level trong thế giới, dùng cho camera_follow::bounds.
 /// @param ctx Context của engine.
 /// @param level Level đã nạp.
 /// @return `{level_origin, level_size}`, hoặc hình rỗng nếu handle không hợp lệ.
-rect level_bounds(const njin_ctx &ctx, level_handle level);
+rect level_bounds(const context &ctx, level_handle level);
 
 /// Giới hạn một vị trí camera để khung nhìn nằm trong `bounds`.
 /// @param ctx Context của engine (để biết cỡ màn hình).
@@ -79,7 +79,7 @@ rect level_bounds(const njin_ctx &ctx, level_handle level);
 /// @param cam Camera.
 /// @param bounds Vùng thế giới. Kích thước 0 là không giới hạn.
 /// @return Vị trí đã giới hạn.
-vec2 camera_clamp(const njin_ctx &ctx, vec2 pos, const camera_2d &cam, rect bounds);
+vec2 camera_clamp(const context &ctx, vec2 pos, const camera_2d &cam, rect bounds);
 
 /// Trả về góc nhìn dùng cho frame này.
 ///
@@ -88,13 +88,13 @@ vec2 camera_clamp(const njin_ctx &ctx, vec2 pos, const camera_2d &cam, rect boun
 /// Được đọc trực tiếp từ registry nên thay đổi có hiệu lực ngay.
 /// @param ctx Context của engine.
 /// @return Góc nhìn đang dùng.
-camera_view camera_active(const njin_ctx &ctx);
+camera_view camera_active(const context &ctx);
 
 /// Đổi một điểm từ thế giới sang pixel màn hình, qua camera_active().
 /// @param ctx Context của engine.
 /// @param pos Điểm trong thế giới.
 /// @return Vị trí tương ứng trên màn hình.
-vec2 w2scr(const njin_ctx &ctx, vec2 pos);
+vec2 w2scr(const context &ctx, vec2 pos);
 
 /// Đổi một điểm từ pixel màn hình sang thế giới, qua camera_active().
 ///
@@ -102,7 +102,7 @@ vec2 w2scr(const njin_ctx &ctx, vec2 pos);
 /// @param ctx Context của engine.
 /// @param pos Điểm trên màn hình (pixel).
 /// @return Vị trí tương ứng trong thế giới.
-vec2 scr2w(const njin_ctx &ctx, vec2 pos);
+vec2 scr2w(const context &ctx, vec2 pos);
 
 /// Vùng thế giới đang hiện trên màn hình.
 ///
@@ -110,7 +110,7 @@ vec2 scr2w(const njin_ctx &ctx, vec2 pos);
 /// Dùng để bỏ qua việc vẽ những thứ nằm ngoài màn hình.
 /// @param ctx Context của engine.
 /// @return Hình chữ nhật trong thế giới.
-rect camera_bounds(const njin_ctx &ctx);
+rect camera_bounds(const context &ctx);
 
 /// Áp một shader hậu kỳ lên toàn bộ thế giới đi qua camera.
 ///
@@ -120,6 +120,6 @@ rect camera_bounds(const njin_ctx &ctx);
 /// cho shader như bình thường bằng các hàm shader_set_*().
 /// @param ctx Context của engine.
 /// @param shader Shader hậu kỳ. Handle id 0 để tắt.
-void camera_set_post_shader(njin_ctx &ctx, shader_handle shader);
+void camera_set_post_shader(context &ctx, shader_handle shader);
 /// @}
 } // namespace njin

@@ -7,7 +7,7 @@ std::string typed;
 
 // Text input: use text_count/text_char, not key_pressed. Characters have already
 // gone through the keyboard layout, so typing Vietnamese diacritics or capital letters still works.
-void read_text(njin::njin_ctx &ctx) {
+void read_text(njin::context &ctx) {
   for (njin::i32 i = 0; i < njin::text_count(ctx); i++) {
     const njin::i32 codepoint = njin::text_char(ctx, i);
     if (codepoint >= 32 && codepoint < 127) // example: accept ASCII only
@@ -23,20 +23,20 @@ void read_text(njin::njin_ctx &ctx) {
 
 // The menu runs BEFORE the world and swallows the click, so the world underneath
 // does not receive the same click.
-void menu_click(njin::njin_ctx &ctx) {
+void menu_click(njin::context &ctx) {
   if (menu_open && njin::mouse_pressed(ctx, njin::mouse_left)) {
     NJIN_INFO("menu received the click");
     njin::mouse_consume(ctx, njin::mouse_left);
   }
 }
 
-void world_click(njin::njin_ctx &ctx) {
+void world_click(njin::context &ctx) {
   // Once the menu has swallowed the click, this returns false.
   if (njin::mouse_pressed(ctx, njin::mouse_left))
     NJIN_INFO("world received the click");
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_update, read_text);
   njin::ecs_register(ctx, njin::phase_pre_update, menu_click);
   njin::ecs_register(ctx, njin::phase_update, world_click);

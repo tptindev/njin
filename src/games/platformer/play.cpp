@@ -10,18 +10,18 @@ rect cell(i32 index) {
   return rect{{(f32)(index % 8) * 16.0f, (f32)(index / 8) * 16.0f}, tile};
 }
 
-const level_object *object_of(njin_ctx &ctx, entt::entity e) {
+const level_object *object_of(context &ctx, entt::entity e) {
   return world(ctx).try_get<level_object>(e);
 }
 
-void add_sprite(njin_ctx &ctx, entt::entity e, i32 frame, i32 layer = draw_items) {
+void add_sprite(context &ctx, entt::entity e, i32 frame, i32 layer = draw_items) {
   world(ctx).emplace<sprite>(e, sprite{.texture = g.sprites,
                                        .source = cell(frame),
                                        .origin = {0.5f, 1.0f},
                                        .layer = layer});
 }
 
-void add_anim(njin_ctx &ctx, entt::entity e, i32 first, i32 count, f32 fps) {
+void add_anim(context &ctx, entt::entity e, i32 first, i32 count, f32 fps) {
   world(ctx).emplace<sprite_anim>(
       e, sprite_anim{.frame_size = tile, .first = first, .count = count, .fps = fps});
 }
@@ -29,7 +29,7 @@ void add_anim(njin_ctx &ctx, entt::entity e, i32 first, i32 count, f32 fps) {
 // --- prefabs: the level loader builds every object through the prefab
 // named after its type (Tiled "class"), with its level_object attached ---
 
-void build_player(njin_ctx &ctx, entt::entity e) {
+void build_player(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 0, draw_player);
   add_anim(ctx, e, 0, 2, 2.0f);
@@ -48,7 +48,7 @@ void build_player(njin_ctx &ctx, entt::entity e) {
   g.respawn = reg.get<transform>(e).pos;
 }
 
-void build_coin(njin_ctx &ctx, entt::entity e) {
+void build_coin(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 16);
   add_anim(ctx, e, 16, 4, 8.0f);
@@ -66,7 +66,7 @@ void build_coin(njin_ctx &ctx, entt::entity e) {
   g.coins_total++;
 }
 
-void build_walker(njin_ctx &ctx, entt::entity e) {
+void build_walker(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 24);
   add_anim(ctx, e, 24, 2, 5.0f);
@@ -79,7 +79,7 @@ void build_walker(njin_ctx &ctx, entt::entity e) {
   reg.emplace<walker>(e);
 }
 
-void build_checkpoint(njin_ctx &ctx, entt::entity e) {
+void build_checkpoint(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 32);
   reg.emplace<collider>(e, collider{.size = {10.0f, 16.0f},
@@ -90,7 +90,7 @@ void build_checkpoint(njin_ctx &ctx, entt::entity e) {
   reg.emplace<checkpoint>(e);
 }
 
-void build_exit(njin_ctx &ctx, entt::entity e) {
+void build_exit(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 35);
   add_anim(ctx, e, 35, 2, 4.0f);
@@ -102,7 +102,7 @@ void build_exit(njin_ctx &ctx, entt::entity e) {
   reg.emplace<exit_tag>(e);
 }
 
-void build_spikes(njin_ctx &ctx, entt::entity e) {
+void build_spikes(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 40);
   reg.emplace<collider>(e, collider{.size = {14.0f, 7.0f},
@@ -114,7 +114,7 @@ void build_spikes(njin_ctx &ctx, entt::entity e) {
 }
 
 // Water: an invisible rectangle drawn in Tiled.
-void build_hazard(njin_ctx &ctx, entt::entity e) {
+void build_hazard(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   const level_object *obj = object_of(ctx, e);
   reg.emplace<collider>(e, collider{.size = obj != nullptr ? obj->size - vec2{0.0f, 4.0f} : tile,
@@ -125,7 +125,7 @@ void build_hazard(njin_ctx &ctx, entt::entity e) {
   reg.emplace<hazard_tag>(e);
 }
 
-void build_sign(njin_ctx &ctx, entt::entity e) {
+void build_sign(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 41);
   reg.emplace<collider>(e, collider{.size = {24.0f, 16.0f},
@@ -137,7 +137,7 @@ void build_sign(njin_ctx &ctx, entt::entity e) {
   reg.emplace<sign>(e, sign{obj != nullptr ? obj->props["text"].string_or("") : ""});
 }
 
-void build_npc(njin_ctx &ctx, entt::entity e) {
+void build_npc(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   add_sprite(ctx, e, 42);
   add_anim(ctx, e, 42, 2, 0.8f);
@@ -151,7 +151,7 @@ void build_npc(njin_ctx &ctx, entt::entity e) {
 }
 
 // A moving platform: a polyline in Tiled, whose points are its stops.
-void build_platform(njin_ctx &ctx, entt::entity e) {
+void build_platform(context &ctx, entt::entity e) {
   entt::registry &reg = world(ctx);
   const level_object *obj = object_of(ctx, e);
   transform &tr = reg.get<transform>(e);
@@ -174,7 +174,7 @@ void build_platform(njin_ctx &ctx, entt::entity e) {
 
 // --- rules ---
 
-void respawn(njin_ctx &ctx) {
+void respawn(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.player))
     return;
@@ -189,7 +189,7 @@ void respawn(njin_ctx &ctx) {
   g.dying = false;
 }
 
-void kill_player(njin_ctx &ctx) {
+void kill_player(context &ctx) {
   entt::registry &reg = world(ctx);
   if (g.dying || g.finished || !reg.valid(g.player))
     return;
@@ -208,7 +208,7 @@ void kill_player(njin_ctx &ctx) {
   timer_after(ctx, 0.9f, respawn, {.owner = g.player});
 }
 
-void finish_level(njin_ctx &ctx) {
+void finish_level(context &ctx) {
   if (g.finished || g.dying)
     return;
   g.finished = true;
@@ -224,7 +224,7 @@ void finish_level(njin_ctx &ctx) {
   }
 }
 
-void collect(njin_ctx &ctx, entt::entity coin) {
+void collect(context &ctx, entt::entity coin) {
   entt::registry &reg = world(ctx);
   reg.remove<collider>(coin);
   reg.remove<coin_tag>(coin);
@@ -234,7 +234,7 @@ void collect(njin_ctx &ctx, entt::entity coin) {
   particles_spawn(ctx, fx::sparkle(), pos + vec2{0.0f, -8.0f}, 8);
   tween_move(ctx, coin, pos + vec2{0.0f, -18.0f}, 0.35f, ease::out_cubic);
   tween_tint(ctx, coin, {1.0f, 1.0f, 1.0f, 0.0f}, 0.35f, ease::linear,
-             {.done = [coin](njin_ctx &c) {
+             {.done = [coin](context &c) {
                if (world(c).valid(coin))
                  world(c).destroy(coin);
              }});
@@ -242,14 +242,14 @@ void collect(njin_ctx &ctx, entt::entity coin) {
     ui_toast(ctx, tr(ctx, "toast.all_coins"), {.kind = ui_toast_success});
 }
 
-void stomp(njin_ctx &ctx, entt::entity enemy) {
+void stomp(context &ctx, entt::entity enemy) {
   entt::registry &reg = world(ctx);
   walker &w = reg.get<walker>(enemy);
   w.squashed = true;
   reg.remove<collider>(enemy);
   reg.remove<sprite_anim>(enemy);
   reg.get<sprite>(enemy).source = cell(26);
-  timer_after(ctx, 0.5f, [enemy](njin_ctx &c) {
+  timer_after(ctx, 0.5f, [enemy](context &c) {
     if (world(c).valid(enemy))
       world(c).destroy(enemy);
   });
@@ -261,7 +261,7 @@ void stomp(njin_ctx &ctx, entt::entity enemy) {
   particles_spawn(ctx, fx::dust(), reg.get<transform>(enemy).pos, 10);
 }
 
-void on_contact(njin_ctx &ctx, entt::entity other) {
+void on_contact(context &ctx, entt::entity other) {
   entt::registry &reg = world(ctx);
   if (reg.all_of<coin_tag>(other)) {
     collect(ctx, other);
@@ -287,10 +287,10 @@ void on_contact(njin_ctx &ctx, entt::entity other) {
   }
 }
 
-njin_ctx *g_ctx = nullptr; // for the event handlers below
+context *g_ctx = nullptr; // for the event handlers below
 
 void on_enter(const collision_enter &e) {
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   entt::registry &reg = world(ctx);
   if (scene_current(ctx).id != g.play.id || e.self != g.player || !reg.valid(e.self) ||
       !reg.valid(e.other) || g.dying)
@@ -301,7 +301,7 @@ void on_enter(const collision_enter &e) {
 void on_jump(const body_jumped &e) {
   if (e.entity != g.player)
     return;
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   sound_play_once(ctx, g.s_jump);
   particles_spawn(ctx, fx::dust(), world(ctx).get<transform>(e.entity).pos, 6);
 }
@@ -309,7 +309,7 @@ void on_jump(const body_jumped &e) {
 void on_land(const body_landed &e) {
   if (e.entity != g.player || e.speed < 120.0f)
     return;
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   sound_play_once_at(ctx, g.s_land, 1.0f, clamp(e.speed / 360.0f, 0.3f, 1.0f));
   particles_spawn(ctx, fx::dust(), world(ctx).get<transform>(e.entity).pos, 8);
   if (e.speed > 330.0f)
@@ -318,14 +318,14 @@ void on_land(const body_landed &e) {
 
 void on_dialog_end(const dialog_ended &) {
   // Keys pressed while talking must not become a jump afterwards.
-  njin_ctx &ctx = *g_ctx;
+  context &ctx = *g_ctx;
   if (world(ctx).valid(g.player))
     world(ctx).get<platformer_body>(g.player).input = {};
 }
 
 // --- systems ---
 
-void walkers(njin_ctx &ctx) {
+void walkers(context &ctx) {
   entt::registry &reg = world(ctx);
   const f32 dt = delta(ctx);
   for (auto [e, tr, w, spr] : reg.view<transform, walker, sprite>().each()) {
@@ -347,7 +347,7 @@ void walkers(njin_ctx &ctx) {
   }
 }
 
-void player_update(njin_ctx &ctx) {
+void player_update(context &ctx) {
   entt::registry &reg = world(ctx);
   if (!reg.valid(g.player) || g.paused)
     return;
@@ -399,13 +399,13 @@ void player_update(njin_ctx &ctx) {
 }
 
 // Distant hills behind the level, moving slower than the camera.
-void backdrop(njin_ctx &ctx) {
+void backdrop(context &ctx) {
   const camera_view view = camera_active(ctx);
   draw_backdrop(ctx, view.target);
 }
 
 // "E" over whatever the player can talk to.
-void talk_hint(njin_ctx &ctx) {
+void talk_hint(context &ctx) {
   entt::registry &reg = world(ctx);
   if (g.near_talk == entt::null || !reg.valid(g.near_talk) || dialog_active(ctx))
     return;
@@ -419,7 +419,7 @@ void talk_hint(njin_ctx &ctx) {
   draw_text(ctx, key, pos - text_measure(ctx, key, 16.0f, font) * 0.5f, 16.0f, colors::white, font);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   g_ctx = &ctx;
   events(ctx).sink<collision_enter>().connect<&on_enter>();
   events(ctx).sink<body_jumped>().connect<&on_jump>();
@@ -434,7 +434,7 @@ void setup(njin_ctx &ctx) {
 
 mod_desc play_module() { return mod_desc{.name = "plat.play", .setup = setup}; }
 
-void register_prefabs(njin_ctx &ctx) {
+void register_prefabs(context &ctx) {
   prefab_register(ctx, {.name = "player", .build = build_player});
   prefab_register(ctx, {.name = "coin", .build = build_coin});
   prefab_register(ctx, {.name = "walker", .build = build_walker});
@@ -447,7 +447,7 @@ void register_prefabs(njin_ctx &ctx) {
   prefab_register(ctx, {.name = "platform", .build = build_platform});
 }
 
-void play_enter(njin_ctx &ctx) {
+void play_enter(context &ctx) {
   g.coins = 0;
   g.coins_total = 0;
   g.dying = false;
@@ -475,7 +475,7 @@ void play_enter(njin_ctx &ctx) {
   music_crossfade(ctx, std::string(music) == "title" ? g.m_title : g.m_level, 0.8f);
 }
 
-void play_exit(njin_ctx &ctx) {
+void play_exit(context &ctx) {
   time_set_paused(ctx, false);
   dialog_stop(ctx);
   g.player = entt::null;

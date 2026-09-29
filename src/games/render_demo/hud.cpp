@@ -4,12 +4,12 @@
 
 namespace render_demo {
 namespace {
-void draw_line(njin_ctx &ctx, const char *text, f32 y, rgba color = colors::white) {
+void draw_line(context &ctx, const char *text, f32 y, rgba color = colors::white) {
   draw_text(ctx, text, {10.0f, y}, 16.0f, color);
 }
 } // namespace
 
-void hud(njin_ctx &ctx) {
+void hud(context &ctx) {
   demo.frame_ms += (delta_real(ctx) * 1000.0f - demo.frame_ms) * 0.05f;
   if (!demo.hud)
     return;

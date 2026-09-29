@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_particles
 /// @{
@@ -129,12 +129,12 @@ enum particle_backend {
 /// switching midway does not make particles in flight stutter.
 /// @param ctx Engine context.
 /// @param backend The choice.
-void particles_set_backend(njin_ctx &ctx, particle_backend backend);
+void particles_set_backend(context &ctx, particle_backend backend);
 
 /// The choice set with particles_set_backend().
 /// @param ctx Engine context.
 /// @return The current choice.
-particle_backend particles_backend(const njin_ctx &ctx);
+particle_backend particles_backend(const context &ctx);
 
 /// Whether this machine can run particles on the GPU: OpenGL 3.3 or later, with
 /// instancing, and not a software renderer (llvmpipe, SwiftShader, Microsoft
@@ -142,7 +142,7 @@ particle_backend particles_backend(const njin_ctx &ctx);
 /// inside any game function.
 /// @param ctx Engine context.
 /// @return `true` if the GPU is usable.
-bool particles_gpu_available(njin_ctx &ctx);
+bool particles_gpu_available(context &ctx);
 
 /// Queues `count` particles to spawn together on the next update.
 ///
@@ -165,7 +165,7 @@ inline void particles_burst(particle_emitter &emitter, i32 count) {
 /// @param pos Position in the world.
 /// @param count Number of particles.
 /// @return The entity just created.
-entt::entity particles_spawn(njin_ctx &ctx, const particle_emitter &preset,
+entt::entity particles_spawn(context &ctx, const particle_emitter &preset,
                              vec2 pos, i32 count);
 /// @}
 } // namespace njin

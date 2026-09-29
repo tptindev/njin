@@ -8,9 +8,9 @@ namespace xiangqi {
 // njin UI panel: render_ui draws it and handle_input pans the camera from it.
 inline constexpr rect minimap_area{{16.0f, 520.0f}, {210.0f, 185.0f}};
 
-void render_init(njin_ctx &ctx);
-void render_cleanup(njin_ctx &ctx);
-void render_world(njin_ctx &ctx);
-void render_ui(njin_ctx &ctx);
+void render_init(context &ctx);
+void render_cleanup(context &ctx);
+void render_world(context &ctx);
+void render_ui(context &ctx);
 
 } // namespace xiangqi

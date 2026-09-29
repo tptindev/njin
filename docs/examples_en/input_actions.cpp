@@ -4,7 +4,7 @@ namespace {
 njin::action_handle move_left;
 njin::action_handle move_right;
 
-void bind_keys(njin::njin_ctx &ctx) {
+void bind_keys(njin::context &ctx) {
   // One action can have several keys.
   move_left = njin::action_register(ctx, "move_left");
   njin::action_bind_key(ctx, move_left, njin::key_a);
@@ -16,11 +16,11 @@ void bind_keys(njin::njin_ctx &ctx) {
 }
 
 // Key is down = just pressed (pressed) or held since the previous frame (held).
-bool is_down(const njin::njin_ctx &ctx, njin::action_handle action) {
+bool is_down(const njin::context &ctx, njin::action_handle action) {
   return njin::action_pressed(ctx, action) || njin::action_held(ctx, action);
 }
 
-void steer(njin::njin_ctx &ctx) {
+void steer(njin::context &ctx) {
   njin::f32 direction = 0.0f;
   if (is_down(ctx, move_left))
     direction -= 1.0f;
@@ -31,7 +31,7 @@ void steer(njin::njin_ctx &ctx) {
     NJIN_INFO("jump! current direction: %.0f", direction);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, bind_keys);
   njin::ecs_register(ctx, njin::phase_update, steer);
 }

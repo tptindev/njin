@@ -15,7 +15,7 @@ struct falloff_room {
   f32 radius = 76.0f;
 } falloff;
 
-void falloff_build(njin_ctx &ctx) {
+void falloff_build(context &ctx) {
   fill_floor(ctx, t_stone, t_stone2);
   constexpr light_falloff kinds[4] = {falloff_physical, falloff_linear, falloff_smooth, falloff_none};
   constexpr const char *names[4] = {"falloff_physical", "falloff_linear", "falloff_smooth", "falloff_none"};
@@ -30,7 +30,7 @@ void falloff_build(njin_ctx &ctx) {
   lighting_set(ctx, base_lighting());
 }
 
-void falloff_update(njin_ctx &ctx) {
+void falloff_update(context &ctx) {
   const f32 wheel = mouse_wheel(ctx);
   if (wheel != 0.0f)
     falloff.radius = std::clamp(falloff.radius + wheel * 8.0f, 30.0f, 200.0f);
@@ -48,7 +48,7 @@ struct size_room {
   bool paused = false;
 } sizes;
 
-void size_build(njin_ctx &ctx) {
+void size_build(context &ctx) {
   fill_floor(ctx, t_wood);
   constexpr f32 source[3] = {0.0f, 8.0f, 28.0f};
   constexpr const char *names[3] = {"size = 0: bóng sắc", "size = 8", "size = 28: nửa tối rộng"};
@@ -67,7 +67,7 @@ void size_build(njin_ctx &ctx) {
   lighting_set(ctx, base_lighting());
 }
 
-void size_update(njin_ctx &ctx) {
+void size_update(context &ctx) {
   if (key_pressed(ctx, key_space))
     sizes.paused = !sizes.paused;
   if (!sizes.paused)
@@ -76,7 +76,7 @@ void size_update(njin_ctx &ctx) {
     world(ctx).get<transform>(sizes.lights[i]).pos = sizes.pillars[i] + from_angle(sizes.time * 40.0f) * 42.0f;
 }
 
-void size_draw(njin_ctx &ctx) {
+void size_draw(context &ctx) {
   for (const vec2 p : sizes.pillars)
     draw_rect(ctx, rect{p - vec2{9.0f, 9.0f}, {18.0f, 18.0f}}, {0.55f, 0.5f, 0.45f, 1.0f});
   for (const entt::entity e : sizes.lights)
@@ -92,7 +92,7 @@ struct spot_room {
   f32 softness = 0.3f;
 } spot;
 
-void spot_build(njin_ctx &ctx) {
+void spot_build(context &ctx) {
   fill_floor(ctx, t_stone, t_stone2);
   rng &r = random(ctx);
   r.reseed(4);
@@ -118,7 +118,7 @@ void spot_build(njin_ctx &ctx) {
   lighting_set(ctx, d);
 }
 
-void spot_update(njin_ctx &ctx) {
+void spot_update(context &ctx) {
   entt::registry &reg = world(ctx);
   spot.cone = std::clamp(spot.cone + mouse_wheel(ctx) * 5.0f, 5.0f, 170.0f);
   if (key_held(ctx, key_q))
@@ -143,7 +143,7 @@ struct sun_room {
   f32 reach = 40.0f;
 } sun;
 
-void sun_build(njin_ctx &ctx) {
+void sun_build(context &ctx) {
   fill_floor(ctx, t_grass);
   rng &r = random(ctx);
   r.reseed(11);
@@ -161,7 +161,7 @@ void sun_build(njin_ctx &ctx) {
   add_label({320.0f, 76.0f}, "");
 }
 
-void sun_update(njin_ctx &ctx) {
+void sun_update(context &ctx) {
   if (key_pressed(ctx, key_space))
     sun.paused = !sun.paused;
   if (!sun.paused)

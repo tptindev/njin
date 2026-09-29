@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_level
 /// @{
@@ -53,7 +53,7 @@ struct level_desc {
 /// entity name in LDtk), the entity is built with that prefab; this component is
 /// attached **before** the builder runs, so the builder can read the properties:
 /// @code
-/// void build_door(njin::njin_ctx &ctx, entt::entity e) {
+/// void build_door(njin::context &ctx, entt::entity e) {
 ///   const auto &obj = njin::world(ctx).get<njin::level_object>(e);
 ///   const char *target = obj.props["target"].string_or("start");
 ///   ...
@@ -97,7 +97,7 @@ struct level_object {
 /// @param path Path of the map file.
 /// @param desc How to load.
 /// @return Handle of the level, or a handle with id 0 on error (a log is written).
-level_handle level_load(njin_ctx &ctx, const char *path, const level_desc &desc = {});
+level_handle level_load(context &ctx, const char *path, const level_desc &desc = {});
 
 /// Loads a specific level from an LDtk project.
 /// @param ctx Engine context.
@@ -105,7 +105,7 @@ level_handle level_load(njin_ctx &ctx, const char *path, const level_desc &desc 
 /// @param level Level name (identifier), or null for the first level.
 /// @param desc How to load.
 /// @return Handle of the level, or a handle with id 0 on error.
-level_handle level_load_ldtk(njin_ctx &ctx, const char *path, const char *level,
+level_handle level_load_ldtk(context &ctx, const char *path, const char *level,
                              const level_desc &desc = {});
 
 /// Names of every level in an LDtk project, in editor order.
@@ -118,21 +118,21 @@ bool level_list_ldtk(const char *path, std::vector<std::string> &out);
 /// scene (the default) is unloaded automatically when the scene is left.
 /// @param ctx Engine context.
 /// @param level Level. An invalid handle is ignored.
-void level_unload(njin_ctx &ctx, level_handle level);
+void level_unload(context &ctx, level_handle level);
 
 /// Level size, in pixels. @param ctx Engine context. @param level Level.
 /// @return Size, or `{0, 0}` if the handle is invalid.
-vec2 level_size(const njin_ctx &ctx, level_handle level);
+vec2 level_size(const context &ctx, level_handle level);
 
 /// Top-left corner of the level in the world. @param ctx Engine context.
 /// @param level Level. @return Position.
-vec2 level_origin(const njin_ctx &ctx, level_handle level);
+vec2 level_origin(const context &ctx, level_handle level);
 
 /// Custom properties of the whole map (Tiled) or of the level (LDtk).
 /// @param ctx Engine context.
 /// @param level Level.
 /// @return A JSON object, or a null value if the handle is invalid.
-const json_value &level_properties(const njin_ctx &ctx, level_handle level);
+const json_value &level_properties(const context &ctx, level_handle level);
 
 /// Finds the first object of the level whose name (or, if no name matches,
 /// class) is `name`. Handy for spawn points: `level_find(ctx, lv, "spawn")`.
@@ -140,6 +140,6 @@ const json_value &level_properties(const njin_ctx &ctx, level_handle level);
 /// @param level Level.
 /// @param name Name or class.
 /// @return Entity, or `entt::null`.
-entt::entity level_find(njin_ctx &ctx, level_handle level, const char *name);
+entt::entity level_find(context &ctx, level_handle level, const char *name);
 /// @}
 } // namespace njin

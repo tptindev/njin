@@ -13,7 +13,7 @@ Game logic in njin is divided into three concepts:
 A system is a plain function that takes the engine's context and returns nothing:
 
 ```cpp
-void move(njin::njin_ctx &ctx);
+void move(njin::context &ctx);
 ```
 
 It has no state of its own. Data lives in entity components (see
@@ -43,23 +43,23 @@ A module is where you declare systems. It consists of a name and a `setup` funct
 
 How it works:
 
-1. njin_mod_register() calls `setup` exactly once.
+1. mod_register() calls `setup` exactly once.
 2. Inside `setup`, you call ecs_register() for each system to attach it to a phase.
 3. From then on, the system runs whenever its phase runs.
 
 The rules:
 
-- njin_mod_register() must be called **before** njin_run().
+- mod_register() must be called **before** run().
 - Module names must be **unique**. Registering the same name twice is ignored and logs a warning.
 - ecs_register() is only valid **inside `setup`**. Calling it elsewhere is ignored and logs a warning.
-- The engine's core modules (camera, audio, sprite) are already registered by njin_create().
+- The engine's core modules (camera, audio, sprite) are already registered by create().
 
 ### Registering several modules at once
 
-Instead of calling njin_mod_register() for each module, pass a whole list:
+Instead of calling mod_register() for each module, pass a whole list:
 
 ```cpp
-njin::njin_mod_register(*ctx, {input_module(), physics_module(), ui_module()});
+njin::mod_register(*ctx, {input_module(), physics_module(), ui_module()});
 ```
 
 A list built at run time (`std::vector<njin::mod_desc>`, `std::array`) works too:
@@ -68,7 +68,7 @@ A list built at run time (`std::vector<njin::mod_desc>`, `std::array`) works too
 std::vector<njin::mod_desc> mods{input_module(), physics_module()};
 if (debug)
   mods.push_back(debug_overlay_module());
-njin::njin_mod_register(*ctx, mods);
+njin::mod_register(*ctx, mods);
 ```
 
 The result is identical to calling each module in turn: the earlier module runs first within the same phase,

@@ -58,7 +58,7 @@ hard to read. Pixel text is always drawn inside the virtual image, and does not 
 ### Smooth UI on a screen with a virtual resolution
 
 Besides text, rounded panels, buttons, sliders and every shape drawn in the small image also break up into blocks when
-scaled with nearest filtering. Set njin::njin_cfg::smooth_ui and the **world is still drawn in the virtual image** (pixel
+scaled with nearest filtering. Set njin::config::smooth_ui and the **world is still drawn in the virtual image** (pixel
 art), while `phase_post_render` (UI, HUD), dialogs, toasts, flashes and fades are drawn **after the image has been
 scaled**, straight into the window: the engine sets a transform (translate and multiply by the scale) so coordinates
 still follow virtual pixels, but shapes are rasterized at window resolution, and text is built at the font size
@@ -74,9 +74,9 @@ Notes:
 
 ### Crisp text on a screen with a virtual resolution
 
-With njin::njin_cfg::virtual_size, the whole frame is drawn into a small image (for example 640x360) and then scaled
+With njin::config::virtual_size, the whole frame is drawn into a small image (for example 640x360) and then scaled
 up to the window, so text drawn in that image blurs with the scale. When the machine has a **real GPU** and
-njin::njin_cfg::crisp_text is on (the default), on-screen text (UI, HUD, dialogs, notifications)
+njin::config::crisp_text is on (the default), on-screen text (UI, HUD, dialogs, notifications)
 is not drawn into the small image but queued, then drawn **after the image has been scaled**, straight into the window, from
 a glyph image built at the font size multiplied by the scale. Text is crisp at every window size, including fractional scales.
 Positions still follow virtual pixels, and each line has its letter spacing stretched so it is exactly as wide as what
@@ -97,14 +97,14 @@ Trade-offs:
 
 ### Antialiasing with supersampling {#render_scale}
 
-njin::njin_cfg::render_scale draws both the world and the UI at `render_scale` times the resolution
+njin::config::render_scale draws both the world and the UI at `render_scale` times the resolution
 (2, 4 or 8) and then shrinks it back with a smooth filter when going to the window, smoothing the edges
 of shapes, rotated sprites and curves. `1` (the default) is off.
 
 ```cpp
-njin::njin_cfg cfg{};
+njin::config cfg{};
 cfg.render_scale = 4; // read it from the game's settings file, do not hardcode
-njin::njin_ctx *ctx = njin::njin_create(cfg);
+njin::context *ctx = njin::create(cfg);
 ```
 
 This is **not** the window's MSAA (raylib only has a single 4x level through GLFW,
@@ -115,7 +115,7 @@ Notes:
 - No coordinate changes: njin::screen_size(), the mouse and the camera are still computed as
   `virtual_size` (if set) or the window size (if not) — the game knows
   nothing about `render_scale`.
-- **It cannot be changed while running.** njin_create() creates the window and the render
+- **It cannot be changed while running.** create() creates the window and the render
   textures with exactly this value, once; changing the level in a settings menu means saving
   the choice and restarting the game to apply it, like changing resolution in most
   other games.

@@ -58,7 +58,7 @@ f32 sdf(i32 kind, const vec4 &d, vec3 p) {
 }
 } // namespace
 
-ray3d camera3d_ray(const njin_ctx &ctx, const camera3d &camera, vec2 screen) {
+ray3d camera3d_ray(const context &ctx, const camera3d &camera, vec2 screen) {
   const vec2 size = screen_size(ctx);
   vec3 f, r, u;
   basis(camera, f, r, u);
@@ -69,7 +69,7 @@ ray3d camera3d_ray(const njin_ctx &ctx, const camera3d &camera, vec2 screen) {
   return ray3d{.origin = camera.position, .direction = normalize(f + r * (x * h * aspect) + u * (y * h))};
 }
 
-vec2 camera3d_to_screen(const njin_ctx &ctx, const camera3d &camera, vec3 point, bool *visible) {
+vec2 camera3d_to_screen(const context &ctx, const camera3d &camera, vec3 point, bool *visible) {
   const vec2 size = screen_size(ctx);
   vec3 f, r, u;
   basis(camera, f, r, u);
@@ -156,7 +156,7 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape) {
   return ray3d_hit{};
 }
 
-ray3d_hit ray3d_model(const njin_ctx &ctx, const ray3d &ray, model_handle handle, const transform3d &transform) {
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle, const transform3d &transform) {
   const model_slot *slot = model_slot_of(ctx.model, handle);
   if (slot == nullptr)
     return ray3d_hit{};

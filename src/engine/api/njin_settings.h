@@ -2,7 +2,7 @@
 #include "njin_json.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_settings
 /// @{
@@ -17,13 +17,13 @@ struct njin_ctx;
 /// @endcode
 /// @param ctx Context của engine.
 /// @return Object JSON.
-json_value settings_to_json(const njin_ctx &ctx);
+json_value settings_to_json(const context &ctx);
 
 /// Áp dụng cài đặt từ JSON của settings_to_json(). Phần nào thiếu thì giữ
 /// nguyên; ngôn ngữ chưa nạp bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param json Dữ liệu.
-void settings_apply(njin_ctx &ctx, const json_value &json);
+void settings_apply(context &ctx, const json_value &json);
 
 /// Lưu cài đặt vào file trong thư mục lưu game (save_path()), kèm dữ liệu
 /// riêng của game nếu có (độ khó, độ sáng...), dưới khóa `"game"`.
@@ -34,7 +34,7 @@ void settings_apply(njin_ctx &ctx, const json_value &json);
 /// @param file Tên file.
 /// @param game Dữ liệu riêng của game, hoặc null.
 /// @return `true` nếu ghi được.
-bool settings_save(const njin_ctx &ctx, const char *file = "settings.json",
+bool settings_save(const context &ctx, const char *file = "settings.json",
                    const json_value *game = nullptr);
 
 /// Nạp và áp dụng cài đặt đã lưu. Gọi sau khi đã đăng ký action, axis và nạp
@@ -44,6 +44,6 @@ bool settings_save(const njin_ctx &ctx, const char *file = "settings.json",
 /// @param file Tên file.
 /// @param game Nhận dữ liệu riêng của game đã lưu, hoặc null.
 /// @return `true` nếu đã đọc được file.
-bool settings_load(njin_ctx &ctx, const char *file = "settings.json", json_value *game = nullptr);
+bool settings_load(context &ctx, const char *file = "settings.json", json_value *game = nullptr);
 /// @}
 } // namespace njin

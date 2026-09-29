@@ -5,7 +5,7 @@ njin::axis_handle move_x;
 njin::axis_handle move_y;
 njin::action_handle fire;
 
-void bind(njin::njin_ctx &ctx) {
+void bind(njin::context &ctx) {
   // An axis can take both a pair of keys and an analog stick. Whichever source
   // is furthest from its resting position wins.
   move_x = njin::axis_register(ctx, "move_x");
@@ -26,7 +26,7 @@ void bind(njin::njin_ctx &ctx) {
   njin::pad_set_deadzone(ctx, 0.2f);
 }
 
-void steer(njin::njin_ctx &ctx) {
+void steer(njin::context &ctx) {
   // Two axes read together make a vector. Whether to normalize it is up to you.
   const njin::vec2 direction{njin::axis_value(ctx, move_x),
                              njin::axis_value(ctx, move_y)};
@@ -52,7 +52,7 @@ void steer(njin::njin_ctx &ctx) {
     NJIN_INFO("scrolled %.1f notches", wheel);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, bind);
   njin::ecs_register(ctx, njin::phase_update, steer);
 }

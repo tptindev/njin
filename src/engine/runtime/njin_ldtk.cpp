@@ -224,7 +224,7 @@ bool level_list_ldtk(const char *path, std::vector<std::string> &out) {
   return true;
 }
 
-level_handle level_load_ldtk_file(njin_ctx &ctx, const char *path, const char *level,
+level_handle level_load_ldtk_file(context &ctx, const char *path, const char *level,
                                   const level_desc &desc) {
   json_value project;
   if (!read_json(path, project))

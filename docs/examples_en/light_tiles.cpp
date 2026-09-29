@@ -6,7 +6,7 @@ using namespace njin;
 constexpr i32 tile_wall = 3; // index of the wall tile in the tileset
 
 // Make a tilemap's walls block light. Call again when the walls change (digging, opening a door).
-void wall_shadows(njin_ctx &ctx, entt::entity map_entity) {
+void wall_shadows(context &ctx, entt::entity map_entity) {
   entt::registry &reg = world(ctx);
   const tilemap &map = reg.get<tilemap>(map_entity);
   const transform &at = reg.get<transform>(map_entity);
@@ -20,4 +20,4 @@ void wall_shadows(njin_ctx &ctx, entt::entity map_entity) {
 }
 } // namespace
 
-void light_tiles_example(njin::njin_ctx &ctx, entt::entity map_entity) { wall_shadows(ctx, map_entity); }
+void light_tiles_example(njin::context &ctx, entt::entity map_entity) { wall_shadows(ctx, map_entity); }

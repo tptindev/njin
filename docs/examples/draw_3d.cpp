@@ -6,7 +6,7 @@ using namespace njin;
 model_handle crate;
 instance_buffer_handle trees;
 
-void load(njin_ctx &ctx) {
+void load(context &ctx) {
   crate = model_load(ctx, "assets/crate.glb");
   // Mặt trời chiếu chéo xuống và đổ bóng, ánh sáng nền hơi xanh.
   light3d_set(ctx, {.direction = {-0.5f, -1.0f, -0.3f},
@@ -24,12 +24,12 @@ void load(njin_ctx &ctx) {
   instance_buffer_upload(ctx, trees, data, 20);
 }
 
-void update(njin_ctx &ctx) {
+void update(context &ctx) {
   // Gizmo gọi được ở bất kỳ phase nào: một mũi tên chỉ lên model.
   gizmo_arrow3d(ctx, {2.0f, 2.5f, 0.0f}, {2.0f, 1.2f, 0.0f}, colors::yellow);
 }
 
-void render(njin_ctx &ctx) {
+void render(context &ctx) {
   // Camera đứng ở (0, 6, 8), nhìn vào gốc tọa độ.
   begin_3d(ctx, {.position = {0.0f, 6.0f, 8.0f}, .target = {0.0f, 0.0f, 0.0f}, .fovy = 50.0f});
   // Một đèn điểm màu cam cạnh hộp.
@@ -51,7 +51,7 @@ void render(njin_ctx &ctx) {
   end_3d(ctx);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, load, "load");
   ecs_register(ctx, phase_update, update, "update");
   ecs_register(ctx, phase_render, render, "render");

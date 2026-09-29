@@ -1,6 +1,6 @@
 # njin_ui_editor: builds .ui.json layouts by dragging nodes, like Godot's Control
 # scenes, with dockable windows. The Viewport draws the layout with the engine's
-# own UI code, so it is engine side (it reaches into njin_ctx), like the inspector.
+# own UI code, so it is engine side (it reaches into context), like the inspector.
 
 include("${PROJECT_SOURCE_DIR}/cmake/njin_imgui.cmake")
 

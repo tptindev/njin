@@ -2,7 +2,7 @@
 #include "_types.h"
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_post
 /// @{
@@ -58,12 +58,12 @@ struct post_fx {
 /// Sets the built-in post-processing effects. `post_fx{}` turns everything off.
 /// @param ctx Engine context.
 /// @param fx The effects.
-void post_fx_set(njin_ctx &ctx, const post_fx &fx);
+void post_fx_set(context &ctx, const post_fx &fx);
 
 /// The effects currently set. Modify a copy, then call post_fx_set() again.
 /// @param ctx Engine context.
 /// @return The current effects.
-post_fx post_fx_get(const njin_ctx &ctx);
+post_fx post_fx_get(const context &ctx);
 
 /// Interpolates between two effect sets, for smooth transitions (for example
 /// into the pause menu).

@@ -5,7 +5,7 @@ njin::texture_handle player_tex;
 njin::render_texture_handle scene;
 njin::shader_handle effect;
 
-void load(njin::njin_ctx &ctx) {
+void load(njin::context &ctx) {
   const njin::vec2 size = njin::screen_size(ctx);
   scene = njin::render_texture_load(ctx, (njin::u32)size.x, (njin::u32)size.y);
   player_tex = njin::texture_load(ctx, "assets/player.png");
@@ -14,7 +14,7 @@ void load(njin::njin_ctx &ctx) {
 
 // Step 1: draw the scene into a render texture. Placed in phase_post_update because
 // render_texture_begin resets the camera transform.
-void draw_scene(njin::njin_ctx &ctx) {
+void draw_scene(njin::context &ctx) {
   const njin::rgba black{0.0f, 0.0f, 0.0f, 1.0f};
   const njin::rgba white{1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -24,7 +24,7 @@ void draw_scene(njin::njin_ctx &ctx) {
 }
 
 // Step 2: draw the render texture to the screen through the post-processing shader.
-void present(njin::njin_ctx &ctx) {
+void present(njin::context &ctx) {
   const njin::rgba white{1.0f, 1.0f, 1.0f, 1.0f};
 
   njin::shader_set_f32(ctx, effect, "time", njin::elapsed(ctx));
@@ -33,7 +33,7 @@ void present(njin::njin_ctx &ctx) {
   njin::shader_end(ctx);
 }
 
-void setup(njin::njin_ctx &ctx) {
+void setup(njin::context &ctx) {
   njin::ecs_register(ctx, njin::phase_startup, load);
   njin::ecs_register(ctx, njin::phase_post_update, draw_scene);
   njin::ecs_register(ctx, njin::phase_post_render, present); // screen space

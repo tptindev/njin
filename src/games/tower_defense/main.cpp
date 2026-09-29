@@ -2,7 +2,7 @@
 
 int main() {
   using namespace njin;
-  njin_ctx *ctx = njin_create({.title = "Thành Trì Bình Minh",
+  context *ctx = create({.title = "Thành Trì Bình Minh",
                                .width = 1280.0f,
                                .height = 720.0f,
                                .target_fps = 60.0f,
@@ -13,10 +13,10 @@ int main() {
                                .virtual_size = {1280.0f, 720.0f},
                                .integer_scale = false,
                                .smooth_ui = true});
-  njin_mod_register(*ctx, defense::module());
+  mod_register(*ctx, defense::module());
 #ifndef NDEBUG
   debug_server_start(*ctx);
 #endif
-  njin_run(*ctx);
-  njin_destroy(ctx);
+  run(*ctx);
+  destroy(ctx);
 }

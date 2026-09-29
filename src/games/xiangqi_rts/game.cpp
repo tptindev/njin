@@ -11,7 +11,7 @@ namespace xiangqi {
 
 namespace {
 
-std::vector<entt::entity> selected_units(njin_ctx &ctx) {
+std::vector<entt::entity> selected_units(context &ctx) {
   std::vector<entt::entity> selected;
   for (const auto [e, u] : world(ctx).view<const unit_component>().each()) {
     if (u.side == faction::red && u.selected)
@@ -21,7 +21,7 @@ std::vector<entt::entity> selected_units(njin_ctx &ctx) {
 }
 
 // Ends a box or click selection at `end` (screen pixels).
-void finish_selection(njin_ctx &ctx, vec2 end) {
+void finish_selection(context &ctx, vec2 end) {
   state.is_box_selecting = false;
   entt::registry &reg = world(ctx);
   const bool add = key_held(ctx, key_left_shift);
@@ -73,7 +73,7 @@ void finish_selection(njin_ctx &ctx, vec2 end) {
   }
 }
 
-void handle_input(njin_ctx &ctx) {
+void handle_input(context &ctx) {
   if (state.restart_requested) {
     sim_reset(ctx);
     return;
@@ -229,7 +229,7 @@ void handle_input(njin_ctx &ctx) {
 static bool test_enabled = false;
 static i32 test_frame = 0;
 
-void test_harness(njin_ctx &ctx) {
+void test_harness(context &ctx) {
   if (!test_enabled)
     return;
   test_frame++;
@@ -258,16 +258,16 @@ void test_harness(njin_ctx &ctx) {
 
   if (test_frame >= 75) {
     screenshot(ctx, "xiangqi_test_screenshot.png");
-    njin_quit(ctx);
+    quit(ctx);
   }
 }
 
-void startup(njin_ctx &ctx) {
+void startup(context &ctx) {
   sim_init(ctx);
   render_init(ctx);
 }
 
-void setup(njin_ctx &ctx) {
+void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "xiangqi_startup");
   ecs_register(ctx, phase_pre_update, handle_input, "xiangqi_input");
   ecs_register(ctx, phase_update, sim_update, "xiangqi_sim");

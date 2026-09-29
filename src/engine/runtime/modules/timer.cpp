@@ -17,12 +17,12 @@ bool owner_gone(const entt::registry &reg, bool owned, entt::entity owner) {
 }
 
 // Scene the job belongs to: dropped once the game has moved to another.
-bool left_scene(const njin_ctx &ctx, u32 scene, bool keep) {
+bool left_scene(const context &ctx, u32 scene, bool keep) {
   return !keep && scene != scene_current(ctx).id;
 }
 
 // Writes the tween's value at eased progress `k` onto its target.
-void apply(njin_ctx &ctx, tween_job &t, f32 k) {
+void apply(context &ctx, tween_job &t, f32 k) {
   entt::registry &reg = world(ctx);
   const vec4 a = t.from;
   const vec4 b = t.to;
@@ -52,7 +52,7 @@ void apply(njin_ctx &ctx, tween_job &t, f32 k) {
 }
 
 // The current value of what the tween drives, to start from.
-bool capture(njin_ctx &ctx, tween_job &t) {
+bool capture(context &ctx, tween_job &t) {
   entt::registry &reg = world(ctx);
   switch (t.prop) {
   case tween_prop::pos:
@@ -77,7 +77,7 @@ bool capture(njin_ctx &ctx, tween_job &t) {
   return false;
 }
 
-void run(njin_ctx &ctx) {
+void run(context &ctx) {
   timer_state &st = ctx.timers;
   const entt::registry &reg = world(ctx);
   // Timers. New ones made by a callback are appended; they start next frame.
@@ -101,7 +101,7 @@ void run(njin_ctx &ctx) {
     else
       t.left += std::max(t.interval, 1e-4f);
     // Copied out: the callback may add timers, which moves the vector.
-    const std::function<void(njin_ctx &)> fn = t.fn;
+    const std::function<void(context &)> fn = t.fn;
     fn(ctx);
   }
   std::erase_if(st.timers, [](const timer_job &t) { return t.dead; });
@@ -146,16 +146,16 @@ void run(njin_ctx &ctx) {
     }
     t->dead = true;
     if (t->desc.done) {
-      const std::function<void(njin_ctx &)> done = t->desc.done;
+      const std::function<void(context &)> done = t->desc.done;
       done(ctx);
     }
   }
   std::erase_if(st.tweens, [](const tween_job &t) { return t.dead; });
 }
 
-void setup(njin_ctx &ctx) { ecs_register(ctx, phase_update, run, "run"); }
+void setup(context &ctx) { ecs_register(ctx, phase_update, run, "run"); }
 
-tween_handle start(njin_ctx &ctx, entt::entity owner, bool owned, tween_prop prop, vec4 to,
+tween_handle start(context &ctx, entt::entity owner, bool owned, tween_prop prop, vec4 to,
                    f32 seconds, ease curve, const tween_desc &desc) {
   timer_state &st = ctx.timers;
   if (owned) {
@@ -188,12 +188,12 @@ tween_handle start(njin_ctx &ctx, entt::entity owner, bool owned, tween_prop pro
 
 mod_desc timer_module() { return mod_desc{.name = "njin.timer", .setup = setup}; }
 
-timer_handle timer_after(njin_ctx &ctx, f32 seconds, std::function<void(njin_ctx &)> fn,
+timer_handle timer_after(context &ctx, f32 seconds, std::function<void(context &)> fn,
                          const timer_desc &desc) {
   return timer_every(ctx, seconds, std::move(fn), 1, desc);
 }
 
-timer_handle timer_every(njin_ctx &ctx, f32 interval, std::function<void(njin_ctx &)> fn, i32 count,
+timer_handle timer_every(context &ctx, f32 interval, std::function<void(context &)> fn, i32 count,
                          const timer_desc &desc) {
   if (!fn || count == 0)
     return {};
@@ -211,41 +211,41 @@ timer_handle timer_every(njin_ctx &ctx, f32 interval, std::function<void(njin_ct
   return {st.timers.back().id};
 }
 
-void timer_cancel(njin_ctx &ctx, timer_handle timer) {
+void timer_cancel(context &ctx, timer_handle timer) {
   for (timer_job &t : ctx.timers.timers)
     if (t.id == timer.id && timer.id != 0)
       t.dead = true;
 }
 
-bool timer_active(const njin_ctx &ctx, timer_handle timer) {
+bool timer_active(const context &ctx, timer_handle timer) {
   for (const timer_job &t : ctx.timers.timers)
     if (t.id == timer.id && timer.id != 0)
       return !t.dead;
   return false;
 }
 
-tween_handle tween_move(njin_ctx &ctx, entt::entity entity, vec2 to, f32 seconds, ease curve,
+tween_handle tween_move(context &ctx, entt::entity entity, vec2 to, f32 seconds, ease curve,
                         const tween_desc &desc) {
   return start(ctx, entity, true, tween_prop::pos, pack(to), seconds, curve, desc);
 }
 
-tween_handle tween_scale(njin_ctx &ctx, entt::entity entity, f32 to, f32 seconds, ease curve,
+tween_handle tween_scale(context &ctx, entt::entity entity, f32 to, f32 seconds, ease curve,
                          const tween_desc &desc) {
   return start(ctx, entity, true, tween_prop::scale, pack(to), seconds, curve, desc);
 }
 
-tween_handle tween_rotate(njin_ctx &ctx, entt::entity entity, f32 to, f32 seconds, ease curve,
+tween_handle tween_rotate(context &ctx, entt::entity entity, f32 to, f32 seconds, ease curve,
                           const tween_desc &desc) {
   return start(ctx, entity, true, tween_prop::rot, pack(to), seconds, curve, desc);
 }
 
-tween_handle tween_tint(njin_ctx &ctx, entt::entity entity, rgba to, f32 seconds, ease curve,
+tween_handle tween_tint(context &ctx, entt::entity entity, rgba to, f32 seconds, ease curve,
                         const tween_desc &desc) {
   return start(ctx, entity, true, tween_prop::tint, pack(to), seconds, curve, desc);
 }
 
-tween_handle tween_value(njin_ctx &ctx, f32 from, f32 to, f32 seconds,
-                         std::function<void(njin_ctx &, f32)> apply_fn, ease curve,
+tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
+                         std::function<void(context &, f32)> apply_fn, ease curve,
                          const tween_desc &desc, entt::entity owner) {
   const bool owned = owner != entt::null;
   const tween_handle h = start(ctx, owner, owned, tween_prop::custom, pack(to), seconds, curve, desc);
@@ -258,19 +258,19 @@ tween_handle tween_value(njin_ctx &ctx, f32 from, f32 to, f32 seconds,
   return h;
 }
 
-void tween_cancel(njin_ctx &ctx, tween_handle tween) {
+void tween_cancel(context &ctx, tween_handle tween) {
   for (tween_job &t : ctx.timers.tweens)
     if (t.id == tween.id && tween.id != 0)
       t.dead = true;
 }
 
-void tween_cancel_all(njin_ctx &ctx, entt::entity entity) {
+void tween_cancel_all(context &ctx, entt::entity entity) {
   for (tween_job &t : ctx.timers.tweens)
     if (t.owned && t.owner == entity)
       t.dead = true;
 }
 
-bool tween_active(const njin_ctx &ctx, tween_handle tween) {
+bool tween_active(const context &ctx, tween_handle tween) {
   for (const tween_job &t : ctx.timers.tweens)
     if (t.id == tween.id && tween.id != 0)
       return !t.dead;

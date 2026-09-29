@@ -15,14 +15,14 @@ src/engine/
 types (`vec2`, `rgba`...) and raylib's types. That way games only depend on
 `njin::api`, and raylib is an implementation detail of `njin::rt`.
 
-## njin_ctx
+## context
 
-njin::njin_ctx is a struct that is **opaque** to the game: use it only through functions. The real definition
+njin::context is a struct that is **opaque** to the game: use it only through functions. The real definition
 lives in `runtime/njin_ctx_impl.h`:
 
 | Member | Role |
 |---|---|
-| `cfg` | The configuration passed to njin_create() |
+| `cfg` | The configuration passed to create() |
 | `time` | Time, speed, pause, the fixed update accumulator |
 | `random` | The shared random number generator |
 | `window` | Opens the window and audio device on creation, closes them on destruction |
@@ -67,7 +67,7 @@ flowchart LR
 - `pending`: the systems of the module that is **currently** running `setup`.
 - `schedule`: the final order of every registered module.
 
-When njin_mod_register() is called:
+When mod_register() is called:
 
 1. Turn on the `in_setup` flag so ecs_register() knows it is being called legitimately.
 2. Call the module's `setup`. Each ecs_register() pushes into `pending[phase]`.
@@ -84,7 +84,7 @@ and append the rest in registration order.
 
 ## Core modules
 
-njin_create() registers the core modules before returning, in `runtime/modules/`,
+create() registers the core modules before returning, in `runtime/modules/`,
 in this order:
 
 | Module | What it does |
@@ -111,6 +111,6 @@ hierarchy runs before anim, particles and sprite so they see this frame's new po
 ## Adding a core module
 
 1. Create `runtime/modules/<name>.cpp` and `.h`, declaring a function that returns a njin::mod_desc.
-2. Call njin_mod_register() for it in `register_core_modules()` (`runtime/modules/core_modules.cpp`).
+2. Call mod_register() for it in `register_core_modules()` (`runtime/modules/core_modules.cpp`).
 
 CMake automatically finds every `.cpp` file under `runtime/`, so there is no file list to edit.

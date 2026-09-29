@@ -12,7 +12,7 @@ f32 approach(f32 value, f32 target, f32 step) {
 }
 } // namespace
 
-void apply_post(njin_ctx &ctx) {
+void apply_post(context &ctx) {
   post_fx fx = demo.crt ? post::crt() : post_fx{};
   if (demo.bloom) {
     fx.bloom = 1.0f;
@@ -24,7 +24,7 @@ void apply_post(njin_ctx &ctx) {
 }
 
 // The whole-frame shader and the two images it reads besides the frame.
-void load_frame_pass(njin_ctx &ctx) {
+void load_frame_pass(context &ctx) {
   demo.pass.shader = shader_load(ctx, nullptr, "assets/scene.fs");
   shader_set_texture(ctx, demo.pass.shader, "ramp", texture_load(ctx, "assets/ramp.png"));
   shader_set_texture(ctx, demo.pass.shader, "noise", texture_load(ctx, "assets/noise.png"));
@@ -32,7 +32,7 @@ void load_frame_pass(njin_ctx &ctx) {
 
 // Set every frame, before the world is drawn. The lights are in screen pixels:
 // the hero's torch, one at the mouse, and four lamps standing in the forest.
-void update_frame_pass(njin_ctx &ctx) {
+void update_frame_pass(context &ctx) {
   const f32 step = delta_real(ctx) * 3.0f;
   demo.pass.night_amount = approach(demo.pass.night_amount, demo.pass.night ? 1.0f : 0.0f, step);
   demo.pass.dusk_amount = approach(demo.pass.dusk_amount, demo.pass.dusk ? 1.0f : 0.0f, step);

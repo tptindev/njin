@@ -6,7 +6,7 @@
 #include <functional>
 
 namespace njin {
-struct njin_ctx;
+struct context;
 
 /// @addtogroup grp_timer
 /// @{
@@ -36,7 +36,7 @@ struct timer_desc {
 
 /// Gọi `fn` một lần sau `seconds` giây.
 /// @code
-/// njin::timer_after(ctx, 0.4f, [](njin::njin_ctx &c) { njin::scene_fade(c, next); });
+/// njin::timer_after(ctx, 0.4f, [](njin::context &c) { njin::scene_fade(c, next); });
 /// njin::timer_after(ctx, 1.5f, respawn, {.owner = player});
 /// @endcode
 /// Hàm chạy trong `phase_update` (trước system của game), nên được thêm, hủy
@@ -46,7 +46,7 @@ struct timer_desc {
 /// @param fn Hàm cần gọi.
 /// @param desc Tùy chọn.
 /// @return Handle để hủy bằng timer_cancel().
-timer_handle timer_after(njin_ctx &ctx, f32 seconds, std::function<void(njin_ctx &)> fn,
+timer_handle timer_after(context &ctx, f32 seconds, std::function<void(context &)> fn,
                          const timer_desc &desc = {});
 
 /// Gọi `fn` mỗi `interval` giây: sinh quái theo nhịp, hồi máu từ từ.
@@ -56,19 +56,19 @@ timer_handle timer_after(njin_ctx &ctx, f32 seconds, std::function<void(njin_ctx
 /// @param count Số lần gọi, -1 là mãi mãi (đến khi timer_cancel()).
 /// @param desc Tùy chọn.
 /// @return Handle để hủy bằng timer_cancel().
-timer_handle timer_every(njin_ctx &ctx, f32 interval, std::function<void(njin_ctx &)> fn,
+timer_handle timer_every(context &ctx, f32 interval, std::function<void(context &)> fn,
                          i32 count = -1, const timer_desc &desc = {});
 
 /// Hủy một hẹn giờ. Handle đã hết hạn hoặc không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param timer Hẹn giờ.
-void timer_cancel(njin_ctx &ctx, timer_handle timer);
+void timer_cancel(context &ctx, timer_handle timer);
 
 /// Hẹn giờ còn đang chờ không.
 /// @param ctx Context của engine.
 /// @param timer Hẹn giờ.
 /// @return `true` nếu nó chưa chạy xong và chưa bị hủy.
-bool timer_active(const njin_ctx &ctx, timer_handle timer);
+bool timer_active(const context &ctx, timer_handle timer);
 
 /// Tùy chọn của một tween.
 struct tween_desc {
@@ -79,7 +79,7 @@ struct tween_desc {
   bool yoyo = false;
   bool real_time = false; ///< Tính theo giờ thật, như timer_desc::real_time.
   /// Gọi khi tween chạy xong (không gọi khi bị hủy).
-  std::function<void(njin_ctx &)> done{};
+  std::function<void(context &)> done{};
 };
 
 /// Dời `transform.pos` của entity tới `to` trong `seconds` giây.
@@ -99,28 +99,28 @@ struct tween_desc {
 /// @param curve Đường cong.
 /// @param desc Tùy chọn.
 /// @return Handle để hủy bằng tween_cancel().
-tween_handle tween_move(njin_ctx &ctx, entt::entity entity, vec2 to, f32 seconds,
+tween_handle tween_move(context &ctx, entt::entity entity, vec2 to, f32 seconds,
                         ease curve = ease::out_quad, const tween_desc &desc = {});
 
 /// Đổi `transform.scale` của entity tới `to`. Xem tween_move().
 /// @param ctx Context của engine. @param entity Entity có transform.
 /// @param to Tỉ lệ đích. @param seconds Thời lượng. @param curve Đường cong.
 /// @param desc Tùy chọn. @return Handle.
-tween_handle tween_scale(njin_ctx &ctx, entt::entity entity, f32 to, f32 seconds,
+tween_handle tween_scale(context &ctx, entt::entity entity, f32 to, f32 seconds,
                          ease curve = ease::out_quad, const tween_desc &desc = {});
 
 /// Xoay `transform.rot` của entity tới `to` độ. Xem tween_move().
 /// @param ctx Context của engine. @param entity Entity có transform.
 /// @param to Góc đích, độ. @param seconds Thời lượng. @param curve Đường cong.
 /// @param desc Tùy chọn. @return Handle.
-tween_handle tween_rotate(njin_ctx &ctx, entt::entity entity, f32 to, f32 seconds,
+tween_handle tween_rotate(context &ctx, entt::entity entity, f32 to, f32 seconds,
                           ease curve = ease::out_quad, const tween_desc &desc = {});
 
 /// Đổi `sprite.tint` của entity tới `to` (cả độ trong suốt). Xem tween_move().
 /// @param ctx Context của engine. @param entity Entity có njin::sprite.
 /// @param to Màu đích. @param seconds Thời lượng. @param curve Đường cong.
 /// @param desc Tùy chọn. @return Handle.
-tween_handle tween_tint(njin_ctx &ctx, entt::entity entity, rgba to, f32 seconds,
+tween_handle tween_tint(context &ctx, entt::entity entity, rgba to, f32 seconds,
                         ease curve = ease::linear, const tween_desc &desc = {});
 
 /// Chạy một giá trị từ `from` tới `to` và đưa nó cho `apply` mỗi frame: tween
@@ -134,24 +134,24 @@ tween_handle tween_tint(njin_ctx &ctx, entt::entity entity, rgba to, f32 seconds
 /// @param desc Tùy chọn.
 /// @param owner Entity sở hữu: bị hủy thì tween dừng. Có thể để null.
 /// @return Handle.
-tween_handle tween_value(njin_ctx &ctx, f32 from, f32 to, f32 seconds,
-                         std::function<void(njin_ctx &, f32)> apply, ease curve = ease::linear,
+tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
+                         std::function<void(context &, f32)> apply, ease curve = ease::linear,
                          const tween_desc &desc = {}, entt::entity owner = entt::null);
 
 /// Hủy một tween, giữ nguyên giá trị đang có. Không gọi `done`.
 /// @param ctx Context của engine.
 /// @param tween Tween.
-void tween_cancel(njin_ctx &ctx, tween_handle tween);
+void tween_cancel(context &ctx, tween_handle tween);
 
 /// Hủy mọi tween đang chạy trên một entity.
 /// @param ctx Context của engine.
 /// @param entity Entity.
-void tween_cancel_all(njin_ctx &ctx, entt::entity entity);
+void tween_cancel_all(context &ctx, entt::entity entity);
 
 /// Tween còn đang chạy (kể cả đang chờ `delay`) không.
 /// @param ctx Context của engine.
 /// @param tween Tween.
 /// @return `true` nếu còn chạy.
-bool tween_active(const njin_ctx &ctx, tween_handle tween);
+bool tween_active(const context &ctx, tween_handle tween);
 /// @}
 } // namespace njin

@@ -68,14 +68,14 @@ struct game_state {
   bool settings_open = false;
 };
 
-void setup(njin::njin_ctx &ctx, game_state &g) {
+void setup(njin::context &ctx, game_state &g) {
   // Nạp layout từ thư mục assets
   if (!njin::ui_layout_load(ctx, "assets/ui/menu.ui.json", g.menu_ui)) {
     NJIN_ERROR("Không thể nạp file UI!");
   }
 }
 
-void render_ui(njin::njin_ctx &ctx, game_state &g) {
+void render_ui(njin::context &ctx, game_state &g) {
   // Vẽ panel menu chính và lắng nghe sự kiện
   njin::ui_draw_panel(ctx, g.menu_ui, "main_menu", [&](const njin::ui_layout_event &ev) {
     // widget_id là const char*: so bằng string_view, `ev.widget_id == "..."` chỉ so con trỏ.
@@ -85,7 +85,7 @@ void render_ui(njin::njin_ctx &ctx, game_state &g) {
     } else if (id == "btn_settings") {
       g.settings_open = true;
     } else if (id == "btn_quit") {
-      njin::njin_quit(ctx);
+      njin::quit(ctx);
     }
   });
 
@@ -101,7 +101,7 @@ void render_ui(njin::njin_ctx &ctx, game_state &g) {
 Trong tab **Xuất Code C++** của Editor, copy đoạn code đã sinh ra và dán vào file mã nguồn:
 
 ```cpp
-void draw_main_menu(njin::njin_ctx &ctx) {
+void draw_main_menu(njin::context &ctx) {
   njin::ui_begin(ctx, {
     .id = "main_menu",
     .title = "Menu Chính",
@@ -122,7 +122,7 @@ void draw_main_menu(njin::njin_ctx &ctx) {
     // Xử lý cài đặt
   }
   if (njin::ui_button(ctx, "Thoát")) {
-    njin::njin_quit(ctx);
+    njin::quit(ctx);
   }
 
   njin::ui_end(ctx);

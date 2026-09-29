@@ -102,6 +102,6 @@ frame. For short background sounds it is negligible. For long background music, 
 
 ## Releasing
 
-Resources are freed automatically when njin::njin_destroy() is called. Only call njin::sound_unload()
+Resources are freed automatically when njin::destroy() is called. Only call njin::sound_unload()
 or njin::music_unload() when you want to free something early. The audio device is opened along with the window and
 closed after all resources have been freed.

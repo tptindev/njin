@@ -212,7 +212,7 @@ struct physics3d_world {
 
 namespace {
 // Jolt's globals come before the world and go after it.
-physics3d_world &world_of(njin_ctx &ctx) {
+physics3d_world &world_of(context &ctx) {
   physics3d_state &s = ctx.physics3d;
   if (!s.world) {
     jolt_acquire();
@@ -222,7 +222,7 @@ physics3d_world &world_of(njin_ctx &ctx) {
   return *s.world;
 }
 
-body_slot *body_of(const njin_ctx &ctx, body3d_handle h) {
+body_slot *body_of(const context &ctx, body3d_handle h) {
   physics3d_world *w = ctx.physics3d.world.get();
   if (w == nullptr || h.id == 0 || h.id > w->bodies.size())
     return nullptr;
@@ -230,7 +230,7 @@ body_slot *body_of(const njin_ctx &ctx, body3d_handle h) {
   return b.alive ? &b : nullptr;
 }
 
-character_slot *character_of(const njin_ctx &ctx, character3d_handle h) {
+character_slot *character_of(const context &ctx, character3d_handle h) {
   physics3d_world *w = ctx.physics3d.world.get();
   if (w == nullptr || h.id == 0 || h.id > w->characters.size())
     return nullptr;
@@ -255,7 +255,7 @@ physics3d_state::~physics3d_state() {
   }
 }
 
-void physics3d_step(njin_ctx &ctx, f32 dt) {
+void physics3d_step(context &ctx, f32 dt) {
   physics3d_world *w = ctx.physics3d.world.get();
   if (w == nullptr || dt <= 0.0f)
     return;
@@ -280,7 +280,7 @@ void physics3d_step(njin_ctx &ctx, f32 dt) {
   w->system.Update(dt, 1, &w->temp, &w->jobs);
 }
 
-body3d_handle body3d_create(njin_ctx &ctx, const body3d_desc &desc) {
+body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
   // The world first: it sets up Jolt's allocator, which shapes need.
   physics3d_world &w = world_of(ctx);
   JPH::RefConst<JPH::Shape> shape = make_shape(desc);
@@ -317,7 +317,7 @@ body3d_handle body3d_create(njin_ctx &ctx, const body3d_desc &desc) {
   return body3d_handle{handle};
 }
 
-void body3d_destroy(njin_ctx &ctx, body3d_handle handle) {
+void body3d_destroy(context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return;
@@ -327,7 +327,7 @@ void body3d_destroy(njin_ctx &ctx, body3d_handle handle) {
   *b = body_slot{};
 }
 
-transform3d body3d_transform(const njin_ctx &ctx, body3d_handle handle) {
+transform3d body3d_transform(const context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return transform3d{};
@@ -338,7 +338,7 @@ transform3d body3d_transform(const njin_ctx &ctx, body3d_handle handle) {
   return transform3d{.position = {(f32)p.GetX(), (f32)p.GetY(), (f32)p.GetZ()}, .rotation = degrees_of(q)};
 }
 
-void body3d_set_position(njin_ctx &ctx, body3d_handle handle, vec3 position, vec3 rotation) {
+void body3d_set_position(context &ctx, body3d_handle handle, vec3 position, vec3 rotation) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return;
@@ -347,7 +347,7 @@ void body3d_set_position(njin_ctx &ctx, body3d_handle handle, vec3 position, vec
   b->has_target = false;
 }
 
-void body3d_move_kinematic(njin_ctx &ctx, body3d_handle handle, vec3 position, vec3 rotation) {
+void body3d_move_kinematic(context &ctx, body3d_handle handle, vec3 position, vec3 rotation) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return;
@@ -360,31 +360,31 @@ void body3d_move_kinematic(njin_ctx &ctx, body3d_handle handle, vec3 position, v
   b->target_rot = rotation;
 }
 
-vec3 body3d_velocity(const njin_ctx &ctx, body3d_handle handle) {
+vec3 body3d_velocity(const context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return vec3{};
   return nv(ctx.physics3d.world->system.GetBodyInterface().GetLinearVelocity(b->id));
 }
 
-void body3d_set_velocity(njin_ctx &ctx, body3d_handle handle, vec3 velocity) {
+void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr)
     ctx.physics3d.world->system.GetBodyInterface().SetLinearVelocity(b->id, jv(velocity));
 }
 
-void body3d_add_impulse(njin_ctx &ctx, body3d_handle handle, vec3 impulse) {
+void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr)
     ctx.physics3d.world->system.GetBodyInterface().AddImpulse(b->id, jv(impulse));
 }
 
-u64 body3d_user(const njin_ctx &ctx, body3d_handle handle) {
+u64 body3d_user(const context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   return b != nullptr ? b->user : 0;
 }
 
-character3d_handle character3d_create(njin_ctx &ctx, const character3d_desc &desc) {
+character3d_handle character3d_create(context &ctx, const character3d_desc &desc) {
   physics3d_world &w = world_of(ctx);
   const f32 r = std::max(desc.radius, 0.01f);
   const f32 half_height = std::max(desc.height * 0.5f, r + 0.01f);
@@ -407,23 +407,23 @@ character3d_handle character3d_create(njin_ctx &ctx, const character3d_desc &des
   return character3d_handle{(u32)w.characters.size()};
 }
 
-void character3d_destroy(njin_ctx &ctx, character3d_handle handle) {
+void character3d_destroy(context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   if (c != nullptr)
     *c = character_slot{};
 }
 
-void character3d_set_velocity(njin_ctx &ctx, character3d_handle handle, vec3 velocity) {
+void character3d_set_velocity(context &ctx, character3d_handle handle, vec3 velocity) {
   if (character_slot *c = character_of(ctx, handle))
     c->desired = velocity;
 }
 
-vec3 character3d_velocity(const njin_ctx &ctx, character3d_handle handle) {
+vec3 character3d_velocity(const context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   return c != nullptr ? nv(c->character->GetLinearVelocity()) : vec3{};
 }
 
-vec3 character3d_position(const njin_ctx &ctx, character3d_handle handle) {
+vec3 character3d_position(const context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   if (c == nullptr)
     return vec3{};
@@ -431,7 +431,7 @@ vec3 character3d_position(const njin_ctx &ctx, character3d_handle handle) {
   return vec3{(f32)p.GetX(), (f32)p.GetY(), (f32)p.GetZ()};
 }
 
-void character3d_set_position(njin_ctx &ctx, character3d_handle handle, vec3 position) {
+void character3d_set_position(context &ctx, character3d_handle handle, vec3 position) {
   if (character_slot *c = character_of(ctx, handle)) {
     c->character->SetPosition(JPH::RVec3(position.x, position.y, position.z));
     c->character->SetLinearVelocity(JPH::Vec3::sZero());
@@ -439,26 +439,26 @@ void character3d_set_position(njin_ctx &ctx, character3d_handle handle, vec3 pos
   }
 }
 
-bool character3d_grounded(const njin_ctx &ctx, character3d_handle handle) {
+bool character3d_grounded(const context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   return c != nullptr && c->character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround;
 }
 
-vec3 character3d_ground_velocity(const njin_ctx &ctx, character3d_handle handle) {
+vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   if (c == nullptr || c->character->GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
     return vec3{};
   return nv(c->character->GetGroundVelocity());
 }
 
-body3d_handle character3d_ground_body(const njin_ctx &ctx, character3d_handle handle) {
+body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   if (c == nullptr || c->character->GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
     return body3d_handle{};
   return handle_of(*ctx.physics3d.world, c->character->GetGroundBodyID());
 }
 
-ray3d_hit physics3d_raycast(const njin_ctx &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body) {
+ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body) {
   if (body != nullptr)
     *body = body3d_handle{};
   physics3d_world *w = ctx.physics3d.world.get();
@@ -482,11 +482,11 @@ ray3d_hit physics3d_raycast(const njin_ctx &ctx, const ray3d &ray, f32 max_dista
                    .normal = normal};
 }
 
-void physics3d_set_gravity(njin_ctx &ctx, vec3 gravity) {
+void physics3d_set_gravity(context &ctx, vec3 gravity) {
   ctx.physics3d.gravity = gravity;
   if (ctx.physics3d.world)
     ctx.physics3d.world->system.SetGravity(jv(gravity));
 }
 
-vec3 physics3d_gravity(const njin_ctx &ctx) { return ctx.physics3d.gravity; }
+vec3 physics3d_gravity(const context &ctx) { return ctx.physics3d.gravity; }
 } // namespace njin
