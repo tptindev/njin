@@ -21,6 +21,7 @@ A menu with many widgets, or one that changes often, can be built by drag and dr
 | njin::ui_progress() | A progress bar: health, loading time | |
 | njin::ui_progress_circle() | A progress ring: cooldowns, reloads. Thickness, colours, start angle, direction, round caps and centre text are adjustable | |
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Text, image, empty space | |
+| njin::ui_last_rect() | Frame of the widget just placed, to draw more on it (after njin::ui_end()) | |
 | njin::ui_row() | Lays out the next few widgets as a horizontal row | |
 | njin::ui_back() | | The player pressed back |
 
@@ -29,6 +30,11 @@ The label is the widget's identifier within the panel. If two widgets have the s
 
 A panel is positioned by `anchor` (a point on the screen, as a ratio) and `pivot` (a point on the panel), so
 `{.anchor = {1, 0}, .pivot = {1, 0}}` is the top-right corner. The height is computed from the content.
+
+A HUD that stays up during play (a resource bar, a row of recruit buttons) sets `.navigable = false`:
+its buttons are clicked with the mouse only, are never preselected, and the arrows, Enter, Space and Esc
+stay the game's. To draw more on a widget (a picture in a button, a minimap in a njin::ui_space() gap),
+get its frame with njin::ui_last_rect() and draw after njin::ui_end().
 
 ### Progress ring
 
@@ -67,7 +73,8 @@ a different button, call njin::ui_focus() when opening.
 
 **While a panel is showing**, the UI keeps the navigation keys (arrows, Enter, Space, Esc,
 Backspace) and mouse clicks on the panel: the game does not see them, so the character does not run while the
-player is choosing from the menu. Check with njin::ui_active().
+player is choosing from the menu. Check with njin::ui_active(). The UI only takes the left button; a game that
+uses the right button or the wheel in the world asks njin::ui_mouse_over() first, so a click on the HUD does not fall through.
 
 @note Esc closes the window by default (`njin_cfg::exit_key`). If your menu uses Esc to go back, set
 `.exit_key = njin::key_none` in njin_cfg and quit with a "Quit" button.

@@ -76,6 +76,7 @@ add_subdirectory(src/games/render_demo)
 add_subdirectory(src/games/tower_defense)
 add_subdirectory(src/games/crowd)
 add_subdirectory(src/games/lighting_demo)
+add_subdirectory(src/games/xiangqi_rts)
 
 # Debug inspector: a separate window that connects to a running game (see
 # njin_debug.h). Downloads Dear ImGui and rlImGui on first configure.

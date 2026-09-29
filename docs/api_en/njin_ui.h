@@ -112,6 +112,11 @@ struct ui_panel_desc {
   vec2 offset{};          ///< Extra offset, pixels.
   f32 width = 0.0f;       ///< Width, pixels. 0 means `ui_style::width`.
   bool background = true; ///< Draw the panel background.
+  /// The panel takes the navigation keys and the gamepad (arrows, Enter, Space,
+  /// Esc). `false` for a HUD that stays up during play: its buttons are clicked
+  /// with the mouse only, are never preselected, and those keys stay the game's
+  /// (see ui_active()).
+  bool navigable = true;
 };
 
 /// Begins a panel. Widgets called afterwards are stacked top to bottom inside it,
@@ -274,12 +279,36 @@ bool ui_back(njin_ctx &ctx);
 /// @param label Full label, including the `##` part.
 void ui_focus(njin_ctx &ctx, const char *label);
 
-/// Whether any panel was drawn in the previous frame. While that is the case the UI takes the navigation
-/// keys (arrows, Enter, Space, Esc) and the game does not see them, so the
-/// character does not move while the player is choosing from a menu.
+/// Whether a panel that takes the keys was drawn in the previous frame (HUD
+/// panels with `navigable = false` do not count). While that is the case the UI
+/// takes the navigation keys (arrows, Enter, Space, Esc) and the game does not
+/// see them, so the character does not move while the player is choosing from a menu.
 /// @param ctx Engine context.
 /// @return `true` if the UI is shown.
 bool ui_active(const njin_ctx &ctx);
+
+/// Frame of the widget just placed in the open panel (ui_label(), ui_button(),
+/// ui_space()...), in screen pixels. Use it to draw more on a widget: a picture
+/// in a button, a minimap in a ui_space() gap. The panel is only drawn in
+/// ui_end(), so draw the extra after ui_end(), or the panel background covers it.
+/// @code
+/// njin::ui_begin(ctx, {.id = "shop"});
+/// const bool buy = njin::ui_button(ctx, "##sword");
+/// const njin::rect icon = njin::ui_last_rect(ctx);
+/// njin::ui_end(ctx);
+/// njin::texture_draw(ctx, g.sword, icon.pos);
+/// @endcode
+/// @param ctx Engine context.
+/// @return Frame of the widget placed last.
+rect ui_last_rect(const njin_ctx &ctx);
+
+/// Whether the mouse is over a panel (last frame's panels). There the UI has
+/// already taken the left mouse button; this lets the game skip the right
+/// button, the wheel or its own cursor too, for example not ordering units
+/// when the right button is clicked on the HUD.
+/// @param ctx Engine context.
+/// @return `true` if the mouse is over a panel.
+bool ui_mouse_over(const njin_ctx &ctx);
 
 /// Toast kind: decides the color of the left stripe (see ui_style::toast_accent).
 enum ui_toast_kind {

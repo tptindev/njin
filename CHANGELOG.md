@@ -63,6 +63,15 @@ To release: edit that header, add a section here, commit, then
   checks keep game code behind njin's public API instead of including or
   linking directly to raylib.
 - **Logging**: window and audio backend messages use the `njin` log tag.
+- **HUD panels that skip navigation**: `ui_panel_desc::navigable = false` marks
+  a panel that stays up during play (a resource bar, a row of action buttons):
+  its buttons only respond to the mouse, are never preselected, and the
+  navigation keys stay the game's, so `ui_active()` only reports panels that do
+  take them. `ui_last_rect()` returns the frame of the widget just placed, to
+  draw more on it (a portrait on a button, a live minimap in a `ui_space()`
+  gap) after `ui_end()`. `ui_mouse_over()` reports whether the mouse is over
+  any panel, so a game that uses the right button or the wheel in the world
+  can skip its own HUD clicks without keeping a second copy of the panel rects.
 
 ## 0.4.0
 

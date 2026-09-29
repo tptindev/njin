@@ -21,6 +21,7 @@ Menu có nhiều widget hoặc hay đổi thì dựng bằng kéo thả trong nj
 | njin::ui_progress() | Thanh tiến độ: máu, thời gian nạp | |
 | njin::ui_progress_circle() | Vòng tiến độ: hồi chiêu, nạp đạn. Tùy chỉnh độ dày, màu, góc bắt đầu, chiều chạy, đầu bo tròn, chữ giữa | |
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Chữ, ảnh, khoảng trống | |
+| njin::ui_last_rect() | Khung của widget vừa đặt, để vẽ thêm lên nó (sau njin::ui_end()) | |
 | njin::ui_row() | Xếp vài widget tiếp theo thành một hàng ngang | |
 | njin::ui_back() | | Người chơi bấm quay lại |
 
@@ -29,6 +30,11 @@ Nhãn là định danh của widget trong panel. Hai widget cùng chữ thì th�
 
 Panel đặt theo `anchor` (điểm trên màn hình, theo tỉ lệ) và `pivot` (điểm của panel), nên
 `{.anchor = {1, 0}, .pivot = {1, 0}}` là góc trên phải. Chiều cao tự tính theo nội dung.
+
+HUD luôn hiện trong lúc chơi (thanh tài nguyên, dãy nút chiêu mộ) thì đặt `.navigable = false`:
+nút của nó chỉ bấm bằng chuột, không bao giờ được chọn sẵn, và mũi tên, Enter, Space, Esc vẫn
+thuộc về game. Muốn vẽ thêm lên một widget (hình trong nút, bản đồ nhỏ trong một khoảng
+njin::ui_space()) thì lấy khung của nó bằng njin::ui_last_rect() và vẽ sau njin::ui_end().
 
 ### Vòng tiến độ
 
@@ -67,7 +73,8 @@ nút khác thì gọi njin::ui_focus() lúc mở.
 
 **Trong lúc có panel đang hiện**, UI giữ các phím điều hướng (mũi tên, Enter, Space, Esc,
 Backspace) và click chuột lên panel: game không thấy chúng, nên nhân vật không chạy khi người
-chơi đang chọn menu. Kiểm tra bằng njin::ui_active().
+chơi đang chọn menu. Kiểm tra bằng njin::ui_active(). UI chỉ nuốt nút trái; game bấm chuột phải hay
+cuộn bánh xe vào thế giới thì hỏi njin::ui_mouse_over() trước, để cú bấm lên HUD không lọt xuống.
 
 @note Esc mặc định đóng cửa sổ (`njin_cfg::exit_key`). Menu dùng Esc để quay lại thì đặt
 `.exit_key = njin::key_none` trong njin_cfg và thoát bằng một nút "Thoát".

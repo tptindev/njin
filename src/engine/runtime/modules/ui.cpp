@@ -290,7 +290,9 @@ void frame_begin(njin_ctx &ctx) {
   } else if (prev_modal != 0) {
     ui.focus = ui.saved_focus; // the popup is gone: back to where the player was
   }
-  const bool active = !ui.last_panels.empty();
+  ui.navigable_last = ui.navigable_now;
+  ui.navigable_now = false;
+  const bool active = ui.navigable_last;
   // A keybind that was not drawn last frame (its menu closed) stops waiting.
   if (ui.listening != 0 &&
       std::none_of(ui.last.begin(), ui.last.end(),
@@ -350,19 +352,21 @@ void frame_begin(njin_ctx &ctx) {
     ui.mouse_pressed = ui.mouse_released = false;
   }
 
-  if (!active)
+  ui.mouse_over = std::any_of(ui.last_panels.begin(), ui.last_panels.end(),
+                              [&](const rect &p) { return inside(mouse, p); });
+  if (ui.mouse_over)
+    mouse_consume(ctx, mouse_left);
+  if (!active) {
+    // No panel takes the keys (none at all, or only HUD panels): they stay the game's.
+    ui.up = ui.down = ui.left = ui.right = false;
+    ui.accept = ui.accept_held = ui.back = false;
     return;
+  }
 
   // The UI owns these keys while it is on screen.
   for (const key_code k : {key_up, key_down, key_left, key_right, key_enter, key_space,
                            key_escape, key_backspace})
     key_consume(ctx, k);
-  for (const rect &p : ui.last_panels) {
-    if (inside(mouse, p)) {
-      mouse_consume(ctx, mouse_left);
-      break;
-    }
-  }
 
   // Keep the focus on something that exists.
   const auto find = [&](u64 id) -> const ui_widget_rec * {
@@ -411,10 +415,12 @@ rect place(ui_state &ui, f32 h) {
       ui.row_cols = 0;
       ui.cursor = ui.row_y + h + gap;
     }
+    ui.last_rect = r;
     return r;
   }
   const rect r{{ui.panel.pos.x + pad, ui.cursor}, {inner, h}};
   ui.cursor += h + gap;
+  ui.last_rect = r;
   return r;
 }
 
@@ -480,6 +486,16 @@ interaction interact(njin_ctx &ctx, const char *label, bool enabled, bool adjust
   it.area = place(ui, sc(ui, ui.style.widget_height));
   if (!enabled) {
     it.state = state_disabled;
+    return it;
+  }
+  if (!ui.panel_navigable) {
+    // HUD panel: mouse only, never focused, not reachable by the keys.
+    it.hover = ui.modal_last == 0 && inside(ui.mouse, it.area);
+    if (it.hover && ui.mouse_pressed)
+      ui.pressed = it.id;
+    it.clicked = ui.pressed == it.id && ui.mouse_released && it.hover;
+    const bool held = ui.pressed == it.id && ui.mouse_held;
+    it.state = held ? state_pressed : it.hover ? state_focused : state_normal;
     return it;
   }
   ui.current.push_back({it.id, it.area, adjustable, ui.panel_id});
@@ -557,6 +573,7 @@ void ui_begin(njin_ctx &ctx, const ui_panel_desc &desc) {
   ui.panel_id = hash_id(0, desc.id != nullptr ? desc.id : "panel");
   ui.panel_title = desc.title;
   ui.panel_background = desc.background;
+  ui.panel_navigable = desc.navigable;
   ui.cmds.clear();
   ui.row_cols = 0;
   const vec2 screen = screen_size(ctx);
@@ -606,6 +623,8 @@ void ui_end(njin_ctx &ctx) {
   rect bg = ui.panel;
   bg.size.y = height;
   ui.panels.push_back(bg);
+  if (ui.panel_navigable)
+    ui.navigable_now = true;
   if (ui.panel_background) {
     ui_cmd c{};
     c.kind = ui_cmd::skin;
@@ -641,6 +660,8 @@ void ui_label(njin_ctx &ctx, const char *text) {
 void ui_space(njin_ctx &ctx, f32 height) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_space");
+  const f32 pad = sc(ui, ui.style.padding);
+  ui.last_rect = rect{{ui.panel.pos.x + pad, ui.cursor}, {ui.panel.size.x - 2.0f * pad, sc(ui, height)}};
   ui.cursor += sc(ui, height);
 }
 
@@ -927,7 +948,11 @@ void ui_focus(njin_ctx &ctx, const char *label) {
     ui.focus = hash_id(ui.panel_id, label);
 }
 
-bool ui_active(const njin_ctx &ctx) { return !ctx.ui.last_panels.empty(); }
+bool ui_active(const njin_ctx &ctx) { return ctx.ui.navigable_last; }
+
+rect ui_last_rect(const njin_ctx &ctx) { return ctx.ui.last_rect; }
+
+bool ui_mouse_over(const njin_ctx &ctx) { return ctx.ui.mouse_over; }
 
 // --- popup ---
 

@@ -63,6 +63,7 @@ struct ui_state {
   bool accept = false, accept_held = false, back = false;
   bool back_reported = false;
   bool mouse_pressed = false, mouse_held = false, mouse_released = false, mouse_moved = false;
+  bool mouse_over = false; // the mouse is over one of last frame's panels
   vec2 mouse{};
   i32 adjust = 0; // -1/+1 for the focused slider or choice
   f32 repeat_timer = 0.0f;
@@ -78,11 +79,16 @@ struct ui_state {
   u64 panel_id = 0;
   rect panel{};
   f32 cursor = 0.0f; // y of the next widget
+  rect last_rect{};  // slot of the widget placed last (ui_last_rect)
   i32 row_cols = 0, row_index = 0;
   f32 row_y = 0.0f;
   std::vector<ui_cmd> cmds;
   const char *panel_title = nullptr;
   bool panel_background = true;
+  bool panel_navigable = true;
+  // Whether a panel that takes the navigation keys was drawn this frame / last
+  // frame. HUD panels (ui_panel_desc::navigable false) only take the mouse.
+  bool navigable_now = false, navigable_last = false;
   std::unordered_map<u64, f32> heights; // measured panel heights, by id
   // A panel taller than the screen is shrunk to fit it: `natural` is the height
   // a panel would have at fit 1 (last frame's height over the fit it was built

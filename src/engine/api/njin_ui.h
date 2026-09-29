@@ -112,6 +112,10 @@ struct ui_panel_desc {
   vec2 offset{};          ///< Dời thêm, pixel.
   f32 width = 0.0f;       ///< Chiều rộng, pixel. 0 là `ui_style::width`.
   bool background = true; ///< Vẽ nền panel.
+  /// Panel nhận phím điều hướng và tay cầm (mũi tên, Enter, Space, Esc). `false`
+  /// cho HUD luôn hiện trong lúc chơi: nút của nó chỉ bấm bằng chuột, không bao
+  /// giờ được chọn sẵn, và các phím đó vẫn thuộc về game (xem ui_active()).
+  bool navigable = true;
 };
 
 /// Bắt đầu một panel. Các widget gọi sau đó xếp từ trên xuống bên trong nó,
@@ -274,12 +278,35 @@ bool ui_back(njin_ctx &ctx);
 /// @param label Nhãn đầy đủ, kể cả phần `##`.
 void ui_focus(njin_ctx &ctx, const char *label);
 
-/// Có panel nào được vẽ ở frame trước không. Trong lúc đó UI nhận các phím
-/// điều hướng (mũi tên, Enter, Space, Esc) và game không thấy chúng, nên nhân
-/// vật không chạy khi người chơi đang chọn menu.
+/// Có panel nào nhận phím được vẽ ở frame trước không (panel HUD với
+/// `navigable = false` không tính). Trong lúc đó UI nhận các phím điều hướng
+/// (mũi tên, Enter, Space, Esc) và game không thấy chúng, nên nhân vật không
+/// chạy khi người chơi đang chọn menu.
 /// @param ctx Context của engine.
 /// @return `true` nếu UI đang hiện.
 bool ui_active(const njin_ctx &ctx);
+
+/// Khung của widget vừa đặt trong panel đang mở (ui_label(), ui_button(),
+/// ui_space()...), pixel màn hình. Dùng để vẽ thêm lên một widget: hình trong
+/// nút, bản đồ nhỏ trong một khoảng ui_space(). Panel chỉ được vẽ ở ui_end(),
+/// nên phần vẽ thêm phải đặt sau ui_end(), không thì nền panel đè lên.
+/// @code
+/// njin::ui_begin(ctx, {.id = "shop"});
+/// const bool buy = njin::ui_button(ctx, "##sword");
+/// const njin::rect icon = njin::ui_last_rect(ctx);
+/// njin::ui_end(ctx);
+/// njin::texture_draw(ctx, g.sword, icon.pos);
+/// @endcode
+/// @param ctx Context của engine.
+/// @return Khung của widget đặt gần nhất.
+rect ui_last_rect(const njin_ctx &ctx);
+
+/// Chuột có đang nằm trên một panel không (các panel của frame trước). Ở đó UI
+/// đã nuốt nút chuột trái; hàm này để game bỏ qua cả nút phải, bánh xe hay con
+/// trỏ riêng của nó, ví dụ không ra lệnh cho quân khi bấm chuột phải lên HUD.
+/// @param ctx Context của engine.
+/// @return `true` nếu chuột đang trên một panel.
+bool ui_mouse_over(const njin_ctx &ctx);
 
 /// Loại toast: quyết định màu vạch bên trái (xem ui_style::toast_accent).
 enum ui_toast_kind {
