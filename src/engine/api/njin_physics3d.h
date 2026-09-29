@@ -19,6 +19,9 @@ enum body3d_motion {
 /// Hình và kích thước theo cùng quy ước với njin::shape3d, nên một body và hình
 /// vẽ nó dùng chung số: `shape`, `size` (hộp), `radius`, `height` (viên nang, trụ,
 /// cả hình theo trục y). Hình xuyến (njin::shape3d_torus) không có body.
+///
+/// Có `model` thì hình của body lấy từ lưới tam giác của model đó, đặt như
+/// draw_model() vẽ nó với cùng `position`, `rotation` và `scale`.
 struct body3d_desc {
   shape3d_kind shape = shape3d_box;  ///< Hình: hộp, cầu, viên nang hoặc trụ.
   vec3 position{0.0f, 0.0f, 0.0f};   ///< Tâm.
@@ -33,6 +36,14 @@ struct body3d_desc {
   /// Số của game gắn vào body (chỉ số trong mảng, id entity...), đọc lại bằng
   /// body3d_user() hoặc từ kết quả physics3d_raycast().
   u64 user = 0;
+  /// Lấy hình từ model này (model_load()) thay cho `shape`. Body tĩnh và kinematic
+  /// dùng đúng từng tam giác: sàn, dốc, hang của một màn làm trong Blender. Body
+  /// động dùng bao lồi của các đỉnh (hình lồi nhỏ nhất bọc model).
+  model_handle model{};
+  vec3 scale{1.0f, 1.0f, 1.0f}; ///< Tỉ lệ của `model`, như njin::transform3d::scale.
+  /// Chỉ phát hiện, không va chạm: vật và nhân vật đi xuyên qua, còn engine báo
+  /// sự kiện chạm (physics3d_contact()). Cho vùng nhặt đồ, checkpoint, bẫy, đích.
+  bool sensor = false;
 };
 
 /// Tạo một body vật lý 3D. Engine mô phỏng mọi body ở `phase_fixed_update`,
@@ -164,7 +175,8 @@ vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle);
 /// @return Body, hoặc không hợp lệ nếu không đứng trên body nào.
 body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle);
 
-/// Bắn một tia vào các body (không trúng nhân vật): đạn, tầm nhìn, chọn vật bằng chuột.
+/// Bắn một tia vào các body (không trúng nhân vật, đi xuyên sensor): đạn, tầm nhìn,
+/// chọn vật bằng chuột.
 /// @param ctx Context của engine.
 /// @param ray Tia (hướng độ dài 1).
 /// @param max_distance Xa nhất còn tính, đơn vị thế giới.
@@ -172,6 +184,134 @@ body3d_handle character3d_ground_body(const context &ctx, character3d_handle han
 /// @return Điểm chạm gần nhất, nếu có.
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance,
                             body3d_handle *body = nullptr);
+
+/// Một sự kiện chạm của bước mô phỏng vừa rồi: hai body, hoặc một body và một
+/// nhân vật, bắt đầu hay thôi chạm nhau.
+struct contact3d {
+  body3d_handle a{};              ///< Body thứ nhất.
+  body3d_handle b{};              ///< Body thứ hai; không hợp lệ khi bên kia là nhân vật.
+  character3d_handle character{}; ///< Nhân vật chạm `a`, khi `b` không hợp lệ.
+  bool began = true;              ///< `true`: bắt đầu chạm. `false`: thôi chạm.
+  bool sensor = false;            ///< Một trong hai là sensor (njin::body3d_desc::sensor).
+  vec3 point{0.0f, 0.0f, 0.0f};   ///< Điểm chạm, khi `began`.
+  /// Pháp tuyến chạm, khi `began`: từ `a` sang `b` (hoặc sang nhân vật).
+  vec3 normal{0.0f, 0.0f, 0.0f};
+};
+
+/// Số sự kiện chạm của bước mô phỏng vừa rồi.
+///
+/// Một cặp chỉ báo một lần khi bắt đầu chạm và một lần khi thôi chạm, dù chạm ở
+/// nhiều điểm. Engine mô phỏng ngay sau các system của game trong
+/// `phase_fixed_update`, nên đọc sự kiện trong phase đó: mỗi bước game thấy đúng
+/// sự kiện của bước trước, không sót, không lặp. Body bị hủy không có sự kiện
+/// thôi chạm.
+///
+/// @code
+/// for (int i = 0; i < njin::physics3d_contact_count(ctx); i++) {
+///   const njin::contact3d c = njin::physics3d_contact(ctx, i);
+///   if (c.began && c.a.id == goal.id && c.character.id == player.id)
+///     win();
+/// }
+/// @endcode
+/// @param ctx Context của engine.
+/// @return Số sự kiện.
+i32 physics3d_contact_count(const context &ctx);
+
+/// Sự kiện chạm thứ `index` của bước mô phỏng vừa rồi.
+/// @param ctx Context của engine.
+/// @param index 0..physics3d_contact_count() - 1.
+/// @return Sự kiện, hoặc mặc định nếu `index` không hợp lệ.
+contact3d physics3d_contact(const context &ctx, i32 index);
+
+/// Loại khớp nối của njin::joint3d_desc.
+enum joint3d_kind {
+  joint3d_fixed,    ///< Hàn cứng hai body: giữ nguyên vị trí và góc tương đối.
+  joint3d_point,    ///< Khớp cầu: xoay tự do quanh `anchor` (dây xích, ragdoll).
+  joint3d_hinge,    ///< Bản lề: xoay quanh `axis` qua `anchor` (cửa, bập bênh, bánh xe).
+  joint3d_slider,   ///< Trượt dọc `axis`, không xoay (piston, ngăn kéo, cửa kéo).
+  joint3d_distance, ///< Giữ khoảng cách giữa `anchor` và `anchor_b` trong `[min, max]` (dây, thanh nối).
+};
+
+/// Mô tả một khớp nối cho joint3d_create(). Các điểm và trục tính trong tọa độ
+/// thế giới, lúc tạo khớp.
+struct joint3d_desc {
+  joint3d_kind kind = joint3d_hinge; ///< Loại khớp.
+  body3d_handle a{};                 ///< Body thứ nhất.
+  /// Body thứ hai. Không hợp lệ là nối `a` vào một điểm cố định của thế giới.
+  body3d_handle b{};
+  vec3 anchor{0.0f, 0.0f, 0.0f};     ///< Điểm nối.
+  vec3 anchor_b{0.0f, 0.0f, 0.0f};   ///< Điểm nối ở phía `b`, chỉ cho njin::joint3d_distance.
+  vec3 axis{0.0f, 1.0f, 0.0f};       ///< Trục xoay (bản lề) hoặc trục trượt (khớp trượt).
+  /// Giới hạn: góc, độ (bản lề); quãng trượt, đơn vị thế giới, 0 là vị trí lúc tạo
+  /// (khớp trượt); khoảng cách (njin::joint3d_distance, cả hai bằng 0 là giữ
+  /// khoảng cách lúc tạo). Bản lề và khớp trượt cần `min <= 0 <= max` (góc của bản
+  /// lề trong -180..180): giá trị ngoài khoảng bị kẹp lại. `min >= max` là không
+  /// giới hạn, trừ njin::joint3d_distance.
+  f32 min = 0.0f;
+  f32 max = 0.0f; ///< Xem `min`.
+  /// Mô-tơ của bản lề và khớp trượt: lực tối đa (bản lề: mô-men, N·m) để giữ tốc
+  /// độ đặt bằng joint3d_set_motor(). 0 là không có mô-tơ.
+  f32 motor_force = 0.0f;
+};
+
+/// Nối hai body (hoặc một body với thế giới) bằng một khớp.
+///
+/// @code
+/// // Tấm ván treo bằng bản lề ở mép trên, đung đưa khi nhân vật nhảy lên.
+/// const auto plank = njin::body3d_create(ctx, {.position = {0, 4, 0}, .size = {3, 0.2f, 1},
+///                                              .motion = njin::body3d_dynamic, .mass = 20});
+/// njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = {0, 6, 0}, .axis = {1, 0, 0}});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Mô tả khớp.
+/// @return Handle của khớp, hoặc không hợp lệ nếu `a` không hợp lệ.
+joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc);
+
+/// Hủy khớp. Hủy một body cũng hủy mọi khớp của nó. Handle không hợp lệ bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Khớp.
+void joint3d_destroy(context &ctx, joint3d_handle handle);
+
+/// Đặt tốc độ mô-tơ của một bản lề (độ mỗi giây) hay khớp trượt (đơn vị mỗi
+/// giây), trong giới hạn `joint3d_desc::motor_force`. 0 là đứng lại và giữ yên.
+/// @param ctx Context của engine.
+/// @param handle Khớp có `motor_force` lớn hơn 0.
+/// @param speed Tốc độ.
+void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed);
+
+/// Góc hiện tại của bản lề (độ) hoặc quãng trượt của khớp trượt (đơn vị), tính
+/// từ lúc tạo khớp.
+/// @param ctx Context của engine.
+/// @param handle Khớp.
+/// @return Giá trị, 0 với loại khớp khác hay handle không hợp lệ.
+f32 joint3d_position(const context &ctx, joint3d_handle handle);
+
+/// Component: entity đi theo một body vật lý. Engine đọc và ghi
+/// njin::transform3d của entity quanh mỗi bước mô phỏng:
+/// - body động: sau bước, vị trí và góc xoay của body ghi vào transform;
+/// - body kinematic: trước bước, body được đưa tới transform (như
+///   body3d_move_kinematic()), nên game chỉ cần dời transform;
+/// - body tĩnh: không làm gì.
+///
+/// Gỡ component hay hủy entity thì body bị hủy theo.
+///
+/// @code
+/// const auto crate = reg.create();
+/// reg.emplace<njin::transform3d>(crate);
+/// reg.emplace<njin::shape3d_render>(crate, njin::shape3d_render{.shape = {.kind = njin::shape3d_box}});
+/// reg.emplace<njin::body3d>(crate, njin::body3d_create(ctx, {.position = {0, 3, 0},
+///                                                            .motion = njin::body3d_dynamic}));
+/// @endcode
+struct body3d {
+  body3d_handle handle{}; ///< Body từ body3d_create().
+};
+
+/// Component: entity đi theo một nhân vật vật lý. Sau mỗi bước mô phỏng, vị trí
+/// chân của nhân vật ghi vào `transform3d::position` của entity (góc xoay do game
+/// đặt). Gỡ component hay hủy entity thì nhân vật bị hủy theo.
+struct character3d {
+  character3d_handle handle{}; ///< Nhân vật từ character3d_create().
+};
 
 /// Đặt trọng lực cho body động. Mặc định `{0, -9.81, 0}`. Nhân vật không dùng giá
 /// trị này: game tự cộng trọng lực vào vận tốc của nó.

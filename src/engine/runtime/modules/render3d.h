@@ -1,5 +1,6 @@
 #pragma once
 #include "../njin_internal_only.h"
+#include "_mod.h"
 #include "njin_3d.h"
 #include <raylib.h>
 #include <array>
@@ -40,6 +41,9 @@ struct render3d_locations {
   // The SDF shader only.
   i32 shape_kind = -1, shape_dims = -1, shape_bounds = -1, shape_to_local = -1, shape_to_world = -1;
   i32 mat_vp = -1, ray_ortho = -1, ray_dir = -1, depth_only = -1;
+  // Point/spot light shadows, and the skinning shader's bones.
+  i32 light_shadow = -1, lamp_vp = -1, lamp_params = -1, lamp_map = -1;
+  i32 bones = -1;
 };
 
 // One recorded draw: a primitive (mesh), an SDF shape or a model.
@@ -57,6 +61,10 @@ struct draw3d_cmd {
   instance_buffer_handle buffer{};
   u32 first = 0;
   u32 count = 0;
+  // draw_model_anim: the pose's matrices in render3d_state::bones. count 0 =
+  // the rest pose, drawn without skinning.
+  u32 bone_first = 0;
+  u32 bone_count = 0;
 };
 
 // Depth seen from the sun. A colour attachment is kept too, so the
@@ -65,7 +73,18 @@ struct shadow_target {
   u32 fbo = 0;
   u32 depth = 0;
   u32 color = 0;
-  i32 size = 0;
+  i32 size = 0;   // width
+  i32 height = 0;
+};
+
+// The shadowed point and spot lights of the open pass (light3d_source::shadows):
+// row of the lamp atlas per light (-1 none), and per row the face matrices and
+// the lighting shader's lampParams.
+struct lamp_shadows {
+  std::array<i32, light3d_max> row{};
+  std::array<Matrix, light3d_shadow_max * 6> vp{};
+  std::array<vec4, light3d_shadow_max> params{};
+  i32 rows = 0;
 };
 
 // What the inspector's 3D world view shows of the last pass (debug.cpp): one
@@ -108,9 +127,14 @@ struct render3d_state {
   Shader depth{};      // shadow pass, meshes
   Shader lit_instanced{};   // draw_instanced3d
   Shader depth_instanced{}; // draw_instanced3d, shadow pass
+  Shader lit_skinned{};     // draw_model_anim
+  Shader depth_skinned{};   // draw_model_anim, shadow passes
+  bool skin_ok = false;     // the skinning shaders compiled
+  i32 depth_skinned_bones = -1;
   render3d_locations locs;
   render3d_locations sdf_locs;
   render3d_locations instanced_locs;
+  render3d_locations skinned_locs;
   Mesh cube{};     // 1x1x1, centred on the origin
   Mesh sphere{};   // radius 1
   Mesh plane{};    // 1x1 on xz, facing +y
@@ -120,11 +144,15 @@ struct render3d_state {
   std::array<MaterialMap, 12> maps{};
   light3d light;
   shadow_target shadow;
+  shadow_target lamp;    // atlas of the point/spot light shadows
+  lamp_shadows lamps;
 
   // The open pass. Draw calls take a const ctx, so the list is mutable.
   camera3d camera; // shake included
   mutable std::vector<draw3d_cmd> cmds;
+  mutable std::vector<Matrix> bones; // bone matrices of the posed draws
   std::vector<light3d_source> lights;
+  bool entities = true; // camera3d::entities of the open pass
   fx3d fx;
   material3d material;
   debug3d_frame debug; // the last pass, while the debug server runs
@@ -147,4 +175,7 @@ shape_frame shape3d_frame(const shape3d &shape);
 
 // Closes a 3D pass the game left open. Called at the end of the world pass.
 void render3d_close(context &ctx);
+
+// Core module: advances the pose of every njin::model3d in phase_update.
+mod_desc render3d_module();
 } // namespace njin

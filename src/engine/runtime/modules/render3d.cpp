@@ -14,6 +14,7 @@
 #include "particles3d.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <raymath.h>
 #include <rlgl.h>
 #include <string>
@@ -21,8 +22,12 @@
 
 namespace njin {
 namespace {
-// Past raylib's material map slots (0..11), so DrawMesh never rebinds it.
+// Past raylib's material map slots (0..11), so DrawMesh never rebinds them.
 constexpr i32 shadow_unit = 14;
+constexpr i32 lamp_unit = 15;
+// The shadow atlas of the point and spot lights: one row per shadowed light,
+// one tile per face (a point light has 6, a spot light 1).
+constexpr i32 lamp_faces = 6;
 
 const char *const lit_vs = R"(#version 330
 in vec3 vertexPosition;
@@ -71,6 +76,13 @@ uniform vec4 shadowParams;    // texel size (0..1), softness in texels, texel si
 uniform vec4 flash;
 uniform vec4 dissolve;        // amount, edge width, grain, seed
 uniform vec4 edgeColor;
+// Shadows of point and spot lights: the atlas row of each light (-1 = none),
+// each face's view-projection, and per row near, far, the size of a texel
+// one unit away, and 1 / tile size.
+uniform sampler2D lampShadowMap;
+uniform int lightShadow[16];
+uniform mat4 lampVP[24];
+uniform vec4 lampParams[4];
 out vec4 finalColor;
 
 float hash(vec3 p) {
@@ -106,6 +118,44 @@ float sunlight(vec3 pos, vec3 n, vec3 l) {
   return lit / 9.0;
 }
 
+// Share of point/spot light `i` (atlas row `row`) reaching `pos`, 3x3 PCF on
+// linear depth. A point light picks the cube face its direction falls in.
+float lamplight(int row, bool point, vec3 lpos, vec3 pos, vec3 n, vec3 l) {
+  vec3 d = pos - lpos;
+  int face = 0;
+  if (point) {
+    vec3 a = abs(d);
+    if (a.x >= a.y && a.x >= a.z)
+      face = d.x > 0.0 ? 0 : 1;
+    else if (a.y >= a.z)
+      face = d.y > 0.0 ? 2 : 3;
+    else
+      face = d.z > 0.0 ? 4 : 5;
+  }
+  vec4 p = lampParams[row];
+  float texel = length(d) * p.z;
+  vec4 c = lampVP[row * 6 + face] * vec4(pos + n * texel * 1.5, 1.0);
+  if (c.w <= 0.0)
+    return 1.0;
+  vec2 uv = c.xy / c.w * 0.5 + 0.5;
+  if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0)
+    return 1.0;
+  float depth = c.w;
+  float bias = texel * (1.5 + 2.0 * (1.0 - max(dot(n, l), 0.0)));
+  vec2 cell = vec2(float(face), float(row));
+  vec2 lo = vec2(0.5 * p.w);
+  vec2 hi = vec2(1.0) - lo;
+  float lit = 0.0;
+  for (int x = -1; x <= 1; x++)
+    for (int y = -1; y <= 1; y++) {
+      vec2 q = clamp(uv + vec2(x, y) * p.w, lo, hi);
+      float z = texture(lampShadowMap, (cell + q) / vec2(6.0, 4.0)).r;
+      float linear = p.x * p.y / (p.y - z * (p.y - p.x));
+      lit += depth - bias <= linear ? 1.0 : 0.0;
+    }
+  return lit / 9.0;
+}
+
 vec3 shade(vec3 base, vec3 n, vec3 pos, float cut, vec3 glow) {
   vec3 color = base;
   vec3 v = normalize(viewPos - pos);
@@ -134,6 +184,8 @@ vec3 shade(vec3 base, vec3 n, vec3 pos, float cut, vec3 glow) {
         att *= clamp((dot(-li, lightSpot[i].xyz) - co) / max(ci - co, 1e-4), 0.0, 1.0);
       }
       float nli = max(dot(n, li), 0.0);
+      if (nli > 0.0 && att > 0.0 && lightShadow[i] >= 0)
+        att *= lamplight(lightShadow[i], lightSpot[i].w < -1.5, lightPos[i].xyz, pos, n, li);
       diffuse += lightColors[i].rgb * nli * att;
       if (nli > 0.0)
         spec += lightColors[i].rgb * pow(max(dot(n, normalize(li + v)), 0.0), surface.y) * att;
@@ -347,6 +399,52 @@ void main() {
 }
 )";
 
+// Skeletal animation on the GPU: the bone indices and weights njin_model.cpp
+// uploads at locations 10 and 11, and the pose's bone matrices (up to
+// skin_max_bones), as raylib computes them (inverse bind pose, then the pose).
+const char *const skin_glsl = R"(
+layout(location = 10) in vec4 vertexBoneIds;
+layout(location = 11) in vec4 vertexBoneWeights;
+uniform mat4 boneMatrices[128];
+mat4 skin_matrix() {
+  vec4 w = vertexBoneWeights;
+  float sum = w.x + w.y + w.z + w.w;
+  if (sum < 1e-4)
+    return mat4(1.0);
+  return (w.x * boneMatrices[int(vertexBoneIds.x)] + w.y * boneMatrices[int(vertexBoneIds.y)] +
+          w.z * boneMatrices[int(vertexBoneIds.z)] + w.w * boneMatrices[int(vertexBoneIds.w)]) / sum;
+}
+)";
+
+const char *const lit_skinned_vs_main = R"(
+in vec3 vertexPosition;
+in vec2 vertexTexCoord;
+in vec3 vertexNormal;
+in vec4 vertexColor;
+uniform mat4 mvp;
+uniform mat4 matModel;
+uniform mat4 matNormal;
+out vec2 fragTexCoord;
+out vec4 fragColor;
+out vec3 fragNormal;
+out vec3 fragPos;
+void main() {
+  mat4 k = skin_matrix();
+  vec4 p = k * vec4(vertexPosition, 1.0);
+  fragTexCoord = vertexTexCoord;
+  fragColor = vertexColor;
+  fragNormal = (matNormal * vec4(mat3(k) * vertexNormal, 0.0)).xyz;
+  fragPos = (matModel * p).xyz;
+  gl_Position = mvp * p;
+}
+)";
+
+const char *const depth_skinned_vs_main = R"(
+in vec3 vertexPosition;
+uniform mat4 mvp;
+void main() { gl_Position = mvp * (skin_matrix() * vec4(vertexPosition, 1.0)); }
+)";
+
 const char *const depth_vs = R"(#version 330
 in vec3 vertexPosition;
 uniform mat4 mvp;
@@ -414,6 +512,11 @@ render3d_locations find_locations(Shader shader) {
   l.ray_ortho = loc("rayOrtho");
   l.ray_dir = loc("rayDir");
   l.depth_only = loc("depthOnly");
+  l.light_shadow = loc("lightShadow");
+  l.lamp_vp = loc("lampVP");
+  l.lamp_params = loc("lampParams");
+  l.lamp_map = loc("lampShadowMap");
+  l.bones = loc("boneMatrices");
   return l;
 }
 
@@ -441,6 +544,20 @@ bool ensure_ready(render3d_state &s) {
   s.locs = find_locations(s.lit);
   s.sdf_locs = find_locations(s.sdf);
   s.instanced_locs = find_locations(s.lit_instanced);
+  // Skinning needs a large uniform array; a driver that cannot take it still
+  // draws models, in their rest pose.
+  const std::string lit_skinned_vs = head + skin_glsl + lit_skinned_vs_main;
+  const std::string depth_skinned_vs = head + skin_glsl + depth_skinned_vs_main;
+  s.lit_skinned = LoadShaderFromMemory(lit_skinned_vs.c_str(), lit_fs.c_str());
+  s.depth_skinned = LoadShaderFromMemory(depth_skinned_vs.c_str(), depth_fs);
+  s.skin_ok = IsShaderValid(s.lit_skinned) && IsShaderValid(s.depth_skinned);
+  if (s.skin_ok) {
+    s.skinned_locs = find_locations(s.lit_skinned);
+    s.depth_skinned_bones = GetShaderLocation(s.depth_skinned, "boneMatrices");
+    s.lit_skinned.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(s.lit_skinned, "emissionMap");
+  } else {
+    NJIN_WARN("3d: the skinning shader failed to compile, animated models are drawn in their rest pose");
+  }
   // DrawMesh binds the emission map through the emission slot's location.
   s.lit.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(s.lit, "emissionMap");
   // Enough segments that a sphere or capsule filling a good part of the
@@ -464,14 +581,13 @@ void free_shadow(shadow_target &t) {
   t = shadow_target{};
 }
 
-bool ensure_shadow(shadow_target &t, i32 size) {
-  size = std::clamp(size, 256, 8192);
-  if (t.fbo != 0 && t.size == size)
+bool ensure_shadow(shadow_target &t, i32 width, i32 height) {
+  if (t.fbo != 0 && t.size == width && t.height == height)
     return true;
   free_shadow(t);
   t.fbo = rlLoadFramebuffer();
-  t.color = rlLoadTexture(nullptr, size, size, RL_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE, 1);
-  t.depth = rlLoadTextureDepth(size, size, false);
+  t.color = rlLoadTexture(nullptr, width, height, RL_PIXELFORMAT_UNCOMPRESSED_GRAYSCALE, 1);
+  t.depth = rlLoadTextureDepth(width, height, false);
   rlFramebufferAttach(t.fbo, t.color, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
   rlFramebufferAttach(t.fbo, t.depth, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
   if (!rlFramebufferComplete(t.fbo)) {
@@ -479,7 +595,8 @@ bool ensure_shadow(shadow_target &t, i32 size) {
     free_shadow(t);
     return false;
   }
-  t.size = size;
+  t.size = width;
+  t.height = height;
   return true;
 }
 
@@ -540,7 +657,9 @@ void record(const context &ctx, const Mesh *mesh, model_handle model, const Matr
                               .material = s.material,
                               .buffer = {},
                               .first = 0,
-                              .count = 0});
+                              .count = 0,
+                              .bone_first = 0,
+                              .bone_count = 0});
 }
 
 // The +y unit cylinder stretched from `from` to `to`.
@@ -615,6 +734,8 @@ using map_set = std::array<MaterialMap, 12>;
 
 // Every mesh of a model with the transform of a draw, and the maps of the
 // material it uses with the game's overrides and the draw's tint applied.
+// `fn` also gets whether the mesh is drawn posed: the draw has a pose, the
+// mesh has bone buffers and the skinning shaders work.
 template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d_cmd &c, Fn &&fn) {
   const model_slot *slot = model_slot_of(ctx.model, c.model);
   if (slot == nullptr)
@@ -640,13 +761,65 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const rgba color{mm.color.r * c.color.r, mm.color.g * c.color.g, mm.color.b * c.color.b,
                      mm.color.a * c.color.a};
     to_raylib(color, maps[MATERIAL_MAP_DIFFUSE].color);
-    fn(model.meshes[i], maps, mm, transform);
+    const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok && (usize)i < slot->bone_vbo.size() &&
+                       slot->bone_vbo[(usize)i] != 0;
+    fn(model.meshes[i], maps, mm, transform, posed);
   }
+}
+
+// The pose of a draw on `shader`'s bone array (its program is left bound).
+void set_bones(const render3d_state &s, Shader shader, i32 loc, const draw3d_cmd &c) {
+  rlEnableShader(shader.id);
+  rlSetUniformMatrices(loc, &s.bones[c.bone_first], (i32)c.bone_count);
 }
 
 void draw_shape(const render3d_state &s, const draw3d_cmd &c, const Matrix &view_proj, bool ortho, vec3 ray_dir,
                 bool depth_only);
 void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only);
+void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir);
+
+// Depth of every opaque shadow caster into the bound target, seen through the
+// current matrices (`view_proj`): along `dir` for the sun (orthographic), from
+// the SDF shader's viewPos for a lamp.
+void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir) {
+  const render3d_state &s = ctx.render3d;
+  map_set maps = s.maps;
+  Material depth{};
+  depth.shader = s.depth;
+  depth.maps = maps.data();
+  Material skinned = depth;
+  skinned.shader = s.depth_skinned;
+  for (const draw3d_cmd &c : s.cmds) {
+    if (!casts(c))
+      continue;
+    if (c.is_shape) {
+      if (c.material.cast_shadows && !c.material.unlit)
+        draw_shape(s, c, view_proj, ortho, dir, true);
+      continue;
+    }
+    if (c.buffer.id != 0) {
+      if (c.material.cast_shadows && !c.material.unlit)
+        draw_instanced_cmd(ctx, c, true);
+      continue;
+    }
+    if (c.mesh != nullptr) {
+      if (c.material.cast_shadows && !c.material.unlit)
+        DrawMesh(*c.mesh, depth, c.transform);
+      continue;
+    }
+    bool bones_set = false;
+    for_each_model_mesh(ctx, c,
+                        [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &transform, bool posed) {
+                          if (!mm.surface.cast_shadows)
+                            return;
+                          if (posed && !bones_set) {
+                            set_bones(s, s.depth_skinned, s.depth_skinned_bones, c);
+                            bones_set = true;
+                          }
+                          DrawMesh(mesh, posed ? skinned : depth, transform);
+                        });
+  }
+}
 
 // Depth of every opaque shadow caster, seen from the sun, into the shadow map.
 // Returns the sun's view-projection, for the lit shader to look up.
@@ -682,40 +855,83 @@ Matrix render_shadow(context &ctx) {
   rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(focus - dir * (range * 2.0f)), rl3(focus), rl3(up))));
   const Matrix light_vp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   rlEnableDepthTest();
-
-  map_set maps = s.maps;
-  Material depth{};
-  depth.shader = s.depth;
-  depth.maps = maps.data();
-  for (const draw3d_cmd &c : s.cmds) {
-    if (!casts(c))
-      continue;
-    if (c.is_shape) {
-      if (c.material.cast_shadows && !c.material.unlit)
-        draw_shape(s, c, light_vp, true, dir, true);
-      continue;
-    }
-    if (c.buffer.id != 0) {
-      if (c.material.cast_shadows && !c.material.unlit)
-        draw_instanced_cmd(ctx, c, true);
-      continue;
-    }
-    if (c.mesh != nullptr) {
-      if (c.material.cast_shadows && !c.material.unlit)
-        DrawMesh(*c.mesh, depth, c.transform);
-      continue;
-    }
-    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &transform) {
-      if (mm.surface.cast_shadows)
-        DrawMesh(mesh, depth, transform);
-    });
-  }
+  draw_casters(ctx, light_vp, true, dir);
   rlDisableFramebuffer();
   return light_vp;
 }
 
+// Depth of the point and spot lights with `shadows` into the lamp atlas: a
+// row per light, a 90 degree face per cube side for a point light, one face
+// covering the cone for a spot light. Fills s.lamps; false when none casts.
+bool render_lamp_shadows(context &ctx) {
+  render3d_state &s = ctx.render3d;
+  lamp_shadows &ls = s.lamps;
+  ls.row.fill(-1);
+  ls.rows = 0;
+  const i32 count = std::min((i32)s.lights.size(), light3d_max);
+  for (i32 i = 0; i < count && ls.rows < light3d_shadow_max; i++)
+    if (s.lights[(usize)i].shadows && s.lights[(usize)i].radius > 0.0f)
+      ls.row[(usize)i] = ls.rows++;
+  if (ls.rows == 0 || s.cmds.empty())
+    return false;
+  const i32 tile = std::clamp(s.light.source_shadow_size, 64, 2048);
+  if (!ensure_shadow(s.lamp, tile * lamp_faces, tile * light3d_shadow_max)) {
+    ls.row.fill(-1);
+    ls.rows = 0;
+    return false;
+  }
+
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(s.lamp.fbo);
+  rlSetFramebufferWidth(s.lamp.size);
+  rlSetFramebufferHeight(s.lamp.height);
+  rlViewport(0, 0, s.lamp.size, s.lamp.height);
+  rlClearColor(255, 255, 255, 255);
+  rlClearScreenBuffers();
+  rlEnableDepthTest();
+  // Cube faces in the order the lighting shader picks them: +x -x +y -y +z -z.
+  static const vec3 dirs[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+  static const vec3 ups[6] = {{0, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 1}, {0, 1, 0}, {0, 1, 0}};
+  for (i32 i = 0; i < count; i++) {
+    const i32 row = ls.row[(usize)i];
+    if (row < 0)
+      continue;
+    const light3d_source &src = s.lights[(usize)i];
+    const bool spot = src.kind == light3d_spot;
+    const f32 far_plane = std::max(src.radius, 0.1f);
+    const f32 near_plane = std::max(far_plane * 0.005f, 0.02f);
+    const f32 fov = spot ? clamp(src.cone + 10.0f, 10.0f, 150.0f) : 90.0f;
+    const f32 half = std::tan(fov * 0.5f * DEG2RAD);
+    ls.params[(usize)row] = {near_plane, far_plane, 2.0f * half / (f32)tile, 1.0f / (f32)tile};
+    // Rays from the lamp for the SDF shapes.
+    set_vec3(s.sdf, s.sdf_locs.view_pos, src.position);
+    const i32 faces = spot ? 1 : lamp_faces;
+    for (i32 f = 0; f < faces; f++) {
+      vec3 dir = dirs[f];
+      vec3 up = ups[f];
+      if (spot) {
+        dir = normalize(src.direction);
+        up = std::fabs(dir.y) < 0.99f ? vec3{0.0f, 1.0f, 0.0f} : vec3{0.0f, 0.0f, 1.0f};
+      }
+      rlViewport(f * tile, row * tile, tile, tile);
+      rlMatrixMode(RL_PROJECTION);
+      rlLoadIdentity();
+      const f64 edge = (f64)(near_plane * half);
+      rlFrustum(-edge, edge, -edge, edge, near_plane, far_plane);
+      rlMatrixMode(RL_MODELVIEW);
+      rlLoadIdentity();
+      rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(src.position), rl3(src.position + dir), rl3(up))));
+      const Matrix vp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+      ls.vp[(usize)(row * lamp_faces + f)] = vp;
+      draw_casters(ctx, vp, false, {});
+    }
+  }
+  rlDisableFramebuffer();
+  return true;
+}
+
 void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locations &l, bool shadows,
-                       const Matrix &light_vp) {
+                       const Matrix &light_vp, bool lamps) {
   const light3d &sun = s.light;
   set_vec3(sh, l.light_dir, normalize(sun.direction));
   set_vec3(sh, l.light_color, rgb(sun.color));
@@ -743,6 +959,19 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
     SetShaderValueV(sh, l.light_pos, pos, SHADER_UNIFORM_VEC4, count);
     SetShaderValueV(sh, l.light_colors, colors, SHADER_UNIFORM_VEC4, count);
     SetShaderValueV(sh, l.light_spot, spot, SHADER_UNIFORM_VEC4, count);
+  }
+
+  const lamp_shadows &ls = s.lamps;
+  i32 rows[light3d_max];
+  for (i32 i = 0; i < light3d_max; i++)
+    rows[i] = lamps && i < count ? ls.row[(usize)i] : -1;
+  SetShaderValueV(sh, l.light_shadow, rows, SHADER_UNIFORM_INT, light3d_max);
+  set_i32(sh, l.lamp_map, lamp_unit);
+  if (lamps) {
+    SetShaderValueV(sh, l.lamp_params, ls.params.data(), SHADER_UNIFORM_VEC4, ls.rows);
+    rlEnableShader(sh.id);
+    rlSetUniformMatrices(l.lamp_vp, ls.vp.data(), ls.rows * lamp_faces);
+    rlDisableShader();
   }
 
   set_i32(sh, l.shadow_on, shadows ? 1 : 0);
@@ -959,13 +1188,24 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     DrawMesh(*c.mesh, material, c.transform);
     return;
   }
-  for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &maps, const model_material &mm, const Matrix &transform) {
+  bool bones_set = false;
+  for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &maps, const model_material &mm, const Matrix &transform,
+                                  bool posed) {
     Shader shader = s.lit;
     if (!game_shader(ctx, mm.shader, shader) && own)
       shader = custom;
-    if (shader.id == s.lit.id)
-      set_draw_uniforms(s.lit, s.locs, c.fx, mm.surface, mm.emission_color, maps[MATERIAL_MAP_NORMAL].texture.id > 0,
-                        maps[MATERIAL_MAP_EMISSION].texture.id > 0);
+    // A game shader does not skin: that part stays in the rest pose.
+    const bool built_in = shader.id == s.lit.id;
+    if (built_in && posed) {
+      shader = s.lit_skinned;
+      if (!bones_set) {
+        set_bones(s, shader, s.skinned_locs.bones, c);
+        bones_set = true;
+      }
+    }
+    if (built_in)
+      set_draw_uniforms(shader, posed ? s.skinned_locs : s.locs, c.fx, mm.surface, mm.emission_color,
+                        maps[MATERIAL_MAP_NORMAL].texture.id > 0, maps[MATERIAL_MAP_EMISSION].texture.id > 0);
     Material material{};
     material.shader = shader;
     material.maps = maps.data();
@@ -974,10 +1214,158 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
 }
 } // namespace
 
+namespace {
+Matrix transform_matrix(const transform3d &t) {
+  const vec3 r = t.rotation * (PI / 180.0f);
+  Matrix m = MatrixScale(t.scale.x, t.scale.y, t.scale.z);
+  m = MatrixMultiply(m, MatrixRotateZ(r.z));
+  m = MatrixMultiply(m, MatrixRotateX(r.x));
+  m = MatrixMultiply(m, MatrixRotateY(r.y));
+  return MatrixMultiply(m, MatrixTranslate(t.position.x, t.position.y, t.position.z));
+}
+
+// raylib samples glTF clips at this rate (GLTF_FRAMERATE in rmodels.c).
+constexpr f32 anim_fps = 60.0f;
+
+// Bone `b` of clip `anim` at `time` seconds, in model space as raylib keeps
+// the keyframes; the rest pose for anim < 0.
+Transform sample_bone(const model_slot &m, i32 anim, f32 time, bool loop, i32 b) {
+  if (anim < 0 || anim >= m.anim_kept)
+    return m.model.skeleton.bindPose[b];
+  const ModelAnimation &a = m.anims[anim];
+  const i32 last = a.keyframeCount - 1;
+  if (last <= 0)
+    return a.keyframePoses[0][b];
+  f32 f = time * anim_fps;
+  if (loop) {
+    f = std::fmod(f, (f32)last);
+    if (f < 0.0f)
+      f += (f32)last;
+  } else {
+    f = clamp(f, 0.0f, (f32)last);
+  }
+  const i32 i0 = std::min((i32)f, last);
+  const i32 i1 = std::min(i0 + 1, last);
+  const f32 k = f - (f32)i0;
+  const Transform &p0 = a.keyframePoses[i0][b];
+  const Transform &p1 = a.keyframePoses[i1][b];
+  return Transform{Vector3Lerp(p0.translation, p1.translation, k), QuaternionSlerp(p0.rotation, p1.rotation, k),
+                   Vector3Lerp(p0.scale, p1.scale, k)};
+}
+
+Matrix pose_matrix(const Transform &t) {
+  return MatrixMultiply(MatrixMultiply(MatrixScale(t.scale.x, t.scale.y, t.scale.z), QuaternionToMatrix(t.rotation)),
+                        MatrixTranslate(t.translation.x, t.translation.y, t.translation.z));
+}
+
+// Appends the bone matrices of `pose` to the pass's pool, as raylib's
+// UpdateModelAnimation computes them. False (nothing added) for the rest pose.
+bool pose_bones(const render3d_state &s, const model_slot &m, const model_pose &pose, u32 &first, u32 &count) {
+  const f32 k = clamp(pose.blend, 0.0f, 1.0f);
+  const bool blending = pose.blend_anim >= 0 && k > 0.0f;
+  if (!m.skinned || (pose.anim < 0 && !blending))
+    return false;
+  const i32 bones = m.model.skeleton.boneCount;
+  first = (u32)s.bones.size();
+  count = (u32)bones;
+  for (i32 b = 0; b < bones; b++) {
+    Transform t = sample_bone(m, pose.anim, pose.time, pose.loop, b);
+    if (blending) {
+      const Transform u = sample_bone(m, pose.blend_anim, pose.blend_time, pose.blend_loop, b);
+      t = Transform{Vector3Lerp(t.translation, u.translation, k), QuaternionSlerp(t.rotation, u.rotation, k),
+                    Vector3Lerp(t.scale, u.scale, k)};
+    }
+    s.bones.push_back(MatrixMultiply(m.inv_bind[(usize)b], pose_matrix(t)));
+  }
+  return true;
+}
+
+void record_model(const context &ctx, model_handle handle, const transform3d &transform, const model_pose *pose,
+                  rgba tint, const fx3d &fx, shader_handle shader) {
+  const render3d_state &s = ctx.render3d;
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (!s.active || m == nullptr)
+    return;
+  draw3d_cmd c{.is_shape = false,
+               .shape = {},
+               .mesh = nullptr,
+               .model = handle,
+               .transform = transform_matrix(transform),
+               .color = tint,
+               .shader = shader,
+               .fx = fx,
+               .material = s.material,
+               .buffer = {},
+               .first = 0,
+               .count = 0,
+               .bone_first = 0,
+               .bone_count = 0};
+  if (pose != nullptr && s.skin_ok)
+    pose_bones(s, *m, *pose, c.bone_first, c.bone_count);
+  s.cmds.push_back(c);
+}
+
+// The 3D components (njin_3d.h) into the open pass: models, SDF shapes and
+// lights, each at its entity's transform3d.
+void record_entities(context &ctx) {
+  render3d_state &s = ctx.render3d;
+  entt::registry &reg = world(ctx);
+  for (auto [e, t, m] : reg.view<const transform3d, const model3d>().each())
+    if (m.visible)
+      record_model(ctx, m.model, t, &m.pose, m.tint, m.fx, {});
+  for (auto [e, t, r] : reg.view<const transform3d, const shape3d_render>().each()) {
+    if (!r.visible)
+      continue;
+    shape3d shape = r.shape;
+    shape.position = t.position;
+    shape.rotation = t.rotation;
+    s.cmds.push_back(draw3d_cmd{.is_shape = true,
+                                .shape = shape,
+                                .mesh = nullptr,
+                                .model = {},
+                                .transform = {},
+                                .color = r.color,
+                                .shader = {},
+                                .fx = r.fx,
+                                .material = r.material,
+                                .buffer = {},
+                                .first = 0,
+                                .count = 0,
+                                .bone_first = 0,
+                                .bone_count = 0});
+  }
+  for (auto [e, l] : reg.view<const light3d_source>().each()) {
+    if ((i32)s.lights.size() >= light3d_max)
+      break;
+    light3d_source light = l;
+    if (const transform3d *t = reg.try_get<transform3d>(e))
+      light.position = t->position;
+    s.lights.push_back(light);
+  }
+}
+
+void advance_models(context &ctx) {
+  const f32 dt = delta(ctx);
+  for (auto [e, m] : world(ctx).view<model3d>().each()) {
+    m.pose.time += dt * m.speed;
+    m.pose.blend_time += dt * m.speed;
+  }
+}
+
+void setup(context &ctx) { ecs_register(ctx, phase_update, advance_models, "model3d_anim"); }
+} // namespace
+
+mod_desc render3d_module() { return mod_desc{.name = "njin.render3d", .setup = setup}; }
+
 render3d_state::~render3d_state() {
   free_shadow(shadow);
+  free_shadow(lamp);
   if (!ready)
     return;
+  if (IsShaderValid(lit_skinned))
+    UnloadShader(lit_skinned);
+  if (IsShaderValid(depth_skinned))
+    UnloadShader(depth_skinned);
   UnloadMesh(cube);
   UnloadMesh(sphere);
   UnloadMesh(plane);
@@ -1008,9 +1396,11 @@ void begin_3d(context &ctx, const camera3d &camera) {
   s.camera = shaken(ctx, camera);
   load_camera(ctx, s.camera);
   s.cmds.clear();
+  s.bones.clear();
   s.lights.clear();
   s.fx = fx3d{};
   s.material = material3d{};
+  s.entities = camera.entities;
   s.active = true;
 }
 
@@ -1019,39 +1409,52 @@ void end_3d(context &ctx) {
   if (!s.active)
     return;
   rlDrawRenderBatchActive();
+  if (s.entities)
+    record_entities(ctx);
   if (ctx.debug.running)
     render3d_capture_debug(ctx);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
-  if (s.light.shadows && !s.cmds.empty() && ensure_shadow(s.shadow, s.light.shadow_size)) {
+  const i32 sun_size = std::clamp(s.light.shadow_size, 256, 8192);
+  if (s.light.shadows && !s.cmds.empty() && ensure_shadow(s.shadow, sun_size, sun_size)) {
     light_vp = render_shadow(ctx);
     shadows = true;
+  }
+  const bool lamps = render_lamp_shadows(ctx);
+  if (shadows || lamps) {
     world_target_rebind(ctx);
     load_camera(ctx, s.camera);
   }
 
   rlEnableDepthTest();
-  set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp);
-  set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp);
-  set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp);
+  set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp, lamps);
+  set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp, lamps);
+  set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);
+  if (s.skin_ok)
+    set_pass_uniforms(s, s.lit_skinned, s.skinned_locs, shadows, light_vp, lamps);
   const Matrix view_proj = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   if (shadows) {
     rlActiveTextureSlot(shadow_unit);
     rlEnableTexture(s.shadow.depth);
-    rlActiveTextureSlot(0);
   }
+  if (lamps) {
+    rlActiveTextureSlot(lamp_unit);
+    rlEnableTexture(s.lamp.depth);
+  }
+  rlActiveTextureSlot(0);
   for (const draw3d_cmd &c : s.cmds)
     draw_main(ctx, c, view_proj);
-  if (shadows) {
-    rlActiveTextureSlot(shadow_unit);
+  for (i32 unit : {shadow_unit, lamp_unit}) {
+    rlActiveTextureSlot(unit);
     rlDisableTexture();
-    rlActiveTextureSlot(0);
   }
+  rlActiveTextureSlot(0);
   particles3d_draw(ctx, s.camera);
   gizmo_draw_3d(ctx, s.camera);
 
   s.cmds.clear();
+  s.bones.clear();
   s.lights.clear();
   s.active = false;
   rlDrawRenderBatchActive();
@@ -1202,7 +1605,9 @@ void record_instanced(const context &ctx, const Mesh *mesh, model_handle model, 
                               .material = s.material,
                               .buffer = buffer,
                               .first = first,
-                              .count = count});
+                              .count = count,
+                              .bone_first = 0,
+                              .bone_count = 0});
 }
 } // namespace
 
@@ -1237,18 +1642,46 @@ void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
                                .material = s->material,
                                .buffer = {},
                                .first = 0,
-                               .count = 0});
+                               .count = 0,
+                               .bone_first = 0,
+                               .bone_count = 0});
 }
 
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform, rgba tint) {
-  if (open_pass(ctx) == nullptr || model_slot_of(ctx.model, handle) == nullptr)
-    return;
-  const vec3 r = transform.rotation * (PI / 180.0f);
-  Matrix m = MatrixScale(transform.scale.x, transform.scale.y, transform.scale.z);
-  m = MatrixMultiply(m, MatrixRotateZ(r.z));
-  m = MatrixMultiply(m, MatrixRotateX(r.x));
-  m = MatrixMultiply(m, MatrixRotateY(r.y));
-  m = MatrixMultiply(m, MatrixTranslate(transform.position.x, transform.position.y, transform.position.z));
-  record(ctx, nullptr, handle, m, tint);
+  record_model(ctx, handle, transform, nullptr, tint, ctx.render3d.fx, ctx.shader.active);
+}
+
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint) {
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active);
+}
+
+i32 model_anim_count(const context &ctx, model_handle handle) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  return m != nullptr ? m->anim_kept : 0;
+}
+
+i32 model_anim_find(const context &ctx, model_handle handle, const char *name) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || name == nullptr)
+    return -1;
+  for (i32 i = 0; i < m->anim_kept; i++)
+    if (std::strncmp(m->anims[i].name, name, sizeof(m->anims[i].name)) == 0)
+      return i;
+  return -1;
+}
+
+const char *model_anim_name(const context &ctx, model_handle handle, i32 index) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || index < 0 || index >= m->anim_kept)
+    return "";
+  return m->anims[index].name;
+}
+
+f32 model_anim_duration(const context &ctx, model_handle handle, i32 index) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || index < 0 || index >= m->anim_kept)
+    return 0.0f;
+  return (f32)std::max(m->anims[index].keyframeCount - 1, 0) / anim_fps;
 }
 } // namespace njin

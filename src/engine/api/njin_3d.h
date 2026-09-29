@@ -19,6 +19,10 @@ struct camera3d {
   f32 fovy = 60.0f;                 ///< Góc nhìn dọc, tính bằng độ.
   f32 near_plane = 0.05f;           ///< Khoảng cách gần nhất còn được vẽ.
   f32 far_plane = 1000.0f;          ///< Khoảng cách xa nhất còn được vẽ.
+  /// Vẽ cả các entity 3D (njin::model3d, njin::shape3d_render, đèn njin::light3d_source)
+  /// trong lần vẽ này. Tắt cho một cảnh phụ (ví dụ model xoay trong menu) chỉ vẽ
+  /// những gì game gọi.
+  bool entities = true;
 };
 
 /// Bắt đầu vẽ 3D qua `camera`. Kết thúc bằng end_3d().
@@ -61,6 +65,9 @@ struct light3d {
   f32 shadow_range = 30.0f;
   i32 shadow_size = 2048;       ///< Cạnh của ảnh bóng, pixel. Lớn thì sắc hơn, tốn bộ nhớ hơn.
   f32 shadow_softness = 1.0f;   ///< Độ mềm mép bóng, tính bằng pixel của ảnh bóng. 0 là sắc.
+  /// Cạnh ảnh bóng của đèn điểm và đèn nón có `light3d_source::shadows`, pixel, cho
+  /// mỗi mặt (đèn điểm có 6 mặt, đèn nón 1).
+  i32 source_shadow_size = 512;
   rgba fog_color{0.6f, 0.65f, 0.75f, 1.0f}; ///< Màu sương mù, thường bằng màu nền.
   /// Mật độ sương theo khoảng cách tới camera: độ trong còn `exp(-(density * d)^2)`.
   /// 0 là không sương.
@@ -83,7 +90,11 @@ enum light3d_kind {
   light3d_spot,  ///< Đèn nón: chiếu theo `direction` trong một nón (đèn pin, đèn sân khấu).
 };
 
-/// Một đèn điểm hoặc đèn nón. Sáng giảm dần tới 0 ở `radius`. Không đổ bóng.
+/// Một đèn điểm hoặc đèn nón. Sáng giảm dần tới 0 ở `radius`.
+///
+/// Thêm cho một lần vẽ bằng light3d_add(), hoặc làm component: entity có
+/// njin::light3d_source và njin::transform3d chiếu sáng mọi lần vẽ 3D (có
+/// `camera3d::entities`), đặt tại `transform3d::position` (`position` bị bỏ qua).
 struct light3d_source {
   light3d_kind kind = light3d_point; ///< Loại đèn.
   vec3 position{0.0f, 0.0f, 0.0f};   ///< Vị trí.
@@ -93,10 +104,18 @@ struct light3d_source {
   f32 radius = 10.0f;                ///< Tầm với, đơn vị thế giới.
   f32 cone = 60.0f;                  ///< Góc mở của nón, độ (cả hai bên), chỉ cho đèn nón.
   f32 softness = 0.25f;              ///< Phần mép nón mờ dần, 0..1, chỉ cho đèn nón.
+  /// Đổ bóng, như `light3d::shadows` của mặt trời, trong tầm `radius`. Mỗi lần vẽ có
+  /// tối đa njin::light3d_shadow_max đèn đổ bóng (đèn sau đó chiếu sáng mà không đổ
+  /// bóng). Tốn: mọi hình đổ bóng được vẽ thêm 6 lần cho một đèn điểm, 1 lần cho một
+  /// đèn nón, nên chỉ bật cho vài đèn quan trọng (đèn pin, đèn treo giữa phòng).
+  bool shadows = false;
 };
 
 /// Số đèn tối đa trong một lần vẽ 3D. Đèn thêm quá số này bị bỏ qua.
 inline constexpr i32 light3d_max = 16;
+
+/// Số đèn điểm và đèn nón tối đa được đổ bóng trong một lần vẽ 3D.
+inline constexpr i32 light3d_shadow_max = 4;
 
 /// Thêm một đèn cho lần vẽ 3D đang mở. Gọi mỗi frame, giữa begin_3d() và end_3d()
 /// (thứ tự với các lệnh vẽ không quan trọng: mọi đèn chiếu lên mọi hình của lần vẽ).
@@ -300,6 +319,68 @@ void model_material_set(context &ctx, model_handle handle, i32 index, const mode
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform,
                 rgba tint = colors::white);
 
+/// Số animation xương trong file của model (glTF có skin). model_load() nạp chúng
+/// cùng model.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @return Số animation, 0 nếu model không có hay handle không hợp lệ.
+i32 model_anim_count(const context &ctx, model_handle handle);
+
+/// Tìm animation theo tên đặt trong Blender (tên action khi xuất glTF).
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param name Tên animation.
+/// @return Chỉ số 0..model_anim_count() - 1, hoặc -1 nếu không có.
+i32 model_anim_find(const context &ctx, model_handle handle, const char *name);
+
+/// Tên của animation thứ `index`.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param index 0..model_anim_count() - 1.
+/// @return Tên, hoặc chuỗi rỗng nếu handle hay `index` không hợp lệ.
+const char *model_anim_name(const context &ctx, model_handle handle, i32 index);
+
+/// Độ dài của animation thứ `index`, giây.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param index 0..model_anim_count() - 1.
+/// @return Độ dài, 0 nếu handle hay `index` không hợp lệ.
+f32 model_anim_duration(const context &ctx, model_handle handle, i32 index);
+
+/// Tư thế của một model có xương khi vẽ: animation nào, ở giây thứ mấy, và
+/// (tùy chọn) trộn với animation thứ hai để chuyển mượt giữa hai động tác.
+struct model_pose {
+  i32 anim = -1;           ///< Animation (model_anim_find()). -1 là tư thế gốc trong file.
+  f32 time = 0.0f;         ///< Thời điểm trong animation, giây.
+  bool loop = true;        ///< Lặp lại; không thì dừng ở khung cuối.
+  i32 blend_anim = -1;     ///< Animation thứ hai để trộn vào. -1 là không trộn.
+  f32 blend_time = 0.0f;   ///< Thời điểm trong animation thứ hai, giây.
+  bool blend_loop = true;  ///< Lặp animation thứ hai.
+  f32 blend = 0.0f;        ///< Tỉ lệ trộn: 0 chỉ có `anim`, 1 chỉ có `blend_anim`.
+};
+
+/// Vẽ model có xương ở tư thế `pose`. Như draw_model(), và bóng đổ theo đúng
+/// tư thế. Mỗi lần vẽ có tư thế riêng, nên cùng một model vẽ nhiều lần (đám
+/// quái) mỗi con một động tác được.
+///
+/// Xương được tính trên GPU, tối đa 128 xương, 4 xương mỗi đỉnh (giới hạn của
+/// glTF). Phần model vẽ bằng shader của game (`model_material::shader` hay
+/// shader_begin()), draw_instanced3d() và ray3d_model() dùng tư thế gốc.
+///
+/// @code
+/// // Chạy khi di chuyển, đứng yên khi dừng, chuyển mượt trong 0.2 giây.
+/// blend = move_toward(blend, moving ? 1.0f : 0.0f, dt / 0.2f);
+/// njin::draw_model_anim(ctx, hero, {.position = pos, .rotation = {0, yaw, 0}},
+///                       {.anim = idle, .time = t, .blend_anim = run, .blend_time = t, .blend = blend});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model từ model_load(). Handle không hợp lệ bị bỏ qua.
+/// @param transform Vị trí, hướng và tỉ lệ.
+/// @param pose Tư thế. Model không có xương thì vẽ như draw_model().
+/// @param tint Màu nhân vào màu của model.
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint = colors::white);
+
 /// Một tia trong thế giới 3D, dùng để chọn vật bằng chuột, bắn đạn, kiểm tra
 /// tầm nhìn.
 struct ray3d {
@@ -482,5 +563,37 @@ void particles3d_clear(context &ctx);
 /// @param ctx Context của engine.
 /// @return Số hạt.
 i32 particles3d_count(const context &ctx);
+
+/// Component: một model vẽ tại njin::transform3d của entity, trong mọi lần vẽ 3D
+/// có `camera3d::entities` (engine thêm nó ở end_3d(), cùng các lệnh vẽ của game).
+///
+/// Engine tăng `pose.time` và `pose.blend_time` mỗi frame (theo delta(), nhân
+/// `speed`), nên game chỉ cần chọn animation:
+///
+/// @code
+/// const auto e = reg.create();
+/// reg.emplace<njin::transform3d>(e, njin::transform3d{.position = {0, 0, -4}});
+/// reg.emplace<njin::model3d>(e, njin::model3d{.model = robot, .pose = {.anim = walk}});
+/// @endcode
+struct model3d {
+  model_handle model{};          ///< Model từ model_load().
+  rgba tint{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu nhân vào màu của model.
+  model_pose pose{};             ///< Tư thế, như draw_model_anim().
+  f32 speed = 1.0f;              ///< Tốc độ chạy animation. 0 là dừng.
+  fx3d fx{};                     ///< Nháy màu và tan biến, như fx3d_set().
+  bool visible = true;           ///< Ẩn mà không cần gỡ component.
+};
+
+/// Component: một hình SDF (như draw_shape3d()) vẽ tại njin::transform3d của
+/// entity, trong mọi lần vẽ 3D có `camera3d::entities`. Vị trí và góc xoay lấy
+/// từ transform (`shape.position` và `shape.rotation` bị bỏ qua), nên một entity
+/// có thêm njin::body3d được vẽ đúng chỗ vật lý đặt nó.
+struct shape3d_render {
+  shape3d shape{};                    ///< Loại hình và kích thước.
+  rgba color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu.
+  material3d material{};              ///< Bề mặt, như material3d_set().
+  fx3d fx{};                          ///< Nháy màu và tan biến, như fx3d_set().
+  bool visible = true;                ///< Ẩn mà không cần gỡ component.
+};
 /// @}
 } // namespace njin

@@ -1,8 +1,8 @@
 # 3D graphics {#graphics_3d}
 
-njin draws 3D worlds: a perspective camera, primitives, smooth SDF shapes, glTF models, lighting
-with shadows, materials, effects, particles, instancing, physics and collision, mouse picking and
-gizmos for debugging. Everything goes through `njin.h` (declared in `njin_3d.h`, `njin_physics3d.h`
+njin draws 3D worlds: a perspective camera, primitives, smooth SDF shapes, glTF models with
+skeletal animation, lighting with shadows, materials, effects, particles, instancing, physics and
+collision, 3D entities, mouse picking and gizmos for debugging. Everything goes through `njin.h` (declared in `njin_3d.h`, `njin_physics3d.h`
 and `njin_gizmo.h`), no raylib or physics library needed.
 
 Read first: @ref drawing, @ref game_loop and @ref rendering. Run `njin_fps` (a first-person shooter),
@@ -36,7 +36,7 @@ inside a UI panel, for example).
 | draw_cube3d(), draw_sphere3d(), draw_plane3d(), draw_cylinder3d(), draw_capsule3d() | Triangle mesh | Many, cheap: walls, floors, bullets |
 | draw_shape3d() with njin::shape3d | SDF shape: sphere, rounded box, capsule, rounded cylinder, torus | Something that needs to look smooth up close: characters, items |
 | draw_instanced3d() | Thousands of mesh shapes in one draw call | Forests, crowds, floor tiles |
-| draw_model() | glTF/OBJ model loaded with model_load() | Props, characters made in Blender |
+| draw_model(), draw_model_anim() | glTF/OBJ model loaded with model_load() | Props, characters made in Blender |
 
 An SDF shape is computed per pixel (sphere tracing inside its bounding box), so its edge is always
 round at any size and it can be rounded, but it costs more than a mesh shape. It still receives
@@ -59,6 +59,31 @@ njin::model_material_set(ctx, crate, 0, m);                    // -1 for every p
 
 A normal map needs no tangent in the file: the shader builds one from screen derivatives.
 
+## Model animation
+
+A glTF with a skin (bones) carries its animations: model_load() loads them with the model.
+model_anim_find() finds an animation by its action name in Blender; model_anim_count(),
+model_anim_name() and model_anim_duration() list them. draw_model_anim() draws the model in a
+njin::model_pose: animation `anim` at second `time`, optionally blended with `blend_anim` by weight
+`blend` to move smoothly between two motions.
+
+@code
+// Idle blended into run by speed, moving over 0.2 seconds.
+blend = njin::move_toward(blend, moving ? 1.0f : 0.0f, dt / 0.2f);
+njin::draw_model_anim(ctx, robot, {.position = pos, .rotation = {0, yaw, 0}},
+                      {.anim = idle, .time = t, .blend_anim = run, .blend_time = t, .blend = blend});
+@endcode
+
+| Point | Detail |
+|---|---|
+| Bone computation | On the GPU, at most 128 bones, 4 bones per vertex |
+| Shadows | Follow the pose |
+| Many copies | Each draw has its own pose: the same model, a different motion for each one |
+| Uses the rest pose | Parts drawn with a game shader, draw_instanced3d(), ray3d_model() |
+| No armature | The root bone has no parent node in the glTF: the engine warns, the model has no animations |
+
+With an entity, njin::model3d holds the pose and the engine advances its time every frame (@ref entities_3d).
+
 ## Lighting
 
 | Part | Set with | Notes |
@@ -66,11 +91,23 @@ A normal map needs no tangent in the file: the shader builds one from screen der
 | Sun, ambient light | light3d_set() with njin::light3d | Takes effect from the next begin_3d() |
 | The sun's shadow | `light3d::shadows`, `shadow_range`, `shadow_size`, `shadow_softness` | A shadow box around where the camera looks; 3x3 soft edge |
 | Fog | `light3d::fog_color`, `fog_density` | By distance to the camera |
-| Point, spot lights | light3d_add() with njin::light3d_source, per draw | Up to njin::light3d_max (16), cast no shadow |
+| Point, spot lights | light3d_add() with njin::light3d_source per draw, or an entity (@ref entities_3d) | Up to njin::light3d_max (16) |
+| Point and spot light shadows | `light3d_source::shadows`, `light3d::source_shadow_size` | Up to njin::light3d_shadow_max (4) per draw; later lights light without casting shadows |
 | Surface | material3d_set() with njin::material3d | Shininess, emission, rim light, `unlit`, `texture`, `cast_shadows` |
 
 Lighting is Lambert plus a Blinn-Phong specular highlight, plus ambient light. `emission` adds colour
 after lighting: turn on bloom (post_fx_set()) so a self-lit shape glows into its surroundings.
+
+Point and spot light shadows are costly: every shadow caster is drawn 6 more times for a point light
+(the 6 faces of a cube around the light) and once for a spotlight, each face with a shadow map of
+`source_shadow_size` pixels. Turn them on only for a few important lights (a flashlight, a lamp hanging
+in the middle of a room); the light's `radius` is also the shadow's range.
+
+@code
+// The player's flashlight: a shadow-casting spotlight.
+njin::light3d_add(ctx, {.kind = njin::light3d_spot, .position = eye, .direction = forward,
+                        .intensity = 2.0f, .radius = 25.0f, .cone = 40.0f, .shadows = true});
+@endcode
 
 ## Effects
 
@@ -83,7 +120,10 @@ The shared effects of @ref particles all work for 3D too:
 | Colour flash, dissolve | fx3d_set() with njin::fx3d: the equivalent of njin::flash_fx and njin::dissolve_fx for sprites |
 | Particles | particles3d_spawn() reuses a 2D emitter (njin::fx::explosion(), sparks(), dust()...) |
 
-A 3D shape is not an entity, so the game keeps the effect's own time and sets its level every frame:
+A shape drawn with a call (draw_sphere3d(), draw_shape3d(), draw_model()...) is not an entity: the
+game keeps the effect's own time and sets its level every frame. An entity with njin::shape3d_render or
+njin::model3d sets that component's `fx` field instead of calling fx3d_set() (@ref entities_3d). With a
+draw call:
 
 @code
 // A target that was just hit: flashes white, then dissolves over 0.4s.
@@ -128,7 +168,11 @@ njin::shape3d, so an object and the shape that draws it share their numbers.
 | Kinematic body | `body3d_kinematic`, then body3d_move_kinematic() every step | Moving platforms, lifts, doors: carry and push others |
 | Dynamic body | `body3d_dynamic` | Crates, balls, debris: fall, collide, roll, get pushed; body3d_add_impulse() for a blast |
 | Character | character3d_create() | The player, enemies: a capsule that walks on floors, steps up, slides along walls, pushes dynamic bodies |
-| Ray | physics3d_raycast() | Bullets, line of sight, a camera that does not go through walls; returns the body hit |
+| Body from a model | `body3d_desc::model` and `scale` | Floors, slopes, caves made in Blender (static, kinematic); convex props (dynamic) |
+| Sensor | `body3d_desc::sensor` | Pickup zones, checkpoints, traps, goals: no collision, only contact reports |
+| Contact events | physics3d_contact_count(), physics3d_contact() | Knowing what started or stopped touching what |
+| Joint | joint3d_create() | Hinged doors, seesaws, chains, pistons |
+| Ray | physics3d_raycast() | Bullets, line of sight, a camera that does not go through walls; returns the body hit, passes through sensors |
 
 The engine simulates in `phase_fixed_update`, **right after** the game's systems in that phase: the game
 sets a velocity or a target position, then physics runs in the same step. A character is driven by
@@ -154,8 +198,120 @@ njin::draw_shape3d(ctx, {.kind = njin::shape3d_box, .position = t.position, .rot
                          .size = {1, 1, 1}}, {0.7f, 0.5f, 0.3f, 1.0f});
 @endcode
 
+An entity with the njin::body3d component does not need this step: the engine writes its transform
+(@ref entities_3d).
+
 `body3d_desc::user` attaches a number of the game's to a body (an array index, an entity id): read it back
-with body3d_user() from the body that physics3d_raycast() or character3d_ground_body() returns.
+with body3d_user() from the body that physics3d_raycast(), character3d_ground_body() or
+physics3d_contact() returns.
+
+### Bodies from a model
+
+With `body3d_desc::model`, the body's shape comes from the model's triangle mesh, placed the way
+draw_model() draws it with the same `position`, `rotation` and `scale`. So one model is both what is
+drawn and the ground walked on:
+
+@code
+const njin::model_handle hill = njin::model_load(ctx, "assets/hill.glb");
+njin::body3d_create(ctx, {.position = hill_pos, .model = hill}); // static: the exact triangles
+@endcode
+
+| Body kind | Shape from the model |
+|---|---|
+| Static, kinematic | The exact triangles: slopes, steps and caves can all be walked |
+| Dynamic | The convex hull of the vertices (the smallest convex shape around the model): hollows are filled |
+
+### Sensors and contact events
+
+A body with `sensor = true` does not collide: bodies and characters pass through it, so does
+physics3d_raycast(), and the engine reports contact events. After each simulation step,
+physics3d_contact_count() and physics3d_contact() give njin::contact3d events: two bodies (`a`, `b`),
+or a body `a` and a character `character` (then `b` is invalid); `began` tells whether they started or
+stopped touching, `sensor` whether one side is a sensor, plus the contact point and normal.
+
+A pair is reported once when it starts touching and once when it stops, even if it touches at several
+points. A destroyed body gets no stopped-touching event. Read the events in `phase_fixed_update`: each
+step the game sees exactly the events of the previous step, none missed, none repeated.
+
+@code
+// In a phase_fixed_update system: the player touching a coin (a sensor) picks it up.
+entt::registry &reg = njin::world(ctx);
+for (njin::i32 i = 0; i < njin::physics3d_contact_count(ctx); i++) {
+  const njin::contact3d c = njin::physics3d_contact(ctx, i);
+  if (!c.began || !c.sensor || c.character.id != player.id)
+    continue;
+  const auto e = (entt::entity)njin::body3d_user(ctx, c.a); // user = the coin's entity id
+  if (reg.valid(e) && reg.all_of<coin>(e))
+    reg.destroy(e); // the body3d component destroys its body too
+}
+@endcode
+
+### Joints
+
+joint3d_create() connects two bodies, or a body and a fixed point of the world (`b` invalid). The
+attachment point `anchor` and the axis `axis` are in world coordinates, at the time the joint is
+created. Destroying a body also destroys its joints.
+
+| Kind | What it does | Example |
+|---|---|---|
+| `joint3d_fixed` | Welds: keeps the relative position and angle | Fixing two pieces into one object |
+| `joint3d_point` | Ball joint: rotates freely around `anchor` | Chains, ragdolls |
+| `joint3d_hinge` | Hinge: rotates around `axis` through `anchor` | Doors, seesaws, wheels |
+| `joint3d_slider` | Slides along `axis`, no rotation | Pistons, drawers, sliding doors |
+| `joint3d_distance` | Keeps the distance between `anchor` and `anchor_b` in `[min, max]` | Ropes, rods |
+
+`min` and `max` are the limits: angle, degrees (hinge); travel from the position at creation
+(slider); distance (njin::joint3d_distance). For hinges and sliders, `min >= max` means no limit.
+A `motor_force` above 0 gives a hinge or slider a motor: joint3d_set_motor() sets its speed, and
+joint3d_position() reads the current angle or travel.
+
+@code
+// A seesaw: a dynamic plank on a hinge, tipping at most 18 degrees each way.
+const njin::body3d_handle plank = njin::body3d_create(
+    ctx, {.position = pivot, .size = {4, 0.2f, 1}, .motion = njin::body3d_dynamic, .mass = 25});
+njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = pivot, .axis = {0, 0, 1},
+                           .min = -18, .max = 18});
+@endcode
+
+## 3D entities {#entities_3d}
+
+Instead of issuing draw calls and reading bodies every frame, an entity (@ref ecs) can carry 3D
+components. The engine draws and updates them from the entity's njin::transform3d, and the inspector
+shows all of these components.
+
+| Component | What the engine does |
+|---|---|
+| njin::transform3d | The entity's position, rotation and scale; the components below read or write it |
+| njin::model3d | Draws `model` at the transform; advances `pose.time` and `pose.blend_time` every frame (by delta(), times `speed`) |
+| njin::shape3d_render | Draws the SDF shape `shape` at the transform (`shape.position` and `shape.rotation` are ignored) |
+| njin::light3d_source | A light placed at `transform3d::position` (`position` is ignored), lighting every 3D draw |
+| njin::body3d | Dynamic: after each step, writes the body's position and rotation to the transform. Kinematic: before each step, moves the body to the transform. Static: nothing |
+| njin::character3d | After each step, writes the character's feet position to `transform3d::position` (the rotation is set by the game) |
+
+Removing njin::body3d or njin::character3d, or destroying the entity, destroys the body or character
+too. njin::model3d and njin::shape3d_render have `fx` (flash and dissolve, as for fx3d_set()) and
+`visible` to hide without removing the component. Entities are drawn at end_3d() of every draw with
+`camera3d::entities` (on by default), along with the game's draw calls; turn it off for a secondary
+scene, like a model spinning in a menu.
+
+@code
+// A crate: physics sets the transform, shape3d_render draws it right there.
+entt::registry &reg = njin::world(ctx);
+const auto crate = reg.create();
+reg.emplace<njin::transform3d>(crate);
+reg.emplace<njin::shape3d_render>(crate, njin::shape3d_render{
+    .shape = {.kind = njin::shape3d_box, .size = {0.9f, 0.9f, 0.9f}, .rounding = 0.05f},
+    .color = {0.7f, 0.5f, 0.3f, 1.0f}});
+reg.emplace<njin::body3d>(crate, njin::body3d_create(ctx, {.position = {0, 3, 0}, .size = {0.9f, 0.9f, 0.9f},
+                                                           .motion = njin::body3d_dynamic, .mass = 8}));
+
+// The player: a physics character and an animated robot.
+const auto hero = reg.create();
+reg.emplace<njin::transform3d>(hero);
+reg.emplace<njin::character3d>(hero, njin::character3d_create(ctx, {.position = start}));
+reg.emplace<njin::model3d>(hero, njin::model3d{.model = robot, .pose = {.anim = idle, .blend_anim = run}});
+// Every frame the game only changes the blend weight: reg.get<njin::model3d>(hero).pose.blend = speed / max_speed;
+@endcode
 
 ## Mouse picking
 
@@ -192,17 +348,10 @@ middle button to pan, scroll to zoom.
 
 @image html inspector_world_3d.png "njin_inspector's World panel while njin_sokoban runs: the floor, walls, crates and character are points, the blue frame is the game's camera, the yellow line is the sun's direction"
 
-## Not there yet
-
-- Model skeletal animation (glTF skins): a model draws in its bind pose.
-- Shadows from point and spot lights: only the sun casts one.
-- Joints, bodies from a model's triangle mesh, collision events: not in `njin_physics3d.h` yet.
-- 3D components in the ECS: 3D shapes and physics bodies are used directly, not as entities.
-
 ## Sample games
 
 | Game | What to look at |
 |---|---|
-| `njin_fps` | A first-person camera, a glTF model (the gun), shadows, fog, coloured lights, a flashlight (a spotlight), a muzzle light, glowing tracers with bloom, sparks and an explosion from 3D particles, a hit target that flashes then dissolves, camera shake, hitstop, `ray3d_box`, gizmos (G key) |
+| `njin_fps` | A first-person camera, a glTF model (the gun), shadows, fog, two coloured lamps and a flashlight (a spotlight, F key) that all cast shadows, a muzzle light, glowing tracers with bloom, sparks and an explosion from 3D particles, a hit target that flashes then dissolves, camera shake, hitstop, `ray3d_box`, gizmos (G key) |
 | `njin_sokoban` | A 2.5D camera, the floor and walls drawn with draw_instanced3d(), a textured crate, an SDF capsule character with a rim light, a point light over each goal, dust and sparkle particles, fading in on level start, gizmos (G key) |
-| `njin_platformer3d` | A third-person camera that does not clip through walls (physics3d_raycast), a physics character (character3d) with coyote time and a double jump, static platforms, a moving platform that carries you (kinematic body), pushable crates (dynamic bodies), checkpoints, dissolving out and back in after a fall, a glowing goal ring, gizmos (G key) |
+| `njin_platformer3d` | A third-person camera that does not clip through walls (physics3d_raycast), the player as an entity (njin::character3d and njin::model3d: a glTF robot with idle, run and jump animations; idle and run blended by speed) with coyote time and a double jump, static platforms, a moving platform that carries you (kinematic body), pushable crates and a seesaw plank as entities (njin::body3d, njin::shape3d_render), the seesaw a hinge limited to ±18°, a grassy hill that is a triangle-mesh body from `assets/hill.glb`, six coins that are sensors (touching one is a contact event, the coin entity is destroyed), a sensor goal, checkpoints, dissolving out and back in after a fall, a glowing goal ring, gizmos (G key) |

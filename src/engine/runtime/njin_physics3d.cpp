@@ -6,7 +6,16 @@
 // sticks to the floor, walks up steps). The job system is single-threaded:
 // a small game's handful of bodies does not pay for threads, and the step
 // stays deterministic.
+//
+// Contacts (physics3d_contact): a ContactListener counts the touching
+// sub-shape pairs of every two bodies and reports a pair when its count
+// leaves or returns to 0; characters are not bodies of the world, so after
+// each step their shape is collided against the world and the set of bodies
+// it touches is compared with the step before. The body3d and character3d
+// components are synced around the step, and their on_destroy frees the
+// body.
 #include "njin_physics3d_impl.h"
+#include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
 
@@ -19,19 +28,32 @@
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
+#include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/FixedConstraint.h>
+#include <Jolt/Physics/Constraints/HingeConstraint.h>
+#include <Jolt/Physics/Constraints/PointConstraint.h>
+#include <Jolt/Physics/Constraints/SliderConstraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
+#include <raymath.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <unordered_map>
 #include <vector>
 
 namespace njin {
@@ -133,6 +155,7 @@ struct body_slot {
   JPH::BodyID id;
   bool alive = false;
   bool kinematic = false;
+  bool dynamic = false;
   u64 user = 0;
   bool has_target = false;
   vec3 target_pos{};
@@ -144,7 +167,35 @@ struct character_slot {
   bool alive = false;
   vec3 desired{};
   f32 step_height = 0.3f;
+  std::vector<u32> touching; // body handles it touched after the last step, sorted
 };
+
+struct joint_slot {
+  JPH::Ref<JPH::TwoBodyConstraint> constraint;
+  bool alive = false;
+  joint3d_kind kind = joint3d_hinge;
+  body3d_handle a{};
+  body3d_handle b{};
+};
+
+// Two bodies touching: how many of their sub-shape pairs do, in the order the
+// listener first reported them.
+struct pair_state {
+  u32 count = 0;
+  body3d_handle a{};
+  body3d_handle b{};
+  bool sensor = false;
+};
+
+u64 pair_key(JPH::BodyID a, JPH::BodyID b) {
+  u32 x = a.GetIndexAndSequenceNumber();
+  u32 y = b.GetIndexAndSequenceNumber();
+  if (x > y)
+    std::swap(x, y);
+  return ((u64)x << 32) | (u64)y;
+}
+
+vec3 world_vec(JPH::RVec3Arg v) { return vec3{(f32)v.GetX(), (f32)v.GetY(), (f32)v.GetZ()}; }
 
 // A shape for a body: the same sizes as njin::shape3d draws.
 JPH::RefConst<JPH::Shape> make_shape(const body3d_desc &d) {
@@ -183,6 +234,71 @@ JPH::RefConst<JPH::Shape> make_shape(const body3d_desc &d) {
   }
   return result.Get();
 }
+
+// A shape from a model's triangles, placed as draw_model draws it (the file's
+// own transform, then `scale`): every triangle for a static or kinematic
+// body, the convex hull of the vertices for a dynamic one (Jolt cannot
+// simulate a moving triangle mesh).
+JPH::RefConst<JPH::Shape> make_model_shape(const context &ctx, const body3d_desc &d) {
+  const model_slot *slot = model_slot_of(ctx.model, d.model);
+  if (slot == nullptr) {
+    NJIN_WARN("physics3d: body3d_desc::model is not a loaded model");
+    return nullptr;
+  }
+  const Model &model = slot->model;
+  const Matrix xf = MatrixMultiply(model.transform, MatrixScale(d.scale.x, d.scale.y, d.scale.z));
+  JPH::VertexList vertices;
+  JPH::IndexedTriangleList triangles;
+  for (i32 m = 0; m < model.meshCount; m++) {
+    const Mesh &mesh = model.meshes[m];
+    if (mesh.vertices == nullptr)
+      continue;
+    const u32 base = (u32)vertices.size();
+    for (i32 v = 0; v < mesh.vertexCount; v++) {
+      const Vector3 p = Vector3Transform({mesh.vertices[v * 3], mesh.vertices[v * 3 + 1], mesh.vertices[v * 3 + 2]}, xf);
+      vertices.push_back(JPH::Float3(p.x, p.y, p.z));
+    }
+    for (i32 t = 0; t < mesh.triangleCount; t++) {
+      u32 i[3];
+      for (i32 k = 0; k < 3; k++)
+        i[k] = base + (mesh.indices != nullptr ? (u32)mesh.indices[t * 3 + k] : (u32)(t * 3 + k));
+      triangles.push_back(JPH::IndexedTriangle(i[0], i[1], i[2]));
+    }
+  }
+  if (triangles.empty()) {
+    NJIN_WARN("physics3d: the model has no triangles for a body");
+    return nullptr;
+  }
+  JPH::ShapeSettings::ShapeResult result;
+  if (d.motion == body3d_dynamic) {
+    JPH::Array<JPH::Vec3> points;
+    points.reserve(vertices.size());
+    for (const JPH::Float3 &v : vertices)
+      points.push_back(JPH::Vec3(v));
+    result = JPH::ConvexHullShapeSettings(points).Create();
+  } else {
+    result = JPH::MeshShapeSettings(std::move(vertices), std::move(triangles)).Create();
+  }
+  if (result.HasError()) {
+    NJIN_WARN("physics3d: model shape: %s", result.GetError().c_str());
+    return nullptr;
+  }
+  return result.Get();
+}
+} // namespace
+
+struct physics3d_world;
+
+namespace {
+// Body pairs starting and stopping to touch, from Jolt's contact callbacks
+// (on the physics step, single-threaded here).
+class contact_listener final : public JPH::ContactListener {
+public:
+  physics3d_world *world = nullptr;
+  void OnContactAdded(const JPH::Body &body1, const JPH::Body &body2, const JPH::ContactManifold &manifold,
+                      JPH::ContactSettings &) override;
+  void OnContactRemoved(const JPH::SubShapeIDPair &pair) override;
+};
 } // namespace
 
 struct physics3d_world {
@@ -192,14 +308,25 @@ struct physics3d_world {
   JPH::TempAllocatorImpl temp{10 * 1024 * 1024};
   JPH::JobSystemSingleThreaded jobs{JPH::cMaxPhysicsJobs};
   JPH::PhysicsSystem system;
+  contact_listener listener;
   std::vector<body_slot> bodies;         // handle id N is bodies[N - 1]
   std::vector<character_slot> characters; // handle id N is characters[N - 1]
+  std::vector<joint_slot> joints;         // handle id N is joints[N - 1]
+  std::unordered_map<u32, u32> handle_by_body; // Jolt body id -> njin handle id
+  std::unordered_map<u64, pair_state> touching; // pair_key -> the pair
+  std::vector<contact3d> contacts; // events of the last step
 
   physics3d_world() {
     system.Init(16384, 0, 16384, 8192, broad_phase, object_vs_broad, pairs);
+    listener.world = this;
+    system.SetContactListener(&listener);
   }
   ~physics3d_world() {
     characters.clear();
+    for (joint_slot &j : joints)
+      if (j.alive)
+        system.RemoveConstraint(j.constraint);
+    joints.clear();
     JPH::BodyInterface &bi = system.GetBodyInterface();
     for (body_slot &b : bodies) {
       if (b.alive) {
@@ -211,6 +338,46 @@ struct physics3d_world {
 };
 
 namespace {
+body3d_handle handle_by_id(const physics3d_world &w, JPH::BodyID id) {
+  const auto it = w.handle_by_body.find(id.GetIndexAndSequenceNumber());
+  return it != w.handle_by_body.end() ? body3d_handle{it->second} : body3d_handle{};
+}
+
+void contact_listener::OnContactAdded(const JPH::Body &body1, const JPH::Body &body2,
+                                      const JPH::ContactManifold &manifold, JPH::ContactSettings &) {
+  pair_state &p = world->touching[pair_key(body1.GetID(), body2.GetID())];
+  if (p.count++ > 0)
+    return;
+  p.a = handle_by_id(*world, body1.GetID());
+  p.b = handle_by_id(*world, body2.GetID());
+  p.sensor = body1.IsSensor() || body2.IsSensor();
+  world->contacts.push_back(contact3d{.a = p.a,
+                                      .b = p.b,
+                                      .character = {},
+                                      .began = true,
+                                      .sensor = p.sensor,
+                                      .point = world_vec(manifold.GetWorldSpaceContactPointOn1(0)),
+                                      .normal = nv(manifold.mWorldSpaceNormal)});
+}
+
+void contact_listener::OnContactRemoved(const JPH::SubShapeIDPair &pair) {
+  const auto it = world->touching.find(pair_key(pair.GetBody1ID(), pair.GetBody2ID()));
+  if (it == world->touching.end() || --it->second.count > 0)
+    return;
+  const pair_state p = it->second;
+  world->touching.erase(it);
+  world->contacts.push_back(contact3d{.a = p.a, .b = p.b, .character = {}, .began = false, .sensor = p.sensor,
+                                      .point = {}, .normal = {}});
+}
+
+void on_body_destroyed(context &ctx, entt::registry &reg, entt::entity e) {
+  body3d_destroy(ctx, reg.get<body3d>(e).handle);
+}
+
+void on_character_destroyed(context &ctx, entt::registry &reg, entt::entity e) {
+  character3d_destroy(ctx, reg.get<character3d>(e).handle);
+}
+
 // Jolt's globals come before the world and go after it.
 physics3d_world &world_of(context &ctx) {
   physics3d_state &s = ctx.physics3d;
@@ -218,8 +385,53 @@ physics3d_world &world_of(context &ctx) {
     jolt_acquire();
     s.world = std::make_unique<physics3d_world>();
     s.world->system.SetGravity(jv(s.gravity));
+    // A component's body goes with it (emplacing it needs a body, so the world
+    // is always there first).
+    entt::registry &reg = world(ctx);
+    reg.on_destroy<body3d>().connect<&on_body_destroyed>(ctx);
+    reg.on_destroy<character3d>().connect<&on_character_destroyed>(ctx);
   }
   return *s.world;
+}
+
+// Bodies the character's shape touches (within a small gap, so the floor it
+// stands on counts), including sensors, compared with the step before.
+void character_contacts(physics3d_world &w, character_slot &c, u32 handle) {
+  JPH::CollideShapeSettings settings;
+  settings.mMaxSeparationDistance = 0.05f;
+  JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> hits;
+  w.system.GetNarrowPhaseQuery().CollideShape(c.character->GetShape(), JPH::Vec3::sReplicate(1.0f),
+                                              c.character->GetCenterOfMassTransform(), settings, JPH::RVec3::sZero(),
+                                              hits, w.system.GetDefaultBroadPhaseLayerFilter(layers::moving),
+                                              w.system.GetDefaultLayerFilter(layers::moving));
+  std::vector<u32> now;
+  for (const JPH::CollideShapeResult &hit : hits.mHits) {
+    const body3d_handle body = handle_by_id(w, hit.mBodyID2);
+    if (body.id == 0 || std::find(now.begin(), now.end(), body.id) != now.end())
+      continue;
+    now.push_back(body.id);
+    if (std::binary_search(c.touching.begin(), c.touching.end(), body.id))
+      continue;
+    const JPH::Vec3 axis = hit.mPenetrationAxis;
+    const vec3 normal = axis.LengthSq() > 1e-12f ? nv(-axis.Normalized()) : vec3{0.0f, 1.0f, 0.0f};
+    bool sensor = false;
+    JPH::BodyLockRead lock(w.system.GetBodyLockInterface(), hit.mBodyID2);
+    if (lock.Succeeded())
+      sensor = lock.GetBody().IsSensor();
+    w.contacts.push_back(contact3d{.a = body,
+                                   .b = {},
+                                   .character = {handle},
+                                   .began = true,
+                                   .sensor = sensor,
+                                   .point = nv(hit.mContactPointOn2),
+                                   .normal = normal});
+  }
+  std::sort(now.begin(), now.end());
+  for (u32 old : c.touching)
+    if (!std::binary_search(now.begin(), now.end(), old))
+      w.contacts.push_back(contact3d{.a = {old}, .b = {}, .character = {handle}, .began = false, .sensor = false,
+                                     .point = {}, .normal = {}});
+  c.touching = std::move(now);
 }
 
 body_slot *body_of(const context &ctx, body3d_handle h) {
@@ -259,7 +471,18 @@ void physics3d_step(context &ctx, f32 dt) {
   physics3d_world *w = ctx.physics3d.world.get();
   if (w == nullptr || dt <= 0.0f)
     return;
+  w->contacts.clear();
   JPH::BodyInterface &bi = w->system.GetBodyInterface();
+  entt::registry &reg = world(ctx);
+  // Kinematic components go where their entity is.
+  for (auto [e, b, t] : reg.view<const body3d, const transform3d>().each()) {
+    body_slot *slot = body_of(ctx, b.handle);
+    if (slot != nullptr && slot->kinematic) {
+      slot->has_target = true;
+      slot->target_pos = t.position;
+      slot->target_rot = t.rotation;
+    }
+  }
   for (body_slot &b : w->bodies) {
     if (b.alive && b.kinematic && b.has_target) {
       bi.MoveKinematic(b.id, jv(b.target_pos), quat_of(b.target_rot), dt);
@@ -278,12 +501,28 @@ void physics3d_step(context &ctx, f32 dt) {
                                 w->system.GetDefaultLayerFilter(layers::moving), {}, {}, w->temp);
   }
   w->system.Update(dt, 1, &w->temp, &w->jobs);
+  for (usize i = 0; i < w->characters.size(); i++)
+    if (w->characters[i].alive)
+      character_contacts(*w, w->characters[i], (u32)(i + 1));
+
+  // Dynamic bodies and characters move their entities.
+  for (auto [e, b, t] : reg.view<const body3d, transform3d>().each()) {
+    body_slot *slot = body_of(ctx, b.handle);
+    if (slot == nullptr || !slot->dynamic)
+      continue;
+    const transform3d now = body3d_transform(ctx, b.handle);
+    t.position = now.position;
+    t.rotation = now.rotation;
+  }
+  for (auto [e, c, t] : reg.view<const character3d, transform3d>().each())
+    if (character_of(ctx, c.handle) != nullptr)
+      t.position = character3d_position(ctx, c.handle);
 }
 
 body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
   // The world first: it sets up Jolt's allocator, which shapes need.
   physics3d_world &w = world_of(ctx);
-  JPH::RefConst<JPH::Shape> shape = make_shape(desc);
+  JPH::RefConst<JPH::Shape> shape = desc.model.id != 0 ? make_model_shape(ctx, desc) : make_shape(desc);
   if (shape == nullptr)
     return body3d_handle{};
   const JPH::EMotionType motion = desc.motion == body3d_dynamic     ? JPH::EMotionType::Dynamic
@@ -294,9 +533,18 @@ body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
                                      desc.motion == body3d_static ? layers::still : layers::moving);
   settings.mFriction = desc.friction;
   settings.mRestitution = desc.restitution;
+  settings.mIsSensor = desc.sensor;
+  // A sensor that does not move still notices kinematic bodies passing.
+  settings.mCollideKinematicVsNonDynamic = desc.sensor;
   if (desc.motion == body3d_dynamic) {
     settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
     settings.mMassPropertiesOverride.mMass = std::max(desc.mass, 0.001f);
+  } else if (desc.motion == body3d_kinematic && desc.model.id != 0) {
+    // A triangle mesh has no volume to compute mass from; a kinematic body
+    // never uses it anyway.
+    settings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
+    settings.mMassPropertiesOverride.mMass = 1.0f;
+    settings.mMassPropertiesOverride.mInertia = JPH::Mat44::sIdentity();
   }
   const u32 handle = (u32)w.bodies.size() + 1;
   settings.mUserData = handle;
@@ -307,9 +555,11 @@ body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
     NJIN_WARN("physics3d: body limit reached");
     return body3d_handle{};
   }
+  w.handle_by_body[id.GetIndexAndSequenceNumber()] = handle;
   w.bodies.push_back(body_slot{.id = id,
                                .alive = true,
                                .kinematic = desc.motion == body3d_kinematic,
+                               .dynamic = desc.motion == body3d_dynamic,
                                .user = desc.user,
                                .has_target = false,
                                .target_pos = desc.position,
@@ -321,7 +571,18 @@ void body3d_destroy(context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return;
-  JPH::BodyInterface &bi = ctx.physics3d.world->system.GetBodyInterface();
+  physics3d_world &w = *ctx.physics3d.world;
+  // Its joints first: a constraint must not outlive a body it holds.
+  for (usize i = 0; i < w.joints.size(); i++)
+    if (w.joints[i].alive && (w.joints[i].a.id == handle.id || w.joints[i].b.id == handle.id))
+      joint3d_destroy(ctx, joint3d_handle{(u32)(i + 1)});
+  // A destroyed body stops touching without an event.
+  for (auto it = w.touching.begin(); it != w.touching.end();)
+    it = it->second.a.id == handle.id || it->second.b.id == handle.id ? w.touching.erase(it) : std::next(it);
+  for (character_slot &c : w.characters)
+    std::erase(c.touching, handle.id);
+  w.handle_by_body.erase(b->id.GetIndexAndSequenceNumber());
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
   bi.RemoveBody(b->id);
   bi.DestroyBody(b->id);
   *b = body_slot{};
@@ -458,6 +719,14 @@ body3d_handle character3d_ground_body(const context &ctx, character3d_handle han
   return handle_of(*ctx.physics3d.world, c->character->GetGroundBodyID());
 }
 
+namespace {
+// Rays go through sensors: a pickup must not stop a bullet or the camera.
+class not_sensor final : public JPH::BodyFilter {
+public:
+  bool ShouldCollideLocked(const JPH::Body &body) const override { return !body.IsSensor(); }
+};
+} // namespace
+
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body) {
   if (body != nullptr)
     *body = body3d_handle{};
@@ -467,7 +736,8 @@ ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distan
   const vec3 dir = normalize(ray.direction);
   const JPH::RRayCast cast{JPH::RVec3(ray.origin.x, ray.origin.y, ray.origin.z), jv(dir * max_distance)};
   JPH::RayCastResult result;
-  if (!w->system.GetNarrowPhaseQuery().CastRay(cast, result))
+  const not_sensor bodies;
+  if (!w->system.GetNarrowPhaseQuery().CastRay(cast, result, {}, {}, bodies))
     return ray3d_hit{};
   const JPH::RVec3 p = cast.GetPointOnRay(result.mFraction);
   vec3 normal{};
@@ -480,6 +750,167 @@ ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distan
                    .distance = result.mFraction * max_distance,
                    .point = {(f32)p.GetX(), (f32)p.GetY(), (f32)p.GetZ()},
                    .normal = normal};
+}
+
+i32 physics3d_contact_count(const context &ctx) {
+  const physics3d_world *w = ctx.physics3d.world.get();
+  return w != nullptr ? (i32)w->contacts.size() : 0;
+}
+
+contact3d physics3d_contact(const context &ctx, i32 index) {
+  const physics3d_world *w = ctx.physics3d.world.get();
+  if (w == nullptr || index < 0 || index >= (i32)w->contacts.size())
+    return contact3d{};
+  return w->contacts[(usize)index];
+}
+
+namespace {
+joint_slot *joint_of(const context &ctx, joint3d_handle h) {
+  physics3d_world *w = ctx.physics3d.world.get();
+  if (w == nullptr || h.id == 0 || h.id > w->joints.size())
+    return nullptr;
+  joint_slot &j = w->joints[h.id - 1];
+  return j.alive ? &j : nullptr;
+}
+
+JPH::RVec3 rv(vec3 v) { return JPH::RVec3(v.x, v.y, v.z); }
+
+// Limits of a hinge (radians) or slider: Jolt needs min <= 0 <= max.
+bool limits(const joint3d_desc &d, f32 scale, f32 bound, f32 &lo, f32 &hi) {
+  if (d.min >= d.max)
+    return false;
+  lo = clamp(d.min * scale, -bound, 0.0f);
+  hi = clamp(d.max * scale, 0.0f, bound);
+  return lo < hi;
+}
+} // namespace
+
+joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
+  body_slot *a = body_of(ctx, desc.a);
+  if (a == nullptr) {
+    NJIN_WARN("physics3d: joint3d_create needs a valid body a");
+    return joint3d_handle{};
+  }
+  body_slot *b = body_of(ctx, desc.b);
+  physics3d_world &w = *ctx.physics3d.world;
+  const JPH::Vec3 axis = jv(length_sq(desc.axis) > 1e-12f ? normalize(desc.axis) : vec3{0.0f, 1.0f, 0.0f});
+  JPH::Ref<JPH::TwoBodyConstraintSettings> settings;
+  switch (desc.kind) {
+  case joint3d_fixed: {
+    auto *f = new JPH::FixedConstraintSettings();
+    f->mAutoDetectPoint = true;
+    settings = f;
+    break;
+  }
+  case joint3d_point: {
+    auto *p = new JPH::PointConstraintSettings();
+    p->mPoint1 = p->mPoint2 = rv(desc.anchor);
+    settings = p;
+    break;
+  }
+  case joint3d_slider: {
+    auto *sl = new JPH::SliderConstraintSettings();
+    sl->mAutoDetectPoint = true;
+    sl->SetSliderAxis(axis);
+    f32 lo = 0.0f, hi = 0.0f;
+    if (limits(desc, 1.0f, 1e6f, lo, hi)) {
+      sl->mLimitsMin = lo;
+      sl->mLimitsMax = hi;
+    }
+    if (desc.motor_force > 0.0f)
+      sl->mMotorSettings.SetForceLimit(desc.motor_force);
+    settings = sl;
+    break;
+  }
+  case joint3d_distance: {
+    auto *d = new JPH::DistanceConstraintSettings();
+    d->mPoint1 = rv(desc.anchor);
+    d->mPoint2 = rv(desc.anchor_b);
+    if (desc.min > 0.0f || desc.max > 0.0f) {
+      d->mMinDistance = std::max(desc.min, 0.0f);
+      d->mMaxDistance = std::max(desc.max, d->mMinDistance);
+    }
+    settings = d;
+    break;
+  }
+  case joint3d_hinge:
+  default: {
+    auto *h = new JPH::HingeConstraintSettings();
+    h->mPoint1 = h->mPoint2 = rv(desc.anchor);
+    h->mHingeAxis1 = h->mHingeAxis2 = axis;
+    h->mNormalAxis1 = h->mNormalAxis2 = axis.GetNormalizedPerpendicular();
+    f32 lo = 0.0f, hi = 0.0f;
+    if (limits(desc, pi / 180.0f, pi, lo, hi)) {
+      h->mLimitsMin = lo;
+      h->mLimitsMax = hi;
+    }
+    if (desc.motor_force > 0.0f)
+      h->mMotorSettings.SetTorqueLimit(desc.motor_force);
+    settings = h;
+    break;
+  }
+  }
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  JPH::TwoBodyConstraint *constraint = bi.CreateConstraint(settings, a->id, b != nullptr ? b->id : JPH::BodyID());
+  if (constraint == nullptr) {
+    NJIN_WARN("physics3d: joint could not be created");
+    return joint3d_handle{};
+  }
+  w.system.AddConstraint(constraint);
+  bi.ActivateConstraint(constraint);
+  if (desc.motor_force > 0.0f) {
+    if (desc.kind == joint3d_hinge)
+      static_cast<JPH::HingeConstraint *>(constraint)->SetMotorState(JPH::EMotorState::Velocity);
+    else if (desc.kind == joint3d_slider)
+      static_cast<JPH::SliderConstraint *>(constraint)->SetMotorState(JPH::EMotorState::Velocity);
+  }
+  w.joints.push_back(joint_slot{.constraint = constraint,
+                                .alive = true,
+                                .kind = desc.kind,
+                                .a = desc.a,
+                                .b = b != nullptr ? desc.b : body3d_handle{}});
+  return joint3d_handle{(u32)w.joints.size()};
+}
+
+void joint3d_destroy(context &ctx, joint3d_handle handle) {
+  joint_slot *j = joint_of(ctx, handle);
+  if (j == nullptr)
+    return;
+  physics3d_world &w = *ctx.physics3d.world;
+  w.system.GetBodyInterface().ActivateConstraint(j->constraint);
+  w.system.RemoveConstraint(j->constraint);
+  *j = joint_slot{};
+}
+
+void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed) {
+  joint_slot *j = joint_of(ctx, handle);
+  if (j == nullptr)
+    return;
+  if (j->kind == joint3d_hinge) {
+    auto *h = static_cast<JPH::HingeConstraint *>(j->constraint.GetPtr());
+    if (h->GetMotorState() == JPH::EMotorState::Off)
+      return;
+    h->SetTargetAngularVelocity(speed * (pi / 180.0f));
+  } else if (j->kind == joint3d_slider) {
+    auto *sl = static_cast<JPH::SliderConstraint *>(j->constraint.GetPtr());
+    if (sl->GetMotorState() == JPH::EMotorState::Off)
+      return;
+    sl->SetTargetVelocity(speed);
+  } else {
+    return;
+  }
+  ctx.physics3d.world->system.GetBodyInterface().ActivateConstraint(j->constraint);
+}
+
+f32 joint3d_position(const context &ctx, joint3d_handle handle) {
+  const joint_slot *j = joint_of(ctx, handle);
+  if (j == nullptr)
+    return 0.0f;
+  if (j->kind == joint3d_hinge)
+    return static_cast<const JPH::HingeConstraint *>(j->constraint.GetPtr())->GetCurrentAngle() * (180.0f / pi);
+  if (j->kind == joint3d_slider)
+    return static_cast<const JPH::SliderConstraint *>(j->constraint.GetPtr())->GetCurrentPosition();
+  return 0.0f;
 }
 
 void physics3d_set_gravity(context &ctx, vec3 gravity) {

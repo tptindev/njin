@@ -19,6 +19,10 @@ struct camera3d {
   f32 fovy = 60.0f;                 ///< Vertical field of view, degrees.
   f32 near_plane = 0.05f;           ///< Nearest distance still drawn.
   f32 far_plane = 1000.0f;          ///< Farthest distance still drawn.
+  /// Also draw the 3D entities (njin::model3d, njin::shape3d_render, njin::light3d_source
+  /// lights) in this draw. Turn it off for a secondary scene (e.g. a model spinning in a
+  /// menu) that draws only what the game calls.
+  bool entities = true;
 };
 
 /// Starts 3D drawing through `camera`. Ends with end_3d().
@@ -65,6 +69,9 @@ struct light3d {
   f32 shadow_range = 30.0f;
   i32 shadow_size = 2048;       ///< Side of the shadow map, pixels. Bigger is sharper, costs more memory.
   f32 shadow_softness = 1.0f;   ///< Softness of the shadow edge, in shadow map pixels. 0 is sharp.
+  /// Shadow map side for point and spot lights with `light3d_source::shadows`, pixels, per
+  /// face (a point light has 6 faces, a spotlight 1).
+  i32 source_shadow_size = 512;
   rgba fog_color{0.6f, 0.65f, 0.75f, 1.0f}; ///< Fog colour, usually the same as the clear colour.
   /// Fog density by distance to the camera: transparency left is
   /// `exp(-(density * d)^2)`. 0 is no fog.
@@ -87,7 +94,11 @@ enum light3d_kind {
   light3d_spot,  ///< Spotlight: shines along `direction` inside a cone (a flashlight, a stage light).
 };
 
-/// A point or spot light. Brightness falls to 0 at `radius`. Casts no shadow.
+/// A point or spot light. Brightness falls to 0 at `radius`.
+///
+/// Add it to one draw with light3d_add(), or use it as a component: an entity with
+/// njin::light3d_source and njin::transform3d lights every 3D draw (with
+/// `camera3d::entities`), placed at `transform3d::position` (`position` is ignored).
 struct light3d_source {
   light3d_kind kind = light3d_point; ///< Kind of light.
   vec3 position{0.0f, 0.0f, 0.0f};   ///< Position.
@@ -97,10 +108,19 @@ struct light3d_source {
   f32 radius = 10.0f;                ///< Reach, world units.
   f32 cone = 60.0f;                  ///< Cone opening angle, degrees (both sides), spotlights only.
   f32 softness = 0.25f;              ///< Share of the cone's edge that fades out, 0..1, spotlights only.
+  /// Casts shadows, like the sun's `light3d::shadows`, within `radius`. Each draw has at
+  /// most njin::light3d_shadow_max shadow-casting lights (later ones light without casting
+  /// shadows). Costly: every shadow caster is drawn 6 more times for a point light and once
+  /// for a spotlight, so turn it on only for a few important lights (a flashlight, a lamp
+  /// hanging in the middle of a room).
+  bool shadows = false;
 };
 
 /// Maximum lights in one 3D draw. Lights added past this are ignored.
 inline constexpr i32 light3d_max = 16;
+
+/// Maximum point and spot lights that cast shadows in one 3D draw.
+inline constexpr i32 light3d_shadow_max = 4;
 
 /// Adds a light for the currently open 3D draw. Call every frame, between
 /// begin_3d() and end_3d() (order relative to draw calls does not matter:
@@ -319,6 +339,68 @@ void model_material_set(context &ctx, model_handle handle, i32 index, const mode
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform,
                 rgba tint = colors::white);
 
+/// Number of skeletal animations in the model's file (glTF with a skin). model_load()
+/// loads them together with the model.
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @return Animation count, 0 if the model has none or the handle is invalid.
+i32 model_anim_count(const context &ctx, model_handle handle);
+
+/// Finds an animation by the name given in Blender (the action name when exporting glTF).
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @param name Animation name.
+/// @return Index 0..model_anim_count() - 1, or -1 if there is none.
+i32 model_anim_find(const context &ctx, model_handle handle, const char *name);
+
+/// Name of animation `index`.
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @param index 0..model_anim_count() - 1.
+/// @return Name, or an empty string if the handle or `index` is invalid.
+const char *model_anim_name(const context &ctx, model_handle handle, i32 index);
+
+/// Length of animation `index`, seconds.
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @param index 0..model_anim_count() - 1.
+/// @return Length, 0 if the handle or `index` is invalid.
+f32 model_anim_duration(const context &ctx, model_handle handle, i32 index);
+
+/// Pose of a skinned model when drawn: which animation, at which second, and
+/// (optionally) blended with a second animation to move smoothly between two motions.
+struct model_pose {
+  i32 anim = -1;           ///< Animation (model_anim_find()). -1 is the file's rest pose.
+  f32 time = 0.0f;         ///< Time in the animation, seconds.
+  bool loop = true;        ///< Loop; otherwise it stops on the last frame.
+  i32 blend_anim = -1;     ///< Second animation to blend in. -1 is no blending.
+  f32 blend_time = 0.0f;   ///< Time in the second animation, seconds.
+  bool blend_loop = true;  ///< Loop the second animation.
+  f32 blend = 0.0f;        ///< Blend weight: 0 is only `anim`, 1 is only `blend_anim`.
+};
+
+/// Draws a skinned model in pose `pose`. Like draw_model(), and the shadow follows
+/// the pose. Each draw has its own pose, so the same model drawn many times (a crowd
+/// of monsters) can have a different motion for each one.
+///
+/// Bones are computed on the GPU, at most 128 bones, 4 bones per vertex (the glTF
+/// limit). Parts drawn with a game shader (`model_material::shader` or
+/// shader_begin()), draw_instanced3d() and ray3d_model() use the rest pose.
+///
+/// @code
+/// // Run while moving, stand when stopped, blending over 0.2 seconds.
+/// blend = move_toward(blend, moving ? 1.0f : 0.0f, dt / 0.2f);
+/// njin::draw_model_anim(ctx, hero, {.position = pos, .rotation = {0, yaw, 0}},
+///                       {.anim = idle, .time = t, .blend_anim = run, .blend_time = t, .blend = blend});
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Model from model_load(). An invalid handle is ignored.
+/// @param transform Position, orientation and scale.
+/// @param pose Pose. A model without bones draws as with draw_model().
+/// @param tint Colour multiplied into the model's colour.
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint = colors::white);
+
 /// A ray in the 3D world, used to pick something under the mouse, fire a
 /// shot, check line of sight.
 struct ray3d {
@@ -520,5 +602,37 @@ void particles3d_clear(context &ctx);
 /// @param ctx Engine context.
 /// @return Particle count.
 i32 particles3d_count(const context &ctx);
+
+/// Component: a model drawn at the entity's njin::transform3d, in every 3D draw
+/// with `camera3d::entities` (the engine adds it at end_3d(), along with the game's draw calls).
+///
+/// The engine advances `pose.time` and `pose.blend_time` every frame (by delta(), times
+/// `speed`), so the game only has to pick the animation:
+///
+/// @code
+/// const auto e = reg.create();
+/// reg.emplace<njin::transform3d>(e, njin::transform3d{.position = {0, 0, -4}});
+/// reg.emplace<njin::model3d>(e, njin::model3d{.model = robot, .pose = {.anim = walk}});
+/// @endcode
+struct model3d {
+  model_handle model{};          ///< Model from model_load().
+  rgba tint{1.0f, 1.0f, 1.0f, 1.0f}; ///< Colour multiplied into the model's colour.
+  model_pose pose{};             ///< Pose, as for draw_model_anim().
+  f32 speed = 1.0f;              ///< Animation playback speed. 0 is stopped.
+  fx3d fx{};                     ///< Flash and dissolve, as for fx3d_set().
+  bool visible = true;           ///< Hide without removing the component.
+};
+
+/// Component: an SDF shape (as for draw_shape3d()) drawn at the entity's
+/// njin::transform3d, in every 3D draw with `camera3d::entities`. Position and rotation
+/// come from the transform (`shape.position` and `shape.rotation` are ignored), so an
+/// entity that also has njin::body3d is drawn where physics puts it.
+struct shape3d_render {
+  shape3d shape{};                    ///< Shape kind and size.
+  rgba color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Colour.
+  material3d material{};              ///< Surface, as for material3d_set().
+  fx3d fx{};                          ///< Flash and dissolve, as for fx3d_set().
+  bool visible = true;                ///< Hide without removing the component.
+};
 /// @}
 } // namespace njin

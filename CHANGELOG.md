@@ -14,6 +14,29 @@ To release: edit that header, add a section here, commit, then
   `quit`, and `njin_mod_register` is `mod_register`. No aliases remain: a game
   renames its uses (`njin::context &ctx`, `njin::create(cfg)`). Header file
   names are unchanged.
+- **Skeletal animation**: `model_load` now also loads a glTF file's animation
+  clips. `model_anim_count`, `model_anim_find`, `model_anim_name` and
+  `model_anim_duration` query them, and `draw_model_anim` draws a model in a
+  `model_pose` (a clip at a time, optionally blended with a second clip). Skinning
+  runs on the GPU (up to 128 bones) and each draw has its own pose, so shadows follow
+  the pose. A glTF whose root bone has no parent node (no armature object) is refused
+  with a warning; raylib 6.0 crashes on it.
+- **Point and spot light shadows**: `light3d_source::shadows`, up to
+  `light3d_shadow_max` (4) lights per 3D pass. Tile size is `light3d::source_shadow_size`.
+- **3D physics**: `body3d_desc::model` builds a body from a model's triangles
+  (a convex hull for dynamic bodies). `body3d_desc::sensor` makes trigger volumes.
+  Contact events come from `physics3d_contact_count` and `physics3d_contact`, and
+  joints from `joint3d_create` (fixed, point, hinge, slider, distance, with limits
+  and a motor on hinges and sliders). `physics3d_raycast` now goes through sensors.
+- **3D entities**: `transform3d`, `model3d`, `shape3d_render` and `light3d_source`
+  are components that every 3D pass draws (`camera3d::entities`). `body3d` and
+  `character3d` components keep an entity's `transform3d` in step with its body,
+  and destroy the body with the entity. The inspector shows all of them.
+- **Fixed**: raylib's `IsModelValid` read past a skinned mesh's vertex buffers;
+  models are now checked without it.
+- Samples: in `njin_platformer3d`, the player is an animated robot. The start
+  area gained a hill (a mesh body), a hinged seesaw, coins (sensors) and a sensor
+  goal. The lamps and flashlight of `njin_fps` now cast shadows.
 
 ## 0.5.0
 

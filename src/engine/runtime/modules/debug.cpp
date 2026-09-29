@@ -29,6 +29,7 @@ constexpr usize max_log_lines = 2000;
 
 json_value vec(vec2 v) { return json_value::make_array().push(v.x).push(v.y); }
 json_value color(rgba c) { return json_value::make_array().push(c.r).push(c.g).push(c.b).push(c.a); }
+json_value vec3_json(vec3 v) { return json_value::make_array().push(v.x).push(v.y).push(v.z); }
 json_value rect_json(rect r) {
   return json_value::make_array().push(r.pos.x).push(r.pos.y).push(r.size.x).push(r.size.y);
 }
@@ -171,6 +172,53 @@ void register_builtins(context &ctx) {
         .set("size", vec(o.size))
         .set("points", (i64)o.points.size())
         .set("props", o.props);
+  });
+  builtin<transform3d>(d, "transform3d", [](const transform3d &t) {
+    return json_value::make_object()
+        .set("position", vec3_json(t.position))
+        .set("rotation", vec3_json(t.rotation))
+        .set("scale", vec3_json(t.scale));
+  });
+  builtin<model3d>(d, "model3d", [pctx](const model3d &m) {
+    return json_value::make_object()
+        .set("model", m.model.id)
+        .set("anim", model_anim_name(*pctx, m.model, m.pose.anim))
+        .set("time", m.pose.time)
+        .set("blend_anim", model_anim_name(*pctx, m.model, m.pose.blend_anim))
+        .set("blend", m.pose.blend)
+        .set("speed", m.speed)
+        .set("tint", color(m.tint))
+        .set("visible", m.visible);
+  });
+  builtin<shape3d_render>(d, "shape3d_render", [](const shape3d_render &r) {
+    const char *kinds[] = {"sphere", "box", "capsule", "cylinder", "torus"};
+    return json_value::make_object()
+        .set("kind", kinds[std::clamp((i32)r.shape.kind, 0, 4)])
+        .set("size", vec3_json(r.shape.size))
+        .set("radius", r.shape.radius)
+        .set("height", r.shape.height)
+        .set("color", color(r.color))
+        .set("visible", r.visible);
+  });
+  builtin<light3d_source>(d, "light3d_source", [](const light3d_source &l) {
+    return json_value::make_object()
+        .set("kind", l.kind == light3d_spot ? "spot" : "point")
+        .set("color", color(l.color))
+        .set("intensity", l.intensity)
+        .set("radius", l.radius)
+        .set("shadows", l.shadows);
+  });
+  builtin<body3d>(d, "body3d", [pctx](const body3d &b) {
+    return json_value::make_object()
+        .set("body", b.handle.id)
+        .set("velocity", vec3_json(body3d_velocity(*pctx, b.handle)))
+        .set("user", (i64)body3d_user(*pctx, b.handle));
+  });
+  builtin<character3d>(d, "character3d", [pctx](const character3d &c) {
+    return json_value::make_object()
+        .set("character", c.handle.id)
+        .set("velocity", vec3_json(character3d_velocity(*pctx, c.handle)))
+        .set("grounded", character3d_grounded(*pctx, c.handle));
   });
   builtin<flash_fx>(d, "flash_fx", [](const flash_fx &f) {
     return json_value::make_object().set("color", color(f.color)).set("duration", f.duration).set("time", f.time);

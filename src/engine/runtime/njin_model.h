@@ -20,7 +20,25 @@ struct model_slot {
   // each draw, so the file's own textures are never replaced for good.
   std::vector<model_material> materials;
   BoundingBox bounds{}; // of the file's meshes, in model space
+  // Skeletal animation (glTF skin): the file's clips, and per mesh the bone
+  // index and weight buffers, uploaded next to the mesh's own (raylib is built
+  // without GPU skinning, so it leaves them on the CPU) at skin_bone_loc and
+  // skin_weight_loc of the mesh's vertex array. 0 = the mesh has no skin.
+  ModelAnimation *anims = nullptr;
+  i32 anim_count = 0; // allocated, for UnloadModelAnimations
+  i32 anim_kept = 0;  // usable: anims[0..anim_kept) match the skeleton
+  std::vector<u32> bone_vbo;
+  std::vector<u32> weight_vbo;
+  bool skinned = false; // at least one mesh has bone buffers and the skeleton fits
+  std::vector<Matrix> inv_bind; // per bone, the inverse of its rest pose (model space)
 };
+
+// Vertex attribute locations of the skin buffers: past raylib's own (0..6)
+// and below the instance attributes (12..15, render3d.cpp).
+inline constexpr i32 skin_bone_loc = 10;
+inline constexpr i32 skin_weight_loc = 11;
+// Bones the skinning shader takes (its boneMatrices array).
+inline constexpr i32 skin_max_bones = 128;
 
 // Owns every loaded model with its meshes and material textures. The
 // destructor frees them, so it must run while the GL context is still alive.

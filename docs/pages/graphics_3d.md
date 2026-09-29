@@ -1,9 +1,9 @@
 # Đồ họa 3D {#graphics_3d}
 
-njin vẽ được thế giới 3D: camera phối cảnh, hình khối, hình SDF mịn, model glTF, ánh sáng có bóng đổ,
-vật liệu, hiệu ứng, hạt, instancing, vật lý và va chạm, chọn vật bằng chuột và gizmo để debug. Mọi thứ
-đều qua `njin.h` (khai báo trong `njin_3d.h`, `njin_physics3d.h` và `njin_gizmo.h`), không cần raylib
-hay thư viện vật lý.
+njin vẽ được thế giới 3D: camera phối cảnh, hình khối, hình SDF mịn, model glTF có animation xương,
+ánh sáng có bóng đổ, vật liệu, hiệu ứng, hạt, instancing, vật lý và va chạm, entity 3D, chọn vật bằng
+chuột và gizmo để debug. Mọi thứ đều qua `njin.h` (khai báo trong `njin_3d.h`, `njin_physics3d.h` và
+`njin_gizmo.h`), không cần raylib hay thư viện vật lý.
 
 Cần biết trước: @ref drawing, @ref game_loop và @ref rendering. Chạy `njin_fps` (bắn súng góc nhìn thứ
 nhất), `njin_sokoban` (đẩy thùng 2.5D) và `njin_platformer3d` (nhảy bục góc nhìn thứ ba) để xem mọi
@@ -33,7 +33,7 @@ Vẽ 2D trước begin_3d() thì 3D đè lên; vẽ 2D sau end_3d() (cùng `phas
 | draw_cube3d(), draw_sphere3d(), draw_plane3d(), draw_cylinder3d(), draw_capsule3d() | Lưới tam giác | Nhiều, rẻ: tường, sàn, đạn |
 | draw_shape3d() với njin::shape3d | Hình SDF: cầu, hộp bo góc, viên nang, trụ bo cạnh, xuyến | Vật cần mịn khi nhìn gần: nhân vật, vật phẩm |
 | draw_instanced3d() | Hàng nghìn hình lưới bằng một lệnh vẽ | Rừng, đám đông, gạch lát |
-| draw_model() | Model glTF/OBJ nạp bằng model_load() | Đồ vật, nhân vật làm trong Blender |
+| draw_model(), draw_model_anim() | Model glTF/OBJ nạp bằng model_load() | Đồ vật, nhân vật làm trong Blender |
 
 Hình SDF được tính trên từng điểm ảnh (sphere tracing trong hộp bao của nó), nên viền luôn tròn ở mọi
 cỡ và bo góc được, nhưng tốn hơn hình lưới. Nó vẫn nhận ánh sáng, đổ và nhận bóng, dùng
@@ -56,6 +56,31 @@ njin::model_material_set(ctx, crate, 0, m);                    // -1 cho mọi p
 
 Normal map không cần tangent trong file: shader tự dựng hệ trục từ đạo hàm màn hình.
 
+## Animation của model
+
+Một glTF có skin (xương) mang theo các animation của nó: model_load() nạp chúng cùng model.
+model_anim_find() tìm một animation theo tên action trong Blender, model_anim_count(),
+model_anim_name() và model_anim_duration() liệt kê chúng. draw_model_anim() vẽ model ở một
+njin::model_pose: animation `anim` ở giây `time`, và nếu cần trộn với `blend_anim` theo tỉ lệ `blend`
+để chuyển mượt giữa hai động tác.
+
+@code
+// Đứng yên trộn sang chạy theo tốc độ, chuyển mượt trong 0.2 giây.
+blend = njin::move_toward(blend, moving ? 1.0f : 0.0f, dt / 0.2f);
+njin::draw_model_anim(ctx, robot, {.position = pos, .rotation = {0, yaw, 0}},
+                      {.anim = idle, .time = t, .blend_anim = run, .blend_time = t, .blend = blend});
+@endcode
+
+| Điều | Chi tiết |
+|---|---|
+| Tính xương | Trên GPU, tối đa 128 xương, 4 xương mỗi đỉnh |
+| Bóng đổ | Theo đúng tư thế |
+| Nhiều bản | Mỗi lần vẽ một tư thế riêng: cùng một model, mỗi con một động tác |
+| Dùng tư thế gốc | Phần vẽ bằng shader của game, draw_instanced3d(), ray3d_model() |
+| Không có armature | Xương gốc không có node cha trong glTF: engine cảnh báo, model không có animation |
+
+Với entity, njin::model3d giữ tư thế và engine tự tăng thời gian mỗi frame (@ref entities_3d).
+
 ## Ánh sáng
 
 | Phần | Đặt bằng | Ghi chú |
@@ -63,11 +88,22 @@ Normal map không cần tangent trong file: shader tự dựng hệ trục từ 
 | Mặt trời, ánh sáng nền | light3d_set() với njin::light3d | Có hiệu lực từ begin_3d() tiếp theo |
 | Bóng đổ của mặt trời | `light3d::shadows`, `shadow_range`, `shadow_size`, `shadow_softness` | Hộp bóng quanh chỗ camera nhìn; mép bóng mềm 3 x 3 |
 | Sương mù | `light3d::fog_color`, `fog_density` | Theo khoảng cách tới camera |
-| Đèn điểm, đèn nón | light3d_add() với njin::light3d_source, mỗi lần vẽ | Tối đa njin::light3d_max (16), không đổ bóng |
+| Đèn điểm, đèn nón | light3d_add() với njin::light3d_source mỗi lần vẽ, hoặc entity (@ref entities_3d) | Tối đa njin::light3d_max (16) |
+| Bóng đổ của đèn điểm, đèn nón | `light3d_source::shadows`, `light3d::source_shadow_size` | Tối đa njin::light3d_shadow_max (4) mỗi lần vẽ; đèn sau đó chiếu sáng mà không đổ bóng |
 | Bề mặt | material3d_set() với njin::material3d | Độ bóng, phát sáng, viền sáng (`rim`), `unlit`, `texture`, `cast_shadows` |
 
 Ánh sáng là Lambert cộng điểm sáng bóng Blinn-Phong, cộng ánh sáng nền. `emission` cộng màu sau khi
 chiếu sáng: bật bloom (post_fx_set()) để vật phát sáng lan sáng ra xung quanh.
+
+Bóng của đèn điểm và đèn nón tốn: mọi hình đổ bóng được vẽ thêm 6 lần cho một đèn điểm (6 mặt của một
+khối lập phương quanh đèn) và 1 lần cho một đèn nón, mỗi mặt một ảnh bóng `source_shadow_size` pixel.
+Chỉ bật cho vài đèn quan trọng (đèn pin, đèn treo giữa phòng); `radius` của đèn cũng là tầm của bóng.
+
+@code
+// Đèn pin của người chơi: đèn nón đổ bóng.
+njin::light3d_add(ctx, {.kind = njin::light3d_spot, .position = eye, .direction = forward,
+                        .intensity = 2.0f, .radius = 25.0f, .cone = 40.0f, .shadows = true});
+@endcode
 
 ## Hiệu ứng
 
@@ -80,7 +116,9 @@ Các hiệu ứng chung của @ref particles đều dùng được cho 3D:
 | Nháy màu, tan biến | fx3d_set() với njin::fx3d: tương đương njin::flash_fx và njin::dissolve_fx của sprite |
 | Hạt | particles3d_spawn() dùng lại emitter 2D (njin::fx::explosion(), sparks(), dust()...) |
 
-Hình 3D không phải entity, nên game tự giữ thời gian của hiệu ứng và đặt mức mỗi frame:
+Hình vẽ bằng lệnh (draw_sphere3d(), draw_shape3d(), draw_model()...) không phải entity: game tự giữ
+thời gian của hiệu ứng và đặt mức mỗi frame. Một entity có njin::shape3d_render hay njin::model3d thì
+đặt trường `fx` của component đó thay cho fx3d_set() (@ref entities_3d). Với lệnh vẽ:
 
 @code
 // Mục tiêu trúng đạn: nháy trắng rồi tan trong 0.4 giây.
@@ -123,7 +161,11 @@ hình vẽ nó dùng chung số.
 | Body kinematic | `body3d_kinematic`, rồi body3d_move_kinematic() mỗi bước | Bục di chuyển, thang máy, cửa: chở và đẩy vật khác |
 | Body động | `body3d_dynamic` | Thùng, bóng, mảnh vỡ: rơi, va, lăn, bị đẩy; body3d_add_impulse() cho cú nổ |
 | Nhân vật | character3d_create() | Người chơi, quái: viên nang đi trên sàn, leo bậc, trượt dọc tường, đẩy body động |
-| Tia | physics3d_raycast() | Đạn, tầm nhìn, camera không xuyên tường; trả về body bị trúng |
+| Body từ model | `body3d_desc::model` và `scale` | Sàn, dốc, hang làm trong Blender (tĩnh, kinematic); vật lồi (động) |
+| Sensor | `body3d_desc::sensor` | Vùng nhặt đồ, checkpoint, bẫy, đích: không va, chỉ báo chạm |
+| Sự kiện chạm | physics3d_contact_count(), physics3d_contact() | Biết cái gì bắt đầu hay thôi chạm cái gì |
+| Khớp nối | joint3d_create() | Cửa bản lề, bập bênh, dây xích, piston |
+| Tia | physics3d_raycast() | Đạn, tầm nhìn, camera không xuyên tường; trả về body bị trúng, đi xuyên sensor |
 
 Engine mô phỏng ở `phase_fixed_update`, **ngay sau** các system của game trong phase đó: game đặt vận tốc
 hay vị trí đích, rồi vật lý chạy luôn trong cùng bước. Nhân vật được điều khiển bằng vận tốc, và **game tự
@@ -148,8 +190,116 @@ njin::draw_shape3d(ctx, {.kind = njin::shape3d_box, .position = t.position, .rot
                          .size = {1, 1, 1}}, {0.7f, 0.5f, 0.3f, 1.0f});
 @endcode
 
+Một entity có component njin::body3d thì không cần bước này: engine ghi transform cho nó
+(@ref entities_3d).
+
 `body3d_desc::user` gắn một số của game vào body (chỉ số trong mảng, id entity): đọc lại bằng body3d_user()
-từ body mà physics3d_raycast() hay character3d_ground_body() trả về.
+từ body mà physics3d_raycast(), character3d_ground_body() hay physics3d_contact() trả về.
+
+### Body từ model
+
+Có `body3d_desc::model` thì hình của body lấy từ lưới tam giác của model, đặt như draw_model() vẽ nó
+với cùng `position`, `rotation` và `scale`. Nên một model vừa là hình vẽ vừa là mặt đất để đi:
+
+@code
+const njin::model_handle hill = njin::model_load(ctx, "assets/hill.glb");
+njin::body3d_create(ctx, {.position = hill_pos, .model = hill}); // tĩnh: đúng từng tam giác
+@endcode
+
+| Loại body | Hình từ model |
+|---|---|
+| Tĩnh, kinematic | Đúng từng tam giác: dốc, bậc, hang đều đi được |
+| Động | Bao lồi của các đỉnh (hình lồi nhỏ nhất bọc model): chỗ lõm bị lấp |
+
+### Sensor và sự kiện chạm
+
+Body có `sensor = true` không va chạm: vật và nhân vật đi xuyên qua, physics3d_raycast() cũng xuyên
+qua, còn engine báo sự kiện chạm. Mỗi bước mô phỏng, physics3d_contact_count() và physics3d_contact()
+cho các njin::contact3d: hai body (`a`, `b`), hoặc một body `a` và một nhân vật `character` (khi đó
+`b` không hợp lệ); `began` là bắt đầu hay thôi chạm, `sensor` nếu một bên là sensor, cùng điểm và pháp
+tuyến chạm.
+
+Một cặp chỉ báo một lần khi bắt đầu chạm và một lần khi thôi chạm, dù chạm ở nhiều điểm. Body bị hủy
+không có sự kiện thôi chạm. Đọc sự kiện trong `phase_fixed_update`: mỗi bước game thấy đúng sự kiện
+của bước trước, không sót, không lặp.
+
+@code
+// Trong một system của phase_fixed_update: người chơi chạm đồng xu (sensor) thì nhặt.
+entt::registry &reg = njin::world(ctx);
+for (njin::i32 i = 0; i < njin::physics3d_contact_count(ctx); i++) {
+  const njin::contact3d c = njin::physics3d_contact(ctx, i);
+  if (!c.began || !c.sensor || c.character.id != player.id)
+    continue;
+  const auto e = (entt::entity)njin::body3d_user(ctx, c.a); // user = id entity của đồng xu
+  if (reg.valid(e) && reg.all_of<coin>(e))
+    reg.destroy(e); // component body3d hủy luôn body của nó
+}
+@endcode
+
+### Khớp nối
+
+joint3d_create() nối hai body, hoặc một body với một điểm cố định của thế giới (`b` không hợp lệ).
+Điểm nối `anchor` và trục `axis` tính trong tọa độ thế giới, lúc tạo khớp. Hủy một body thì hủy luôn
+các khớp của nó.
+
+| Loại | Làm gì | Ví dụ |
+|---|---|---|
+| `joint3d_fixed` | Hàn cứng: giữ nguyên vị trí và góc tương đối | Gắn hai mảnh thành một vật |
+| `joint3d_point` | Khớp cầu: xoay tự do quanh `anchor` | Dây xích, ragdoll |
+| `joint3d_hinge` | Bản lề: xoay quanh `axis` qua `anchor` | Cửa, bập bênh, bánh xe |
+| `joint3d_slider` | Trượt dọc `axis`, không xoay | Piston, ngăn kéo, cửa kéo |
+| `joint3d_distance` | Giữ khoảng cách giữa `anchor` và `anchor_b` trong `[min, max]` | Dây, thanh nối |
+
+`min` và `max` là giới hạn: góc, độ (bản lề); quãng trượt tính từ vị trí lúc tạo (khớp trượt);
+khoảng cách (njin::joint3d_distance). Với bản lề và khớp trượt, `min >= max` là không giới hạn.
+`motor_force` lớn hơn 0 cho bản lề và khớp trượt một mô-tơ: joint3d_set_motor() đặt tốc độ,
+joint3d_position() đọc góc hay quãng trượt hiện tại.
+
+@code
+// Bập bênh: tấm ván động trên một bản lề, nghiêng tối đa 18 độ mỗi bên.
+const njin::body3d_handle plank = njin::body3d_create(
+    ctx, {.position = pivot, .size = {4, 0.2f, 1}, .motion = njin::body3d_dynamic, .mass = 25});
+njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = pivot, .axis = {0, 0, 1},
+                           .min = -18, .max = 18});
+@endcode
+
+## Entity 3D {#entities_3d}
+
+Thay vì gọi lệnh vẽ và đọc body mỗi frame, một entity (@ref ecs) có thể mang component 3D. Engine vẽ và
+cập nhật chúng theo njin::transform3d của entity, và inspector hiện đủ các component này.
+
+| Component | Engine làm gì |
+|---|---|
+| njin::transform3d | Vị trí, góc xoay, tỉ lệ của entity; các component dưới đây đọc hoặc ghi nó |
+| njin::model3d | Vẽ `model` tại transform; tăng `pose.time` và `pose.blend_time` mỗi frame (theo delta(), nhân `speed`) |
+| njin::shape3d_render | Vẽ hình SDF `shape` tại transform (bỏ qua `shape.position` và `shape.rotation`) |
+| njin::light3d_source | Đèn đặt tại `transform3d::position` (bỏ qua `position`), chiếu mọi lần vẽ 3D |
+| njin::body3d | Động: sau mỗi bước ghi vị trí và góc của body vào transform. Kinematic: trước mỗi bước đưa body tới transform. Tĩnh: không làm gì |
+| njin::character3d | Sau mỗi bước ghi vị trí chân của nhân vật vào `transform3d::position` (góc xoay do game đặt) |
+
+Gỡ njin::body3d hay njin::character3d, hoặc hủy entity, thì body hay nhân vật bị hủy theo. njin::model3d
+và njin::shape3d_render có `fx` (nháy màu, tan biến như fx3d_set()) và `visible` để ẩn mà không gỡ
+component. Entity được vẽ ở end_3d() của mọi lần vẽ có `camera3d::entities` (mặc định bật), cùng các lệnh
+vẽ của game; tắt nó cho một cảnh phụ, như model xoay trong menu.
+
+@code
+// Một thùng: vật lý đặt transform, shape3d_render vẽ đúng chỗ đó.
+entt::registry &reg = njin::world(ctx);
+const auto crate = reg.create();
+reg.emplace<njin::transform3d>(crate);
+reg.emplace<njin::shape3d_render>(crate, njin::shape3d_render{
+    .shape = {.kind = njin::shape3d_box, .size = {0.9f, 0.9f, 0.9f}, .rounding = 0.05f},
+    .color = {0.7f, 0.5f, 0.3f, 1.0f}});
+reg.emplace<njin::body3d>(crate, njin::body3d_create(ctx, {.position = {0, 3, 0}, .size = {0.9f, 0.9f, 0.9f},
+                                                           .motion = njin::body3d_dynamic, .mass = 8}));
+
+// Người chơi: nhân vật vật lý và một robot có animation.
+const auto hero = reg.create();
+reg.emplace<njin::transform3d>(hero);
+reg.emplace<njin::character3d>(hero, njin::character3d_create(ctx, {.position = start}));
+reg.emplace<njin::model3d>(hero, njin::model3d{.model = robot, .pose = {.anim = idle, .blend_anim = run}});
+// Mỗi frame game chỉ đổi tỉ lệ trộn: reg.get<njin::model3d>(hero).pose.blend = speed / max_speed;
+@endcode
 
 ## Chọn vật bằng chuột
 
@@ -184,17 +334,10 @@ phải để xoay, chuột giữa để dời, cuộn để phóng.
 
 @image html inspector_world_3d.png "Ô World của njin_inspector khi njin_sokoban chạy: sàn, tường, thùng và nhân vật là các chấm, khung xanh là camera của game, vạch vàng là hướng nắng"
 
-## Chưa có
-
-- Animation xương của model (glTF skin): model vẽ ở tư thế tĩnh.
-- Bóng đổ của đèn điểm và đèn nón: chỉ mặt trời đổ bóng.
-- Khớp nối (joint), body từ lưới tam giác của model, sự kiện va chạm: chưa có trong `njin_physics3d.h`.
-- Component 3D trong ECS: hình 3D và body vật lý dùng trực tiếp, không phải entity.
-
 ## Game mẫu
 
 | Game | Xem gì |
 |---|---|
-| `njin_fps` | Camera góc nhìn thứ nhất, model glTF (khẩu súng), bóng đổ, sương mù, đèn màu, đèn pin (đèn nón), đèn nòng súng, vệt đạn phát sáng với bloom, tia lửa và nổ bằng hạt 3D, mục tiêu nháy rồi tan, rung camera, hitstop, `ray3d_box`, gizmo (phím G) |
+| `njin_fps` | Camera góc nhìn thứ nhất, model glTF (khẩu súng), bóng đổ, sương mù, hai đèn màu và đèn pin (đèn nón, phím F) đều đổ bóng, đèn nòng súng, vệt đạn phát sáng với bloom, tia lửa và nổ bằng hạt 3D, mục tiêu nháy rồi tan, rung camera, hitstop, `ray3d_box`, gizmo (phím G) |
 | `njin_sokoban` | Camera 2.5D, sàn và tường bằng draw_instanced3d(), thùng có texture, nhân vật là viên nang SDF có viền sáng, đèn điểm trên ô đích, bụi và lấp lánh bằng hạt, hiện dần khi vào màn, gizmo (phím G) |
-| `njin_platformer3d` | Camera góc nhìn thứ ba không xuyên tường (physics3d_raycast), nhân vật vật lý (character3d) với coyote time và nhảy đôi, bục tĩnh, bục di chuyển chở người (body kinematic), thùng đẩy được (body động), checkpoint, rơi thì tan rồi hiện lại, vòng đích phát sáng, gizmo (phím G) |
+| `njin_platformer3d` | Camera góc nhìn thứ ba không xuyên tường (physics3d_raycast), người chơi là entity (njin::character3d và njin::model3d: robot glTF với animation đứng, chạy, nhảy; đứng và chạy trộn theo tốc độ) với coyote time và nhảy đôi, bục tĩnh, bục di chuyển chở người (body kinematic), thùng đẩy được và tấm ván bập bênh là entity (njin::body3d, njin::shape3d_render), bập bênh là bản lề giới hạn ±18°, đồi cỏ là body lưới tam giác từ `assets/hill.glb`, sáu đồng xu là sensor (chạm là một sự kiện chạm, entity đồng xu bị hủy), đích là sensor, checkpoint, rơi thì tan rồi hiện lại, vòng đích phát sáng, gizmo (phím G) |

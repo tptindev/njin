@@ -12,8 +12,8 @@
 //              hit wins
 //   tracers    a streak from the muzzle to the hit point
 //   targets    "grid shot": 5 targets on a 5x5 grid, a hit moves one
-//   effects    shadows from the sun, fog, two coloured lamps, a flashlight
-//              (F), a muzzle light, glowing tracers with bloom, sparks where
+//   effects    shadows from the sun, fog, two coloured lamps and a flashlight
+//              (F) that cast shadows too, a muzzle light, glowing tracers with bloom, sparks where
 //              a shot lands, and a hit target flashes, bursts and dissolves
 //              while the camera kicks
 //   gizmos     G shows the debug view: target hit boxes, each shot's path for
@@ -325,7 +325,7 @@ void render(context &ctx) {
   const vec3 forward = forward_of(g.yaw, g.pitch);
   begin_3d(ctx, {.position = g.pos, .target = g.pos + forward, .fovy = fov, .far_plane = 3000.0f});
   for (const lamp &l : lamps)
-    light3d_add(ctx, {.position = l.pos, .color = l.color, .intensity = 1.6f, .radius = 45.0f});
+    light3d_add(ctx, {.position = l.pos, .color = l.color, .intensity = 1.6f, .radius = 45.0f, .shadows = true});
   if (g.muzzle > 0.0f)
     light3d_add(ctx, {.position = g.muzzle_pos,
                       .color = {1.0f, 0.75f, 0.35f, 1.0f},
@@ -339,7 +339,8 @@ void render(context &ctx) {
                       .intensity = 2.0f,
                       .radius = 150.0f,
                       .cone = 32.0f,
-                      .softness = 0.4f});
+                      .softness = 0.4f,
+                      .shadows = true});
 
   draw_plane3d(ctx, {0.0f, 0.0f, 0.0f}, {2000.0f, 2000.0f}, floor_color);
   draw_cube3d(ctx, level_boxes[1].center, level_boxes[1].half * 2.0f, level_color);
