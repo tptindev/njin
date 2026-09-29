@@ -1,12 +1,14 @@
 #include "njin.h"
 #include "modules/core_modules.h"
 #include "modules/fx.h"
+#include "modules/gizmo.h"
 #include "njin2rl.h"
 #include "njin_gpu_caps.h"
 #include "njin_gpu_hint.h"
 #include "njin_ctx_impl.h"
 #include "njin_log_impl.h"
 #include "njin_view.h"
+#include "njin_physics3d_impl.h"
 #include <chrono>
 #include <string>
 #include <raylib.h>
@@ -29,6 +31,8 @@ void run_fixed_steps(njin_ctx &ctx) {
   time.in_fixed = true;
   while (time.fixed_accum >= time.fixed_dt && steps < fixed_max_steps) {
     ecs_run(ctx, phase_fixed_update);
+    // Bodies and characters move right after the game set them in this step.
+    physics3d_step(ctx, time.fixed_dt);
     time.fixed_accum -= time.fixed_dt;
     steps++;
   }
@@ -116,6 +120,7 @@ void njin_run(njin_ctx &ctx) {
     time.dt = time.paused ? 0.0f : time.dt_real * time.scale;
     // Hitstop zeroes dt here, before any system (or fixed step) reads it.
     fx_frame_begin(ctx);
+    gizmo_frame_begin(ctx);
     if (ctx.ecs.profile)
       ecs_profile_roll(ctx.ecs);
     view_frame_begin(ctx.view);

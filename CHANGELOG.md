@@ -72,6 +72,63 @@ To release: edit that header, add a section here, commit, then
   gap) after `ui_end()`. `ui_mouse_over()` reports whether the mouse is over
   any panel, so a game that uses the right button or the wheel in the world
   can skip its own HUD clicks without keeping a second copy of the panel rects.
+- **Neighbour queries**: `njin_spatial.h` finds the k nearest circles to a
+  point (`spatial_nearest`) and pushes overlapping circles apart
+  (`spatial_separate`), over a grid or a quadtree behind the same API, for
+  crowds of tens of thousands without per-pair collider events.
+- **Material shader per texture**: `texture_set_shader` binds a shader to a
+  texture, so `texture_draw` uses it without `shader_begin`/`shader_end`
+  around every draw.
+- **Scope: 2D and 3D**: njin now makes 3D games as well as 2D ones. The wiki
+  marks each part as shared, 2D or 3D.
+- **3D graphics** (`njin_3d.h`): `begin_3d`/`end_3d` with a perspective
+  `camera3d`, inside the world pass (2D before and after it layers as
+  expected, and the virtual screen size keeps its aspect). Mesh primitives
+  (`draw_cube3d`, `draw_sphere3d`, `draw_plane3d`, `draw_cylinder3d`,
+  `draw_capsule3d`); smooth SDF shapes with `draw_shape3d` (sphere, rounded
+  box, capsule, rounded cylinder, torus), traced per pixel so their edge is
+  round at any size. glTF/OBJ models with `model_load`/`draw_model`, and
+  `model_material_get`/`model_material_set` to change a part's colour,
+  albedo, normal map, emission map, shader and surface. `vec3` gets its
+  operators and `dot`, `cross`, `length`, `normalize`, `lerp` in `_math.h`.
+- **3D lighting**: a sun with shadows (a shadow map with a soft 3x3 edge) and
+  fog (`light3d_set`), up to 16 point and spot lights per draw
+  (`light3d_add`), and `material3d_set` for specular, emission (glows with
+  bloom), a rim light, `unlit`, a texture and shadow casting. A game shader
+  bound with `shader_begin` gets the light as `lightDir`, `lightColor`,
+  `ambient` and `viewPos`.
+- **3D effects**: `fx3d_set` flashes and dissolves 3D shapes like
+  `sprite_flash`/`sprite_dissolve`; `camera_shake` shakes the 3D camera too;
+  `particles3d_spawn` bursts camera-facing particles from the `fx::` presets;
+  hitstop, screen flash, post effects and bloom apply unchanged.
+- **3D instancing**: `draw_instanced3d` draws thousands of copies of a
+  built-in shape or a model in one call from an instance buffer, lit and
+  shadowed by the built-in shader, or through a game shader.
+- **3D picking**: `camera3d_ray` (a ray through a screen point),
+  `camera3d_to_screen`, and `ray3d_box`, `ray3d_sphere`, `ray3d_plane`,
+  `ray3d_shape`, `ray3d_model`.
+- **3D physics** (`njin_physics3d.h`), built on Jolt Physics 5.6.0 (MIT),
+  which CMake now fetches with the rest; games never see it. Static,
+  kinematic (`body3d_move_kinematic`, carries what stands on it) and dynamic
+  bodies with the shapes of `shape3d`; a character (`character3d_*`) driven
+  by velocity that walks on floors, steps up, stays on moving platforms and
+  pushes dynamic bodies; `physics3d_raycast` returns the body hit. It steps
+  right after the game's `phase_fixed_update` systems.
+- **Gizmos** (`njin_gizmo.h`): lines, arrows, boxes, circles, spheres, axes,
+  points and text labels in 2D and 3D, from any phase, drawn on top, kept for
+  a `duration` if wanted; `gizmos_set_visible` turns them on and off.
+- **Inspector World panel**: drawn with raylib into a render texture. While
+  the game draws in 3D it switches to a 3D view: a point for every draw and
+  instance, the lights, the sun and the game camera's frustum, with an orbit
+  camera; gizmos show in both views. The debug protocol is now version 5: an
+  inspector and a game must both come from 0.5.0.
+- **Samples**: `njin_fps`, a first-person aim trainer ported from
+  Biped-Potato's Bevy FPS tutorial (its gun model, MIT); `njin_sokoban`, a
+  2.5D box pusher with five levels; `njin_platformer3d`, a third-person
+  platformer on the 3D physics. All three open the inspector's debug port in
+  a debug build.
+- **Breaking** (0.x): `_math.h` now defines operators and functions for
+  `vec3`; a game that declared its own in namespace `njin` must drop them.
 
 ## 0.4.0
 

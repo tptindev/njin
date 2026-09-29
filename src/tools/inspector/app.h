@@ -14,7 +14,7 @@ namespace inspector {
 using njin::json_value;
 
 // Must match the game's debug module (modules/debug.cpp).
-constexpr int protocol_version = 4;
+constexpr int protocol_version = 5;
 constexpr size_t frame_history = 600;
 constexpr size_t log_history = 5000;
 
@@ -75,6 +75,46 @@ struct tilemap_row {
   bool solid = false;
 };
 
+// One draw of the game's last 3D pass (render3d.h, debug3d_item): shown as a
+// point where it is, in its colour.
+struct item3d_row {
+  int kind = 0;
+  float color[4] = {1, 1, 1, 1};
+  float pos[3] = {};
+};
+
+// A point (kind 0) or spot (kind 1) light of that pass.
+struct light3d_row {
+  int kind = 0;
+  float pos[3] = {}, color[3] = {1, 1, 1}, dir[3] = {0, -1, 0};
+  float radius = 0, cone = 0;
+};
+
+// A debug gizmo the game drew (njin_gizmo.h): a line, or a mark (a point
+// when `text` is empty, else a label). 2D uses x, y; 3D all three.
+struct gizmo_line_row {
+  float a[3] = {}, b[3] = {};
+  float color[4] = {0, 1, 0, 1};
+};
+struct gizmo_mark_row {
+  float pos[3] = {};
+  float color[4] = {1, 1, 1, 1};
+  std::string text;
+};
+
+// The game's last 3D pass, when it draws in 3D.
+struct scene3d_state {
+  bool on = false;
+  float cam[10] = {}; // position, target, up, fovy
+  float aspect = 16.0f / 9.0f;
+  float sun[3] = {0, -1, 0};
+  std::vector<light3d_row> lights;
+  std::vector<item3d_row> items;
+  std::vector<gizmo_line_row> gizmo_lines;
+  std::vector<gizmo_mark_row> gizmo_marks;
+  long long instanced = 0;
+};
+
 struct log_row {
   int level = 2;
   std::string src, msg;
@@ -122,6 +162,9 @@ struct app {
   float cam[4] = {0, 0, 0, 0};
   bool has_cam = false;
   std::vector<tilemap_row> maps;
+  std::vector<gizmo_line_row> gizmo_lines; // 2D
+  std::vector<gizmo_mark_row> gizmo_marks;
+  scene3d_state scene3d;
 
   long long selected = -1;
   json_value selected_detail;
@@ -153,8 +196,14 @@ struct app {
   char log_filter[128] = "";
   int log_min_level = 0;
   bool log_autoscroll = true;
-  float view_x = 0, view_y = 0, zoom = 1.0f; // world view camera
+  float view_x = 0, view_y = 0, zoom = 1.0f; // world view camera, 2D
   bool follow_game_camera = true;
+  int world_mode = 0; // 0 auto (3D when the game draws in 3D), 1 2D, 2 3D
+  // World view camera, 3D: orbits `orbit_target` at `orbit_dist`.
+  float orbit_yaw = 45.0f, orbit_pitch = 35.0f, orbit_dist = 20.0f;
+  float orbit_target[3] = {0, 0, 0};
+  bool orbit_fitted = false;
+  bool follow_game_camera_3d = false; // look through the game's eye instead of orbiting
   char sys_filter[128] = "";
   char mem_filter[128] = "";
   char res_filter[128] = "";

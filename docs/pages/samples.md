@@ -1,6 +1,6 @@
 # Game mẫu và đóng gói {#samples}
 
-Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
+Bảy chương trình trong `src/games` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
 @ref first_walk (top-down) trước: mỗi bài dưới 50 dòng, rồi quay lại đây xem một game đầy đủ.
 
 | Game | Là gì | Đọc để học |
@@ -9,6 +9,9 @@ Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới b�
 | `njin_topdown` | *Rừng Cổ Thạch*: bản đồ Tiled có nước động, kiếm, quái đuổi theo A\*, cây che nhân vật, rương, hộp thoại | @ref topdown |
 | `njin_debug_demo` | Bóng nảy để thử inspector: mỗi phím tốn CPU, RAM hay GPU một chút và inspector hiện ra ngay | @ref debug |
 | `njin_render_demo` | Rừng 128 x 96 ô với 3000 cây đá: phím bật tắt atlas, hạt GPU/CPU, vsync, blur, bloom, CRT, và phím 7 đến 9 cho đêm có đèn, hoàng hôn bằng bảng màu, sương mù bằng nhiễu; phím L, N, O, M, P cho ánh sáng PBR với bóng đổ, normal map và kim loại; HUD hiện số sprite bị cắt và số lệnh vẽ | @ref rendering, @ref particles, @ref shader_advanced, @ref lighting |
+| `njin_fps` | Bắn súng góc nhìn thứ nhất: đi lại và bắn mục tiêu trên lưới 5x5, model glTF (khẩu súng), bóng đổ, sương mù, đèn màu, đèn pin, vệt đạn và mục tiêu trúng phát sáng (bloom), hạt 3D, rung camera | @ref graphics_3d |
+| `njin_sokoban` | Đẩy thùng 2.5D: camera nghiêng, sàn/tường instanced, thùng có texture, nhân vật hình SDF viên nang có viền sáng, đèn trên ô đích, hạt bụi và lấp lánh | @ref graphics_3d |
+| `njin_platformer3d` | *Nhảy qua mây*: platformer 3D góc nhìn thứ ba trên vật lý Jolt, nhân vật nhảy đôi, bục di chuyển, thùng đẩy được, checkpoint, vòng đích | @ref physics3d |
 
 @image html platformer.gif "njin_platformer: chạy và nhảy trên dốc, nhắc \"E\" khi lại gần con cú"
 
@@ -17,6 +20,18 @@ Bốn chương trình trong `src/games` để đọc, chạy và sửa. Mới b�
 @image html pong_play.png "njin_pong: một trận Pong đang chơi"
 
 @image html render_demo.png "njin_render_demo: rừng 128 x 96 ô với hàng nghìn sprite; HUD ở trên cho số sprite, lệnh vẽ và phím bật tắt"
+
+@image html fps.png "njin_fps: nhắm vào lưới mục tiêu, vệt đạn và điểm trúng phát sáng, sương mù xa"
+
+@image html sokoban.png "njin_sokoban: một màn đang chơi, nhân vật SDF viền sáng, đèn trên ô đích"
+
+@image html platformer3d.png "njin_platformer3d: bục đầu với ba thùng vật lý, dãy bục lên tới vòng đích ở xa"
+
+`njin_fps` là ví dụ 3D, chuyển thể từ [fps_tutorial của Biped-Potato](https://github.com/Biped-Potato/fps_tutorial)
+(Bevy) sang njin; model khẩu súng (`assets/models/ak.glb`) là của tác giả đó, giấy phép MIT
+(`assets/models/LICENSE.txt`). `njin_sokoban` sinh texture thùng từ script Python, không có file nhị phân
+không rõ nguồn. `njin_platformer3d` vẽ mọi thứ bằng hình khối và hình SDF, không có file asset nào. Cả
+ba không có menu, cài đặt hay nhạc: đọc @ref graphics_3d để xem API 3D chúng dùng.
 
 `njin_render_demo` không có menu hay tiếng: nó chỉ để **thấy** các tính năng vẽ làm gì. Đi quanh
 bản đồ bằng WASD hoặc phím mũi tên, đọc phím ở dòng cuối của HUD (hoặc đầu `main.cpp`). Thử phím
@@ -32,7 +47,7 @@ nằm ở `src/games/shared` (menu cài đặt); mọi hình, tiếng, bản đ�
 tiếng Việt) vẽ bằng njin::font_pixel ở cỡ 16 và 32, panel và nút vuông góc, màn hình ảo 640 x 360
 phóng theo số nguyên với lọc nearest, và `crisp_text` tắt.
 
-**Mọi game trong `src/games` đều mở cổng cho njin_inspector khi build bản debug** (bốn game ở bảng trên
+**Mọi game trong `src/games` đều mở cổng cho njin_inspector khi build bản debug** (bảy game ở bảng trên
 cùng `njin_pong` và `njin_sandbox`; `njin_debug_demo` và `njin_render_demo` luôn mở), nên
 `run_inspected.bat <tên game>` chạy game kèm inspector cho bất kỳ game nào. Khi inspector đang nối, log của
 game hiện ở inspector thay vì console.

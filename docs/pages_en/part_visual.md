@@ -3,6 +3,10 @@
 **Level: basic.** Read this first: @ref modules_systems, @ref game_loop and @ref ecs. This part takes the game from colored
 rectangles to characters with art, animation, a camera that follows them and effects.
 
+**Scope: 2D.** The API here (draw_rect(), sprites, tilemaps, the 2D camera) only draws in 2D space. For a
+3D game, read @ref graphics_3d instead (Part 7); this part's particles and effects (@ref particles) are
+shared with 3D.
+
 ## Follow this order
 
 | Order | Page | What you get |

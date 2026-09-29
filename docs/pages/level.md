@@ -77,7 +77,7 @@ IntGrid chỉ để trang trí; va chạm là giá trị IntGrid.
 
 ## Chỉ lưới vuông
 
-njin làm game top-down và platformer, nên chỉ nhận bản đồ **lưới vuông** (Tiled: Orientation
+Bộ nạp level của njin chỉ nhận bản đồ **lưới vuông** (Tiled: Orientation
 "Orthogonal"; LDtk luôn là lưới vuông). Bản đồ isometric, staggered hay lục giác của Tiled bị
 từ chối: njin::level_load() trả về handle id 0 và ghi lý do vào log, thay vì vẽ sai.
 

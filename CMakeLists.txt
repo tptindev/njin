@@ -55,7 +55,27 @@ FetchContent_Declare(
   GIT_TAG v4.0.0
   SYSTEM)
 
-FetchContent_MakeAvailable(raylib entt)
+# Jolt Physics (MIT): 3D collision, rigid bodies and a character controller
+# for njin_physics3d.h. Its CMake project lives in Build/. Only the library:
+# no tests, samples or viewer. Built for the SSE4.2 baseline so a game runs on
+# any x86-64 PC from the last 15 years, with RTTI and exceptions left as the
+# rest of njin has them. Linked privately by njin_rt: games never see it.
+FetchContent_Declare(
+  JoltPhysics
+  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+  GIT_TAG v5.6.0
+  SOURCE_SUBDIR Build
+  SYSTEM)
+foreach(opt TARGET_UNIT_TESTS TARGET_HELLO_WORLD TARGET_PERFORMANCE_TEST TARGET_SAMPLES TARGET_VIEWER
+            ENABLE_ALL_WARNINGS INTERPROCEDURAL_OPTIMIZATION USE_STATIC_MSVC_RUNTIME_LIBRARY
+            DEBUG_RENDERER_IN_DEBUG_AND_RELEASE PROFILER_IN_DEBUG_AND_RELEASE FLOATING_POINT_EXCEPTIONS_ENABLED
+            USE_AVX USE_AVX2 USE_AVX512 USE_LZCNT USE_TZCNT USE_F16C USE_FMADD GENERATE_DEBUG_SYMBOLS)
+  set(${opt} OFF CACHE BOOL "" FORCE)
+endforeach()
+set(CPP_RTTI_ENABLED ON CACHE BOOL "" FORCE)
+set(CPP_EXCEPTIONS_ENABLED ON CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(raylib entt JoltPhysics)
 
 # raylib saves a screenshot on F12 by default, silently, in every game. Games
 # built on njin may want F12 for something else; njin::screenshot() is the
@@ -77,6 +97,9 @@ add_subdirectory(src/games/tower_defense)
 add_subdirectory(src/games/crowd)
 add_subdirectory(src/games/lighting_demo)
 add_subdirectory(src/games/xiangqi_rts)
+add_subdirectory(src/games/fps)
+add_subdirectory(src/games/sokoban)
+add_subdirectory(src/games/platformer3d)
 
 # Debug inspector: a separate window that connects to a running game (see
 # njin_debug.h). Downloads Dear ImGui and rlImGui on first configure.

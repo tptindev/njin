@@ -43,6 +43,9 @@ void fx_frame_begin(njin_ctx &ctx);
 
 // Adds the current shake to the camera used for drawing the world.
 void fx_apply_shake(const njin_ctx &ctx, Camera2D &camera);
+// This frame's shake as a screen offset (pixels) and a roll (degrees), for the
+// 3D camera (render3d.cpp) to turn into angles. False when there is none.
+bool fx_shake_sample(const njin_ctx &ctx, vec2 &offset, f32 &angle);
 
 // Draws the screen flash over the whole frame. Called after post_render.
 void fx_draw_screen_flash(njin_ctx &ctx);

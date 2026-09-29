@@ -8,9 +8,12 @@
 #include "modules/debug.h"
 #include "modules/dialog.h"
 #include "modules/fx.h"
+#include "modules/gizmo.h"
 #include "modules/lighting.h"
 #include "modules/particles_gpu.h"
+#include "modules/particles3d.h"
 #include "modules/post_fx.h"
+#include "modules/render3d.h"
 #include "modules/reload.h"
 #include "modules/render_stats.h"
 #include "modules/ui.h"
@@ -25,6 +28,8 @@
 #include "njin_input_impl.h"
 #include "njin_instance.h"
 #include "njin_level_impl.h"
+#include "njin_model.h"
+#include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_shader.h"
@@ -79,13 +84,18 @@ struct njin_ctx {
   instance_store instances;
   texture_store texture;
   render_texture_store render_texture;
+  model_store model;
+  physics3d_state physics3d;
   // Mutable: atlases are baked on first draw, and drawing takes a const ctx.
   mutable font_store font;
   audio_store audio;
   camera_post post;
   fx_state fx;
+  gizmo_state gizmos;
   post_chain postfx;
   lighting_state light;
+  render3d_state render3d;
+  particles3d_state particles3d;
   particle_gpu_state particles_gpu;
   render_stats stats;
   reload_state reload;

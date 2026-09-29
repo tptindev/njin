@@ -3,6 +3,10 @@
 **Mức: cơ bản.** Cần biết trước: @ref modules_systems, @ref game_loop và @ref ecs. Phần này đưa game từ hình chữ nhật
 màu tới nhân vật có ảnh, animation, camera bám theo và hiệu ứng.
 
+**Phạm vi: 2D.** API ở đây (draw_rect(), sprite, tilemap, camera 2D) chỉ vẽ trong không gian 2D. Làm
+game 3D thì đọc @ref graphics_3d thay vào (Phần 7); hạt và hiệu ứng của phần này (@ref particles) dùng
+chung được cho cả 3D.
+
 ## Đi theo thứ tự này
 
 | Thứ tự | Trang | Bạn được gì |

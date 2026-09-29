@@ -77,7 +77,7 @@ IntGrid is only decoration; collision comes from the IntGrid value.
 
 ## Square grids only
 
-njin makes top-down and platformer games, so it only accepts **square-grid** maps (Tiled: Orientation
+njin's level loader only accepts **square-grid** maps (Tiled: Orientation
 "Orthogonal"; LDtk is always a square grid). Tiled's isometric, staggered or hexagonal maps are
 refused: njin::level_load() returns a handle with id 0 and writes the reason to the log, instead of drawing it wrong.
 

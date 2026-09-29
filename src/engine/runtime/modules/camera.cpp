@@ -1,8 +1,10 @@
 #include "camera.h"
 #include "_comps.h"
 #include "fx.h"
+#include "gizmo.h"
 #include "lighting.h"
 #include "post_fx.h"
+#include "render3d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_camera.h"
@@ -12,6 +14,8 @@
 #include "rl2njin.h"
 #include <algorithm>
 #include <raylib.h>
+#include <raymath.h>
+#include <rlgl.h>
 
 namespace njin {
 namespace {
@@ -71,12 +75,15 @@ void begin_world_space(njin_ctx &ctx) {
 void finish_world_post(njin_ctx &ctx);
 
 void end_world_space(njin_ctx &ctx) {
+  render3d_close(ctx);
   EndMode2D();
   ctx.view.world_depth = std::max(0, ctx.view.world_depth - 1);
   finish_world_post(ctx);
   // The world is done and on the virtual image. With smooth UI, the rest of the
   // frame (the screen-space phase and what follows) is drawn on the window.
   view_ui_begin(ctx.view);
+  // Debug gizmos over the finished world, under the game's UI.
+  gizmo_draw_screen(ctx);
 }
 
 void finish_world_post(njin_ctx &ctx) {
@@ -112,6 +119,29 @@ void setup(njin_ctx &ctx) {
   ecs_register(ctx, phase_post_render, end_world_space, "end_world_space");
 }
 } // namespace
+
+void world_target_rebind(njin_ctx &ctx) {
+  if (ctx.post.drawing) {
+    bind_view_target(ctx.post.target, screen_size(ctx));
+  } else if (ctx.view.drawing) {
+    bind_view_target(ctx.view.target, view_logical_size(ctx.view));
+  } else {
+    // The window, as BeginDrawing leaves it.
+    rlDrawRenderBatchActive();
+    rlDisableFramebuffer();
+    const i32 w = GetRenderWidth();
+    const i32 h = GetRenderHeight();
+    rlViewport(0, 0, w, h);
+    rlSetFramebufferWidth(w);
+    rlSetFramebufferHeight(h);
+    rlMatrixMode(RL_PROJECTION);
+    rlLoadIdentity();
+    rlOrtho(0, w, h, 0, 0.0f, 1.0f);
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+  }
+  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post.world_camera)));
+}
 
 mod_desc camera_module() {
   return mod_desc{.name = "njin.camera", .setup = setup};

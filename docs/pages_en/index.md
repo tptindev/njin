@@ -1,10 +1,15 @@
 # njin {#mainpage}
 
-njin is a small 2D game engine written in C++20, built for just two genres:
-**top-down** (action, adventure, RPG, top-down shooters) and **platformer**
-(side view, jumping across platforms). It uses **EnTT** for ECS and
-**raylib** for the window, graphics and input. raylib is completely hidden: a game only
+njin is a small game engine written in C++20, making both **2D** and **3D** games. It uses **EnTT**
+for ECS and **raylib** for the window, graphics and input. raylib is completely hidden: a game only
 includes `njin.h` and never sees raylib.
+
+Most of the API (modules, systems, ECS, input, time, audio, UI, particles/effects, debugging) is
+**shared** between 2D and 3D. Drawing, sprites, tilemaps, the camera and collision in Parts 2-4 are
+**2D** (`njin_draw.h`, `njin_camera.h`, `njin_collision.h`...); @ref graphics_3d is a dedicated
+**3D** page (`njin_3d.h`): a perspective camera, primitives and SDF shapes, glTF models, shadowed
+lighting, instancing. A game uses only the part it needs; both are built on the same ECS and the
+same loop, so they mix (a 2D HUD drawn over a 3D scene, for example).
 
 This site is documentation for **using** njin and for **understanding** it.
 
@@ -28,17 +33,20 @@ New to C, C++, CMake or shaders? Read the group of 13 lessons in @ref learn firs
 ## The docs come in 7 parts
 
 The pages are ordered by **increasing difficulty**: go from Part 1 down to Part 7, or jump straight to the part you
-need. The sidebar on the left shows the same tree.
+need. The sidebar on the left shows the same tree. The **Scope** column says which kind of game a
+part's API applies to: "Shared" works for both 2D and 3D games (modules, ECS, input, audio, UI,
+packaging...); "2D" is drawing, sprites, tilemaps, the 2D camera and collision; "3D" is only
+@ref graphics_3d, its own page for `njin_3d.h` in Part 7.
 
-| Part | Level | What you get |
-|---|---|---|
-| @subpage part_start | Beginner | Set up your environment, run your first program, get a character that moves right away. Includes 13 foundation lessons on C, C++, CMake and shaders |
-| @subpage part_core | Basic | Understand modules, systems, how a frame runs, entities and components, input, time, math, logging |
-| @subpage part_visual | Basic | Draw shapes and text, sprites, animation, camera, particles, pixel art |
-| @subpage part_world | Intermediate | Square-grid maps, Tiled and LDtk, collision, prefabs; put it all together into a platformer and a top-down game |
-| @subpage part_ui_audio | Intermediate | Sound effects and music, menus, dialog boxes, localization |
-| @subpage part_ship | Intermediate | Splitting the game into screens, saving, the player's settings, the window, reading the sample games, packaging |
-| @subpage part_advanced | Advanced | Shaders, instancing, post-processing, automatic map generation, debugging with the inspector |
+| Part | Level | Scope | What you get |
+|---|---|---|---|
+| @subpage part_start | Beginner | Shared | Set up your environment, run your first program, get a character that moves right away. Includes 13 foundation lessons on C, C++, CMake and shaders |
+| @subpage part_core | Basic | Shared | Understand modules, systems, how a frame runs, entities and components, input, time, math, logging |
+| @subpage part_visual | Basic | 2D | Draw shapes and text, sprites, animation, camera, particles, pixel art |
+| @subpage part_world | Intermediate | 2D | Square-grid maps, Tiled and LDtk, collision, prefabs; put it all together into a platformer and a top-down game |
+| @subpage part_ui_audio | Intermediate | Shared | Sound effects and music, menus, dialog boxes, localization |
+| @subpage part_ship | Intermediate | Shared | Splitting the game into screens, saving, the player's settings, the window, reading the sample games, packaging |
+| @subpage part_advanced | Advanced | 2D + 3D | Shaders, instancing, post-processing, automatic map generation, **@ref graphics_3d (3D)**, debugging with the inspector |
 
 After the seven parts comes @subpage part_appendix , which has a quick lookup table ("to do X, use what"), a per-function
 reference by API group, and the engine's internal architecture.

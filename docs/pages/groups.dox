@@ -80,6 +80,12 @@
 /// @defgroup grp_fx Hiệu ứng (FX)
 /// Rung camera, hitstop, nháy màn hình, nháy sprite và các mẫu particle có sẵn.
 
+/// @defgroup grp_3d Đồ họa 3D
+/// Camera phối cảnh, hình khối SDF, model glTF, instancing, ánh sáng có bóng đổ, hạt, chọn vật bằng tia.
+
+/// @defgroup grp_physics3d Vật lý 3D
+/// Body tĩnh, kinematic, động; nhân vật đi trên sàn và leo bậc; raycast. Dựng trên Jolt Physics.
+
 /// @defgroup grp_light Ánh sáng 2D
 /// Đèn điểm, đèn nón, đèn hướng, ánh sáng nền, bóng đổ từ vật chắn, normal map, đèn theo vật lý.
 
@@ -105,7 +111,7 @@
 /// Panel, nút, công tắc, thanh trượt, lựa chọn, popup, toast; chuột, bàn phím, tay cầm; tùy biến ảnh và shader.
 
 /// @defgroup grp_debug Debug
-/// Cổng debug cho njin_inspector: số liệu, entity, watches, log, điều khiển thời gian.
+/// Cổng debug cho njin_inspector: số liệu, entity, watches, log, điều khiển thời gian, gizmo.
 
 /// @defgroup grp_body Nhân vật
 /// Bộ điều khiển platformer (coyote time, nhảy tường, dốc) và top-down (8 hướng, lướt), bục di chuyển.

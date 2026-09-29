@@ -1,4 +1,5 @@
 #include "njin_ctx.h"
+#include "njin_3d.h"
 #include "njin_audio.h"
 #include "njin_camera.h"
 #include "njin_input.h"
@@ -263,6 +264,40 @@ void texture_draw(const njin_ctx &ctx, texture_handle handle, vec2 pos,
   texture_store_draw(ctx.texture, handle, pos, tint);
   if (material)
     shader_end(ctx);
+}
+
+model_handle model_load(njin_ctx &ctx, const char *path) {
+  return model_store_load(ctx.model, path);
+}
+
+void model_unload(njin_ctx &ctx, model_handle handle) {
+  model_store_unload(ctx.model, handle);
+}
+
+i32 model_material_count(const njin_ctx &ctx, model_handle handle) {
+  const model_slot *slot = model_slot_of(ctx.model, handle);
+  return slot != nullptr ? (i32)slot->materials.size() : 0;
+}
+
+model_material model_material_get(const njin_ctx &ctx, model_handle handle, i32 index) {
+  const model_slot *slot = model_slot_of(ctx.model, handle);
+  if (slot == nullptr || index < 0 || index >= (i32)slot->materials.size())
+    return model_material{};
+  return slot->materials[(usize)index];
+}
+
+void model_material_set(njin_ctx &ctx, model_handle handle, i32 index, const model_material &material) {
+  model_slot *slot = model_slot_of(ctx.model, handle);
+  if (slot == nullptr)
+    return;
+  if (index < 0) {
+    for (model_material &m : slot->materials)
+      m = material;
+  } else if (index < (i32)slot->materials.size()) {
+    slot->materials[(usize)index] = material;
+  } else {
+    NJIN_WARN("model: material %d out of range (model has %zu)", index, slot->materials.size());
+  }
 }
 
 render_texture_handle render_texture_load(njin_ctx &ctx, u32 width,

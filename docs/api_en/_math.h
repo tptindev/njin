@@ -98,6 +98,65 @@ inline vec2 from_angle(f32 degrees) { return rotate({1.0f, 0.0f}, degrees); }
 /// @return Angle in degrees, in the range -180 to 180.
 inline f32 angle_of(vec2 v) { return std::atan2(v.y, v.x) * (180.0f / pi); }
 
+/// @cond VEC3_OPERATORS
+constexpr vec3 operator+(vec3 a, vec3 b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+constexpr vec3 operator-(vec3 a, vec3 b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
+constexpr vec3 operator*(vec3 a, f32 s) { return {a.x * s, a.y * s, a.z * s}; }
+constexpr vec3 operator*(f32 s, vec3 a) { return {a.x * s, a.y * s, a.z * s}; }
+constexpr vec3 operator/(vec3 a, f32 s) { return {a.x / s, a.y / s, a.z / s}; }
+constexpr vec3 operator-(vec3 a) { return {-a.x, -a.y, -a.z}; }
+constexpr vec3 &operator+=(vec3 &a, vec3 b) { return a = a + b; }
+constexpr vec3 &operator-=(vec3 &a, vec3 b) { return a = a - b; }
+constexpr vec3 &operator*=(vec3 &a, f32 s) { return a = a * s; }
+constexpr bool operator==(vec3 a, vec3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
+constexpr bool operator!=(vec3 a, vec3 b) { return !(a == b); }
+/// @endcond
+
+/// Dot product.
+/// @param a First value.
+/// @param b Second value.
+/// @return `a.x * b.x + a.y * b.y + a.z * b.z`.
+constexpr f32 dot(vec3 a, vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+/// 3D cross product.
+/// @param a First value.
+/// @param b Second value.
+/// @return A vector perpendicular to both `a` and `b` (right-hand rule).
+constexpr vec3 cross(vec3 a, vec3 b) {
+  return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+
+/// Squared length. Faster than length() when only comparing.
+/// @param v Vector.
+/// @return Squared length of `v`.
+constexpr f32 length_sq(vec3 v) { return dot(v, v); }
+
+/// Length.
+/// @param v Vector.
+/// @return Length of `v`.
+inline f32 length(vec3 v) { return std::sqrt(length_sq(v)); }
+
+/// Distance between two points.
+/// @param a First point.
+/// @param b Second point.
+/// @return Distance from `a` to `b`.
+inline f32 distance(vec3 a, vec3 b) { return length(b - a); }
+
+/// Vector in the same direction, length 1.
+/// @param v Vector.
+/// @return `v` divided by its length, or `{0, 0, 0}` if `v` is zero.
+inline vec3 normalize(vec3 v) {
+  const f32 len = length(v);
+  return len > 0.0f ? v / len : vec3{0.0f, 0.0f, 0.0f};
+}
+
+/// Linear interpolation between two vectors.
+/// @param a Value at `t = 0`.
+/// @param b Value at `t = 1`.
+/// @param t Ratio, usually in 0..1.
+/// @return `a + (b - a) * t`.
+constexpr vec3 lerp(vec3 a, vec3 b, f32 t) { return a + (b - a) * t; }
+
 /// Clamps `v` to the range `[lo, hi]`.
 /// @param v Vector.
 /// @param lo Lower bound.

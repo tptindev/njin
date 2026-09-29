@@ -41,8 +41,9 @@ struct vec2 {
   f32 y; ///< Vertical component (in screen space, y grows downward).
 };
 
-/// 3D vector. Used to pass `vec3` values to shader uniforms: colors that
-/// need no alpha, directions, positions with a height.
+/// 3D vector. Used for positions and directions in the 3D world (njin_3d.h),
+/// and to pass `vec3` values to shader uniforms: colors that need no alpha,
+/// directions, positions with a height.
 struct vec3 {
   f32 x; ///< First component.
   f32 y; ///< Second component.
@@ -143,6 +144,27 @@ struct scene_handle {
 ///
 /// `id == 0` is an invalid handle. An unloaded handle is also ignored.
 struct texture_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a 3D model, created by model_load().
+///
+/// `id == 0` is an invalid handle. An unloaded handle is also ignored.
+struct model_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a 3D physics body, created by body3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct body3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a 3D physics character, created by character3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct character3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 

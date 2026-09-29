@@ -141,15 +141,25 @@ void fx_frame_begin(njin_ctx &ctx) {
   }
 }
 
-void fx_apply_shake(const njin_ctx &ctx, Camera2D &camera) {
+bool fx_shake_sample(const njin_ctx &ctx, vec2 &offset, f32 &angle) {
   const fx_state &fx = ctx.fx;
   if (fx.trauma <= 0.0f)
-    return;
+    return false;
   const f32 power = fx.trauma * fx.trauma;
   const f32 t = fx.shake_time * fx.shake.frequency;
-  camera.offset.x += fx.shake.max_offset * power * wobble(t, 1.7f);
-  camera.offset.y += fx.shake.max_offset * power * wobble(t, 5.3f);
-  camera.rotation += fx.shake.max_angle * power * wobble(t, 9.1f);
+  offset = {fx.shake.max_offset * power * wobble(t, 1.7f), fx.shake.max_offset * power * wobble(t, 5.3f)};
+  angle = fx.shake.max_angle * power * wobble(t, 9.1f);
+  return true;
+}
+
+void fx_apply_shake(const njin_ctx &ctx, Camera2D &camera) {
+  vec2 offset{};
+  f32 angle = 0.0f;
+  if (!fx_shake_sample(ctx, offset, angle))
+    return;
+  camera.offset.x += offset.x;
+  camera.offset.y += offset.y;
+  camera.rotation += angle;
 }
 
 void fx_draw_screen_flash(njin_ctx &ctx) {

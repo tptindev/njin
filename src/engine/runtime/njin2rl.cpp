@@ -8,6 +8,12 @@ void to_raylib(vec2 from, Vector2 &to) {
   to.y = from.y;
 }
 
+void to_raylib(vec3 from, Vector3 &to) {
+  to.x = from.x;
+  to.y = from.y;
+  to.z = from.z;
+}
+
 void to_raylib(vec4 from, Vector4 &to) {
   to.x = from.x;
   to.y = from.y;

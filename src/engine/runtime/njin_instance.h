@@ -17,6 +17,9 @@ struct instance_slot {
   i32 capacity = 0; // bytes in `vbo`
   u32 count = 0;    // instances written by the last upload
   bool alive = false;
+  // A copy of the last upload, kept only while the debug server runs, so the
+  // inspector's 3D view can place what draw_instanced3d drew.
+  std::vector<f32> cpu;
 };
 
 // Owns every instance buffer and the quad they share. The destructor frees the

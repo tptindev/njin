@@ -117,6 +117,10 @@ void instance_buffer_upload(njin_ctx &ctx, instance_buffer_handle handle, const 
     slot->capacity = wanted;
   }
   rlUpdateVertexBuffer(slot->vbo, data, bytes, 0);
+  if (ctx.debug.running)
+    slot->cpu.assign(data, data + (usize)count * slot->floats);
+  else
+    slot->cpu.clear();
 }
 
 namespace {

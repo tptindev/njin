@@ -50,6 +50,21 @@ component và trả về njin::json_value (xem @ref json).
 
 Chưa đăng ký thì inspector ghi "no view" dưới tên component.
 
+## Gizmo: tự vẽ để debug {#debug_gizmo}
+
+Các hàm `gizmo_*` (`njin_gizmo.h`) vẽ đường, mũi tên, khung, hình cầu, trục tọa độ, điểm và nhãn chữ
+lên trên cùng của thế giới, cả 2D lẫn 3D (@ref graphics_3d). Gọi được ở mọi phase, không cần đứng
+trong lúc vẽ; `duration` giữ lại một vết thay vì chỉ hiện đúng frame gọi.
+
+@code
+njin::gizmo_circle(ctx, enemy_pos, aggro_radius, njin::colors::red);
+njin::gizmo_arrow(ctx, player_pos, player_pos + velocity * 0.2f, njin::colors::yellow);
+njin::gizmo_line3d(ctx, muzzle, hit_point, njin::colors::yellow, 1.0f); // giữ 1 giây
+@endcode
+
+gizmos_set_visible() bật tắt tất cả, cho một phím debug hoặc để im lặng trong bản phát hành. Khi
+inspector đang nối, gizmo cũng hiện trong ô World của nó, kể cả gizmo 3D khi game đang vẽ 3D.
+
 ## Tiêu thụ: CPU, RAM, GPU {#debug_consumption}
 
 @image html inspector_consumption.png "Bố cục Consumption: Process (CPU, RAM, GPU của tiến trình), Systems (thời gian từng system), Memory, Assets và Entities"

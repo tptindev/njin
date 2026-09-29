@@ -1,6 +1,6 @@
 # Sample games and packaging {#samples}
 
-Four programs in `src/games` to read, run and modify. Just starting? Do @ref first_jump (platformer) or
+Seven programs in `src/games` to read, run and modify. Just starting? Do @ref first_jump (platformer) or
 @ref first_walk (top-down) first: each lesson is under 50 lines, then come back here to see a complete game.
 
 | Game | What it is | Read it to learn |
@@ -9,6 +9,9 @@ Four programs in `src/games` to read, run and modify. Just starting? Do @ref fir
 | `njin_topdown` | *Rừng Cổ Thạch* ("Ancient Stone Forest"): a Tiled map with animated water, a sword, enemies chasing with A\*, trees covering the character, chests, dialog | @ref topdown |
 | `njin_debug_demo` | Bouncing balls for trying the inspector: each key costs a little CPU, RAM or GPU and the inspector shows it right away | @ref debug |
 | `njin_render_demo` | A 128 x 96 tile forest with 3000 stone trees: keys toggle the atlas, GPU/CPU particles, vsync, blur, bloom, CRT, and keys 7 to 9 for a lit night, a palette-based dusk, noise-based fog; keys L, N, O, M, P for PBR lighting with shadows, normal maps and metal; the HUD shows the number of culled sprites and the number of draw calls | @ref rendering, @ref particles, @ref shader_advanced, @ref lighting |
+| `njin_fps` | A first-person shooter: walk around and shoot targets on a 5x5 grid, a glTF model (the gun), shadows, fog, coloured lights, a flashlight, glowing tracers and hit flashes (bloom), 3D particles, camera shake | @ref graphics_3d |
+| `njin_sokoban` | A 2.5D box-pusher: a tilted camera, instanced floor/walls, a textured crate, an SDF capsule character with a rim light, a light over each goal, dust and sparkle particles | @ref graphics_3d |
+| `njin_platformer3d` | *Nhảy qua mây* ("Jumping over the clouds"): a third-person 3D platformer on Jolt physics, a double-jumping character, a moving platform, pushable crates, checkpoints, a goal ring | @ref physics3d |
 
 @image html platformer.gif "njin_platformer: running and jumping on slopes, showing \"E\" when near the owl"
 
@@ -17,6 +20,19 @@ Four programs in `src/games` to read, run and modify. Just starting? Do @ref fir
 @image html pong_play.png "njin_pong: a Pong match in progress"
 
 @image html render_demo.png "njin_render_demo: a 128 x 96 tile forest with thousands of sprites; the HUD at the top shows the number of sprites, draw calls and toggle keys"
+
+@image html fps.png "njin_fps: aiming at the target grid, a glowing tracer and hit flash, fog in the distance"
+
+@image html sokoban.png "njin_sokoban: a level in progress, the rim-lit SDF character, a light over the goal cell"
+
+@image html platformer3d.png "njin_platformer3d: the start platform with three physics crates, the run of platforms up to the goal ring far away"
+
+`njin_fps` is the 3D sample, ported from [Biped-Potato's fps_tutorial](https://github.com/Biped-Potato/fps_tutorial)
+(Bevy) to njin; the gun model (`assets/models/ak.glb`) is that author's, MIT licensed
+(`assets/models/LICENSE.txt`). `njin_sokoban` generates its crate texture from a Python script, so there is no
+binary file of unknown origin. `njin_platformer3d` draws everything with primitives and SDF shapes, with no
+asset files at all. None of the three has a menu, settings or music: read @ref graphics_3d for the 3D API
+they use.
 
 `njin_render_demo` has no menu or sound: it exists only to let you **see** what the drawing features do. Walk around the
 map with WASD or the arrow keys, and read the keys on the last line of the HUD (or at the top of `main.cpp`). Try key
@@ -32,7 +48,7 @@ lives in `src/games/shared` (the settings menu); every image, sound and map is g
 Vietnamese support) drawn with njin::font_pixel at sizes 16 and 32, square-cornered panels and buttons, a 640 x 360 virtual screen
 scaled by whole numbers with nearest filtering, and `crisp_text` off.
 
-**Every game in `src/games` opens the gateway for njin_inspector in debug builds** (the four games in the table above
+**Every game in `src/games` opens the gateway for njin_inspector in debug builds** (the seven games in the table above
 plus `njin_pong` and `njin_sandbox`; `njin_debug_demo` and `njin_render_demo` always open it), so
 `run_inspected.bat <game name>` runs any game together with the inspector. While the inspector is connected, the game's log
 shows in the inspector instead of the console.

@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-njin là game engine 2D mã nguồn mở, viết bằng C++20, tập trung vào hai thể loại: **top-down** và **platformer màn hình ngang**. Engine dùng EnTT cho ECS và raylib cho cửa sổ, đồ họa, âm thanh và input; game chỉ cần include API của njin qua `njin.h`.
+njin là game engine mã nguồn mở viết bằng C++20, làm cả game **2D** lẫn **3D**. Engine dùng EnTT cho ECS, raylib cho cửa sổ, đồ họa, âm thanh và input, và Jolt Physics cho vật lý 3D; game chỉ cần include API của njin qua `njin.h`.
 
 Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có thể thay đổi giữa các bản minor trước 1.0. Xem [CHANGELOG.md](CHANGELOG.md) để biết chi tiết.
 
@@ -15,7 +15,10 @@ Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có th�
 - Sprite, animation, tilemap vuông từ Tiled/LDtk, va chạm và camera theo nhân vật.
 - Bộ điều khiển nhân vật cho platformer và top-down, navigation A*, particle và hiệu ứng hậu kỳ.
 - UI, âm thanh, lưu cài đặt, hội thoại và bản địa hóa.
-- Màn hình ảo cho pixel art, khử răng cưa bằng supersampling và công cụ `njin_inspector` để xem entity, system, log, hiệu năng và tài nguyên khi game chạy.
+- 3D: camera phối cảnh, hình khối và hình SDF mịn, model glTF với vật liệu, ánh sáng có bóng đổ và sương mù, hạt 3D, instancing, chọn vật bằng tia.
+- Vật lý 3D (Jolt Physics): body tĩnh, kinematic, động; nhân vật đi trên sàn, leo bậc, đứng trên bục di chuyển; raycast.
+- Gizmo để debug 2D và 3D.
+- Màn hình ảo cho pixel art, khử răng cưa bằng supersampling và công cụ `njin_inspector` để xem entity, system, log, hiệu năng, tài nguyên và cảnh 3D khi game chạy.
 
 ## Game mẫu
 
@@ -28,13 +31,16 @@ Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có th�
 | `njin_debug_demo` | Mẫu dùng thử `njin_inspector` |
 | `njin_render_demo` | Mẫu atlas, particle, culling và hậu kỳ |
 | `njin_tower_defense` | Game thủ thành với tháp phòng thủ và các đợt quái |
+| `njin_fps` | Bắn súng góc nhìn thứ nhất: model glTF, bóng đổ, đèn, vệt đạn phát sáng, hạt 3D |
+| `njin_sokoban` | Đẩy thùng 2.5D: instancing, nhân vật hình SDF, đèn trên ô đích |
+| `njin_platformer3d` | Platformer 3D góc nhìn thứ ba trên vật lý Jolt: nhảy đôi, bục di chuyển, thùng đẩy được |
 
 ## Yêu cầu
 
 - CMake **3.28 trở lên**
 - Trình biên dịch hỗ trợ **C++20**
 - Ninja và Git
-- Kết nối mạng trong lần cấu hình đầu tiên để CMake tải raylib, EnTT và (khi bật inspector) Dear ImGui cùng các thư viện liên quan
+- Kết nối mạng trong lần cấu hình đầu tiên để CMake tải raylib, EnTT, Jolt Physics và (khi bật inspector) Dear ImGui cùng các thư viện liên quan
 
 Trên Linux, raylib cần thư viện phát triển cho X11 và OpenGL. Ví dụ Ubuntu/Debian:
 
@@ -98,4 +104,4 @@ docs/pages/           Tài liệu tiếng Việt
 
 ## Đóng góp và báo lỗi
 
-Mở [GitHub Issues](https://github.com/tptindev/njin/issues) để báo lỗi hoặc đề xuất cải tiến. Phạm vi hiện tại của njin là game 2D top-down và platformer; xem thêm [CHANGELOG.md](CHANGELOG.md) và tài liệu trong `docs/pages/` trước khi bắt đầu.
+Mở [GitHub Issues](https://github.com/tptindev/njin/issues) để báo lỗi hoặc đề xuất cải tiến. njin làm game 2D và 3D; xem thêm [CHANGELOG.md](CHANGELOG.md) và tài liệu trong `docs/pages/` trước khi bắt đầu.

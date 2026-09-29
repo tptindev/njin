@@ -50,6 +50,23 @@ component and returns a njin::json_value (see @ref json).
 
 If it is not registered, the inspector writes "no view" under the component name.
 
+## Gizmos: draw your own debug views {#debug_gizmo}
+
+The `gizmo_*` functions (`njin_gizmo.h`) draw lines, arrows, boxes, spheres, axes, points and text
+labels on top of the world, in both 2D and 3D (@ref graphics_3d). Callable in any phase, with no need
+to be inside a draw call; `duration` keeps a trail instead of only showing for the frame it was
+called in.
+
+@code
+njin::gizmo_circle(ctx, enemy_pos, aggro_radius, njin::colors::red);
+njin::gizmo_arrow(ctx, player_pos, player_pos + velocity * 0.2f, njin::colors::yellow);
+njin::gizmo_line3d(ctx, muzzle, hit_point, njin::colors::yellow, 1.0f); // keeps it for 1 second
+@endcode
+
+gizmos_set_visible() turns them all on or off, for a debug key or to stay silent in a release build.
+While the inspector is connected, gizmos also show in its World panel, 3D gizmos included when the
+game is drawing in 3D.
+
 ## Consumption: CPU, RAM, GPU {#debug_consumption}
 
 @image html inspector_consumption.png "Consumption layout: Process (the process's CPU, RAM, GPU), Systems (time per system), Memory, Assets and Entities"

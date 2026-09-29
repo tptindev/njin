@@ -14,6 +14,8 @@
 #include "njin_log_impl.h"
 #include "njin_particles.h"
 #include "njin_version.h"
+#include "gizmo.h"
+#include "render3d.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -21,7 +23,7 @@
 namespace njin {
 namespace {
 // The inspector speaks this version; it refuses a game with another one.
-constexpr i32 protocol_version = 4;
+constexpr i32 protocol_version = 5;
 // Log lines held while no inspector is connected, or between sends.
 constexpr usize max_log_lines = 2000;
 
@@ -533,7 +535,107 @@ void send_world(njin_ctx &ctx) {
   msg += ",\"truncated\":";
   msg += truncated ? "true" : "false";
   msg += ",\"camera\":" + json_dump(rect_json(camera_bounds(ctx)), false);
-  msg += ",\"tilemaps\":" + json_dump(maps, false) + "}";
+  msg += ",\"tilemaps\":" + json_dump(maps, false);
+  // Debug gizmos (gizmo.h), capped so a flood of them cannot choke the link.
+  constexpr usize max_sent = 4096;
+  const gizmo_state &gz = ctx.gizmos;
+  const auto put = [&](std::string &out, const f32 *v, i32 n) {
+    for (i32 k = 0; k < n; k++) {
+      if (k > 0)
+        out += ',';
+      number(out, v[k]);
+    }
+  };
+  if (gz.visible && (!gz.lines.empty() || !gz.marks.empty())) {
+    std::string g2 = ",\"gizmos\":{\"l\":[";
+    for (usize i = 0; i < gz.lines.size() && i < max_sent; i++) {
+      const gizmo_line2d &l = gz.lines[i];
+      const f32 v[8] = {l.a.x, l.a.y, l.b.x, l.b.y, l.color.r, l.color.g, l.color.b, l.color.a};
+      g2 += i > 0 ? ",[" : "[";
+      put(g2, v, 8);
+      g2 += ']';
+    }
+    g2 += "],\"m\":[";
+    for (usize i = 0; i < gz.marks.size() && i < max_sent; i++) {
+      const gizmo_mark2d &m = gz.marks[i];
+      const f32 v[5] = {m.pos.x, m.pos.y, m.color.r, m.color.g, m.color.b};
+      g2 += i > 0 ? ",[" : "[";
+      put(g2, v, 5);
+      g2 += ',' + json_dump(json_value(m.text), false) + ']';
+    }
+    g2 += "]}";
+    msg += g2;
+  }
+  // The last 3D pass (render3d.h), while it is recent: a game that stopped
+  // drawing in 3D is shown in 2D again.
+  const debug3d_frame &f3 = ctx.render3d.debug;
+  if (f3.time >= 0.0f && ctx.time.elapsed - f3.time < 0.5f) {
+    std::string s3 = ",\"scene3d\":{\"cam\":[";
+    const camera3d &c = f3.camera;
+    const f32 cam[10] = {c.position.x, c.position.y, c.position.z, c.target.x, c.target.y,
+                         c.target.z,   c.up.x,       c.up.y,       c.up.z,     c.fovy};
+    for (i32 i = 0; i < 10; i++) {
+      if (i > 0)
+        s3 += ',';
+      number(s3, cam[i]);
+    }
+    s3 += "],\"aspect\":";
+    const vec2 screen = screen_size(ctx);
+    number(s3, screen.y > 0.0f ? screen.x / screen.y : 1.0f);
+    s3 += ",\"sun\":[";
+    number(s3, f3.sun.x);
+    s3 += ',';
+    number(s3, f3.sun.y);
+    s3 += ',';
+    number(s3, f3.sun.z);
+    s3 += "],\"lights\":[";
+    for (usize i = 0; i < f3.lights.size(); i++) {
+      const light3d_source &l = f3.lights[i];
+      const f32 v[12] = {(f32)l.kind,  l.position.x,  l.position.y,  l.position.z, l.color.r,     l.color.g,
+                         l.color.b,    l.radius,      l.direction.x, l.direction.y, l.direction.z, l.cone};
+      s3 += i > 0 ? ",[" : "[";
+      for (i32 k = 0; k < 12; k++) {
+        if (k > 0)
+          s3 += ',';
+        number(s3, v[k]);
+      }
+      s3 += ']';
+    }
+    // Each draw: kind, colour, position.
+    s3 += "],\"items\":[";
+    for (usize i = 0; i < f3.items.size(); i++) {
+      const debug3d_item &it = f3.items[i];
+      const f32 v[7] = {it.color.r, it.color.g, it.color.b, it.color.a, it.pos.x, it.pos.y, it.pos.z};
+      s3 += i > 0 ? ",[" : "[";
+      number(s3, it.kind);
+      for (f32 x : v) {
+        s3 += ',';
+        number(s3, x);
+      }
+      s3 += ']';
+    }
+    s3 += "],\"gl\":[";
+    for (usize i = 0; gz.visible && i < gz.lines3d.size() && i < max_sent; i++) {
+      const gizmo_line3d_item &l = gz.lines3d[i];
+      const f32 v[10] = {l.a.x, l.a.y, l.a.z, l.b.x, l.b.y, l.b.z, l.color.r, l.color.g, l.color.b, l.color.a};
+      s3 += i > 0 ? ",[" : "[";
+      put(s3, v, 10);
+      s3 += ']';
+    }
+    s3 += "],\"gm\":[";
+    for (usize i = 0; gz.visible && i < gz.marks3d.size() && i < max_sent; i++) {
+      const gizmo_mark3d &m = gz.marks3d[i];
+      const f32 v[6] = {m.pos.x, m.pos.y, m.pos.z, m.color.r, m.color.g, m.color.b};
+      s3 += i > 0 ? ",[" : "[";
+      put(s3, v, 6);
+      s3 += ',' + json_dump(json_value(m.text), false) + ']';
+    }
+    s3 += "],\"instanced\":";
+    number(s3, f3.instanced);
+    s3 += '}';
+    msg += s3;
+  }
+  msg += '}';
   d.link.send(msg);
 }
 

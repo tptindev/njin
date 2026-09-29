@@ -17,13 +17,13 @@ bool stage_readable(const char *path, const char *stage) {
   return false;
 }
 
-i32 uniform_loc(const shader_slot &slot, const char *name) {
+i32 uniform_loc(const shader_slot &slot, const char *name, bool warn = true) {
   const auto it = slot.uniforms.find(name);
   if (it != slot.uniforms.end())
     return it->second;
 
   const i32 loc = GetShaderLocation(slot.shader, name);
-  if (loc < 0) {
+  if (loc < 0 && warn) {
     NJIN_WARN("shader: [ID %u] uniform '%s' not found", slot.shader.id, name);
   }
   slot.uniforms.emplace(name, loc);
@@ -53,6 +53,14 @@ u32 gl_id_of(const njin_ctx &ctx, const shader_texture_binding &b) {
   return t != nullptr && !t->packed ? t->texture.id : 0;
 }
 } // namespace
+
+void shader_slot_set_optional_vec3(const shader_slot &slot, const char *name, vec3 value) {
+  const i32 loc = uniform_loc(slot, name, false);
+  if (loc < 0)
+    return;
+  const f32 v[3] = {value.x, value.y, value.z};
+  SetShaderValue(slot.shader, loc, v, SHADER_UNIFORM_VEC3);
+}
 
 shader_handle shader_store_load(shader_store &store, const char *vspath,
                                 const char *fspath) {

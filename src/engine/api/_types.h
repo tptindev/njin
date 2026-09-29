@@ -41,8 +41,9 @@ struct vec2 {
   f32 y; ///< Thành phần dọc (trong không gian màn hình, y tăng khi đi xuống).
 };
 
-/// Vector 3 chiều. Dùng để truyền giá trị `vec3` vào uniform của shader: màu
-/// không cần alpha, hướng, vị trí có độ cao.
+/// Vector 3 chiều. Dùng cho vị trí và hướng trong thế giới 3D (njin_3d.h), và
+/// để truyền giá trị `vec3` vào uniform của shader: màu không cần alpha, hướng,
+/// vị trí có độ cao.
 struct vec3 {
   f32 x; ///< Thành phần thứ nhất.
   f32 y; ///< Thành phần thứ hai.
@@ -143,6 +144,27 @@ struct scene_handle {
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.
 struct texture_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một model 3D, tạo bởi model_load().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã unload cũng bị bỏ qua.
+struct model_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một body vật lý 3D, tạo bởi body3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct body3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một nhân vật vật lý 3D, tạo bởi character3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct character3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 

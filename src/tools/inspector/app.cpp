@@ -59,6 +59,71 @@ void on_world(app &a, const json_value &m) {
   a.has_cam = m["camera"].size() == 4;
   for (int i = 0; i < 4 && a.has_cam; i++)
     a.cam[i] = m["camera"][(size_t)i].f32_or(0);
+  // Gizmos: lines are a, b, colour; marks are position, colour, text.
+  const auto read_lines = [](const json_value &j, int dims, std::vector<gizmo_line_row> &out) {
+    out.clear();
+    for (const json_value &l : j.items) {
+      gizmo_line_row r;
+      for (int i = 0; i < dims; i++) {
+        r.a[i] = l[(size_t)i].f32_or(0);
+        r.b[i] = l[(size_t)(dims + i)].f32_or(0);
+      }
+      for (int i = 0; i < 4; i++)
+        r.color[i] = l[(size_t)(2 * dims + i)].f32_or(1);
+      out.push_back(r);
+    }
+  };
+  const auto read_marks = [](const json_value &j, int dims, std::vector<gizmo_mark_row> &out) {
+    out.clear();
+    for (const json_value &m : j.items) {
+      gizmo_mark_row r;
+      for (int i = 0; i < dims; i++)
+        r.pos[i] = m[(size_t)i].f32_or(0);
+      for (int i = 0; i < 3; i++)
+        r.color[i] = m[(size_t)(dims + i)].f32_or(1);
+      r.text = m[(size_t)(dims + 3)].string_or("");
+      out.push_back(std::move(r));
+    }
+  };
+  read_lines(m["gizmos"]["l"], 2, a.gizmo_lines);
+  read_marks(m["gizmos"]["m"], 2, a.gizmo_marks);
+  scene3d_state &s3 = a.scene3d;
+  const json_value &j3 = m["scene3d"];
+  s3.on = j3.is(json_value::object);
+  s3.items.clear();
+  s3.lights.clear();
+  if (s3.on) {
+    for (int i = 0; i < 10; i++)
+      s3.cam[i] = j3["cam"][(size_t)i].f32_or(0);
+    s3.aspect = j3["aspect"].f32_or(16.0f / 9.0f);
+    for (int i = 0; i < 3; i++)
+      s3.sun[i] = j3["sun"][(size_t)i].f32_or(0);
+    for (const json_value &l : j3["lights"].items) {
+      light3d_row r;
+      r.kind = l[(size_t)0].int_or(0);
+      for (int i = 0; i < 3; i++) {
+        r.pos[i] = l[(size_t)(1 + i)].f32_or(0);
+        r.color[i] = l[(size_t)(4 + i)].f32_or(1);
+        r.dir[i] = l[(size_t)(8 + i)].f32_or(0);
+      }
+      r.radius = l[(size_t)7].f32_or(0);
+      r.cone = l[(size_t)11].f32_or(0);
+      s3.lights.push_back(r);
+    }
+    s3.items.reserve(j3["items"].size());
+    for (const json_value &it : j3["items"].items) {
+      item3d_row r;
+      r.kind = it[(size_t)0].int_or(0);
+      for (int i = 0; i < 4; i++)
+        r.color[i] = it[(size_t)(1 + i)].f32_or(1);
+      for (int i = 0; i < 3; i++)
+        r.pos[i] = it[(size_t)(5 + i)].f32_or(0);
+      s3.items.push_back(r);
+    }
+    s3.instanced = (long long)j3["instanced"].number_or(0);
+    read_lines(j3["gl"], 3, s3.gizmo_lines);
+    read_marks(j3["gm"], 3, s3.gizmo_marks);
+  }
   a.maps.clear();
   for (const json_value &t : m["tilemaps"].items) {
     tilemap_row r;
@@ -96,6 +161,7 @@ void on_message(app &a, const std::string &line) {
     a.mon.attach(a.game_pid);
     a.frames.clear();
     a.fitted = false;
+    a.orbit_fitted = false;
     if (a.selected >= 0)
       select(a, a.selected); // the game forgets the selection on reconnect
   } else if (t == "stats") {

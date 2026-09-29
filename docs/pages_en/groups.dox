@@ -80,6 +80,12 @@
 /// @defgroup grp_fx Effects (FX)
 /// Camera shake, hitstop, screen flash, sprite flash and ready-made particle presets.
 
+/// @defgroup grp_3d 3D graphics
+/// Perspective camera, SDF primitives, glTF models, instancing, shadowed lighting, particles, ray picking.
+
+/// @defgroup grp_physics3d 3D physics
+/// Static, kinematic and dynamic bodies; characters that walk on floors and up steps; raycasts. Built on Jolt Physics.
+
 /// @defgroup grp_light 2D lighting
 /// Point lights, spot lights, directional lights, ambient light, shadows from occluders, normal maps, physically based lights.
 
@@ -105,7 +111,7 @@
 /// Panels, buttons, toggles, sliders, choices, popups, toasts; mouse, keyboard, gamepad; custom images and shaders.
 
 /// @defgroup grp_debug Debug
-/// The debug gateway for njin_inspector: metrics, entities, watches, log, time control.
+/// The debug gateway for njin_inspector: metrics, entities, watches, log, time control, gizmos.
 
 /// @defgroup grp_body Characters
 /// Platformer controller (coyote time, wall jump, slopes) and top-down controller (8 directions, dash), moving platforms.

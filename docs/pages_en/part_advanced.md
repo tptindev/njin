@@ -4,11 +4,16 @@
 prettier, faster, with more content, or you want to understand the engine inside. Each page stands alone, so read
 them as you need.
 
+**Scope:** @ref rendering, @ref shader_advanced and @ref post_processing are **2D**. @ref graphics_3d is
+**3D**, its own page for the whole of `njin_3d.h` (perspective camera, primitives, SDF, models, shadowed
+lighting, instancing). @ref procgen and @ref debug are **shared** between the two.
+
 ## Graphics
 
 | Page | What you get |
 |---|---|
 | @subpage rendering | Textures, atlases, shaders, instancing (thousands of shapes with one draw call), editing images and shaders while the game runs |
+| @subpage graphics_3d | Perspective camera, smooth SDF primitives, glTF models, shadowed lighting, 3D particles, instancing, ray picking, gizmos |
 | @subpage lighting | Physically based (PBR) 2D lighting: point, spot and directional lights; soft shadows from occluders of any shape; normal maps, MRA materials, emission, tonemapping; per-pixel shadows after mattdesl's tutorial |
 | @subpage shader_advanced | Shaders that read extra images (palettes, noise), take uniform arrays (lights), run over the whole frame, chain several passes together |
 | @subpage post_processing | Full-screen effects: bloom, CRT, vignette, blur |
