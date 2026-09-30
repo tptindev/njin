@@ -4,9 +4,8 @@
 
 namespace sandtable {
 
-// A man on the table: the rigged mannequin of the Universal Animation Library
-// (Quaternius, CC0; assets/models/person.glb) with its animations, tinted
-// per man (a gang's colour, a passer-by's clothes). city::person_height tall.
+// A procedural articulated clay person, ray-marched through draw_sdf_blend.
+// Rounded limbs fuse at joints; tint applies to clothes, not skin/shoes.
 
 enum class act : u8 {
   idle = 0,
@@ -42,6 +41,7 @@ struct person_draw {
   f32 blend = 0.0f;
   rgba tint{1.0f, 1.0f, 1.0f, 1.0f};
   f32 lift = 0.0f;    // 3D units above the sand (sidewalks, floors)
+  u32 identity = 0;   // Stable body/tone seed; 0 = reference proportions.
 };
 
 void person_init(context &ctx);

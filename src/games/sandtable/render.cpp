@@ -240,6 +240,21 @@ void city_panel(context &ctx) {
                 static_cast<i32>(m.buildings.size()), static_cast<i32>(m.businesses.size()),
                 static_cast<i32>(m.spots.size()), static_cast<f64>(m.report.gen_ms));
   text_shadow(ctx, line, {8.0f, 28.0f}, col_paper, 12.0f);
+  const city::view_stats &vs = city::view_last_stats();
+  char cull_line[128];
+  std::snprintf(cull_line, sizeof(cull_line), "Vẽ %d/%d ô  ·  chi tiết %d ô  ·  %u khối", vs.visible, vs.chunks,
+                vs.detailed, vs.instances);
+  text_shadow(ctx, cull_line, {8.0f, 70.0f}, col_text_hint, 11.0f);
+  const city::view_options &v = world_view();
+  if (v.selected >= 0 || (v.around && !v.cut.empty())) {
+    const i32 floors = v.selected >= 0 ? m.buildings[static_cast<size_t>(v.selected)].floors : 0;
+    char floor_line[96];
+    if (floors > 0)
+      std::snprintf(floor_line, sizeof(floor_line), "Đang xem tầng %d/%d  (PgUp PgDn)", v.floor + 1, floors);
+    else
+      std::snprintf(floor_line, sizeof(floor_line), "Đang xem tầng %d  (PgUp PgDn)", v.floor + 1);
+    text_shadow(ctx, floor_line, {8.0f, 56.0f}, col_gold, 12.0f);
+  }
   if (m.report.ok())
     text_shadow(ctx, "Kiểm tra: đạt", {8.0f, 42.0f}, col_good, 12.0f);
   else
@@ -263,6 +278,7 @@ void render_init(context &ctx) {
 
 void render_cleanup(context &ctx) {
   city::view_cleanup(ctx);
+  city::view_shutdown(ctx);
   person_cleanup(ctx);
   if (ui_font.id != 0) {
     font_unload(ctx, ui_font);
@@ -281,6 +297,21 @@ void render_world(context &ctx) {
   draw_table(ctx);
   world_view().night = darkness();
   world_update_view();
+  // In focus, the edges of the picture close in a little more, and what is
+  // nearer or farther than the thing in focus goes out of focus, as through
+  // a lens.
+  post_fx fx{.saturation = 1.08f, .vignette = 0.35f, .bloom = 0.55f, .bloom_threshold = 0.82f};
+  const city::view_options &v = world_view();
+  if (v.focused) {
+    const camera3d cam = table_camera();
+    const vec3 look = normalize(cam.target - cam.position);
+    fx.vignette = 0.62f;
+    fx.dof = 7.0f;
+    fx.dof_focus = dot(to3d(v.focus) - cam.position, look);
+    fx.dof_range = v.focus_radius * unit3d * 0.35f;
+    fx.dof_falloff = v.focus_radius * unit3d * 0.6f;
+  }
+  post_fx_set(ctx, fx);
   city::view_draw(ctx, world(), world_view());
   draw_men(ctx);
   end_3d(ctx);

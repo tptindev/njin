@@ -21,6 +21,15 @@ To release: edit that header, add a section here, commit, then
   the 3D scene by distance from a focus point, reading back the depth the frame's
   `begin_3d`/`end_3d` left in the world target. Off (as every `post_fx` field) when a
   frame draws no 3D.
+- `njin_sandtable`: clicking a building now cuts it open into a full interior — rooms laid
+  out on a grid per floor (nhà ống rows with a walkway, corridor blocks, open halls for
+  warehouses/markets/temples), furnished from a curated subset of the "PSX modular house
+  interior pack" (`assets/models/interior/`, terms confirmed with the source), with a
+  matching exterior facade (windows, balconies, shopfronts, tiled roofs) and every floor
+  viewable (PgUp/PgDn). Focusing on a building now blurs the surroundings for real
+  (`post_fx::dof`, the new engine feature above) instead of only a flat haze, and the
+  ground/roads/water are split into model tiles (`city/render_lod.*`) so the engine culls
+  the ones out of view.
 
 ## 0.6.0
 

@@ -24,6 +24,7 @@ struct townsman {
   f32 time = 0.0f, was_time = 0.0f, blend = 0.0f;
   f32 wait = 0.0f;       // seconds before walking on
   bool seated = false;   // on a stool for good
+  u32 identity = 0;
   rgba tint{};
   rng r;
 };
@@ -110,6 +111,7 @@ void crowd_spawn(u32 seed) {
     t.seated = true;
     t.tint = clothes[r.range(0, 7)];
     t.r = rng(r.next_u32());
+    t.identity = seed * 7919u + static_cast<u32>(folk.size()) + 1u;
     folk.push_back(t);
   }
   for (i32 i = 0; i < walkers; ++i) {
@@ -120,6 +122,7 @@ void crowd_spawn(u32 seed) {
     t.tint = clothes[t.r.range(0, 7)];
     t.time = t.r.range(0.0f, 2.0f);
     t.wait = t.r.range(0.0f, 3.0f);
+    t.identity = seed * 7919u + static_cast<u32>(folk.size()) + 1u;
     folk.push_back(t);
   }
 }
@@ -151,7 +154,10 @@ void crowd_draw(context &ctx) {
   const f32 range = std::min(draw_range, 200.0f + state.cam_distance * 18.0f);
   material3d_set(ctx, {.specular = 0.15f, .shininess = 16.0f});
   for (const townsman &t : folk) {
-    if (distance(t.pos, state.cam_target) > range)
+    // Only those in view; with something in focus, only those round it.
+    const city::view_options &v = world_view();
+    if (distance(t.pos, state.cam_target) > range || !city::view_sees(t.pos) ||
+        (v.focused && distance(t.pos, v.focus) > v.focus_radius * 1.3f))
       continue;
     draw_person(ctx, {.at = t.pos,
                       .facing = t.facing,
@@ -161,7 +167,8 @@ void crowd_draw(context &ctx) {
                       .was_time = t.was_time,
                       .blend = t.blend,
                       .tint = t.tint,
-                      .lift = 0.04f});
+                      .lift = 0.04f,
+                      .identity = t.identity});
   }
   material3d_set(ctx, {});
 }

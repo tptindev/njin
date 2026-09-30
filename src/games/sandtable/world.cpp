@@ -3,6 +3,7 @@
 #include "view.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <chrono>
 #include <string>
@@ -61,16 +62,57 @@ void world_input(context &ctx) {
     cut_around = !cut_around;
   if (key_pressed(ctx, key_escape))
     view.selected = -1;
-  if (mouse_pressed(ctx, mouse_left) && !ui_mouse_over(ctx))
+  if (mouse_pressed(ctx, mouse_left) && !ui_mouse_over(ctx)) {
+    const i32 was = view.selected;
     view.selected = city::view_pick(ctx, map, mouse_pos(ctx));
+    if (view.selected != was)
+      view.floor = 0;
+  }
+  // Up and down the floors of the open building (or of the tallest one open
+  // round the middle of the view).
+  i32 top = 0;
+  if (view.selected >= 0)
+    top = map.buildings[static_cast<size_t>(view.selected)].floors - 1;
+  else if (cut_around)
+    for (const i32 id : view.cut)
+      top = std::max(top, map.buildings[static_cast<size_t>(id)].floors - 1);
+  if (key_pressed(ctx, key_page_up) || key_pressed(ctx, key_right_bracket))
+    ++view.floor;
+  if (key_pressed(ctx, key_page_down) || key_pressed(ctx, key_left_bracket))
+    --view.floor;
+  view.floor = std::clamp(view.floor, 0, std::max(0, top));
 }
 
 void world_cut_around(bool on) { cut_around = on; }
 
 void world_update_view() {
   view.cut.clear();
-  if (view.selected >= 0)
+  view.around = cut_around;
+  if (view.selected >= 0) {
     view.cut.push_back(view.selected);
+    // Anything close by between it and the camera is opened too, or a tall
+    // neighbour would hide the inside we are looking at.
+    const vec2 at = map.buildings[static_cast<size_t>(view.selected)].box.center;
+    const camera3d cam = table_camera();
+    const vec2 to_cam = normalize(vec2{cam.position.x / unit3d, cam.position.z / unit3d} - at);
+    const city::obb &sel = map.buildings[static_cast<size_t>(view.selected)].box;
+    // How far a box reaches out along `n`.
+    const auto reach = [](const city::obb &o, vec2 n) {
+      return std::fabs(dot(n, o.axis_x())) * o.half.x + std::fabs(dot(n, o.axis_y())) * o.half.y;
+    };
+    for (i32 i = 0; i < static_cast<i32>(map.buildings.size()); ++i) {
+      const city::obb &nb = map.buildings[static_cast<size_t>(i)].box;
+      const vec2 d = nb.center - at;
+      const f32 len = length(d);
+      if (len < 1.0f || dot(d, to_cam) <= 0.0f)
+        continue;
+      // The gap between the two, along the line between their middles: deep
+      // tube houses back to back have their middles far apart but touch.
+      const vec2 n = d / len;
+      if (len - reach(nb, n) - reach(sel, n) < 40.0f)
+        view.cut.push_back(i);
+    }
+  }
   // Close in, the blocks round the middle of the view; from afar it would be
   // the whole town with its roofs off.
   if (cut_around && state.cam_distance < 30.0f) {
@@ -79,6 +121,17 @@ void world_update_view() {
       if (distance(map.buildings[static_cast<size_t>(i)].box.center, state.cam_target) < r)
         view.cut.push_back(i);
   }
+  // A building picked is in focus: full detail round it, the town beyond hazy.
+  view.focused = view.selected >= 0;
+  if (view.focused) {
+    const city::obb &sel = map.buildings[static_cast<size_t>(view.selected)].box;
+    view.focus = sel.center;
+    view.focus_radius = std::max(160.0f, std::max(sel.half.x, sel.half.y) + 120.0f);
+  }
+  // Look up at the open floor, not at the street under it.
+  state.cam_lift_goal = view.selected >= 0 || (cut_around && !view.cut.empty())
+                            ? static_cast<f32>(view.floor) * city::floor_height * unit3d
+                            : 0.0f;
   std::sort(view.cut.begin(), view.cut.end());
   view.cut.erase(std::unique(view.cut.begin(), view.cut.end()), view.cut.end());
 }

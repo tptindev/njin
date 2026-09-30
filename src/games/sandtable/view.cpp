@@ -25,7 +25,7 @@ f32 ease(f32 dt, f32 rate) { return 1.0f - std::exp(-rate * dt); }
 camera3d table_camera() {
   const f32 yaw = state.cam_yaw * pi / 180.0f;
   const f32 pitch = pitch_at(state.cam_distance);
-  const vec3 target = to3d(state.cam_target, 0.0f);
+  const vec3 target = to3d(state.cam_target, state.cam_lift);
   const vec3 back{std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch)};
   return {.position = target + back * state.cam_distance,
           .target = target,
@@ -73,6 +73,7 @@ void update_view(context &ctx, bool in_hud) {
   state.cam_target = lerp(state.cam_target, state.cam_target_goal, ease(dt, 12.0f));
   state.cam_yaw += (state.cam_yaw_goal - state.cam_yaw) * ease(dt, 12.0f);
   state.cam_distance += (state.cam_distance_goal - state.cam_distance) * ease(dt, 10.0f);
+  state.cam_lift += (state.cam_lift_goal - state.cam_lift) * ease(dt, 8.0f);
 }
 
 void view_focus(vec2 at, f32 distance, bool snap) {

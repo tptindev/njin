@@ -70,6 +70,8 @@ const test_shot test_shots[] = {
     {"sandtable_test_street_night.png", city::district_kind::nightlife, 21.5f, city::overlay::none, false, false},
     {"sandtable_test_cut_old_quarter.png", city::district_kind::old_quarter, 11.0f, city::overlay::none, false, true},
     {"sandtable_test_cut_new_town.png", city::district_kind::new_urban, 11.0f, city::overlay::none, false, true},
+    {"sandtable_test_cut_docks.png", city::district_kind::docks, 11.0f, city::overlay::none, false, true},
+    {"sandtable_test_cut_market.png", city::district_kind::market, 11.0f, city::overlay::none, false, true},
 };
 
 void frame_shot(const test_shot &s) {
@@ -113,7 +115,51 @@ void test_harness(context &ctx) {
       screenshot(ctx, s.file);
     return;
   }
-  const i32 g = f - shots * per_shot;
+  const i32 single = f - shots * per_shot;
+  constexpr i32 floor_shots = 4; // the ground floor, one between, the top, then from afar
+  if (single >= 0 && single < per_shot * floor_shots) {
+    const i32 k = single / per_shot, step = single % per_shot;
+    if (step == 0 && k > 0 && world_view().selected >= 0) {
+      const i32 floors = world().buildings[static_cast<size_t>(world_view().selected)].floors;
+      world_view().floor = k == 1 ? std::min(1, floors - 1) : k == 2 ? floors - 1 : 0;
+      if (k == 3) // the focus from afar: the town round it hazy
+        view_focus(world().buildings[static_cast<size_t>(world_view().selected)].box.center, 34.0f, true);
+    }
+    if (step == per_shot - 1 && k > 0) {
+      static const char *names[] = {"", "sandtable_test_cut_floor_mid.png", "sandtable_test_cut_floor_top.png",
+                                    "sandtable_test_focus_wide.png"};
+      screenshot(ctx, names[k]);
+    }
+    if (k > 0)
+      return;
+    // One building picked, as a click would: it and whatever stands between
+    // it and the camera are opened.
+    if (single == 0) {
+      // A tall tube house with a shop, so the layout shows a stair and a
+      // shopfront row as well as the usual bedroom/kitchen rows.
+      i32 bi = -1;
+      for (i32 i = 0; i < static_cast<i32>(world().buildings.size()); ++i) {
+        const city::building &c = world().buildings[static_cast<size_t>(i)];
+        if (c.kind == city::building_kind::tube_house && c.business >= 0 && c.floors >= 4 && c.door_ok) {
+          bi = i;
+          break;
+        }
+      }
+      if (bi < 0 && !world().hq_sites.empty())
+        bi = world().hq_sites[0];
+      world_view() = {};
+      world_view().selected = bi;
+      world_view().cut = {bi};
+      world_cut_around(false);
+      state.hour = 12.0f;
+      state.cam_yaw_goal = 0.0f;
+      view_focus(world().buildings[static_cast<size_t>(bi)].box.center, 11.0f, true);
+    }
+    if (single == per_shot - 1)
+      screenshot(ctx, "sandtable_test_cut_single.png");
+    return;
+  }
+  const i32 g = single - per_shot * floor_shots;
   if (g == 0) {
     // On the biggest open place, where no house is in the way.
     vec2 at{world_width * 0.5f, world_height * 0.5f};
@@ -149,6 +195,7 @@ void startup(context &ctx) {
   audio_init(ctx);
   render_init(ctx);
   person_init(ctx);
+  city::view_init(ctx);
   world_generate(ctx, state.seed);
 }
 

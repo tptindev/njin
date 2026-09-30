@@ -1,7 +1,10 @@
-#include "render_common.h"
+#include "render_lod.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <map>
+#include <utility>
 
 // The city renderer's shared pieces, and view_build()/view_draw() which run
 // the parts in order.
@@ -71,12 +74,16 @@ rgba ground_color(const city_map &map, const cell_info &c) {
 
 // --- instances -----------------------------------------------------------------------
 
-void instances::add3(vec3 p, vec3 s, rgba c, f32 yaw) {
-  data.insert(data.end(), {p.x, p.y, p.z, 1.0f, c.r, c.g, c.b, c.a, 0.0f, yaw, 0.0f, 0.0f, s.x, s.y, s.z, 0.0f});
+void instances::add3(vec3 p, vec3 s, rgba c, f32 yaw, f32 pitch) {
+  data.insert(data.end(), {p.x, p.y, p.z, 1.0f, c.r, c.g, c.b, c.a, pitch, yaw, 0.0f, 0.0f, s.x, s.y, s.z, 0.0f});
 }
 
 void instances::box(vec2 at, f32 base, vec3 size, f32 angle, rgba col) {
   add3(to3d(at, (base + size.y * 0.5f) * unit3d), size * unit3d, col, -angle);
+}
+
+void instances::tilted(vec2 at, f32 mid, vec3 size, f32 angle, f32 pitch, rgba col) {
+  add3(to3d(at, mid * unit3d), size * unit3d, col, -angle, pitch);
 }
 
 void instances::post(vec2 at, f32 base, f32 radius, f32 height, rgba col) {
@@ -161,17 +168,29 @@ void mesh_builder::band(const std::vector<vec2> &pts, f32 width, f32 y, rgba col
 }
 
 void mesh_set::build(context &ctx, mesh_builder &b) {
-  constexpr size_t chunk = 60000; // a multiple of 3
-  for (size_t at = 0; at < b.pos.size(); at += chunk) {
-    const size_t n = std::min(chunk, b.pos.size() - at);
-    mesh3d_data md;
-    md.positions = b.pos.data() + at;
-    md.colors = b.col.data() + at;
-    md.vertex_count = static_cast<u32>(n);
-    const model_handle h = model_create(ctx, md);
-    if (h.id != 0)
-      models.push_back(h);
+  // Triangles sorted into square tiles by their middle, one model or more per
+  // tile, so the engine leaves out the tiles the camera does not see.
+  constexpr f32 tile = mesh_tile * unit3d;
+  std::map<std::pair<i32, i32>, mesh_builder> tiles;
+  for (size_t t = 0; t + 2 < b.pos.size(); t += 3) {
+    const vec3 mid = (b.pos[t] + b.pos[t + 1] + b.pos[t + 2]) * (1.0f / 3.0f);
+    mesh_builder &to = tiles[{static_cast<i32>(std::floor(mid.x / tile)), static_cast<i32>(std::floor(mid.z / tile))}];
+    to.pos.insert(to.pos.end(), b.pos.begin() + static_cast<std::ptrdiff_t>(t),
+                  b.pos.begin() + static_cast<std::ptrdiff_t>(t + 3));
+    to.col.insert(to.col.end(), b.col.begin() + static_cast<std::ptrdiff_t>(t),
+                  b.col.begin() + static_cast<std::ptrdiff_t>(t + 3));
   }
+  constexpr size_t chunk = 60000; // a multiple of 3
+  for (auto &[key, part] : tiles)
+    for (size_t at = 0; at < part.pos.size(); at += chunk) {
+      mesh3d_data md;
+      md.positions = part.pos.data() + at;
+      md.colors = part.col.data() + at;
+      md.vertex_count = static_cast<u32>(std::min(chunk, part.pos.size() - at));
+      const model_handle h = model_create(ctx, md);
+      if (h.id != 0)
+        models.push_back(h);
+    }
   b.pos.clear();
   b.col.clear();
 }
@@ -194,8 +213,13 @@ const char *overlay_name(overlay o) {
   return names[static_cast<i32>(o)];
 }
 
+void view_init(context &ctx) { cutaway_init(ctx); }
+
+void view_shutdown(context &ctx) { cutaway_shutdown(ctx); }
+
 void view_build(context &ctx, const city_map &map) {
   view_cleanup(ctx);
+  chunk_grid(map);
   ground_build(ctx, map);
   buildings_build(ctx, map);
   props_build(ctx, map);
@@ -203,6 +227,7 @@ void view_build(context &ctx, const city_map &map) {
 }
 
 void view_draw(context &ctx, const city_map &map, const view_options &opt) {
+  view_cull_update(ctx, map, opt);
   ground_draw(ctx, map, opt);
   buildings_draw(ctx, opt);
   props_draw(ctx, opt);

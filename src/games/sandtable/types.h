@@ -47,6 +47,10 @@ struct game_state {
   f32 cam_yaw_goal = 0.0f;
   f32 cam_distance = 80.0f;
   f32 cam_distance_goal = 80.0f;
+  // How high (3D units) the camera looks: up to the floor of a building open
+  // to look into (world.cpp), eased there.
+  f32 cam_lift = 0.0f;
+  f32 cam_lift_goal = 0.0f;
 };
 
 extern game_state state;

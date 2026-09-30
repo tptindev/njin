@@ -26,15 +26,44 @@ struct view_options {
   // cut low, so what is inside shows (render_cutaway.cpp). Sorted.
   std::vector<i32> cut;
   i32 selected = -1;    // outlined, and first in `cut`
+  // The floor open to look into (0 the ground floor): the selected building's,
+  // or, with `around`, every building's in `cut` that has it; the others in
+  // `cut` (neighbours opened so they do not hide it) show their ground floor.
+  i32 floor = 0;
+  bool around = false;
+  // Something looked at closely (a building picked, later a man or a car):
+  // around it everything is drawn in full, beyond `focus_radius` the town
+  // goes hazy and loses its small detail, which also spares the GPU.
+  bool focused = false;
+  vec2 focus{};
+  f32 focus_radius = 220.0f;
 };
+
+// What the last view_draw() drew, for the HUD: map chunks in view and with
+// their full detail, and instances sent to the GPU.
+struct view_stats {
+  i32 chunks = 0, visible = 0, detailed = 0;
+  u32 instances = 0;
+};
+const view_stats &view_last_stats();
+
+// Whether a table point `margin` world units round is in view this frame (set
+// by view_draw()): for anything drawn one by one, like the townsfolk.
+bool view_sees(vec2 p, f32 margin = 20.0f);
 
 // The building under a screen point (the first its walls or roof meet, the
 // way the camera sees it), or -1.
 i32 view_pick(context &ctx, const city_map &map, vec2 screen);
 
+// Loads what does not depend on the city itself (the interior kit's
+// models): once, at startup, before the first view_build().
+void view_init(context &ctx);
+
 void view_build(context &ctx, const city_map &map);
 void view_draw(context &ctx, const city_map &map, const view_options &opt);
 void view_draw_ui(context &ctx, const city_map &map, const view_options &opt, font_handle font);
 void view_cleanup(context &ctx);
+// Game exit only: what view_init() loaded and view_cleanup() does not touch.
+void view_shutdown(context &ctx);
 
 } // namespace sandtable::city

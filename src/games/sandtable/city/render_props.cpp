@@ -1,4 +1,4 @@
-#include "render_common.h"
+#include "render_lod.h"
 
 // Street furniture and the things in the open places: trees, poles, lamps,
 // parked motorbikes, plastic stools, market stalls, containers, boats, and
@@ -8,10 +8,12 @@ namespace sandtable::city {
 
 namespace {
 
-instances cubes;   // most things are boxes
-instances posts;   // trunks, poles, the monument
-instances leaves;  // tree tops
-instances lights;  // lamp heads, lit at night
+// The big things, drawn wherever they are in view: trees, containers, boats,
+// stalls, railings, the monument.
+chunked big_cubes, big_posts, leaves;
+// The small ones, close up only: poles, lamps, bikes, stools, benches.
+chunked cubes_s, posts_s, lights;
+chunked *all_batches[] = {&big_cubes, &big_posts, &leaves, &cubes_s, &posts_s, &lights};
 
 const rgba greens[] = {rgb8(70, 120, 56), rgb8(88, 136, 60), rgb8(60, 108, 62), rgb8(104, 146, 70)};
 const rgba bikes[] = {rgb8(180, 40, 36), rgb8(30, 30, 34), rgb8(40, 80, 160), rgb8(220, 220, 220), rgb8(120, 120, 124)};
@@ -21,17 +23,21 @@ const rgba boxes_col[] = {rgb8(180, 60, 40), rgb8(40, 90, 150), rgb8(60, 130, 80
 const rgba canvas[] = {rgb8(200, 50, 44), rgb8(40, 90, 170), rgb8(230, 200, 60), rgb8(60, 150, 80)};
 
 void add(const prop &p) {
+  const bool small = p.kind == prop_kind::lamp || p.kind == prop_kind::pole || p.kind == prop_kind::motorbike ||
+                     p.kind == prop_kind::stool || p.kind == prop_kind::bench;
+  instances &cubes = small ? cubes_s.inst : big_cubes.inst;
+  instances &posts = small ? posts_s.inst : big_posts.inst;
   const vec2 at = p.pos;
   const f32 s = p.scale;
   switch (p.kind) {
   case prop_kind::tree:
     posts.post(at, 0.0f, 1.0f * s, 9.0f * s, rgb8(96, 72, 50));
-    leaves.ball(at, 13.0f * s, 7.0f * s, pick(greens, p.look, 1));
+    leaves.inst.ball(at, 13.0f * s, 7.0f * s, pick(greens, p.look, 1));
     break;
   case prop_kind::lamp:
     posts.post(at, 0.0f, 0.5f, 18.0f, rgb8(70, 72, 76));
     cubes.box(at, 18.0f, {5.0f, 1.0f, 1.6f}, p.angle, rgb8(70, 72, 76));
-    lights.ball(at, 17.5f, 1.4f, rgb8(255, 226, 160));
+    lights.inst.ball(at, 17.5f, 1.4f, rgb8(255, 226, 160));
     break;
   case prop_kind::pole:
     posts.post(at, 0.0f, 0.7f * s, 20.0f * s, rgb8(128, 124, 118));
@@ -71,13 +77,11 @@ void add(const prop &p) {
   }
 }
 
-// Low concrete railings along both edges of every bridge.
-void railings(const city_map &map) {
-  for (const spot &s : map.spots) {
-    if (s.kind != spot_kind::bridge)
-      continue;
+// Low concrete railings along both edges of a bridge.
+void railings(const spot &s) {
+  {
     for (const f32 side : {-1.0f, 1.0f})
-      cubes.box(s.box.center + s.box.axis_y() * (side * (s.box.half.y - 1.0f)), 0.0f,
+      big_cubes.inst.box(s.box.center + s.box.axis_y() * (side * (s.box.half.y - 1.0f)), 0.0f,
                 {s.box.half.x * 2.0f + 8.0f, 3.5f, 1.4f}, s.box.angle, rgb8(200, 196, 188));
   }
 }
@@ -85,37 +89,62 @@ void railings(const city_map &map) {
 } // namespace
 
 void props_build(context &ctx, const city_map &map) {
-  cubes.clear();
-  posts.clear();
-  leaves.clear();
-  lights.clear();
-  for (const prop &p : map.props)
-    add(p);
-  railings(map);
-  cubes.upload(ctx);
-  posts.upload(ctx);
-  leaves.upload(ctx);
-  lights.upload(ctx);
+  const i32 chunks = chunk_count();
+  for (chunked *c : all_batches)
+    c->begin(chunks);
+  std::vector<std::vector<i32>> in_chunk(static_cast<size_t>(chunks));
+  for (i32 i = 0; i < static_cast<i32>(map.props.size()); ++i)
+    in_chunk[static_cast<size_t>(chunk_of(map.props[static_cast<size_t>(i)].pos))].push_back(i);
+  std::vector<std::vector<i32>> bridges(static_cast<size_t>(chunks));
+  for (i32 i = 0; i < static_cast<i32>(map.spots.size()); ++i)
+    if (map.spots[static_cast<size_t>(i)].kind == spot_kind::bridge)
+      bridges[static_cast<size_t>(chunk_of(map.spots[static_cast<size_t>(i)].box.center))].push_back(i);
+  for (i32 ch = 0; ch < chunks; ++ch) {
+    for (chunked *c : all_batches)
+      c->mark(ch);
+    for (const i32 i : in_chunk[static_cast<size_t>(ch)])
+      add(map.props[static_cast<size_t>(i)]);
+    for (const i32 i : bridges[static_cast<size_t>(ch)])
+      railings(map.spots[static_cast<size_t>(i)]);
+  }
+  for (chunked *c : all_batches) {
+    c->end();
+    c->inst.upload(ctx);
+  }
 }
 
 void props_draw(context &ctx, const view_options &opt) {
+  const f32 prop_r = cull().prop_r;
+  const auto clear = [](i32 c) { return !chunk_hazy(c); };
+  const auto hazy = [](i32 c) { return chunk_hazy(c); };
+  const auto near = [prop_r](i32 c) { return !chunk_hazy(c) && chunk_detailed(c, prop_r); };
   material3d_set(ctx, {.specular = 0.1f, .shininess = 14.0f});
-  cubes.draw(ctx, mesh3d_cube);
-  posts.draw(ctx, mesh3d_cylinder_low);
+  draw_chunks(ctx, big_cubes, mesh3d_cube, clear);
+  draw_chunks(ctx, big_posts, mesh3d_cylinder_low, clear);
+  draw_chunks(ctx, cubes_s, mesh3d_cube, near);
+  draw_chunks(ctx, posts_s, mesh3d_cylinder_low, near);
   material3d_set(ctx, {.specular = 0.05f, .shininess = 6.0f, .rim = {0.8f, 1.0f, 0.7f, 0.1f}});
-  leaves.draw(ctx, mesh3d_sphere_low);
+  draw_chunks(ctx, leaves, mesh3d_sphere_low, clear);
+  if (cull().focused) {
+    haze_on(ctx);
+    material3d_set(ctx, {.specular = 0.02f, .shininess = 6.0f});
+    draw_chunks(ctx, big_cubes, mesh3d_cube, hazy);
+    draw_chunks(ctx, big_posts, mesh3d_cylinder_low, hazy);
+    draw_chunks(ctx, leaves, mesh3d_sphere_low, hazy);
+    haze_off(ctx);
+  }
   if (opt.night > 0.3f) {
     material3d_set(ctx, {.unlit = true, .cast_shadows = false});
-    lights.draw(ctx, mesh3d_sphere_low);
+    draw_chunks(ctx, lights, mesh3d_sphere_low, near);
   }
   material3d_set(ctx, {});
 }
 
 void props_cleanup(context &ctx) {
-  cubes.destroy(ctx);
-  posts.destroy(ctx);
-  leaves.destroy(ctx);
-  lights.destroy(ctx);
+  for (chunked *c : all_batches) {
+    c->inst.destroy(ctx);
+    c->start.clear();
+  }
 }
 
 } // namespace sandtable::city

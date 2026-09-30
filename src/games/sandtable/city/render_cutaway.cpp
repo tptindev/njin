@@ -1,164 +1,181 @@
-#include "render_common.h"
+#include "interior.h"
+#include "render_facade.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
-// Buildings cut open: roof and upper floors taken off, the ground floor's
-// walls cut down to waist height with the cut face dark, so the shell shows
-// from above: floor, doors, the walls between rooms, the stairs. No
-// furniture yet. And picking a building with the mouse.
+// Buildings cut open: roof and upper floors taken off, so the inside shows
+// from above, built from a curated slice of a PSX-style modular house kit
+// (assets/models/interior/; see SOURCE.txt there) laid out by
+// city/interior.*. And picking a building with the mouse.
 
 namespace sandtable::city {
 
 namespace {
 
-instances shell;   // floors, walls, stairs; rebuilt each frame (a few dozen buildings)
-instances columns; // pillars of the big halls
-instances outline; // the selected building's footprint, unlit
+// The kit's own grid: a piece is 4 file units wide (wallWood.glb, ...); one
+// interior_cell is that many world units, so this one factor turns a piece's
+// own vertices into 3D units directly.
+constexpr f32 kit_scale = kit_unit * unit3d;
 
-constexpr f32 wall_h = 7.0f;   // cut height, world units: a man (20) stands well above
-constexpr f32 wall_t = 1.6f;   // thickness
-constexpr f32 slab = 0.8f;     // floor thickness
-constexpr f32 door_w = 9.0f;
+// The height of the floor being drawn open (world units): everything of it
+// stands on this.
+f32 base = 0.0f;
 
-constexpr rgba col_plaster = rgb8(234, 228, 214);
-constexpr rgba col_cut = rgb8(74, 64, 58); // the top of a cut wall
-const rgba floors[] = {rgb8(206, 196, 176), rgb8(186, 146, 112), rgb8(214, 212, 204), rgb8(176, 170, 160)};
+// The floors below the open one, whole, from outside.
+instances lower_boxes, lower_detail, lower_tanks, lower_glow;
+facade_batches lower{lower_boxes, lower_detail, lower_tanks, lower_glow};
 
-struct frame {
-  vec2 c, u, v; // centre; along the front; from the front to the back
-  f32 hx, hy, angle;
-  vec2 at(f32 a, f32 b) const { return c + u * a + v * b; }
+struct kit_piece {
+  const char *name;
+  model_handle model;
+  instances inst;
+};
+std::vector<kit_piece> kit;
+
+// The pieces used (assets/models/interior/*.glb, a subset of the pack's
+// files: see SOURCE.txt there): the structure, then the furniture
+// interior_furnish.cpp sets out.
+constexpr const char *kit_names[] = {
+    "floorWood",   "floorTiles", "wallWood",   "cornerPillarWood", "stairsWood",    "stairsGuardWood",
+    "couchSmall",  "couchBig",   "tableSmall", "table",            "chair",         "chair2",
+    "tv",          "plant",      "plant3",     "carpet",           "carpet2",       "bed",
+    "bed2",        "bed3",       "cabinet",    "cabinetBig",       "tableLamp",     "cabinetSink",
+    "fridge",      "oven",       "toilet",     "bathroomSink",     "bathroomSink2", "bathtub",
+    "shelves",     "shelves2",   "sideboard",  "product",          "product2",      "product3",
+    "box",         "box2",       "pallet",     "trashBin",         "doormat",
 };
 
-// A wall from a to b standing on the floor, its cut face on top.
-void wall(vec2 a, vec2 b, rgba col = col_plaster) {
-  const f32 len = distance(a, b);
+i32 piece_index(const char *name) {
+  for (i32 i = 0; i < static_cast<i32>(kit.size()); ++i)
+    if (std::strcmp(kit[static_cast<size_t>(i)].name, name) == 0)
+      return i;
+  return -1;
+}
+
+// `at` and `angle` in table coordinates (world units, njin::obb::angle
+// convention); `sx`/`sy`/`sz` scale the piece along its own x, y, z on top of
+// kit_unit (a wall stretched to its real length and cut low, furniture
+// as it is); `lift` world units up.
+void put(const char *name, vec2 at, f32 angle, f32 sx = 1.0f, f32 sy = 1.0f, f32 sz = 1.0f, f32 lift = 0.0f) {
+  const i32 i = piece_index(name);
+  if (i < 0) {
+    NJIN_WARN("interior: no piece \"%s\"", name);
+    return;
+  }
+  kit[static_cast<size_t>(i)].inst.add3(to3d(at, (lift + base) * unit3d),
+                                        {kit_scale * sx, kit_scale * sy, kit_scale * sz}, colors::white, -angle);
+}
+
+instances caps;    // the dark top of every cut wall
+instances outline; // the selected building's footprint, unlit
+constexpr rgba col_cut = rgb8(62, 50, 44);
+
+// The grid's frame in the world: `a` along u from its left edge, `b` along v
+// from its front edge.
+struct grid_frame {
+  const building &b;
+  f32 gw, gd;
+  vec2 at(f32 a, f32 bb) const {
+    return b.box.center + b.box.axis_x() * (a - gw * 0.5f) + b.box.axis_y() * (bb - gd * 0.5f);
+  }
+};
+
+// A stretch of cut wall from (a0, b0) to (a1, b1), along one axis.
+void wall_run(const grid_frame &g, f32 a0, f32 b0, f32 a1, f32 b1) {
+  const f32 len = std::fabs(a1 - a0) + std::fabs(b1 - b0);
   if (len < 0.5f)
     return;
-  const vec2 mid = (a + b) * 0.5f;
-  const f32 ang = angle_of(b - a);
-  shell.box(mid, slab, {len, wall_h - 0.4f, wall_t}, ang, col);
-  shell.box(mid, slab + wall_h - 0.4f, {len, 0.4f, wall_t}, ang, col_cut);
-}
-
-// A wall from a to b with a gap `w` wide centred `t` (0 to 1) along it.
-void wall_gap(vec2 a, vec2 b, f32 t, f32 w) {
-  const f32 len = distance(a, b);
-  if (len <= w + 2.0f) {
-    return; // all gap
+  const bool along_u = std::fabs(a1 - a0) > std::fabs(b1 - b0);
+  const vec2 mid = g.at((a0 + a1) * 0.5f, (b0 + b1) * 0.5f);
+  const f32 angle = g.b.box.angle + (along_u ? 0.0f : 90.0f);
+  // wallWood.glb is a single face 1.9 file units off its own centre line:
+  // brought back onto the line, and put twice, turned round, as a face drawn
+  // from behind is culled.
+  for (const f32 turn : {0.0f, 180.0f}) {
+    const vec2 back = from_angle(angle + turn + 90.0f) * (1.9f * kit_unit);
+    put("wallWood", mid - back, angle + turn, len / interior_cell, cut_height / interior_cell, 1.0f);
   }
-  const vec2 d = (b - a) / len;
-  const f32 g0 = clamp(t * len - w * 0.5f, 0.0f, len - w), g1 = g0 + w;
-  wall(a, a + d * g0);
-  wall(a + d * g1, b);
+  caps.box(mid, base + cut_height, {len + 0.8f, 0.7f, 1.0f}, angle, col_cut);
 }
 
-// Steps up along `dir` from `from`, `w` wide, to the first floor's height.
-void stairs(vec2 from, vec2 dir, f32 w, f32 run, f32 angle) {
-  constexpr i32 steps = 6;
-  for (i32 i = 0; i < steps; ++i) {
-    const f32 h = (static_cast<f32>(i) + 1.0f) * 1.8f;
-    shell.box(from + dir * ((static_cast<f32>(i) + 0.5f) * run / steps), slab, {w, h, run / steps}, angle,
-              shade(col_plaster, 0.9f - 0.03f * static_cast<f32>(i)));
+// One cell's wall on an edge from (a0, b0), `len` long along u or v: whole,
+// with a doorway `door` of the way along, or not there at all.
+void edge_wall(const grid_frame &g, wall_kind k, f32 door, f32 a0, f32 b0, f32 len, bool along_u) {
+  if (k == wall_kind::none)
+    return;
+  const f32 da = along_u ? 1.0f : 0.0f, db = along_u ? 0.0f : 1.0f;
+  if (k == wall_kind::solid) {
+    wall_run(g, a0, b0, a0 + da * len, b0 + db * len);
+    return;
   }
+  const f32 mid = clamp(door * len, door_width * 0.5f, len - door_width * 0.5f);
+  const f32 g0 = mid - door_width * 0.5f, g1 = mid + door_width * 0.5f;
+  wall_run(g, a0, b0, a0 + da * g0, b0 + db * g0);
+  wall_run(g, a0 + da * g1, b0 + db * g1, a0 + da * len, b0 + db * len);
 }
 
-// The four outer walls: the front open for a shop, a door otherwise.
-void outer(const frame &f, bool shop_front, f32 door_at) {
-  const vec2 fl = f.at(-f.hx, -f.hy), fr = f.at(f.hx, -f.hy), bl = f.at(-f.hx, f.hy), br = f.at(f.hx, f.hy);
-  wall(fl, bl);
-  wall(fr, br);
-  wall(bl, br);
-  if (shop_front) {
-    // Rolled-up shutters: only the pillars at the corners.
-    const f32 pillar = std::min(3.0f, f.hx * 0.25f);
-    wall(fl, fl + f.u * pillar);
-    wall(fr - f.u * pillar, fr);
-  } else {
-    wall_gap(fl, fr, door_at, door_w);
-  }
+// The floors under floor `floor`: the body up to it, the front with the
+// ground floor's shop or door, and the windows and balconies of the floors
+// between; a slab to stand the open floor on.
+void floors_below(const building &b, const city_map &map, i32 floor) {
+  if (floor <= 0)
+    return;
+  const frame f = frame_of(b);
+  const f32 top = static_cast<f32>(floor) * floor_height;
+  const bool tube = b.kind == building_kind::tube_house || b.kind == building_kind::house;
+  const rgba wall = tube ? front_color(b) : rgb8(220, 216, 206);
+  lower_boxes.box(f.c, 0.0f, {f.hx * 2.0f - 0.2f, top, f.hy * 2.0f}, f.angle, tube ? concrete_color(b) : wall);
+  front_face(lower, f, top, wall);
+  if (b.business >= 0 && b.kind == building_kind::tube_house)
+    shopfront(lower, f, business_color(map.businesses[static_cast<size_t>(b.business)].kind), top, b.look);
+  else
+    house_front(lower, f, b.look);
+  upper_floors(lower, b, f, wall, 1, floor);
+  lower_boxes.box(f.c, top - 0.8f, {f.hx * 2.0f + 0.4f, 0.8f, f.hy * 2.0f + 0.4f}, f.angle, rgb8(150, 146, 140));
 }
 
-// Where the door is along the front, 0 to 1.
-f32 door_along(const building &b, const frame &f) {
-  const f32 a = dot(b.door - f.c, f.u);
-  return clamp((a + f.hx) / (f.hx * 2.0f), 0.15f, 0.85f);
-}
+void cut_open(const building &b, const city_map &map, i32 floor) {
+  floor = std::clamp(floor, 0, std::max(0, b.floors - 1));
+  floors_below(b, map, floor);
+  base = static_cast<f32>(floor) * floor_height;
+  const interior_layout L = build_interior(b, floor);
+  const grid_frame g{b, static_cast<f32>(L.nx) * L.cell_x, static_cast<f32>(L.nz) * L.cell_z};
+  const f32 cx = L.cell_x, cz = L.cell_z;
 
-void tube_house(const building &b, const frame &f) {
-  outer(f, b.business >= 0, door_along(b, f));
-  // The stairs up one side, two thirds back, then a wall across with a way
-  // through on the other side; a kitchen at the back of the deep ones.
-  const f32 side = pick01(b.look, 21) < 0.5f ? -1.0f : 1.0f;
-  const f32 stair_w = std::min(7.0f, f.hx * 0.45f);
-  const f32 run = std::min(22.0f, f.hy * 0.6f);
-  const f32 cross_at = -f.hy + f.hy * 2.0f * 0.58f;
-  if (b.floors > 1)
-    stairs(f.at(side * (f.hx - stair_w * 0.5f - wall_t), cross_at - run), f.v, stair_w, run, f.angle);
-  wall_gap(f.at(-f.hx, cross_at), f.at(f.hx, cross_at), side > 0.0f ? 0.2f : 0.8f, 8.0f);
-  if (f.hy * 2.0f > 70.0f) {
-    const f32 back = f.hy - 14.0f;
-    wall_gap(f.at(-f.hx, back), f.at(f.hx, back), side > 0.0f ? 0.75f : 0.25f, 7.0f);
-  }
-}
-
-void small_house(const building &b, const frame &f) {
-  outer(f, b.business >= 0, door_along(b, f));
-  if (f.hy * 2.0f > 30.0f)
-    wall_gap(f.at(-f.hx, 0.0f), f.at(f.hx, 0.0f), pick01(b.look, 22) < 0.5f ? 0.25f : 0.75f, 7.0f);
-}
-
-// A corridor along the length, rooms either side, a door into each.
-void corridor(const building &b, const frame &f, f32 room) {
-  outer(f, false, 0.5f);
-  const f32 half = 5.0f;
-  const i32 n = std::max(1, static_cast<i32>(f.hx * 2.0f / room));
-  const f32 step = f.hx * 2.0f / static_cast<f32>(n);
-  for (const f32 s : {-1.0f, 1.0f}) {
-    const f32 y = s * half;
-    for (i32 k = 0; k < n; ++k) {
-      const f32 a0 = -f.hx + static_cast<f32>(k) * step, a1 = a0 + step;
-      wall_gap(f.at(a0, y), f.at(a1, y), 0.3f, 6.0f);
-      if (k > 0)
-        wall(f.at(a0, y), f.at(a0, s * f.hy));
+  for (i32 z = 0; z < L.nz; ++z)
+    for (i32 x = 0; x < L.nx; ++x) {
+      const grid_cell &c = L.cell(x, z);
+      const f32 a = static_cast<f32>(x) * cx, bb = static_cast<f32>(z) * cz;
+      const interior_room &room = L.rooms[static_cast<size_t>(c.room)];
+      put(room.floor == floor_finish::tiles ? "floorTiles" : "floorWood", g.at(a + cx * 0.5f, bb + cz * 0.5f),
+          b.box.angle, cx / interior_cell, 1.0f, cz / interior_cell);
+      edge_wall(g, c.west, c.west_door, a, bb, cz, false);
+      edge_wall(g, c.south, c.south_door, a, bb, cx, true);
+      if (x == L.nx - 1)
+        edge_wall(g, c.east, c.east_door, a + cx, bb, cz, false);
+      if (z == L.nz - 1)
+        edge_wall(g, c.north, c.north_door, a, bb + cz, cx, true);
     }
+  // A post at each corner of the footprint, as high as the cut walls.
+  for (const vec2 corner : {vec2{0.0f, 0.0f}, vec2{g.gw, 0.0f}, vec2{0.0f, g.gd}, vec2{g.gw, g.gd}}) {
+    // cornerPillarWood.glb stands at (-1.915, +1.915) of its own origin.
+    constexpr f32 thick = 1.4f;
+    const vec2 at =
+        g.at(corner.x, corner.y) - (b.box.axis_x() * -1.915f + b.box.axis_y() * 1.915f) * (kit_unit * thick);
+    put("cornerPillarWood", at, b.box.angle, thick, cut_height / interior_cell + 0.02f, thick);
   }
-  // The way in from the front to the corridor.
-  wall_gap(f.at(-f.hx, -half), f.at(f.hx, -half), 0.5f, door_w);
-  if (b.floors > 1)
-    stairs(f.at(f.hx - 10.0f, -half + 1.0f), f.v, 7.0f, half * 2.0f - 2.0f, f.angle);
-}
-
-// A hall on pillars; an office walled off in a back corner.
-void hall(const building &b, const frame &f, rgba pillar, bool office) {
-  outer(f, false, 0.5f);
-  const f32 grid = 22.0f;
-  for (f32 a = -f.hx + grid; a < f.hx - grid * 0.5f; a += grid)
-    for (f32 c = -f.hy + grid; c < f.hy - grid * 0.5f; c += grid)
-      columns.post(f.at(a, c), slab, 1.4f, wall_h + 2.0f, pillar);
-  if (office) {
-    const f32 w = std::min(24.0f, f.hx), d = std::min(18.0f, f.hy);
-    wall_gap(f.at(f.hx - w, f.hy - d), f.at(f.hx, f.hy - d), 0.3f, 6.0f);
-    wall(f.at(f.hx - w, f.hy - d), f.at(f.hx - w, f.hy));
+  // The stairs: stairsWood.glb's origin is the top of the flight, which runs
+  // down 4 file units over 8; raised so it climbs up from the floor.
+  for (const stair_flight &s : L.stairs) {
+    const f32 lift = 4.0f * kit_unit * s.sy;
+    put("stairsWood", s.top, s.angle, s.sx, s.sy, s.sz, lift);
+    put("stairsGuardWood", s.top, s.angle, s.sx, s.sy, s.sz, lift);
   }
-  (void)b;
-}
-
-void cut_open(const building &b) {
-  const frame f{b.box.center, b.box.axis_x(), b.box.axis_y(), b.box.half.x, b.box.half.y, b.box.angle};
-  shell.box(f.c, 0.0f, {f.hx * 2.0f, slab, f.hy * 2.0f}, f.angle, pick(floors, b.look, 20));
-  switch (b.kind) {
-  case building_kind::tube_house: tube_house(b, f); break;
-  case building_kind::apartment:
-  case building_kind::hotel: corridor(b, f, 18.0f); break;
-  case building_kind::school: corridor(b, f, 30.0f); break;
-  case building_kind::warehouse: hall(b, f, rgb8(150, 150, 150), true); break;
-  case building_kind::workshop: hall(b, f, rgb8(120, 110, 100), true); break;
-  case building_kind::market_hall: hall(b, f, rgb8(200, 190, 170), false); break;
-  case building_kind::pagoda: hall(b, f, rgb8(170, 50, 36), false); break;
-  default: small_house(b, f); break;
-  }
+  for (const furn_item &f : L.furniture)
+    put(f.piece, f.pos, f.angle, f.scale, f.scale, f.scale, f.lift);
+  base = 0.0f;
 }
 
 void outline_of(const building &b) {
@@ -172,32 +189,83 @@ void outline_of(const building &b) {
 
 } // namespace
 
+void cutaway_init(context &ctx) {
+  if (!kit.empty())
+    return; // already loaded: view_init() runs once, but guard against a second call
+  kit.reserve(sizeof(kit_names) / sizeof(kit_names[0]));
+  char path[96];
+  for (const char *name : kit_names) {
+    std::snprintf(path, sizeof(path), "assets/models/interior/%s.glb", name);
+    const model_handle m = model_load(ctx, path);
+    if (m.id == 0)
+      NJIN_WARN("interior: %s did not load", path);
+    kit.push_back({name, m, {}});
+  }
+}
+
 void cutaway_draw(context &ctx, const city_map &map, const view_options &opt) {
-  shell.clear();
-  columns.clear();
+  for (kit_piece &p : kit)
+    p.inst.clear();
+  caps.clear();
   outline.clear();
+  lower_boxes.clear();
+  lower_detail.clear();
+  lower_tanks.clear();
+  lower_glow.clear();
   for (const i32 id : opt.cut)
     if (id >= 0 && id < static_cast<i32>(map.buildings.size()))
-      cut_open(map.buildings[static_cast<size_t>(id)]);
+      cut_open(map.buildings[static_cast<size_t>(id)], map, id == opt.selected || opt.around ? opt.floor : 0);
   if (opt.selected >= 0 && opt.selected < static_cast<i32>(map.buildings.size()))
     outline_of(map.buildings[static_cast<size_t>(opt.selected)]);
-  if (shell.count() == 0 && outline.count() == 0)
-    return;
-  shell.upload(ctx);
-  columns.upload(ctx);
-  outline.upload(ctx);
+
+  material3d_set(ctx, {.specular = 0.1f, .shininess = 14.0f});
+  for (kit_piece &p : kit) {
+    if (p.inst.count() == 0 || p.model.id == 0)
+      continue;
+    p.inst.upload(ctx);
+    draw_instanced3d(ctx, p.model, p.inst.buffer, 0, p.inst.count());
+  }
+  caps.upload(ctx);
+  material3d_set(ctx, {.specular = 0.05f, .shininess = 8.0f});
+  caps.draw(ctx, mesh3d_cube);
+  lower_boxes.upload(ctx);
+  lower_detail.upload(ctx);
+  lower_tanks.upload(ctx);
+  lower_glow.upload(ctx);
   material3d_set(ctx, {.specular = 0.08f, .shininess = 12.0f});
-  shell.draw(ctx, mesh3d_cube);
-  columns.draw(ctx, mesh3d_cylinder_low);
+  lower_boxes.draw(ctx, mesh3d_cube);
+  lower_detail.draw(ctx, mesh3d_cube);
+  lower_tanks.draw(ctx, mesh3d_cylinder_low);
+  if (opt.night > 0.3f) {
+    material3d_set(ctx, {.unlit = true, .cast_shadows = false});
+    lower_glow.draw(ctx, mesh3d_cube);
+  }
+  outline.upload(ctx);
   material3d_set(ctx, {.unlit = true, .cast_shadows = false});
   outline.draw(ctx, mesh3d_cube);
   material3d_set(ctx, {});
 }
 
+// Called on every city regen (view_cleanup(), right before view_build()
+// rebuilds): drops the per-frame instance buffers, not the kit's models
+// (loaded once by cutaway_init(), not tied to any one city).
 void cutaway_cleanup(context &ctx) {
-  shell.destroy(ctx);
-  columns.destroy(ctx);
+  for (kit_piece &p : kit)
+    p.inst.destroy(ctx);
+  caps.destroy(ctx);
   outline.destroy(ctx);
+  lower_boxes.destroy(ctx);
+  lower_detail.destroy(ctx);
+  lower_tanks.destroy(ctx);
+  lower_glow.destroy(ctx);
+}
+
+// Unloads the kit's models: game shutdown only (view_shutdown()).
+void cutaway_shutdown(context &ctx) {
+  for (kit_piece &p : kit)
+    if (p.model.id != 0)
+      model_unload(ctx, p.model);
+  kit.clear();
 }
 
 i32 view_pick(context &ctx, const city_map &map, vec2 screen) {

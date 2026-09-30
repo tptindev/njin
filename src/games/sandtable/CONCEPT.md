@@ -44,6 +44,38 @@ các chỗ có thể đặt trụ sở băng.
   F4 ghim. Rê chuột để xem khối, nhà, cơ sở. Nhấp chuột vào một nhà để mở
   nó ra (bỏ mái và các tầng trên, tường tầng trệt cắt thấp), Esc để thôi;
   C mở mọi nhà quanh tâm màn hình khi nhìn gần (`city/render_cutaway.cpp`).
+  Bên trong: `city/interior.cpp` chia nhà thành phòng trên lưới ô vuông
+  (nhà ống thành các phòng nối tiếp trước-sau, có lối đi dọc một bên và mọi
+  cửa nằm trên lối đi đó, cầu thang sát bên kia; chung cư/khách sạn/trường
+  thành hành lang giữa, phòng hai bên; kho/xưởng/chợ/chùa thành sảnh mở,
+  kho/xưởng có thêm văn phòng góc). `city/interior_furnish.cpp` kê đồ theo
+  từng loại phòng: lưng sát tường, mặt vào phòng, không chồng nhau, không
+  chắn cửa và lối đi; đồ nhỏ (đèn, hàng hoá) đặt trên bàn, kệ. Tường cắt
+  thấp có nẹp tối ở mặt cắt. Chọn một nhà thì các nhà che nó phía camera
+  cũng được mở.
+- Nhà nhiều tầng: PgUp/PgDn (hoặc `]` `[`) đổi tầng đang xem; các tầng
+  dưới hiện thành khối đặc, camera nâng lên theo. Mỗi tầng một bố cục
+  (`build_interior(b, floor)`): tầng trệt cửa hàng/phòng khách và bếp, tầng
+  giữa phòng ngủ và nhà tắm có cửa ra ban công, tầng trên cùng có phòng thờ;
+  cầu thang cùng một chỗ ở mọi tầng.
+- Hiệu suất (`city/render_lod.*`): bản đồ chia ô 100×100; nhà và đồ vật xếp
+  theo ô nên mỗi ô là một đoạn liền trong batch instance. Mỗi frame:
+  frustum culling (góc màn hình chiếu xuống mặt đất và độ cao mái), LOD (cửa
+  sổ, ban công, biển hiệu, xe máy, ghế chỉ vẽ ở gần; nhìn xa chỉ còn thân
+  và mái). Khi tập trung vào một thứ (`view_options::focused`, `focus`,
+  `focus_radius`; hiện là nhà đang chọn), chi tiết chỉ giữ quanh nó, phần
+  gần hơn và xa hơn mờ đi thật (độ sâu trường ảnh, `post_fx::dof`, lấy nét
+  vào nhà đang chọn) cùng một lớp sương nhẹ (fx3d) và viền tối đậm hơn;
+  người qua đường ngoài khung hoặc xa tâm không vẽ. Mặt đất, đường, nước
+  chia thành model theo ô 400×400 (`mesh_set`), engine bỏ ô ngoài tầm
+  nhìn. HUD ghi số ô vẽ, ô chi tiết, số khối.
+- Mặt ngoài: `city/render_facade.*` là các chi tiết mặt tiền (cửa sổ khung
+  kính, ban công lan can, chậu cây, quần áo phơi, máy lạnh, cửa cuốn, gờ
+  tầng, tường chắn mái, mái ngói dốc); `city/render_buildings.cpp` ghép
+  chúng theo loại nhà: nhà ống thân bê tông xám, mặt tiền sơn màu.
+  Ghép từ `assets/models/interior/` (một phần "PSX modular house interior
+  pack" — xem `SOURCE.txt` trong đó, gói gốc chưa có giấy phép, cần hỏi lại
+  trước khi chia sẻ ra ngoài máy này).
 - `person.*`: người là model có xương của Universal Animation Library
   (Quaternius, CC0, `assets/models/person.glb`), cao 13 đơn vị (khoảng
   1,75 m; một tầng nhà 18). `crowd.*`: người qua đường đi trên vỉa hè và

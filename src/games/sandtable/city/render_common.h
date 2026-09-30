@@ -48,11 +48,15 @@ struct instances {
 
   u32 count() const { return static_cast<u32>(data.size() / 16); }
   void clear() { data.clear(); }
-  // In 3D units: position (the mesh's origin), size, colour, turn round y.
-  void add3(vec3 pos, vec3 size, rgba col, f32 yaw = 0.0f);
+  // In 3D units: position (the mesh's origin), size, colour, turn round y,
+  // and tip round the mesh's own x first (degrees).
+  void add3(vec3 pos, vec3 size, rgba col, f32 yaw = 0.0f, f32 pitch = 0.0f);
   // A box in table terms: centred on `at`, standing on `base` (world units
   // up), `size` = (along `angle`, height, across), world units.
   void box(vec2 at, f32 base, vec3 size, f32 angle, rgba col);
+  // A box tipped `pitch` degrees round its own width (a roof slope): centred
+  // on `at` at `mid` world units up, `size` as for box().
+  void tilted(vec2 at, f32 mid, vec3 size, f32 angle, f32 pitch, rgba col);
   // An upright cylinder (mesh3d_cylinder*: radius 1, height 1, base at 0).
   void post(vec2 at, f32 base, f32 radius, f32 height, rgba col);
   // A ball (mesh3d_sphere*: radius 1, centre at 0), `lift` world units up.
@@ -82,7 +86,10 @@ struct mesh_builder {
   void line(vec2 a, vec2 b, f32 width, f32 y, rgba color);
 };
 
-// Models made from a builder, in pieces the engine takes.
+// Models made from a builder: a square tile of the table (world units) per
+// model, so the engine culls the tiles out of view; a big tile in pieces the
+// engine takes.
+inline constexpr f32 mesh_tile = 400.0f;
 struct mesh_set {
   std::vector<model_handle> models;
   void build(context &ctx, mesh_builder &b);
@@ -104,8 +111,10 @@ void props_build(context &ctx, const city_map &map);        // render_props.cpp
 void props_draw(context &ctx, const view_options &opt);
 void props_cleanup(context &ctx);
 
-void cutaway_draw(context &ctx, const city_map &map, const view_options &opt); // render_cutaway.cpp
-void cutaway_cleanup(context &ctx);
+void cutaway_init(context &ctx); // render_cutaway.cpp: loads the interior kit's models once
+void cutaway_draw(context &ctx, const city_map &map, const view_options &opt);
+void cutaway_cleanup(context &ctx);    // every regen: the per-frame instance buffers
+void cutaway_shutdown(context &ctx);   // game exit only: the kit's models
 
 void debug_build(context &ctx, const city_map &map);        // render_debug.cpp
 void debug_draw(context &ctx, const city_map &map, const view_options &opt);

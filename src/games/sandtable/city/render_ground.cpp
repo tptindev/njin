@@ -1,5 +1,6 @@
 #include "render_common.h"
 
+#include <algorithm>
 #include <cmath>
 
 // The flat city: ground from the raster, water with smooth banks, roads with
@@ -73,8 +74,10 @@ void build_raster(context &ctx, const city_map &map, overlay o, mesh_set &out) {
     i32 x = 0;
     while (x < map.cols) {
       const rgba c = overlay_color(map, x, y, o);
+      // A run stops at a tile's edge, to stay inside its tile's model.
+      const i32 tile_cells = std::max(1, static_cast<i32>(mesh_tile / cs));
       i32 end = x + 1;
-      while (end < map.cols && same(overlay_color(map, end, y, o), c))
+      while (end < map.cols && end % tile_cells != 0 && same(overlay_color(map, end, y, o), c))
         ++end;
       const f32 h = map.at(x, y).g == ground::water ? layer_water : layer_ground;
       const f32 x0 = static_cast<f32>(x) * cs, x1 = static_cast<f32>(end) * cs;
