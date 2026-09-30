@@ -8,6 +8,8 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+## 0.6.0
+
 - **Runtime meshes**: `model_create` builds a model from a game-supplied triangle
   mesh (`mesh3d_data`: positions, optional per-vertex normals and colors, optional
   indices), used the same way as one loaded with `model_load` (`draw_model`,
