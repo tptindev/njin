@@ -1,6 +1,7 @@
 #include "sim.h"
 #include "audio.h"
 #include "levels.h"
+#include "view.h"
 #include "weather.h"
 
 #include <algorithm>
@@ -28,36 +29,14 @@ std::vector<spatial_hit> hits;
 
 constexpr f32 melee_aggro = 150.0f;
 constexpr f32 charge_run = 90.0f; // cavalry needs this much run-up to charge
+constexpr f32 min_flag_gap = 48.0f; // world units between two troops' flags
 constexpr f32 step_max = 1.0f / 30.0f;
 constexpr rect table_bounds{{0.0f, 0.0f}, {world_width, world_height}};
 
 i32 side_idx(side s) { return static_cast<i32>(s); }
 i32 ai(arm a) { return static_cast<i32>(a); }
 
-using reserve_t = i32[arm_count][tier_count];
-
-void reserve_clear(reserve_t &r) {
-  for (auto &row : r)
-    for (i32 &n : row)
-      n = 0;
-}
-
-void reserve_copy(reserve_t &dst, const reserve_t &src) {
-  for (i32 a = 0; a < arm_count; ++a)
-    for (i32 t = 0; t < tier_count; ++t)
-      dst[a][t] = src[a][t];
-}
-
-i32 reserve_value(const reserve_t &r) {
-  i32 v = 0;
-  for (i32 a = 0; a < arm_count; ++a)
-    for (i32 t = 0; t < tier_count; ++t)
-      v += r[a][t] * chip_cost(static_cast<arm>(a), t);
-  return v;
-}
-
-// Wet bowstrings and powder: rain shortens what bows and guns reach.
-f32 range_of(const soldier &s) { return spec(s.type).range * rain_reach(); }
+f32 range_of(const soldier &s) { return spec(s.type).range; }
 
 f32 speed_of(const soldier &s) {
   return spec(s.type).speed * terrain_speed(terrain_at(s.pos), sails(s.type));
@@ -248,6 +227,50 @@ i32 find_enemy(const soldier &s, f32 radius) {
   return static_cast<i32>(side_ids[foe][hit.item]);
 }
 
+// Turns `dir` toward `to` a little; never through zero when they are opposite.
+vec2 turn_to(vec2 dir, vec2 to, f32 rate) {
+  const vec2 d = lerp(dir, to, clamp(rate, 0.0f, 1.0f));
+  return length_sq(d) > 0.0001f ? normalize(d) : vec2{-dir.y, dir.x};
+}
+
+// How far round its anchor a garrison fights: whoever comes this close to
+// the block is attacked, nobody further out is chased.
+f32 guard_radius(const group &g) { return melee_aggro + g.span; }
+
+// A garrison marches to its post round what cannot be crossed, facing the
+// way it goes, then turns to face the way it was told.
+void hold_post(group &g, f32 dt) {
+  const arm_spec &sp = spec(g.type);
+  const bool boat = sails(g.type);
+  const vec2 to_post = g.post - g.anchor;
+  const f32 dist = length(to_post);
+  if (dist < 2.0f) {
+    g.dir = turn_to(g.dir, g.face, dt * 1.5f);
+    return;
+  }
+  vec2 steer = to_post / dist;
+  if (dist > tile_world) {
+    g.repath -= dt;
+    if (g.repath <= 0.0f || g.path.done()) {
+      g.repath = sim_rng.range(1.5f, 2.5f);
+      std::vector<vec2> way;
+      nav_find_path(terrain_nav(boat), g.anchor, g.post, way);
+      g.path.set(std::move(way));
+      g.path.reach = tile_world * 0.5f;
+    }
+    if (!g.path.done())
+      steer = nav_steer(g.path, g.anchor);
+  }
+  if (length_sq(steer) > 0.0001f)
+    g.dir = turn_to(g.dir, normalize(steer), dt * 1.5f);
+  // Wait for stragglers, and for men caught in a fight on the way.
+  const bool strung_out = distance(g.anchor, g.centroid) > 60.0f + 4.0f * std::sqrt(static_cast<f32>(g.figures));
+  if (!strung_out) {
+    const f32 step = std::min(dist, sp.speed * 0.85f * terrain_speed(terrain_at(g.anchor), boat) * dt);
+    g.anchor = move_on_ground(g.anchor, steer * step, boat);
+  }
+}
+
 void update_groups(f32 dt) {
   for (group &g : state.groups) {
     g.alive = 0;
@@ -268,6 +291,10 @@ void update_groups(f32 dt) {
   for (group &g : state.groups) {
     if (g.alive == 0)
       continue;
+    if (g.garrison) {
+      hold_post(g, dt);
+      continue;
+    }
     // March on the nearest enemy block.
     const group *foe = nullptr;
     f32 best = 1e12f;
@@ -331,12 +358,16 @@ void update_soldiers(context &ctx, f32 dt) {
     const f32 reach_range = ranged ? range_of(s) : 0.0f;
     if (s.target >= 0 && !state.soldiers[static_cast<usize>(s.target)].alive)
       s.target = -1;
+    const group &g = state.groups[static_cast<usize>(s.group)];
     if (s.think <= 0.0f) {
       s.think = sim_rng.range(0.2f, 0.35f);
       s.target = find_enemy(s, ranged ? reach_range + 30.0f : melee_aggro);
+      // A garrison's men go for no one outside its guard; archers and guns
+      // shoot whatever is in range from where they stand.
+      if (s.target >= 0 && g.garrison && !ranged &&
+          distance(state.soldiers[static_cast<usize>(s.target)].pos, g.anchor) > guard_radius(g))
+        s.target = -1;
     }
-
-    const group &g = state.groups[static_cast<usize>(s.group)];
     vec2 goal = slot_world(g, s.slot);
     bool chase = false;
     s.fighting = false;
@@ -358,7 +389,8 @@ void update_soldiers(context &ctx, f32 dt) {
           s.cooldown = sp.interval * sim_rng.range(0.9f, 1.15f);
           strike(ctx, s, t);
         }
-      } else if (!ranged || d > reach_range) {
+      } else if (g.garrison ? !ranged && distance(t.pos, g.anchor) <= guard_radius(g)
+                            : !ranged || d > reach_range) {
         goal = t.pos;
         chase = true;
       }
@@ -447,8 +479,6 @@ void count_men() {
 void end_battle(context &ctx, bool won) {
   state.screen = phase::result;
   state.won = won;
-  if (won && state.level + 1 < static_cast<i32>(levels().size()))
-    state.unlocked = std::max(state.unlocked, state.level + 1);
   audio_play(ctx, won ? sfx_type::victory : sfx_type::defeat, 1.0f);
   time_set_scale(ctx, 1.0f);
 }
@@ -474,18 +504,28 @@ void battle_step(context &ctx, f32 dt) {
     end_battle(ctx, state.men_now[0] / state.men_start[0] > state.men_now[1] / state.men_start[1]);
 }
 
-void spawn_chip(const board_chip &c) {
+void spawn_troop(const troop &c) {
   const i32 gi = static_cast<i32>(state.groups.size());
   group g{};
   g.type = c.type;
   g.tier = c.tier;
   g.owner = c.owner;
-  // Boats are launched at the water nearest their chip.
-  const vec2 start = sails(c.type) ? nearest_water(c.pos) : c.pos;
+  // The player's troops start at home and march to their flags; the enemy
+  // stands at its flags. Boats are launched at the nearest water.
+  const vec2 flag = sails(c.type) ? nearest_water(c.pos) : c.pos;
+  const vec2 start = c.owner == side::player ? troop_home(c) : flag;
   g.anchor = start;
   g.centroid = start;
   g.dir = c.owner == side::player ? vec2{0.0f, -1.0f} : vec2{0.0f, 1.0f};
+  // The player's blocks hold their flags.
+  if (c.owner == side::player) {
+    g.garrison = true;
+    g.post = flag;
+    g.face = c.face;
+  }
   const std::vector<vec2> slots = formation_slots(c.type, c.tier);
+  for (const vec2 &slot : slots)
+    g.span = std::max(g.span, length(slot));
   g.figures = static_cast<i32>(slots.size());
   g.alive = g.figures;
   state.groups.push_back(g);
@@ -495,7 +535,7 @@ void spawn_chip(const board_chip &c) {
   for (const vec2 &slot : slots) {
     soldier s{};
     s.slot = slot;
-    // Out of the chip: every figure starts on it and marches to its place.
+    // Out of a huddle at home: every figure marches to its place.
     s.pos = slot_world(g, slot * 0.2f) + vec2{sim_rng.range(-2.0f, 2.0f), sim_rng.range(-2.0f, 2.0f)};
     if (!walkable(s.pos, sails(c.type)))
       s.pos = start;
@@ -513,13 +553,6 @@ void spawn_chip(const board_chip &c) {
   }
 }
 
-void reset_camera(context &ctx) {
-  // The whole table, a little low so the top bar does not hide the enemy.
-  state.camera_pos = state.camera_target = {world_width * 0.5f, world_height * 0.5f - 30.0f};
-  state.zoom_step = 0;
-  if (state.camera_entity == entt::null || !world(ctx).valid(state.camera_entity))
-    state.camera_entity = camera_spawn(ctx, camera_zoom(), state.camera_pos);
-}
 
 void clear_battle() {
   state.soldiers.clear();
@@ -622,7 +655,7 @@ f32 figure_radius(arm a, f32 weight) {
 }
 
 std::vector<vec2> formation_slots(arm a, i32 tier) {
-  const i32 n = chip_figures(a, tier);
+  const i32 n = figure_count(a, tier);
   const f32 weight = static_cast<f32>(tiers[tier].men) / static_cast<f32>(n);
   const f32 gap = figure_radius(a, weight) * (a == arm::artillery ? 4.0f : a == arm::elephant ? 3.0f : 2.5f);
   // Twice as wide as deep, like a line of battle.
@@ -642,176 +675,120 @@ std::vector<vec2> formation_slots(arm a, i32 tier) {
 
 // --- Deployment ---
 
-void load_level(context &ctx, i32 index) {
-  state.level = clamp(index, 0, static_cast<i32>(levels().size()) - 1);
+void load_level(context &ctx) {
   state.screen = phase::deploy;
   state.won = false;
-  reserve_clear(state.reserve);
-  reserve_clear(state.saved_reserve);
   state.board.clear();
   state.saved_board.clear();
-  state.held = {};
-  state.shop_tier = std::min(state.shop_tier, current_level().max_tier);
+  state.menu = {};
+  state.cmd = command::none;
+  state.selected = -1;
   clear_battle();
   state.hour = current_level().hour;
   build_terrain();
   time_set_scale(ctx, 1.0f);
   time_set_paused(ctx, false);
-  reset_camera(ctx);
-  // The briefing, where the eye already is when a level opens.
+  view_reset();
+  // The briefing, where the eye already is when the table opens.
   char brief[256];
   std::snprintf(brief, sizeof(brief), "%s: %s", current_level().name, current_level().brief);
   ui_toast_clear(ctx);
   ui_toast(ctx, brief, {.seconds = 6.0f});
 }
 
-i32 gold_left() {
-  i32 spent = reserve_value(state.reserve);
-  for (const board_chip &c : state.board)
-    spent += chip_cost(c.type, c.tier);
-  if (state.held.active)
-    spent += chip_cost(state.held.type, state.held.tier);
-  return current_level().budget - spent;
-}
-
-i32 chips_on_board(side owner) {
+i32 troop_count(side owner) {
   if (owner == side::enemy)
     return static_cast<i32>(current_level().enemy.size());
   return static_cast<i32>(state.board.size());
 }
 
-bool shop_buy(context &ctx, arm a, i32 tier) {
-  if (tier > current_level().max_tier || chip_cost(a, tier) > gold_left())
-    return false;
-  if (sails(a) && !current_level().river)
-    return false; // no river to sail on
-  state.reserve[ai(a)][tier]++;
-  audio_play(ctx, sfx_type::chip, 0.8f);
-  return true;
-}
-
-bool reserve_merge(context &ctx, arm a, i32 tier) {
-  if (tier + 1 > current_level().max_tier || state.reserve[ai(a)][tier] < 3)
-    return false;
-  state.reserve[ai(a)][tier] -= 3;
-  state.reserve[ai(a)][tier + 1]++;
-  audio_play(ctx, sfx_type::chip, 1.0f);
-  return true;
-}
-
-bool reserve_split(context &ctx, arm a, i32 tier) {
-  if (tier <= 0 || state.reserve[ai(a)][tier] < 1)
-    return false;
-  state.reserve[ai(a)][tier]--;
-  state.reserve[ai(a)][tier - 1] += 3;
-  audio_play(ctx, sfx_type::chip, 1.0f);
-  return true;
-}
-
-bool reserve_sell(context &ctx, arm a, i32 tier) {
-  if (state.reserve[ai(a)][tier] < 1)
-    return false;
-  state.reserve[ai(a)][tier]--;
-  audio_play(ctx, sfx_type::click, 0.8f);
-  return true;
-}
-
-bool hold_from_reserve(context &ctx, arm a, i32 tier) {
-  if (state.reserve[ai(a)][tier] < 1)
-    return false;
-  drop_held(ctx);
-  state.reserve[ai(a)][tier]--;
-  state.held = {true, a, tier};
-  audio_play(ctx, sfx_type::click, 0.7f);
-  return true;
-}
-
-void drop_held(context &) {
-  if (!state.held.active)
-    return;
-  state.reserve[ai(state.held.type)][state.held.tier]++;
-  state.held = {};
-}
-
-const char *placement_error(vec2 pos) {
-  if (!state.held.active)
-    return "Chưa cầm quân cờ";
-  const f32 r = chip_radius(state.held.tier);
-  const rect z = player_zone;
-  if (pos.x < z.pos.x + r || pos.x > z.pos.x + z.size.x - r || pos.y < z.pos.y + r ||
-      pos.y > z.pos.y + z.size.y - r)
-    return "Chỉ được đặt trong vùng tập kết của quân ta";
+const char *troop_error(arm a, vec2 pos, i32 ignore) {
+  if (pos.x < table_margin || pos.y < table_margin || pos.x > world_width - table_margin ||
+      pos.y > world_height - table_margin)
+    return "Ngoài sa bàn";
   if (!walkable(pos))
     return "Không đặt quân lên đồi, núi hay sông";
-  if (sails(state.held.type)) {
+  if (sails(a)) {
     f32 water = 0.0f;
     nearest_water(pos, &water);
     if (water > 6.0f * 32.0f)
       return "Thuyền phải đặt gần sông suối";
   }
-  if (static_cast<i32>(state.board.size()) >= current_level().max_chips)
-    return "Sa bàn đã đủ số quân cờ cho phép";
-  for (const board_chip &c : state.board) {
-    if (distance(c.pos, pos) < r + chip_radius(c.tier) + 4.0f)
-      return "Chồng lên quân cờ khác";
+  for (i32 i = 0; i < static_cast<i32>(state.board.size()); ++i) {
+    const troop &c = state.board[static_cast<usize>(i)];
+    // One flag to a spot: the formations sort themselves out in the battle.
+    if (i != ignore && distance(c.pos, pos) < min_flag_gap)
+      return "Quá sát một đơn vị khác";
   }
   return nullptr;
 }
 
-bool place_held(context &ctx, vec2 pos) {
-  if (placement_error(pos) != nullptr)
+bool add_troop(context &ctx, arm a, i32 tier, vec2 pos) {
+  if (troop_error(a, pos) != nullptr)
     return false;
-  state.board.push_back({state.held.type, state.held.tier, side::player, pos});
-  const held_chip placed = state.held;
-  state.held = {};
+  state.board.push_back({a, tier, side::player, pos});
   audio_play(ctx, sfx_type::chip, 1.0f);
-  // Shift keeps placing chips of the same kind while the reserve has them.
-  if (key_held(ctx, key_left_shift))
-    hold_from_reserve(ctx, placed.type, placed.tier);
   return true;
 }
 
-i32 board_chip_at(vec2 pos, side owner) {
-  if (owner == side::enemy) {
-    const auto &foes = current_level().enemy;
-    for (usize i = 0; i < foes.size(); ++i) {
-      if (distance(foes[i].pos, pos) <= chip_radius(foes[i].tier))
-        return static_cast<i32>(i);
-    }
-    return -1;
-  }
-  for (i32 i = static_cast<i32>(state.board.size()) - 1; i >= 0; --i) {
-    const board_chip &c = state.board[static_cast<usize>(i)];
-    if (distance(c.pos, pos) <= chip_radius(c.tier))
-      return i;
-  }
-  return -1;
+bool move_troop(context &ctx, i32 index, vec2 pos) {
+  if (index < 0 || index >= static_cast<i32>(state.board.size()))
+    return false;
+  troop &c = state.board[static_cast<usize>(index)];
+  if (troop_error(c.type, pos, index) != nullptr)
+    return false;
+  c.pos = pos;
+  audio_play(ctx, sfx_type::chip, 1.0f);
+  return true;
 }
 
-void lift_board_chip(context &ctx, i32 index) {
-  if (index < 0 || index >= static_cast<i32>(state.board.size()))
-    return;
-  drop_held(ctx);
-  const board_chip c = state.board[static_cast<usize>(index)];
-  state.board.erase(state.board.begin() + index);
-  state.held = {true, c.type, c.tier};
-  audio_play(ctx, sfx_type::click, 0.7f);
+bool set_troop_tier(context &ctx, i32 index, i32 tier) {
+  if (index < 0 || index >= static_cast<i32>(state.board.size()) || tier < 0 || tier >= tier_count)
+    return false;
+  state.board[static_cast<usize>(index)].tier = tier;
+  state.new_tier = tier;
+  audio_play(ctx, sfx_type::chip, 1.0f);
+  return true;
 }
 
-void return_board_chip(context &ctx, i32 index) {
+void remove_troop(context &ctx, i32 index) {
   if (index < 0 || index >= static_cast<i32>(state.board.size()))
     return;
-  const board_chip c = state.board[static_cast<usize>(index)];
   state.board.erase(state.board.begin() + index);
-  state.reserve[ai(c.type)][c.tier]++;
+  if (state.selected == index) {
+    state.selected = -1;
+    state.cmd = command::none;
+  } else if (state.selected > index) {
+    --state.selected;
+  }
   audio_play(ctx, sfx_type::chip, 0.7f);
 }
 
+vec2 troop_home(const troop &t) {
+  const rect z = player_zone;
+  vec2 start = t.pos;
+  if (!point_in_rect(t.pos, z))
+    start = {clamp(t.pos.x, z.pos.x + tile_world, z.pos.x + z.size.x - tile_world), z.pos.y + z.size.y * 0.5f};
+  if (sails(t.type))
+    return nearest_water(start);
+  // The nearest open ground in rings round it, if it is not open itself.
+  for (i32 ring = 0; ring <= 12; ++ring) {
+    const i32 steps = ring == 0 ? 1 : 16;
+    for (i32 k = 0; k < steps; ++k) {
+      const vec2 p = start + from_angle(360.0f * static_cast<f32>(k) / static_cast<f32>(steps)) *
+                                 (tile_world * static_cast<f32>(ring));
+      if (walkable(p))
+        return p;
+    }
+  }
+  return start;
+}
+
 void clear_board(context &ctx) {
-  drop_held(ctx);
-  for (const board_chip &c : state.board)
-    state.reserve[ai(c.type)][c.tier]++;
   state.board.clear();
+  state.menu = {};
+  state.cmd = command::none;
+  state.selected = -1;
   audio_play(ctx, sfx_type::chip, 0.8f);
 }
 
@@ -820,15 +797,15 @@ void clear_board(context &ctx) {
 bool start_battle(context &ctx) {
   if (state.board.empty())
     return false;
-  drop_held(ctx);
-  reserve_copy(state.saved_reserve, state.reserve);
+  state.menu = {};
+  state.cmd = command::none;
   state.saved_board = state.board;
 
   clear_battle();
-  for (const board_chip &c : current_level().enemy)
-    spawn_chip(c);
-  for (const board_chip &c : state.board)
-    spawn_chip(c);
+  for (const troop &c : current_level().enemy)
+    spawn_troop(c);
+  for (const troop &c : state.board)
+    spawn_troop(c);
   count_men();
   state.men_start[0] = std::max(1.0f, state.men_now[0]);
   state.men_start[1] = std::max(1.0f, state.men_now[1]);
@@ -841,16 +818,11 @@ bool start_battle(context &ctx) {
 }
 
 void redeploy(context &ctx) {
-  const i32 lvl = state.level;
-  reserve_t reserve{};
-  reserve_copy(reserve, state.saved_reserve);
-  const std::vector<board_chip> board = state.saved_board;
-  load_level(ctx, lvl);
-  reserve_copy(state.reserve, reserve);
+  const std::vector<troop> board = state.saved_board;
+  load_level(ctx);
   state.board = board;
+  state.saved_board = board;
 }
-
-void next_level(context &ctx) { load_level(ctx, std::min(state.level + 1, state.unlocked)); }
 
 void set_speed(context &ctx, i32 index) {
   state.speed_index = clamp(index, 0, 2);
@@ -859,7 +831,7 @@ void set_speed(context &ctx, i32 index) {
 
 void sim_init(context &ctx) {
   audio_init(ctx);
-  load_level(ctx, 0);
+  load_level(ctx);
 }
 
 void sim_update(context &ctx) {

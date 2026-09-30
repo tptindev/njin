@@ -252,6 +252,37 @@ model_handle model_load(context &ctx, const char *path);
 /// @param handle Model cần giải phóng.
 void model_unload(context &ctx, model_handle handle);
 
+/// Một lưới tam giác do game tự dựng, cho model_create(): địa hình sinh theo
+/// seed, hình ghép lúc chạy. Các con trỏ chỉ cần sống đến khi model_create() trả về.
+struct mesh3d_data {
+  const vec3 *positions = nullptr; ///< Vị trí `vertex_count` đỉnh.
+  /// Pháp tuyến từng đỉnh (độ dài 1). nullptr thì engine tự tính: mỗi đỉnh lấy
+  /// trung bình các tam giác chung nó, nên mặt cong trông mịn.
+  const vec3 *normals = nullptr;
+  const rgba *colors = nullptr; ///< Màu từng đỉnh, nhân với màu vật liệu. nullptr là trắng.
+  u32 vertex_count = 0;         ///< Số đỉnh.
+  /// Ba chỉ số một tam giác, ngược chiều kim đồng hồ khi nhìn từ mặt trước.
+  /// nullptr thì mỗi ba đỉnh liên tiếp là một tam giác. Có chỉ số thì tối đa
+  /// 65535 đỉnh (chỉ số 16 bit của raylib): chia lưới lớn thành nhiều model.
+  const u32 *indices = nullptr;
+  u32 index_count = 0; ///< Số chỉ số, bội của 3.
+};
+
+/// Tạo model từ một lưới tam giác trong bộ nhớ, rồi dùng như model nạp từ file:
+/// draw_model(), draw_instanced3d(), model_material_set(), ray3d_model(),
+/// model_unload(). Chiếu sáng, đổ bóng và nhận bóng như mọi hình khác.
+///
+/// @code
+/// // Một tam giác đỏ nằm trên mặt đất.
+/// const njin::vec3 p[] = {{0, 0, 0}, {0, 0, 1}, {1, 0, 0}};
+/// const njin::rgba c[] = {njin::colors::red, njin::colors::red, njin::colors::red};
+/// const njin::model_handle tri = njin::model_create(ctx, {.positions = p, .colors = c, .vertex_count = 3});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param mesh Lưới.
+/// @return Handle của model, hoặc handle không hợp lệ nếu lưới rỗng hay sai (cảnh báo nói vì sao).
+model_handle model_create(context &ctx, const mesh3d_data &mesh);
+
 /// Vị trí, hướng và tỉ lệ của một vật 3D.
 ///
 /// Thứ tự áp dụng: phóng theo `scale`, xoay quanh `z` (roll), rồi quanh `x`
@@ -457,6 +488,12 @@ enum mesh3d_kind {
   mesh3d_sphere,   ///< Cầu bán kính 1, tâm ở gốc.
   mesh3d_plane,    ///< Mặt 1 x 1 trên mặt xz, hướng lên `+y`.
   mesh3d_cylinder, ///< Trụ bán kính 1, đáy ở gốc, cao 1 theo `+y`.
+  /// Như `mesh3d_sphere` nhưng ít mặt (khoảng 100 tam giác, bản thường khoảng
+  /// 3000): cho hàng nghìn vật nhỏ trên màn hình (đầu lính trong một đám đông,
+  /// hạt khói), nơi bản mịn chỉ làm GPU vẽ thêm những cạnh không ai thấy.
+  mesh3d_sphere_low,
+  /// Như `mesh3d_cylinder` nhưng 8 cạnh thay vì 48, cùng lý do.
+  mesh3d_cylinder_low,
 };
 
 /// Vẽ `count` bản của một hình có sẵn bằng **một** lệnh vẽ, mỗi bản đặt theo dữ

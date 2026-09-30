@@ -4,7 +4,7 @@
 
 namespace sandtable {
 
-const std::vector<level_def> &levels();
+// The one battle on the table.
 const level_def &current_level();
 
 // --- Terrain -----------------------------------------------------------------
@@ -23,6 +23,9 @@ inline constexpr i32 tiles_y = static_cast<i32>(world_height / tile_world);
 
 // Builds the current level's terrain. load_level() calls it.
 void build_terrain();
+// Goes up by one each time the terrain is built, so a drawing of it knows to
+// build itself again.
+u32 terrain_version();
 
 terrain terrain_at(vec2 pos);
 terrain terrain_cell(i32 x, i32 y);
@@ -39,13 +42,5 @@ f32 terrain_speed(terrain t, bool boat = false);
 // Arrows lose half their damage on troops standing in it.
 bool terrain_covers(terrain t);
 const char *terrain_name(terrain t);
-
-// What to draw on a tile, bottom to top: tile numbers in tiles.png (row * 48
-// + column), -1 for none.
-struct tile_layers {
-  i16 layer[4]{-1, -1, -1, -1};
-};
-const std::vector<tile_layers> &terrain_tiles();
-inline constexpr i32 tileset_columns = 48;
 
 } // namespace sandtable

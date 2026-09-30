@@ -274,6 +274,8 @@ void model_unload(context &ctx, model_handle handle) {
   model_store_unload(ctx.model, handle);
 }
 
+model_handle model_create(context &ctx, const mesh3d_data &mesh) { return model_store_create(ctx.model, mesh); }
+
 i32 model_material_count(const context &ctx, model_handle handle) {
   const model_slot *slot = model_slot_of(ctx.model, handle);
   return slot != nullptr ? (i32)slot->materials.size() : 0;

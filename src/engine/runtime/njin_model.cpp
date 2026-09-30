@@ -4,6 +4,7 @@
 #include <external/cgltf.h> // compiled into raylib (rmodels.c)
 #include <raymath.h>
 #include <rlgl.h>
+#include <algorithm>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -132,6 +133,109 @@ model_handle model_store_load(model_store &store, const char *path) {
         .emission_color = {e.r / 255.0f, e.g / 255.0f, e.b / 255.0f, 1.0f}});
   }
   load_skin(slot, resolved, path);
+  store.slots.push_back(std::move(slot));
+  return model_handle{.id = (u32)store.slots.size()};
+}
+
+namespace {
+// Per-vertex normals from the triangles sharing each vertex, weighted by
+// their area (the cross product's length), so small slivers count less.
+void smooth_normals(const mesh3d_data &mesh, f32 *out) {
+  const u32 tris = mesh.indices != nullptr ? mesh.index_count / 3 : mesh.vertex_count / 3;
+  std::fill(out, out + (usize)mesh.vertex_count * 3, 0.0f);
+  for (u32 t = 0; t < tris; t++) {
+    const u32 i0 = mesh.indices != nullptr ? mesh.indices[t * 3] : t * 3;
+    const u32 i1 = mesh.indices != nullptr ? mesh.indices[t * 3 + 1] : t * 3 + 1;
+    const u32 i2 = mesh.indices != nullptr ? mesh.indices[t * 3 + 2] : t * 3 + 2;
+    const vec3 a = mesh.positions[i0], b = mesh.positions[i1], c = mesh.positions[i2];
+    const vec3 n = cross(b - a, c - a);
+    for (const u32 i : {i0, i1, i2}) {
+      out[i * 3] += n.x;
+      out[i * 3 + 1] += n.y;
+      out[i * 3 + 2] += n.z;
+    }
+  }
+  for (u32 i = 0; i < mesh.vertex_count; i++) {
+    const vec3 n{out[i * 3], out[i * 3 + 1], out[i * 3 + 2]};
+    const vec3 u = length_sq(n) > 1e-12f ? normalize(n) : vec3{0.0f, 1.0f, 0.0f};
+    out[i * 3] = u.x;
+    out[i * 3 + 1] = u.y;
+    out[i * 3 + 2] = u.z;
+  }
+}
+
+u8 color_byte(f32 v) { return (u8)(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); }
+} // namespace
+
+model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
+  if (mesh.positions == nullptr || mesh.vertex_count == 0) {
+    NJIN_WARN("model_create: no vertices");
+    return model_handle{};
+  }
+  if (mesh.indices != nullptr) {
+    if (mesh.index_count == 0 || mesh.index_count % 3 != 0) {
+      NJIN_WARN("model_create: index_count %u is not a positive multiple of 3", mesh.index_count);
+      return model_handle{};
+    }
+    if (mesh.vertex_count > 65535) {
+      NJIN_WARN("model_create: %u vertices with indices, at most 65535 (split the mesh)", mesh.vertex_count);
+      return model_handle{};
+    }
+    for (u32 i = 0; i < mesh.index_count; i++)
+      if (mesh.indices[i] >= mesh.vertex_count) {
+        NJIN_WARN("model_create: index %u is %u, past the %u vertices", i, mesh.indices[i], mesh.vertex_count);
+        return model_handle{};
+      }
+  } else if (mesh.vertex_count % 3 != 0) {
+    NJIN_WARN("model_create: %u vertices without indices is not a multiple of 3", mesh.vertex_count);
+    return model_handle{};
+  }
+
+  // raylib frees these with RL_FREE in UnloadModel, so they come from MemAlloc.
+  const usize n = mesh.vertex_count;
+  Mesh m{};
+  m.vertexCount = (i32)n;
+  m.triangleCount = (i32)(mesh.indices != nullptr ? mesh.index_count / 3 : mesh.vertex_count / 3);
+  m.vertices = (f32 *)MemAlloc((u32)(n * 3 * sizeof(f32)));
+  m.normals = (f32 *)MemAlloc((u32)(n * 3 * sizeof(f32)));
+  m.texcoords = (f32 *)MemAlloc((u32)(n * 2 * sizeof(f32))); // zeros: the shader samples a white texture
+  m.colors = (u8 *)MemAlloc((u32)(n * 4));
+  for (usize i = 0; i < n; i++) {
+    m.vertices[i * 3] = mesh.positions[i].x;
+    m.vertices[i * 3 + 1] = mesh.positions[i].y;
+    m.vertices[i * 3 + 2] = mesh.positions[i].z;
+    const rgba c = mesh.colors != nullptr ? mesh.colors[i] : rgba{1.0f, 1.0f, 1.0f, 1.0f};
+    m.colors[i * 4] = color_byte(c.r);
+    m.colors[i * 4 + 1] = color_byte(c.g);
+    m.colors[i * 4 + 2] = color_byte(c.b);
+    m.colors[i * 4 + 3] = color_byte(c.a);
+  }
+  if (mesh.normals != nullptr) {
+    for (usize i = 0; i < n; i++) {
+      m.normals[i * 3] = mesh.normals[i].x;
+      m.normals[i * 3 + 1] = mesh.normals[i].y;
+      m.normals[i * 3 + 2] = mesh.normals[i].z;
+    }
+  } else {
+    smooth_normals(mesh, m.normals);
+  }
+  if (mesh.indices != nullptr) {
+    m.indices = (unsigned short *)MemAlloc((u32)(mesh.index_count * sizeof(unsigned short)));
+    for (u32 i = 0; i < mesh.index_count; i++)
+      m.indices[i] = (unsigned short)mesh.indices[i];
+  }
+  UploadMesh(&m, false);
+  const Model model = LoadModelFromMesh(m);
+  if (!model_loaded(model)) {
+    NJIN_WARN("model_create: the mesh could not be uploaded");
+    UnloadModel(model);
+    return model_handle{};
+  }
+  model_slot slot;
+  slot.model = model;
+  slot.alive = true;
+  slot.bounds = GetModelBoundingBox(model);
+  slot.materials.push_back(model_material{});
   store.slots.push_back(std::move(slot));
   return model_handle{.id = (u32)store.slots.size()};
 }

@@ -34,6 +34,11 @@ Vẽ 2D trước begin_3d() thì 3D đè lên; vẽ 2D sau end_3d() (cùng `phas
 | draw_shape3d() với njin::shape3d | Hình SDF: cầu, hộp bo góc, viên nang, trụ bo cạnh, xuyến | Vật cần mịn khi nhìn gần: nhân vật, vật phẩm |
 | draw_instanced3d() | Hàng nghìn hình lưới bằng một lệnh vẽ | Rừng, đám đông, gạch lát |
 | draw_model(), draw_model_anim() | Model glTF/OBJ nạp bằng model_load() | Đồ vật, nhân vật làm trong Blender |
+| model_create() với njin::mesh3d_data | Model từ lưới tam giác game tự dựng (vị trí, màu từng đỉnh, chỉ số) | Địa hình sinh theo seed, hình ghép lúc chạy |
+
+Vẽ hàng nghìn vật nhỏ bằng draw_instanced3d() thì dùng `mesh3d_sphere_low` và `mesh3d_cylinder_low`:
+cùng hình với `mesh3d_sphere` và `mesh3d_cylinder` nhưng ít mặt hơn nhiều, vì mỗi bản chỉ vài
+điểm ảnh trên màn hình và mỗi tam giác còn được vẽ thêm một lần cho bóng đổ.
 
 Hình SDF được tính trên từng điểm ảnh (sphere tracing trong hộp bao của nó), nên viền luôn tròn ở mọi
 cỡ và bo góc được, nhưng tốn hơn hình lưới. Nó vẫn nhận ánh sáng, đổ và nhận bóng, dùng

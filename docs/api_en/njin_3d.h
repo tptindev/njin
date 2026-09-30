@@ -269,6 +269,42 @@ model_handle model_load(context &ctx, const char *path);
 /// @param handle Model to free.
 void model_unload(context &ctx, model_handle handle);
 
+/// A triangle mesh the game builds itself, for model_create(): terrain grown
+/// from a seed, shapes put together at run time. The pointers need only live
+/// until model_create() returns.
+struct mesh3d_data {
+  const vec3 *positions = nullptr; ///< Positions of the `vertex_count` vertices.
+  /// Per-vertex normals (unit length). nullptr has the engine work them out:
+  /// each vertex takes the average of the triangles sharing it, so curved
+  /// surfaces look smooth.
+  const vec3 *normals = nullptr;
+  const rgba *colors = nullptr; ///< Per-vertex colours, multiplied by the material colour. nullptr is white.
+  u32 vertex_count = 0;         ///< Number of vertices.
+  /// Three indices per triangle, counter-clockwise seen from the front.
+  /// nullptr makes every three consecutive vertices a triangle. With indices,
+  /// at most 65535 vertices (raylib's 16-bit indices): split a big mesh into
+  /// several models.
+  const u32 *indices = nullptr;
+  u32 index_count = 0; ///< Number of indices, a multiple of 3.
+};
+
+/// Makes a model from a triangle mesh in memory, then used like a model loaded
+/// from a file: draw_model(), draw_instanced3d(), model_material_set(),
+/// ray3d_model(), model_unload(). Lit, casting and receiving shadows like any
+/// other shape.
+///
+/// @code
+/// // A red triangle lying on the ground.
+/// const njin::vec3 p[] = {{0, 0, 0}, {0, 0, 1}, {1, 0, 0}};
+/// const njin::rgba c[] = {njin::colors::red, njin::colors::red, njin::colors::red};
+/// const njin::model_handle tri = njin::model_create(ctx, {.positions = p, .colors = c, .vertex_count = 3});
+/// @endcode
+/// @param ctx Engine context.
+/// @param mesh The mesh.
+/// @return Handle of the model, or an invalid handle if the mesh is empty or
+/// wrong (a warning says why).
+model_handle model_create(context &ctx, const mesh3d_data &mesh);
+
 /// Position, orientation and scale of a 3D object.
 ///
 /// Applied in order: scaled by `scale`, rotated around `z` (roll), then
@@ -482,6 +518,13 @@ enum mesh3d_kind {
   mesh3d_sphere,   ///< Radius-1 sphere, centred on the origin.
   mesh3d_plane,    ///< 1 x 1 plane on the xz plane, facing `+y`.
   mesh3d_cylinder, ///< Radius-1 cylinder, base at the origin, height 1 along `+y`.
+  /// Like `mesh3d_sphere` with few faces (about 100 triangles, against about
+  /// 3000 for the smooth one): for thousands of small things on screen (the
+  /// heads of a crowd of soldiers, smoke particles), where the smooth one only
+  /// makes the GPU draw edges nobody sees.
+  mesh3d_sphere_low,
+  /// Like `mesh3d_cylinder` with 8 sides instead of 48, for the same reason.
+  mesh3d_cylinder_low,
 };
 
 /// Draws `count` copies of a built-in shape with **one** draw call, each

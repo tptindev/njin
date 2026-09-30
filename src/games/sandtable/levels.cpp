@@ -7,129 +7,34 @@ namespace sandtable {
 
 namespace {
 
-board_chip foe(arm a, i32 tier, vec2 pos) { return {a, tier, side::enemy, pos}; }
+troop foe(arm a, i32 tier, vec2 pos) { return {a, tier, side::enemy, pos}; }
 
-std::vector<level_def> make_levels() {
-  std::vector<level_def> out;
-
-  // 1. Small skirmish: spears standing in a line, a few archers behind.
-  {
-    level_def l{};
-    l.name = "Tiền Đồn Đồi Tranh";
-    l.brief = "Một toán thương binh giữ tiền đồn, cung thủ yểm trợ phía sau. Thương binh sợ tên.";
-    l.budget = 130;
-    l.max_tier = 1;
-    l.max_chips = 6;
-    l.enemy = {foe(arm::spear, 1, {820.0f, 250.0f}), foe(arm::spear, 1, {1180.0f, 250.0f}),
-               foe(arm::archer, 1, {1000.0f, 130.0f})};
-    l.seed = 11;
-    l.clouds = 0.2f;
-    l.hour = 9.0f;
-    l.mountains = 0.0f;
-    l.hill_amount = 0.06f;
-    l.woods = 0.06f;
-    l.streams = 1;
-    out.push_back(l);
-  }
-
-  // 2. River with two fords, cavalry waiting on the far bank.
-  {
-    level_def l{};
-    l.name = "Bến Đò Sông Lam";
-    l.brief = "Kỵ binh địch chờ ở bờ bắc. Sông chỉ lội qua được ở hai bến cạn. Thương binh chặn kỵ.";
-    l.budget = 560;
-    l.max_tier = 2;
-    l.max_chips = 7;
-    l.enemy = {foe(arm::cavalry, 2, {700.0f, 220.0f}), foe(arm::archer, 2, {1000.0f, 130.0f}),
-               foe(arm::infantry, 1, {1250.0f, 300.0f}), foe(arm::infantry, 1, {1450.0f, 300.0f}),
-               foe(arm::boat, 1, {1700.0f, 300.0f})};
-    l.river = true;
-    l.river_y = 608.0f;
-    l.fords = {{{420.0f, 540.0f}, {180.0f, 130.0f}}, {{1320.0f, 540.0f}, {220.0f, 130.0f}}};
-    l.seed = 22;
-    l.clouds = 0.6f;
-    l.rain = 0.4f;
-    l.hour = 15.0f;
-    l.mountains = 0.03f;
-    l.streams = 2;
-    out.push_back(l);
-  }
-
-  // 3. Forests, first artillery.
-  {
-    level_def l{};
-    l.name = "Rừng Lau Phục Kích";
-    l.brief = "Pháo địch đặt giữa hai cánh rừng. Rừng làm chậm quân và che tên. Kỵ binh diệt pháo.";
-    l.budget = 1600;
-    l.max_tier = 3;
-    l.max_chips = 8;
-    l.enemy = {foe(arm::spear, 3, {1000.0f, 290.0f}), foe(arm::archer, 2, {700.0f, 200.0f}),
-               foe(arm::archer, 2, {1300.0f, 200.0f}), foe(arm::artillery, 2, {1000.0f, 110.0f}),
-               foe(arm::cavalry, 2, {1650.0f, 260.0f})};
-    l.forests = {{{420.0f, 560.0f}, 170.0f}, {{1580.0f, 600.0f}, 190.0f}, {{1000.0f, 700.0f}, 90.0f}};
-    l.seed = 33;
-    l.clouds = 0.7f;
-    l.hour = 17.5f; // an ambush at dusk
-    l.woods = 0.12f;
-    l.streams = 2;
-    out.push_back(l);
-  }
-
-  // 4. Valley of guns.
-  {
-    level_def l{};
-    l.name = "Thung Lũng Pháo";
-    l.brief = "Pháo binh hai bên thung, bộ binh dày đặc ở giữa, voi chiến bên sườn. Đồi núi chắn lối, phải đi vòng.";
-    l.budget = 3400;
-    l.max_tier = 4;
-    l.max_chips = 9;
-    l.enemy = {foe(arm::artillery, 2, {420.0f, 150.0f}), foe(arm::infantry, 4, {1000.0f, 300.0f}),
-               foe(arm::elephant, 2, {1650.0f, 300.0f}),
-               foe(arm::spear, 3, {700.0f, 300.0f}), foe(arm::archer, 3, {1000.0f, 150.0f}),
-               foe(arm::cavalry, 3, {1400.0f, 280.0f})};
-    l.forests = {{{1000.0f, 600.0f}, 110.0f}};
-    l.seed = 44;
-    l.hour = 5.0f; // before dawn
-    l.mountains = 0.07f;
-    l.streams = 1;
-    out.push_back(l);
-  }
-
-  // 5. The big one.
-  {
-    level_def l{};
-    l.name = "Đại Chiến Trường Giang";
-    l.brief = "Hai đại quân gặp nhau bên sông, núi chắn hai đầu. Mọi binh chủng, mọi cấp chip đều được dùng.";
-    l.budget = 16000;
-    l.max_tier = 6;
-    l.max_chips = 10;
-    l.enemy = {foe(arm::infantry, 5, {1000.0f, 300.0f}), foe(arm::spear, 4, {620.0f, 300.0f}),
-               foe(arm::archer, 5, {1000.0f, 140.0f}), foe(arm::cavalry, 4, {1500.0f, 260.0f}),
-               foe(arm::artillery, 4, {300.0f, 130.0f}), foe(arm::infantry, 4, {1330.0f, 330.0f}),
-               foe(arm::infantry, 4, {300.0f, 320.0f}), foe(arm::elephant, 3, {700.0f, 200.0f}),
-               foe(arm::boat, 3, {1200.0f, 330.0f})};
-    l.river = true;
-    l.river_y = 592.0f;
-    l.fords = {{{200.0f, 520.0f}, {260.0f, 150.0f}}, {{870.0f, 520.0f}, {260.0f, 150.0f}},
-               {{1540.0f, 520.0f}, {260.0f, 150.0f}}};
-    l.forests = {{{1750.0f, 900.0f}, 140.0f}};
-    l.seed = 55;
-    l.clouds = 0.9f;
-    l.rain = 0.85f;
-    l.wind = {34.0f, 10.0f};
-    l.hour = 21.0f; // a night battle in the storm
-    l.mountains = 0.09f;
-    l.streams = 3;
-    out.push_back(l);
-  }
-
-  return out;
+// Two great armies meet by a river, mountains at both ends. Every arm and
+// every size of troop is there.
+level_def make_level() {
+  level_def l{};
+  l.name = "Đại Chiến Trường Giang";
+  l.brief = "Hai đại quân gặp nhau bên sông, núi chắn hai đầu. Điều quân tự do: mọi binh chủng, mọi quân số, bất cứ đâu.";
+  l.enemy = {foe(arm::infantry, 5, {1000.0f, 300.0f}), foe(arm::spear, 4, {620.0f, 300.0f}),
+             foe(arm::archer, 5, {1000.0f, 140.0f}), foe(arm::cavalry, 4, {1500.0f, 260.0f}),
+             foe(arm::artillery, 4, {300.0f, 130.0f}), foe(arm::infantry, 4, {1330.0f, 330.0f}),
+             foe(arm::infantry, 4, {300.0f, 320.0f}), foe(arm::elephant, 3, {700.0f, 200.0f}),
+             foe(arm::boat, 3, {1200.0f, 330.0f})};
+  l.river = true;
+  l.river_y = 592.0f;
+  l.fords = {{{200.0f, 520.0f}, {260.0f, 150.0f}}, {{870.0f, 520.0f}, {260.0f, 150.0f}},
+             {{1540.0f, 520.0f}, {260.0f, 150.0f}}};
+  l.forests = {{{1750.0f, 900.0f}, 140.0f}};
+  l.seed = 55;
+  l.hour = 21.0f; // a night battle
+  l.mountains = 0.09f;
+  l.streams = 3;
+  return l;
 }
 
 // --- The terrain of the current level -------------------------------------
 
 std::vector<terrain> cells;
-std::vector<tile_layers> tiles;
 nav_grid nav;
 nav_grid water_nav;
 
@@ -148,17 +53,7 @@ vec2 center_of(i32 x, i32 y) {
 }
 
 bool high(terrain t) { return t == terrain::hill || t == terrain::mountain; }
-bool rock(terrain t) { return t == terrain::mountain; }
 bool wet(terrain t) { return t == terrain::river || t == terrain::ford; }
-
-u32 hash(u32 a, u32 b, u32 c) {
-  u32 h = 2166136261u;
-  for (u32 v : {a, b, c})
-    h = (h ^ v) * 16777619u;
-  h ^= h >> 13;
-  h *= 0x5bd1e995u;
-  return h ^ (h >> 15);
-}
 
 bool in_zone(i32 x, i32 y) {
   const vec2 c = center_of(x, y);
@@ -275,12 +170,13 @@ u8 nav_cost_of(terrain t) {
   }
 }
 
-// The ground round every enemy chip is open, so its men can march off it.
-void clear_chips(const level_def &l) {
-  for (const board_chip &e : l.enemy)
+// The ground round every enemy camp is open, so its men can march off it.
+void clear_camps(const level_def &l) {
+  for (const troop &e : l.enemy)
     for (i32 y = 0; y < tiles_y; ++y)
       for (i32 x = 0; x < tiles_x; ++x) {
-        if (distance(e.pos, center_of(x, y)) > chip_radius(e.tier) + 2.0f * tile_world)
+        // The size the camps were always cleared by, so the map stays the same.
+        if (distance(e.pos, center_of(x, y)) > 26.0f + 4.0f * static_cast<f32>(e.tier) + 2.0f * tile_world)
           continue;
         if (high(get(x, y)))
           put(x, y, terrain::plain);
@@ -332,66 +228,21 @@ void ensure_connected() {
   build_nav();
 }
 
-// --- Tiles to draw ---
-
-constexpr i16 row0(i32 col) { return static_cast<i16>(col); }
-constexpr i16 blob(i32 row, i32 index) { return static_cast<i16>(row * tileset_columns + index); }
-constexpr i32 row_hill = 1, row_mountain = 2, row_river = 3, row_stream = 4;
-
-template <typename Same> u8 mask_of(i32 x, i32 y, Same same) {
-  // Beyond the table counts as the same terrain: no shores along the frame.
-  const auto s = [&](i32 ox, i32 oy) {
-    const i32 nx = x + ox, ny = y + oy;
-    return nx < 0 || ny < 0 || nx >= tiles_x || ny >= tiles_y || same(get(nx, ny));
-  };
-  u8 m = 0;
-  m |= s(0, -1) ? neighbor_up : 0;
-  m |= s(1, -1) ? neighbor_up_right : 0;
-  m |= s(1, 0) ? neighbor_right : 0;
-  m |= s(1, 1) ? neighbor_down_right : 0;
-  m |= s(0, 1) ? neighbor_down : 0;
-  m |= s(-1, 1) ? neighbor_down_left : 0;
-  m |= s(-1, 0) ? neighbor_left : 0;
-  m |= s(-1, -1) ? neighbor_up_left : 0;
-  return m;
-}
-
-bool stream_like(terrain k) { return k == terrain::stream || wet(k); }
-
-void build_tiles() {
-  tiles.assign(cells.size(), {});
-  for (i32 y = 0; y < tiles_y; ++y)
-    for (i32 x = 0; x < tiles_x; ++x) {
-      tile_layers &out = tiles[static_cast<usize>(y * tiles_x + x)];
-      const terrain t = get(x, y);
-      const u32 hv = hash(static_cast<u32>(x), static_cast<u32>(y), 99u);
-      i32 n = 0;
-      out.layer[n++] = row0(static_cast<i32>(hv % 4)); // grass under everything
-      if (high(t))
-        out.layer[n++] = blob(row_hill, autotile_index(mask_of(x, y, high)));
-      if (rock(t))
-        out.layer[n++] = blob(row_mountain, autotile_index(mask_of(x, y, rock)));
-      if (wet(t))
-        out.layer[n++] = blob(row_river, autotile_index(mask_of(x, y, wet)));
-      if (t == terrain::stream)
-        out.layer[n++] = blob(row_stream, autotile_index(mask_of(x, y, stream_like)));
-      if (t == terrain::forest)
-        out.layer[n++] = row0(4 + static_cast<i32>((hv >> 8) % 3));
-      if (t == terrain::ford)
-        out.layer[n++] = row0(7);
-    }
-}
-
 } // namespace
 
-const std::vector<level_def> &levels() {
-  static const std::vector<level_def> all = make_levels();
-  return all;
+const level_def &current_level() {
+  static const level_def level = make_level();
+  return level;
 }
 
-const level_def &current_level() { return levels()[static_cast<usize>(state.level)]; }
+namespace {
+u32 built_count = 0;
+} // namespace
+
+u32 terrain_version() { return built_count; }
 
 void build_terrain() {
+  ++built_count;
   const level_def &l = current_level();
   cells.assign(static_cast<usize>(tiles_x * tiles_y), terrain::plain);
   lay_noise(l);
@@ -411,10 +262,9 @@ void build_terrain() {
   if (l.river)
     carve_river(l);
   carve_streams(l);
-  clear_chips(l);
+  clear_camps(l);
   build_nav();
   ensure_connected();
-  build_tiles();
 }
 
 terrain terrain_cell(i32 x, i32 y) { return get(x, y); }
@@ -449,8 +299,6 @@ vec2 nearest_water(vec2 pos, f32 *dist) {
     *dist = best_d;
   return best;
 }
-
-const std::vector<tile_layers> &terrain_tiles() { return tiles; }
 
 f32 terrain_speed(terrain t, bool boat) {
   if (boat)

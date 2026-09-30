@@ -12,10 +12,6 @@ enum class soldier_frame : i32 { idle = 0, walk1, walk2, attack1, attack2, dead 
 enum class sprite_variant : i32 { player = 0, enemy, flash };
 
 inline constexpr f32 soldier_cell = 8.0f;
-// A chip sprite pixel is this many world units (see chip_radius in types.h),
-// so a chip lands on whole screen pixels at every zoom step (camera_zooms).
-inline constexpr f32 chip_texel = 4.0f;
-
 void sprites_init(context &ctx);
 void sprites_cleanup(context &ctx);
 texture_handle sprite_sheet();
@@ -28,10 +24,5 @@ void draw_soldier_sprite(context &ctx, vec2 feet, arm a, sprite_variant v, soldi
 // The 5x5 symbol of an arm, its top left at `pos`, `scale` screen pixels per
 // symbol pixel, in `tint`.
 void draw_arm_symbol(context &ctx, vec2 pos, arm a, f32 scale, rgba tint);
-
-// A chip centred on `center`, `scale` world units (or screen pixels in the HUD)
-// per sprite pixel.
-void draw_chip_sprite(context &ctx, vec2 center, arm a, i32 tier, side owner, f32 scale,
-                      rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
 
 } // namespace sandtable

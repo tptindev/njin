@@ -11,8 +11,9 @@ namespace sandtable {
 using namespace njin;
 
 // The sand table, in world units: 64 x 38 terrain tiles of 32 (levels.h). The
-// player deploys in the bottom band, the enemy in the top band; the battle can
-// go anywhere on the table.
+// player's home is the bottom band, where their troops start before marching
+// to their flags; the enemy camps in the top band. The battle can go anywhere
+// on the table.
 inline constexpr f32 world_width = 2048.0f;
 inline constexpr f32 world_height = 1216.0f;
 inline constexpr f32 table_margin = 24.0f;
@@ -74,9 +75,8 @@ inline constexpr i32 arm_count = static_cast<i32>(arm::count);
 
 struct arm_spec {
   const char *name;
-  const char *tag; // on the chip
+  const char *tag; // short name
   const char *desc;
-  f32 cost_per_man;
   i32 men_per_figure; // artillery: one gun is a crew of several men
   // Per man; a figure that stands for several men multiplies hp and damage.
   f32 hp;
@@ -91,20 +91,20 @@ struct arm_spec {
 };
 
 inline constexpr std::array<arm_spec, arm_count> arms{{
-    {"Bộ binh", "BB", "Kiếm khiên. Rẻ, bền, khiên đỡ nửa sát thương tên. Thắng thương binh khi giáp lá cà.",
-     1.0f, 1, 100.0f, 11.0f, 1.0f, 0.0f, 0.0f, 3.0f, 40.0f, 0.0f, 4.2f},
+    {"Bộ binh", "BB", "Kiếm khiên. Bền, khiên đỡ nửa sát thương tên. Thắng thương binh khi giáp lá cà.",
+     1, 100.0f, 11.0f, 1.0f, 0.0f, 0.0f, 3.0f, 40.0f, 0.0f, 4.2f},
     {"Thương binh", "TB", "Giáo dài. Chặn đứng kỵ binh (x3 sát thương, triệt xung phong). Sợ tên.",
-     1.0f, 1, 90.0f, 9.0f, 1.1f, 0.0f, 0.0f, 9.0f, 38.0f, 0.0f, 4.2f},
+     1, 90.0f, 9.0f, 1.1f, 0.0f, 0.0f, 9.0f, 38.0f, 0.0f, 4.2f},
     {"Cung thủ", "CT", "Bắn xa. Mưa tên diệt thương binh; yếu khi bị áp sát.",
-     1.5f, 1, 60.0f, 7.0f, 1.5f, 250.0f, 0.0f, 3.0f, 40.0f, 0.0f, 4.0f},
+     1, 60.0f, 7.0f, 1.5f, 250.0f, 0.0f, 3.0f, 40.0f, 0.0f, 4.0f},
     {"Kỵ binh", "KB", "Nhanh. Lao đủ đà thì xung phong x3; x2 vào cung thủ và pháo. Kỵ thương binh.",
-     3.0f, 1, 150.0f, 13.0f, 1.0f, 0.0f, 0.0f, 4.0f, 92.0f, 0.0f, 5.2f},
+     1, 150.0f, 13.0f, 1.0f, 0.0f, 0.0f, 4.0f, 92.0f, 0.0f, 5.2f},
     {"Pháo binh", "PB", "Mỗi khẩu 5 người. Bắn cực xa, nổ lan diệt đội hình dày. Chậm, không tự vệ.",
-     4.0f, 5, 50.0f, 16.0f, 4.0f, 480.0f, 110.0f, 0.0f, 20.0f, 26.0f, 3.6f},
+     5, 50.0f, 16.0f, 4.0f, 480.0f, 110.0f, 0.0f, 20.0f, 26.0f, 3.6f},
     {"Tượng binh", "VO", "Mỗi con voi 5 người. Rất trâu, giẫm đạp cả đám quanh nó. Ngựa sợ voi. Sợ giáo dài và pháo.",
-     5.0f, 5, 170.0f, 13.0f, 1.6f, 0.0f, 0.0f, 6.0f, 56.0f, 16.0f, 5.0f},
+     5, 170.0f, 13.0f, 1.6f, 0.0f, 0.0f, 6.0f, 56.0f, 16.0f, 5.0f},
     {"Chiến thuyền", "TH", "Mỗi thuyền 10 người. Chỉ đi trên sông suối, bắn tên từ dưới nước. Đặt gần sông. Sợ pháo.",
-     3.0f, 10, 80.0f, 6.0f, 1.6f, 230.0f, 0.0f, 3.0f, 62.0f, 0.0f, 4.2f},
+     10, 80.0f, 6.0f, 1.6f, 230.0f, 0.0f, 3.0f, 62.0f, 0.0f, 4.2f},
 }};
 
 inline const arm_spec &spec(arm a) { return arms[static_cast<i32>(a)]; }
@@ -121,21 +121,21 @@ inline constexpr f32 counter[arm_count][arm_count] = {
     {0.8f, 1.3f, 1.0f, 1.0f, 1.0f, 0.8f, 1.0f}, // boat (arrows)
 };
 
-// --- Chip tiers --------------------------------------------------------------
+// --- Troop sizes (tiers) -----------------------------------------------------
 //
-// Like casino chips: three of a tier change for one of the next. A chip spawns
-// `men` soldiers on the table; past company size one figure stands for several
-// men so a corps stays a few hundred figures.
+// A troop of a tier is `men` soldiers, three times the tier below; past
+// company size one figure stands for several men so a corps stays a few
+// hundred figures.
 
 inline constexpr i32 tier_count = 7;
 
 struct tier_spec {
   const char *name;
-  const char *value; // printed on the chip
+  const char *value; // men, short
   i32 men;
   i32 max_figures;
-  rgba color;  // chip body
-  rgba stripe; // edge inserts
+  rgba color;  // its flag
+  rgba stripe; // (unused art colour)
 };
 
 inline constexpr std::array<tier_spec, tier_count> tiers{{
@@ -148,24 +148,19 @@ inline constexpr std::array<tier_spec, tier_count> tiers{{
     {"Quân đoàn", "7.3K", 7290, 270, rgb(200, 170, 70), rgb(110, 20, 20)},
 }};
 
-inline i32 chip_cost(arm a, i32 tier) {
-  return static_cast<i32>(tiers[tier].men * spec(a).cost_per_man + 0.5f);
-}
-
-inline i32 chip_figures(arm a, i32 tier) {
+inline i32 figure_count(arm a, i32 tier) {
   const i32 by_crew = std::max(1, tiers[tier].men / spec(a).men_per_figure);
   return std::min(by_crew, tiers[tier].max_figures);
 }
 
-// The chip sprite of a tier is 13 + 2 * tier pixels across, each pixel 4 world
-// units (sprites.h), so the radius on the table matches the art.
-inline f32 chip_radius(i32 tier) { return (13.0f + 2.0f * static_cast<f32>(tier)) * 2.0f; }
-
-struct board_chip {
+struct troop {
   arm type = arm::infantry;
   i32 tier = 0;
   side owner = side::player;
+  // The flag. The enemy stands here when the battle starts; the player's
+  // troops start at home (troop_home) and march here to hold it.
   vec2 pos{};
+  vec2 face{0.0f, -1.0f}; // player: the way it faces at its flag, the way it attacks
 };
 
 // --- Terrain -----------------------------------------------------------------
@@ -178,10 +173,7 @@ struct terrain_blob {
 struct level_def {
   const char *name;
   const char *brief;
-  i32 budget;
-  i32 max_tier;
-  i32 max_chips;
-  std::vector<board_chip> enemy;
+  std::vector<troop> enemy;
   // River: winds across the table near river_y, crossed only at the fords.
   bool river = false;
   f32 river_y = 600.0f;
@@ -196,11 +188,6 @@ struct level_def {
   f32 hill_amount = 0.1f;
   f32 woods = 0.08f;
   i32 streams = 1;
-  // Weather: how cloudy (0 to 1), how hard it rains (0 dry to 1 a storm),
-  // and the wind the clouds and the rain drift with, world units a second.
-  f32 clouds = 0.3f;
-  f32 rain = 0.0f;
-  vec2 wind{18.0f, 5.0f};
   // The hour the level starts at, 0 to 24; the clock runs during the battle.
   f32 hour = 10.0f;
 };
@@ -243,6 +230,12 @@ struct group {
   i32 figures = 0;
   nav_agent path; // the anchor's way to the enemy, round mountains, rivers and cliffs
   f32 repath = 0.0f;
+  // A garrison (the player's blocks) does not hunt: it marches to `post`,
+  // faces `face` and fights only what comes within its guard.
+  bool garrison = false;
+  vec2 post{};
+  vec2 face{0.0f, -1.0f};
+  f32 span = 0.0f; // how far the formation reaches from its anchor
 };
 
 struct projectile {
@@ -314,30 +307,43 @@ struct popup_text {
 
 enum class phase { deploy, battle, result };
 
-struct held_chip {
-  bool active = false;
-  arm type = arm::infantry;
-  i32 tier = 0;
+// Orders a troop on the table can be given, from its circle menu.
+enum class order : i32 { face, move, grow, shrink, withdraw, count };
+inline constexpr i32 order_count = static_cast<i32>(order::count);
+
+// A circle menu round a point on the table: the arms a troop can be raised
+// as there (right click on the table), or the orders for a troop (click on it).
+enum class menu_kind : i32 { none, arms, orders };
+
+struct radial_menu {
+  menu_kind kind = menu_kind::none;
+  vec2 at{};              // world: where it was opened
+  i32 troop = -1;         // orders: which troop on the table
+  std::vector<i32> items; // arm or order numbers, round from the top
+  std::vector<bool> enabled;
+};
+
+// What the next click on the table does, after an order that needs a place.
+enum class command : i32 {
+  none,
+  face, // click sets the way the block faces
+  move, // click moves the troop's flag
 };
 
 struct game_state {
   phase screen = phase::deploy;
-  i32 level = 0;
-  i32 unlocked = 0;
   bool won = false;
-  bool restart_requested = false; // result popup buttons, handled next frame
-  bool next_requested = false;
+  bool restart_requested = false; // result popup button, handled next frame
 
-  // Deployment: reserve chips by [arm][tier], chips on the table, the chip on
-  // the cursor, and the shop selection.
-  i32 reserve[arm_count][tier_count]{};
-  std::vector<board_chip> board;
-  held_chip held;
-  i32 shop_arm = 0;
-  i32 shop_tier = 0;
-  // What the player had when they pressed deploy, for "set up again".
-  i32 saved_reserve[arm_count][tier_count]{};
-  std::vector<board_chip> saved_board;
+  // Deployment is free: any arm, any size, anywhere, as many troops as wanted.
+  std::vector<troop> board;
+  i32 new_tier = 4;  // size of the next troop raised: the last one chosen
+  radial_menu menu;
+  // An order waiting for a place on the table, and for which troop.
+  command cmd = command::none;
+  i32 selected = -1;
+  // The table when the player pressed deploy, for "set up again".
+  std::vector<troop> saved_board;
 
   // Battle
   std::vector<soldier> soldiers;
@@ -351,14 +357,16 @@ struct game_state {
   f32 men_start[2]{};
   f32 men_now[2]{};
   i32 speed_index = 0;
-  bool hide_panels = false; // Tab, to see the whole table while deploying
 
-  // Camera. The zoom is one of camera_zooms, so every sprite pixel lands on
-  // whole screen pixels.
-  vec2 camera_pos{world_width * 0.5f, world_height * 0.5f};
-  vec2 camera_target{world_width * 0.5f, world_height * 0.5f};
-  i32 zoom_step = 0;
-  entt::entity camera_entity = entt::null;
+  // The camera (view.h): it looks at `cam_target` (table coordinates) from
+  // `cam_distance` 3D units away, turned `cam_yaw` degrees round it (0 is from
+  // the player's side). The controls move the goals; the camera eases to them.
+  vec2 cam_target{world_width * 0.5f, world_height * 0.56f};
+  vec2 cam_target_goal{world_width * 0.5f, world_height * 0.56f};
+  f32 cam_yaw = 0.0f;
+  f32 cam_yaw_goal = 0.0f;
+  f32 cam_distance = 52.0f;
+  f32 cam_distance_goal = 52.0f;
 
   std::vector<popup_text> popups;
   std::vector<fx_particle> particles;
@@ -369,10 +377,6 @@ extern game_state state;
 inline constexpr f32 battle_time_limit = 240.0f;
 // Seconds of battle for one hour of the day: a long battle runs into the night.
 inline constexpr f32 seconds_per_hour = 8.0f;
-// Screen pixels per world unit. Below 1 soldiers are dots; from 1 up, sprites.
-inline constexpr f32 camera_zooms[5] = {0.25f, 0.5f, 1.0f, 2.0f, 3.0f};
-inline constexpr i32 zoom_count = 5;
-inline f32 camera_zoom() { return camera_zooms[state.zoom_step]; }
 inline constexpr f32 speed_steps[3] = {1.0f, 2.0f, 4.0f};
 
 } // namespace sandtable

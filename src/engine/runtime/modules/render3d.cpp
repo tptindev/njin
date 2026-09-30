@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 #include <raymath.h>
 #include <rlgl.h>
 #include <string>
@@ -566,6 +567,11 @@ bool ensure_ready(render3d_state &s) {
   s.sphere = GenMeshSphere(1.0f, 32, 48);
   s.plane = GenMeshPlane(1.0f, 1.0f, 1, 1);
   s.cylinder = GenMeshCylinder(1.0f, 1.0f, 48);
+  // Few faces, for thousands of small copies (mesh3d_sphere_low and
+  // mesh3d_cylinder_low): each is a few pixels on screen. The same 8 sides
+  // round, so a sphere on a cylinder closes into a capsule.
+  s.sphere_low = GenMeshSphere(1.0f, 6, 8);
+  s.cylinder_low = GenMeshCylinder(1.0f, 1.0f, 8);
   s.maps[MATERIAL_MAP_DIFFUSE].texture = default_texture();
   s.ready = true;
   return true;
@@ -1370,6 +1376,8 @@ render3d_state::~render3d_state() {
   UnloadMesh(sphere);
   UnloadMesh(plane);
   UnloadMesh(cylinder);
+  UnloadMesh(sphere_low);
+  UnloadMesh(cylinder_low);
   UnloadShader(lit);
   UnloadShader(sdf);
   UnloadShader(lit_instanced);
@@ -1480,10 +1488,10 @@ vec3 model_center(const model_slot &m, const Matrix &transform) {
 }
 
 i32 mesh_kind(const render3d_state &s, const Mesh *mesh) {
-  return mesh == &s.sphere     ? debug3d_sphere
-         : mesh == &s.plane    ? debug3d_plane
-         : mesh == &s.cylinder ? debug3d_cylinder
-                               : debug3d_cube;
+  return mesh == &s.sphere || mesh == &s.sphere_low       ? debug3d_sphere
+         : mesh == &s.plane                                 ? debug3d_plane
+         : mesh == &s.cylinder || mesh == &s.cylinder_low   ? debug3d_cylinder
+                                                            : debug3d_cube;
 }
 
 // The instances of a draw_instanced3d call, at the position instance0 gives
@@ -1616,8 +1624,9 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
   const render3d_state *s = open_pass(ctx);
   if (s == nullptr || buffer.id == 0)
     return;
-  const Mesh *meshes[] = {&s->cube, &s->sphere, &s->plane, &s->cylinder};
-  record_instanced(ctx, meshes[std::clamp((i32)mesh, 0, 3)], {}, buffer, first, count, shader);
+  const Mesh *meshes[] = {&s->cube, &s->sphere, &s->plane, &s->cylinder, &s->sphere_low, &s->cylinder_low};
+  constexpr i32 last = static_cast<i32>(std::size(meshes)) - 1;
+  record_instanced(ctx, meshes[std::clamp((i32)mesh, 0, last)], {}, buffer, first, count, shader);
 }
 
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,

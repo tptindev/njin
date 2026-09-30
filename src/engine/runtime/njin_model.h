@@ -64,5 +64,6 @@ inline model_slot *model_slot_of(model_store &store, model_handle handle) {
 }
 
 model_handle model_store_load(model_store &store, const char *path);
+model_handle model_store_create(model_store &store, const mesh3d_data &mesh);
 void model_store_unload(model_store &store, model_handle handle);
 } // namespace njin

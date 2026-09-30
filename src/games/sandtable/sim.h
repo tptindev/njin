@@ -9,30 +9,29 @@ void sim_update(context &ctx);
 
 // --- Deployment --------------------------------------------------------------
 
-void load_level(context &ctx, i32 index);
-i32 gold_left();
-i32 chips_on_board(side owner);
+// Sets the table up for the battle, empty on the player's side.
+void load_level(context &ctx);
+i32 troop_count(side owner);
 
-bool shop_buy(context &ctx, arm a, i32 tier);
-bool reserve_merge(context &ctx, arm a, i32 tier); // 3 of `tier` -> 1 of `tier + 1`
-bool reserve_split(context &ctx, arm a, i32 tier); // 1 of `tier` -> 3 of `tier - 1`
-bool reserve_sell(context &ctx, arm a, i32 tier);
+// Why a troop of arm `a` cannot plant its flag at home at `pos`, anywhere on
+// the table, or nullptr when it can; the troop numbered `ignore` is the one
+// being moved.
+const char *troop_error(arm a, vec2 pos, i32 ignore = -1);
+// Deployment is free: no shop and no limit on the troops.
+bool add_troop(context &ctx, arm a, i32 tier, vec2 pos);
+// A new home for a troop; its orders stay.
+bool move_troop(context &ctx, i32 index, vec2 pos);
+// More or fewer men in a troop; later troops are raised at that size.
+bool set_troop_tier(context &ctx, i32 index, i32 tier);
+void remove_troop(context &ctx, i32 index);
 
-// Takes a chip from the reserve onto the cursor.
-bool hold_from_reserve(context &ctx, arm a, i32 tier);
-// Puts the chip on the cursor back into the reserve.
-void drop_held(context &ctx);
-// Why the held chip cannot go at `pos`, or nullptr when it can.
-const char *placement_error(vec2 pos);
-bool place_held(context &ctx, vec2 pos);
-// The chip under `pos` on the table, or -1.
-i32 board_chip_at(vec2 pos, side owner);
-// Lifts a placed chip onto the cursor.
-void lift_board_chip(context &ctx, i32 index);
-void return_board_chip(context &ctx, i32 index);
+// Where a player's troop starts the battle: in the home band straight below
+// its flag (at the flag when that is at home), on open ground, or on the
+// nearest water for boats. It marches from there to its flag.
+vec2 troop_home(const troop &t);
 void clear_board(context &ctx);
 
-// Formation slots of a chip, relative to its centre, front row first.
+// Formation slots of a troop, relative to its centre, front row first.
 std::vector<vec2> formation_slots(arm a, i32 tier);
 f32 figure_radius(arm a, f32 weight);
 
@@ -40,7 +39,6 @@ f32 figure_radius(arm a, f32 weight);
 
 bool start_battle(context &ctx);
 void redeploy(context &ctx);   // back to the table with the last deployment
-void next_level(context &ctx);
 void set_speed(context &ctx, i32 index);
 
 void add_popup(vec2 pos, rgba col, const char *text, f32 time = 1.0f);

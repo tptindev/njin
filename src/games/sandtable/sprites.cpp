@@ -4,9 +4,8 @@ namespace sandtable {
 
 namespace {
 
-constexpr f32 chip_cell = 25.0f;
-constexpr f32 chip_y = 168.0f;
-constexpr f32 symbol_y = chip_y + chip_cell * static_cast<f32>(arm_count);
+// The arm symbols sit under the old chip art in the sheet.
+constexpr f32 symbol_y = 168.0f + 25.0f * static_cast<f32>(arm_count);
 
 texture_handle sheet{};
 
@@ -42,17 +41,6 @@ void draw_soldier_sprite(context &ctx, vec2 feet, arm a, sprite_variant v, soldi
 void draw_arm_symbol(context &ctx, vec2 pos, arm a, f32 scale, rgba tint) {
   const rect src{{static_cast<f32>(a) * 6.0f, symbol_y}, {5.0f, 5.0f}};
   texture_draw_ex(ctx, sheet, texture_draw_desc{.pos = pos, .source = src, .scale = {scale, scale}, .tint = tint});
-}
-
-void draw_chip_sprite(context &ctx, vec2 center, arm a, i32 tier, side owner, f32 scale, rgba tint) {
-  const rect src{{static_cast<f32>(tier * 2 + static_cast<i32>(owner)) * chip_cell,
-                  chip_y + static_cast<f32>(a) * chip_cell},
-                 {chip_cell, chip_cell}};
-  texture_draw_ex(ctx, sheet, texture_draw_desc{.pos = center,
-                                                .source = src,
-                                                .scale = {scale, scale},
-                                                .origin = {0.5f, 0.5f},
-                                                .tint = tint});
 }
 
 } // namespace sandtable

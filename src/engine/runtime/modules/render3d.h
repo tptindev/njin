@@ -139,6 +139,9 @@ struct render3d_state {
   Mesh sphere{};   // radius 1
   Mesh plane{};    // 1x1 on xz, facing +y
   Mesh cylinder{}; // radius 1, from y = 0 to y = 1
+  // The same two with few faces, for crowds drawn instanced (mesh3d_*_low).
+  Mesh sphere_low{};
+  Mesh cylinder_low{};
   // Default material maps. Ours, not raylib-allocated, so there is no
   // UnloadMaterial (which would also free the shared shader).
   std::array<MaterialMap, 12> maps{};

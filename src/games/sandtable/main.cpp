@@ -7,14 +7,11 @@ int main(int argc, char **argv) {
   using namespace njin;
 
   bool test_mode = false;
-  i32 test_level = 0;
   const char *test_plan = nullptr;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--test" || arg == "-t")
       test_mode = true;
-    else if (arg == "--level" && i + 1 < argc)
-      test_level = std::atoi(argv[++i]) - 1;
     else if (arg == "--plan" && i + 1 < argc)
       test_plan = argv[++i];
   }
@@ -24,18 +21,20 @@ int main(int argc, char **argv) {
       .width = 1280.0f,
       .height = 720.0f,
       .target_fps = 60.0f,
-      .clear_bg_color = {0.08f, 0.07f, 0.06f, 1.0f},
+      .clear_bg_color = {0.05f, 0.05f, 0.07f, 1.0f},
       .exit_key = key_none,
       .resizable = true,
       .app_name = "SandTable",
-      // Pixel art: everything, text included, is drawn in the 640 x 360 image
-      // and scaled up by whole numbers with the nearest filter.
+      // The HUD is laid out in a virtual screen of half the window (fit_view
+      // keeps it so as the window changes) and drawn smooth at the window's
+      // resolution; the 3D table is drawn at twice the virtual size, so at
+      // the window's own resolution too.
       .virtual_size = {640.0f, 360.0f},
-      .integer_scale = true,
-      .crisp_text = false,
+      .smooth_ui = true,
+      .render_scale = 2,
   });
 
-  mod_register(*ctx, sandtable::module(test_mode, test_level, test_plan));
+  mod_register(*ctx, sandtable::module(test_mode, test_plan));
 
 #ifndef NDEBUG
   debug_server_start(*ctx);

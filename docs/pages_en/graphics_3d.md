@@ -37,6 +37,11 @@ inside a UI panel, for example).
 | draw_shape3d() with njin::shape3d | SDF shape: sphere, rounded box, capsule, rounded cylinder, torus | Something that needs to look smooth up close: characters, items |
 | draw_instanced3d() | Thousands of mesh shapes in one draw call | Forests, crowds, floor tiles |
 | draw_model(), draw_model_anim() | glTF/OBJ model loaded with model_load() | Props, characters made in Blender |
+| model_create() with njin::mesh3d_data | Model from a triangle mesh the game builds (positions, per-vertex colours, indices) | Terrain grown from a seed, shapes put together at run time |
+
+To draw thousands of small things with draw_instanced3d(), use `mesh3d_sphere_low` and
+`mesh3d_cylinder_low`: the same shapes as `mesh3d_sphere` and `mesh3d_cylinder` with far fewer
+faces, since each copy is a few pixels on screen and every triangle is drawn once more for the shadows.
 
 An SDF shape is computed per pixel (sphere tracing inside its bounding box), so its edge is always
 round at any size and it can be rounded, but it costs more than a mesh shape. It still receives
