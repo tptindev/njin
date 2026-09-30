@@ -41,6 +41,7 @@ struct render3d_locations {
   // The SDF shader only.
   i32 shape_kind = -1, shape_dims = -1, shape_bounds = -1, shape_to_local = -1, shape_to_world = -1;
   i32 mat_vp = -1, ray_ortho = -1, ray_dir = -1, depth_only = -1;
+  i32 blend_a = -1, blend_b = -1, blend_count = -1, blend_k = -1; // draw_sdf_blend
   // Point/spot light shadows, and the skinning shader's bones.
   i32 light_shadow = -1, lamp_vp = -1, lamp_params = -1, lamp_map = -1;
   i32 bones = -1;
@@ -65,6 +66,11 @@ struct draw3d_cmd {
   // the rest pose, drawn without skinning.
   u32 bone_first = 0;
   u32 bone_count = 0;
+  // draw_sdf_blend: its parts in render3d_state::blend_parts (count 0 = a
+  // single shape3d), and how soft the joints are.
+  u32 blend_first = 0;
+  u32 blend_count = 0;
+  f32 blend_k = 0.0f;
 };
 
 // Depth seen from the sun. A colour attachment is kept too, so the
@@ -154,6 +160,7 @@ struct render3d_state {
   camera3d camera; // shake included
   mutable std::vector<draw3d_cmd> cmds;
   mutable std::vector<Matrix> bones; // bone matrices of the posed draws
+  mutable std::vector<sdf_part> blend_parts; // parts of the blended SDF shapes
   std::vector<light3d_source> lights;
   bool entities = true; // camera3d::entities of the open pass
   fx3d fx;

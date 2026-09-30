@@ -7,26 +7,32 @@ namespace sandtable {
 
 namespace {
 
-troop foe(arm a, i32 tier, vec2 pos) { return {a, tier, side::enemy, pos}; }
+troop foe(i32 tier, vec2 pos) { return {tier, side::enemy, pos}; }
 
-// Two great armies meet by a river, mountains at both ends. Every arm and
-// every size of troop is there.
+// Two gangs either side of a river. The Rồng Xanh hold their gambling den in
+// the north and have their eyes on everything between.
 level_def make_level() {
   level_def l{};
-  l.name = "Đại Chiến Trường Giang";
-  l.brief = "Hai đại quân gặp nhau bên sông, núi chắn hai đầu. Điều quân tự do: mọi binh chủng, mọi quân số, bất cứ đâu.";
-  l.enemy = {foe(arm::infantry, 5, {1000.0f, 300.0f}), foe(arm::spear, 4, {620.0f, 300.0f}),
-             foe(arm::archer, 5, {1000.0f, 140.0f}), foe(arm::cavalry, 4, {1500.0f, 260.0f}),
-             foe(arm::artillery, 4, {300.0f, 130.0f}), foe(arm::infantry, 4, {1330.0f, 330.0f}),
-             foe(arm::infantry, 4, {300.0f, 320.0f}), foe(arm::elephant, 3, {700.0f, 200.0f}),
-             foe(arm::boat, 3, {1200.0f, 330.0f})};
+  l.name = "Tranh Giành Địa Bàn";
+  l.brief = "Băng Rồng Xanh giữ Sòng Bạc và nhòm ngó cả vùng. Giữ nhiều địa bàn hơn khi hết giờ, "
+            "hoặc hạ hết chúng.";
+  l.enemy = {foe(3, {1024.0f, 250.0f}), foe(2, {620.0f, 280.0f}), foe(2, {1430.0f, 280.0f}),
+             foe(1, {330.0f, 320.0f}), foe(1, {1720.0f, 320.0f}), foe(0, {1024.0f, 110.0f})};
+  // The player starts with one turf, the pawn shop in the south, and his
+  // men there.
+  l.turfs = {{"Tiệm Cầm Đồ", {1024.0f, 1030.0f}, 150.0f, static_cast<i32>(side::player)},
+             {"Chợ Đầu Mối", {330.0f, 730.0f}},        {"Bến Xe", {1024.0f, 750.0f}},
+             {"Quán Nhậu", {1720.0f, 730.0f}},         {"Bến Cảng", {330.0f, 440.0f}},
+             {"Phố Đèn Lồng", {1024.0f, 440.0f}},      {"Bãi Xe Tải", {1720.0f, 440.0f}},
+             {"Sòng Bạc", {1024.0f, 200.0f}, 150.0f, static_cast<i32>(side::enemy)}};
+  l.home_turf = 0;
   l.river = true;
   l.river_y = 592.0f;
   l.fords = {{{200.0f, 520.0f}, {260.0f, 150.0f}}, {{870.0f, 520.0f}, {260.0f, 150.0f}},
              {{1540.0f, 520.0f}, {260.0f, 150.0f}}};
   l.forests = {{{1750.0f, 900.0f}, 140.0f}};
   l.seed = 55;
-  l.hour = 21.0f; // a night battle
+  l.hour = 21.0f; // at night
   l.mountains = 0.09f;
   l.streams = 3;
   return l;
@@ -36,7 +42,6 @@ level_def make_level() {
 
 std::vector<terrain> cells;
 nav_grid nav;
-nav_grid water_nav;
 
 terrain get(i32 x, i32 y) {
   if (x < 0 || y < 0 || x >= tiles_x || y >= tiles_y)
@@ -170,41 +175,31 @@ u8 nav_cost_of(terrain t) {
   }
 }
 
-// The ground round every enemy camp is open, so its men can march off it.
+// The ground round every enemy camp and the middle of every turf is open,
+// so men can walk off the one and stand on the other.
 void clear_camps(const level_def &l) {
-  for (const troop &e : l.enemy)
+  const auto open = [](vec2 at, f32 radius) {
     for (i32 y = 0; y < tiles_y; ++y)
       for (i32 x = 0; x < tiles_x; ++x) {
-        // The size the camps were always cleared by, so the map stays the same.
-        if (distance(e.pos, center_of(x, y)) > 26.0f + 4.0f * static_cast<f32>(e.tier) + 2.0f * tile_world)
+        if (distance(at, center_of(x, y)) > radius)
           continue;
         if (high(get(x, y)))
           put(x, y, terrain::plain);
         else if (get(x, y) == terrain::river)
           put(x, y, terrain::ford);
       }
-}
-
-// Boats: open river is best, fords and streams are shallow and slow.
-u8 water_cost_of(terrain t) {
-  switch (t) {
-  case terrain::river:
-    return 2;
-  case terrain::ford:
-  case terrain::stream:
-    return 3;
-  default:
-    return 0;
-  }
+  };
+  for (const troop &e : l.enemy)
+    open(e.pos, 2.5f * tile_world);
+  for (const turf_def &t : l.turfs)
+    open(t.pos, 2.0f * tile_world);
 }
 
 void build_nav() {
   nav = nav_grid_make({0.0f, 0.0f}, {tile_world, tile_world}, tiles_x, tiles_y);
-  water_nav = nav_grid_make({0.0f, 0.0f}, {tile_world, tile_world}, tiles_x, tiles_y);
   for (i32 y = 0; y < tiles_y; ++y)
     for (i32 x = 0; x < tiles_x; ++x) {
       nav_set_cost(nav, {x, y}, nav_cost_of(get(x, y)));
-      nav_set_cost(water_nav, {x, y}, water_cost_of(get(x, y)));
     }
 }
 
@@ -273,36 +268,15 @@ terrain terrain_at(vec2 pos) {
   return get(static_cast<i32>(std::floor(pos.x / tile_world)), static_cast<i32>(std::floor(pos.y / tile_world)));
 }
 
-bool walkable(vec2 pos, bool boat) {
+bool walkable(vec2 pos) {
   if (pos.x < 0.0f || pos.y < 0.0f || pos.x >= world_width || pos.y >= world_height)
     return false;
-  const terrain t = terrain_at(pos);
-  return (boat ? water_cost_of(t) : nav_cost_of(t)) != 0;
+  return nav_cost_of(terrain_at(pos)) != 0;
 }
 
-const nav_grid &terrain_nav(bool boat) { return boat ? water_nav : nav; }
+const nav_grid &terrain_nav() { return nav; }
 
-vec2 nearest_water(vec2 pos, f32 *dist) {
-  vec2 best = pos;
-  f32 best_d = 1e9f;
-  for (i32 y = 0; y < tiles_y; ++y)
-    for (i32 x = 0; x < tiles_x; ++x) {
-      if (water_cost_of(get(x, y)) == 0)
-        continue;
-      const f32 d = distance(center_of(x, y), pos);
-      if (d < best_d) {
-        best_d = d;
-        best = center_of(x, y);
-      }
-    }
-  if (dist)
-    *dist = best_d;
-  return best;
-}
-
-f32 terrain_speed(terrain t, bool boat) {
-  if (boat)
-    return t == terrain::river ? 1.0f : 0.6f;
+f32 terrain_speed(terrain t) {
   switch (t) {
   case terrain::forest:
     return 0.65f;
@@ -314,8 +288,6 @@ f32 terrain_speed(terrain t, bool boat) {
     return 1.0f;
   }
 }
-
-bool terrain_covers(terrain t) { return t == terrain::forest; }
 
 const char *terrain_name(terrain t) {
   switch (t) {

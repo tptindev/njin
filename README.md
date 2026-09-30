@@ -20,6 +20,13 @@ Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có th�
 - Gizmo để debug 2D và 3D.
 - Màn hình ảo cho pixel art, khử răng cưa bằng supersampling và công cụ `njin_inspector` để xem entity, system, log, hiệu năng, tài nguyên và cảnh 3D khi game chạy.
 
+## Editor tạo model và khung xương
+
+Chạy `run_model_editor.bat` để mở **njin Model Editor**: tạo hình bằng khối SDF,
+ghép/cắt khối, dựng cây xương, gắn khối, chỉnh tư thế và tạo animation bằng timeline
+keyframe. Có gizmo ImGuizmo và xem trước SDF trên GPU. Công cụ lưu model/clip trong
+JSON và xuất model tĩnh OBJ. Xem [hướng dẫn Model Editor](src/tools/model_editor/README.md).
+
 ## Game mẫu
 
 | Target | Nội dung |

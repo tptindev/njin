@@ -113,3 +113,8 @@ option(NJIN_BUILD_UI_EDITOR "Build the njin_ui_editor tool" ON)
 if(NJIN_BUILD_UI_EDITOR)
   add_subdirectory(src/tools/ui_editor)
 endif()
+
+option(NJIN_BUILD_MODEL_EDITOR "Build the SDF model and skeleton editor" ON)
+if(NJIN_BUILD_MODEL_EDITOR)
+  add_subdirectory(src/tools/model_editor)
+endif()

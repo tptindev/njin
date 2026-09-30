@@ -238,6 +238,48 @@ struct shape3d {
 /// @param color Màu.
 void draw_shape3d(const context &ctx, const shape3d &shape, rgba color);
 
+/// Một phần của hình ghép SDF (draw_sdf_blend()): hình nón bo tròn nối `a` với
+/// `b`, bán kính `ra` ở `a` và `rb` ở `b` (bằng nhau là viên nang, `a` trùng `b`
+/// là hình cầu).
+struct sdf_part {
+  vec3 a{0.0f, 0.0f, 0.0f}; ///< Tâm đầu thứ nhất.
+  vec3 b{0.0f, 0.0f, 0.0f}; ///< Tâm đầu thứ hai.
+  f32 ra = 0.1f;            ///< Bán kính ở `a`.
+  f32 rb = 0.1f;            ///< Bán kính ở `b`.
+  /// Độ mềm chỗ phần này nối vào các phần đứng trước nó trong danh sách, đơn vị
+  /// thế giới. Âm (mặc định) là dùng `blend` của draw_sdf_blend(). Cho phép nối
+  /// mềm chỗ cần đắp (vai vào thân) mà vẫn thon chỗ không muốn phình (khuỷu tay,
+  /// đầu gối: đặt nhỏ, vì smooth min đắp thêm khoảng `blend / 4` ở chỗ nối).
+  f32 blend = -1.0f;
+};
+
+/// Số phần tối đa của một hình ghép SDF.
+inline constexpr u32 sdf_blend_max = 32;
+
+/// Vẽ nhiều phần SDF hòa làm một khối liền (smooth min): chỗ hai phần gặp nhau
+/// được đắp đầy mượt thay vì gãy góc, như nặn bằng đất sét. Nhân vật ghép từ đầu,
+/// cổ, thân và các đoạn tay chân, rồi đặt lại các phần mỗi frame theo tư thế,
+/// vẫn liền mạch khi cử động.
+///
+/// Như draw_shape3d(): tính trên từng điểm ảnh nên viền mịn ở mọi cỡ, nhận ánh
+/// sáng, đổ và nhận bóng, theo material3d_set() và fx3d_set() lúc gọi. Mỗi hình
+/// ghép là một lệnh vẽ; tốn theo số điểm ảnh nó phủ nhân số phần.
+///
+/// @code
+/// // Một cánh tay: bắp tay, cẳng tay, bàn tay nối liền.
+/// const njin::sdf_part arm[] = {{.a = shoulder, .b = elbow, .ra = 0.05f, .rb = 0.04f},
+///                               {.a = elbow, .b = wrist, .ra = 0.04f, .rb = 0.03f},
+///                               {.a = wrist, .b = fingers, .ra = 0.035f, .rb = 0.02f}};
+/// njin::draw_sdf_blend(ctx, arm, 3, 0.03f, clay);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param parts Các phần; được chép lại, không cần sống sau lệnh gọi.
+/// @param count Số phần, 1 đến njin::sdf_blend_max (phần thừa bị bỏ, kèm cảnh báo).
+/// @param blend Độ mềm của chỗ nối, đơn vị thế giới, cho các phần không đặt
+/// `sdf_part::blend` riêng: 0 là nối cứng, lớn thì phần này chảy sang phần kia xa hơn.
+/// @param color Màu.
+void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color);
+
 /// Nạp model 3D từ file glTF (`.glb`, `.gltf`) hoặc OBJ.
 ///
 /// Đường dẫn tính như texture_load(). Màu và texture của vật liệu trong file

@@ -7,13 +7,10 @@ int main(int argc, char **argv) {
   using namespace njin;
 
   bool test_mode = false;
-  const char *test_plan = nullptr;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--test" || arg == "-t")
       test_mode = true;
-    else if (arg == "--plan" && i + 1 < argc)
-      test_plan = argv[++i];
   }
 
   context *ctx = create({
@@ -34,7 +31,7 @@ int main(int argc, char **argv) {
       .render_scale = 2,
   });
 
-  mod_register(*ctx, sandtable::module(test_mode, test_plan));
+  mod_register(*ctx, sandtable::module(test_mode));
 
 #ifndef NDEBUG
   debug_server_start(*ctx);

@@ -1,8 +1,8 @@
 #include "render.h"
 #include "audio.h"
+#include "figure.h"
 #include "levels.h"
 #include "sim.h"
-#include "sprites.h"
 #include "view.h"
 #include "weather.h"
 
@@ -36,15 +36,10 @@ struct batch {
 batch frame{};  // the wooden frame round the sand
 batch tree_trunks{};
 batch tree_crowns{};
-batch bodies{};  // soldiers: a cylinder...
-batch heads{};   // ...and a sphere: a capsule
+batch eyes{};    // two black dots on every head
 batch torches{}; // flames, glowing
-batch corpses{};
-batch marks{};   // scorches on the ground
-batch arrows{};
-batch shells{};
-batch puffs{};   // smoke and dust, lit
-batch glows{};   // fire and sparks, glowing
+batch puffs{};   // dust, lit
+batch glows{};   // sparks of blows, glowing
 u32 built_terrain = ~0u;
 
 void push(batch &b, vec3 pos, vec3 scale, rgba col, vec3 rot = {}) {
@@ -75,7 +70,6 @@ f32 unit(u32 a, u32 b) { return static_cast<f32>(hash2(a, b) & 0xFFFFu) / 65535.
 rgba shade(rgba c, f32 k) { return {c.r * k, c.g * k, c.b * k, c.a}; }
 rgba with_alpha(rgba c, f32 a) { return {c.r, c.g, c.b, c.a * a}; }
 rgba side_color(side s) { return s == side::player ? col_player : col_enemy; }
-rgba side_dark(side s) { return s == side::player ? col_player_dark : col_enemy_dark; }
 
 // Every eighth man carries a torch once it grows dark.
 bool carries_torch(u32 index) { return index % 8 == 3; }
@@ -404,15 +398,27 @@ void draw_grass(context &ctx, const camera3d &cam) {
   material3d_set(ctx, {});
 }
 
-// The home band and the enemy camp, as coloured sheets over the sand.
-void draw_zones(context &ctx) {
-  const f32 a = state.screen == phase::deploy ? 1.0f : 0.4f;
-  material3d_set(ctx, {.specular = 0.0f, .cast_shadows = false});
-  const auto sheet = [&](const rect &z, rgba col) {
-    draw_plane3d(ctx, to3d(z.pos + z.size * 0.5f, 0.012f), z.size * unit3d, with_alpha(col, a));
-  };
-  sheet(player_zone, rgb(205, 52, 44, 40));
-  sheet(enemy_zone, rgb(36, 110, 160, 40));
+// --- Turfs ---
+
+// The colour of whoever holds a turf.
+rgba holder_color(i32 held_by) {
+  return held_by == static_cast<i32>(side::player)  ? col_player
+         : held_by == static_cast<i32>(side::enemy) ? col_enemy
+                                                    : rgb(214, 204, 178);
+}
+
+// Each turf a ring on the ground in its holder's colour, over a faint sheet.
+void draw_turfs(context &ctx) {
+  for (const turf &t : state.turfs) {
+    const f32 h = stand_height(t.pos);
+    const rgba c = holder_color(t.held_by);
+    material3d_set(ctx, {.specular = 0.1f, .cast_shadows = false});
+    draw_cylinder3d(ctx, to3d(t.pos, h + 0.01f), to3d(t.pos, h + 0.02f), t.radius * unit3d, with_alpha(c, 0.14f));
+    material3d_set(ctx, {.specular = 0.4f, .emission = with_alpha(c, 0.35f), .cast_shadows = false});
+    draw_shape3d(ctx, {.kind = shape3d_torus, .position = to3d(t.pos, h + 0.05f), .radius = t.radius * unit3d,
+                       .thickness = 0.05f},
+                 c);
+  }
   material3d_set(ctx, {});
 }
 
@@ -441,164 +447,144 @@ void draw_flag3d(context &ctx, vec2 at, i32 tier, side owner, bool lit, f32 alph
 
 // --- Battle ---
 
-void draw_soldiers(context &ctx) {
-  bodies.data.clear();
-  heads.data.clear();
+// --- The men ---
+
+constexpr f32 figure_height = 0.62f; // 3D units, about 20 world units
+
+// Clay of each gang's colour.
+rgba clay(side s) { return s == side::player ? rgb(204, 118, 76) : rgb(92, 132, 170); }
+
+// Each living man's last pose, so the next eases from it (figure_memory),
+// by his place in the soldier list; forgotten when a new fight starts.
+std::vector<figure_memory> memories;
+f32 memories_time = 0.0f;
+
+figure_pose draw_figure(context &ctx, const figure_state &st, vec2 at, vec2 facing, rgba col,
+                        figure_memory *memory = nullptr, f32 dt = 0.0f) {
+  const figure_pose f = pose_figure(st, to3d(at, stand_height(at)), facing, figure_height, memory, dt);
+  draw_sdf_blend(ctx, f.parts, f.count, f.blend, col);
+  for (const vec3 &e : f.eyes)
+    push(eyes, e, {f.eye_radius, f.eye_radius, f.eye_radius}, rgb(20, 16, 14));
+  return f;
+}
+
+bool pose_row = false;
+vec2 pose_row_at{};
+
+// The pose sheet (show_pose_row): each motion as a row of moments from its
+// start to its end, so one picture shows how it moves.
+void draw_pose_row(context &ctx) {
+  constexpr i32 steps = 7;
+  const f32 walk = fighter.speed, run = walk * run_factor;
+  const auto moment = [&](i32 row, f32 k) -> figure_state {
+    switch (row) {
+    case 0: // a walk cycle
+      return {.stride = k * 20.0f, .pace = walk, .seed = 2};
+    case 1: // a run cycle
+      return {.stride = k * 27.0f, .pace = run, .seed = 3};
+    case 2: // a punch, wind-up to back
+      return {.act = blow_time * (1.0f - k), .act_kind = 1, .fighting = true, .seed = 4};
+    case 3: // a kick
+      return {.act = blow_time * (1.0f - k), .act_kind = 2, .fighting = true, .seed = 5};
+    case 4: // knocked down
+      return {.down = down_time * (1.0f - k * 0.7f), .seed = 6};
+    case 5: // getting up
+      return {.rise = rise_time * (1.0f - k), .seed = 7};
+    default: // dying
+      return {.dead = k * 0.8f, .seed = 1};
+    }
+  };
+  material3d_set(ctx, {.specular = 0.12f, .shininess = 18.0f, .rim = {1.0f, 0.9f, 0.8f, 0.12f}});
+  for (i32 row = 0; row < 7; ++row)
+    for (i32 i = 0; i < steps; ++i) {
+      const f32 k = static_cast<f32>(i) / static_cast<f32>(steps - 1);
+      const vec2 at = pose_row_at + vec2{(static_cast<f32>(i) - (steps - 1) * 0.5f) * 28.0f,
+                                         (static_cast<f32>(row) - 3.0f) * 34.0f};
+      // Side on, so the limbs show.
+      draw_figure(ctx, moment(row, k), at, {1.0f, 0.25f}, clay(row % 2 == 0 ? side::player : side::enemy));
+    }
+  material3d_set(ctx, {});
+}
+
+// Every man as a clay figure, the dead lying where they fell, two dots for
+// eyes, and at night a torch in every eighth man's hand.
+void draw_men(context &ctx) {
+  eyes.data.clear();
   torches.data.clear();
   const bool dark = darkness() > 0.3f;
   const f32 t = elapsed(ctx);
+  material3d_set(ctx, {.specular = 0.12f, .shininess = 18.0f, .rim = {1.0f, 0.9f, 0.8f, 0.12f}});
+  for (usize i = 0; i < state.corpses.size(); ++i) {
+    const corpse &c = state.corpses[i];
+    draw_figure(ctx, {.dead = c.age, .seed = static_cast<u32>(i) * 7u + 3u}, c.pos, c.facing,
+                shade(clay(c.owner), 0.7f));
+  }
+  // A new fight (the clock went back): every man starts from his own pose.
+  if (state.battle_time < memories_time || memories.size() != state.soldiers.size())
+    memories.assign(state.soldiers.size(), {});
+  memories_time = state.battle_time;
+  const f32 dt = delta(ctx);
   for (u32 i = 0; i < state.soldiers.size(); ++i) {
     const soldier &s = state.soldiers[i];
     if (!s.alive)
       continue;
-    const f32 r = s.radius * unit3d * 0.75f;
-    const f32 tall = r * 3.2f;
-    f32 base = stand_height(s.pos);
-    if (s.moving)
-      base += std::fabs(std::sin(s.anim * 12.0f)) * r * 0.35f; // a step
-    const vec3 foot = to3d(s.pos, base);
-    const bool flash = s.flash > 0.0f;
-    const rgba body = flash ? col_white : side_color(s.owner);
-    const rgba head = flash ? col_white : (s.owner == side::player ? col_player_light : col_enemy_light);
-    push(bodies, foot, {r, tall, r}, body);
-    push(heads, foot + vec3{0.0f, tall, 0.0f}, {r, r, r}, head);
-    if (dark && carries_torch(i)) {
-      const vec3 hand = foot + vec3{s.facing.x * r * 1.3f, tall + r * 1.4f, s.facing.y * r * 1.3f};
-      const f32 f = flicker(i, t);
-      push(torches, hand, vec3{r, r * 1.5f, r} * (0.28f * f), rgb(255, static_cast<i32>(120 + 80 * f), 40));
+    const figure_state st{.time = s.anim,
+                          .stride = s.stride,
+                          .pace = s.pace,
+                          .act = s.act,
+                          .act_kind = s.act_kind,
+                          .hurt = s.hurt,
+                          .down = s.down,
+                          .rise = s.rise,
+                          .fighting = s.fighting || s.target >= 0,
+                          .seed = i * 2654435761u + static_cast<u32>(s.owner)};
+    const rgba col = s.flash > 0.0f ? lerp(clay(s.owner), col_white, 0.6f) : clay(s.owner);
+    const figure_pose f = draw_figure(ctx, st, s.pos, s.facing, col, &memories[i], dt);
+    if (dark && carries_torch(i) && s.down <= 0.0f && s.rise <= 0.0f) {
+      const f32 k = flicker(i, t);
+      const f32 r = figure_height * 0.03f * k;
+      push(torches, f.hand + vec3{0.0f, r * 1.2f, 0.0f}, {r, r * 1.5f, r}, rgb(255, static_cast<i32>(120 + 80 * k), 40));
     }
   }
-  upload(ctx, bodies);
-  upload(ctx, heads);
+  if (pose_row)
+    draw_pose_row(ctx);
+  upload(ctx, eyes);
   upload(ctx, torches);
-  material3d_set(ctx, {.specular = 0.45f, .shininess = 40.0f, .rim = {1.0f, 1.0f, 1.0f, 0.15f}});
-  draw(ctx, mesh3d_cylinder_low, bodies);
-  draw(ctx, mesh3d_sphere_low, heads);
+  material3d_set(ctx, {.specular = 0.6f, .shininess = 60.0f, .cast_shadows = false});
+  draw(ctx, mesh3d_sphere_low, eyes);
   material3d_set(ctx, {.emission = {1.0f, 0.6f, 0.2f, 1.0f}, .unlit = true, .cast_shadows = false});
   draw(ctx, mesh3d_sphere_low, torches);
   material3d_set(ctx, {});
 }
 
-// Colour of a particle at `k` = life left, 1 new to 0 gone.
-rgba particle_color(const fx_particle &p, f32 k) {
-  switch (p.kind) {
-  case fx_kind::fire:
-    if (k > 0.8f)
-      return rgb(255, 250, 220);
-    if (k > 0.55f)
-      return rgb(255, 214, 90);
-    if (k > 0.3f)
-      return rgb(240, 130, 40);
-    return rgb(170, 60, 30, 220);
-  case fx_kind::smoke:
-    return with_alpha(p.color, std::min(1.0f, k * 1.6f) * 0.6f);
-  case fx_kind::dust:
-    return with_alpha(p.color, k * 0.8f);
-  default:
-    return with_alpha(p.color, std::min(1.0f, k * 2.0f));
-  }
-}
-
-// The sim's particles live on the table; in 3D smoke and fire also rise.
+// Dust kicked up by feet and falls, and the sparks of blows landing.
 void draw_particles(context &ctx) {
   puffs.data.clear();
   glows.data.clear();
   for (const fx_particle &p : state.particles) {
-    if (p.delay > 0.0f || p.kind == fx_kind::ring)
+    if (p.delay > 0.0f)
       continue;
     const f32 k = clamp(p.life / std::max(0.001f, p.max_life), 0.0f, 1.0f);
     const f32 age = 1.0f - k;
-    const rgba col = particle_color(p, k);
-    f32 lift = 0.12f, size = p.size * unit3d * 0.5f;
-    switch (p.kind) {
-    case fx_kind::fire:
-      lift = 0.1f + age * 0.5f;
-      size *= 0.4f + 0.6f * k;
-      break;
-    case fx_kind::smoke:
-      lift = 0.3f + age * 1.4f;
-      break;
-    case fx_kind::dust:
-      lift = 0.05f + age * 0.25f;
-      break;
-    case fx_kind::debris:
-      lift = 0.05f + std::sin(age * pi) * 0.6f;
-      break;
-    default:
-      lift = 0.2f + age * 0.2f;
-      break;
-    }
-    const vec3 at = to3d(p.pos, stand_height(p.pos) + lift);
-    const bool glow = p.kind == fx_kind::fire || p.kind == fx_kind::spark;
-    push(glow ? glows : puffs, at, {size, size, size}, col);
+    const f32 size = p.size * unit3d * 0.5f;
+    if (p.kind == fx_kind::dust)
+      push(puffs, to3d(p.pos, stand_height(p.pos) + 0.05f + age * 0.25f), {size, size, size},
+           with_alpha(p.color, k * 0.8f));
+    else
+      push(glows, to3d(p.pos, stand_height(p.pos) + 0.25f + age * 0.2f), {size, size, size},
+           with_alpha(p.color, std::min(1.0f, k * 2.0f)));
   }
   upload(ctx, puffs);
   upload(ctx, glows);
   material3d_set(ctx, {.specular = 0.0f, .cast_shadows = false});
   draw(ctx, mesh3d_sphere_low, puffs);
-  material3d_set(ctx, {.emission = {1.0f, 0.7f, 0.3f, 0.8f}, .unlit = true, .cast_shadows = false});
+  material3d_set(ctx, {.emission = {1.0f, 0.9f, 0.6f, 0.8f}, .unlit = true, .cast_shadows = false});
   draw(ctx, mesh3d_sphere_low, glows);
   material3d_set(ctx, {});
 }
 
-// Degrees that turn the cylinder mesh (up +y) to point along `d`.
-vec3 turn_to(vec3 d) {
-  const f32 len = length(d);
-  if (len < 0.0001f)
-    return {};
-  const f32 pitch = std::acos(clamp(d.y / len, -1.0f, 1.0f));
-  const f32 yaw = std::atan2(d.x, d.z);
-  return {pitch * 180.0f / pi, yaw * 180.0f / pi, 0.0f};
-}
-
 void draw_battle(context &ctx) {
-  // Scorches, the dead, then the living.
-  marks.data.clear();
-  for (const scorch &sc : state.scorches) {
-    const f32 r = sc.radius * unit3d;
-    push(marks, to3d(sc.pos, stand_height(sc.pos) + 0.004f), {r, 0.01f, r}, rgb(60, 48, 36, 190));
-  }
-  upload(ctx, marks);
-  material3d_set(ctx, {.specular = 0.0f, .cast_shadows = false});
-  draw(ctx, mesh3d_cylinder_low, marks);
-  material3d_set(ctx, {});
-
-  corpses.data.clear();
-  for (const corpse &c : state.corpses) {
-    const f32 r = c.radius * unit3d * 0.8f;
-    const vec3 foot = to3d(c.pos, stand_height(c.pos) + r);
-    const vec3 along{c.facing.x, 0.0f, c.facing.y};
-    push(corpses, foot - along * (r * 1.6f), {r, r * 3.2f, r}, shade(side_dark(c.owner), 0.8f), turn_to(along));
-  }
-  upload(ctx, corpses);
-  material3d_set(ctx, {.specular = 0.1f});
-  draw(ctx, mesh3d_cylinder_low, corpses);
-  material3d_set(ctx, {});
-
-  draw_soldiers(ctx);
-
-  arrows.data.clear();
-  shells.data.clear();
-  for (const projectile &p : state.projectiles) {
-    const auto at = [&](f32 t) {
-      const vec2 ground = lerp(p.from, p.to, t);
-      return to3d(ground, stand_height(ground) + 0.35f + std::sin(t * pi) * p.arc * unit3d);
-    };
-    const vec3 here = at(p.t);
-    if (p.source == arm::artillery) {
-      push(shells, here, {0.07f, 0.07f, 0.07f}, rgb(40, 38, 36));
-    } else {
-      // A shaft along its flight, its tip where the arrow is.
-      const vec3 d = at(std::min(1.0f, p.t + 0.03f)) - here;
-      const vec3 way = length(d) > 0.0001f ? normalize(d) : vec3{0.0f, 1.0f, 0.0f};
-      push(arrows, here - way * 0.24f, {0.012f, 0.24f, 0.012f}, rgb(70, 52, 34), turn_to(way));
-    }
-  }
-  upload(ctx, arrows);
-  upload(ctx, shells);
-  draw(ctx, mesh3d_cylinder_low, arrows);
-  draw(ctx, mesh3d_sphere_low, shells);
-
+  draw_men(ctx);
   draw_particles(ctx);
 }
 
@@ -640,10 +626,6 @@ void add_lights(context &ctx) {
                       .radius = radius});
   };
   const rgba fire = rgb(255, 170, 90);
-  // Blasts first, only their big flashes.
-  for (const fx_particle &p : state.particles)
-    if (p.kind == fx_kind::fire && p.delay <= 0.0f && p.size >= 10.0f && left > light3d_max / 2)
-      add(p.pos, 0.5f, p.size * unit3d * 8.0f, 2.0f * dark * clamp(p.life / p.max_life * 2.0f, 0.0f, 1.0f), fire);
   if (state.screen == phase::deploy) {
     // Camp fires: at home for the player, at the camps for the enemy.
     for (const troop &c : state.board) {
@@ -695,17 +677,19 @@ void draw_arrow(context &ctx, vec2 from, vec2 dir, f32 len, rgba col) {
   draw_line(ctx, tip, tip - dir * head - side * head * 0.7f, 1.0f, col);
 }
 
-// A troop's badge over the picture, its bottom middle at `at` (screen): the
-// colour of its size, its arm's symbol, and a bar of how many are left.
-void draw_badge(context &ctx, vec2 at, arm a, i32 tier, side owner, f32 left, rgba edge) {
-  const rect flag{{std::floor(at.x) - 8.0f, std::floor(at.y) - 14.0f}, {17.0f, 11.0f}};
-  draw_rect(ctx, flag, tiers[tier].color);
+// A group's badge over the picture, its bottom middle at `at` (screen): the
+// colour of its size, how many men it has, and a bar of how many are left.
+void draw_badge(context &ctx, vec2 at, i32 tier, side owner, i32 men, f32 left, rgba edge) {
+  const rect flag{{std::floor(at.x) - 9.0f, std::floor(at.y) - 15.0f}, {19.0f, 12.0f}};
+  draw_rect(ctx, flag, tiers[static_cast<usize>(tier)].color);
   draw_rect_lines(ctx, flag, 1.0f, edge);
   // Dark or light to stand out on the size colour.
   const bool dark_flag = tier == 3 || tier == 4;
-  draw_arm_symbol(ctx, flag.pos + vec2{6.0f, 3.0f}, a, 1.0f, dark_flag ? col_white : rgb(30, 26, 22));
-  draw_rect(ctx, {flag.pos + vec2{0.0f, 12.0f}, {17.0f, 2.0f}}, rgb(20, 14, 10, 160));
-  draw_rect(ctx, {flag.pos + vec2{0.0f, 12.0f}, {std::ceil(17.0f * left), 2.0f}}, side_color(owner));
+  char count[8];
+  std::snprintf(count, sizeof(count), "%d", men);
+  text_centered(ctx, count, flag.pos + flag.size * 0.5f, dark_flag ? col_white : rgb(30, 26, 22), 11.0f);
+  draw_rect(ctx, {flag.pos + vec2{0.0f, 13.0f}, {19.0f, 2.0f}}, rgb(20, 14, 10, 160));
+  draw_rect(ctx, {flag.pos + vec2{0.0f, 13.0f}, {std::ceil(19.0f * left), 2.0f}}, side_color(owner));
 }
 
 // Where a flag's badge sits on screen: over the top of its pole.
@@ -746,7 +730,30 @@ vec2 order_face(context &ctx, i32 i) {
                                                                                                   : c.face;
 }
 
+// Over each turf: its name, and a bar of the claim on it running from the
+// middle to the player's side (right) or the enemy's (left).
+void draw_turf_labels(context &ctx) {
+  for (const turf &t : state.turfs) {
+    bool visible = false;
+    const vec2 at = table_to_screen(ctx, t.pos, 0.4f, &visible);
+    if (!visible)
+      continue;
+    text_shadow(ctx, t.name, at - vec2{measure(ctx, t.name).x * 0.5f, 18.0f}, holder_color(t.held_by));
+    const rect bar{{std::floor(at.x) - 30.0f, std::floor(at.y)}, {60.0f, 5.0f}};
+    draw_rect(ctx, bar, rgb(20, 14, 10, 200));
+    const f32 mid = bar.pos.x + 30.0f;
+    const f32 w = std::fabs(t.claim) * 30.0f;
+    if (t.claim > 0.0f)
+      draw_rect(ctx, {{mid, bar.pos.y}, {std::ceil(w), 5.0f}}, col_player);
+    else if (t.claim < 0.0f)
+      draw_rect(ctx, {{mid - std::ceil(w), bar.pos.y}, {std::ceil(w), 5.0f}}, col_enemy_light);
+    draw_rect(ctx, {{mid, bar.pos.y - 1.0f}, {1.0f, 7.0f}}, col_white);
+    draw_rect_lines(ctx, bar, 1.0f, rgb(20, 14, 10));
+  }
+}
+
 void draw_overlays(context &ctx) {
+  draw_turf_labels(ctx);
   if (state.screen == phase::deploy) {
     const bool pointing = !ui_mouse_over(ctx) && state.cmd == command::none && state.menu.kind == menu_kind::none;
     const i32 hover = pointing ? flag_at(ctx, side::player) : -1;
@@ -758,28 +765,22 @@ void draw_overlays(context &ctx) {
                   selected ? col_gold_light : with_alpha(col_player_light, 0.8f));
     }
     for (const troop &c : current_level().enemy)
-      draw_badge(ctx, badge_point(ctx, c.pos), c.type, c.tier, c.owner, 1.0f, side_color(c.owner));
+      draw_badge(ctx, badge_point(ctx, c.pos), c.tier, c.owner, tiers[static_cast<usize>(c.tier)].men, 1.0f,
+                 side_color(c.owner));
     for (usize i = 0; i < state.board.size(); ++i) {
       const troop &c = state.board[i];
       const i32 k = static_cast<i32>(i);
       const bool lit = k == hover || k == state.selected || k == state.menu.troop;
-      draw_badge(ctx, badge_point(ctx, c.pos), c.type, c.tier, c.owner, 1.0f, lit ? col_gold_light : side_color(c.owner));
+      draw_badge(ctx, badge_point(ctx, c.pos), c.tier, c.owner, tiers[static_cast<usize>(c.tier)].men, 1.0f,
+                 lit ? col_gold_light : side_color(c.owner));
     }
-    // At each zone's corner, kept on screen.
-    const vec2 scr = screen_size(ctx);
-    const auto corner = [&](const rect &z) {
-      const vec2 p = table_to_screen(ctx, z.pos) + vec2{4.0f, 2.0f};
-      return vec2{clamp(p.x, 4.0f, scr.x - 80.0f), clamp(p.y, 52.0f, scr.y - 40.0f)};
-    };
-    text_shadow(ctx, "NHÀ", corner(player_zone), rgb(240, 150, 130));
-    text_shadow(ctx, "QUÂN ĐỊCH", corner(enemy_zone), rgb(150, 200, 240));
     return;
   }
   // Where each of the player's blocks was told to hold, and which way.
   for (const group &g : state.groups)
     if (g.garrison && g.alive > 0)
       draw_orders(ctx, g.post, g.post, g.face, with_alpha(col_player_light, 0.5f));
-  // A badge over each block: size colour, arm, and how many are left.
+  // A badge over each group: size colour, men standing, and how many are left.
   for (const group &g : state.groups) {
     if (g.alive == 0)
       continue;
@@ -787,13 +788,13 @@ void draw_overlays(context &ctx) {
     bool visible = false;
     const vec2 at = table_to_screen(ctx, g.centroid, 0.9f, &visible);
     if (visible)
-      draw_badge(ctx, at, g.type, g.tier, g.owner, left, side_color(g.owner));
+      draw_badge(ctx, at, g.tier, g.owner, g.alive, left, side_color(g.owner));
   }
   for (const popup_text &p : state.popups) {
     const f32 a = clamp(p.timer / std::max(0.001f, p.max_time), 0.0f, 1.0f);
     const vec2 at = table_to_screen(ctx, p.pos, 1.5f);
-    text_centered(ctx, p.label.c_str(), at + vec2{2.0f, 2.0f}, rgb(20, 14, 10, static_cast<i32>(200 * a)), 32.0f);
-    text_centered(ctx, p.label.c_str(), at, with_alpha(p.color, a), 32.0f);
+    text_centered(ctx, p.label.c_str(), at + vec2{1.0f, 1.0f}, rgb(20, 14, 10, static_cast<i32>(200 * a)), 20.0f);
+    text_centered(ctx, p.label.c_str(), at, with_alpha(p.color, a), 20.0f);
   }
 }
 
@@ -906,24 +907,30 @@ void top_bar(context &ctx) {
   const level_def &lvl = current_level();
   ui_begin(ctx, {.id = "top_bar", .anchor = {0.0f, 0.0f}, .pivot = {0.0f, 0.0f},
                  .width = scr.x, .navigable = false});
-  char title[128];
-  std::snprintf(title, sizeof(title), "%s", lvl.name);
+  i32 ours = 0, theirs = 0, free = 0;
+  turf_counts(ours, theirs, free);
+  char title[160];
+  std::snprintf(title, sizeof(title), "%s   ·   %02d:00   ·   Địa bàn: ta %d, Rồng Xanh %d, bỏ trống %d", lvl.name,
+                static_cast<i32>(state.hour), ours, theirs, free);
   hud_label(ctx, title, col_paper);
   ui_row(ctx, 3);
   char info[80];
   if (state.screen == phase::deploy) {
-    std::snprintf(info, sizeof(info), "Đơn vị  %d", troop_count(side::player));
+    i32 men = 0;
+    for (const troop &c : state.board)
+      men += tiers[static_cast<usize>(c.tier)].men;
+    std::snprintf(info, sizeof(info), "Đàn em  %d nhóm, %d người", troop_count(side::player), men);
     hud_label(ctx, info, col_paper);
-    std::snprintf(info, sizeof(info), "Quân số mới  %s %s", tiers[state.new_tier].name, tiers[state.new_tier].value);
+    std::snprintf(info, sizeof(info), "Nhóm mới  %s %s người", tiers[static_cast<usize>(state.new_tier)].name,
+                  tiers[static_cast<usize>(state.new_tier)].value);
     hud_label(ctx, info, col_text_hint);
-    std::snprintf(info, sizeof(info), "%02d:00  /  Bày trận", static_cast<i32>(state.hour));
-    hud_label(ctx, info, col_text_hint);
+    hud_label(ctx, "Chuẩn bị", col_text_hint);
   } else {
     char now[24], start[24];
     for (i32 i = 0; i < 2; ++i) {
       format_men(now, sizeof(now), state.men_now[i]);
       format_men(start, sizeof(start), state.men_start[i]);
-      std::snprintf(info, sizeof(info), "%s  %s / %s", i == 0 ? "Ta" : "Địch", now, start);
+      std::snprintf(info, sizeof(info), "%s  %s / %s", i == 0 ? "Ta" : "Rồng Xanh", now, start);
       hud_bar(ctx, state.men_now[i] / std::max(1.0f, state.men_start[i]), info,
               i == 0 ? rgb(141, 63, 49) : rgb(50, 91, 106));
     }
@@ -943,7 +950,7 @@ void deploy_bar(context &ctx) {
   ui_end(ctx);
   ui_begin(ctx, {.id = "deploy_order", .anchor = {1.0f, 1.0f}, .pivot = {1.0f, 1.0f},
                  .offset = {-8.0f, -6.0f}, .width = 136.0f, .navigable = false});
-  if (hud_button(ctx, "XUẤT QUÂN", true, !state.board.empty()))
+  if (hud_button(ctx, "LÊN ĐƯỜNG", true, !state.board.empty()))
     start_battle(ctx);
   ui_end(ctx);
 }
@@ -1006,9 +1013,9 @@ void troop_tooltip(context &ctx) {
     return;
   }
   char l1[96], l2[96];
-  std::snprintf(l1, sizeof(l1), "%s %s · %s", c->owner == side::player ? "Ta:" : "Địch:", spec(c->type).name,
-                tiers[c->tier].name);
-  std::snprintf(l2, sizeof(l2), "%d lính", tiers[c->tier].men);
+  std::snprintf(l1, sizeof(l1), "%s %s", c->owner == side::player ? "Đàn em:" : "Băng Rồng Xanh:",
+                tiers[static_cast<usize>(c->tier)].name);
+  std::snprintf(l2, sizeof(l2), "%d người, tay không", tiers[static_cast<usize>(c->tier)].men);
   const char *lines[2] = {l1, l2};
   tooltip(ctx, lines, 2, c->owner == side::player ? col_player : col_enemy_light);
 }
@@ -1019,17 +1026,16 @@ void command_hint(context &ctx) {
     return;
   vec2 at{};
   const bool on_table = mouse_on_table(ctx, &at);
-  const troop &c = state.board[static_cast<usize>(state.selected)];
   const char *err = nullptr;
   if (state.cmd == command::move)
-    err = on_table ? troop_error(c.type, at, state.selected) : "Ngoài sa bàn";
+    err = on_table ? troop_error(at, state.selected) : "Ngoài sa bàn";
   if (!err)
     return;
   const char *lines[1] = {err};
   tooltip(ctx, lines, 1, col_bad);
 }
 
-// --- Circle menu: arms to raise, or orders for a troop ---
+// --- Circle menu: the orders for a group ---
 //
 // A ring cut into equal slices, one per item, the first at the top and the
 // rest clockwise; each slice holds its item's symbol.
@@ -1069,7 +1075,7 @@ void draw_slice(context &ctx, vec2 c, f32 a0, f32 a1, rgba col) {
 }
 
 const char *order_name(order o) {
-  static const char *names[order_count] = {"Đổi hướng", "Dời cờ", "Tăng quân", "Giảm quân", "Rút quân"};
+  static const char *names[order_count] = {"Đổi hướng", "Dời cờ", "Thêm người", "Bớt người", "Gọi về"};
   return names[static_cast<i32>(o)];
 }
 
@@ -1111,10 +1117,7 @@ void draw_radial(context &ctx) {
     draw_slice(ctx, center, mid - step * 0.5f, mid + step * 0.5f, hot ? col_seal : on ? col_button : col_button_off);
     const vec2 p = radial_item_pos(ctx, i);
     const rgba ink = hot ? col_gold_light : on ? col_paper : rgb(110, 100, 86);
-    if (m.kind == menu_kind::arms)
-      draw_arm_symbol(ctx, p - vec2{5.0f, 5.0f}, static_cast<arm>(m.items[i]), 2.0f, ink);
-    else
-      draw_order_icon(ctx, static_cast<order>(m.items[i]), p, ink);
+    draw_order_icon(ctx, static_cast<order>(m.items[i]), p, ink);
   }
   // The cuts between the slices, and the rims.
   if (m.items.size() > 1)
@@ -1127,24 +1130,12 @@ void draw_radial(context &ctx) {
   draw_circle_lines(ctx, center, radial_inner, 1.0f, col_panel_edge);
   // Where it points on the table.
   draw_circle(ctx, table_to_screen(ctx, m.at), 2.0f, col_gold_light);
-  // The name of the item under the mouse, and for an arm what it is good at.
+  // The name of the order under the mouse.
   if (hover < 0)
     return;
-  if (m.kind == menu_kind::arms) {
-    const arm a = static_cast<arm>(m.items[static_cast<usize>(hover)]);
-    char title[96];
-    std::snprintf(title, sizeof(title), "%s · %s %d lính", spec(a).name, tiers[state.new_tier].name,
-                  tiers[state.new_tier].men);
-    const auto lines = text_wrap(ctx, spec(a).desc, font_size, 240.0f, ui_font);
-    std::vector<const char *> pointers{title};
-    for (const auto &line : lines)
-      pointers.push_back(line.c_str());
-    tooltip(ctx, pointers.data(), static_cast<i32>(pointers.size()), col_panel_edge);
-  } else {
-    const order o = static_cast<order>(m.items[static_cast<usize>(hover)]);
-    const char *lines[1] = {order_name(o)};
-    tooltip(ctx, lines, 1, m.enabled[static_cast<usize>(hover)] ? col_panel_edge : col_bad);
-  }
+  const order o = static_cast<order>(m.items[static_cast<usize>(hover)]);
+  const char *lines[1] = {order_name(o)};
+  tooltip(ctx, lines, 1, m.enabled[static_cast<usize>(hover)] ? col_panel_edge : col_bad);
 }
 
 void result_popup(context &ctx) {
@@ -1154,21 +1145,26 @@ void result_popup(context &ctx) {
   result.panel.normal.outline = won ? col_panel_edge : col_seal;
   ui_style_set(ctx, result);
 
-  ui_popup_begin(ctx, {.id = "result", .title = won ? "ĐẠI THẮNG" : "THẤT TRẬN", .width = 260.0f});
-  hud_label(ctx, won ? "Quân địch tan vỡ." : "Quân ta vỡ trận.", col_white);
+  ui_popup_begin(ctx, {.id = "result", .title = won ? "THẮNG" : "THUA", .width = 260.0f});
+  i32 ours = 0, theirs = 0, free = 0;
+  turf_counts(ours, theirs, free);
+  char held[96];
+  std::snprintf(held, sizeof(held), "Địa bàn: ta %d, Rồng Xanh %d", ours, theirs);
+  hud_label(ctx, won ? "Cả vùng biết tên đại ca." : "Đàn em tan tác.", col_white);
+  hud_label(ctx, held, col_paper);
   char a[32], b[32], line[96];
   format_men(a, sizeof(a), state.men_start[0] - state.men_now[0]);
   format_men(b, sizeof(b), state.men_start[0]);
-  std::snprintf(line, sizeof(line), "Ta mất: %s/%s lính", a, b);
+  std::snprintf(line, sizeof(line), "Ta gục: %s/%s người", a, b);
   hud_label(ctx, line, rgb(240, 170, 160));
   format_men(a, sizeof(a), state.men_start[1] - state.men_now[1]);
   format_men(b, sizeof(b), state.men_start[1]);
-  std::snprintf(line, sizeof(line), "Địch mất: %s/%s lính", a, b);
+  std::snprintf(line, sizeof(line), "Rồng Xanh gục: %s/%s người", a, b);
   hud_label(ctx, line, rgb(160, 200, 240));
   const i32 secs = static_cast<i32>(state.battle_time);
-  std::snprintf(line, sizeof(line), "Giao chiến: %d:%02d", secs / 60, secs % 60);
+  std::snprintf(line, sizeof(line), "Thời gian: %d:%02d", secs / 60, secs % 60);
   hud_label(ctx, line, col_white);
-  if (ui_button(ctx, "BÀY LẠI TRẬN"))
+  if (ui_button(ctx, "LÀM LẠI"))
     state.restart_requested = true;
   ui_popup_end(ctx);
   ui_style_set(ctx, hud_style);
@@ -1188,6 +1184,11 @@ i32 radial_item_at(context &ctx) {
   a = std::fmod(a + 4.0f * pi, 2.0f * pi);
   const usize i = static_cast<usize>(a / radial_step());
   return static_cast<i32>(std::min(i, state.menu.items.size() - 1));
+}
+
+void show_pose_row(bool on, vec2 at) {
+  pose_row = on;
+  pose_row_at = at;
 }
 
 i32 flag_at(context &ctx, side owner) {
@@ -1228,8 +1229,7 @@ void render_cleanup(context &ctx) {
     model_unload(ctx, tuft);
     tuft = {};
   }
-  for (batch *b : {&frame, &tree_trunks, &tree_crowns, &bodies, &heads, &torches, &corpses, &marks,
-                   &arrows, &shells, &puffs, &glows})
+  for (batch *b : {&frame, &tree_trunks, &tree_crowns, &eyes, &torches, &puffs, &glows})
     if (b->buffer.id != 0) {
       instance_buffer_destroy(ctx, b->buffer);
       b->buffer = {};
@@ -1257,7 +1257,7 @@ void render_world(context &ctx) {
   material3d_set(ctx, {.specular = 0.05f});
   draw(ctx, mesh3d_sphere_low, tree_crowns);
   material3d_set(ctx, {});
-  draw_zones(ctx);
+  draw_turfs(ctx);
   if (state.screen == phase::deploy) {
     const bool pointing = state.cmd == command::none && state.menu.kind == menu_kind::none;
     const i32 hover = pointing ? flag_at(ctx, side::player) : -1;
@@ -1276,8 +1276,10 @@ void render_world(context &ctx) {
     if (state.cmd == command::move && sel >= 0 && sel < static_cast<i32>(state.board.size()) &&
         mouse_on_table(ctx, &at)) {
       const troop &c = state.board[static_cast<usize>(sel)];
-      draw_flag3d(ctx, at, c.tier, c.owner, true, 0.9f, troop_error(c.type, at, sel) != nullptr);
+      draw_flag3d(ctx, at, c.tier, c.owner, true, 0.9f, troop_error(at, sel) != nullptr);
     }
+    if (pose_row)
+      draw_men(ctx);
   } else {
     draw_battle(ctx);
   }
@@ -1297,7 +1299,7 @@ void render_ui(context &ctx) {
   if (state.screen == phase::deploy) {
     // One line per command (types.h), in its order.
     static const char *hints[] = {
-        "Phải: cắm cờ  /  Trái lên cờ: ra lệnh  /  Q E: xoay",
+        "Phải: cử đàn em tới đây  /  Trái lên cờ: ra lệnh  /  Q E: xoay",
         "Trái: chọn hướng đánh  /  Phải, Esc: thôi",
         "Trái: chỗ cắm cờ mới  /  Phải, Esc: thôi",
     };

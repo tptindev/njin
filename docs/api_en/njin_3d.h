@@ -254,6 +254,52 @@ struct shape3d {
 /// @param color Colour.
 void draw_shape3d(const context &ctx, const shape3d &shape, rgba color);
 
+/// One part of a blended SDF shape (draw_sdf_blend()): a rounded cone joining
+/// `a` to `b`, radius `ra` at `a` and `rb` at `b` (equal radii make a capsule,
+/// `a` on `b` a sphere).
+struct sdf_part {
+  vec3 a{0.0f, 0.0f, 0.0f}; ///< Centre of the first end.
+  vec3 b{0.0f, 0.0f, 0.0f}; ///< Centre of the second end.
+  f32 ra = 0.1f;            ///< Radius at `a`.
+  f32 rb = 0.1f;            ///< Radius at `b`.
+  /// How softly this part joins the parts before it in the list, world units.
+  /// Negative (the default) uses draw_sdf_blend()'s `blend`. Lets a joint be
+  /// filled in where wanted (a shoulder into the body) and stay slim where not
+  /// (an elbow, a knee: keep it small, since smooth min adds about `blend / 4`
+  /// at the joint).
+  f32 blend = -1.0f;
+};
+
+/// Most parts in one blended SDF shape.
+inline constexpr u32 sdf_blend_max = 32;
+
+/// Draws several SDF parts melted into one solid (smooth min): where two parts
+/// meet the joint is filled in smoothly instead of creased, like modelling
+/// clay. A character built from a head, neck, body and limb segments, its
+/// parts placed again each frame by its pose, stays seamless as it moves.
+///
+/// Like draw_shape3d(): worked out per pixel so its outline is smooth at any
+/// size, lit, casting and receiving shadows, per material3d_set() and
+/// fx3d_set() at the call. Each blended shape is one draw call; it costs by
+/// the pixels it covers times its number of parts.
+///
+/// @code
+/// // An arm: upper arm, forearm and hand joined.
+/// const njin::sdf_part arm[] = {{.a = shoulder, .b = elbow, .ra = 0.05f, .rb = 0.04f},
+///                               {.a = elbow, .b = wrist, .ra = 0.04f, .rb = 0.03f},
+///                               {.a = wrist, .b = fingers, .ra = 0.035f, .rb = 0.02f}};
+/// njin::draw_sdf_blend(ctx, arm, 3, 0.03f, clay);
+/// @endcode
+/// @param ctx Engine context.
+/// @param parts The parts; copied, they need not live past the call.
+/// @param count Number of parts, 1 to njin::sdf_blend_max (the rest are
+/// dropped, with a warning).
+/// @param blend How soft the joints are, world units, for the parts that set
+/// no `sdf_part::blend` of their own: 0 is a hard join, more makes one part
+/// flow further into the next.
+/// @param color Colour.
+void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color);
+
 /// Loads a 3D model from a glTF (`.glb`, `.gltf`) or OBJ file.
 ///
 /// The path resolves like texture_load(). The file's material colours and

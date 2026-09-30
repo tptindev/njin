@@ -35,6 +35,7 @@ inside a UI panel, for example).
 |---|---|---|
 | draw_cube3d(), draw_sphere3d(), draw_plane3d(), draw_cylinder3d(), draw_capsule3d() | Triangle mesh | Many, cheap: walls, floors, bullets |
 | draw_shape3d() with njin::shape3d | SDF shape: sphere, rounded box, capsule, rounded cylinder, torus | Something that needs to look smooth up close: characters, items |
+| draw_sdf_blend() with njin::sdf_part | Several rounded cones melted into one solid (smooth min) | A clay character built from head, body and limbs, seamless as it moves |
 | draw_instanced3d() | Thousands of mesh shapes in one draw call | Forests, crowds, floor tiles |
 | draw_model(), draw_model_anim() | glTF/OBJ model loaded with model_load() | Props, characters made in Blender |
 | model_create() with njin::mesh3d_data | Model from a triangle mesh the game builds (positions, per-vertex colours, indices) | Terrain grown from a seed, shapes put together at run time |

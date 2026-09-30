@@ -58,109 +58,79 @@ enum class side : i32 { player = 0, enemy = 1 };
 
 inline side other(side s) { return s == side::player ? side::enemy : side::player; }
 
-// --- Arms (binh chủng) -------------------------------------------------------
+// --- Đàn em -----------------------------------------------------------------
 //
-// Counters: archers beat spears, cavalry beats archers and artillery, spears
-// beat cavalry, infantry beats spears and shrugs off arrows, artillery breaks
-// dense blocks. Elephants trample infantry, archers and horses (horses fear
-// them) and fall to long spears and guns. Boats keep to the water and shoot
-// from it; guns and fire arrows sink them.
+// A turf war between two gangs. Every man on either side is the same: a
+// street fighter with his fists and feet. What a boss chooses is where to
+// send them and how many at once.
 
-enum class arm : i32 { infantry = 0, spear, archer, cavalry, artillery, elephant, boat, count };
-
-// Boats sail; everyone else walks.
-inline bool sails(arm a) { return a == arm::boat; }
-
-inline constexpr i32 arm_count = static_cast<i32>(arm::count);
-
-struct arm_spec {
-  const char *name;
-  const char *tag; // short name
-  const char *desc;
-  i32 men_per_figure; // artillery: one gun is a crew of several men
-  // Per man; a figure that stands for several men multiplies hp and damage.
+struct fighter_spec {
   f32 hp;
-  f32 damage;
-  f32 interval;  // seconds between blows or shots
-  f32 range;     // 0 is melee
-  f32 min_range; // ranged units will not fire closer than this
-  f32 reach;     // melee reach past touching
-  f32 speed;
-  f32 splash;    // artillery shell radius, elephant trample radius
-  f32 body;      // figure radius for one man
+  f32 damage;   // a punch; a kick lands harder
+  f32 interval; // seconds between blows
+  f32 reach;    // past touching
+  f32 speed;    // walking, world units a second; running is faster
+  f32 body;     // radius
 };
+inline constexpr fighter_spec fighter{100.0f, 12.0f, 0.8f, 3.0f, 30.0f, 4.2f};
+inline constexpr f32 run_factor = 1.7f;   // running speed over walking
+inline constexpr f32 blow_time = 0.45f;   // a punch or kick: wind-up, blow, back
+inline constexpr f32 flinch_time = 0.25f; // reeling from a blow taken
+inline constexpr f32 down_time = 1.2f;    // lying after being knocked down
+inline constexpr f32 rise_time = 0.7f;    // getting back up
 
-inline constexpr std::array<arm_spec, arm_count> arms{{
-    {"Bộ binh", "BB", "Kiếm khiên. Bền, khiên đỡ nửa sát thương tên. Thắng thương binh khi giáp lá cà.",
-     1, 100.0f, 11.0f, 1.0f, 0.0f, 0.0f, 3.0f, 40.0f, 0.0f, 4.2f},
-    {"Thương binh", "TB", "Giáo dài. Chặn đứng kỵ binh (x3 sát thương, triệt xung phong). Sợ tên.",
-     1, 90.0f, 9.0f, 1.1f, 0.0f, 0.0f, 9.0f, 38.0f, 0.0f, 4.2f},
-    {"Cung thủ", "CT", "Bắn xa. Mưa tên diệt thương binh; yếu khi bị áp sát.",
-     1, 60.0f, 7.0f, 1.5f, 250.0f, 0.0f, 3.0f, 40.0f, 0.0f, 4.0f},
-    {"Kỵ binh", "KB", "Nhanh. Lao đủ đà thì xung phong x3; x2 vào cung thủ và pháo. Kỵ thương binh.",
-     1, 150.0f, 13.0f, 1.0f, 0.0f, 0.0f, 4.0f, 92.0f, 0.0f, 5.2f},
-    {"Pháo binh", "PB", "Mỗi khẩu 5 người. Bắn cực xa, nổ lan diệt đội hình dày. Chậm, không tự vệ.",
-     5, 50.0f, 16.0f, 4.0f, 480.0f, 110.0f, 0.0f, 20.0f, 26.0f, 3.6f},
-    {"Tượng binh", "VO", "Mỗi con voi 5 người. Rất trâu, giẫm đạp cả đám quanh nó. Ngựa sợ voi. Sợ giáo dài và pháo.",
-     5, 170.0f, 13.0f, 1.6f, 0.0f, 0.0f, 6.0f, 56.0f, 16.0f, 5.0f},
-    {"Chiến thuyền", "TH", "Mỗi thuyền 10 người. Chỉ đi trên sông suối, bắn tên từ dưới nước. Đặt gần sông. Sợ pháo.",
-     10, 80.0f, 6.0f, 1.6f, 230.0f, 0.0f, 3.0f, 62.0f, 0.0f, 4.2f},
-}};
-
-inline const arm_spec &spec(arm a) { return arms[static_cast<i32>(a)]; }
-
-// Damage multiplier: attacker arm (row) against defender arm (column).
-inline constexpr f32 counter[arm_count][arm_count] = {
-    //  inf   spear  arch  cav   art   ele   boat
-    {1.0f, 1.4f, 1.0f, 1.0f, 1.3f, 0.7f, 1.0f}, // infantry
-    {0.9f, 1.0f, 1.0f, 3.0f, 1.3f, 2.2f, 1.0f}, // spear
-    {0.5f, 1.6f, 1.0f, 0.9f, 1.0f, 0.6f, 1.2f}, // archer (arrows)
-    {1.0f, 0.6f, 2.0f, 1.0f, 2.0f, 0.5f, 0.5f}, // cavalry
-    {1.0f, 1.2f, 1.0f, 1.0f, 1.0f, 1.6f, 1.8f}, // artillery
-    {1.5f, 0.7f, 1.8f, 1.8f, 1.4f, 1.0f, 1.0f}, // elephant
-    {0.8f, 1.3f, 1.0f, 1.0f, 1.0f, 0.8f, 1.0f}, // boat (arrows)
-};
-
-// --- Troop sizes (tiers) -----------------------------------------------------
+// --- Group sizes (tiers) -----------------------------------------------------
 //
-// A troop of a tier is `men` soldiers, three times the tier below; past
-// company size one figure stands for several men so a corps stays a few
-// hundred figures.
+// One figure on the table is one man: gangs are small.
 
-inline constexpr i32 tier_count = 7;
+inline constexpr i32 tier_count = 5;
 
 struct tier_spec {
   const char *name;
   const char *value; // men, short
   i32 men;
-  i32 max_figures;
-  rgba color;  // its flag
-  rgba stripe; // (unused art colour)
+  rgba color; // its flag
 };
 
 inline constexpr std::array<tier_spec, tier_count> tiers{{
-    {"Tiểu đội", "10", 10, 10, rgb(232, 228, 216), rgb(60, 60, 64)},
-    {"Trung đội", "30", 30, 30, rgb(196, 44, 40), rgb(245, 240, 230)},
-    {"Đại đội", "90", 90, 90, rgb(40, 140, 72), rgb(245, 240, 230)},
-    {"Tiểu đoàn", "270", 270, 135, rgb(34, 34, 38), rgb(230, 200, 90)},
-    {"Trung đoàn", "810", 810, 162, rgb(110, 50, 150), rgb(245, 240, 230)},
-    {"Sư đoàn", "2.4K", 2430, 243, rgb(230, 150, 30), rgb(40, 30, 20)},
-    {"Quân đoàn", "7.3K", 7290, 270, rgb(200, 170, 70), rgb(110, 20, 20)},
+    {"Bộ ba", "3", 3, rgb(232, 228, 216)},
+    {"Nhóm", "5", 5, rgb(196, 44, 40)},
+    {"Toán", "8", 8, rgb(40, 140, 72)},
+    {"Đám", "12", 12, rgb(34, 34, 38)},
+    {"Băng", "20", 20, rgb(110, 50, 150)},
 }};
 
-inline i32 figure_count(arm a, i32 tier) {
-  const i32 by_crew = std::max(1, tiers[tier].men / spec(a).men_per_figure);
-  return std::min(by_crew, tiers[tier].max_figures);
-}
-
 struct troop {
-  arm type = arm::infantry;
   i32 tier = 0;
   side owner = side::player;
-  // The flag. The enemy stands here when the battle starts; the player's
-  // troops start at home (troop_home) and march here to hold it.
+  // The flag. The enemy stands here when the fight starts; the player's
+  // troops start at their home turf (troop_home) and walk here to hold it.
   vec2 pos{};
   vec2 face{0.0f, -1.0f}; // player: the way it faces at its flag, the way it attacks
+};
+
+// --- Turfs (địa bàn) ---------------------------------------------------------
+//
+// Places worth holding. Men standing on a turf with none of the other gang
+// there claim it little by little; a full claim turns it theirs. When time
+// runs out, the gang holding more turfs wins.
+
+inline constexpr i32 nobody = -1; // a turf nobody holds
+
+struct turf_def {
+  const char *name;
+  vec2 pos{};
+  f32 radius = 150.0f;
+  i32 held_by = nobody; // at the start: nobody, or a side
+};
+
+struct turf {
+  const char *name = "";
+  vec2 pos{};
+  f32 radius = 150.0f;
+  i32 held_by = nobody;
+  f32 claim = 0.0f; // -1 the enemy's, 1 the player's; turns a turf at either end
+  i32 men[2]{};     // on it now, by side
 };
 
 // --- Terrain -----------------------------------------------------------------
@@ -174,6 +144,8 @@ struct level_def {
   const char *name;
   const char *brief;
   std::vector<troop> enemy;
+  std::vector<turf_def> turfs;
+  i32 home_turf = 0; // the player's one turf at the start, where his men set out from
   // River: winds across the table near river_y, crossed only at the fords.
   bool river = false;
   f32 river_y = 600.0f;
@@ -200,19 +172,25 @@ struct soldier {
   vec2 slot{}; // place in the formation, relative to the group anchor
   f32 hp = 1.0f;
   f32 max_hp = 1.0f;
-  f32 weight = 1.0f; // men this figure stands for
   f32 radius = 4.0f;
   f32 cooldown = 0.0f;
   f32 think = 0.0f; // time to the next target search
-  f32 run = 0.0f;   // distance charged in a straight line (cavalry)
   f32 flash = 0.0f; // hit flash
-  f32 anim = 0.0f;  // animation clock, started at random so a block does not step in unison
+  f32 anim = 0.0f;  // animation clock, started at random so a group does not breathe in unison
+  // What the body is doing, for its animation (render.cpp) and for what it
+  // may do next.
+  f32 stride = 0.0f; // distance walked, for the steps
+  f32 pace = 0.0f;   // world units a second this step
+  f32 act = 0.0f;    // time left in a blow being thrown
+  i32 act_kind = 0;  // that blow: 0 left punch, 1 right punch, 2 kick
+  f32 hurt = 0.0f;   // time left flinching from a blow taken
+  f32 down = 0.0f;   // time left lying knocked down
+  f32 rise = 0.0f;   // time left getting up
   f32 route = 0.0f; // time to the next look for a way round
   vec2 via{};       // where to walk when the goal is behind something that cannot be crossed
   bool use_via = false;
   i32 target = -1;
   i32 group = 0;
-  arm type = arm::infantry;
   side owner = side::player;
   bool alive = true;
   bool fighting = false;
@@ -220,7 +198,6 @@ struct soldier {
 };
 
 struct group {
-  arm type = arm::infantry;
   i32 tier = 0;
   side owner = side::player;
   vec2 anchor{};
@@ -228,9 +205,10 @@ struct group {
   vec2 centroid{};
   i32 alive = 0;
   i32 figures = 0;
-  nav_agent path; // the anchor's way to the enemy, round mountains, rivers and cliffs
+  nav_agent path; // the anchor's way, round mountains, rivers and cliffs
   f32 repath = 0.0f;
-  // A garrison (the player's blocks) does not hunt: it marches to `post`,
+  vec2 goal{};    // where it is heading (an enemy group goes for turfs and men)
+  // A garrison (the player's groups) does not hunt: it marches to `post`,
   // faces `face` and fights only what comes within its guard.
   bool garrison = false;
   vec2 post{};
@@ -238,36 +216,19 @@ struct group {
   f32 span = 0.0f; // how far the formation reaches from its anchor
 };
 
-struct projectile {
-  vec2 from{};
-  vec2 to{};
-  f32 t = 0.0f;
-  f32 duration = 0.5f;
-  f32 damage = 0.0f;
-  f32 splash = 0.0f;
-  f32 arc = 0.0f;
-  i32 target = -1; // arrows hit this figure if it is still alive
-  arm source = arm::archer;
-  side owner = side::player;
-};
-
 struct corpse {
   vec2 pos{};
   vec2 facing{0.0f, -1.0f};
   f32 radius = 3.0f;
-  arm type = arm::infantry;
   side owner = side::player;
+  f32 age = 0.0f; // seconds since he fell: he falls, then lies still
 };
 
 // What a particle is. Each kind has its own motion and colour over its life
 // (sim.cpp moves them, render.cpp colours them).
 enum class fx_kind : i32 {
-  spark,  // a bright chip of `color` that slows down
-  fire,   // white-hot to yellow, orange, red, then gone; rises a little
-  smoke,  // grey puff that rises, grows and thins
-  dust,   // sand-coloured puff that drifts and grows
-  debris, // dark bit thrown out of a blast
-  ring,   // shockwave: a circle that grows to `size`
+  spark, // a bright chip of `color` that slows down
+  dust,  // sand-coloured puff that drifts and grows
 };
 
 struct fx_particle {
@@ -275,26 +236,10 @@ struct fx_particle {
   vec2 vel{};
   f32 life = 0.0f;
   f32 max_life = 0.5f;
-  f32 size = 4.0f; // world units: side of the square, or the ring's final radius
+  f32 size = 4.0f; // world units
   rgba color{};
   fx_kind kind = fx_kind::spark;
   f32 delay = 0.0f; // seconds before it shows (smoke after the fire)
-};
-
-// An invisible shockwave: it bends the picture behind its front as it runs
-// out from a blast (assets/shaders/shockwave.fs).
-struct shockwave {
-  vec2 pos{};
-  f32 radius = 60.0f;   // world units, where the front ends up
-  f32 strength = 3.0f;  // screen pixels the front shifts the picture at first
-  f32 time = 0.0f;
-  f32 duration = 0.45f;
-};
-
-// A burnt patch where a shell landed; stays for the battle.
-struct scorch {
-  vec2 pos{};
-  f32 radius = 10.0f;
 };
 
 struct popup_text {
@@ -311,15 +256,14 @@ enum class phase { deploy, battle, result };
 enum class order : i32 { face, move, grow, shrink, withdraw, count };
 inline constexpr i32 order_count = static_cast<i32>(order::count);
 
-// A circle menu round a point on the table: the arms a troop can be raised
-// as there (right click on the table), or the orders for a troop (click on it).
-enum class menu_kind : i32 { none, arms, orders };
+// A circle menu of the orders for a troop, opened by a click on its flag.
+enum class menu_kind : i32 { none, orders };
 
 struct radial_menu {
   menu_kind kind = menu_kind::none;
   vec2 at{};              // world: where it was opened
   i32 troop = -1;         // orders: which troop on the table
-  std::vector<i32> items; // arm or order numbers, round from the top
+  std::vector<i32> items; // order numbers, round from the top
   std::vector<bool> enabled;
 };
 
@@ -335,9 +279,9 @@ struct game_state {
   bool won = false;
   bool restart_requested = false; // result popup button, handled next frame
 
-  // Deployment is free: any arm, any size, anywhere, as many troops as wanted.
+  // Sending men is free: any size, anywhere, as many groups as wanted.
   std::vector<troop> board;
-  i32 new_tier = 4;  // size of the next troop raised: the last one chosen
+  i32 new_tier = 2;  // size of the next group sent: the last one chosen
   radial_menu menu;
   // An order waiting for a place on the table, and for which troop.
   command cmd = command::none;
@@ -348,10 +292,8 @@ struct game_state {
   // Battle
   std::vector<soldier> soldiers;
   std::vector<group> groups;
-  std::vector<projectile> projectiles;
   std::vector<corpse> corpses;
-  std::vector<scorch> scorches;
-  std::vector<shockwave> shockwaves;
+  std::vector<turf> turfs;
   f32 battle_time = 0.0f;
   f32 hour = 10.0f; // time of day, 0 to 24
   f32 men_start[2]{};

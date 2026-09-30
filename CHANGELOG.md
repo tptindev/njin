@@ -8,6 +8,22 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+- **Runtime meshes**: `model_create` builds a model from a game-supplied triangle
+  mesh (`mesh3d_data`: positions, optional per-vertex normals and colors, optional
+  indices), used the same way as one loaded with `model_load` (`draw_model`,
+  `draw_instanced3d`, materials, `ray3d_model`). Normals are computed if not given.
+  For procedural geometry built at runtime, such as generated terrain.
+- **Low-poly instanced primitives**: `mesh3d_sphere_low` and `mesh3d_cylinder_low`
+  (about 100 triangles, versus a few thousand for the default sphere and cylinder)
+  for `draw_instanced3d` when drawing thousands of small shapes, where the smooth
+  silhouette of the default meshes costs more GPU time than it is worth.
+- **Blended SDF figures**: `draw_sdf_blend` melts a list of rounded-cone
+  `sdf_part`s (a sphere or capsule is one part with equal or coincident ends) into
+  one seamless clay-like shape with a smooth min, sphere-traced per pixel like
+  `draw_shape3d`. Each part can set its own `blend` softness, so a joint that
+  should be filled in (a shoulder into a body) and one that should stay slim (an
+  elbow, a knee) can sit in the same figure without a global blend forcing a
+  tradeoff between the two.
 - **Breaking: names without the `njin_` prefix.** Inside `namespace njin`,
   `njin_ctx` is now `context`, `njin_cfg` is `config`, `njin_create`,
   `njin_destroy`, `njin_run` and `njin_quit` are `create`, `destroy`, `run` and
@@ -34,9 +50,22 @@ To release: edit that header, add a section here, commit, then
   and destroy the body with the entity. The inspector shows all of them.
 - **Fixed**: raylib's `IsModelValid` read past a skinned mesh's vertex buffers;
   models are now checked without it.
-- Samples: in `njin_platformer3d`, the player is an animated robot. The start
-  area gained a hill (a mesh body), a hinged seesaw, coins (sensors) and a sensor
-  goal. The lamps and flashlight of `njin_fps` now cast shadows.
+- **New tool**: `njin_model_editor` (`run_model_editor.bat`) builds SDF models by
+  combining sphere, box, capsule, cylinder and torus primitives with union, smooth
+  union, subtract and intersect, rigs them with a bone tree, poses and keyframes
+  clips on a timeline (ImGuizmo gizmos, undo/redo, `.model.json` projects), and
+  exports a static triangle mesh to OBJ. `NJIN_BUILD_MODEL_EDITOR` turns it off.
+- Samples: `njin_sandtable` was rewritten from a pixel-art army battle into a 3D
+  clay sand table where a gang boss sends lackeys to seize turf from a rival gang,
+  hand-to-hand only. Terrain is a smoothed, LOD height-field mesh (`model_create`)
+  with grass; men are procedural clay figures (`draw_sdf_blend`) with IK-placed
+  gait, multi-beat punches and kicks, and eased, momentum-carrying pose transitions
+  (idle, walk, run, fight, hit, knockdown, get up, die). The player starts holding
+  one turf, garrisoned there, and orders lackeys with a right-click radial menu
+  instead of a unit-type panel. In `njin_platformer3d`, the player is an animated
+  robot. The start area gained a hill (a mesh body), a hinged seesaw, coins
+  (sensors) and a sensor goal. The lamps and flashlight of `njin_fps` now cast
+  shadows.
 
 ## 0.5.0
 

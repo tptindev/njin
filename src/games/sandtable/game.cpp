@@ -1,6 +1,5 @@
 #include "game.h"
 #include "audio.h"
-#include "sprites.h"
 #include "levels.h"
 #include "render.h"
 #include "sim.h"
@@ -28,11 +27,11 @@ void fit_view(context &ctx) {
   window_set_virtual_size(ctx, {std::floor(win.x / pixel), std::floor(win.y / pixel)}, true);
 }
 
-// --- Setting up: circle menus ---
+// --- Setting up ---
 //
-// Right click on the table opens the arms a troop can be raised as there; a
-// click on a troop opens its orders. Orders that need a place (post, way,
-// move) then wait for the next click on the table.
+// Right click on the table sends a group of men there; a click on a group's
+// flag opens its orders in a circle menu. Orders that need a place (the way
+// to face, a new place for the flag) then wait for the next click.
 
 void close_menu() { state.menu = {}; }
 
@@ -41,28 +40,14 @@ void cancel_command() {
   state.selected = -1;
 }
 
-// The arms a troop can be raised as at `at`; none, and the reason shows.
-void open_arms_menu(context &ctx, vec2 at) {
-  radial_menu m{};
-  m.kind = menu_kind::arms;
-  m.at = at;
-  const char *why = nullptr;
-  for (i32 k = 0; k < arm_count; ++k) {
-    const char *err = troop_error(static_cast<arm>(k), at);
-    if (err == nullptr) {
-      m.items.push_back(k);
-      m.enabled.push_back(true);
-    } else if (why == nullptr) {
-      why = err;
-    }
-  }
-  if (m.items.empty()) {
+// A group of the size last chosen, sent to `at`; if it cannot go there, why.
+void send_men(context &ctx, vec2 at) {
+  if (const char *err = troop_error(at)) {
     ui_toast_clear(ctx);
-    ui_toast(ctx, why, {.seconds = 2.0f});
+    ui_toast(ctx, err, {.seconds = 2.0f});
     return;
   }
-  state.menu = std::move(m);
-  audio_play(ctx, sfx_type::click, 0.6f);
+  add_troop(ctx, state.new_tier, at);
 }
 
 void open_orders_menu(context &ctx, i32 index) {
@@ -96,10 +81,6 @@ void pick_from_menu(context &ctx, i32 item) {
   if (item < 0 || !m.enabled[static_cast<usize>(item)])
     return;
   const i32 k = m.items[static_cast<usize>(item)];
-  if (m.kind == menu_kind::arms) {
-    add_troop(ctx, static_cast<arm>(k), state.new_tier, m.at);
-    return;
-  }
   const i32 index = m.troop;
   switch (static_cast<order>(k)) {
   case order::face:
@@ -174,7 +155,7 @@ void deploy_mouse(context &ctx, bool in_hud) {
   if ((mouse_pressed(ctx, mouse_left) || mouse_pressed(ctx, mouse_right)) && own >= 0)
     open_orders_menu(ctx, own);
   else if (mouse_pressed(ctx, mouse_right) && on_table)
-    open_arms_menu(ctx, at);
+    send_men(ctx, at);
 }
 
 void handle_input(context &ctx) {
@@ -214,40 +195,41 @@ void handle_input(context &ctx) {
   }
 }
 
-// --- Scripted test run (--test [--plan ISACREB]) ---
+// --- Scripted test run (--test) ---
 
 struct test_config {
   bool enabled = false;
   i32 frame = 0;
   bool shot_mid = false;
   i32 zoom_frame = 0;
-  f32 battle_real = 0.0f; // real seconds and frames of battle up to the mid shot
+  f32 battle_real = 0.0f; // real seconds and frames of fight up to the mid shot
   i32 battle_frames = 0;
-  std::vector<arm> plan{arm::infantry, arm::archer, arm::spear, arm::cavalry, arm::artillery};
 };
 test_config test;
 
-// Two troops of every arm in `plan`, a regiment each, their flags in two
-// lines across the table just short of the river, melee in front, ranged
-// behind, facing the enemy. They march there from home.
-void auto_deploy(context &ctx, const std::vector<arm> &plan) {
-  std::vector<arm> lines[2]; // front, back
-  for (arm a : plan)
-    lines[spec(a).range > 0.0f ? 1 : 0].insert(lines[spec(a).range > 0.0f ? 1 : 0].end(), 2, a);
-  for (i32 row = 0; row < 2; ++row) {
-    const i32 count = static_cast<i32>(lines[row].size());
-    for (i32 i = 0; i < count; ++i) {
-      const arm a = lines[row][static_cast<usize>(i)];
-      vec2 pos{world_width * (0.1f + 0.8f * (static_cast<f32>(i) + 0.5f) / static_cast<f32>(count)),
-               row == 0 ? 740.0f : 800.0f};
-      // Off a hill or out of the river, a little toward home.
-      for (i32 tries = 0; tries < 4 && troop_error(a, pos) != nullptr; ++tries)
-        pos.y += 24.0f;
-      if (const char *err = troop_error(a, pos))
-        std::printf("[test] %s not raised: %s\n", spec(a).tag, err);
-      add_troop(ctx, a, 4, pos);
-    }
+// A group to every turf nobody holds: a Toán (8) to those on
+// the player's side of the river, an Đám (12) to those across it, each
+// facing north.
+void auto_deploy(context &ctx) {
+  for (const turf &t : state.turfs) {
+    if (t.held_by != nobody)
+      continue; // the enemy's, or the home turf, held from the start
+    const i32 tier = t.pos.y > 592.0f ? 2 : 3;
+    if (!add_troop(ctx, tier, t.pos))
+      std::printf("[test] no group sent to %s: %s\n", t.name, troop_error(t.pos));
   }
+}
+
+// The turfs, who holds them and how far each claim has gone.
+void print_turfs(const char *when) {
+  std::printf("[test] turfs %s:", when);
+  for (const turf &t : state.turfs)
+    std::printf(" %s=%s(%.2f)", t.name,
+                t.held_by == static_cast<i32>(side::player)  ? "ta"
+                : t.held_by == static_cast<i32>(side::enemy) ? "dich"
+                                                             : "-",
+                t.claim);
+  std::printf("\n");
 }
 
 void test_harness(context &ctx) {
@@ -256,8 +238,9 @@ void test_harness(context &ctx) {
   test.frame++;
   if (test.frame == 2) {
     load_level(ctx);
-    auto_deploy(ctx, test.plan);
-    std::printf("[test] %d troops on the table\n", troop_count(side::player));
+    auto_deploy(ctx);
+    std::printf("[test] %d groups sent\n", troop_count(side::player));
+    print_turfs("at the start");
   }
   // The table at noon, to see the ground's own colours, then back to the
   // level's hour.
@@ -278,29 +261,21 @@ void test_harness(context &ctx) {
   }
   if (test.frame == 12)
     screenshot(ctx, "sandtable_test_orders.png");
-  // And the arms that can be set down on open ground at home.
+  // The meadows and every pose of the men close up, at noon.
   if (test.frame == 13) {
     close_menu();
-    // The first open ground, going up the table from the bottom left.
-    vec2 spot{};
-    for (f32 y = 1150.0f; y > 100.0f && spot.x == 0.0f; y -= 50.0f)
-      for (f32 x = 100.0f; x < world_width - 100.0f && spot.x == 0.0f; x += 50.0f)
-        if (troop_error(arm::infantry, {x, y}) == nullptr)
-          spot = {x, y};
-    open_arms_menu(ctx, spot);
-    view_focus(spot, 12.0f, true);
-  }
-  if (test.frame == 18)
-    screenshot(ctx, "sandtable_test_arms.png");
-  // The meadows close up, at noon.
-  if (test.frame == 19) {
-    close_menu();
     state.hour = 12.0f;
-    view_focus({world_width * 0.5f, 1000.0f}, 10.0f, true);
+    show_pose_row(true, {1400.0f, 1000.0f});
+    view_focus({1400.0f, 1000.0f}, 9.0f, true);
   }
+  if (test.frame == 16)
+    screenshot(ctx, "sandtable_test_poses.png");
+  if (test.frame == 19)
+    view_focus({world_width * 0.5f, 1000.0f}, 10.0f, true);
   if (test.frame == 21)
     screenshot(ctx, "sandtable_test_meadow.png");
   if (test.frame == 22) {
+    show_pose_row(false);
     state.hour = current_level().hour;
     view_reset();
   }
@@ -350,8 +325,9 @@ void test_harness(context &ctx) {
       if (s.alive && g.garrison)
         strayed = std::max(strayed, distance(s.pos, g.anchor) - (150.0f + g.span));
     }
-    std::printf("[test] posts: %d/%d blocks at post, furthest man %.0f past the guard\n", at_post, blocks,
+    std::printf("[test] posts: %d/%d groups at their flags, furthest man %.0f past the guard\n", at_post, blocks,
                 std::max(0.0f, strayed));
+    print_turfs("mid-fight");
     time_set_paused(ctx, true);
     test.zoom_frame = test.frame;
   }
@@ -378,6 +354,7 @@ void test_harness(context &ctx) {
       std::printf("[test] result: %s after %.1fs, men %.0f/%.0f vs %.0f/%.0f\n", state.won ? "WIN" : "LOSS",
                   state.battle_time, state.men_now[0], state.men_start[0], state.men_now[1], state.men_start[1]);
       screenshot(ctx, "sandtable_test_result.png");
+      print_turfs("at the end");
       // Blocks still standing, and how far each is from the nearest of the other side.
       for (const group &g : state.groups) {
         if (g.alive == 0)
@@ -386,8 +363,8 @@ void test_harness(context &ctx) {
         for (const group &o : state.groups)
           if (o.owner != g.owner && o.alive > 0)
             nearest = std::min(nearest, distance(g.centroid, o.centroid));
-        std::printf("[test]   %s %s: %d/%d figures, %.0f from the nearest foe\n",
-                    g.owner == side::player ? "ta" : "dich", spec(g.type).tag, g.alive, g.figures, nearest);
+        std::printf("[test]   %s %s: %d/%d men, %.0f from the nearest foe\n", g.owner == side::player ? "ta" : "dich",
+                    tiers[static_cast<usize>(g.tier)].name, g.alive, g.figures, nearest);
       }
     }
     if (result_frames == 8)
@@ -399,7 +376,6 @@ void test_harness(context &ctx) {
 
 void startup(context &ctx) {
   sim_init(ctx);
-  sprites_init(ctx);
   render_init(ctx);
 }
 
@@ -414,19 +390,9 @@ void setup(context &ctx) {
 
 } // namespace
 
-mod_desc module(bool test_mode, const char *test_plan) {
+mod_desc module(bool test_mode) {
   test = {};
   test.enabled = test_mode;
-  // Letters in buying order: I infantry, S spear, A archer, C cavalry, R artillery, E elephant, B boat.
-  if (test_plan && *test_plan) {
-    test.plan.clear();
-    for (const char *c = test_plan; *c; ++c) {
-      const char *letters = "ISACREB";
-      for (i32 k = 0; k < arm_count; ++k)
-        if (*c == letters[k])
-          test.plan.push_back(static_cast<arm>(k));
-    }
-  }
   return {.name = "sandtable", .setup = setup};
 }
 

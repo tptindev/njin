@@ -29,18 +29,13 @@ u32 terrain_version();
 
 terrain terrain_at(vec2 pos);
 terrain terrain_cell(i32 x, i32 y);
-// Whether troops can be at `pos`: on the low ground, or for boats on water.
-bool walkable(vec2 pos, bool boat = false);
-// The nav grid for troops on foot, or for boats (water only).
-const nav_grid &terrain_nav(bool boat = false);
-// The middle of the water tile nearest `pos` (river, ford or stream), and
-// how far it is; no water at all gives `pos` and a huge distance.
-vec2 nearest_water(vec2 pos, f32 *dist = nullptr);
+// Whether men can be at `pos`: on the low ground, fords and streams.
+bool walkable(vec2 pos);
+// The nav grid men find their way on.
+const nav_grid &terrain_nav();
 
-// How fast troops move on it, 1 on open plain (or open river for boats).
-f32 terrain_speed(terrain t, bool boat = false);
-// Arrows lose half their damage on troops standing in it.
-bool terrain_covers(terrain t);
+// How fast men move on it, 1 on open plain.
+f32 terrain_speed(terrain t);
 const char *terrain_name(terrain t);
 
 } // namespace sandtable

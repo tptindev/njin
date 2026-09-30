@@ -2,7 +2,6 @@
 #include "audio.h"
 #include "levels.h"
 #include "view.h"
-#include "weather.h"
 
 #include <algorithm>
 #include <cmath>
@@ -16,8 +15,8 @@ namespace {
 
 rng sim_rng{98765};
 
-// Rebuilt every battle step: one index per side for target searches, one over
-// everybody for the push that keeps figures from overlapping.
+// Rebuilt every fight step: one index per side for target searches, one over
+// everybody for the push that keeps men from standing in each other.
 spatial_index side_index[2];
 spatial_index all_index;
 std::vector<spatial_item> side_items[2];
@@ -25,44 +24,39 @@ std::vector<u32> side_ids[2]; // index item -> soldier
 std::vector<spatial_item> all_items;
 std::vector<u32> all_ids;
 std::vector<vec2> push;
-std::vector<spatial_hit> hits;
 
-constexpr f32 melee_aggro = 150.0f;
-constexpr f32 charge_run = 90.0f; // cavalry needs this much run-up to charge
-constexpr f32 min_flag_gap = 48.0f; // world units between two troops' flags
+constexpr f32 melee_aggro = 150.0f;   // a man goes for anyone of the other gang this close
+constexpr f32 hunt_range = 420.0f;    // an enemy group goes for the player's men this close
+constexpr f32 min_flag_gap = 48.0f;   // world units between two troops' flags
+constexpr f32 claim_time = 12.0f;     // seconds for one man to claim a free turf
 constexpr f32 step_max = 1.0f / 30.0f;
 constexpr rect table_bounds{{0.0f, 0.0f}, {world_width, world_height}};
 
 i32 side_idx(side s) { return static_cast<i32>(s); }
-i32 ai(arm a) { return static_cast<i32>(a); }
 
-f32 range_of(const soldier &s) { return spec(s.type).range; }
+f32 speed_of(const soldier &s) { return fighter.speed * terrain_speed(terrain_at(s.pos)); }
 
-f32 speed_of(const soldier &s) {
-  return spec(s.type).speed * terrain_speed(terrain_at(s.pos), sails(s.type));
-}
-
-// Moves `pos` by `step` without leaving the ground it can be on (the water,
-// for a boat), sliding along the edge when the step runs into it at an angle.
-vec2 move_on_ground(vec2 pos, vec2 step, bool boat = false) {
-  if (!walkable(pos, boat))
+// Moves `pos` by `step` without leaving the ground it can be on, sliding
+// along the edge when the step runs into it at an angle.
+vec2 move_on_ground(vec2 pos, vec2 step) {
+  if (!walkable(pos))
     return pos + step; // already stuck outside it (pushed in a crowd): let it get back
-  if (walkable(pos + step, boat))
+  if (walkable(pos + step))
     return pos + step;
-  if (walkable(pos + vec2{step.x, 0.0f}, boat))
+  if (walkable(pos + vec2{step.x, 0.0f}))
     return pos + vec2{step.x, 0.0f};
-  if (walkable(pos + vec2{0.0f, step.y}, boat))
+  if (walkable(pos + vec2{0.0f, step.y}))
     return pos + vec2{0.0f, step.y};
   return pos;
 }
 
-// Paths of their own that soldiers may still look for this step: the rest
-// head for their block's anchor and look again later.
+// Paths of their own that men may still look for this step: the rest head
+// for their group's anchor and look again later.
 i32 own_paths_left = 0;
 
 // Where to head for `goal`: straight there if nothing is in the way; else the
 // group's anchor, a point of the group's path, or a path of its own. Looked
-// at every half second or so, not every step: a battle has thousands of men.
+// at every half second or so, not every step.
 vec2 route_to(soldier &s, const group &g, vec2 goal, f32 dt) {
   s.route -= dt;
   if (s.use_via && distance(s.pos, s.via) < 6.0f)
@@ -70,7 +64,7 @@ vec2 route_to(soldier &s, const group &g, vec2 goal, f32 dt) {
   if (s.route > 0.0f)
     return s.use_via ? s.via : goal;
   s.route = sim_rng.range(0.4f, 0.7f);
-  const nav_grid &nav = terrain_nav(sails(s.type));
+  const nav_grid &nav = terrain_nav();
   s.use_via = !nav_line_clear(nav, s.pos, goal);
   if (!s.use_via)
     return goal;
@@ -107,12 +101,8 @@ vec2 slot_world(const group &g, vec2 slot) {
 void kill(soldier &s) {
   s.alive = false;
   s.hp = 0.0f;
-  state.corpses.push_back({s.pos, s.facing, s.radius * 0.85f, s.type, s.owner});
-  const rgba c = s.owner == side::player ? col_player : col_enemy;
-  for (i32 i = 0; i < 2; ++i)
-    add_particle(fx_kind::spark, s.pos, from_angle(sim_rng.range(0.0f, 360.0f)) * sim_rng.range(20.0f, 50.0f), 2.0f,
-                 0.3f, c);
-  fx_dust(s.pos, 1, 3.0f);
+  state.corpses.push_back({s.pos, s.facing, s.radius * 0.85f, s.owner});
+  fx_dust(s.pos, 2, 3.0f);
 }
 
 void hurt(soldier &target, f32 damage) {
@@ -120,81 +110,30 @@ void hurt(soldier &target, f32 damage) {
     return;
   target.hp -= damage;
   target.flash = 0.12f;
+  target.hurt = flinch_time;
   if (target.hp <= 0.0f)
     kill(target);
 }
 
-// Damage of one blow or one arrow of `from` against `to`.
-f32 blow(const soldier &from, const soldier &to) {
-  return spec(from.type).damage * from.weight * counter[ai(from.type)][ai(to.type)];
-}
-
-void fire(context &ctx, const soldier &s, const soldier &target, i32 target_id) {
-  projectile p{};
-  p.from = s.pos;
-  p.owner = s.owner;
-  p.source = s.type;
-  const f32 d = distance(s.pos, target.pos);
-  if (s.type == arm::artillery) {
-    // Shells land near where the target stands, not on it.
-    const f32 spread = d * 0.07f;
-    p.to = target.pos + vec2{sim_rng.range(-spread, spread), sim_rng.range(-spread, spread)};
-    p.duration = std::max(0.5f, d / 320.0f);
-    p.arc = d * 0.22f;
-    p.splash = spec(s.type).splash * (1.0f + 0.15f * std::log(std::max(1.0f, s.weight)));
-    p.damage = spec(s.type).damage * s.weight;
-    fx_muzzle(s.pos + normalize(target.pos - s.pos) * 6.0f, normalize(target.pos - s.pos));
-    audio_play_gated(ctx, sfx_type::cannon, 0.7f, 0.32f);
-  } else {
-    p.to = target.pos + vec2{sim_rng.range(-5.0f, 5.0f), sim_rng.range(-5.0f, 5.0f)};
-    p.duration = std::max(0.15f, d / 480.0f);
-    p.arc = d * 0.12f;
-    p.target = target_id;
-    p.damage = blow(s, target);
-    audio_play_gated(ctx, sfx_type::arrow, 0.65f, 0.24f);
-  }
-  state.projectiles.push_back(p);
-}
-
-// An elephant's blow lands on everyone around its target too, and throws them
-// back.
-void trample(context &ctx, const soldier &s, const soldier &target) {
-  const i32 foe = side_idx(other(s.owner));
-  const f32 radius = spec(arm::elephant).splash * (1.0f + 0.15f * std::log(std::max(1.0f, s.weight)));
-  const u32 n = spatial_nearest(side_index[foe], {.at = target.pos, .radius = radius, .touching = true}, hits, 24);
-  for (u32 k = 0; k < n; ++k) {
-    soldier &o = state.soldiers[side_ids[foe][hits[k].item]];
-    if (&o == &target || !o.alive)
-      continue;
-    const vec2 away = o.pos - s.pos;
-    if (length_sq(away) > 0.01f)
-      o.pos = move_on_ground(o.pos, normalize(away) * 5.0f, sails(o.type));
-    hurt(o, blow(s, o) * 0.5f);
-  }
-  fx_dust(target.pos, 2, radius * 0.5f);
-  audio_play_gated(ctx, sfx_type::trumpet, 0.25f, 2.0f);
-}
-
+// A punch (left or right) or a kick: it lands, knocks the other man back a
+// step, and throws a few sparks of the hitter's colour. A kick lands harder
+// and may put him on the ground for a while.
 void strike(context &ctx, soldier &s, soldier &target) {
-  f32 dmg = blow(s, target);
-  if (s.type == arm::archer)
-    dmg *= 0.4f; // an archer caught in melee
-  if (s.type == arm::cavalry && s.run >= charge_run && target.type != arm::spear) {
-    dmg *= 3.0f;
-    target.pos = move_on_ground(target.pos, normalize(target.pos - s.pos) * 10.0f, sails(target.type));
-    add_particle(fx_kind::ring, target.pos, {}, 14.0f, 0.25f, col_gold_light);
-    fx_dust(target.pos, 3, 6.0f);
-    audio_play_gated(ctx, sfx_type::charge, 0.4f, 0.5f);
+  s.act_kind = sim_rng.chance(0.3f) ? 2 : (sim_rng.chance(0.5f) ? 0 : 1);
+  s.act = blow_time;
+  const bool kick = s.act_kind == 2;
+  hurt(target, fighter.damage * (kick ? 1.3f : 1.0f) * sim_rng.range(0.8f, 1.25f));
+  if (kick && target.alive && target.down <= 0.0f && target.rise <= 0.0f && sim_rng.chance(0.35f)) {
+    target.down = down_time;
+    fx_dust(target.pos, 3, 4.0f);
   }
-  s.run = 0.0f;
-  if (s.type == arm::elephant)
-    trample(ctx, s, target);
-  hurt(target, dmg);
-  if (sim_rng.chance(0.3f))
-    add_particle(fx_kind::spark, target.pos, from_angle(sim_rng.range(0.0f, 360.0f)) * 50.0f, 1.5f, 0.15f,
-                 rgb(255, 240, 200));
-  if (s.type != arm::elephant)
-    audio_play_gated(ctx, s.type == arm::spear ? sfx_type::spear : sfx_type::slash, 0.48f, 0.18f);
+  const vec2 away = target.pos - s.pos;
+  if (length_sq(away) > 0.01f)
+    target.pos = move_on_ground(target.pos, normalize(away) * 3.0f);
+  const rgba c = s.owner == side::player ? col_player_light : col_enemy_light;
+  for (i32 i = 0; i < 2; ++i)
+    add_particle(fx_kind::spark, target.pos, from_angle(sim_rng.range(0.0f, 360.0f)) * 40.0f, 1.5f, 0.15f, c);
+  audio_play_gated(ctx, sfx_type::slash, 0.5f, 0.12f);
 }
 
 void build_indices() {
@@ -218,7 +157,7 @@ void build_indices() {
     spatial_build(side_index[k], {.kind = spatial_grid, .bounds = table_bounds, .cell_size = 40.0f}, side_items[k]);
 }
 
-// The nearest living enemy of `s` within `radius`, or -1.
+// The nearest living man of the other gang within `radius` of `s`, or -1.
 i32 find_enemy(const soldier &s, f32 radius) {
   const i32 foe = side_idx(other(s.owner));
   spatial_hit hit{};
@@ -234,27 +173,24 @@ vec2 turn_to(vec2 dir, vec2 to, f32 rate) {
 }
 
 // How far round its anchor a garrison fights: whoever comes this close to
-// the block is attacked, nobody further out is chased.
+// the group is attacked, nobody further out is chased.
 f32 guard_radius(const group &g) { return melee_aggro + g.span; }
 
-// A garrison marches to its post round what cannot be crossed, facing the
-// way it goes, then turns to face the way it was told.
-void hold_post(group &g, f32 dt) {
-  const arm_spec &sp = spec(g.type);
-  const bool boat = sails(g.type);
-  const vec2 to_post = g.post - g.anchor;
-  const f32 dist = length(to_post);
-  if (dist < 2.0f) {
-    g.dir = turn_to(g.dir, g.face, dt * 1.5f);
-    return;
-  }
-  vec2 steer = to_post / dist;
+// Walks a group's anchor toward `goal` round what cannot be crossed, facing
+// the way it goes, and stops `stop` short of it. True once there.
+bool walk_to(group &g, vec2 goal, f32 stop, f32 dt) {
+  const vec2 to_goal = goal - g.anchor;
+  const f32 dist = length(to_goal);
+  if (dist <= stop)
+    return true;
+  vec2 steer = to_goal / dist;
   if (dist > tile_world) {
     g.repath -= dt;
-    if (g.repath <= 0.0f || g.path.done()) {
-      g.repath = sim_rng.range(1.5f, 2.5f);
+    if (g.repath <= 0.0f || g.path.done() || distance(goal, g.goal) > tile_world) {
+      g.repath = sim_rng.range(1.0f, 1.8f);
+      g.goal = goal;
       std::vector<vec2> way;
-      nav_find_path(terrain_nav(boat), g.anchor, g.post, way);
+      nav_find_path(terrain_nav(), g.anchor, goal, way);
       g.path.set(std::move(way));
       g.path.reach = tile_world * 0.5f;
     }
@@ -264,11 +200,48 @@ void hold_post(group &g, f32 dt) {
   if (length_sq(steer) > 0.0001f)
     g.dir = turn_to(g.dir, normalize(steer), dt * 1.5f);
   // Wait for stragglers, and for men caught in a fight on the way.
-  const bool strung_out = distance(g.anchor, g.centroid) > 60.0f + 4.0f * std::sqrt(static_cast<f32>(g.figures));
+  const bool strung_out = distance(g.anchor, g.centroid) > 50.0f + 6.0f * std::sqrt(static_cast<f32>(g.figures));
   if (!strung_out) {
-    const f32 step = std::min(dist, sp.speed * 0.85f * terrain_speed(terrain_at(g.anchor), boat) * dt);
-    g.anchor = move_on_ground(g.anchor, steer * step, boat);
+    const f32 step = std::min(dist - stop, fighter.speed * 0.85f * terrain_speed(terrain_at(g.anchor)) * dt);
+    g.anchor = move_on_ground(g.anchor, steer * step);
   }
+  return false;
+}
+
+// Where an enemy group goes: for the player's men if any are near, else to
+// the nearest turf the enemy does not fully hold (to take it, or to save one
+// of its own being taken), else for the player's men wherever they are.
+vec2 enemy_goal(const group &g, f32 *stop) {
+  const group *prey = nullptr;
+  f32 best = 1e12f;
+  for (const group &o : state.groups) {
+    if (o.owner == g.owner || o.alive == 0)
+      continue;
+    const f32 d = distance(g.anchor, o.centroid);
+    if (d < best) {
+      best = d;
+      prey = &o;
+    }
+  }
+  *stop = 20.0f;
+  if (prey != nullptr && best < hunt_range)
+    return prey->centroid;
+  const turf *aim = nullptr;
+  f32 near = 1e12f;
+  for (const turf &t : state.turfs) {
+    if (t.claim <= -1.0f && t.men[side_idx(side::player)] == 0)
+      continue; // its own, and safe
+    const f32 d = distance(g.anchor, t.pos);
+    if (d < near) {
+      near = d;
+      aim = &t;
+    }
+  }
+  if (aim != nullptr) {
+    *stop = aim->radius * 0.3f;
+    return aim->pos;
+  }
+  return prey != nullptr ? prey->centroid : g.anchor;
 }
 
 void update_groups(f32 dt) {
@@ -292,54 +265,16 @@ void update_groups(f32 dt) {
     if (g.alive == 0)
       continue;
     if (g.garrison) {
-      hold_post(g, dt);
+      // The player's men walk to their flag and hold it, facing the way they
+      // were told.
+      if (walk_to(g, g.post, 2.0f, dt))
+        g.dir = turn_to(g.dir, g.face, dt * 1.5f);
       continue;
     }
-    // March on the nearest enemy block.
-    const group *foe = nullptr;
-    f32 best = 1e12f;
-    // Troops on foot do not march on boats they cannot reach, unless boats
-    // are all the enemy has left.
-    bool foe_on_land = false;
-    for (const group &o : state.groups)
-      foe_on_land = foe_on_land || (o.owner != g.owner && o.alive > 0 && !sails(o.type));
-    for (const group &o : state.groups) {
-      if (o.owner == g.owner || o.alive == 0)
-        continue;
-      if (!sails(g.type) && sails(o.type) && foe_on_land)
-        continue;
-      const f32 d = length_sq(g.anchor - o.centroid);
-      if (d < best) {
-        best = d;
-        foe = &o;
-      }
-    }
-    if (!foe)
-      continue;
-    const vec2 to_foe = foe->centroid - g.anchor;
-    const f32 dist = length(to_foe);
-    // The block faces the enemy...
-    if (dist > 1.0f)
-      g.dir = normalize(lerp(g.dir, to_foe / dist, clamp(dt * 1.5f, 0.0f, 1.0f)));
-    // ...and marches along a way round what cannot be crossed.
-    g.repath -= dt;
-    if (g.repath <= 0.0f || g.path.done()) {
-      g.repath = sim_rng.range(0.8f, 1.2f);
-      std::vector<vec2> way;
-      nav_find_path(terrain_nav(sails(g.type)), g.anchor, foe->centroid, way);
-      g.path.set(std::move(way));
-      g.path.reach = tile_world * 0.5f;
-    }
-    const vec2 steer = nav_steer(g.path, g.anchor);
-
-    const arm_spec &sp = spec(g.type);
-    const f32 hold = sp.range > 0.0f ? sp.range * 0.85f : 20.0f;
-    // Wait for stragglers so the block keeps its shape.
-    const bool strung_out = distance(g.anchor, g.centroid) > 60.0f + 4.0f * std::sqrt(static_cast<f32>(g.figures));
-    if (dist > hold && !strung_out)
-      g.anchor = move_on_ground(
-          g.anchor, steer * sp.speed * 0.85f * terrain_speed(terrain_at(g.anchor), sails(g.type)) * dt,
-          sails(g.type));
+    f32 stop = 20.0f;
+    const vec2 goal = enemy_goal(g, &stop);
+    if (walk_to(g, goal, stop, dt) && distance(goal, g.anchor) > 1.0f)
+      g.dir = turn_to(g.dir, normalize(goal - g.anchor), dt * 1.5f);
   }
 }
 
@@ -349,22 +284,35 @@ void update_soldiers(context &ctx, f32 dt) {
     soldier &s = state.soldiers[i];
     if (!s.alive)
       continue;
-    const arm_spec &sp = spec(s.type);
     s.cooldown = std::max(0.0f, s.cooldown - dt);
     s.flash = std::max(0.0f, s.flash - dt);
+    s.act = std::max(0.0f, s.act - dt);
+    s.hurt = std::max(0.0f, s.hurt - dt);
     s.think -= dt;
+    s.anim += dt;
+    s.pace = 0.0f;
+    // On the ground, then getting up: no blows, no steps.
+    if (s.down > 0.0f) {
+      s.down -= dt;
+      if (s.down <= 0.0f)
+        s.rise = rise_time;
+      s.fighting = s.moving = false;
+      continue;
+    }
+    if (s.rise > 0.0f) {
+      s.rise = std::max(0.0f, s.rise - dt);
+      s.fighting = s.moving = false;
+      continue;
+    }
 
-    const bool ranged = sp.range > 0.0f;
-    const f32 reach_range = ranged ? range_of(s) : 0.0f;
     if (s.target >= 0 && !state.soldiers[static_cast<usize>(s.target)].alive)
       s.target = -1;
     const group &g = state.groups[static_cast<usize>(s.group)];
     if (s.think <= 0.0f) {
       s.think = sim_rng.range(0.2f, 0.35f);
-      s.target = find_enemy(s, ranged ? reach_range + 30.0f : melee_aggro);
-      // A garrison's men go for no one outside its guard; archers and guns
-      // shoot whatever is in range from where they stand.
-      if (s.target >= 0 && g.garrison && !ranged &&
+      s.target = find_enemy(s, melee_aggro);
+      // A garrison's men go for no one outside its guard.
+      if (s.target >= 0 && g.garrison &&
           distance(state.soldiers[static_cast<usize>(s.target)].pos, g.anchor) > guard_radius(g))
         s.target = -1;
     }
@@ -374,48 +322,38 @@ void update_soldiers(context &ctx, f32 dt) {
     if (s.target >= 0) {
       soldier &t = state.soldiers[static_cast<usize>(s.target)];
       const f32 d = distance(s.pos, t.pos);
-      const f32 touch = s.radius + t.radius + sp.reach;
-      if (ranged && d <= reach_range && d >= sp.min_range) {
+      const f32 touch = s.radius + t.radius + fighter.reach;
+      if (d <= touch) {
         goal = s.pos;
         s.fighting = true;
         if (s.cooldown <= 0.0f) {
-          s.cooldown = sp.interval * sim_rng.range(0.9f, 1.15f);
-          fire(ctx, s, t, s.target);
-        }
-      } else if (d <= touch && s.type != arm::artillery) {
-        goal = s.pos;
-        s.fighting = true;
-        if (s.cooldown <= 0.0f) {
-          s.cooldown = sp.interval * sim_rng.range(0.9f, 1.15f);
+          s.cooldown = fighter.interval * sim_rng.range(0.85f, 1.2f);
           strike(ctx, s, t);
         }
-      } else if (g.garrison ? !ranged && distance(t.pos, g.anchor) <= guard_radius(g)
-                            : !ranged || d > reach_range) {
+      } else if (!g.garrison || distance(t.pos, g.anchor) <= guard_radius(g)) {
         goal = t.pos;
         chase = true;
       }
-      // Artillery with the enemy too close holds still and hopes.
       if (s.fighting && d > 0.01f)
         s.facing = (t.pos - s.pos) / d;
     }
 
-    s.anim += dt;
     if (distance(goal, s.pos) > 2.0f)
       goal = route_to(s, g, goal, dt);
     const vec2 to_goal = goal - s.pos;
     const f32 gd = length(to_goal);
     s.moving = gd > 2.0f;
     if (gd > 2.0f) {
-      const f32 step = std::min(gd, speed_of(s) * dt);
+      // Run at a man, or to catch up when far behind; else walk.
+      const f32 speed = speed_of(s) * (chase || gd > 60.0f ? run_factor : 1.0f);
+      const f32 step = std::min(gd, speed * dt);
       const vec2 dir = to_goal / gd;
-      s.pos = move_on_ground(s.pos, dir * step, sails(s.type));
+      s.pos = move_on_ground(s.pos, dir * step);
       s.facing = dir;
-      s.run = (chase && s.type == arm::cavalry) ? s.run + step : 0.0f;
-      const f32 dust_rate = s.type == arm::cavalry ? 2.5f : 0.25f;
-      if (sim_rng.chance(dust_rate * dt))
+      s.stride += step;
+      s.pace = step / dt;
+      if (sim_rng.chance(0.25f * dt))
         fx_dust(s.pos + vec2{0.0f, s.radius}, 1, 2.0f);
-    } else if (!s.fighting) {
-      s.run = 0.0f;
     }
   }
 }
@@ -427,52 +365,56 @@ void separate() {
   spatial_separate(all_index, push, 6);
   for (u32 k = 0; k < all_ids.size(); ++k) {
     soldier &s = state.soldiers[all_ids[k]];
-    // The crowd does not shove anyone off a cliff or into the river.
-    s.pos = move_on_ground(s.pos, push[k], sails(s.type));
+    // The crowd does not shove anyone up a cliff or into the river.
+    s.pos = move_on_ground(s.pos, push[k]);
     s.pos.x = clamp(s.pos.x, table_margin + s.radius, world_width - table_margin - s.radius);
     s.pos.y = clamp(s.pos.y, table_margin + s.radius, world_height - table_margin - s.radius);
   }
 }
 
-void land_shell(const projectile &p) {
-  const i32 foe = side_idx(other(p.owner));
-  const u32 n = spatial_nearest(side_index[foe], {.at = p.to, .radius = p.splash, .touching = true}, hits, 64);
-  for (u32 k = 0; k < n; ++k) {
-    soldier &t = state.soldiers[side_ids[foe][hits[k].item]];
-    const f32 falloff = 1.0f - 0.5f * clamp(std::sqrt(hits[k].distance_sq) / p.splash, 0.0f, 1.0f);
-    hurt(t, p.damage * counter[ai(arm::artillery)][ai(t.type)] * falloff);
-    // The blast throws them back, but not off a cliff or into the river.
-    const vec2 away = t.pos - p.to;
-    if (length_sq(away) > 0.01f)
-      t.pos = move_on_ground(t.pos, normalize(away) * 10.0f * falloff, sails(t.type));
-  }
-}
-
-void update_projectiles(context &ctx, f32 dt) {
-  for (projectile &p : state.projectiles) {
-    p.t += dt / p.duration;
-    if (p.t < 1.0f)
+// Men on each turf, and each turf's claim moving toward the only gang on it:
+// the more men, the faster. It turns at either end, and falls to nobody on
+// the way across.
+void update_turfs(context &ctx, f32 dt) {
+  for (turf &t : state.turfs)
+    t.men[0] = t.men[1] = 0;
+  for (const soldier &s : state.soldiers) {
+    if (!s.alive)
       continue;
-    if (p.source == arm::artillery) {
-      land_shell(p);
-      fx_explosion(ctx, p.to, p.splash);
-      audio_play_gated(ctx, sfx_type::explosion, 0.65f, 0.32f);
-    } else if (p.target >= 0) {
-      soldier &t = state.soldiers[static_cast<usize>(p.target)];
-      if (t.alive && distance(t.pos, p.to) <= t.radius + 12.0f)
-        hurt(t, terrain_covers(terrain_at(t.pos)) ? p.damage * 0.5f : p.damage);
-      else if (sim_rng.chance(0.3f))
-        fx_dust(p.to, 1, 1.0f); // a miss kicks up sand
+    const i32 k = turf_at(s.pos);
+    if (k >= 0)
+      state.turfs[static_cast<usize>(k)].men[side_idx(s.owner)]++;
+  }
+  for (turf &t : state.turfs) {
+    const i32 mine = t.men[0], theirs = t.men[1];
+    if ((mine > 0) == (theirs > 0))
+      continue; // empty, or fought over
+    const i32 n = std::max(mine, theirs);
+    const f32 rate = (0.7f + 0.03f * static_cast<f32>(std::min(n, 10))) / claim_time;
+    t.claim = clamp(t.claim + (mine > 0 ? rate : -rate) * dt, -1.0f, 1.0f);
+    const i32 was = t.held_by;
+    if (t.claim >= 1.0f)
+      t.held_by = side_idx(side::player);
+    else if (t.claim <= -1.0f)
+      t.held_by = side_idx(side::enemy);
+    else if ((t.held_by == side_idx(side::player) && t.claim < 0.0f) ||
+             (t.held_by == side_idx(side::enemy) && t.claim > 0.0f))
+      t.held_by = nobody;
+    if (t.held_by != was && t.held_by != nobody) {
+      const bool ours = t.held_by == side_idx(side::player);
+      char line[96];
+      std::snprintf(line, sizeof(line), "%s %s", ours ? "CHIẾM" : "MẤT", t.name);
+      add_popup(t.pos, ours ? col_gold_light : col_bad, line, 2.0f);
+      audio_play(ctx, ours ? sfx_type::horn : sfx_type::drum, 0.8f);
     }
   }
-  std::erase_if(state.projectiles, [](const projectile &p) { return p.t >= 1.0f; });
 }
 
 void count_men() {
   state.men_now[0] = state.men_now[1] = 0.0f;
   for (const soldier &s : state.soldiers) {
     if (s.alive)
-      state.men_now[side_idx(s.owner)] += s.weight * (s.hp / s.max_hp);
+      state.men_now[side_idx(s.owner)] += s.hp / s.max_hp;
   }
 }
 
@@ -490,77 +432,94 @@ void battle_step(context &ctx, f32 dt) {
   update_groups(dt);
   update_soldiers(ctx, dt);
   separate();
-  update_projectiles(ctx, dt);
+  update_turfs(ctx, dt);
   count_men();
 
   i32 alive[2]{};
   for (const soldier &s : state.soldiers)
     alive[side_idx(s.owner)] += s.alive ? 1 : 0;
-  if (alive[1] == 0)
+  if (alive[1] == 0) {
     end_battle(ctx, true);
-  else if (alive[0] == 0)
+  } else if (alive[0] == 0) {
     end_battle(ctx, false);
-  else if (state.battle_time >= battle_time_limit)
-    end_battle(ctx, state.men_now[0] / state.men_start[0] > state.men_now[1] / state.men_start[1]);
+  } else if (state.battle_time >= battle_time_limit) {
+    // Time: more turfs wins; as many, more men left.
+    i32 ours = 0, theirs = 0, free = 0;
+    turf_counts(ours, theirs, free);
+    end_battle(ctx, ours != theirs ? ours > theirs
+                                   : state.men_now[0] / state.men_start[0] > state.men_now[1] / state.men_start[1]);
+  }
 }
 
 void spawn_troop(const troop &c) {
   const i32 gi = static_cast<i32>(state.groups.size());
   group g{};
-  g.type = c.type;
   g.tier = c.tier;
   g.owner = c.owner;
-  // The player's troops start at home and march to their flags; the enemy
-  // stands at its flags. Boats are launched at the nearest water.
-  const vec2 flag = sails(c.type) ? nearest_water(c.pos) : c.pos;
-  const vec2 start = c.owner == side::player ? troop_home(c) : flag;
+  // The player's men start at home and walk to their flags; the enemy's
+  // stand at theirs.
+  const vec2 start = c.owner == side::player ? troop_home(c) : c.pos;
   g.anchor = start;
   g.centroid = start;
+  g.goal = start;
   g.dir = c.owner == side::player ? vec2{0.0f, -1.0f} : vec2{0.0f, 1.0f};
-  // The player's blocks hold their flags.
   if (c.owner == side::player) {
     g.garrison = true;
-    g.post = flag;
+    g.post = c.pos;
     g.face = c.face;
   }
-  const std::vector<vec2> slots = formation_slots(c.type, c.tier);
+  const std::vector<vec2> slots = formation_slots(c.tier);
   for (const vec2 &slot : slots)
     g.span = std::max(g.span, length(slot));
   g.figures = static_cast<i32>(slots.size());
   g.alive = g.figures;
   state.groups.push_back(g);
 
-  const arm_spec &sp = spec(c.type);
-  const f32 weight = static_cast<f32>(tiers[c.tier].men) / static_cast<f32>(slots.size());
   for (const vec2 &slot : slots) {
     soldier s{};
     s.slot = slot;
-    // Out of a huddle at home: every figure marches to its place.
-    s.pos = slot_world(g, slot * 0.2f) + vec2{sim_rng.range(-2.0f, 2.0f), sim_rng.range(-2.0f, 2.0f)};
-    if (!walkable(s.pos, sails(c.type)))
+    // Out of a huddle: every man walks to his place.
+    s.pos = slot_world(g, slot * 0.3f) + vec2{sim_rng.range(-2.0f, 2.0f), sim_rng.range(-2.0f, 2.0f)};
+    if (!walkable(s.pos))
       s.pos = start;
     s.facing = g.dir;
-    s.weight = weight;
-    s.max_hp = s.hp = sp.hp * weight;
-    s.radius = figure_radius(c.type, weight);
-    s.cooldown = sim_rng.range(0.0f, sp.interval);
+    s.max_hp = s.hp = fighter.hp;
+    s.radius = fighter.body;
+    s.cooldown = sim_rng.range(0.0f, fighter.interval);
     s.think = sim_rng.range(0.0f, 0.3f);
     s.anim = sim_rng.range(0.0f, 1.0f);
     s.group = gi;
-    s.type = c.type;
     s.owner = c.owner;
     state.soldiers.push_back(s);
   }
 }
 
+// The level's turfs, each moved onto open ground if its middle is not.
+void reset_turfs() {
+  state.turfs.clear();
+  for (const turf_def &d : current_level().turfs) {
+    turf t{};
+    t.name = d.name;
+    t.pos = d.pos;
+    t.radius = d.radius;
+    for (i32 ring = 0; ring <= 8 && !walkable(t.pos); ++ring)
+      for (i32 k = 0; k < 16; ++k) {
+        const vec2 p = d.pos + from_angle(22.5f * static_cast<f32>(k)) * (tile_world * static_cast<f32>(ring));
+        if (walkable(p)) {
+          t.pos = p;
+          break;
+        }
+      }
+    t.held_by = d.held_by;
+    t.claim = d.held_by == side_idx(side::player) ? 1.0f : d.held_by == side_idx(side::enemy) ? -1.0f : 0.0f;
+    state.turfs.push_back(t);
+  }
+}
 
 void clear_battle() {
   state.soldiers.clear();
   state.groups.clear();
-  state.projectiles.clear();
   state.corpses.clear();
-  state.scorches.clear();
-  state.shockwaves.clear();
   state.particles.clear();
   state.popups.clear();
   state.battle_time = 0.0f;
@@ -575,70 +534,9 @@ void add_popup(vec2 pos, rgba col, const char *text, f32 time) {
 }
 
 void add_particle(fx_kind kind, vec2 pos, vec2 vel, f32 size, f32 life, rgba col, f32 delay) {
-  // Enough for several big blasts at once; past it, new puffs are skipped.
-  if (state.particles.size() > 4000)
+  if (state.particles.size() > 2000)
     return;
   state.particles.push_back({pos, vel, life, life, size, col, kind, delay});
-}
-
-void fx_explosion(context &ctx, vec2 pos, f32 radius) {
-  // The shockwave, seen only in what it bends, and the dust it lifts off the
-  // ground as it passes.
-  fx_shockwave(pos, radius * 3.0f, 4.0f, 0.5f);
-  for (i32 i = 0; i < 12; ++i) {
-    const vec2 dir = from_angle(static_cast<f32>(i) * 30.0f + sim_rng.range(-10.0f, 10.0f));
-    add_particle(fx_kind::dust, pos + dir * radius * 0.6f, dir * radius * sim_rng.range(3.5f, 5.0f),
-                 sim_rng.range(4.0f, 7.0f), sim_rng.range(0.4f, 0.6f), rgb(214, 190, 142));
-  }
-  add_particle(fx_kind::fire, pos, {}, radius * 0.7f, 0.18f); // the flash
-  const i32 flames = 6 + static_cast<i32>(radius / 5.0f);
-  for (i32 i = 0; i < flames; ++i) {
-    const vec2 dir = from_angle(sim_rng.range(0.0f, 360.0f));
-    add_particle(fx_kind::fire, pos + dir * sim_rng.range(0.0f, radius * 0.4f),
-                 dir * sim_rng.range(20.0f, 70.0f), sim_rng.range(4.0f, 8.0f), sim_rng.range(0.3f, 0.6f));
-  }
-  for (i32 i = 0; i < 6; ++i) {
-    const vec2 dir = from_angle(sim_rng.range(0.0f, 360.0f));
-    add_particle(fx_kind::debris, pos, dir * sim_rng.range(80.0f, 160.0f), 2.0f, sim_rng.range(0.3f, 0.5f),
-                 rgb(70, 56, 42));
-  }
-  // Smoke rises from the fire once it dies down.
-  for (i32 i = 0; i < 5; ++i) {
-    const vec2 at = pos + from_angle(sim_rng.range(0.0f, 360.0f)) * sim_rng.range(0.0f, radius * 0.5f);
-    add_particle(fx_kind::smoke, at, {sim_rng.range(-6.0f, 6.0f), sim_rng.range(-22.0f, -12.0f)},
-                 sim_rng.range(7.0f, 11.0f), sim_rng.range(1.0f, 1.6f), rgb(128, 120, 112), sim_rng.range(0.15f, 0.4f));
-  }
-  if (state.scorches.size() < 300)
-    state.scorches.push_back({pos, radius * 0.55f});
-  // A light jolt, and not one per shell: a whole battery firing would add up
-  // to the shake's ceiling.
-  static f32 last_shake = -1.0f;
-  if (elapsed(ctx) - last_shake > 0.3f) {
-    last_shake = elapsed(ctx);
-    camera_shake(ctx, 0.04f);
-  }
-}
-
-void fx_muzzle(vec2 pos, vec2 dir) {
-  add_particle(fx_kind::fire, pos, dir * 30.0f, 5.0f, 0.12f);
-  // The blast of the charge, and the ground dust blown round the gun.
-  fx_shockwave(pos, 40.0f, 2.0f, 0.3f);
-  for (i32 i = 0; i < 6; ++i) {
-    const vec2 out = from_angle(static_cast<f32>(i) * 60.0f + sim_rng.range(-15.0f, 15.0f));
-    add_particle(fx_kind::dust, pos + out * 4.0f, out * sim_rng.range(40.0f, 70.0f), 3.0f, 0.35f,
-                 rgb(214, 190, 142));
-  }
-  for (i32 i = 0; i < 3; ++i)
-    add_particle(fx_kind::smoke, pos + dir * sim_rng.range(0.0f, 6.0f),
-                 dir * sim_rng.range(10.0f, 25.0f) + vec2{0.0f, -8.0f}, sim_rng.range(5.0f, 8.0f),
-                 sim_rng.range(0.8f, 1.3f), rgb(200, 196, 188), 0.05f);
-}
-
-void fx_shockwave(vec2 pos, f32 radius, f32 strength, f32 duration) {
-  // The shader bends the picture for 16 at most: the oldest give way.
-  if (state.shockwaves.size() >= 16)
-    state.shockwaves.erase(state.shockwaves.begin());
-  state.shockwaves.push_back({pos, radius, strength, 0.0f, duration});
 }
 
 void fx_dust(vec2 pos, i32 puffs, f32 spread) {
@@ -650,30 +548,42 @@ void fx_dust(vec2 pos, i32 puffs, f32 spread) {
 
 // --- Formation ---
 
-f32 figure_radius(arm a, f32 weight) {
-  return spec(a).body * (1.0f + 0.3f * std::log(std::max(1.0f, weight)) / std::log(3.0f));
-}
-
-std::vector<vec2> formation_slots(arm a, i32 tier) {
-  const i32 n = figure_count(a, tier);
-  const f32 weight = static_cast<f32>(tiers[tier].men) / static_cast<f32>(n);
-  const f32 gap = figure_radius(a, weight) * (a == arm::artillery ? 4.0f : a == arm::elephant ? 3.0f : 2.5f);
-  // Twice as wide as deep, like a line of battle.
-  const i32 cols = std::max(1, static_cast<i32>(std::ceil(std::sqrt(static_cast<f32>(n) * 2.0f))));
-  const i32 rows = (n + cols - 1) / cols;
+// A gang stands in a loose crowd, not in ranks: a sunflower spiral round the
+// middle, every man about the same room from his neighbours.
+std::vector<vec2> formation_slots(i32 tier) {
+  const i32 n = tiers[static_cast<usize>(tier)].men;
+  const f32 gap = fighter.body * 3.2f;
   std::vector<vec2> out;
   out.reserve(static_cast<usize>(n));
-  for (i32 i = 0; i < n; ++i) {
-    const i32 row = i / cols;
-    const i32 in_row = row == rows - 1 ? n - row * cols : cols;
-    const i32 col = i % cols;
-    out.push_back({(static_cast<f32>(col) - static_cast<f32>(in_row - 1) * 0.5f) * gap,
-                   (static_cast<f32>(row) - static_cast<f32>(rows - 1) * 0.5f) * gap});
+  for (i32 k = 0; k < n; ++k) {
+    const f32 r = gap * 0.55f * std::sqrt(static_cast<f32>(k) + 0.5f);
+    out.push_back(from_angle(137.508f * static_cast<f32>(k)) * r);
   }
   return out;
 }
 
-// --- Deployment ---
+// --- Turfs ---
+
+i32 turf_at(vec2 pos) {
+  for (usize i = 0; i < state.turfs.size(); ++i)
+    if (distance(pos, state.turfs[i].pos) <= state.turfs[i].radius)
+      return static_cast<i32>(i);
+  return -1;
+}
+
+void turf_counts(i32 &player, i32 &enemy, i32 &free) {
+  player = enemy = free = 0;
+  for (const turf &t : state.turfs) {
+    if (t.held_by == side_idx(side::player))
+      ++player;
+    else if (t.held_by == side_idx(side::enemy))
+      ++enemy;
+    else
+      ++free;
+  }
+}
+
+// --- Setting up ---
 
 void load_level(context &ctx) {
   state.screen = phase::deploy;
@@ -686,9 +596,13 @@ void load_level(context &ctx) {
   clear_battle();
   state.hour = current_level().hour;
   build_terrain();
+  reset_turfs();
   time_set_scale(ctx, 1.0f);
   time_set_paused(ctx, false);
   view_reset();
+  // The men stationed at the home turf.
+  const turf_def &home = current_level().turfs[static_cast<usize>(current_level().home_turf)];
+  state.board.push_back({2, side::player, home.pos});
   // The briefing, where the eye already is when the table opens.
   char brief[256];
   std::snprintf(brief, sizeof(brief), "%s: %s", current_level().name, current_level().brief);
@@ -702,31 +616,25 @@ i32 troop_count(side owner) {
   return static_cast<i32>(state.board.size());
 }
 
-const char *troop_error(arm a, vec2 pos, i32 ignore) {
+const char *troop_error(vec2 pos, i32 ignore) {
   if (pos.x < table_margin || pos.y < table_margin || pos.x > world_width - table_margin ||
       pos.y > world_height - table_margin)
     return "Ngoài sa bàn";
   if (!walkable(pos))
-    return "Không đặt quân lên đồi, núi hay sông";
-  if (sails(a)) {
-    f32 water = 0.0f;
-    nearest_water(pos, &water);
-    if (water > 6.0f * 32.0f)
-      return "Thuyền phải đặt gần sông suối";
-  }
+    return "Không cắm cờ trên đồi, núi hay sông";
   for (i32 i = 0; i < static_cast<i32>(state.board.size()); ++i) {
     const troop &c = state.board[static_cast<usize>(i)];
-    // One flag to a spot: the formations sort themselves out in the battle.
+    // One flag to a spot: the crowds sort themselves out in the fight.
     if (i != ignore && distance(c.pos, pos) < min_flag_gap)
-      return "Quá sát một đơn vị khác";
+      return "Quá sát một nhóm khác";
   }
   return nullptr;
 }
 
-bool add_troop(context &ctx, arm a, i32 tier, vec2 pos) {
-  if (troop_error(a, pos) != nullptr)
+bool add_troop(context &ctx, i32 tier, vec2 pos) {
+  if (troop_error(pos) != nullptr)
     return false;
-  state.board.push_back({a, tier, side::player, pos});
+  state.board.push_back({tier, side::player, pos});
   audio_play(ctx, sfx_type::chip, 1.0f);
   return true;
 }
@@ -735,7 +643,7 @@ bool move_troop(context &ctx, i32 index, vec2 pos) {
   if (index < 0 || index >= static_cast<i32>(state.board.size()))
     return false;
   troop &c = state.board[static_cast<usize>(index)];
-  if (troop_error(c.type, pos, index) != nullptr)
+  if (troop_error(pos, index) != nullptr)
     return false;
   c.pos = pos;
   audio_play(ctx, sfx_type::chip, 1.0f);
@@ -765,12 +673,13 @@ void remove_troop(context &ctx, i32 index) {
 }
 
 vec2 troop_home(const troop &t) {
-  const rect z = player_zone;
-  vec2 start = t.pos;
-  if (!point_in_rect(t.pos, z))
-    start = {clamp(t.pos.x, z.pos.x + tile_world, z.pos.x + z.size.x - tile_world), z.pos.y + z.size.y * 0.5f};
-  if (sails(t.type))
-    return nearest_water(start);
+  // The home turf, on its side toward the flag, so groups set out spread
+  // round it rather than all from one spot.
+  const turf_def &h = current_level().turfs[static_cast<usize>(current_level().home_turf)];
+  vec2 start = h.pos;
+  const f32 d = distance(t.pos, h.pos);
+  if (d > 1.0f)
+    start = h.pos + (t.pos - h.pos) / d * std::min(d, h.radius * 0.5f);
   // The nearest open ground in rings round it, if it is not open itself.
   for (i32 ring = 0; ring <= 12; ++ring) {
     const i32 steps = ring == 0 ? 1 : 16;
@@ -813,7 +722,7 @@ bool start_battle(context &ctx) {
   set_speed(ctx, state.speed_index);
   audio_play(ctx, sfx_type::horn, 1.0f);
   audio_play(ctx, sfx_type::drum, 0.9f);
-  add_popup({world_width * 0.5f, world_height * 0.5f}, col_gold_light, "XUẤT QUÂN!", 1.6f);
+  add_popup({world_width * 0.5f, world_height * 0.5f}, col_gold_light, "LÊN ĐƯỜNG!", 1.6f);
   return true;
 }
 
@@ -862,13 +771,6 @@ void sim_update(context &ctx) {
     p.life -= dt;
     p.pos += p.vel * dt;
     switch (p.kind) {
-    case fx_kind::fire:
-      p.vel = p.vel * (1.0f - clamp(dt * 4.0f, 0.0f, 1.0f)) + vec2{0.0f, -30.0f * dt};
-      break;
-    case fx_kind::smoke:
-      p.vel.x *= 1.0f - clamp(dt * 0.5f, 0.0f, 1.0f);
-      p.size += 6.0f * dt;
-      break;
     case fx_kind::dust:
       p.vel = p.vel * (1.0f - clamp(dt * 2.0f, 0.0f, 1.0f));
       p.size += 3.0f * dt;
@@ -879,9 +781,8 @@ void sim_update(context &ctx) {
     }
   }
   std::erase_if(state.particles, [](const fx_particle &p) { return p.life <= 0.0f; });
-  for (shockwave &w : state.shockwaves)
-    w.time += dt;
-  std::erase_if(state.shockwaves, [](const shockwave &w) { return w.time >= w.duration; });
+  for (corpse &c : state.corpses)
+    c.age += dt;
 }
 
 } // namespace sandtable

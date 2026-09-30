@@ -272,8 +272,53 @@ uniform mat4 matVP;        // for the depth of the hit
 uniform int rayOrtho;
 uniform vec3 rayDir;
 uniform int depthOnly;
+// A blended shape (shapeKind 5, draw_sdf_blend): rounded cones from
+// blendA[i].xyz (radius .w) to blendB[i].xyz (radius .w), each melted into
+// the ones before it as softly as blendK[i].
+uniform vec4 blendA[32];
+uniform vec4 blendB[32];
+uniform float blendK[32];
+uniform int blendCount;
+
+// Rounded cone from a (radius r1) to b (radius r2); Inigo Quilez's.
+float round_cone(vec3 p, vec3 a, vec3 b, float r1, float r2) {
+  vec3 ba = b - a;
+  float l2 = dot(ba, ba);
+  if (l2 < 1e-10)
+    return length(p - a) - max(r1, r2);
+  float rr = r1 - r2;
+  float a2 = l2 - rr * rr;
+  float il2 = 1.0 / l2;
+  vec3 pa = p - a;
+  float y = dot(pa, ba);
+  float z = y - l2;
+  vec3 xv = pa * l2 - ba * y;
+  float x2 = dot(xv, xv);
+  float y2 = y * y * l2;
+  float z2 = z * z * l2;
+  float k = sign(rr) * rr * rr * x2;
+  if (sign(z) * a2 * z2 > k)
+    return sqrt(x2 + z2) * il2 - r2;
+  if (sign(y) * a2 * y2 < k)
+    return sqrt(x2 + y2) * il2 - r1;
+  return (sqrt(x2 * a2 * il2) + y * rr) * il2 - r1;
+}
+
+// Polynomial smooth minimum: the two meet in a fillet about k wide.
+float smin(float a, float b, float k) {
+  if (k <= 0.0)
+    return min(a, b);
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
+}
 
 float sdf(vec3 p) {
+  if (shapeKind == 5) {
+    float d = 1e9;
+    for (int i = 0; i < blendCount; i++)
+      d = smin(d, round_cone(p, blendA[i].xyz, blendB[i].xyz, blendA[i].w, blendB[i].w), blendK[i]);
+    return d;
+  }
   vec4 d = shapeDims;
   if (shapeKind == 0)
     return length(p) - d.x;
@@ -513,6 +558,10 @@ render3d_locations find_locations(Shader shader) {
   l.ray_ortho = loc("rayOrtho");
   l.ray_dir = loc("rayDir");
   l.depth_only = loc("depthOnly");
+  l.blend_a = loc("blendA");
+  l.blend_b = loc("blendB");
+  l.blend_count = loc("blendCount");
+  l.blend_k = loc("blendK");
   l.light_shadow = loc("lightShadow");
   l.lamp_vp = loc("lampVP");
   l.lamp_params = loc("lampParams");
@@ -1023,14 +1072,46 @@ shape_frame frame_of(const shape3d &sh) {
 
 // Draws one SDF shape through `s.sdf`, whose pass uniforms are set: the
 // back faces of its box, so a camera inside it still sees it.
+// The box round a blended shape's parts (with room for its fillets), and the
+// parts moved into it, for the SDF shader's blendA and blendB.
+shape_frame blend_frame(const render3d_state &s, const draw3d_cmd &c, vec4 *a, vec4 *b, f32 *k) {
+  vec3 lo{1e9f, 1e9f, 1e9f}, hi{-1e9f, -1e9f, -1e9f};
+  for (u32 i = 0; i < c.blend_count; i++) {
+    const sdf_part &p = s.blend_parts[c.blend_first + i];
+    for (const auto &[at, r] : {std::pair{p.a, p.ra}, std::pair{p.b, p.rb}}) {
+      lo = {std::min(lo.x, at.x - r), std::min(lo.y, at.y - r), std::min(lo.z, at.z - r)};
+      hi = {std::max(hi.x, at.x + r), std::max(hi.y, at.y + r), std::max(hi.z, at.z + r)};
+    }
+  }
+  const vec3 mid = (lo + hi) * 0.5f;
+  f32 most = 0.0f;
+  for (u32 i = 0; i < c.blend_count; i++) {
+    const sdf_part &p = s.blend_parts[c.blend_first + i];
+    a[i] = {p.a.x - mid.x, p.a.y - mid.y, p.a.z - mid.z, std::max(p.ra, 0.0f)};
+    b[i] = {p.b.x - mid.x, p.b.y - mid.y, p.b.z - mid.z, std::max(p.rb, 0.0f)};
+    k[i] = p.blend < 0.0f ? c.blend_k : p.blend;
+    most = std::max(most, k[i]);
+  }
+  const vec3 half = (hi - lo) * 0.5f + vec3{most, most, most};
+  return {MatrixTranslate(mid.x, mid.y, mid.z), half, {}};
+}
+
 void draw_shape(const render3d_state &s, const draw3d_cmd &c, const Matrix &view_proj, bool ortho, vec3 ray_dir,
                 bool depth_only) {
-  const shape_frame f = frame_of(c.shape);
   const render3d_locations &l = s.sdf_locs;
+  vec4 blend_a[sdf_blend_max], blend_b[sdf_blend_max];
+  f32 blend_k[sdf_blend_max];
+  const shape_frame f = c.blend_count > 0 ? blend_frame(s, c, blend_a, blend_b, blend_k) : frame_of(c.shape);
+  if (c.blend_count > 0) {
+    SetShaderValueV(s.sdf, l.blend_a, blend_a, SHADER_UNIFORM_VEC4, (i32)c.blend_count);
+    SetShaderValueV(s.sdf, l.blend_b, blend_b, SHADER_UNIFORM_VEC4, (i32)c.blend_count);
+    set_i32(s.sdf, l.blend_count, (i32)c.blend_count);
+    SetShaderValueV(s.sdf, l.blend_k, blend_k, SHADER_UNIFORM_FLOAT, (i32)c.blend_count);
+  }
   // A hair of margin so the surface never touches the box's faces.
   const vec3 b = f.bounds * 1.02f + vec3{1e-3f, 1e-3f, 1e-3f};
   const Matrix box = MatrixMultiply(MatrixScale(b.x * 2.0f, b.y * 2.0f, b.z * 2.0f), f.to_world);
-  set_i32(s.sdf, l.shape_kind, (i32)c.shape.kind);
+  set_i32(s.sdf, l.shape_kind, c.blend_count > 0 ? 5 : (i32)c.shape.kind);
   set_vec4(s.sdf, l.shape_dims, f.dims);
   set_vec3(s.sdf, l.shape_bounds, b);
   SetShaderValueMatrix(s.sdf, l.shape_to_world, f.to_world);
@@ -1405,6 +1486,7 @@ void begin_3d(context &ctx, const camera3d &camera) {
   load_camera(ctx, s.camera);
   s.cmds.clear();
   s.bones.clear();
+  s.blend_parts.clear();
   s.lights.clear();
   s.fx = fx3d{};
   s.material = material3d{};
@@ -1463,6 +1545,7 @@ void end_3d(context &ctx) {
 
   s.cmds.clear();
   s.bones.clear();
+  s.blend_parts.clear();
   s.lights.clear();
   s.active = false;
   rlDrawRenderBatchActive();
@@ -1530,6 +1613,9 @@ void render3d_capture_debug(context &ctx) {
     if (c.buffer.id != 0) {
       f.instanced += c.count;
       capture_instances(ctx, c, f, max_items);
+    } else if (c.is_shape && c.blend_count > 0) {
+      // A blended shape shows as a capsule at its first part.
+      f.items.push_back({debug3d_shape + (i32)shape3d_capsule, s.blend_parts[c.blend_first].a, c.color});
     } else if (c.is_shape) {
       f.items.push_back({debug3d_shape + (i32)c.shape.kind, c.shape.position, c.color});
     } else if (c.mesh != nullptr) {
@@ -1634,6 +1720,35 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
   if (open_pass(ctx) == nullptr || buffer.id == 0 || model_slot_of(ctx.model, model) == nullptr)
     return;
   record_instanced(ctx, nullptr, model, buffer, first, count, shader);
+}
+
+void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color) {
+  const render3d_state *s = open_pass(ctx);
+  if (s == nullptr || parts == nullptr || count == 0)
+    return;
+  if (count > sdf_blend_max) {
+    NJIN_WARN("draw_sdf_blend: %u parts, at most %u: the rest are dropped", count, sdf_blend_max);
+    count = sdf_blend_max;
+  }
+  const u32 first = (u32)s->blend_parts.size();
+  s->blend_parts.insert(s->blend_parts.end(), parts, parts + count);
+  s->cmds.push_back(draw3d_cmd{.is_shape = true,
+                               .shape = {},
+                               .mesh = nullptr,
+                               .model = {},
+                               .transform = {},
+                               .color = color,
+                               .shader = {},
+                               .fx = s->fx,
+                               .material = s->material,
+                               .buffer = {},
+                               .first = 0,
+                               .count = 0,
+                               .bone_first = 0,
+                               .bone_count = 0,
+                               .blend_first = first,
+                               .blend_count = count,
+                               .blend_k = std::max(blend, 0.0f)});
 }
 
 void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {

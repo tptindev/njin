@@ -32,6 +32,7 @@ Vẽ 2D trước begin_3d() thì 3D đè lên; vẽ 2D sau end_3d() (cùng `phas
 |---|---|---|
 | draw_cube3d(), draw_sphere3d(), draw_plane3d(), draw_cylinder3d(), draw_capsule3d() | Lưới tam giác | Nhiều, rẻ: tường, sàn, đạn |
 | draw_shape3d() với njin::shape3d | Hình SDF: cầu, hộp bo góc, viên nang, trụ bo cạnh, xuyến | Vật cần mịn khi nhìn gần: nhân vật, vật phẩm |
+| draw_sdf_blend() với njin::sdf_part | Nhiều hình nón bo tròn hòa làm một khối liền (smooth min) | Nhân vật đất sét ghép từ đầu, thân, tay chân, cử động vẫn liền mạch |
 | draw_instanced3d() | Hàng nghìn hình lưới bằng một lệnh vẽ | Rừng, đám đông, gạch lát |
 | draw_model(), draw_model_anim() | Model glTF/OBJ nạp bằng model_load() | Đồ vật, nhân vật làm trong Blender |
 | model_create() với njin::mesh3d_data | Model từ lưới tam giác game tự dựng (vị trí, màu từng đỉnh, chỉ số) | Địa hình sinh theo seed, hình ghép lúc chạy |
