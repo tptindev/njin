@@ -279,6 +279,7 @@ uniform vec4 blendA[32];
 uniform vec4 blendB[32];
 uniform float blendK[32];
 uniform int blendCount;
+uniform vec2 claySurface; // amount, frequency relative to each part radius
 
 // Rounded cone from a (radius r1) to b (radius r2); Inigo Quilez's.
 float round_cone(vec3 p, vec3 a, vec3 b, float r1, float r2) {
@@ -338,6 +339,53 @@ float sdf(vec3 p) {
   return length(q) - d.y;
 }
 
+
+// Continuous value noise; texture coordinates follow the closest articulated
+// capsule instead of world space, so moving a person does not swim through grain.
+float clay_hash(vec3 p) {
+  p = fract(p * 0.1031);
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}
+float clay_noise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(clay_hash(i), clay_hash(i+vec3(1,0,0)), f.x),
+                 mix(clay_hash(i+vec3(0,1,0)), clay_hash(i+vec3(1,1,0)), f.x), f.y),
+             mix(mix(clay_hash(i+vec3(0,0,1)), clay_hash(i+vec3(1,0,1)), f.x),
+                 mix(clay_hash(i+vec3(0,1,1)), clay_hash(i+vec3(1)), f.x), f.y), f.z);
+}
+void clay_shade(vec3 p, inout vec3 n, inout vec3 albedo) {
+  if (claySurface.x <= 0.0) return;
+  vec3 anchor = vec3(0), axis = vec3(0,1,0);
+  float radius = max(length(shapeBounds) * 0.2, 0.0001), nearest = 1e10;
+  if (shapeKind == 5) {
+    for (int i=0; i<blendCount; ++i) {
+      float d = round_cone(p, blendA[i].xyz, blendB[i].xyz, blendA[i].w, blendB[i].w);
+      if (d < nearest) {
+        nearest = d;
+        anchor = blendA[i].xyz;
+        vec3 segment = blendB[i].xyz - anchor;
+        axis = dot(segment,segment)>1e-9 ? normalize(segment) : vec3(0,1,0);
+        radius = max((blendA[i].w+blendB[i].w)*0.5, 0.0001);
+      }
+    }
+  }
+  vec3 tangent = normalize(cross(axis, abs(axis.z)<0.9 ? vec3(0,0,1) : vec3(1,0,0)));
+  mat3 basis = mat3(tangent, axis, cross(tangent,axis));
+  vec3 q = transpose(basis) * (p-anchor) / radius * claySurface.y;
+  // Fade grain below pixel resolution to avoid sparkly noise in an RTS crowd.
+  float footprint = max(length(dFdx(q)),length(dFdy(q)));
+  float amount = claySurface.x * (1.0-smoothstep(0.35,1.4,footprint));
+  vec3 e=vec3(0.08,0,0);
+  vec3 g=vec3(clay_noise(q+e.xyy)-clay_noise(q-e.xyy),
+              clay_noise(q+e.yxy)-clay_noise(q-e.yxy),
+              clay_noise(q+e.yyx)-clay_noise(q-e.yyx))/0.16;
+  g=basis*g;
+  n=normalize(n-amount*0.32*(g-n*dot(g,n)));
+  albedo*=1.0+amount*0.12*(clay_noise(q*0.32)-0.5);
+}
+
 vec3 sdf_normal(vec3 p, float e) {
   vec2 k = vec2(1.0, -1.0);
   return normalize(k.xyy * sdf(p + k.xyy * e) + k.yyx * sdf(p + k.yyx * e) + k.yxy * sdf(p + k.yxy * e) +
@@ -378,8 +426,11 @@ void main() {
     return;
   }
   float cut = dissolve_cut(pos);
-  vec3 n = normalize(mat3(shapeToWorld) * sdf_normal(local, eps));
-  finalColor = vec4(shade(colDiffuse.rgb, n, pos, cut, vec3(0.0)), colDiffuse.a);
+  vec3 localNormal = sdf_normal(local, eps);
+  vec3 albedo = colDiffuse.rgb;
+  clay_shade(local, localNormal, albedo);
+  vec3 n = normalize(mat3(shapeToWorld) * localNormal);
+  finalColor = vec4(shade(albedo, n, pos, cut, vec3(0.0)), colDiffuse.a);
 }
 )";
 
@@ -549,6 +600,7 @@ render3d_locations find_locations(Shader shader) {
   l.flash = loc("flash");
   l.dissolve = loc("dissolve");
   l.edge_color = loc("edgeColor");
+  l.clay_surface = loc("claySurface");
   l.shape_kind = loc("shapeKind");
   l.shape_dims = loc("shapeDims");
   l.shape_bounds = loc("shapeBounds");
@@ -693,6 +745,18 @@ void load_camera(const context &ctx, const camera3d &camera) {
   rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(camera.position), rl3(camera.target), rl3(camera.up))));
 }
 
+// The frustum of the matrices load_camera() set, as six planes. Row i of the
+// view-projection is (m[i], m[i + 4], m[i + 8], m[i + 12]) in raylib's layout.
+void set_frustum(render3d_state &s) {
+  const Matrix m = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+  const vec4 r0{m.m0, m.m4, m.m8, m.m12}, r1{m.m1, m.m5, m.m9, m.m13}, r2{m.m2, m.m6, m.m10, m.m14},
+      r3{m.m3, m.m7, m.m11, m.m15};
+  const auto add = [](vec4 a, vec4 b, f32 k) { return vec4{a.x + b.x * k, a.y + b.y * k, a.z + b.z * k, a.w + b.w * k}; };
+  s.frustum = {add(r3, r0, 1.0f), add(r3, r0, -1.0f), add(r3, r1, 1.0f),
+               add(r3, r1, -1.0f), add(r3, r2, 1.0f), add(r3, r2, -1.0f)};
+  s.tan_half_fovy = std::tan(s.camera.fovy * 0.5f * DEG2RAD);
+}
+
 // Pass state for a draw call: only inside begin_3d/end_3d.
 const render3d_state *open_pass(const context &ctx) {
   const render3d_state &s = ctx.render3d;
@@ -759,6 +823,7 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
            {clamp(fx.dissolve, 0.0f, 1.0f), fx.edge_width, fx.grain > 0.0f ? fx.grain : 0.1f, fx.seed});
   set_vec4(sh, l.edge_color, v4(fx.edge_color));
   set_vec2(sh, l.surface, {m.specular, std::max(m.shininess, 1.0f)});
+  set_vec2(sh, l.clay_surface, {clamp(m.clay, 0.0f, 1.0f), std::max(m.clay_detail, 0.1f)});
   set_vec4(sh, l.emission, v4(m.emission));
   set_vec4(sh, l.rim, v4(m.rim));
   set_vec4(sh, l.emission_color, v4(emission_color));
@@ -816,9 +881,11 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const rgba color{mm.color.r * c.color.r, mm.color.g * c.color.g, mm.color.b * c.color.b,
                      mm.color.a * c.color.a};
     to_raylib(color, maps[MATERIAL_MAP_DIFFUSE].color);
-    const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok && (usize)i < slot->bone_vbo.size() &&
-                       slot->bone_vbo[(usize)i] != 0;
-    fn(model.meshes[i], maps, mm, transform, posed);
+    const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
+    const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok &&
+                       (lod != nullptr ? lod->bone_vbo != 0
+                                       : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
+    fn(lod != nullptr ? lod->mesh : model.meshes[i], maps, mm, transform, posed);
   }
 }
 
@@ -1259,6 +1326,13 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     draw_instanced_cmd(ctx, c, false);
     return;
   }
+  if (c.mesh == nullptr) {
+    if (c.culled) {
+      ctx.stats.models3d_culled++;
+      return;
+    }
+    ctx.stats.models3d++;
+  }
   Shader custom{};
   const bool own = game_shader(ctx, c.shader, custom);
   if (c.mesh != nullptr) {
@@ -1367,6 +1441,43 @@ bool pose_bones(const render3d_state &s, const model_slot &m, const model_pose &
   return true;
 }
 
+// The model's box as the draw places it, against the pass's frustum (`culled`),
+// and how much of the screen's height it covers, for the level of detail.
+void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c) {
+  const Matrix t = MatrixMultiply(m.model.transform, c.transform);
+  const Vector3 lo = m.bounds.min, hi = m.bounds.max;
+  const vec3 mid{(lo.x + hi.x) * 0.5f, (lo.y + hi.y) * 0.5f, (lo.z + hi.z) * 0.5f};
+  const vec3 half{(hi.x - lo.x) * 0.5f, (hi.y - lo.y) * 0.5f, (hi.z - lo.z) * 0.5f};
+  const vec3 center{t.m0 * mid.x + t.m4 * mid.y + t.m8 * mid.z + t.m12,
+                    t.m1 * mid.x + t.m5 * mid.y + t.m9 * mid.z + t.m13,
+                    t.m2 * mid.x + t.m6 * mid.y + t.m10 * mid.z + t.m14};
+  vec3 extent{std::abs(t.m0) * half.x + std::abs(t.m4) * half.y + std::abs(t.m8) * half.z,
+              std::abs(t.m1) * half.x + std::abs(t.m5) * half.y + std::abs(t.m9) * half.z,
+              std::abs(t.m2) * half.x + std::abs(t.m6) * half.y + std::abs(t.m10) * half.z};
+  // The box is the rest pose's: an arm swung out may leave it.
+  if (c.bone_count > 0)
+    extent = extent + vec3{1.0f, 1.0f, 1.0f} * (std::max({extent.x, extent.y, extent.z}) * 0.3f);
+  for (const vec4 &p : s.frustum) {
+    const f32 reach = std::abs(p.x) * extent.x + std::abs(p.y) * extent.y + std::abs(p.z) * extent.z;
+    if (p.x * center.x + p.y * center.y + p.z * center.z + p.w + reach < 0.0f) {
+      c.culled = true;
+      return;
+    }
+  }
+  if (m.lods.empty())
+    return;
+  const f32 radius = length(extent);
+  const f32 dist = length(center - s.camera.position);
+  if (dist <= radius)
+    return;
+  const f32 share = radius / (dist * s.tan_half_fovy);
+  f32 below = m.lod_screen;
+  while (c.lod < m.lods.size() && share < below) {
+    c.lod++;
+    below *= 0.5f;
+  }
+}
+
 void record_model(const context &ctx, model_handle handle, const transform3d &transform, const model_pose *pose,
                   rgba tint, const fx3d &fx, shader_handle shader) {
   const render3d_state &s = ctx.render3d;
@@ -1389,6 +1500,7 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
                .bone_count = 0};
   if (pose != nullptr && s.skin_ok)
     pose_bones(s, *m, *pose, c.bone_first, c.bone_count);
+  place_model(s, *m, c);
   s.cmds.push_back(c);
 }
 
@@ -1484,6 +1596,7 @@ void begin_3d(context &ctx, const camera3d &camera) {
   rlPushMatrix();
   s.camera = shaken(ctx, camera);
   load_camera(ctx, s.camera);
+  set_frustum(s);
   s.cmds.clear();
   s.bones.clear();
   s.blend_parts.clear();
@@ -1518,6 +1631,9 @@ void end_3d(context &ctx) {
   }
 
   rlEnableDepthTest();
+  s.depth_near = s.camera.near_plane;
+  s.depth_far = s.camera.far_plane;
+  s.depth_drawn = true;
   set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp, lamps);
   set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp, lamps);
   set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);

@@ -44,6 +44,28 @@ void main() {
 }
 )";
 
+// Depth of field: the sharp image (texture0) and a blurred copy (blurTex),
+// mixed by how far each pixel's depth is from the focus. The depth texture
+// holds window depth; turned back into distance along the view.
+constexpr const char *dof_fs = R"(#version 330
+in vec2 fragTexCoord;
+uniform sampler2D texture0;
+uniform sampler2D blurTex;
+uniform sampler2D depthTex;
+uniform vec2 planes; // near, far
+uniform vec3 focus;  // distance, sharp range, falloff
+out vec4 finalColor;
+void main() {
+  vec3 sharp = texture(texture0, fragTexCoord).rgb;
+  vec3 soft = texture(blurTex, fragTexCoord).rgb;
+  float d = texture(depthTex, fragTexCoord).r * 2.0 - 1.0;
+  float n = planes.x, f = planes.y;
+  float z = 2.0 * n * f / (f + n - d * (f - n));
+  float k = smoothstep(focus.y, focus.y + max(focus.z, 1e-4), abs(z - focus.x));
+  finalColor = vec4(mix(sharp, soft, k), 1.0);
+}
+)";
+
 constexpr const char *uber_fs = R"(#version 330
 in vec2 fragTexCoord;
 uniform sampler2D texture0;
@@ -143,13 +165,18 @@ bool load(post_chain &c) {
   c.bright = LoadShaderFromMemory(nullptr, bright_fs);
   c.blur = LoadShaderFromMemory(nullptr, blur_fs);
   c.uber = LoadShaderFromMemory(nullptr, uber_fs);
-  if (!IsShaderValid(c.bright) || !IsShaderValid(c.blur) || !IsShaderValid(c.uber)) {
+  c.dof = LoadShaderFromMemory(nullptr, dof_fs);
+  if (!IsShaderValid(c.bright) || !IsShaderValid(c.blur) || !IsShaderValid(c.uber) || !IsShaderValid(c.dof)) {
     NJIN_WARN("post_fx: built-in shaders failed to compile; effects disabled");
     c.failed = true;
     return false;
   }
   c.bright_threshold = GetShaderLocation(c.bright, "threshold");
   c.blur_direction = GetShaderLocation(c.blur, "direction");
+  c.dof_blur = GetShaderLocation(c.dof, "blurTex");
+  c.dof_depth = GetShaderLocation(c.dof, "depthTex");
+  c.dof_planes = GetShaderLocation(c.dof, "planes");
+  c.dof_focus = GetShaderLocation(c.dof, "focus");
   const Shader &u = c.uber;
   c.u_bloom_tex = GetShaderLocation(u, "bloomTex");
   c.u_bloom = GetShaderLocation(u, "bloom");
@@ -185,6 +212,8 @@ bool ensure(RenderTexture2D &target, i32 w, i32 h) {
   if (!IsRenderTextureValid(target))
     return false;
   SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
+  // Blur taps past an edge read the edge, not the opposite side.
+  SetTextureWrap(target.texture, TEXTURE_WRAP_CLAMP);
   return true;
 }
 
@@ -251,16 +280,18 @@ post_chain::~post_chain() {
     UnloadShader(bright);
     UnloadShader(blur);
     UnloadShader(uber);
+    UnloadShader(dof);
   }
 }
 
 void post_chain_warmup(context &ctx) { load(ctx.postfx); }
 
 bool post_chain_active(const post_chain &chain) {
-  return !chain.failed && (chain.settings.blur > 0.0f || effects_in_uber(chain.settings));
+  return !chain.failed &&
+         (chain.settings.blur > 0.0f || chain.settings.dof > 0.0f || effects_in_uber(chain.settings));
 }
 
-const Texture2D &post_chain_run(context &ctx, const Texture2D &scene) {
+const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post_depth &depth) {
   post_chain &c = ctx.postfx;
   const post_fx &p = c.settings;
   if (!post_chain_active(c) || !load(c))
@@ -295,6 +326,32 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene) {
       passes += 2;
     }
     src = &c.full_b.texture;
+  }
+
+  if (p.dof > 0.0f && depth.texture != 0 && ensure(c.half_a, hw, hh) && ensure(c.half_b, hw, hh)) {
+    // The whole image blurred at half size, as the wide blur above, then
+    // mixed with the sharp one pixel by pixel.
+    const f32 step = p.dof * 0.5f / 4.0f;
+    SetTextureFilter(*src, TEXTURE_FILTER_BILINEAR);
+    blit(*src, c.half_a, nullptr);
+    blur_pass(c, c.half_a.texture, c.half_b, {step / (f32)hw, 0.0f});
+    blur_pass(c, c.half_b.texture, c.half_a, {0.0f, step / (f32)hh});
+    RenderTexture2D &dst = src == &c.full_a.texture ? c.full_b : c.full_a;
+    const f32 planes[2] = {depth.near_plane, depth.far_plane};
+    const f32 focus[3] = {p.dof_focus, std::max(p.dof_range, 0.0f), std::max(p.dof_falloff, 0.0f)};
+    SetShaderValue(c.dof, c.dof_planes, planes, SHADER_UNIFORM_VEC2);
+    SetShaderValue(c.dof, c.dof_focus, focus, SHADER_UNIFORM_VEC3);
+    BeginTextureMode(dst);
+    ClearBackground(BLANK);
+    BeginShaderMode(c.dof);
+    SetShaderValueTexture(c.dof, c.dof_blur, c.half_a.texture);
+    rlSetUniformSampler(c.dof_depth, depth.texture);
+    DrawTexturePro(*src, Rectangle{0.0f, 0.0f, (f32)w, -(f32)h}, Rectangle{0.0f, 0.0f, (f32)w, (f32)h},
+                   Vector2{0.0f, 0.0f}, 0.0f, WHITE);
+    EndShaderMode();
+    EndTextureMode();
+    src = &dst.texture;
+    passes += 4;
   }
 
   const bool bloom = p.bloom > 0.0f && ensure(c.half_a, hw, hh) && ensure(c.half_b, hw, hh);
@@ -377,6 +434,10 @@ post_fx post_fx_lerp(const post_fx &a, const post_fx &b, f32 t) {
   o.bloom_threshold = mix(a.bloom_threshold, b.bloom_threshold);
   o.bloom_radius = mix(a.bloom_radius, b.bloom_radius);
   o.blur = mix(a.blur, b.blur);
+  o.dof = mix(a.dof, b.dof);
+  o.dof_focus = mix(a.dof_focus, b.dof_focus);
+  o.dof_range = mix(a.dof_range, b.dof_range);
+  o.dof_falloff = mix(a.dof_falloff, b.dof_falloff);
   o.chromatic = mix(a.chromatic, b.chromatic);
   o.scanlines = mix(a.scanlines, b.scanlines);
   o.scanline_size = mix(a.scanline_size, b.scanline_size);

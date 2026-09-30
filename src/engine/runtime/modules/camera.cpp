@@ -31,6 +31,28 @@ Camera2D active_raylib_camera(const context &ctx) {
   return camera;
 }
 
+// A render target whose depth is a texture, not a renderbuffer, so the depth
+// of field (post_fx::dof) can read how far each pixel is. raylib's
+// UnloadRenderTexture frees either kind.
+RenderTexture2D load_target(i32 w, i32 h) {
+  RenderTexture2D t{};
+  t.id = rlLoadFramebuffer();
+  if (t.id == 0)
+    return t;
+  t.texture = Texture2D{rlLoadTexture(nullptr, w, h, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1), w, h, 1,
+                        PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+  t.depth = Texture2D{rlLoadTextureDepth(w, h, false), w, h, 1, 19};
+  rlFramebufferAttach(t.id, t.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+  rlFramebufferAttach(t.id, t.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+  if (rlFramebufferComplete(t.id))
+    return t;
+  // A driver that cannot attach a depth texture still gets a world target.
+  UnloadRenderTexture(t);
+  t = LoadRenderTexture(w, h);
+  t.depth.id = 0;
+  return t;
+}
+
 // (Re)creates the post target when the window size changed. Sized by
 // render_scale like view.target, and bound the same way, so a game's post_fx
 // or its own post shader do not bake the world in at 1x before render_scale
@@ -45,7 +67,7 @@ bool ensure_post_target(const context &ctx, camera_post &post) {
     return true;
   if (IsRenderTextureValid(post.target))
     UnloadRenderTexture(post.target);
-  post.target = LoadRenderTexture(w, h);
+  post.target = load_target(w, h);
   if (!IsRenderTextureValid(post.target))
     return false;
   SetTextureFilter(post.target.texture, scale > 1 ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
@@ -95,7 +117,12 @@ void finish_world_post(context &ctx) {
   // Built-in effects first; the game's own shader sees their result. Every
   // texture mode ends on the window, so go back to the virtual screen after.
   const Texture2D &lit = lighting_apply(ctx, post.world_camera, post.target.texture);
-  const Texture2D &texture = post_chain_run(ctx, lit);
+  // The depth of the 3D drawn this frame, for the depth of field.
+  post_depth depth{};
+  if (ctx.render3d.depth_drawn && post.target.depth.id != 0)
+    depth = {post.target.depth.id, ctx.render3d.depth_near, ctx.render3d.depth_far};
+  ctx.render3d.depth_drawn = false;
+  const Texture2D &texture = post_chain_run(ctx, lit, depth);
   view_rebind(ctx.view);
   // Framebuffers are stored bottom-up: a negative source height flips it. The
   // dest is the logical size, not the texture's own (render_scale times

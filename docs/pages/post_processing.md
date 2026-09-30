@@ -78,6 +78,7 @@ Giống shader ở trên, chúng không đụng đến UI trong `phase_post_rend
 | Vignette (tối viền) | `vignette`, `vignette_radius`, `vignette_softness`, `vignette_color` | `vignette` = 0 |
 | Bloom (quầng sáng) | `bloom`, `bloom_threshold`, `bloom_radius` | `bloom` = 0 |
 | Làm mờ | `blur` (pixel) | 0 |
+| Độ sâu trường ảnh (3D) | `dof` (pixel), `dof_focus`, `dof_range`, `dof_falloff` | `dof` = 0 |
 | Tách màu | `chromatic` (pixel) | 0 |
 | Sọc CRT | `scanlines`, `scanline_size` | `scanlines` = 0 |
 | Cong CRT | `crt_curve` | 0 |
@@ -98,13 +99,36 @@ Bộ có sẵn trong `namespace njin::post`: njin::post::crt(), njin::post::noir
 njin::post::vintage(), njin::post::dream(), njin::post::glow(), njin::post::retro(),
 njin::post::hurt(), njin::post::paused().
 
+### Độ sâu trường ảnh {#post_dof}
+
+`dof` làm mờ những gì gần hơn hay xa hơn một khoảng cách, như ống kính máy ảnh lấy nét:
+nét trong khoảng `dof_focus` ± `dof_range`, rồi mờ dần trên quãng `dof_falloff` tới mức
+`dof` pixel. Engine đọc độ sâu mà lần vẽ 3D (begin_3d() ... end_3d()) của frame để lại, nên
+hiệu ứng chỉ áp cho cảnh 3D; frame không vẽ 3D thì bỏ qua. Khoảng cách đo theo hướng nhìn
+của camera, bằng đơn vị 3D.
+
+Lấy nét vào một vật: khoảng cách là hình chiếu của vector từ camera tới vật lên hướng nhìn.
+
+@code
+const njin::vec3 look = njin::normalize(cam.target - cam.position);
+njin::post_fx fx{};
+fx.dof = 7.0f;                                     // mờ nhất 7 pixel
+fx.dof_focus = njin::dot(hero_pos - cam.position, look);
+fx.dof_range = 2.0f;                               // nét trong ±2 đơn vị quanh vật
+fx.dof_falloff = 6.0f;                             // mờ dần trên 6 đơn vị tiếp theo
+njin::post_fx_set(ctx, fx);
+@endcode
+
+Cảnh được làm mờ một lần ở nửa kích thước rồi trộn với ảnh nét theo độ sâu từng pixel:
+bốn lượt vẽ toàn màn hình, như `blur` rộng. UI vẽ trong `phase_post_render` không bị mờ.
+
 Thứ tự áp:
 
 ```mermaid
 flowchart LR
-  A[Thế giới]:::render --> B[blur]:::engine --> C[bloom]:::engine --> D["một lượt: cong CRT,<br/>pixel hóa, tách màu,<br/>chỉnh màu, sọc,<br/>vignette, nhiễu"]:::engine --> E[shader riêng<br/>của game]:::render --> F[Màn hình]:::once
+  A[Thế giới]:::render --> B[blur]:::engine --> B2[độ sâu trường ảnh]:::engine --> C[bloom]:::engine --> D["một lượt: cong CRT,<br/>pixel hóa, tách màu,<br/>chỉnh màu, sọc,<br/>vignette, nhiễu"]:::engine --> E[shader riêng<br/>của game]:::render --> F[Màn hình]:::once
 ```
 
-Bloom và blur tốn thêm vài lượt vẽ toàn màn hình; các hiệu ứng còn lại gộp trong một lượt
+Bloom, blur và độ sâu trường ảnh tốn thêm vài lượt vẽ toàn màn hình; các hiệu ứng còn lại gộp trong một lượt
 nên gần như miễn phí. Mọi trường sửa được mỗi frame: njin::post_fx_lerp() giúp chuyển mượt
 giữa hai bộ.

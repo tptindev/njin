@@ -263,6 +263,7 @@ void model_store_unload(model_store &store, model_handle handle) {
     rlUnloadVertexBuffer(vbo);
   if (slot->anims != nullptr)
     UnloadModelAnimations(slot->anims, slot->anim_count);
+  model_lod_free(*slot);
   UnloadModel(slot->model);
   *slot = model_slot{};
 }

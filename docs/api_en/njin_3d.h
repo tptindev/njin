@@ -146,6 +146,10 @@ struct material3d {
   /// into an atlas is ignored.
   texture_handle texture{};
   bool cast_shadows = true;  ///< Casts a shadow when njin::light3d has `shadows` on.
+  /// Opt-in hand-shaped clay normal/albedo variation for SDF draws only.
+  /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
+  f32 clay = 0.0f;
+  f32 clay_detail = 9.0f; ///< Grain frequency relative to the closest SDF part radius.
 };
 
 /// Sets the surface for 3D shapes drawn after this call, until the next call
@@ -351,6 +355,40 @@ struct mesh3d_data {
 /// wrong (a warning says why).
 model_handle model_create(context &ctx, const mesh3d_data &mesh);
 
+/// How model_lod_build() makes the levels of detail (LOD) of a model.
+struct model_lod_desc {
+  i32 levels = 3;        ///< Simplified levels, 1..4. Level k keeps about `ratio` to the power k of the triangles.
+  f32 ratio = 0.5f;      ///< Share of the triangles each level keeps against the original, raised per level, 0.1..0.9.
+  /// How far the shape may move, relative to the mesh's size (0.05 is 5%).
+  /// Simplifying stops there even short of `ratio`, so a model with few
+  /// triangles may get fewer levels.
+  f32 max_error = 0.05f;
+  /// Level 1 is drawn when the model (its bounding sphere) is less tall than
+  /// this share of the screen's height; each next level at half the previous.
+  f32 screen = 0.25f;
+};
+
+/// Makes levels of detail for a model: simplified copies with fewer
+/// triangles, drawn in its place when it is small on screen. From then on
+/// draw_model(), draw_model_anim() and njin::model3d pick the level by the
+/// distance to the camera; a model with bones keeps its bones and animations
+/// at every level. draw_instanced3d() and ray3d_model() always use the
+/// original model.
+///
+/// Do it once after loading (a few milliseconds for a few tens of thousands
+/// of triangles); calling it again replaces the old levels. model_unload()
+/// frees the levels too.
+///
+/// @code
+/// const njin::model_handle tree = njin::model_load(ctx, "tree.glb");
+/// njin::model_lod_build(ctx, tree, {.levels = 2});
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Model from model_load() or model_create().
+/// @param desc How many levels and how simplified.
+/// @return Levels made, 0 if the model is too simple to simplify or the handle is invalid.
+i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &desc = {});
+
 /// Position, orientation and scale of a 3D object.
 ///
 /// Applied in order: scaled by `scale`, rotated around `z` (roll), then
@@ -414,6 +452,12 @@ void model_material_set(context &ctx, model_handle handle, i32 index, const mode
 /// material3d_set() does not apply to a model; fx3d_set() does. A game
 /// shader bound with shader_begin() replaces the shader of every part that
 /// has no shader of its own.
+///
+/// A model outside the camera's view (its bounding box outside the frustum)
+/// is not drawn but still casts its shadow into the scene; render_info_get()
+/// counts the models left out. A big mesh (terrain, roads) is best split into
+/// several models by area, so the parts out of view are left out. With levels
+/// of detail (model_lod_build()) a far model is drawn at a simpler level.
 /// @param ctx Engine context.
 /// @param handle Model from model_load(). An invalid handle is ignored.
 /// @param transform Position, orientation and scale.

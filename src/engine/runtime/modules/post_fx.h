@@ -10,7 +10,9 @@ struct context;
 // Built-in post-processing (njin_post.h), run by the camera module on the
 // finished world image before the game's own post shader.
 //
-// Passes: optional blur (two separable passes, at half size when wide), optional bloom
+// Passes: optional blur (two separable passes, at half size when wide),
+// optional depth of field (the image blurred at half size, mixed back by how
+// far each pixel is from the focus), optional bloom
 // (bright pass, then blurred twice at half size), then one "uber" pass that
 // does everything else and adds the bloom. Shaders and targets are created
 // on first use and resized with the window.
@@ -20,12 +22,14 @@ struct post_chain {
   Shader bright{};
   Shader blur{};
   Shader uber{};
+  Shader dof{};
   bool loaded = false;
   bool failed = false;
 
   // Uniform locations.
   i32 bright_threshold = -1;
   i32 blur_direction = -1;
+  i32 dof_blur = -1, dof_depth = -1, dof_planes = -1, dof_focus = -1;
   i32 u_bloom_tex = -1, u_bloom = -1, u_resolution = -1, u_time = -1;
   i32 u_brightness = -1, u_contrast = -1, u_saturation = -1, u_sepia = -1,
       u_tint = -1;
@@ -60,9 +64,18 @@ void post_chain_warmup(context &ctx);
 // offscreen target first.
 bool post_chain_active(const post_chain &chain);
 
+// The depth buffer of the world image, for the depth of field: a depth
+// texture the size of the scene, and the near and far planes of the 3D camera
+// that wrote it. texture 0 = no 3D this frame, the depth of field is skipped.
+struct post_depth {
+  u32 texture = 0;
+  f32 near_plane = 0.05f;
+  f32 far_plane = 1000.0f;
+};
+
 // Runs the enabled effects on `scene` (a render texture's colour buffer, the
 // size of the screen). Returns the texture holding the result: `scene`
 // itself when nothing ran. The result is stored bottom-up like any render
 // texture, so draw it with a negative source height.
-const Texture2D &post_chain_run(context &ctx, const Texture2D &scene);
+const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post_depth &depth = {});
 } // namespace njin

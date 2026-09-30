@@ -75,7 +75,15 @@ endforeach()
 set(CPP_RTTI_ENABLED ON CACHE BOOL "" FORCE)
 set(CPP_EXCEPTIONS_ENABLED ON CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(raylib entt JoltPhysics)
+# meshoptimizer (MIT): simplifies meshes into the levels of detail of
+# model_lod_build(). Linked privately by njin_rt, like Jolt.
+FetchContent_Declare(
+  meshoptimizer
+  GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+  GIT_TAG v1.3
+  SYSTEM)
+
+FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer)
 
 # raylib saves a screenshot on F12 by default, silently, in every game. Games
 # built on njin may want F12 for something else; njin::screenshot() is the

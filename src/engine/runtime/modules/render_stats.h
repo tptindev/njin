@@ -22,6 +22,8 @@ struct render_stats {
   u32 batches = 0;        // estimated raylib draw calls, see above
   u32 post_passes = 0;    // full-screen passes of post_fx
   u32 lights = 0;         // lights drawn into the light map
+  u32 models3d = 0;       // draw_model and model3d drawn by the camera pass
+  u32 models3d_culled = 0; // left out, outside the camera's frustum
 
   // Texture id and blend mode of the batch being filled; 0 and -1 when none.
   u32 batch_texture = 0;

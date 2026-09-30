@@ -11,7 +11,7 @@ struct context;
 ///
 /// Mỗi hiệu ứng tắt khi ở giá trị mặc định; bật cái nào thì chỉnh trường của
 /// cái đó. Đặt bằng post_fx_set(), sửa được mỗi frame (ví dụ tăng vignette đỏ
-/// khi máu thấp). Thứ tự áp: blur, bloom, rồi một lượt gồm cong CRT, pixelate,
+/// khi máu thấp). Thứ tự áp: blur, độ sâu trường ảnh, bloom, rồi một lượt gồm cong CRT, pixelate,
 /// tách màu, chỉnh màu, scanline, vignette, nhiễu hạt. Nếu game có shader
 /// riêng (camera_set_post_shader()), shader đó chạy **sau cùng**.
 ///
@@ -51,6 +51,19 @@ struct post_fx {
   f32 crt_curve = 0.0f;  ///< Độ cong kiểu màn CRT, 0..0.3. 0 là tắt.
   f32 pixelate = 0.0f;   ///< Cỡ ô vuông pixel hóa, pixel màn hình. Dưới 2 là tắt.
   f32 grain = 0.0f;      ///< Nhiễu hạt kiểu phim, 0..0.3. 0 là tắt.
+  /// @}
+
+  /// @name Độ sâu trường ảnh (depth of field, cho 3D)
+  /// Nét quanh một khoảng cách, mờ dần ở gần hơn và xa hơn, như ống kính máy
+  /// ảnh lấy nét. Đọc độ sâu của những gì vẽ giữa begin_3d() và end_3d() trong
+  /// frame; không có 3D thì không áp. Khoảng cách đo theo hướng nhìn của camera,
+  /// bằng đơn vị 3D. Vd. lấy nét vào một vật: `dof_focus` là khoảng cách từ camera
+  /// tới nó.
+  /// @{
+  f32 dof = 0.0f;           ///< Độ mờ tối đa của phần ngoài tiêu điểm, bán kính pixel. 0 là tắt.
+  f32 dof_focus = 10.0f;    ///< Khoảng cách nét nhất.
+  f32 dof_range = 2.0f;     ///< Nét hoàn toàn trong khoảng `dof_focus` ± `dof_range`.
+  f32 dof_falloff = 10.0f;  ///< Quãng mờ dần từ nét đến mờ nhất, sau `dof_range`.
   /// @}
 };
 

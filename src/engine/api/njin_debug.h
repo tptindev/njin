@@ -126,6 +126,8 @@ struct render_info {
   u32 draw_calls = 0;
   u32 post_passes = 0;     ///< Số pass toàn màn hình của hậu kỳ dựng sẵn và của ánh sáng.
   u32 lights = 0;          ///< Đèn đã vẽ vào bản đồ ánh sáng (njin_light.h).
+  u32 models3d = 0;        ///< Model 3D đã vẽ (draw_model(), njin::model3d).
+  u32 models3d_culled = 0; ///< Model 3D bị bỏ qua vì nằm ngoài tầm nhìn camera (vẫn đổ bóng).
 };
 
 /// Số liệu vẽ của frame vừa rồi. Đọc trong `phase_post_render` (hoặc frame sau)

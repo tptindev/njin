@@ -78,6 +78,7 @@ Like the shader above, they do not touch the UI in `phase_post_render`.
 | Vignette (dark edges) | `vignette`, `vignette_radius`, `vignette_softness`, `vignette_color` | `vignette` = 0 |
 | Bloom (glow) | `bloom`, `bloom_threshold`, `bloom_radius` | `bloom` = 0 |
 | Blur | `blur` (pixels) | 0 |
+| Depth of field (3D) | `dof` (pixels), `dof_focus`, `dof_range`, `dof_falloff` | `dof` = 0 |
 | Color split | `chromatic` (pixels) | 0 |
 | CRT scanlines | `scanlines`, `scanline_size` | `scanlines` = 0 |
 | CRT curvature | `crt_curve` | 0 |
@@ -98,13 +99,38 @@ The ready-made set is in `namespace njin::post`: njin::post::crt(), njin::post::
 njin::post::vintage(), njin::post::dream(), njin::post::glow(), njin::post::retro(),
 njin::post::hurt(), njin::post::paused().
 
+### Depth of field {#post_dof}
+
+`dof` blurs what is nearer or farther than one distance, like a camera lens in focus:
+sharp within `dof_focus` ± `dof_range`, then blurring over `dof_falloff` up to `dof`
+pixels. The engine reads the depth the frame's 3D drawing (begin_3d() ... end_3d()) left
+behind, so the effect only applies to a 3D scene; a frame with no 3D skips it. Distances
+are along the camera's view direction, in 3D units.
+
+To focus on a thing: the distance is the vector from the camera to it, projected on the
+view direction.
+
+@code
+const njin::vec3 look = njin::normalize(cam.target - cam.position);
+njin::post_fx fx{};
+fx.dof = 7.0f;                                     // at most 7 pixels of blur
+fx.dof_focus = njin::dot(hero_pos - cam.position, look);
+fx.dof_range = 2.0f;                               // sharp within ±2 units of it
+fx.dof_falloff = 6.0f;                             // blurring over the next 6 units
+njin::post_fx_set(ctx, fx);
+@endcode
+
+The scene is blurred once at half size, then mixed with the sharp image by each pixel's
+depth: four full-screen passes, like a wide `blur`. UI drawn in `phase_post_render` is not
+blurred.
+
 The order they are applied in:
 
 ```mermaid
 flowchart LR
-  A[World]:::render --> B[blur]:::engine --> C[bloom]:::engine --> D["one pass: CRT curve,<br/>pixelate, color split,<br/>color adjustment, lines,<br/>vignette, grain"]:::engine --> E[the game's own<br/>shader]:::render --> F[Screen]:::once
+  A[World]:::render --> B[blur]:::engine --> B2[depth of field]:::engine --> C[bloom]:::engine --> D["one pass: CRT curve,<br/>pixelate, color split,<br/>color adjustment, lines,<br/>vignette, grain"]:::engine --> E[the game's own<br/>shader]:::render --> F[Screen]:::once
 ```
 
-Bloom and blur cost a few extra full-screen passes; the remaining effects are merged into a single pass
+Bloom, blur and depth of field cost a few extra full-screen passes; the remaining effects are merged into a single pass
 so they are almost free. Every field can be changed each frame: njin::post_fx_lerp() helps transition smoothly
 between two sets.

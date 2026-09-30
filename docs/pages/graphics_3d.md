@@ -62,6 +62,28 @@ njin::model_material_set(ctx, crate, 0, m);                    // -1 cho mọi p
 
 Normal map không cần tangent trong file: shader tự dựng hệ trục từ đạo hàm màn hình.
 
+### Cắt bỏ ngoài tầm nhìn và mức chi tiết {#model_lod}
+
+draw_model(), draw_model_anim() và njin::model3d bỏ qua model có hộp bao nằm ngoài tầm nhìn
+camera (frustum culling); model đó vẫn đổ bóng vào cảnh. njin::render_info_get() đếm
+`models3d` (đã vẽ) và `models3d_culled` (bị bỏ). Một lưới lớn như địa hình hay đường sá nên
+chia thành nhiều model theo vùng (mỗi vùng một model_create()), để vùng khuất được bỏ.
+
+model_lod_build() tạo các mức chi tiết cho model: bản giản lược ít tam giác hơn, được vẽ thay
+khi model nhỏ trên màn hình. Mức 1 dùng khi model cao chưa tới `screen` (mặc định một phần tư)
+chiều cao màn hình, mỗi mức sau ở một nửa mức trước. Model có xương giữ xương và animation ở
+mọi mức.
+
+@code
+const njin::model_handle person = njin::model_load(ctx, "assets/person.glb");
+njin::model_lod_build(ctx, person); // 3 mức, mỗi mức khoảng nửa số tam giác mức trước
+@endcode
+
+Việc giản lược dùng thư viện [meshoptimizer](https://github.com/zeux/meshoptimizer) (MIT). Nó
+giữ đường ranh giữa các màu và các mảnh UV, nên lưới phẳng có nhiều màu xen kẽ (như bàn cờ) gần
+như không giản lược được; model_lod_build() khi đó trả về 0. draw_instanced3d() và ray3d_model()
+luôn dùng model gốc.
+
 ## Animation của model
 
 Một glTF có skin (xương) mang theo các animation của nó: model_load() nạp chúng cùng model.

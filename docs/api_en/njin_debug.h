@@ -126,6 +126,8 @@ struct render_info {
   u32 draw_calls = 0;
   u32 post_passes = 0;     ///< Number of full-screen passes from the built-in post-processing and from lighting.
   u32 lights = 0;          ///< Lights drawn into the light map (njin_light.h).
+  u32 models3d = 0;        ///< 3D models drawn (draw_model(), njin::model3d).
+  u32 models3d_culled = 0; ///< 3D models left out as outside the camera's view (they still cast shadows).
 };
 
 /// Draw statistics of the last frame. Read in `phase_post_render` (or the next frame)

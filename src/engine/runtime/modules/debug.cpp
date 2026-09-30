@@ -827,7 +827,9 @@ render_info render_info_get(const context &ctx) {
                      .instanced_calls = s.instanced_calls,
                      .draw_calls = s.batches,
                      .post_passes = s.post_passes,
-                     .lights = s.lights};
+                     .lights = s.lights,
+                     .models3d = s.models3d,
+                     .models3d_culled = s.models3d_culled};
 }
 
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }

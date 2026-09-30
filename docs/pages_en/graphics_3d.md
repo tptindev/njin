@@ -65,6 +65,30 @@ njin::model_material_set(ctx, crate, 0, m);                    // -1 for every p
 
 A normal map needs no tangent in the file: the shader builds one from screen derivatives.
 
+### Culling out of view and levels of detail {#model_lod}
+
+draw_model(), draw_model_anim() and njin::model3d leave out a model whose bounding box is
+outside the camera's view (frustum culling); that model still casts its shadow into the
+scene. njin::render_info_get() counts `models3d` (drawn) and `models3d_culled` (left out). A
+big mesh such as terrain or roads is best split into several models by area (one
+model_create() per area), so the areas out of view are left out.
+
+model_lod_build() makes levels of detail for a model: simplified copies with fewer
+triangles, drawn in its place when the model is small on screen. Level 1 is used when the
+model is less tall than `screen` (a quarter by default) of the screen's height, each next
+level at half the previous. A model with bones keeps its bones and animations at every
+level.
+
+@code
+const njin::model_handle person = njin::model_load(ctx, "assets/person.glb");
+njin::model_lod_build(ctx, person); // 3 levels, each about half the triangles of the one before
+@endcode
+
+Simplifying uses the [meshoptimizer](https://github.com/zeux/meshoptimizer) library (MIT). It
+keeps the borders between colours and between UV pieces, so a flat mesh of alternating colours
+(like a checkerboard) can hardly be simplified; model_lod_build() then returns 0.
+draw_instanced3d() and ray3d_model() always use the original model.
+
 ## Model animation
 
 A glTF with a skin (bones) carries its animations: model_load() loads them with the model.

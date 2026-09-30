@@ -39,6 +39,7 @@ struct render3d_locations {
   i32 shadow_on = -1, shadow_map = -1, light_vp = -1, shadow_params = -1;
   i32 flash = -1, dissolve = -1, edge_color = -1;
   // The SDF shader only.
+  i32 clay_surface = -1;
   i32 shape_kind = -1, shape_dims = -1, shape_bounds = -1, shape_to_local = -1, shape_to_world = -1;
   i32 mat_vp = -1, ray_ortho = -1, ray_dir = -1, depth_only = -1;
   i32 blend_a = -1, blend_b = -1, blend_count = -1, blend_k = -1; // draw_sdf_blend
@@ -71,6 +72,11 @@ struct draw3d_cmd {
   u32 blend_first = 0;
   u32 blend_count = 0;
   f32 blend_k = 0.0f;
+  // Models: the level of detail drawn (0 = the full mesh, model_lod_build()),
+  // and whether the box is outside the camera's frustum. A model out of view
+  // still casts its shadow into it, so only the camera pass skips it.
+  u8 lod = 0;
+  bool culled = false;
 };
 
 // Depth seen from the sun. A colour attachment is kept too, so the
@@ -158,6 +164,11 @@ struct render3d_state {
 
   // The open pass. Draw calls take a const ctx, so the list is mutable.
   camera3d camera; // shake included
+  // The open pass's frustum, as planes (xyz the inward normal, w the offset:
+  // a point p is inside when dot(xyz, p) + w >= 0 for all six), and what
+  // model LOD picking needs: tan(fovy / 2).
+  std::array<vec4, 6> frustum{};
+  f32 tan_half_fovy = 1.0f;
   mutable std::vector<draw3d_cmd> cmds;
   mutable std::vector<Matrix> bones; // bone matrices of the posed draws
   mutable std::vector<sdf_part> blend_parts; // parts of the blended SDF shapes
@@ -166,6 +177,11 @@ struct render3d_state {
   fx3d fx;
   material3d material;
   debug3d_frame debug; // the last pass, while the debug server runs
+  // The depth the last pass left in the world target, for the depth of field
+  // of post_fx: its camera's planes, and whether a pass drew since the post
+  // chain last read them.
+  f32 depth_near = 0.05f, depth_far = 1000.0f;
+  bool depth_drawn = false;
 
   render3d_state() = default;
   ~render3d_state();

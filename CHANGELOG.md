@@ -8,6 +8,20 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+- **Model culling**: `draw_model`, `draw_model_anim` and `njin::model3d` now leave out a
+  model whose bounding box is outside the camera's frustum (it still casts its shadow).
+  `render_info_get()` gains `models3d` and `models3d_culled`. A big mesh (terrain, roads)
+  is best split into several `model_create` models by area so the ones out of view are
+  skipped.
+- **Model LOD**: `model_lod_build` makes simplified levels of detail for a model with
+  [meshoptimizer](https://github.com/zeux/meshoptimizer) (MIT, `FetchContent`-pinned,
+  private to the runtime); `draw_model`/`draw_model_anim` then pick the level by how big
+  the model is on screen, keeping bones and animation at every level.
+- **Depth of field**: `post_fx::dof` (with `dof_focus`, `dof_range`, `dof_falloff`) blurs
+  the 3D scene by distance from a focus point, reading back the depth the frame's
+  `begin_3d`/`end_3d` left in the world target. Off (as every `post_fx` field) when a
+  frame draws no 3D.
+
 ## 0.6.0
 
 - **Runtime meshes**: `model_create` builds a model from a game-supplied triangle

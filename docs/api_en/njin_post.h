@@ -12,7 +12,7 @@ struct context;
 /// Each effect is off at its default value; to enable one, adjust that
 /// effect's fields. Set with post_fx_set(); it can be changed every frame (for
 /// example, raise a red vignette as health gets low). Order of application:
-/// blur, bloom, then a single pass with CRT curvature, pixelate, chromatic
+/// blur, depth of field, bloom, then a single pass with CRT curvature, pixelate, chromatic
 /// aberration, color adjustment, scanlines, vignette, grain. If the game has
 /// its own shader (camera_set_post_shader()), that shader runs **last**.
 ///
@@ -52,6 +52,19 @@ struct post_fx {
   f32 crt_curve = 0.0f;  ///< CRT-style screen curvature, 0..0.3. 0 is off.
   f32 pixelate = 0.0f;   ///< Size of the pixelation squares, in screen pixels. Below 2 is off.
   f32 grain = 0.0f;      ///< Film-style grain, 0..0.3. 0 is off.
+  /// @}
+
+  /// @name Depth of field (for 3D)
+  /// Sharp round one distance, blurring nearer and farther, like a camera
+  /// lens in focus. Reads the depth of what was drawn between begin_3d() and
+  /// end_3d() this frame; without 3D it does not apply. Distances are along
+  /// the camera's view direction, in 3D units. E.g. to focus on a thing:
+  /// `dof_focus` is the distance from the camera to it.
+  /// @{
+  f32 dof = 0.0f;           ///< Most blur, out of focus, radius in pixels. 0 is off.
+  f32 dof_focus = 10.0f;    ///< The distance most in focus.
+  f32 dof_range = 2.0f;     ///< Fully sharp within `dof_focus` ± `dof_range`.
+  f32 dof_falloff = 10.0f;  ///< Distance from sharp to the most blur, past `dof_range`.
   /// @}
 };
 

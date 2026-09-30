@@ -138,6 +138,10 @@ struct material3d {
   /// Không hợp lệ là không dán ảnh. Ảnh đã xếp vào atlas bị bỏ qua.
   texture_handle texture{};
   bool cast_shadows = true;  ///< Đổ bóng khi njin::light3d bật `shadows`.
+  /// Opt-in hand-shaped clay normal/albedo variation for SDF draws only.
+  /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
+  f32 clay = 0.0f;
+  f32 clay_detail = 9.0f; ///< Grain frequency relative to the closest SDF part radius.
 };
 
 /// Đặt bề mặt cho các hình 3D vẽ sau lệnh này, đến lần gọi tiếp theo hoặc
@@ -325,6 +329,37 @@ struct mesh3d_data {
 /// @return Handle của model, hoặc handle không hợp lệ nếu lưới rỗng hay sai (cảnh báo nói vì sao).
 model_handle model_create(context &ctx, const mesh3d_data &mesh);
 
+/// Cách model_lod_build() làm các mức chi tiết (LOD) của một model.
+struct model_lod_desc {
+  i32 levels = 3;        ///< Số mức giản lược, 1..4. Mức k giữ khoảng `ratio` mũ k số tam giác.
+  f32 ratio = 0.5f;      ///< Phần tam giác mỗi mức giữ lại so với model gốc, lũy thừa theo mức, 0.1..0.9.
+  /// Hình được lệch tối đa bao nhiêu, tính theo cỡ của mesh (0.05 là 5%). Giản
+  /// lược dừng ở đây dù chưa đạt `ratio`, nên model ít tam giác có thể ít mức hơn.
+  f32 max_error = 0.05f;
+  /// Mức 1 được vẽ khi model (quả cầu bao nó) cao chưa tới phần này của chiều cao
+  /// màn hình; mỗi mức sau ở một nửa mức trước.
+  f32 screen = 0.25f;
+};
+
+/// Tạo các mức chi tiết cho model: bản giản lược, ít tam giác hơn, được vẽ thay
+/// model khi nó nhỏ trên màn hình. Sau đó draw_model(), draw_model_anim() và
+/// njin::model3d tự chọn mức theo khoảng cách tới camera; model có xương giữ
+/// xương và animation ở mọi mức. draw_instanced3d() và ray3d_model() luôn dùng
+/// model gốc.
+///
+/// Làm một lần sau khi nạp (tốn vài mili giây với vài chục nghìn tam giác); gọi
+/// lại thì thay các mức cũ. model_unload() giải phóng cả các mức.
+///
+/// @code
+/// const njin::model_handle tree = njin::model_load(ctx, "tree.glb");
+/// njin::model_lod_build(ctx, tree, {.levels = 2});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model từ model_load() hay model_create().
+/// @param desc Số mức và mức giản lược.
+/// @return Số mức đã tạo, 0 nếu model quá đơn giản để giản lược hay handle không hợp lệ.
+i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &desc = {});
+
 /// Vị trí, hướng và tỉ lệ của một vật 3D.
 ///
 /// Thứ tự áp dụng: phóng theo `scale`, xoay quanh `z` (roll), rồi quanh `x`
@@ -385,6 +420,11 @@ void model_material_set(context &ctx, model_handle handle, i32 index, const mode
 /// Vẽ model tại `transform`, với vật liệu của nó (model_material_set()).
 /// material3d_set() không áp dụng cho model; fx3d_set() thì có. Shader của game
 /// bật bằng shader_begin() thay shader của mọi phần không có shader riêng.
+///
+/// Model nằm ngoài tầm nhìn camera (hộp bao của nó ngoài frustum) không được vẽ
+/// nhưng vẫn đổ bóng vào cảnh; render_info_get() đếm số model bị bỏ. Một lưới lớn
+/// (địa hình, đường sá) nên chia thành nhiều model theo vùng để phần khuất được
+/// bỏ. Có mức chi tiết (model_lod_build()) thì model ở xa vẽ bằng mức đơn giản hơn.
 /// @param ctx Context của engine.
 /// @param handle Model từ model_load(). Handle không hợp lệ bị bỏ qua.
 /// @param transform Vị trí, hướng và tỉ lệ.
