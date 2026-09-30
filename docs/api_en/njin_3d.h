@@ -41,6 +41,24 @@ struct camera3d {
 /// @param camera Camera for this draw.
 void begin_3d(context &ctx, const camera3d &camera);
 
+/// Like begin_3d() but draws this 3D pass into the render texture `target`
+/// instead of the screen: a second eye in the same frame (a character's camera,
+/// a rear-view mirror). Clears `target` with `clear` first; the aspect ratio comes
+/// from its size. Also only called in `phase_render` and closed with end_3d();
+/// several in one frame are fine, each a full pass (shadows included if
+/// light3d_set() turns them on), so each costs as much as drawing the scene again.
+///
+/// camera_shake() does not shake this camera, gizmos are not drawn into it, and its
+/// depth is not used by `post_fx::dof`. Lights (light3d_add()) must be added again
+/// for this pass. The image in the render texture is stored upside down, like
+/// every render texture.
+/// @param ctx Engine context.
+/// @param camera Camera for this draw.
+/// @param target Render texture that receives the image. An invalid handle is
+/// ignored, with a warning.
+/// @param clear Colour `target` is cleared with before drawing.
+void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target, rgba clear);
+
 /// Ends 3D drawing and returns to 2D drawing in world space.
 ///
 /// Does nothing without a matching begin_3d(). If the game forgets to call it,

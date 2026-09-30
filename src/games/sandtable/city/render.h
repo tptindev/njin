@@ -42,6 +42,11 @@ struct view_options {
   // name large) and the building (framed); -1 for none.
   i32 hover_district = -1;
   i32 hover_building = -1;
+  // The man looked at (a click on him, or "Xem" in the men popup,
+  // gang.cpp's gang_focus_man): a ring under him, following as he walks.
+  bool person_focused = false;
+  vec2 person_focus{};
+  f32 person_lift = 0.0f; // world units: the floor he stands on, inside
   // The card telling what is under the mouse (render_debug.cpp): for looking
   // at the generator's work, off in play.
   bool debug_card = false;
@@ -75,6 +80,10 @@ void view_init(context &ctx);
 
 void view_build(context &ctx, const city_map &map);
 void view_draw(context &ctx, const city_map &map, const view_options &opt);
+// The city once more in the same frame, for a second eye (a man's camera,
+// into a render texture): what lies within `reach` world units of `at`, in
+// full detail, whatever the main view culls. No labels, hover or debug.
+void view_draw_eye(context &ctx, const city_map &map, const view_options &opt, vec2 at, f32 reach);
 void view_draw_ui(context &ctx, const city_map &map, const view_options &opt, font_handle font);
 void view_cleanup(context &ctx);
 // Game exit only: what view_init() loaded and view_cleanup() does not touch.

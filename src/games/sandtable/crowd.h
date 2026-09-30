@@ -30,6 +30,8 @@ struct crowd_report {
 crowd_report crowd_check();
 // Draws those near the camera. Between begin_3d() and end_3d().
 void crowd_draw(context &ctx);
+// Draws those within `range` world units of `at`, for a second eye (feeds.h).
+void crowd_draw_around(context &ctx, vec2 at, f32 range);
 i32 crowd_size();
 
 } // namespace sandtable

@@ -46,6 +46,28 @@ u32 turf_built = ~0u;
 // The frame round the building under the mouse, and which one it is.
 instances frame;
 i32 framed = -1;
+// The ring under the man looked at: rebuilt every frame, as he walks.
+instances person_ring;
+constexpr f32 ring_radius = 6.0f;    // world units, about a metre round him
+constexpr f32 ring_width = 1.2f;
+constexpr i32 ring_segments = 20;
+const rgba ring_col{1.0f, 0.95f, 0.7f, 1.0f};
+
+// The ring, `ring_segments` short tangential bars, centred on `at`, at the
+// height people's feet are drawn (draw_person's lift, 0.04 3D units: the
+// street surface), `lift` world units higher for a floor inside.
+void build_ring(context &ctx, vec2 at, f32 lift) {
+  person_ring.clear();
+  const f32 base = 0.04f / unit3d + lift;
+  for (i32 i = 0; i < ring_segments; ++i) {
+    const f32 a0 = 360.0f * static_cast<f32>(i) / static_cast<f32>(ring_segments);
+    const f32 a1 = 360.0f * static_cast<f32>(i + 1) / static_cast<f32>(ring_segments);
+    const vec2 p0 = at + from_angle(a0) * ring_radius, p1 = at + from_angle(a1) * ring_radius;
+    person_ring.box((p0 + p1) * 0.5f, base, {distance(p0, p1) * 1.2f, 0.3f, ring_width}, angle_of(p1 - p0),
+                    ring_col);
+  }
+  person_ring.upload(ctx);
+}
 
 // The cells `in` says yes to, as runs along each row, and the edges between
 // them and the rest (cell sides, merged where they run on).
@@ -166,6 +188,10 @@ void hover_draw(context &ctx, const city_map &map, const view_options &opt) {
     }
     frame.draw(ctx, mesh3d_cube);
   }
+  if (opt.person_focused) {
+    build_ring(ctx, opt.person_focus, opt.person_lift);
+    person_ring.draw(ctx, mesh3d_cube);
+  }
   material3d_set(ctx, {});
 }
 
@@ -208,6 +234,7 @@ void hover_cleanup(context &ctx) {
   turf_built = ~0u;
   frame.destroy(ctx);
   framed = -1;
+  person_ring.destroy(ctx);
 }
 
 } // namespace sandtable::city

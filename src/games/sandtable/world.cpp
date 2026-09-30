@@ -100,6 +100,8 @@ void world_input(context &ctx) {
       view.turf_colours.push_back(g.colour);
   }
   view.turf_version = turf_version();
+  // The man looked at (gang.cpp), wherever he has walked to since.
+  view.person_focused = gang_focused_pos(view.person_focus, view.person_lift);
   if (state.popup_open) {
     view.hover_district = view.hover_building = -1;
     return;
@@ -124,8 +126,11 @@ void world_input(context &ctx) {
     cut_around = !cut_around;
   if (key_pressed(ctx, key_t))
     state.hour = darkness() < 0.5f ? 21.0f : 12.0f; // toggle night/day
-  if (key_pressed(ctx, key_escape) && view.selected >= 0)
-    world_unfocus();
+  if (key_pressed(ctx, key_escape) && (view.selected >= 0 || view.person_focused)) {
+    gang_unfocus_man();
+    if (view.selected >= 0)
+      world_unfocus();
+  }
   // What the mouse is over, to light up.
   view.hover_district = view.hover_building = -1;
   vec2 under;
@@ -135,13 +140,20 @@ void world_input(context &ctx) {
         view.hover_district = c->district;
     view.hover_building = city::view_pick(ctx, map, mouse_pos(ctx));
   }
-  // A building focuses it; a click beside the one in focus lets it go.
+  // A man picked shows a ring on him; a building focuses it; a click on
+  // empty ground, or beside the building in focus, lets go of either.
   if (mouse_pressed(ctx, mouse_left) && !ui_mouse_over(ctx)) {
-    const i32 hit = view.hover_building;
-    if (hit >= 0)
-      world_focus(hit);
-    else if (view.selected >= 0)
-      world_unfocus();
+    i32 pick_gi = -1, pick_mi = -1;
+    if (gang_pick_man(ctx, mouse_pos(ctx), 24.0f * ui_scale(ctx), pick_gi, pick_mi)) {
+      gang_focus_man(pick_gi, pick_mi);
+    } else {
+      gang_unfocus_man();
+      const i32 hit = view.hover_building;
+      if (hit >= 0)
+        world_focus(hit);
+      else if (view.selected >= 0)
+        world_unfocus();
+    }
   }
   // Up and down the floors of the open building (or of the tallest one open
   // round the middle of the view).

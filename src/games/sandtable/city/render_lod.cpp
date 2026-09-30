@@ -115,6 +115,21 @@ void view_cull_update(context &ctx, const city_map &map, const view_options &opt
   stats.instances = 0;
 }
 
+view_cull view_cull_around(vec2 at, f32 reach) {
+  const view_cull was = state_cull;
+  state_cull.x0 = at.x - reach;
+  state_cull.y0 = at.y - reach;
+  state_cull.x1 = at.x + reach;
+  state_cull.y1 = at.y + reach;
+  state_cull.center = at;
+  state_cull.detail_r = reach;
+  state_cull.prop_r = reach;
+  state_cull.focused = false;
+  return was;
+}
+
+void view_cull_restore(const view_cull &was) { state_cull = was; }
+
 std::vector<std::pair<u32, u32>> chunk_ranges(const chunked &b, const std::vector<u8> &want, const skip_list *skip) {
   std::vector<std::pair<u32, u32>> out;
   for (i32 c = 0; c < static_cast<i32>(want.size()); ++c) {

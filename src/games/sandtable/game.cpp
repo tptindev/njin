@@ -55,6 +55,8 @@ const test_shot test_shots[] = {
     {"sandtable_test_new_town.png", city::district_kind::new_urban, 13.0f, city::overlay::none, false, false},
     {"sandtable_test_street_night.png", city::district_kind::nightlife, 21.5f, city::overlay::none, false, false},
     {"sandtable_test_cut_old_quarter.png", city::district_kind::old_quarter, 11.0f, city::overlay::none, false, true},
+    {"sandtable_test_cut_old_quarter_night.png", city::district_kind::old_quarter, 21.0f, city::overlay::none, false,
+     true},
     {"sandtable_test_cut_new_town.png", city::district_kind::new_urban, 11.0f, city::overlay::none, false, true},
     {"sandtable_test_cut_docks.png", city::district_kind::docks, 11.0f, city::overlay::none, false, true},
     {"sandtable_test_cut_market.png", city::district_kind::market, 11.0f, city::overlay::none, false, true},
@@ -200,16 +202,16 @@ void test_harness(context &ctx) {
     const city::building &b = world().buildings[static_cast<size_t>(hq)];
     view_focus(b.door + b.front() * 30.0f, 5.0f, true);
   }
-  if (h == 360)
+  if (h == 600)
     screenshot(ctx, "sandtable_test_hq_muster.png");
-  if (h == 361) {
+  if (h == 601) {
     gang_muster(ctx, false);
     world_view().show_turf = true;
     view_reset();
   }
-  if (h == 365)
+  if (h == 605)
     screenshot(ctx, "sandtable_test_turf.png");
-  if (g == 5 + 370) {
+  if (g == 5 + 610) {
     std::printf("[test] city %u: %s\n", world().desc.seed, world().report.ok() ? "ok" : "FAILED");
     for (const gang_state &gs : gangs())
       std::printf("[test] %s: hq %d, %d men, %d blocks\n", gs.name.c_str(), gs.hq, static_cast<i32>(gs.men.size()),

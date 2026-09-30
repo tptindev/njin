@@ -252,18 +252,9 @@ crowd_report crowd_check() {
   return r;
 }
 
-void crowd_draw(context &ctx) {
-  if (!person_ready() || state.cam_distance > 40.0f)
-    return;
-  const f32 range = std::min(draw_range, 200.0f + state.cam_distance * 18.0f);
-  material3d_set(ctx, {.specular = 0.15f, .shininess = 16.0f});
-  for (const townsman &t : folk) {
-    // Only those in view; with something in focus, only those round it.
-    const city::view_options &v = world_view();
-    if (distance(t.pos, state.cam_target) > range || !city::view_sees(t.pos) ||
-        (v.focused && distance(t.pos, v.focus) > v.focus_radius * 1.3f))
-      continue;
-    draw_person(ctx, {.at = t.pos,
+namespace {
+void draw_townsman(context &ctx, const townsman &t) {
+  draw_person(ctx, {.at = t.pos,
                       .facing = t.facing,
                       .now = t.now,
                       .time = t.time,
@@ -273,7 +264,32 @@ void crowd_draw(context &ctx) {
                       .tint = t.tint,
                       .lift = 0.04f,
                       .identity = t.identity});
+}
+} // namespace
+
+void crowd_draw(context &ctx) {
+  if (!person_ready() || state.cam_distance > 40.0f)
+    return;
+  const f32 range = std::min(draw_range, 200.0f + state.cam_distance * 18.0f);
+  material3d_set(ctx, {.specular = 0.15f, .shininess = 16.0f});
+  const city::view_options &v = world_view();
+  for (const townsman &t : folk) {
+    // Only those in view; with something in focus, only those round it.
+    if (distance(t.pos, state.cam_target) > range || !city::view_sees(t.pos) ||
+        (v.focused && distance(t.pos, v.focus) > v.focus_radius * 1.3f))
+      continue;
+    draw_townsman(ctx, t);
   }
+  material3d_set(ctx, {});
+}
+
+void crowd_draw_around(context &ctx, vec2 at, f32 range) {
+  if (!person_ready())
+    return;
+  material3d_set(ctx, {.specular = 0.15f, .shininess = 16.0f});
+  for (const townsman &t : folk)
+    if (distance(t.pos, at) <= range)
+      draw_townsman(ctx, t);
   material3d_set(ctx, {});
 }
 

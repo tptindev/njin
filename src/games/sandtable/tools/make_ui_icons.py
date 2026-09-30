@@ -128,11 +128,21 @@ def house():
     return im
 
 
+def camera():
+    # A video camera: the body, its lens hood to the right, a reel on top.
+    im, d = canvas()
+    d.rounded_rectangle(s(6, 22, 42, 50), radius=5 * K, fill=W)
+    d.polygon(s(42, 32, 58, 22, 58, 50, 42, 40), fill=W)
+    d.ellipse(s(10, 8, 24, 22), fill=W)
+    d.ellipse(s(24, 8, 38, 22), fill=W)
+    return im
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, fn in [("people", people), ("flag", flag), ("coins", coins), ("bug", bug), ("pause", pause),
                      ("play", play), ("fast", fast), ("up", lambda: chevron(True)), ("down", lambda: chevron(False)),
-                     ("close", close), ("house", house)]:
+                     ("close", close), ("house", house), ("camera", camera)]:
         save(fn(), name)
     print("icons ->", OUT)
 

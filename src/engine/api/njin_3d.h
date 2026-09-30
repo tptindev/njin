@@ -40,6 +40,22 @@ struct camera3d {
 /// @param camera Camera dùng cho lần vẽ này.
 void begin_3d(context &ctx, const camera3d &camera);
 
+/// Như begin_3d() nhưng vẽ lần 3D này vào render texture `target` thay vì lên
+/// màn hình: một con mắt thứ hai trong cùng frame (camera của một nhân vật, gương
+/// chiếu hậu). Xóa `target` bằng màu `clear` trước, tỉ lệ khung hình lấy theo kích
+/// thước của nó. Cũng chỉ gọi trong `phase_render` và kết thúc bằng end_3d();
+/// nhiều lần như vậy trong một frame được, mỗi lần một lượt vẽ đầy đủ (kể cả bóng đổ
+/// nếu light3d_set() bật), nên tốn như vẽ cảnh thêm một lần.
+///
+/// camera_shake() không rung camera này, gizmo không vẽ vào đây, và độ sâu của nó
+/// không dùng cho `post_fx::dof`. Đèn (light3d_add()) phải thêm lại cho lần vẽ này.
+/// Ảnh trong render texture lưu ngược trục dọc như mọi render texture.
+/// @param ctx Context của engine.
+/// @param camera Camera dùng cho lần vẽ này.
+/// @param target Render texture nhận ảnh. Handle không hợp lệ thì bỏ qua, kèm cảnh báo.
+/// @param clear Màu xóa `target` trước khi vẽ.
+void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target, rgba clear);
+
 /// Kết thúc vẽ 3D và quay về vẽ 2D trong không gian thế giới.
 ///
 /// Không có begin_3d() tương ứng thì không làm gì. Nếu game quên gọi, engine tự
@@ -141,7 +157,7 @@ struct material3d {
   /// Opt-in hand-shaped clay normal/albedo variation for SDF draws only.
   /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
   f32 clay = 0.0f;
-  f32 clay_detail = 9.0f; ///< Grain frequency relative to the closest SDF part radius.
+  f32 clay_detail = 9.0f; ///< Grain frequency relative to the largest SDF part radius.
 };
 
 /// Đặt bề mặt cho các hình 3D vẽ sau lệnh này, đến lần gọi tiếp theo hoặc

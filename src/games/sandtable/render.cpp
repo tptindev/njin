@@ -1,6 +1,7 @@
 #include "render.h"
 #include "audio.h"
 #include "crowd.h"
+#include "feeds.h"
 #include "gang.h"
 #include "hud.h"
 #include "person.h"
@@ -223,6 +224,7 @@ void render_cleanup(context &ctx) {
   city::view_shutdown(ctx);
   person_cleanup(ctx);
   hud_cleanup(ctx);
+  feeds_cleanup(ctx);
   if (ui_font.id != 0) {
     font_unload(ctx, ui_font);
     ui_font = {};
@@ -262,6 +264,8 @@ void render_world(context &ctx) {
   city::view_draw(ctx, world(), world_view());
   draw_men(ctx);
   end_3d(ctx);
+  // The men's own cameras, each into its render texture (feeds.h).
+  feeds_render(ctx);
 }
 
 void render_ui(context &ctx) {

@@ -174,6 +174,10 @@ struct render3d_state {
   mutable std::vector<sdf_part> blend_parts; // parts of the blended SDF shapes
   std::vector<light3d_source> lights;
   bool entities = true; // camera3d::entities of the open pass
+  // The open pass draws into a render texture (begin_3d with a target)
+  // instead of the world target: its framebuffer, 0 for none, and size.
+  u32 target_fbo = 0;
+  vec2 target_size{};
   fx3d fx;
   material3d material;
   debug3d_frame debug; // the last pass, while the debug server runs

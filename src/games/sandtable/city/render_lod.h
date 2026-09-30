@@ -35,6 +35,11 @@ const view_cull &cull();
 // The chunk grid for `map`: before anything is laid out chunk by chunk.
 void chunk_grid(const city_map &map);
 void view_cull_update(context &ctx, const city_map &map, const view_options &opt);
+// For a second eye in the same frame (view_draw_eye): everything within
+// `reach` of `at` in view and in full detail, until view_cull_restore() puts
+// back what view_cull_around() returned.
+view_cull view_cull_around(vec2 at, f32 reach);
+void view_cull_restore(const view_cull &was);
 
 i32 chunk_count();
 i32 chunk_of(vec2 p);

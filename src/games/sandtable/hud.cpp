@@ -1,5 +1,6 @@
 #include "hud.h"
 #include "audio.h"
+#include "feeds.h"
 #include "gang.h"
 #include "view.h"
 #include "weather.h"
@@ -32,6 +33,16 @@ font_handle font{};
 f32 k = 1.0f; // ui_scale this frame
 ui_style pill_style{}, dock_style{}, card_style{}, popup_style{};
 
+// raylib's roundness is a fraction of the rect's shorter side (radius =
+// roundness * min(w, h) / 2), so a flat 0.3-0.5 looked fine on the small
+// buttons but ballooned into a big curve on the wider panels and popups.
+// This keeps every corner close to `corner_radius` pixels regardless of the
+// rect's size; `dim` is the rect's known shorter side (widget_height for a
+// row, width for a panel wider than it is tall, which every HUD panel here
+// is in practice).
+constexpr f32 corner_radius = 12.0f;
+f32 round_for(f32 dim) { return clamp(corner_radius * 2.0f / std::max(dim, 1.0f), 0.0f, 1.0f); }
+
 ui_skin skin(rgba color, f32 round, rgba edge = glass_edge) {
   return ui_skin{.color = color, .roundness = round, .outline = edge, .outline_width = 1.0f};
 }
@@ -44,19 +55,19 @@ ui_style base_style() {
   s.spacing = 6.0f;
   s.widget_height = 32.0f;
   s.width = 360.0f;
-  s.panel.normal = skin(glass, 0.35f);
+  s.panel.normal = skin(glass, round_for(s.width));
   s.panel.text = ink;
   s.label.text = s.label.text_focused = ink;
-  s.button.normal = skin(rgb(255, 255, 255, 14), 0.4f, rgb(0, 0, 0, 0));
-  s.button.focused = skin(rgb(255, 255, 255, 34), 0.4f, rgb(255, 255, 255, 40));
-  s.button.pressed = skin(rgb(255, 255, 255, 56), 0.4f, accent);
-  s.button.disabled = skin(rgb(255, 255, 255, 6), 0.4f, rgb(0, 0, 0, 0));
+  s.button.normal = skin(rgb(255, 255, 255, 14), round_for(s.widget_height), rgb(0, 0, 0, 0));
+  s.button.focused = skin(rgb(255, 255, 255, 34), round_for(s.widget_height), rgb(255, 255, 255, 40));
+  s.button.pressed = skin(rgb(255, 255, 255, 56), round_for(s.widget_height), accent);
+  s.button.disabled = skin(rgb(255, 255, 255, 6), round_for(s.widget_height), rgb(0, 0, 0, 0));
   s.button.text = ink;
   s.button.text_focused = rgb(255, 250, 238);
   s.button.text_disabled = rgb(110, 112, 108);
   s.track.normal = s.track.focused = s.track.pressed = s.track.disabled = skin(rgb(0, 0, 0, 90), 0.5f);
   s.fill.normal = s.fill.focused = s.fill.pressed = s.fill.disabled = skin(accent, 0.5f, rgb(0, 0, 0, 0));
-  s.toast.normal = skin(glass, 0.3f);
+  s.toast.normal = skin(glass, round_for(s.toast_width));
   s.toast.text = ink;
   s.toast_anchor = {1.0f, 0.0f};
   // Under the clock, top right.
@@ -72,25 +83,39 @@ ui_style base_style() {
   return s;
 }
 
+// Re-fits the panel/button roundness (baked in by base_style() off its own
+// width/widget_height) to a style's own, final width and widget_height.
+void fit_rounding(ui_style &s) {
+  const f32 br = round_for(s.widget_height);
+  s.button.normal.roundness = s.button.focused.roundness = s.button.pressed.roundness = s.button.disabled.roundness =
+      br;
+  s.panel.normal.roundness = round_for(s.width);
+  s.toast.normal.roundness = round_for(s.toast_width);
+}
+
 void make_styles() {
   pill_style = base_style();
   pill_style.widget_height = 36.0f;
   pill_style.padding = 8.0f;
+  fit_rounding(pill_style);
   dock_style = base_style();
   dock_style.widget_height = 52.0f;
   dock_style.padding = 8.0f;
   dock_style.spacing = 8.0f;
+  fit_rounding(dock_style);
   card_style = base_style();
   card_style.width = 336.0f;
   card_style.widget_height = 32.0f;
   card_style.padding = 14.0f;
   card_style.spacing = 6.0f;
+  fit_rounding(card_style);
   popup_style = base_style();
   popup_style.font_size = 18.0f;
   popup_style.padding = 20.0f;
   popup_style.spacing = 8.0f;
   popup_style.widget_height = 36.0f;
   popup_style.width = 680.0f;
+  fit_rounding(popup_style);
 }
 
 // Sets `st`, scaled to the window.
@@ -101,13 +126,13 @@ void use(context &ctx, ui_style st) {
 
 // A button standing for the current choice (the speed, the popup open).
 ui_style with_active(ui_style s) {
-  s.button.normal = s.button.focused = skin(rgb(232, 176, 72, 70), 0.4f, accent);
+  s.button.normal = s.button.focused = skin(rgb(232, 176, 72, 70), round_for(s.widget_height), accent);
   return s;
 }
 
 // --- Icons ------------------------------------------------------------------------------
 
-enum icon { i_people, i_flag, i_coins, i_bug, i_pause, i_play, i_fast, i_up, i_down, i_close, i_house, icon_count };
+enum icon { i_people, i_flag, i_coins, i_bug, i_pause, i_play, i_fast, i_up, i_down, i_close, i_house, i_camera, icon_count };
 texture_handle icons[icon_count];
 
 // Icons and the tip under the mouse go on top of a panel's widgets, which the
@@ -253,8 +278,8 @@ void clock(context &ctx) {
 void dock(context &ctx) {
   use(ctx, dock_style);
   ui_begin(ctx, {.id = "dock", .anchor = {0.5f, 1.0f}, .pivot = {0.5f, 1.0f}, .offset = vec2{0.0f, -16.0f} * k,
-                 .width = 4 * 60.0f + 3 * 8.0f + 16.0f, .navigable = false});
-  ui_row(ctx, 4);
+                 .width = 5 * 60.0f + 4 * 8.0f + 16.0f, .navigable = false});
+  ui_row(ctx, 5);
   const struct {
     const char *id;
     icon i;
@@ -270,6 +295,10 @@ void dock(context &ctx) {
     if (icon_button(ctx, it.id, it.i, it.tip, true, it.tint))
       open(it.p);
   }
+  // The camera wall is not a popup: the town goes on while it is up.
+  use(ctx, feeds_on() ? with_active(dock_style) : dock_style);
+  if (icon_button(ctx, "##cams", i_camera, "Camera đàn em", true, feeds_on() ? accent : ink))
+    feeds_on() = !feeds_on();
   use(ctx, dock_style);
   ui_end(ctx);
   drawn(ctx);
@@ -368,6 +397,92 @@ void card(context &ctx) {
   drawn(ctx);
 }
 
+// --- The camera wall ------------------------------------------------------------------
+// What each man out on a job sees (feeds.h), live, in a grid in the middle of
+// the screen; the wheel scrolls it when there are more than fit. A click on a
+// view looks at him on the table.
+
+f32 wall_scroll = 0.0f;
+
+void camera_wall(context &ctx) {
+  const vec2 scr = screen_size(ctx);
+  const f32 width_px = std::min(scr.x - 96.0f * k, 1040.0f * k);
+  const f32 area_h_px = std::min(scr.y - 300.0f * k, 560.0f * k);
+  const std::vector<feed> &list = feeds();
+  const std::vector<lackey> &men = gang().men;
+  char title[64], line[200];
+  std::snprintf(title, sizeof(title), "Camera đàn em · %d đang đi", static_cast<i32>(list.size()));
+  use(ctx, card_style);
+  ui_begin(ctx, {.id = "wall", .title = title, .anchor = {0.5f, 0.5f}, .pivot = {0.5f, 0.5f},
+                 .width = width_px / k, .navigable = false});
+  if (list.empty()) {
+    label(ctx, "Không ai đang đi làm nhiệm vụ. Cử người đi thu hay ép nộp từ thẻ của một cơ sở.", ink_dim);
+    ui_end(ctx);
+    drawn(ctx);
+    return;
+  }
+  ui_space(ctx, area_h_px / k);
+  const rect area = ui_last_rect(ctx);
+  ui_end(ctx);
+  drawn(ctx);
+
+  // As many columns of 16:9 views as fit at about 300 px, a caption under each.
+  const f32 gap = 10.0f * k, caption = 26.0f * k;
+  const i32 cols = std::clamp(static_cast<i32>((area.size.x + gap) / (300.0f * k + gap)), 1, 4);
+  const f32 cw = std::floor((area.size.x - gap * static_cast<f32>(cols - 1)) / static_cast<f32>(cols));
+  const f32 ch = std::floor(cw * 9.0f / 16.0f);
+  const f32 row_h = ch + caption + gap;
+  const i32 rows = (static_cast<i32>(list.size()) + cols - 1) / cols;
+  const f32 content = static_cast<f32>(rows) * row_h - gap;
+  const f32 most = std::max(0.0f, content - area.size.y);
+  const bool over = point_in_rect(mouse_pos(ctx), area);
+  if (over && mouse_wheel(ctx) != 0.0f) {
+    wall_scroll -= mouse_wheel(ctx) * row_h * 0.5f;
+    mouse_wheel_consume(ctx);
+  }
+  wall_scroll = clamp(wall_scroll, 0.0f, most);
+  feeds_set_size({cw, ch});
+
+  clip_begin(ctx, area);
+  for (i32 i = 0; i < static_cast<i32>(list.size()); ++i) {
+    const feed &f = list[static_cast<size_t>(i)];
+    const vec2 at{area.pos.x + static_cast<f32>(i % cols) * (cw + gap),
+                  std::floor(area.pos.y + static_cast<f32>(i / cols) * row_h - wall_scroll)};
+    if (at.y + row_h < area.pos.y || at.y > area.pos.y + area.size.y)
+      continue;
+    const rect view{at, {cw, ch}};
+    if (f.fresh && f.size.x == cw && f.size.y == ch) {
+      render_texture_draw(ctx, f.view, at, colors::white);
+    } else {
+      draw_rect(ctx, view, rgb(10, 12, 12, 230));
+      const vec2 w = text_measure(ctx, "Đang kết nối...", 15.0f * k, font);
+      draw_text(ctx, "Đang kết nối...", at + (view.size - w) * 0.5f, 15.0f * k, ink_dim, font);
+    }
+    // A red dot and LIVE in the corner, as on a camera's screen.
+    draw_rect(ctx, {at + vec2{8.0f, 8.0f} * k, vec2{48.0f, 20.0f} * k}, rgb(0, 0, 0, 140));
+    draw_rect(ctx, {at + vec2{14.0f, 14.0f} * k, vec2{8.0f, 8.0f} * k}, gang_red);
+    draw_text(ctx, "LIVE", at + vec2{26.0f, 10.0f} * k, 13.0f * k, ink, font);
+    const lackey &m = men[static_cast<size_t>(f.man)];
+    std::snprintf(line, sizeof(line), "%s · %s %s", m.name.c_str(), job_name(m.task), gang_target_name(m));
+    draw_text(ctx, line, {at.x + 2.0f * k, at.y + ch + 5.0f * k}, 15.0f * k, ink, font);
+    if (over && point_in_rect(mouse_pos(ctx), view)) {
+      draw_rect(ctx, {at, {cw, 2.0f * k}}, accent);
+      draw_rect(ctx, {at + vec2{0.0f, ch - 2.0f * k}, {cw, 2.0f * k}}, accent);
+      if (mouse_pressed(ctx, mouse_left)) {
+        gang_focus_man(0, f.man);
+        view_focus(m.pos, 10.0f);
+      }
+    }
+  }
+  clip_end(ctx);
+  // Where the scroll is, when there is more than fits.
+  if (most > 0.0f) {
+    const f32 bar_h = area.size.y * area.size.y / content;
+    const f32 bar_y = area.pos.y + (area.size.y - bar_h) * (wall_scroll / most);
+    draw_rect(ctx, {{area.pos.x + area.size.x + 4.0f * k, bar_y}, {4.0f * k, bar_h}}, rgb(255, 255, 255, 90));
+  }
+}
+
 // --- Popups ---------------------------------------------------------------------------
 
 bool popup_begin(context &ctx, const char *id, const char *title) {
@@ -406,6 +521,7 @@ void men_popup(context &ctx) {
     std::snprintf(line, sizeof(line), "Xem##look%d", i);
     if (ui_button(ctx, line)) {
       open_popup = popup::none;
+      gang_focus_man(0, i);
       view_focus(m.pos, 10.0f);
     }
   }
@@ -555,7 +671,7 @@ void hud_init(context &ctx, font_handle f) {
   font = f;
   make_styles();
   const char *const names[icon_count] = {"people", "flag", "coins", "bug", "pause", "play",
-                                         "fast", "up", "down", "close", "house"};
+                                         "fast", "up", "down", "close", "house", "camera"};
   char path[96];
   for (i32 i = 0; i < icon_count; ++i) {
     std::snprintf(path, sizeof(path), "assets/ui/%s.png", names[i]);
@@ -576,9 +692,12 @@ void hud_draw(context &ctx) {
   resources(ctx);
   clock(ctx);
   dock(ctx);
-  // The card hides while a popup is open.
-  if (open_popup == popup::none)
+  // The card hides while a popup or the camera wall is up; the wall while a
+  // popup is.
+  if (open_popup == popup::none && !feeds_on())
     card(ctx);
+  if (open_popup == popup::none && feeds_on())
+    camera_wall(ctx);
   switch (open_popup) {
   case popup::men: men_popup(ctx); break;
   case popup::turf: turf_popup(ctx); break;

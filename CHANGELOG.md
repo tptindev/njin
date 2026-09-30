@@ -8,6 +8,37 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+- **A second eye in the same 3D pass**: `begin_3d(ctx, camera, target, clear)` draws a whole
+  extra 3D pass into a render texture instead of the screen (its own aspect ratio, no sun
+  shadows, no gizmos, not counted for `post_fx::dof`), for a camera other than the game's own
+  inside the same frame. Still one `end_3d()` closes it; several such passes in one frame cost
+  as much as drawing the scene again each time.
+- `njin_sandtable`: a wall of live cameras, one over the shoulder of every lackey out on a job
+  (the dock's new camera button, not a popup: the town keeps running behind it). A grid of
+  16:9 views, LIVE and his name/task/target under each, scrolls with the wheel past what fits;
+  clicking one looks at him on the table. Only two views are redrawn a frame, in turn, to keep
+  the cost down; each is still a full extra look at the town (`city::view_draw_eye`,
+  `crowd_draw_around`, `gang_draw_around`), round him only, whatever the main view has cut
+  open, culled or in focus.
+- `njin_sandtable`: a ring under the man looked at (a click on him in the world, or "Xem" in
+  the men popup), following him as he walks and sitting on the right floor when he is inside;
+  Esc or a click on empty ground lets it go.
+- **Fixed**: a gang mustering before its headquarters could spread into the carriageway when
+  the sidewalk there was narrow — `muster_place` only offset from the door, never checked what
+  it landed on. Rows now fit within however deep the sidewalk actually runs there
+  (`sidewalk_depth`), the boss by the door and the rest behind him by rank.
+- **Fixed**: a man standing idle inside a headquarters (no physics there) could end up placed
+  right against another man or a chair, since a standing spot was only checked against the
+  clear of its own grid cell, not the spot itself. `places_on` now keeps every seat and
+  standing place at least a shoulder's width from the furniture and from each other.
+- **Fixed**: a building cut open to look into stayed dark at night — the sun alone never
+  reaches a cut-open room's height. The open floor now hangs a warm light over its middle,
+  within the headroom `render_props.cpp`'s street lamps already leave free of `light3d_max`.
+- **Fixed**: `njin_sandtable`'s HUD panels used a flat `roundness` fraction (of the shorter
+  side) for their corners, so the small pill buttons looked right but the wider popups curved
+  far more than intended. Roundness is now sized to keep every corner close to 12 px
+  regardless of the panel's own size.
+
 - **3D characters block each other**: characters (`character3d_create`) no longer walk
   through one another; they slide round each other as along a wall. Each is tested only
   against the ones near it (a grid on x and z), so a crowd costs little more than a handful.

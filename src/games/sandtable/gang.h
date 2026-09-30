@@ -111,6 +111,22 @@ void gang_step(context &ctx, f32 dt);
 void gang_update(f32 dt);
 // The men and the headquarters' flags. Between begin_3d() and end_3d().
 void gang_draw(context &ctx);
+// The men out on the street within `range` world units of `at`, for a second
+// eye (feeds.h).
+void gang_draw_around(context &ctx, vec2 at, f32 range);
+
+// The man looked at (a click on him in the world, or "Xem" in the men
+// popup): city/render_hover.cpp draws a ring under him, following him as he
+// walks, until someone else is picked or gang_unfocus_man() is called.
+void gang_focus_man(i32 gi, i32 mi);
+void gang_unfocus_man();
+// Where he stands now and how high (world units: his floor, inside), if
+// anyone is focused and he is drawn (outside, or on the open floor).
+bool gang_focused_pos(vec2 &out, f32 &lift);
+// The gang man nearest `screen`, among the ones actually drawn this frame (in
+// view, and on the floor open if he is inside); false if none within
+// `max_px` screen pixels.
+bool gang_pick_man(context &ctx, vec2 screen, f32 max_px, i32 &gi, i32 &mi);
 
 // Orders, from the HUD, for the player's gang.
 // Sends man `m` to shop `b`; false if he cannot go or it cannot be reached.

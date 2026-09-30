@@ -78,6 +78,18 @@ instances caps;    // the dark top of every cut wall
 instances outline; // the selected building's footprint, unlit
 constexpr rgba col_cut = rgb8(62, 50, 44);
 
+// A light hung over the middle of an open floor, at night: the sun alone
+// leaves a cut-open room dark, as it never reaches the floor's own ceiling
+// height. Capped well under light3d_max (render_props.cpp's street lamps use
+// up to 12 of it, the rest free for this).
+struct light_spot {
+  vec3 pos;
+  f32 radius; // 3D units
+};
+std::vector<light_spot> lights_pending;
+constexpr i32 interior_lights_max = 4;
+constexpr rgba interior_light_col{1.0f, 0.86f, 0.62f, 1.0f};
+
 // The grid's frame in the world: `a` along u from its left edge, `b` along v
 // from its front edge.
 struct grid_frame {
@@ -141,6 +153,9 @@ void cut_open(const building &b, const city_map &map, i32 floor) {
   const interior_layout L = build_interior(b, floor);
   const grid_frame g{b, static_cast<f32>(L.nx) * L.cell_x, static_cast<f32>(L.nz) * L.cell_z};
   const f32 cx = L.cell_x, cz = L.cell_z;
+  if (static_cast<i32>(lights_pending.size()) < interior_lights_max)
+    lights_pending.push_back({to3d(g.at(g.gw * 0.5f, g.gd * 0.5f), (base + cut_height - 1.5f) * unit3d),
+                              std::max(g.gw, g.gd) * 0.75f * unit3d});
 
   for (i32 z = 0; z < L.nz; ++z)
     for (i32 x = 0; x < L.nx; ++x) {
@@ -212,11 +227,18 @@ void cutaway_draw(context &ctx, const city_map &map, const view_options &opt) {
   lower_detail.clear();
   lower_tanks.clear();
   lower_glow.clear();
+  lights_pending.clear();
   for (const i32 id : opt.cut)
     if (id >= 0 && id < static_cast<i32>(map.buildings.size()))
       cut_open(map.buildings[static_cast<size_t>(id)], map, id == opt.selected || opt.around ? opt.floor : 0);
   if (opt.selected >= 0 && opt.selected < static_cast<i32>(map.buildings.size()))
     outline_of(map.buildings[static_cast<size_t>(opt.selected)]);
+
+  if (opt.night > 0.3f) {
+    const f32 fade = clamp((opt.night - 0.3f) * 3.0f, 0.0f, 1.0f);
+    for (const light_spot &l : lights_pending)
+      light3d_add(ctx, {.position = l.pos, .color = interior_light_col, .intensity = 1.3f * fade, .radius = l.radius});
+  }
 
   material3d_set(ctx, {.specular = 0.1f, .shininess = 14.0f});
   for (kit_piece &p : kit) {

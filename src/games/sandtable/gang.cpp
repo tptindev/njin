@@ -17,6 +17,7 @@ std::vector<shop_state> S;
 std::vector<i8> block_owner;
 u32 block_version = 0;
 rng gang_rng;
+i32 focus_gi = -1, focus_mi = -1; // the man looked at (gang_focus_man)
 
 // Each gang's colour: the player's red, then the rivals'.
 constexpr rgba colours[] = {rgb(196, 48, 40), rgb(46, 96, 196), rgb(52, 150, 84)};
@@ -53,6 +54,15 @@ struct man_extra {
 std::vector<std::vector<man_extra>> extras;
 
 const city::building &hq_of(const gang_state &g) { return world().buildings[static_cast<size_t>(g.hq)]; }
+
+// The floor of the headquarters open to look into (its men there are drawn
+// inside), or -1 when it is not cut open.
+i32 open_floor_of(const gang_state &g) {
+  const city::view_options &v = world_view();
+  if (!std::binary_search(v.cut.begin(), v.cut.end(), g.hq))
+    return -1;
+  return g.hq == v.selected || v.around ? v.floor : 0;
+}
 
 void set_act(lackey &m, act a) {
   if (m.now == a)
@@ -105,18 +115,34 @@ std::vector<place> places_on(const city::building &b, i32 floor) {
     }
   }
   // Standing: the middles of the grid's cells clear of the furniture, facing
-  // the room's middle.
+  // the room's middle. Indoor men have no physics (they are not on the
+  // table), so nothing else keeps two of them apart: a place is good only
+  // when it, itself, clears every piece of furniture and every place already
+  // claimed, not just the cell's own middle (a cell can pass that and still
+  // put a standing place right against a chair near its edge).
+  constexpr f32 clearance = 4.0f; // world units, a bit over a shoulder's width
+  const auto clear_of = [&](vec2 p) {
+    for (const city::furn_item &f : L.furniture)
+      if (distance(f.pos, p) < clearance)
+        return false;
+    for (const place &s : seats)
+      if (distance(s.at, p) < clearance)
+        return false;
+    for (const place &s : standing)
+      if (distance(s.at, p) < clearance)
+        return false;
+    return true;
+  };
   const f32 gw = static_cast<f32>(L.nx) * L.cell_x, gd = static_cast<f32>(L.nz) * L.cell_z;
   for (i32 z = 0; z < L.nz; ++z)
     for (i32 x = 0; x < L.nx; ++x) {
       const vec2 c = b.box.center + b.box.axis_x() * ((static_cast<f32>(x) + 0.5f) * L.cell_x - gw * 0.5f) +
                      b.box.axis_y() * ((static_cast<f32>(z) + 0.5f) * L.cell_z - gd * 0.5f);
-      bool clear = true;
-      for (const city::furn_item &f : L.furniture)
-        clear = clear && distance(f.pos, c) > 5.0f;
-      for (const vec2 off : {vec2{-3.0f, 0.0f}, vec2{3.0f, 0.0f}})
-        if (clear)
-          standing.push_back({c + b.box.axis_x() * off.x, angle_of(b.box.center - c) + 0.0f, act::talk});
+      for (const vec2 off : {vec2{-3.0f, 0.0f}, vec2{3.0f, 0.0f}}) {
+        const vec2 p = c + b.box.axis_x() * off.x;
+        if (clear_of(p))
+          standing.push_back({p, angle_of(b.box.center - c) + 0.0f, act::talk});
+      }
     }
   seats.insert(seats.end(), standing.begin(), standing.end());
   return seats;
@@ -148,41 +174,58 @@ void seat_men(i32 gi) {
 
 // --- Outside: rows by rank before the door, facing the boss ----------------------------
 
+bool on_sidewalk(vec2 p) {
+  const city::cell_info *c = world().cell_at(p);
+  return c != nullptr && c->g == city::ground::road && !c->carriage;
+}
+
+// How deep the sidewalk runs straight out from the door, world units: the
+// rows of a muster must fit in it, or they stand in the carriageway.
+f32 sidewalk_depth(const city::building &b) {
+  const f32 step = 0.25f * city::units_per_metre;
+  f32 depth = 0.0f;
+  for (f32 t = step; t < 12.0f * city::units_per_metre; t += step) {
+    if (on_sidewalk(b.door + b.front() * t))
+      depth = t;
+    else if (depth > 0.0f)
+      break;
+  }
+  return depth;
+}
+
+// The men line up on the sidewalk before the door: the boss by it, facing
+// out; the others in rows facing him, by rank (right hands, captains,
+// soldiers) front to back, as many rows as the sidewalk is deep and the rows
+// as wide as they need to be.
 place muster_place(const gang_state &g, i32 index) {
   const city::building &b = hq_of(g);
   const vec2 out = b.front(), across = b.box.axis_x();
+  const f32 metre = city::units_per_metre;
+  const f32 depth = std::max(sidewalk_depth(b), 2.5f * metre);
+  const f32 boss_at = std::min(1.0f * metre, depth * 0.3f);
   const lackey &m = g.men[static_cast<size_t>(index)];
   if (m.rk == rank::boss)
-    return {b.door + out * (1.5f * city::units_per_metre), angle_of(out), act::idle};
-  // The rows: the right hands first, then the captains, then the soldiers,
-  // ten to a row.
-  i32 row = 0, col = 0, in_row = 0;
-  const auto row_of = [](rank r) { return r == rank::deputy ? 0 : r == rank::captain ? 1 : 2; };
-  const i32 mine = row_of(m.rk);
-  i32 before = 0, same = 0;
+    return {b.door + out * boss_at, angle_of(out), act::idle};
+  // His place in the line-up: the others ranked, highest first.
+  const auto rank_order = [](rank r) { return r == rank::deputy ? 0 : r == rank::captain ? 1 : 2; };
+  i32 count = 0, order = 0;
   for (i32 i = 0; i < static_cast<i32>(g.men.size()); ++i) {
     const lackey &o = g.men[static_cast<size_t>(i)];
     if (o.rk == rank::boss)
       continue;
-    const i32 r = row_of(o.rk);
-    if (r < mine)
-      ++before;
-    if (r == mine) {
-      if (i < index)
-        ++col;
-      ++same;
-    }
+    ++count;
+    if (rank_order(o.rk) < rank_order(m.rk) || (rank_order(o.rk) == rank_order(m.rk) && i < index))
+      ++order;
   }
-  (void)before;
-  constexpr i32 per_row = 8;
-  row = mine == 2 ? 2 + col / per_row : mine;
-  in_row = mine == 2 ? std::min(per_row, same - (col / per_row) * per_row) : same;
-  const i32 c = mine == 2 ? col % per_row : col;
-  // A metre and a bit between men, a metre and a half between rows, the
-  // first row three metres from the boss.
-  const f32 spread = 1.2f * city::units_per_metre;
-  const vec2 at = b.door + out * ((4.5f + static_cast<f32>(row) * 1.5f) * city::units_per_metre) +
-                  across * ((static_cast<f32>(c) - static_cast<f32>(in_row - 1) * 0.5f) * spread);
+  // Rows a metre apart from 1.2 m past the boss to half a metre short of the
+  // kerb; men a metre apart along a row.
+  const f32 first = boss_at + 1.2f * metre, last = depth - 0.5f * metre;
+  const i32 rows = std::clamp(static_cast<i32>((last - first) / metre) + 1, 1, count);
+  const i32 per_row = (count + rows - 1) / rows;
+  const i32 row = order / per_row, col = order % per_row;
+  const i32 in_row = std::min(per_row, count - row * per_row);
+  const vec2 at = b.door + out * (first + static_cast<f32>(row) * metre) +
+                  across * ((static_cast<f32>(col) - static_cast<f32>(in_row - 1) * 0.5f) * metre);
   return {at, angle_of(-out), act::idle};
 }
 
@@ -567,6 +610,7 @@ void gang_start(context &ctx, u32 seed) {
   G.clear();
   extras.clear();
   gang_rng = rng(static_cast<u64>(seed) * 104729u + 7u);
+  focus_gi = focus_mi = -1;
   const city::city_map &map = world();
   S.assign(map.businesses.size(), {});
   block_owner.assign(map.blocks.size(), -1);
@@ -648,6 +692,24 @@ void gang_update(f32 dt) {
     }
 }
 
+namespace {
+void draw_man(context &ctx, const gang_state &g, const lackey &m) {
+  // The higher the rank, the darker the clothes.
+  const f32 dark = m.rk == rank::boss ? 0.35f : m.rk == rank::deputy ? 0.6f : m.rk == rank::captain ? 0.8f : 1.0f;
+  const f32 lift = m.inside ? static_cast<f32>(m.floor) * city::floor_height * unit3d + 0.02f : 0.04f;
+  draw_person(ctx, {.at = m.pos,
+                    .facing = m.facing,
+                    .now = m.now,
+                    .time = m.time,
+                    .was = m.was,
+                    .was_time = m.was_time,
+                    .blend = m.blend,
+                    .tint = {g.colour.r * dark, g.colour.g * dark, g.colour.b * dark, 1.0f},
+                    .lift = lift,
+                    .identity = static_cast<u32>(std::hash<std::string>{}(m.name))});
+}
+} // namespace
+
 void gang_draw(context &ctx) {
   const city::city_map &map = world();
   const city::view_options &v = world_view();
@@ -669,32 +731,79 @@ void gang_draw(context &ctx) {
     return;
   material3d_set(ctx, {.specular = 0.15f, .shininess = 16.0f});
   for (const gang_state &g : G) {
-    // The floor open of the headquarters, if it is open: the men of that
-    // floor are seen inside.
-    i32 open_floor = -1;
-    if (std::binary_search(v.cut.begin(), v.cut.end(), g.hq))
-      open_floor = g.hq == v.selected || v.around ? v.floor : 0;
+    // The men of the open floor, if any, are seen inside.
+    const i32 open_floor = open_floor_of(g);
     for (const lackey &m : g.men) {
       if (m.inside && m.floor != open_floor)
         continue;
       if (!city::view_sees(m.pos, 20.0f))
         continue;
-      // The higher the rank, the darker the clothes.
-      const f32 dark = m.rk == rank::boss ? 0.35f : m.rk == rank::deputy ? 0.6f : m.rk == rank::captain ? 0.8f : 1.0f;
-      const f32 lift = m.inside ? static_cast<f32>(m.floor) * city::floor_height * unit3d + 0.02f : 0.04f;
-      draw_person(ctx, {.at = m.pos,
-                        .facing = m.facing,
-                        .now = m.now,
-                        .time = m.time,
-                        .was = m.was,
-                        .was_time = m.was_time,
-                        .blend = m.blend,
-                        .tint = {g.colour.r * dark, g.colour.g * dark, g.colour.b * dark, 1.0f},
-                        .lift = lift,
-                        .identity = static_cast<u32>(std::hash<std::string>{}(m.name))});
+      draw_man(ctx, g, m);
     }
   }
   material3d_set(ctx, {});
+}
+
+void gang_draw_around(context &ctx, vec2 at, f32 range) {
+  if (!person_ready())
+    return;
+  material3d_set(ctx, {.specular = 0.15f, .shininess = 16.0f});
+  for (const gang_state &g : G)
+    for (const lackey &m : g.men)
+      if (!m.inside && distance(m.pos, at) <= range)
+        draw_man(ctx, g, m);
+  material3d_set(ctx, {});
+}
+
+void gang_focus_man(i32 gi, i32 mi) {
+  focus_gi = gi;
+  focus_mi = mi;
+}
+
+void gang_unfocus_man() { focus_gi = focus_mi = -1; }
+
+bool gang_focused_pos(vec2 &out, f32 &lift) {
+  if (focus_gi < 0 || focus_gi >= static_cast<i32>(G.size()))
+    return false;
+  const gang_state &g = G[static_cast<size_t>(focus_gi)];
+  if (focus_mi < 0 || focus_mi >= static_cast<i32>(g.men.size()))
+    return false;
+  const lackey &m = g.men[static_cast<size_t>(focus_mi)];
+  if (m.inside && m.floor != open_floor_of(g))
+    return false;
+  out = m.pos;
+  lift = m.inside ? static_cast<f32>(m.floor) * city::floor_height : 0.0f;
+  return true;
+}
+
+bool gang_pick_man(context &ctx, vec2 screen, f32 max_px, i32 &out_gi, i32 &out_mi) {
+  if (state.cam_distance > 60.0f) // past this gang_draw() itself draws none
+    return false;
+  f32 best = max_px;
+  bool found = false;
+  for (i32 gi = 0; gi < static_cast<i32>(G.size()); ++gi) {
+    const gang_state &g = G[static_cast<size_t>(gi)];
+    const i32 open_floor = open_floor_of(g);
+    for (i32 mi = 0; mi < static_cast<i32>(g.men.size()); ++mi) {
+      const lackey &m = g.men[static_cast<size_t>(mi)];
+      if (m.inside && m.floor != open_floor)
+        continue;
+      if (!city::view_sees(m.pos, 20.0f))
+        continue;
+      bool visible = false;
+      const vec2 s = table_to_screen(ctx, m.pos, 0.9f, &visible);
+      if (!visible)
+        continue;
+      const f32 d = distance(s, screen);
+      if (d < best) {
+        best = d;
+        out_gi = gi;
+        out_mi = mi;
+        found = true;
+      }
+    }
+  }
+  return found;
 }
 
 i32 gang_income_per_day() {

@@ -244,6 +244,15 @@ void view_draw(context &ctx, const city_map &map, const view_options &opt) {
   hover_draw(ctx, map, opt);
 }
 
+void view_draw_eye(context &ctx, const city_map &map, const view_options &opt, vec2 at, f32 reach) {
+  const view_cull was = view_cull_around(at, reach);
+  ground_draw(ctx, map, opt);
+  kit_draw(ctx, opt);
+  props_draw(ctx, opt);
+  cutaway_draw(ctx, map, opt);
+  view_cull_restore(was);
+}
+
 void view_cleanup(context &ctx) {
   ground_cleanup(ctx);
   kit_cleanup(ctx);

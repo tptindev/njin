@@ -340,8 +340,8 @@ float sdf(vec3 p) {
 }
 
 
-// Continuous value noise; texture coordinates follow the closest articulated
-// capsule instead of world space, so moving a person does not swim through grain.
+// Continuous group-local value noise. Translation follows the SDF draw;
+// the field is seamless across the short cones used to round a limb.
 float clay_hash(vec3 p) {
   p = fract(p * 0.1031);
   p += dot(p, p.yzx + 33.33);
@@ -357,23 +357,15 @@ float clay_noise(vec3 p) {
 }
 void clay_shade(vec3 p, inout vec3 n, inout vec3 albedo) {
   if (claySurface.x <= 0.0) return;
-  vec3 anchor = vec3(0), axis = vec3(0,1,0);
-  float radius = max(length(shapeBounds) * 0.2, 0.0001), nearest = 1e10;
+  // One continuous field per SDF group. Resetting the coordinate frame at
+  // every short cone makes grain seams read as bracelets around elbows/knees.
+  float radius = max(length(shapeBounds) * 0.2, 0.0001);
   if (shapeKind == 5) {
-    for (int i=0; i<blendCount; ++i) {
-      float d = round_cone(p, blendA[i].xyz, blendB[i].xyz, blendA[i].w, blendB[i].w);
-      if (d < nearest) {
-        nearest = d;
-        anchor = blendA[i].xyz;
-        vec3 segment = blendB[i].xyz - anchor;
-        axis = dot(segment,segment)>1e-9 ? normalize(segment) : vec3(0,1,0);
-        radius = max((blendA[i].w+blendB[i].w)*0.5, 0.0001);
-      }
-    }
+    radius = 0.0001;
+    for (int i=0; i<blendCount; ++i)
+      radius = max(radius, max(blendA[i].w, blendB[i].w));
   }
-  vec3 tangent = normalize(cross(axis, abs(axis.z)<0.9 ? vec3(0,0,1) : vec3(1,0,0)));
-  mat3 basis = mat3(tangent, axis, cross(tangent,axis));
-  vec3 q = transpose(basis) * (p-anchor) / radius * claySurface.y;
+  vec3 q = p / radius * claySurface.y;
   // Fade grain below pixel resolution to avoid sparkly noise in an RTS crowd.
   float footprint = max(length(dFdx(q)),length(dFdy(q)));
   float amount = claySurface.x * (1.0-smoothstep(0.35,1.4,footprint));
@@ -381,7 +373,6 @@ void clay_shade(vec3 p, inout vec3 n, inout vec3 albedo) {
   vec3 g=vec3(clay_noise(q+e.xyy)-clay_noise(q-e.xyy),
               clay_noise(q+e.yxy)-clay_noise(q-e.yxy),
               clay_noise(q+e.yyx)-clay_noise(q-e.yyx))/0.16;
-  g=basis*g;
   n=normalize(n-amount*0.32*(g-n*dot(g,n)));
   albedo*=1.0+amount*0.12*(clay_noise(q*0.32)-0.5);
 }
@@ -729,11 +720,32 @@ camera3d shaken(const context &ctx, camera3d camera) {
   return camera;
 }
 
+// The size of what the open pass draws into: its render texture, or the
+// logical screen.
+vec2 pass_size(const context &ctx) {
+  const render3d_state &s = ctx.render3d;
+  return s.target_fbo != 0 ? s.target_size : screen_size(ctx);
+}
+
+// Binds what the open pass draws into again (after the shadow passes).
+void bind_pass_target(context &ctx) {
+  const render3d_state &s = ctx.render3d;
+  if (s.target_fbo == 0) {
+    world_target_rebind(ctx);
+    return;
+  }
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(s.target_fbo);
+  rlViewport(0, 0, (i32)s.target_size.x, (i32)s.target_size.y);
+  rlSetFramebufferWidth((i32)s.target_size.x);
+  rlSetFramebufferHeight((i32)s.target_size.y);
+}
+
 // Projection and view of `camera` on the current matrices.
 void load_camera(const context &ctx, const camera3d &camera) {
   // BeginMode3D takes the aspect from the window framebuffer, which is wrong
   // on the virtual image; the logical screen size is the right one.
-  const vec2 screen = screen_size(ctx);
+  const vec2 screen = pass_size(ctx);
   const f64 aspect = screen.y > 0.0f ? (f64)screen.x / (f64)screen.y : 1.0;
   const f64 top = (f64)camera.near_plane * std::tan((f64)camera.fovy * 0.5 * (f64)DEG2RAD);
   const f64 right = top * aspect;
@@ -1578,23 +1590,27 @@ render3d_state::~render3d_state() {
   UnloadShader(depth);
 }
 
-void begin_3d(context &ctx, const camera3d &camera) {
+namespace {
+bool can_begin(context &ctx) {
   render3d_state &s = ctx.render3d;
   if (s.active) {
     NJIN_WARN("3d: begin_3d called twice without end_3d, ignored");
-    return;
+    return false;
   }
   if (ctx.view.world_depth == 0) {
     NJIN_WARN("3d: begin_3d outside phase_render, ignored");
-    return;
+    return false;
   }
-  if (!ensure_ready(s))
-    return;
-  rlDrawRenderBatchActive();
+  return ensure_ready(s);
+}
+
+void start_pass(context &ctx, const camera3d &camera) {
+  render3d_state &s = ctx.render3d;
   // The world pass's projection comes back at end_3d.
   rlMatrixMode(RL_PROJECTION);
   rlPushMatrix();
-  s.camera = shaken(ctx, camera);
+  // A pass into a render texture is another eye: the screen's shake is not its.
+  s.camera = s.target_fbo != 0 ? camera : shaken(ctx, camera);
   load_camera(ctx, s.camera);
   set_frustum(s);
   s.cmds.clear();
@@ -1606,15 +1622,43 @@ void begin_3d(context &ctx, const camera3d &camera) {
   s.entities = camera.entities;
   s.active = true;
 }
+} // namespace
+
+void begin_3d(context &ctx, const camera3d &camera) {
+  if (!can_begin(ctx))
+    return;
+  rlDrawRenderBatchActive();
+  ctx.render3d.target_fbo = 0;
+  start_pass(ctx, camera);
+}
+
+void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target, rgba clear) {
+  const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, target);
+  if (slot == nullptr) {
+    NJIN_WARN("3d: begin_3d into an invalid render texture, ignored");
+    return;
+  }
+  if (!can_begin(ctx))
+    return;
+  render3d_state &s = ctx.render3d;
+  rlDrawRenderBatchActive();
+  s.target_fbo = slot->target.id;
+  s.target_size = {(f32)slot->target.texture.width, (f32)slot->target.texture.height};
+  bind_pass_target(ctx);
+  rlClearColor((u8)(clear.r * 255.0f), (u8)(clear.g * 255.0f), (u8)(clear.b * 255.0f), (u8)(clear.a * 255.0f));
+  rlClearScreenBuffers();
+  start_pass(ctx, camera);
+}
 
 void end_3d(context &ctx) {
   render3d_state &s = ctx.render3d;
   if (!s.active)
     return;
   rlDrawRenderBatchActive();
+  const bool offscreen = s.target_fbo != 0;
   if (s.entities)
     record_entities(ctx);
-  if (ctx.debug.running)
+  if (ctx.debug.running && !offscreen)
     render3d_capture_debug(ctx);
 
   bool shadows = false;
@@ -1626,15 +1670,18 @@ void end_3d(context &ctx) {
   }
   const bool lamps = render_lamp_shadows(ctx);
   if (shadows || lamps) {
-    world_target_rebind(ctx);
+    bind_pass_target(ctx);
     load_camera(ctx, s.camera);
   }
 
   rlEnableDepthTest();
-  s.depth_near = s.camera.near_plane;
-  s.depth_far = s.camera.far_plane;
-  s.depth_inv_view_proj = MatrixInvert(MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
-  s.depth_drawn = true;
+  // Only the world target's depth feeds post_fx (depth of field).
+  if (!offscreen) {
+    s.depth_near = s.camera.near_plane;
+    s.depth_far = s.camera.far_plane;
+    s.depth_inv_view_proj = MatrixInvert(MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
+    s.depth_drawn = true;
+  }
   set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp, lamps);
   set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp, lamps);
   set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);
@@ -1658,7 +1705,8 @@ void end_3d(context &ctx) {
   }
   rlActiveTextureSlot(0);
   particles3d_draw(ctx, s.camera);
-  gizmo_draw_3d(ctx, s.camera);
+  if (!offscreen)
+    gizmo_draw_3d(ctx, s.camera);
 
   s.cmds.clear();
   s.bones.clear();
@@ -1666,6 +1714,10 @@ void end_3d(context &ctx) {
   s.lights.clear();
   s.active = false;
   rlDrawRenderBatchActive();
+  if (offscreen) {
+    s.target_fbo = 0;
+    world_target_rebind(ctx);
+  }
   rlMatrixMode(RL_PROJECTION);
   rlPopMatrix();
   // Back to the world pass exactly as begin_world_space left it.
