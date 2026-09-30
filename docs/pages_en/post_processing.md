@@ -78,7 +78,7 @@ Like the shader above, they do not touch the UI in `phase_post_render`.
 | Vignette (dark edges) | `vignette`, `vignette_radius`, `vignette_softness`, `vignette_color` | `vignette` = 0 |
 | Bloom (glow) | `bloom`, `bloom_threshold`, `bloom_radius` | `bloom` = 0 |
 | Blur | `blur` (pixels) | 0 |
-| Depth of field (3D) | `dof` (pixels), `dof_focus`, `dof_range`, `dof_falloff` | `dof` = 0 |
+| Depth of field (3D) | `dof` (pixels), `dof_focus`, `dof_range`, `dof_falloff`, `dof_center`, `dof_radius`, `dof_haze` | `dof` = 0 |
 | Color split | `chromatic` (pixels) | 0 |
 | CRT scanlines | `scanlines`, `scanline_size` | `scanlines` = 0 |
 | CRT curvature | `crt_curve` | 0 |
@@ -117,6 +117,22 @@ fx.dof = 7.0f;                                     // at most 7 pixels of blur
 fx.dof_focus = njin::dot(hero_pos - cam.position, look);
 fx.dof_range = 2.0f;                               // sharp within ±2 units of it
 fx.dof_falloff = 6.0f;                             // blurring over the next 6 units
+njin::post_fx_set(ctx, fx);
+@endcode
+
+To focus round a point instead of by distance from the camera, set `dof_radius` > 0.
+Sharpness then goes by each point of the scene's distance from `dof_center` (the engine
+rebuilds each pixel's world position from its depth), so the sharp region is a sphere round
+the thing, a circle seen from above, fading out over `dof_falloff`. `dof_haze` also lays a
+colour over what is out of focus, as strong as it is blurred, like a mist.
+
+@code
+njin::post_fx fx{};
+fx.dof = 7.0f;
+fx.dof_center = house_pos;                   // centre of the sharp region, 3D units
+fx.dof_radius = 2.5f;                        // sharp within 2.5 units of it
+fx.dof_falloff = 4.0f;                       // blurring over the next 4 units
+fx.dof_haze = {0.8f, 0.8f, 0.78f, 0.35f};    // a sky-coloured mist, 35% where most blurred
 njin::post_fx_set(ctx, fx);
 @endcode
 

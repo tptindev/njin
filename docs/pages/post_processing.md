@@ -78,7 +78,7 @@ Giống shader ở trên, chúng không đụng đến UI trong `phase_post_rend
 | Vignette (tối viền) | `vignette`, `vignette_radius`, `vignette_softness`, `vignette_color` | `vignette` = 0 |
 | Bloom (quầng sáng) | `bloom`, `bloom_threshold`, `bloom_radius` | `bloom` = 0 |
 | Làm mờ | `blur` (pixel) | 0 |
-| Độ sâu trường ảnh (3D) | `dof` (pixel), `dof_focus`, `dof_range`, `dof_falloff` | `dof` = 0 |
+| Độ sâu trường ảnh (3D) | `dof` (pixel), `dof_focus`, `dof_range`, `dof_falloff`, `dof_center`, `dof_radius`, `dof_haze` | `dof` = 0 |
 | Tách màu | `chromatic` (pixel) | 0 |
 | Sọc CRT | `scanlines`, `scanline_size` | `scanlines` = 0 |
 | Cong CRT | `crt_curve` | 0 |
@@ -116,6 +116,22 @@ fx.dof = 7.0f;                                     // mờ nhất 7 pixel
 fx.dof_focus = njin::dot(hero_pos - cam.position, look);
 fx.dof_range = 2.0f;                               // nét trong ±2 đơn vị quanh vật
 fx.dof_falloff = 6.0f;                             // mờ dần trên 6 đơn vị tiếp theo
+njin::post_fx_set(ctx, fx);
+@endcode
+
+Lấy nét quanh một điểm thay vì theo khoảng cách tới camera: đặt `dof_radius` > 0. Độ nét
+khi đó tính theo khoảng cách từ mỗi điểm của cảnh tới `dof_center` (engine dựng lại vị trí
+thế giới của từng pixel từ độ sâu), nên vùng nét là một quả cầu quanh vật, nhìn từ trên xuống
+là một vòng tròn, mờ dần trên `dof_falloff`. `dof_haze` phủ thêm một màu lên phần ngoài
+tiêu điểm, đậm theo độ mờ, như sương.
+
+@code
+njin::post_fx fx{};
+fx.dof = 7.0f;
+fx.dof_center = house_pos;                   // tâm vùng nét, đơn vị 3D
+fx.dof_radius = 2.5f;                        // nét trong 2,5 đơn vị quanh nó
+fx.dof_falloff = 4.0f;                       // mờ dần trên 4 đơn vị tiếp theo
+fx.dof_haze = {0.8f, 0.8f, 0.78f, 0.35f};    // sương màu trời, đậm 35% ở chỗ mờ nhất
 njin::post_fx_set(ctx, fx);
 @endcode
 

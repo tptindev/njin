@@ -1633,6 +1633,7 @@ void end_3d(context &ctx) {
   rlEnableDepthTest();
   s.depth_near = s.camera.near_plane;
   s.depth_far = s.camera.far_plane;
+  s.depth_inv_view_proj = MatrixInvert(MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
   s.depth_drawn = true;
   set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp, lamps);
   set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp, lamps);

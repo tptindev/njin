@@ -220,6 +220,22 @@ const njin::vec3 ground = njin::character3d_ground_velocity(ctx, player);
 njin::character3d_set_velocity(ctx, player, walk + ground + njin::vec3{0, vertical, 0});
 @endcode
 
+Characters block each other: they do not walk through one another but slide round, as along a
+wall. The engine tests each character only against the ones near it (a grid), so even a hundred
+characters stay cheap; what costs is that each character switched on needs a collision pass every
+step (some tens of microseconds). A big crowd should switch on only the people the camera sees,
+with character3d_set_active(), and the game moves the far ones along their paths itself:
+
+@code
+bool seen = false;
+njin::camera3d_to_screen(ctx, cam, feet, &seen); // or however the game knows
+if (seen != njin::character3d_active(ctx, walker)) {
+  if (seen)
+    njin::character3d_set_position(ctx, walker, feet); // back on where the game moved it
+  njin::character3d_set_active(ctx, walker, seen);
+}
+@endcode
+
 Draw a dynamic body exactly where and how physics placed it with body3d_transform():
 
 @code

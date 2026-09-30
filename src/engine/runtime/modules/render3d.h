@@ -181,6 +181,7 @@ struct render3d_state {
   // of post_fx: its camera's planes, and whether a pass drew since the post
   // chain last read them.
   f32 depth_near = 0.05f, depth_far = 1000.0f;
+  Matrix depth_inv_view_proj{}; // window depth back to world positions
   bool depth_drawn = false;
 
   render3d_state() = default;

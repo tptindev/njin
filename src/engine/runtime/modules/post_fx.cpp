@@ -45,8 +45,10 @@ void main() {
 )";
 
 // Depth of field: the sharp image (texture0) and a blurred copy (blurTex),
-// mixed by how far each pixel's depth is from the focus. The depth texture
-// holds window depth; turned back into distance along the view.
+// mixed by how far each pixel is from the focus. The depth texture holds
+// window depth; turned back into distance along the view, or, with a radius
+// (center.w > 0), into the world position, measured from the centre. The
+// haze is laid over what is out of focus, as much as it is blurred.
 constexpr const char *dof_fs = R"(#version 330
 in vec2 fragTexCoord;
 uniform sampler2D texture0;
@@ -54,15 +56,26 @@ uniform sampler2D blurTex;
 uniform sampler2D depthTex;
 uniform vec2 planes; // near, far
 uniform vec3 focus;  // distance, sharp range, falloff
+uniform vec4 center; // xyz, radius (0: by distance from the camera)
+uniform mat4 invViewProj;
+uniform vec4 haze;
 out vec4 finalColor;
 void main() {
   vec3 sharp = texture(texture0, fragTexCoord).rgb;
   vec3 soft = texture(blurTex, fragTexCoord).rgb;
   float d = texture(depthTex, fragTexCoord).r * 2.0 - 1.0;
-  float n = planes.x, f = planes.y;
-  float z = 2.0 * n * f / (f + n - d * (f - n));
-  float k = smoothstep(focus.y, focus.y + max(focus.z, 1e-4), abs(z - focus.x));
-  finalColor = vec4(mix(sharp, soft, k), 1.0);
+  float k;
+  if (center.w > 0.0) {
+    vec4 w = invViewProj * vec4(fragTexCoord * 2.0 - 1.0, d, 1.0);
+    float r = length(w.xyz / w.w - center.xyz);
+    k = smoothstep(center.w, center.w + max(focus.z, 1e-4), r);
+  } else {
+    float n = planes.x, f = planes.y;
+    float z = 2.0 * n * f / (f + n - d * (f - n));
+    k = smoothstep(focus.y, focus.y + max(focus.z, 1e-4), abs(z - focus.x));
+  }
+  vec3 col = mix(sharp, soft, k);
+  finalColor = vec4(mix(col, haze.rgb, k * haze.a), 1.0);
 }
 )";
 
@@ -177,6 +190,9 @@ bool load(post_chain &c) {
   c.dof_depth = GetShaderLocation(c.dof, "depthTex");
   c.dof_planes = GetShaderLocation(c.dof, "planes");
   c.dof_focus = GetShaderLocation(c.dof, "focus");
+  c.dof_center = GetShaderLocation(c.dof, "center");
+  c.dof_inv_vp = GetShaderLocation(c.dof, "invViewProj");
+  c.dof_haze = GetShaderLocation(c.dof, "haze");
   const Shader &u = c.uber;
   c.u_bloom_tex = GetShaderLocation(u, "bloomTex");
   c.u_bloom = GetShaderLocation(u, "bloom");
@@ -341,6 +357,11 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
     const f32 focus[3] = {p.dof_focus, std::max(p.dof_range, 0.0f), std::max(p.dof_falloff, 0.0f)};
     SetShaderValue(c.dof, c.dof_planes, planes, SHADER_UNIFORM_VEC2);
     SetShaderValue(c.dof, c.dof_focus, focus, SHADER_UNIFORM_VEC3);
+    const f32 center[4] = {p.dof_center.x, p.dof_center.y, p.dof_center.z, std::max(p.dof_radius, 0.0f)};
+    SetShaderValue(c.dof, c.dof_center, center, SHADER_UNIFORM_VEC4);
+    SetShaderValueMatrix(c.dof, c.dof_inv_vp, depth.inv_view_proj);
+    const f32 haze[4] = {p.dof_haze.r, p.dof_haze.g, p.dof_haze.b, p.dof_haze.a};
+    SetShaderValue(c.dof, c.dof_haze, haze, SHADER_UNIFORM_VEC4);
     BeginTextureMode(dst);
     ClearBackground(BLANK);
     BeginShaderMode(c.dof);
@@ -438,6 +459,10 @@ post_fx post_fx_lerp(const post_fx &a, const post_fx &b, f32 t) {
   o.dof_focus = mix(a.dof_focus, b.dof_focus);
   o.dof_range = mix(a.dof_range, b.dof_range);
   o.dof_falloff = mix(a.dof_falloff, b.dof_falloff);
+  o.dof_center = {mix(a.dof_center.x, b.dof_center.x), mix(a.dof_center.y, b.dof_center.y),
+                  mix(a.dof_center.z, b.dof_center.z)};
+  o.dof_radius = mix(a.dof_radius, b.dof_radius);
+  o.dof_haze = mix_c(a.dof_haze, b.dof_haze);
   o.chromatic = mix(a.chromatic, b.chromatic);
   o.scanlines = mix(a.scanlines, b.scanlines);
   o.scanline_size = mix(a.scanline_size, b.scanline_size);

@@ -64,7 +64,16 @@ struct post_fx {
   f32 dof = 0.0f;           ///< Most blur, out of focus, radius in pixels. 0 is off.
   f32 dof_focus = 10.0f;    ///< The distance most in focus.
   f32 dof_range = 2.0f;     ///< Fully sharp within `dof_focus` ± `dof_range`.
-  f32 dof_falloff = 10.0f;  ///< Distance from sharp to the most blur, past `dof_range`.
+  f32 dof_falloff = 10.0f;  ///< Distance from sharp to the most blur, past `dof_range` (or `dof_radius`).
+  /// Centre of the sharp region, in 3D units, when `dof_radius` > 0: sharpness
+  /// goes by each point of the scene's distance from here, so the sharp region
+  /// is a sphere round the thing in focus, a circle seen from above.
+  /// `dof_focus` and `dof_range` are then unused.
+  vec3 dof_center{0.0f, 0.0f, 0.0f};
+  f32 dof_radius = 0.0f;    ///< Radius of the sharp region round `dof_center`. 0 measures by distance from the camera.
+  /// Colour laid over what is out of focus, as strong as it is blurred; `a` is
+  /// the strength where the blur is at its most. Transparent (the default) lays none.
+  rgba dof_haze{0.0f, 0.0f, 0.0f, 0.0f};
   /// @}
 };
 

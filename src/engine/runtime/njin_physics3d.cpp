@@ -28,7 +28,10 @@
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Geometry/RayAABox.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionDispatch.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/RayCast.h>
@@ -165,6 +168,7 @@ struct body_slot {
 struct character_slot {
   JPH::Ref<JPH::CharacterVirtual> character;
   bool alive = false;
+  bool active = true; // character3d_set_active
   vec3 desired{};
   f32 step_height = 0.3f;
   std::vector<u32> touching; // body handles it touched after the last step, sorted
@@ -290,6 +294,120 @@ JPH::RefConst<JPH::Shape> make_model_shape(const context &ctx, const body3d_desc
 struct physics3d_world;
 
 namespace {
+// Characters against each other (Jolt leaves this to the application): each
+// is tested only against the ones in its own cell of a grid on x and z and
+// the cells round it, not against every other, so a crowd of hundreds costs
+// little more than a handful. The grid is filled at the start of each step;
+// its cells are wide enough that a character cannot leave its neighbours'
+// cells within the step. As Jolt's own CharacterVsCharacterCollisionSimple
+// otherwise, whose tests it repeats.
+class character_grid final : public JPH::CharacterVsCharacterCollision {
+public:
+  std::vector<JPH::CharacterVirtual *> all;
+
+  void add(JPH::CharacterVirtual *c) { all.push_back(c); }
+  void remove(const JPH::CharacterVirtual *c) { all.erase(std::remove(all.begin(), all.end(), c), all.end()); }
+  // A character switched off (character3d_set_active) is out of the grid:
+  // nothing collides with it.
+  void set_active(JPH::CharacterVirtual *c, bool on) {
+    remove(c);
+    if (on)
+      add(c);
+  }
+
+  // Sorts the characters into cells, for a step of `dt` seconds.
+  void rebuild(f32 dt) {
+    cells.clear();
+    f32 reach = 0.05f, speed = 0.0f;
+    for (const JPH::CharacterVirtual *c : all) {
+      const JPH::AABox b = c->GetShape()->GetLocalBounds();
+      reach = std::max(reach, b.GetExtent().GetX() + c->GetCharacterPadding());
+      reach = std::max(reach, b.GetExtent().GetZ() + c->GetCharacterPadding());
+      speed = std::max(speed, c->GetLinearVelocity().Length());
+    }
+    // Two characters touch within twice the widest reach; each may move a
+    // step's worth (and a margin for the stair walk and floor snap).
+    cell = 2.0f * reach + 2.0f * speed * dt + 0.1f;
+    for (JPH::CharacterVirtual *c : all) {
+      const JPH::RVec3 p = c->GetPosition();
+      cells[key(cell_of((f32)p.GetX()), cell_of((f32)p.GetZ()))].push_back(c);
+    }
+  }
+
+  void CollideCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform,
+                        const JPH::CollideShapeSettings &inCollideShapeSettings, JPH::RVec3Arg inBaseOffset,
+                        JPH::CollideShapeCollector &ioCollector) const override {
+    const JPH::Mat44 transform1 = inCenterOfMassTransform.PostTranslated(-inBaseOffset).ToMat44();
+    const JPH::Shape *shape1 = inCharacter->GetShape();
+    JPH::CollideShapeSettings settings = inCollideShapeSettings;
+    const JPH::AABox bounds1 = shape1->GetWorldSpaceBounds(transform1, JPH::Vec3::sOne());
+    const JPH::RVec3 at = inCenterOfMassTransform.GetTranslation();
+    near((f32)at.GetX(), (f32)at.GetZ(), [&](const JPH::CharacterVirtual *c) {
+      if (c == inCharacter || ioCollector.ShouldEarlyOut())
+        return;
+      const JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
+      settings.mMaxSeparationDistance = inCollideShapeSettings.mMaxSeparationDistance + c->GetCharacterPadding();
+      const JPH::Shape *shape2 = c->GetShape();
+      JPH::AABox bounds2 = shape2->GetWorldSpaceBounds(transform2, JPH::Vec3::sOne());
+      bounds2.ExpandBy(JPH::Vec3::sReplicate(settings.mMaxSeparationDistance));
+      if (!bounds1.Overlaps(bounds2))
+        return;
+      ioCollector.SetUserData(reinterpret_cast<JPH::uint64>(c));
+      JPH::CollisionDispatch::sCollideShapeVsShape(shape1, shape2, JPH::Vec3::sOne(), JPH::Vec3::sOne(), transform1,
+                                                   transform2, JPH::SubShapeIDCreator(), JPH::SubShapeIDCreator(),
+                                                   settings, ioCollector);
+    });
+    ioCollector.SetUserData(0);
+  }
+
+  void CastCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform,
+                     JPH::Vec3Arg inDirection, const JPH::ShapeCastSettings &inShapeCastSettings,
+                     JPH::RVec3Arg inBaseOffset, JPH::CastShapeCollector &ioCollector) const override {
+    const JPH::Mat44 transform1 = inCenterOfMassTransform.PostTranslated(-inBaseOffset).ToMat44();
+    const JPH::ShapeCast shape_cast(inCharacter->GetShape(), JPH::Vec3::sOne(), transform1, inDirection);
+    const JPH::Vec3 origin = shape_cast.mShapeWorldBounds.GetCenter();
+    const JPH::Vec3 extents =
+        shape_cast.mShapeWorldBounds.GetExtent() + JPH::Vec3::sReplicate(inShapeCastSettings.mExtraConvexRadius);
+    JPH::ShapeCastSettings cast_settings = inShapeCastSettings;
+    const JPH::RVec3 at = inCenterOfMassTransform.GetTranslation();
+    near((f32)at.GetX(), (f32)at.GetZ(), [&](const JPH::CharacterVirtual *c) {
+      if (c == inCharacter || ioCollector.ShouldEarlyOut())
+        return;
+      const JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
+      cast_settings.mExtraConvexRadius = inShapeCastSettings.mExtraConvexRadius + c->GetCharacterPadding();
+      const JPH::Shape *shape2 = c->GetShape();
+      JPH::AABox bounds2 = shape2->GetWorldSpaceBounds(transform2, JPH::Vec3::sOne());
+      bounds2.ExpandBy(extents + JPH::Vec3::sReplicate(c->GetCharacterPadding()));
+      if (!JPH::RayAABoxHits(origin, inDirection, bounds2.mMin, bounds2.mMax))
+        return;
+      ioCollector.SetUserData(reinterpret_cast<JPH::uint64>(c));
+      JPH::CollisionDispatch::sCastShapeVsShapeWorldSpace(shape_cast, cast_settings, shape2, JPH::Vec3::sOne(), {},
+                                                          transform2, JPH::SubShapeIDCreator(),
+                                                          JPH::SubShapeIDCreator(), ioCollector);
+    });
+    ioCollector.SetUserData(0);
+  }
+
+private:
+  f32 cell = 1.0f;
+  std::unordered_map<u64, std::vector<JPH::CharacterVirtual *>> cells;
+
+  i32 cell_of(f32 v) const { return (i32)std::floor(v / cell); }
+  static u64 key(i32 x, i32 z) { return ((u64)(u32)x << 32) | (u64)(u32)z; }
+
+  // Every character in the cell of (x, z) and the eight round it.
+  template <typename Fn> void near(f32 x, f32 z, Fn &&fn) const {
+    const i32 cx = cell_of(x), cz = cell_of(z);
+    for (i32 dz = -1; dz <= 1; dz++)
+      for (i32 dx = -1; dx <= 1; dx++) {
+        const auto it = cells.find(key(cx + dx, cz + dz));
+        if (it != cells.end())
+          for (const JPH::CharacterVirtual *c : it->second)
+            fn(c);
+      }
+  }
+};
+
 // Body pairs starting and stopping to touch, from Jolt's contact callbacks
 // (on the physics step, single-threaded here).
 class contact_listener final : public JPH::ContactListener {
@@ -315,6 +433,10 @@ struct physics3d_world {
   std::unordered_map<u32, u32> handle_by_body; // Jolt body id -> njin handle id
   std::unordered_map<u64, pair_state> touching; // pair_key -> the pair
   std::vector<contact3d> contacts; // events of the last step
+  character_grid crowd;            // characters against each other
+  // Static bodies added since the broad phase was last rebuilt: a town's
+  // worth added one by one leaves it slow to query until it is.
+  u32 static_added = 0;
 
   physics3d_world() {
     system.Init(16384, 0, 16384, 8192, broad_phase, object_vs_broad, pairs);
@@ -322,6 +444,7 @@ struct physics3d_world {
     system.SetContactListener(&listener);
   }
   ~physics3d_world() {
+    crowd.all.clear();
     characters.clear();
     for (joint_slot &j : joints)
       if (j.alive)
@@ -489,9 +612,14 @@ void physics3d_step(context &ctx, f32 dt) {
       b.has_target = false;
     }
   }
+  if (w->static_added >= 32) {
+    w->system.OptimizeBroadPhase();
+    w->static_added = 0;
+  }
   const JPH::Vec3 gravity = jv(ctx.physics3d.gravity);
+  w->crowd.rebuild(dt);
   for (character_slot &c : w->characters) {
-    if (!c.alive)
+    if (!c.alive || !c.active)
       continue;
     c.character->UpdateGroundVelocity();
     c.character->SetLinearVelocity(jv(c.desired));
@@ -502,7 +630,7 @@ void physics3d_step(context &ctx, f32 dt) {
   }
   w->system.Update(dt, 1, &w->temp, &w->jobs);
   for (usize i = 0; i < w->characters.size(); i++)
-    if (w->characters[i].alive)
+    if (w->characters[i].alive && w->characters[i].active)
       character_contacts(*w, w->characters[i], (u32)(i + 1));
 
   // Dynamic bodies and characters move their entities.
@@ -551,6 +679,8 @@ body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
   JPH::BodyInterface &bi = w.system.GetBodyInterface();
   const JPH::BodyID id = bi.CreateAndAddBody(
       settings, desc.motion == body3d_static ? JPH::EActivation::DontActivate : JPH::EActivation::Activate);
+  if (desc.motion == body3d_static)
+    w.static_added++;
   if (id.IsInvalid()) {
     NJIN_WARN("physics3d: body limit reached");
     return body3d_handle{};
@@ -664,14 +794,32 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
       settings, JPH::RVec3(desc.position.x, desc.position.y, desc.position.z), JPH::Quat::sIdentity(), &w.system);
   slot.alive = true;
   slot.step_height = desc.step_height;
+  slot.character->SetCharacterVsCharacterCollision(&w.crowd);
+  w.crowd.add(slot.character.GetPtr());
   w.characters.push_back(std::move(slot));
   return character3d_handle{(u32)w.characters.size()};
 }
 
 void character3d_destroy(context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
-  if (c != nullptr)
+  if (c != nullptr) {
+    ctx.physics3d.world->crowd.remove(c->character.GetPtr());
     *c = character_slot{};
+  }
+}
+
+void character3d_set_active(context &ctx, character3d_handle handle, bool active) {
+  character_slot *c = character_of(ctx, handle);
+  if (c == nullptr || c->active == active)
+    return;
+  c->active = active;
+  ctx.physics3d.world->crowd.set_active(c->character.GetPtr(), active);
+  c->touching.clear();
+}
+
+bool character3d_active(const context &ctx, character3d_handle handle) {
+  character_slot *c = character_of(ctx, handle);
+  return c != nullptr && c->active;
 }
 
 void character3d_set_velocity(context &ctx, character3d_handle handle, vec3 velocity) {

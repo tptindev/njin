@@ -120,7 +120,8 @@ void finish_world_post(context &ctx) {
   // The depth of the 3D drawn this frame, for the depth of field.
   post_depth depth{};
   if (ctx.render3d.depth_drawn && post.target.depth.id != 0)
-    depth = {post.target.depth.id, ctx.render3d.depth_near, ctx.render3d.depth_far};
+    depth = {post.target.depth.id, ctx.render3d.depth_near, ctx.render3d.depth_far,
+             ctx.render3d.depth_inv_view_proj};
   ctx.render3d.depth_drawn = false;
   const Texture2D &texture = post_chain_run(ctx, lit, depth);
   view_rebind(ctx.view);

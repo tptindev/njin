@@ -8,6 +8,19 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+- **3D characters block each other**: characters (`character3d_create`) no longer walk
+  through one another; they slide round each other as along a wall. Each is tested only
+  against the ones near it (a grid on x and z), so a crowd costs little more than a handful.
+  `character3d_set_active` switches a character off (not moved, nothing hits it) and on
+  again, for a big crowd to simulate only the people the camera sees; `character3d_active`
+  reads it. The broad phase is rebuilt after many static bodies are added at once (a town's
+  worth), which kept queries slow until then.
+
+- **Fixed**: only letters, digits, arrows, space, Enter, Tab, Esc, Backspace and the
+  modifiers ever read as pressed. Every other `key_code` (F1–F12, Home/End, Page Up/Down,
+  Insert/Delete, punctuation such as `[` `]`, the Super keys and the keypad) had no raylib
+  translation and never fired. In `njin_sandtable` this meant PgUp/PgDn could not change
+  floors, and F1–F4 and F12 did nothing.
 - **Model culling**: `draw_model`, `draw_model_anim` and `njin::model3d` now leave out a
   model whose bounding box is outside the camera's frustum (it still casts its shadow).
   `render_info_get()` gains `models3d` and `models3d_culled`. A big mesh (terrain, roads)
@@ -19,17 +32,10 @@ To release: edit that header, add a section here, commit, then
   the model is on screen, keeping bones and animation at every level.
 - **Depth of field**: `post_fx::dof` (with `dof_focus`, `dof_range`, `dof_falloff`) blurs
   the 3D scene by distance from a focus point, reading back the depth the frame's
-  `begin_3d`/`end_3d` left in the world target. Off (as every `post_fx` field) when a
-  frame draws no 3D.
-- `njin_sandtable`: clicking a building now cuts it open into a full interior — rooms laid
-  out on a grid per floor (nhà ống rows with a walkway, corridor blocks, open halls for
-  warehouses/markets/temples), furnished from a curated subset of the "PSX modular house
-  interior pack" (`assets/models/interior/`, terms confirmed with the source), with a
-  matching exterior facade (windows, balconies, shopfronts, tiled roofs) and every floor
-  viewable (PgUp/PgDn). Focusing on a building now blurs the surroundings for real
-  (`post_fx::dof`, the new engine feature above) instead of only a flat haze, and the
-  ground/roads/water are split into model tiles (`city/render_lod.*`) so the engine culls
-  the ones out of view.
+  `begin_3d`/`end_3d` left in the world target. With `dof_radius` > 0 it focuses round a
+  point instead (`dof_center`): a sphere, a circle seen from above, rebuilt from each
+  pixel's depth; `dof_haze` lays a colour over what is out of focus. Off (as every
+  `post_fx` field) when a frame draws no 3D.
 
 ## 0.6.0
 

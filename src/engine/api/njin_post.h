@@ -63,7 +63,16 @@ struct post_fx {
   f32 dof = 0.0f;           ///< Độ mờ tối đa của phần ngoài tiêu điểm, bán kính pixel. 0 là tắt.
   f32 dof_focus = 10.0f;    ///< Khoảng cách nét nhất.
   f32 dof_range = 2.0f;     ///< Nét hoàn toàn trong khoảng `dof_focus` ± `dof_range`.
-  f32 dof_falloff = 10.0f;  ///< Quãng mờ dần từ nét đến mờ nhất, sau `dof_range`.
+  f32 dof_falloff = 10.0f;  ///< Quãng mờ dần từ nét đến mờ nhất, sau `dof_range` (hay `dof_radius`).
+  /// Tâm vùng nét, đơn vị 3D, khi `dof_radius` > 0: độ nét tính theo khoảng cách
+  /// từ mỗi điểm của cảnh tới đây, nên vùng nét là một quả cầu quanh vật được lấy
+  /// nét, nhìn từ trên xuống là một vòng tròn. `dof_focus` và `dof_range` khi đó
+  /// không dùng.
+  vec3 dof_center{0.0f, 0.0f, 0.0f};
+  f32 dof_radius = 0.0f;    ///< Bán kính vùng nét quanh `dof_center`. 0 là đo theo khoảng cách tới camera.
+  /// Màu phủ lên phần ngoài tiêu điểm, đậm theo độ mờ; `a` là độ đậm ở chỗ mờ nhất.
+  /// Trong suốt (mặc định) là không phủ.
+  rgba dof_haze{0.0f, 0.0f, 0.0f, 0.0f};
   /// @}
 };
 

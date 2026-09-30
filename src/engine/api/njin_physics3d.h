@@ -132,6 +132,24 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
 /// @param handle Nhân vật.
 void character3d_destroy(context &ctx, character3d_handle handle);
 
+/// Bật hoặc tắt một nhân vật. Nhân vật tắt không được di chuyển, không va vào
+/// gì và nhân vật khác đi xuyên qua nó, nhưng vẫn giữ vị trí và đặt lại được
+/// bằng character3d_set_position(). Mỗi nhân vật bật tốn một lần tính va chạm mỗi
+/// bước vật lý, nên một đám đông lớn chỉ bật những người ở gần camera, còn người
+/// ở xa game tự dời theo đường đi (không ai thấy họ va chạm).
+///
+/// Các nhân vật (bật) chặn nhau: không đi xuyên qua nhau mà trượt vòng qua.
+/// @param ctx Context của engine.
+/// @param handle Nhân vật.
+/// @param active `true` là bật (mặc định khi tạo).
+void character3d_set_active(context &ctx, character3d_handle handle, bool active);
+
+/// Nhân vật có đang bật không (character3d_set_active()).
+/// @param ctx Context của engine.
+/// @param handle Nhân vật.
+/// @return `true` nếu đang bật; `false` nếu tắt hay handle không hợp lệ.
+bool character3d_active(const context &ctx, character3d_handle handle);
+
 /// Đặt vận tốc muốn có cho bước mô phỏng tới, đơn vị mỗi giây.
 /// @param ctx Context của engine.
 /// @param handle Nhân vật.

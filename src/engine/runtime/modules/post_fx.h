@@ -30,6 +30,7 @@ struct post_chain {
   i32 bright_threshold = -1;
   i32 blur_direction = -1;
   i32 dof_blur = -1, dof_depth = -1, dof_planes = -1, dof_focus = -1;
+  i32 dof_center = -1, dof_inv_vp = -1, dof_haze = -1;
   i32 u_bloom_tex = -1, u_bloom = -1, u_resolution = -1, u_time = -1;
   i32 u_brightness = -1, u_contrast = -1, u_saturation = -1, u_sepia = -1,
       u_tint = -1;
@@ -71,6 +72,7 @@ struct post_depth {
   u32 texture = 0;
   f32 near_plane = 0.05f;
   f32 far_plane = 1000.0f;
+  Matrix inv_view_proj{}; // back from window depth to world positions (dof_radius)
 };
 
 // Runs the enabled effects on `scene` (a render texture's colour buffer, the

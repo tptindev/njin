@@ -136,6 +136,26 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
 /// @param handle Character.
 void character3d_destroy(context &ctx, character3d_handle handle);
 
+/// Switches a character on or off. A character off is not moved, hits
+/// nothing and other characters walk through it, but it keeps its position
+/// and can be put elsewhere with character3d_set_position(). Each character
+/// on costs one collision pass every physics step, so a big crowd switches on
+/// only the people near the camera, and the game moves the far ones along
+/// their paths itself (no one sees them collide).
+///
+/// Characters (on) block each other: they do not walk through one another
+/// but slide round.
+/// @param ctx Engine context.
+/// @param handle Character.
+/// @param active `true` for on (the default when created).
+void character3d_set_active(context &ctx, character3d_handle handle, bool active);
+
+/// Whether a character is on (character3d_set_active()).
+/// @param ctx Engine context.
+/// @param handle Character.
+/// @return `true` if on; `false` if off or the handle is invalid.
+bool character3d_active(const context &ctx, character3d_handle handle);
+
 /// Sets the velocity it should have for the next simulation step, units per
 /// second.
 /// @param ctx Engine context.

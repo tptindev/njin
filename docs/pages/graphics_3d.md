@@ -210,6 +210,22 @@ const njin::vec3 ground = njin::character3d_ground_velocity(ctx, player);
 njin::character3d_set_velocity(ctx, player, walk + ground + njin::vec3{0, vertical, 0});
 @endcode
 
+Các nhân vật chặn nhau: không đi xuyên qua nhau mà trượt vòng qua, như với tường. Engine chỉ so
+mỗi nhân vật với những người ở gần (một lưới ô), nên cả trăm nhân vật vẫn rẻ; phần tốn là mỗi
+nhân vật đang bật cần một lần tính va chạm mỗi bước (vài chục micro giây). Một đám đông lớn nên
+chỉ bật những người camera thấy bằng character3d_set_active(), còn người ở xa game tự dời theo
+đường đi:
+
+@code
+bool seen = false;
+njin::camera3d_to_screen(ctx, cam, feet, &seen); // hay cách game tự biết
+if (seen != njin::character3d_active(ctx, walker)) {
+  if (seen)
+    njin::character3d_set_position(ctx, walker, feet); // bật lại ở chỗ game đã dời tới
+  njin::character3d_set_active(ctx, walker, seen);
+}
+@endcode
+
 Vẽ một body động theo đúng chỗ và góc vật lý tính ra bằng body3d_transform():
 
 @code
