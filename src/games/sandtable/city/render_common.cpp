@@ -1,3 +1,4 @@
+#include "render_kit.h"
 #include "render_lod.h"
 
 #include <algorithm>
@@ -213,34 +214,43 @@ const char *overlay_name(overlay o) {
   return names[static_cast<i32>(o)];
 }
 
-void view_init(context &ctx) { cutaway_init(ctx); }
+void view_init(context &ctx) {
+  cutaway_init(ctx);
+  kit_init(ctx);
+}
 
-void view_shutdown(context &ctx) { cutaway_shutdown(ctx); }
+void view_shutdown(context &ctx) {
+  cutaway_shutdown(ctx);
+  kit_shutdown(ctx);
+}
 
 void view_build(context &ctx, const city_map &map) {
   view_cleanup(ctx);
   chunk_grid(map);
   ground_build(ctx, map);
-  buildings_build(ctx, map);
+  kit_build(ctx, map);
   props_build(ctx, map);
+  hover_build(ctx, map);
   debug_build(ctx, map);
 }
 
 void view_draw(context &ctx, const city_map &map, const view_options &opt) {
   view_cull_update(ctx, map, opt);
   ground_draw(ctx, map, opt);
-  buildings_draw(ctx, opt);
+  kit_draw(ctx, opt);
   props_draw(ctx, opt);
   cutaway_draw(ctx, map, opt);
   debug_draw(ctx, map, opt);
+  hover_draw(ctx, map, opt);
 }
 
 void view_cleanup(context &ctx) {
   ground_cleanup(ctx);
-  buildings_cleanup(ctx);
+  kit_cleanup(ctx);
   props_cleanup(ctx);
   cutaway_cleanup(ctx);
   debug_cleanup(ctx);
+  hover_cleanup(ctx);
 }
 
 } // namespace sandtable::city

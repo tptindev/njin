@@ -102,6 +102,9 @@ void test_harness(context &ctx) {
   if (!test.enabled)
     return;
   test.frame++;
+  // The mouse rests in the middle of the window: nothing lit up under it in
+  // the shots.
+  world_view().hover_district = world_view().hover_building = -1;
   // Each shot is set up on one frame and taken a few frames later (the shot
   // is taken as the frame is drawn).
   constexpr i32 per_shot = 4;
@@ -132,8 +135,8 @@ void test_harness(context &ctx) {
     }
     if (k > 0)
       return;
-    // One building picked, as a click would: it and whatever stands between
-    // it and the camera are opened.
+    // One building picked, as a click would: it alone is opened, and the
+    // camera comes close from its front.
     if (single == 0) {
       // A tall tube house with a shop, so the layout shows a stair and a
       // shopfront row as well as the usual bedroom/kitchen rows.
@@ -148,12 +151,14 @@ void test_harness(context &ctx) {
       if (bi < 0 && !world().hq_sites.empty())
         bi = world().hq_sites[0];
       world_view() = {};
-      world_view().selected = bi;
-      world_view().cut = {bi};
       world_cut_around(false);
       state.hour = 12.0f;
-      state.cam_yaw_goal = 0.0f;
-      view_focus(world().buildings[static_cast<size_t>(bi)].box.center, 11.0f, true);
+      world_focus(bi);
+      // Straight there, not eased: the shot is a few frames away.
+      state.cam_target = state.cam_target_goal;
+      state.cam_distance = state.cam_distance_goal;
+      state.cam_yaw = state.cam_yaw_goal;
+      state.cam_steep = state.cam_steep_goal = 1.0f;
     }
     if (single == per_shot - 1)
       screenshot(ctx, "sandtable_test_cut_single.png");
@@ -187,6 +192,10 @@ void test_harness(context &ctx) {
   if (g == 7) {
     std::printf("[test] city %u: %s\n", world().desc.seed, world().report.ok() ? "ok" : "FAILED");
     std::printf("[test] done\n");
+    // How well the crowd walked, after the run's minute or so of it.
+    const crowd_report cr = crowd_check();
+    NJIN_INFO("crowd: %d walkers, %d standing in one another, %d in a building, %d repaths", cr.walkers,
+              cr.overlapping, cr.in_buildings, cr.repaths);
     quit(ctx);
   }
 }
@@ -201,9 +210,14 @@ void startup(context &ctx) {
 
 void update(context &ctx) { crowd_update(delta(ctx)); }
 
+// Before the physics steps (njin steps it right after the game's own
+// systems of this phase).
+void fixed_update(context &ctx) { crowd_step(ctx, delta(ctx)); }
+
 void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "sandtable_startup");
   ecs_register(ctx, phase_pre_update, handle_input, "sandtable_input");
+  ecs_register(ctx, phase_fixed_update, fixed_update, "sandtable_crowd_step");
   ecs_register(ctx, phase_update, update, "sandtable_update");
   ecs_register(ctx, phase_post_update, test_harness, "sandtable_test_harness");
   ecs_register(ctx, phase_render, render_world, "sandtable_world_render");

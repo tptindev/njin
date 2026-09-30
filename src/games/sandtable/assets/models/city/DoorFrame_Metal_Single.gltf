@@ -1,0 +1,292 @@
+{
+ "asset": {
+  "generator": "Khronos glTF Blender I/O v4.3.47",
+  "version": "2.0"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "name": "Scene",
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0,
+   "name": "DoorFrame_Metal_Single"
+  }
+ ],
+ "materials": [
+  {
+   "doubleSided": true,
+   "name": "MI_Trim_MetalConcrete",
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 0
+    }
+   }
+  },
+  {
+   "doubleSided": true,
+   "name": "MI_Glass",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.16,
+     0.2,
+     0.26,
+     1.0
+    ],
+    "metallicFactor": 0,
+    "roughnessFactor": 0.5
+   }
+  }
+ ],
+ "meshes": [
+  {
+   "name": "Cube.192",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1,
+      "TEXCOORD_0": 2
+     },
+     "indices": 6,
+     "material": 0
+    },
+    {
+     "attributes": {
+      "POSITION": 7,
+      "NORMAL": 8,
+      "TEXCOORD_0": 9
+     },
+     "indices": 13,
+     "material": 1
+    }
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  }
+ ],
+ "images": [
+  {
+   "uri": "textures/T_MetalConcrete_BaseColor.png"
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 360,
+   "max": [
+    1,
+    3,
+    1.341104507446289e-07
+   ],
+   "min": [
+    -1,
+    0,
+    -0.2000000923871994
+   ],
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 360,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 360,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5126,
+   "count": 360,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 4,
+   "componentType": 5121,
+   "count": 360,
+   "normalized": true,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 5,
+   "componentType": 5123,
+   "count": 360,
+   "normalized": true,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 6,
+   "componentType": 5123,
+   "count": 696,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 7,
+   "componentType": 5126,
+   "count": 13,
+   "max": [
+    0.9026076793670654,
+    2.700000286102295,
+    -0.06675994396209717
+   ],
+   "min": [
+    -0.9026076793670654,
+    0.05869913101196289,
+    -0.06675994396209717
+   ],
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 8,
+   "componentType": 5126,
+   "count": 13,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 9,
+   "componentType": 5126,
+   "count": 13,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 10,
+   "componentType": 5126,
+   "count": 13,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 11,
+   "componentType": 5121,
+   "count": 13,
+   "normalized": true,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 12,
+   "componentType": 5123,
+   "count": 13,
+   "normalized": true,
+   "type": "VEC4"
+  },
+  {
+   "bufferView": 13,
+   "componentType": 5123,
+   "count": 21,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteLength": 4320,
+   "byteOffset": 0,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 4320,
+   "byteOffset": 4320,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 2880,
+   "byteOffset": 8640,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 2880,
+   "byteOffset": 11520,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 1440,
+   "byteOffset": 14400,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 2880,
+   "byteOffset": 15840,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 1392,
+   "byteOffset": 18720,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteLength": 156,
+   "byteOffset": 20112,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 156,
+   "byteOffset": 20268,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 104,
+   "byteOffset": 20424,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 104,
+   "byteOffset": 20528,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 52,
+   "byteOffset": 20632,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 104,
+   "byteOffset": 20684,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteLength": 42,
+   "byteOffset": 20788,
+   "target": 34963
+  }
+ ],
+ "samplers": [
+  {
+   "magFilter": 9729,
+   "minFilter": 9987,
+   "wrapS": 10497,
+   "wrapT": 10497
+  }
+ ],
+ "buffers": [
+  {
+   "byteLength": 20832,
+   "uri": "DoorFrame_Metal_Single.bin"
+  }
+ ]
+}

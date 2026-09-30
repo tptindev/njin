@@ -185,14 +185,22 @@ void generator::make_props() {
     const vec2 fwd = bd.front(), side = bd.box.axis_x();
     const vec2 face = bd.box.center + fwd * bd.box.half.y;
     const i32 bikes = r.range(1, 4) + (bz.tier > 1 ? 2 : 0);
+    // Where the door is along the front: no bike parked across it.
+    const f32 door_along = dot(bd.door - bd.box.center, side);
     for (i32 i = 0; i < bikes; ++i) {
-      const vec2 q = face + fwd * r.range(5.0f, 8.0f) + side * r.range(-bd.box.half.x + 3.0f, bd.box.half.x - 3.0f);
+      const f32 along = r.range(-bd.box.half.x + 3.0f, bd.box.half.x - 3.0f);
+      const vec2 q = face + fwd * r.range(5.0f, 8.0f) + side * along;
+      if (std::fabs(along - door_along) < 6.0f)
+        continue;
       if (on_sidewalk(q) || (m.cell_at(q) && m.cell_at(q)->g == ground::lot))
         m.props.push_back({prop_kind::motorbike, q, angle_of(fwd) + r.range(-12.0f, 12.0f), 1.0f, r.next_u32()});
     }
     if (bz.kind == business_kind::street_food || bz.kind == business_kind::cafe) {
       for (i32 i = r.range(3, 8); i > 0; --i) {
-        const vec2 q = face + fwd * r.range(3.0f, 10.0f) + side * r.range(-bd.box.half.x, bd.box.half.x);
+        const f32 along = r.range(-bd.box.half.x, bd.box.half.x);
+        const vec2 q = face + fwd * r.range(3.0f, 10.0f) + side * along;
+        if (std::fabs(along - door_along) < 5.0f)
+          continue;
         if (on_sidewalk(q))
           m.props.push_back({prop_kind::stool, q, r.range(0.0f, 90.0f), 1.0f, r.next_u32()});
       }
@@ -265,6 +273,99 @@ void generator::make_props() {
       if (c && c->g == ground::water)
         m.props.push_back({prop_kind::boat, q, angle_of(t) + r.range(-8.0f, 8.0f), r.range(0.8f, 1.3f), r.next_u32()});
     }
+  }
+  avoid_props();
+}
+
+namespace {
+
+// The ground a prop stands on, as render_props.cpp draws it (world units).
+// False for what stands in no one's way (boats).
+bool prop_footprint(const prop &p, obb &out) {
+  const f32 s = p.scale;
+  vec2 half{};
+  f32 angle = p.angle;
+  switch (p.kind) {
+  case prop_kind::tree: half = {1.0f * s, 1.0f * s}; break;
+  case prop_kind::lamp: half = {0.5f, 0.5f}; break;
+  case prop_kind::pole: half = {0.7f * s, 0.7f * s}; break;
+  case prop_kind::motorbike: half = {3.5f, 1.1f}; break;
+  case prop_kind::stool: half = {1.1f, 1.1f}; break;
+  case prop_kind::stall: half = {5.5f, 3.5f}; break;
+  case prop_kind::container: half = {15.0f, 5.5f}; break;
+  case prop_kind::bench: half = {4.0f, 1.5f}; break;
+  case prop_kind::monument: half = {10.0f, 10.0f}; angle = 0.0f; break;
+  default: return false;
+  }
+  out = {p.pos, half, angle};
+  return true;
+}
+
+} // namespace
+
+// People on foot walk round what stands in their way, as the physics stops
+// them at it: a cell whose middle is under a prop (widened by a person's
+// half width) is closed, one it only reaches into costs more. The way in to
+// every door stays open (nothing is parked or set out across it).
+void generator::avoid_props() {
+  constexpr f32 person_half_width = 1.8f;
+  // The way in: the door's cell and the two beyond it, out to the street.
+  std::vector<u8> door(m.cells.size(), 0);
+  for (const building &b : m.buildings) {
+    if (!b.door_ok)
+      continue;
+    for (i32 k = 0; k < 3; ++k) {
+      const vec2 q = b.door + b.front() * (static_cast<f32>(k) * cs);
+      const i32 x = static_cast<i32>(q.x / cs), y = static_cast<i32>(q.y / cs);
+      if (x >= 0 && y >= 0 && x < m.cols && y < m.rows)
+        door[static_cast<size_t>(y * m.cols + x)] = 1;
+    }
+  }
+  // Whether closing (x, y) could cut the ways past it: its open neighbours,
+  // walked round the ring of eight, fall into more than one run (a one-cell
+  // alley, a gap between two stalls). Then it stays open and only costs more.
+  const auto joins = [&](i32 x, i32 y) {
+    static constexpr i32 ring[8][2] = {{-1, -1}, {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}};
+    bool open[8];
+    for (i32 k = 0; k < 8; ++k) {
+      const i32 nx = x + ring[k][0], ny = y + ring[k][1];
+      open[k] = nx >= 0 && ny >= 0 && nx < m.cols && ny < m.rows &&
+                m.foot.cost[static_cast<size_t>(ny * m.cols + nx)] > 0;
+    }
+    // Runs of open cells round the ring (a corner cell open alone is a run
+    // of its own: no squeezing past a corner).
+    i32 runs = 0;
+    for (i32 k = 0; k < 8; ++k)
+      if (open[k] && !open[(k + 7) % 8])
+        ++runs;
+    return runs > 1;
+  };
+  for (const prop &p : m.props) {
+    obb o;
+    if (!prop_footprint(p, o))
+      continue;
+    o.half += vec2{person_half_width, person_half_width};
+    const f32 reach = length(o.half) + cs;
+    const i32 x0 = std::max(0, static_cast<i32>((o.center.x - reach) / cs));
+    const i32 x1 = std::min(m.cols - 1, static_cast<i32>((o.center.x + reach) / cs));
+    const i32 y0 = std::max(0, static_cast<i32>((o.center.y - reach) / cs));
+    const i32 y1 = std::min(m.rows - 1, static_cast<i32>((o.center.y + reach) / cs));
+    for (i32 y = y0; y <= y1; ++y)
+      for (i32 x = x0; x <= x1; ++x) {
+        const size_t i = static_cast<size_t>(y * m.cols + x);
+        const u8 cost = m.foot.cost[i];
+        if (cost == 0)
+          continue;
+        const vec2 c = m.center_of(x, y);
+        if (o.contains(c) && !door[i] && !joins(x, y)) {
+          nav_set_cost(m.foot, {x, y}, 0);
+          continue;
+        }
+        // Reaching into the cell: the cell's middle within half a cell of it.
+        const obb wide{o.center, o.half + vec2{cs * 0.5f, cs * 0.5f}, o.angle};
+        if (wide.contains(c))
+          nav_set_cost(m.foot, {x, y}, static_cast<u8>(std::min(9, cost + 4)));
+      }
   }
 }
 

@@ -27,16 +27,21 @@ struct view_options {
   std::vector<i32> cut;
   i32 selected = -1;    // outlined, and first in `cut`
   // The floor open to look into (0 the ground floor): the selected building's,
-  // or, with `around`, every building's in `cut` that has it; the others in
-  // `cut` (neighbours opened so they do not hide it) show their ground floor.
+  // or, with `around`, every building's in `cut` that has it.
   i32 floor = 0;
   bool around = false;
   // Something looked at closely (a building picked, later a man or a car):
-  // around it everything is drawn in full, beyond `focus_radius` the town
-  // goes hazy and loses its small detail, which also spares the GPU.
+  // sharp within `sharp_radius` of it, blurred and hazy beyond (render.cpp,
+  // post_fx::dof round a point); small detail drawn only within
+  // `focus_radius`, which also spares the GPU.
   bool focused = false;
   vec2 focus{};
+  f32 sharp_radius = 60.0f;
   f32 focus_radius = 220.0f;
+  // Under the mouse, lit up (render_hover.cpp): the district (outlined, its
+  // name large) and the building (framed); -1 for none.
+  i32 hover_district = -1;
+  i32 hover_building = -1;
 };
 
 // What the last view_draw() drew, for the HUD: map chunks in view and with

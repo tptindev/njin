@@ -103,9 +103,6 @@ void ground_build(context &ctx, const city_map &map);       // render_ground.cpp
 void ground_draw(context &ctx, const city_map &map, const view_options &opt);
 void ground_cleanup(context &ctx);
 
-void buildings_build(context &ctx, const city_map &map);    // render_buildings.cpp
-void buildings_draw(context &ctx, const view_options &opt);
-void buildings_cleanup(context &ctx);
 
 void props_build(context &ctx, const city_map &map);        // render_props.cpp
 void props_draw(context &ctx, const view_options &opt);
@@ -119,5 +116,10 @@ void cutaway_shutdown(context &ctx);   // game exit only: the kit's models
 void debug_build(context &ctx, const city_map &map);        // render_debug.cpp
 void debug_draw(context &ctx, const city_map &map, const view_options &opt);
 void debug_cleanup(context &ctx);
+
+void hover_build(context &ctx, const city_map &map);        // render_hover.cpp
+void hover_draw(context &ctx, const city_map &map, const view_options &opt);
+void hover_label(context &ctx, const city_map &map, const view_options &opt, font_handle font);
+void hover_cleanup(context &ctx);
 
 } // namespace sandtable::city

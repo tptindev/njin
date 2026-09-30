@@ -1,5 +1,5 @@
 #include "interior.h"
-#include "render_facade.h"
+#include "render_kit.h"
 
 #include <algorithm>
 #include <cmath>
@@ -25,7 +25,13 @@ f32 base = 0.0f;
 
 // The floors below the open one, whole, from outside.
 instances lower_boxes, lower_detail, lower_tanks, lower_glow;
-facade_batches lower{lower_boxes, lower_detail, lower_tanks, lower_glow};
+std::array<instances, piece_count> lower_parts;
+kit_sink lower_sink() {
+  kit_sink s{{}, {lower_boxes, lower_detail, lower_tanks, lower_glow}};
+  for (i32 k = 0; k < piece_count; ++k)
+    s.parts[static_cast<size_t>(k)] = &lower_parts[static_cast<size_t>(k)];
+  return s;
+}
 
 struct kit_piece {
   const char *name;
@@ -116,24 +122,16 @@ void edge_wall(const grid_frame &g, wall_kind k, f32 door, f32 a0, f32 b0, f32 l
   wall_run(g, a0 + da * g1, b0 + db * g1, a0 + da * len, b0 + db * len);
 }
 
-// The floors under floor `floor`: the body up to it, the front with the
-// ground floor's shop or door, and the windows and balconies of the floors
-// between; a slab to stand the open floor on.
+// The floors under floor `floor`, as the town has them (render_kit.cpp), and
+// a slab to stand the open floor on.
 void floors_below(const building &b, const city_map &map, i32 floor) {
   if (floor <= 0)
     return;
+  kit_sink s = lower_sink();
+  kit_building(b, map, floor, false, s);
   const frame f = frame_of(b);
   const f32 top = static_cast<f32>(floor) * floor_height;
-  const bool tube = b.kind == building_kind::tube_house || b.kind == building_kind::house;
-  const rgba wall = tube ? front_color(b) : rgb8(220, 216, 206);
-  lower_boxes.box(f.c, 0.0f, {f.hx * 2.0f - 0.2f, top, f.hy * 2.0f}, f.angle, tube ? concrete_color(b) : wall);
-  front_face(lower, f, top, wall);
-  if (b.business >= 0 && b.kind == building_kind::tube_house)
-    shopfront(lower, f, business_color(map.businesses[static_cast<size_t>(b.business)].kind), top, b.look);
-  else
-    house_front(lower, f, b.look);
-  upper_floors(lower, b, f, wall, 1, floor);
-  lower_boxes.box(f.c, top - 0.8f, {f.hx * 2.0f + 0.4f, 0.8f, f.hy * 2.0f + 0.4f}, f.angle, rgb8(150, 146, 140));
+  lower_boxes.box(f.c, top - 0.8f, {f.hx * 2.0f - 0.4f, 0.8f, f.hy * 2.0f - 0.4f}, f.angle, rgb8(150, 146, 140));
 }
 
 void cut_open(const building &b, const city_map &map, i32 floor) {
@@ -209,6 +207,8 @@ void cutaway_draw(context &ctx, const city_map &map, const view_options &opt) {
   caps.clear();
   outline.clear();
   lower_boxes.clear();
+  for (instances &p : lower_parts)
+    p.clear();
   lower_detail.clear();
   lower_tanks.clear();
   lower_glow.clear();
@@ -228,6 +228,13 @@ void cutaway_draw(context &ctx, const city_map &map, const view_options &opt) {
   caps.upload(ctx);
   material3d_set(ctx, {.specular = 0.05f, .shininess = 8.0f});
   caps.draw(ctx, mesh3d_cube);
+  for (i32 k = 0; k < piece_count; ++k) {
+    instances &p = lower_parts[static_cast<size_t>(k)];
+    if (p.count() == 0)
+      continue;
+    p.upload(ctx);
+    draw_instanced3d(ctx, kit_model(static_cast<piece>(k)), p.buffer, 0, p.count());
+  }
   lower_boxes.upload(ctx);
   lower_detail.upload(ctx);
   lower_tanks.upload(ctx);
@@ -255,6 +262,8 @@ void cutaway_cleanup(context &ctx) {
   caps.destroy(ctx);
   outline.destroy(ctx);
   lower_boxes.destroy(ctx);
+  for (instances &p : lower_parts)
+    p.destroy(ctx);
   lower_detail.destroy(ctx);
   lower_tanks.destroy(ctx);
   lower_glow.destroy(ctx);

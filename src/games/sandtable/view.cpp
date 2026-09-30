@@ -17,6 +17,9 @@ f32 pitch_at(f32 distance) {
   return (32.0f + 30.0f * k) * pi / 180.0f;
 }
 
+// How steeply the camera looks down at what is in focus (state.cam_steep).
+constexpr f32 focus_pitch = 64.0f * pi / 180.0f;
+
 // Easing toward the goal, the same at any frame rate.
 f32 ease(f32 dt, f32 rate) { return 1.0f - std::exp(-rate * dt); }
 
@@ -24,7 +27,7 @@ f32 ease(f32 dt, f32 rate) { return 1.0f - std::exp(-rate * dt); }
 
 camera3d table_camera() {
   const f32 yaw = state.cam_yaw * pi / 180.0f;
-  const f32 pitch = pitch_at(state.cam_distance);
+  const f32 pitch = lerp(pitch_at(state.cam_distance), focus_pitch, clamp(state.cam_steep, 0.0f, 1.0f));
   const vec3 target = to3d(state.cam_target, state.cam_lift);
   const vec3 back{std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch)};
   return {.position = target + back * state.cam_distance,
@@ -74,6 +77,7 @@ void update_view(context &ctx, bool in_hud) {
   state.cam_yaw += (state.cam_yaw_goal - state.cam_yaw) * ease(dt, 12.0f);
   state.cam_distance += (state.cam_distance_goal - state.cam_distance) * ease(dt, 10.0f);
   state.cam_lift += (state.cam_lift_goal - state.cam_lift) * ease(dt, 8.0f);
+  state.cam_steep += (state.cam_steep_goal - state.cam_steep) * ease(dt, 8.0f);
 }
 
 void view_focus(vec2 at, f32 distance, bool snap) {

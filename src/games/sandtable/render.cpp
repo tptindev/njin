@@ -241,9 +241,12 @@ void city_panel(context &ctx) {
                 static_cast<i32>(m.spots.size()), static_cast<f64>(m.report.gen_ms));
   text_shadow(ctx, line, {8.0f, 28.0f}, col_paper, 12.0f);
   const city::view_stats &vs = city::view_last_stats();
-  char cull_line[128];
-  std::snprintf(cull_line, sizeof(cull_line), "Vẽ %d/%d ô  ·  chi tiết %d ô  ·  %u khối", vs.visible, vs.chunks,
-                vs.detailed, vs.instances);
+  // Frames a second, smoothed over about half a second.
+  static f32 frame_time = 1.0f / 60.0f;
+  frame_time += (delta_real(ctx) - frame_time) * 0.05f;
+  char cull_line[160];
+  std::snprintf(cull_line, sizeof(cull_line), "Vẽ %d/%d ô  ·  chi tiết %d ô  ·  %u khối  ·  %.0f fps", vs.visible,
+                vs.chunks, vs.detailed, vs.instances, static_cast<f64>(1.0f / std::max(frame_time, 1e-4f)));
   text_shadow(ctx, cull_line, {8.0f, 70.0f}, col_text_hint, 11.0f);
   const city::view_options &v = world_view();
   if (v.selected >= 0 || (v.around && !v.cut.empty())) {
@@ -303,13 +306,17 @@ void render_world(context &ctx) {
   post_fx fx{.saturation = 1.08f, .vignette = 0.35f, .bloom = 0.55f, .bloom_threshold = 0.82f};
   const city::view_options &v = world_view();
   if (v.focused) {
-    const camera3d cam = table_camera();
-    const vec3 look = normalize(cam.target - cam.position);
-    fx.vignette = 0.62f;
+    // A sphere round the open floor of the building in focus: seen from
+    // above, a circle, fading out smoothly into blur and a haze of the sky's
+    // colour (post_fx::dof round a point).
+    const f32 floor_mid = (static_cast<f32>(v.floor) + 0.5f) * city::floor_height;
+    const rgba day{0.80f, 0.80f, 0.78f, 0.35f}, dark{0.05f, 0.06f, 0.09f, 0.4f};
+    fx.vignette = 0.5f;
     fx.dof = 7.0f;
-    fx.dof_focus = dot(to3d(v.focus) - cam.position, look);
-    fx.dof_range = v.focus_radius * unit3d * 0.35f;
-    fx.dof_falloff = v.focus_radius * unit3d * 0.6f;
+    fx.dof_center = to3d(v.focus, floor_mid * unit3d);
+    fx.dof_radius = v.sharp_radius * unit3d;
+    fx.dof_falloff = 140.0f * unit3d;
+    fx.dof_haze = lerp(day, dark, clamp(v.night, 0.0f, 1.0f));
   }
   post_fx_set(ctx, fx);
   city::view_draw(ctx, world(), world_view());

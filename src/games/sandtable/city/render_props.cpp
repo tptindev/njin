@@ -3,6 +3,16 @@
 // Street furniture and the things in the open places: trees, poles, lamps,
 // parked motorbikes, plastic stools, market stalls, containers, boats, and
 // the railings along the bridges.
+//
+// At night the street lamps come on: every lamp in view gets its bulb and a
+// warm pool of light on the ground (cheap, any number), and the ones nearest
+// the middle of the view (or what is in focus) a real point light too, as
+// many as the engine takes in one 3D pass (light3d_max), fading out toward
+// the farthest of them so none pops on or off as the camera moves.
+
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 namespace sandtable::city {
 
@@ -13,7 +23,37 @@ namespace {
 chunked big_cubes, big_posts, leaves;
 // The small ones, close up only: poles, lamps, bikes, stools, benches.
 chunked cubes_s, posts_s, lights;
-chunked *all_batches[] = {&big_cubes, &big_posts, &leaves, &cubes_s, &posts_s, &lights};
+// The pools of light under the lamps, drawn at night only.
+chunked pools;
+chunked *all_batches[] = {&big_cubes, &big_posts, &leaves, &cubes_s, &posts_s, &lights, &pools};
+
+// Every street lamp, for the real lights.
+struct lamp {
+  vec2 at;
+  i32 chunk;
+};
+std::vector<lamp> lamps;
+
+// How lit the lamps are drawn, 0 to 1: the bulbs' and pools' colours are
+// written for it, and written again when the dusk has moved on enough.
+f32 lamps_shown = -1.0f;
+
+const rgba bulb_col = rgb8(255, 226, 160);
+// A pool is three rings, each over the one before: brightest in the middle,
+// fading out, so it has no hard edge. Radius share and `a` when fully on.
+const rgba pool_col{1.0f, 0.74f, 0.38f, 1.0f};
+constexpr f32 pool_rings[3][2] = {{1.0f, 0.07f}, {0.66f, 0.08f}, {0.36f, 0.1f}};
+const rgba lamp_light{1.0f, 0.84f, 0.6f, 1.0f};
+constexpr f32 lamp_height = 17.0f;   // the bulb, world units up
+constexpr f32 pool_radius = 30.0f;   // world units
+constexpr f32 light_reach = 110.0f;  // world units
+constexpr i32 lamp_lights = 12;      // real lights; the rest of light3d_max stays free
+constexpr f32 lamp_light_range = 900.0f; // none farther than this from the middle
+
+f32 smoothstep(f32 e0, f32 e1, f32 x) {
+  const f32 t = clamp((x - e0) / (e1 - e0), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
 
 const rgba greens[] = {rgb8(70, 120, 56), rgb8(88, 136, 60), rgb8(60, 108, 62), rgb8(104, 146, 70)};
 const rgba bikes[] = {rgb8(180, 40, 36), rgb8(30, 30, 34), rgb8(40, 80, 160), rgb8(220, 220, 220), rgb8(120, 120, 124)};
@@ -37,7 +77,10 @@ void add(const prop &p) {
   case prop_kind::lamp:
     posts.post(at, 0.0f, 0.5f, 18.0f, rgb8(70, 72, 76));
     cubes.box(at, 18.0f, {5.0f, 1.0f, 1.6f}, p.angle, rgb8(70, 72, 76));
-    lights.inst.ball(at, 17.5f, 1.4f, rgb8(255, 226, 160));
+    lights.inst.ball(at, 17.5f, 1.4f, bulb_col);
+    // Flat on the ground, just over the road markings.
+    for (const auto &ring : pool_rings)
+      pools.inst.post(at, 0.05f / unit3d, pool_radius * ring[0], 0.002f / unit3d, pool_col);
     break;
   case prop_kind::pole:
     posts.post(at, 0.0f, 0.7f * s, 20.0f * s, rgb8(128, 124, 118));
@@ -92,6 +135,8 @@ void props_build(context &ctx, const city_map &map) {
   const i32 chunks = chunk_count();
   for (chunked *c : all_batches)
     c->begin(chunks);
+  lamps.clear();
+  lamps_shown = -1.0f;
   std::vector<std::vector<i32>> in_chunk(static_cast<size_t>(chunks));
   for (i32 i = 0; i < static_cast<i32>(map.props.size()); ++i)
     in_chunk[static_cast<size_t>(chunk_of(map.props[static_cast<size_t>(i)].pos))].push_back(i);
@@ -102,8 +147,12 @@ void props_build(context &ctx, const city_map &map) {
   for (i32 ch = 0; ch < chunks; ++ch) {
     for (chunked *c : all_batches)
       c->mark(ch);
-    for (const i32 i : in_chunk[static_cast<size_t>(ch)])
-      add(map.props[static_cast<size_t>(i)]);
+    for (const i32 i : in_chunk[static_cast<size_t>(ch)]) {
+      const prop &pr = map.props[static_cast<size_t>(i)];
+      add(pr);
+      if (pr.kind == prop_kind::lamp)
+        lamps.push_back({pr.pos, ch});
+    }
     for (const i32 i : bridges[static_cast<size_t>(ch)])
       railings(map.spots[static_cast<size_t>(i)]);
   }
@@ -113,29 +162,72 @@ void props_build(context &ctx, const city_map &map) {
   }
 }
 
+namespace {
+
+// The bulbs dim to bright and the pools fade in as `on` goes 0 to 1.
+void shade_lamps(context &ctx, f32 on) {
+  if (std::fabs(on - lamps_shown) < 0.02f && !(on == 1.0f && lamps_shown != 1.0f))
+    return;
+  lamps_shown = on;
+  const f32 bright = 0.3f + 0.7f * on;
+  for (size_t i = 0; i + 16 <= lights.inst.data.size(); i += 16) {
+    lights.inst.data[i + 4] = bulb_col.r * bright;
+    lights.inst.data[i + 5] = bulb_col.g * bright;
+    lights.inst.data[i + 6] = bulb_col.b * bright;
+  }
+  for (size_t i = 0; i + 16 <= pools.inst.data.size(); i += 16)
+    pools.inst.data[i + 7] = pool_rings[(i / 16) % 3][1] * on;
+  lights.inst.upload(ctx);
+  pools.inst.upload(ctx);
+}
+
+// Real lights on the lamps nearest the middle of the view.
+void light_lamps(context &ctx, f32 on) {
+  std::vector<std::pair<f32, vec2>> near;
+  for (const lamp &l : lamps) {
+    if (!chunk_visible(l.chunk))
+      continue;
+    const f32 d = distance(l.at, cull().center);
+    if (d < lamp_light_range)
+      near.emplace_back(d, l.at);
+  }
+  const size_t n = std::min(near.size(), static_cast<size_t>(lamp_lights) + 1);
+  std::partial_sort(near.begin(), near.begin() + static_cast<std::ptrdiff_t>(n), near.end(),
+                    [](const auto &a, const auto &b) { return a.first < b.first; });
+  // The first lamp left out marks where the lights have faded to nothing.
+  const f32 edge = near.size() > static_cast<size_t>(lamp_lights) ? near[lamp_lights].first : lamp_light_range;
+  for (size_t i = 0; i < std::min(near.size(), static_cast<size_t>(lamp_lights)); ++i) {
+    const f32 fade = 1.0f - smoothstep(edge * 0.6f, edge, near[i].first);
+    if (fade <= 0.0f)
+      continue;
+    light3d_add(ctx, {.position = to3d(near[i].second, lamp_height * unit3d),
+                      .color = lamp_light,
+                      .intensity = 1.8f * on * fade,
+                      .radius = light_reach * unit3d});
+  }
+}
+
+} // namespace
+
 void props_draw(context &ctx, const view_options &opt) {
   const f32 prop_r = cull().prop_r;
-  const auto clear = [](i32 c) { return !chunk_hazy(c); };
-  const auto hazy = [](i32 c) { return chunk_hazy(c); };
-  const auto near = [prop_r](i32 c) { return !chunk_hazy(c) && chunk_detailed(c, prop_r); };
+  const auto all = [](i32) { return true; };
+  const auto near = [prop_r](i32 c) { return chunk_detailed(c, prop_r); };
   material3d_set(ctx, {.specular = 0.1f, .shininess = 14.0f});
-  draw_chunks(ctx, big_cubes, mesh3d_cube, clear);
-  draw_chunks(ctx, big_posts, mesh3d_cylinder_low, clear);
+  draw_chunks(ctx, big_cubes, mesh3d_cube, all);
+  draw_chunks(ctx, big_posts, mesh3d_cylinder_low, all);
   draw_chunks(ctx, cubes_s, mesh3d_cube, near);
   draw_chunks(ctx, posts_s, mesh3d_cylinder_low, near);
   material3d_set(ctx, {.specular = 0.05f, .shininess = 6.0f, .rim = {0.8f, 1.0f, 0.7f, 0.1f}});
-  draw_chunks(ctx, leaves, mesh3d_sphere_low, clear);
-  if (cull().focused) {
-    haze_on(ctx);
-    material3d_set(ctx, {.specular = 0.02f, .shininess = 6.0f});
-    draw_chunks(ctx, big_cubes, mesh3d_cube, hazy);
-    draw_chunks(ctx, big_posts, mesh3d_cylinder_low, hazy);
-    draw_chunks(ctx, leaves, mesh3d_sphere_low, hazy);
-    haze_off(ctx);
-  }
-  if (opt.night > 0.3f) {
+  draw_chunks(ctx, leaves, mesh3d_sphere_low, all);
+  // The lamps come on as the light goes, all of them in view.
+  const f32 on = smoothstep(0.25f, 0.45f, opt.night);
+  if (on > 0.01f) {
+    shade_lamps(ctx, on);
+    light_lamps(ctx, on);
     material3d_set(ctx, {.unlit = true, .cast_shadows = false});
-    draw_chunks(ctx, lights, mesh3d_sphere_low, near);
+    draw_chunks(ctx, lights, mesh3d_sphere_low, all);
+    draw_chunks(ctx, pools, mesh3d_cylinder_low, all);
   }
   material3d_set(ctx, {});
 }

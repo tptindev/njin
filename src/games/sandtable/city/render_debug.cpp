@@ -38,8 +38,10 @@ void centred(context &ctx, const char *str, vec2 pos, f32 size, rgba col, font_h
 void district_labels(context &ctx, const city_map &map, const view_options &opt, font_handle font) {
   if (state.cam_distance < 30.0f && opt.layer != overlay::districts)
     return;
-  for (const district &d : map.districts) {
-    if (d.cells == 0)
+  for (i32 i = 0; i < static_cast<i32>(map.districts.size()); ++i) {
+    const district &d = map.districts[static_cast<size_t>(i)];
+    // The one under the mouse has its own, larger label (render_hover.cpp).
+    if (d.cells == 0 || i == opt.hover_district)
       continue;
     bool visible = false;
     const vec2 s = table_to_screen(ctx, d.centroid, 0.5f, &visible);
@@ -188,6 +190,7 @@ void view_draw_ui(context &ctx, const city_map &map, const view_options &opt, fo
     district_labels(ctx, map, opt, font);
     business_labels(ctx, map, font);
   }
+  hover_label(ctx, map, opt, font);
   hover_card(ctx, map, font);
 }
 

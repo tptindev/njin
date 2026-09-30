@@ -53,8 +53,6 @@ bool chunk_visible(i32 c) {
 
 bool chunk_detailed(i32 c, f32 radius) { return radius > 0.0f && chunk_distance(c, state_cull.center) < radius; }
 
-bool chunk_hazy(i32 c) { return state_cull.focused && chunk_distance(c, state_cull.center) > state_cull.haze_r; }
-
 bool view_sees(vec2 p, f32 margin) {
   return p.x + margin >= state_cull.x0 && p.x - margin <= state_cull.x1 && p.y + margin >= state_cull.y0 &&
          p.y - margin <= state_cull.y1;
@@ -70,7 +68,6 @@ void chunk_grid(const city_map &map) {
 void view_cull_update(context &ctx, const city_map &map, const view_options &opt) {
   view_cull &v = state_cull;
   chunk_grid(map);
-  v.night = opt.night;
 
   // The table seen: each corner and edge-middle of the screen cast as a ray
   // onto the street (height 0) and onto the tallest roofs; what lies between
@@ -105,12 +102,10 @@ void view_cull_update(context &ctx, const city_map &map, const view_options &opt
     v.center = opt.focus;
     v.detail_r = opt.focus_radius;
     v.prop_r = opt.focus_radius * 1.2f;
-    v.haze_r = opt.focus_radius * 1.1f;
   } else {
     v.center = state.cam_target;
     v.detail_r = d < 35.0f ? 750.0f : d < 60.0f ? 420.0f : 0.0f;
     v.prop_r = d < 45.0f ? 800.0f : d < 70.0f ? 450.0f : 0.0f;
-    v.haze_r = 0.0f;
   }
 
   stats.chunks = chunk_count();
@@ -159,13 +154,14 @@ void draw_ranges(context &ctx, const chunked &b, mesh3d_kind mesh, const std::ve
   }
 }
 
-void haze_on(context &ctx) {
-  // Washed a little toward the sky's colour, as through a haze; the depth of
-  // field (render.cpp) blurs it as well.
-  const rgba day{0.80f, 0.80f, 0.78f, 0.3f}, dark{0.05f, 0.06f, 0.09f, 0.35f};
-  fx3d_set(ctx, {.flash = lerp(day, dark, clamp(state_cull.night, 0.0f, 1.0f))});
+void draw_ranges_model(context &ctx, const chunked &b, model_handle model,
+                       const std::vector<std::pair<u32, u32>> &ranges) {
+  for (const auto &[from, to] : ranges) {
+    const u32 end = std::min(to, b.inst.count());
+    if (end > from)
+      draw_instanced3d(ctx, model, b.inst.buffer, from, end - from);
+    stats.instances += end - from;
+  }
 }
-
-void haze_off(context &ctx) { fx3d_set(ctx, {}); }
 
 } // namespace sandtable::city

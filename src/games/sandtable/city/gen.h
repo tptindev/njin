@@ -296,6 +296,7 @@ struct generator {
   bool on_sidewalk(vec2 p) const;
 
   void make_props();
+  void avoid_props(); // make_props: foot nav round the props
 
   // --- Stage 16: how the pieces touch, and where gangs could start --------------------------------
 

@@ -26,8 +26,11 @@ using namespace njin;
 
 // --- Scale ------------------------------------------------------------------
 
-inline constexpr f32 person_height = 13.0f; // a man, about 1.75 m
-inline constexpr f32 floor_height = 18.0f;  // a storey, about 2.5 m
+// The scale of the whole city: world units a metre. A storey of the city kit
+// (render_kit.cpp) is 3 m, the interior kit's room cell about 4 m.
+inline constexpr f32 units_per_metre = 6.0f;
+inline constexpr f32 person_height = 1.68f * units_per_metre; // a man, 1.68 m
+inline constexpr f32 floor_height = 3.0f * units_per_metre;   // a storey, 3 m
 
 // --- Settings ---------------------------------------------------------------
 

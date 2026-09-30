@@ -18,10 +18,19 @@ void world_generate(context &ctx, u32 seed);
 
 // Debug keys: N/B the next or previous seed, R a random one, F1 the ground
 // overlay, F2 labels, F3 the road graph, F4 pins. Looking inside: a left
-// click picks a building and cuts it open (Esc lets go), C cuts open every
-// building round the middle of the view when close. PgUp/PgDn (or ] and [)
-// go up and down the floors of what is open.
+// click on a building focuses it (world_focus), a click beside it or Esc lets
+// go (world_unfocus); C cuts open every building round the middle of the view
+// when close and nothing is in focus. PgUp/PgDn (or ] and [) go up and down
+// the floors of what is open.
 void world_input(context &ctx);
+
+// Focuses building `id`: it alone is cut open, and the camera turns to its
+// front, looks steeply down and comes close, centred on it. Only one building
+// is in focus at a time: another replaces it. The camera as it was before
+// the first focus is kept for world_unfocus().
+void world_focus(i32 id);
+// Lets go of the building in focus, and the camera goes back to where it was.
+void world_unfocus();
 
 // Works out which buildings are drawn cut open this frame (after the camera
 // has moved).

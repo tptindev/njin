@@ -10,7 +10,6 @@
 // - which of them are near enough for their fine detail (level of detail:
 //   windows, balconies, stools and bikes only close up; nearer still when
 //   something is in focus),
-// - which are far from what is in focus, to be drawn hazy.
 // draw_chunks() then draws only the ranges wanted, leaving out buildings open
 // in the cutaway.
 
@@ -30,8 +29,6 @@ struct view_cull {
   f32 detail_r = 0.0f; // fine detail within this of `center`
   f32 prop_r = 0.0f;   // small props within this
   bool focused = false;
-  f32 haze_r = 0.0f;   // beyond this of the focus, hazy
-  f32 night = 0.0f;
 };
 
 const view_cull &cull();
@@ -43,7 +40,6 @@ i32 chunk_count();
 i32 chunk_of(vec2 p);
 bool chunk_visible(i32 c);
 bool chunk_detailed(i32 c, f32 radius);
-bool chunk_hazy(i32 c);
 
 // Instance ranges to leave out (buildings open in the cutaway), sorted.
 using skip_list = std::vector<std::pair<u32, u32>>;
@@ -68,6 +64,8 @@ void draw_chunks(context &ctx, const chunked &b, mesh3d_kind mesh, Want want, co
 // Implementation of the template: the ranges to draw, merged where they touch.
 std::vector<std::pair<u32, u32>> chunk_ranges(const chunked &b, const std::vector<u8> &want, const skip_list *skip);
 void draw_ranges(context &ctx, const chunked &b, mesh3d_kind mesh, const std::vector<std::pair<u32, u32>> &ranges);
+void draw_ranges_model(context &ctx, const chunked &b, model_handle model,
+                       const std::vector<std::pair<u32, u32>> &ranges);
 
 template <typename Want>
 void draw_chunks(context &ctx, const chunked &b, mesh3d_kind mesh, Want want, const skip_list *skip) {
@@ -79,9 +77,16 @@ void draw_chunks(context &ctx, const chunked &b, mesh3d_kind mesh, Want want, co
   draw_ranges(ctx, b, mesh, chunk_ranges(b, w, skip));
 }
 
-// The haze laid over what is far from the focus (fx3d), and taken off again.
-void haze_on(context &ctx);
-void haze_off(context &ctx);
+// As draw_chunks(), for a batch of copies of a model.
+template <typename Want>
+void draw_chunks_model(context &ctx, const chunked &b, model_handle model, Want want, const skip_list *skip = nullptr) {
+  if (b.start.empty() || model.id == 0 || b.inst.buffer.id == 0)
+    return;
+  std::vector<u8> w(static_cast<size_t>(chunk_count()));
+  for (i32 c = 0; c < chunk_count(); ++c)
+    w[static_cast<size_t>(c)] = chunk_visible(c) && want(c) ? 1 : 0;
+  draw_ranges_model(ctx, b, model, chunk_ranges(b, w, skip));
+}
 
 // Counting for view_last_stats().
 void count_detailed(i32 chunks);

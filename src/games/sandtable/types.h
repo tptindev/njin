@@ -51,6 +51,10 @@ struct game_state {
   // to look into (world.cpp), eased there.
   f32 cam_lift = 0.0f;
   f32 cam_lift_goal = 0.0f;
+  // 0 the usual slant, 1 looking steeply down at what is in focus, so the
+  // houses in front of it do not hide it; eased.
+  f32 cam_steep = 0.0f;
+  f32 cam_steep_goal = 0.0f;
 };
 
 extern game_state state;

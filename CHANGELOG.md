@@ -36,6 +36,33 @@ To release: edit that header, add a section here, commit, then
   point instead (`dof_center`): a sphere, a circle seen from above, rebuilt from each
   pixel's depth; `dof_haze` lays a colour over what is out of focus. Off (as every
   `post_fx` field) when a frame draws no 3D.
+- `njin_sandtable`: people walk with 3D physics. The ground, every building and the street
+  furniture in the way are static bodies and each passer-by in view is a character, so
+  no one walks through a wall, a parked bike or another person; the foot nav grid goes round
+  what stands on the sidewalk and keeps the way in to every door clear. People were also
+  drawn too big for the town (2.2 m); the city now has one scale, 6 world units a metre,
+  and a person is 1.68 m. Fixed: passers-by walked toward a corner of the table instead of
+  along their paths (the steering direction was read as a point).
+- `njin_sandtable`: the whole town is now built from Quaternius' Downtown City MegaKit
+  (CC0, `assets/models/city/`, copied in by `tools/make_city_kit.py`): painted plaster
+  tube houses, red-brick markets, schools and workshops, glass-and-metal flats and hotels,
+  a panel of the kit per storey and per 2–4 m of wall, with cornices, doors and shopfronts;
+  balconies, tiled roofs, water tanks and shop signs stay Vietnamese. About 65 thousand
+  pieces, instanced and culled by chunk, hold 60 fps over the whole table.
+- `njin_sandtable`: clicking a building now cuts it open into a full interior — rooms laid
+  out on a grid per floor (nhà ống rows with a walkway, corridor blocks, open halls for
+  warehouses/markets/temples), furnished from a curated subset of the "PSX modular house
+  interior pack" (`assets/models/interior/`, terms confirmed with the source), with a
+  matching exterior facade (windows, balconies, shopfronts, tiled roofs) and every floor
+  viewable (PgUp/PgDn). Focusing on a building zooms the camera in on it from its front,
+  steeply from above; it alone is open, clicking beside it or Esc zooms back out to where
+  the camera was, and the town round it goes out of focus in a smooth circle
+  (`post_fx::dof` round a point) instead of hazy square chunks. Hovering lights up the
+  district under the mouse (a tint, an outline and its name large on the map) and frames
+  the building under it. Street lamps come on at dusk: a bulb and a soft pool of light
+  under every lamp in view, and real point lights on the twelve nearest the middle of the
+  view. The ground, roads and water are split into model tiles (`city/render_lod.*`) so
+  the engine culls the ones out of view.
 
 ## 0.6.0
 

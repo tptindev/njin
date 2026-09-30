@@ -1,5 +1,6 @@
 #include "world.h"
 #include "crowd.h"
+#include "physics.h"
 #include "view.h"
 
 #include <algorithm>
@@ -16,10 +17,52 @@ city::city_map map;
 city::view_options view;
 bool cut_around = false; // C: cut open everything near the middle of the view
 
+// The camera before a building was focused, to go back to.
+struct saved_camera {
+  bool on = false;
+  vec2 target{};
+  f32 distance = 0.0f;
+  f32 yaw = 0.0f;
+};
+saved_camera before_focus;
+
+// `to` in degrees, turned by whole turns to lie within half a turn of `from`,
+// so the camera takes the short way round.
+f32 nearest_turn(f32 from, f32 to) {
+  return to + 360.0f * std::round((from - to) / 360.0f);
+}
+
 } // namespace
 
 const city::city_map &world() { return map; }
 city::view_options &world_view() { return view; }
+
+void world_focus(i32 id) {
+  if (id < 0 || id >= static_cast<i32>(map.buildings.size()))
+    return;
+  if (!before_focus.on)
+    before_focus = {true, state.cam_target_goal, state.cam_distance_goal, state.cam_yaw_goal};
+  if (id != view.selected)
+    view.floor = 0;
+  view.selected = id;
+  const city::building &b = map.buildings[static_cast<size_t>(id)];
+  // From its front, across the street, and near enough that it and the
+  // pavement before it fill the middle of the picture (fovy 40).
+  const vec2 front = b.front();
+  state.cam_yaw_goal = nearest_turn(state.cam_yaw, std::atan2(front.x, front.y) * 180.0f / pi);
+  const f32 reach = (length(b.box.half) + 40.0f) * unit3d;
+  view_focus(b.box.center, reach / std::tan(20.0f * pi / 180.0f));
+}
+
+void world_unfocus() {
+  view.selected = -1;
+  view.floor = 0;
+  if (before_focus.on) {
+    view_focus(before_focus.target, before_focus.distance);
+    state.cam_yaw_goal = nearest_turn(state.cam_yaw, before_focus.yaw);
+    before_focus.on = false;
+  }
+}
 
 void world_generate(context &ctx, u32 seed) {
   state.seed = seed;
@@ -29,7 +72,9 @@ void world_generate(context &ctx, u32 seed) {
   desc.height = world_height;
   city::generate(map, desc);
   view.selected = -1;
+  view.floor = 0;
   view.cut.clear();
+  before_focus.on = false;
   NJIN_INFO("city %u: %d roads, %d blocks, %d buildings, %d businesses, %d places, %.0f ms, %s", seed,
            static_cast<i32>(map.roads.size()), static_cast<i32>(map.blocks.size()),
            static_cast<i32>(map.buildings.size()), static_cast<i32>(map.businesses.size()),
@@ -38,7 +83,8 @@ void world_generate(context &ctx, u32 seed) {
   for (const std::string &e : map.report.errors)
     NJIN_WARN("city %u: %s", seed, e.c_str());
   city::view_build(ctx, map);
-  crowd_spawn(seed);
+  physics_build(ctx, map);
+  crowd_spawn(ctx, seed);
 }
 
 void world_input(context &ctx) {
@@ -60,13 +106,24 @@ void world_input(context &ctx) {
     view.markers = !view.markers;
   if (key_pressed(ctx, key_c))
     cut_around = !cut_around;
-  if (key_pressed(ctx, key_escape))
-    view.selected = -1;
+  if (key_pressed(ctx, key_escape) && view.selected >= 0)
+    world_unfocus();
+  // What the mouse is over, to light up.
+  view.hover_district = view.hover_building = -1;
+  vec2 under;
+  if (!ui_mouse_over(ctx)) {
+    if (mouse_on_table(ctx, &under))
+      if (const city::cell_info *c = map.cell_at(under))
+        view.hover_district = c->district;
+    view.hover_building = city::view_pick(ctx, map, mouse_pos(ctx));
+  }
+  // A building focuses it; a click beside the one in focus lets it go.
   if (mouse_pressed(ctx, mouse_left) && !ui_mouse_over(ctx)) {
-    const i32 was = view.selected;
-    view.selected = city::view_pick(ctx, map, mouse_pos(ctx));
-    if (view.selected != was)
-      view.floor = 0;
+    const i32 hit = view.hover_building;
+    if (hit >= 0)
+      world_focus(hit);
+    else if (view.selected >= 0)
+      world_unfocus();
   }
   // Up and down the floors of the open building (or of the tallest one open
   // round the middle of the view).
@@ -87,49 +144,31 @@ void world_cut_around(bool on) { cut_around = on; }
 
 void world_update_view() {
   view.cut.clear();
-  view.around = cut_around;
-  if (view.selected >= 0) {
+  // One building in focus is the only one open: the camera looks steeply
+  // down at it from its front instead, so the houses round it do not hide it.
+  view.around = cut_around && view.selected < 0;
+  if (view.selected >= 0)
     view.cut.push_back(view.selected);
-    // Anything close by between it and the camera is opened too, or a tall
-    // neighbour would hide the inside we are looking at.
-    const vec2 at = map.buildings[static_cast<size_t>(view.selected)].box.center;
-    const camera3d cam = table_camera();
-    const vec2 to_cam = normalize(vec2{cam.position.x / unit3d, cam.position.z / unit3d} - at);
-    const city::obb &sel = map.buildings[static_cast<size_t>(view.selected)].box;
-    // How far a box reaches out along `n`.
-    const auto reach = [](const city::obb &o, vec2 n) {
-      return std::fabs(dot(n, o.axis_x())) * o.half.x + std::fabs(dot(n, o.axis_y())) * o.half.y;
-    };
-    for (i32 i = 0; i < static_cast<i32>(map.buildings.size()); ++i) {
-      const city::obb &nb = map.buildings[static_cast<size_t>(i)].box;
-      const vec2 d = nb.center - at;
-      const f32 len = length(d);
-      if (len < 1.0f || dot(d, to_cam) <= 0.0f)
-        continue;
-      // The gap between the two, along the line between their middles: deep
-      // tube houses back to back have their middles far apart but touch.
-      const vec2 n = d / len;
-      if (len - reach(nb, n) - reach(sel, n) < 40.0f)
-        view.cut.push_back(i);
-    }
-  }
   // Close in, the blocks round the middle of the view; from afar it would be
   // the whole town with its roofs off.
-  if (cut_around && state.cam_distance < 30.0f) {
+  if (view.around && state.cam_distance < 30.0f) {
     const f32 r = 40.0f + state.cam_distance * 5.0f;
     for (i32 i = 0; i < static_cast<i32>(map.buildings.size()); ++i)
       if (distance(map.buildings[static_cast<size_t>(i)].box.center, state.cam_target) < r)
         view.cut.push_back(i);
   }
-  // A building picked is in focus: full detail round it, the town beyond hazy.
+  // A building picked is in focus: sharp in a circle round it and the
+  // pavement before it, blurred beyond; full detail a little further out.
   view.focused = view.selected >= 0;
+  state.cam_steep_goal = view.focused ? 1.0f : 0.0f;
   if (view.focused) {
     const city::obb &sel = map.buildings[static_cast<size_t>(view.selected)].box;
     view.focus = sel.center;
-    view.focus_radius = std::max(160.0f, std::max(sel.half.x, sel.half.y) + 120.0f);
+    view.sharp_radius = length(sel.half) + 30.0f;
+    view.focus_radius = view.sharp_radius + 160.0f;
   }
   // Look up at the open floor, not at the street under it.
-  state.cam_lift_goal = view.selected >= 0 || (cut_around && !view.cut.empty())
+  state.cam_lift_goal = view.selected >= 0 || (view.around && !view.cut.empty())
                             ? static_cast<f32>(view.floor) * city::floor_height * unit3d
                             : 0.0f;
   std::sort(view.cut.begin(), view.cut.end());
