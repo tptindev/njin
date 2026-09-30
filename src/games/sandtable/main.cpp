@@ -87,13 +87,8 @@ int main(int argc, char **argv) {
       .exit_key = key_none,
       .resizable = true,
       .app_name = "SandTable",
-      // The HUD is laid out in a virtual screen of half the window (fit_view
-      // keeps it so as the window changes) and drawn smooth at the window's
-      // resolution; the 3D table is drawn at twice the virtual size, so at
-      // the window's own resolution too.
-      .virtual_size = {640.0f, 360.0f},
-      .smooth_ui = true,
-      .render_scale = 2,
+      // Drawn at the window's own resolution, table and HUD alike; the HUD's
+      // sizes follow the window's height (view.h ui_scale).
   });
 
   mod_register(*ctx, clay_preview?mod_desc{.name="clay_preview",.setup=clay_setup}:sandtable::module(test_mode, seed));

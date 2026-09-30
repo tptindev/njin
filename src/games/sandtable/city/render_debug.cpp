@@ -47,8 +47,9 @@ void district_labels(context &ctx, const city_map &map, const view_options &opt,
     const vec2 s = table_to_screen(ctx, d.centroid, 0.5f, &visible);
     if (!visible)
       continue;
-    centred(ctx, d.name.c_str(), s, 14.0f, {1.0f, 0.96f, 0.86f, 1.0f}, font);
-    centred(ctx, district_name(d.kind), s + vec2{0.0f, 14.0f}, 10.0f, {0.85f, 0.85f, 0.8f, 0.9f}, font);
+    const f32 k = ui_scale(ctx);
+    centred(ctx, d.name.c_str(), s, 24.0f * k, {1.0f, 0.96f, 0.86f, 1.0f}, font);
+    centred(ctx, district_name(d.kind), s + vec2{0.0f, 25.0f * k}, 16.0f * k, {0.85f, 0.85f, 0.8f, 0.9f}, font);
   }
 }
 
@@ -79,7 +80,7 @@ void business_labels(context &ctx, const city_map &map, font_handle font) {
     const business &bz = map.businesses[static_cast<size_t>(it.id)];
     rgba c = business_color(bz.kind);
     c = lerp(c, rgba{1, 1, 1, 1}, 0.45f);
-    centred(ctx, bz.name.c_str(), it.at, 10.0f, c, font);
+    centred(ctx, bz.name.c_str(), it.at, 17.0f * ui_scale(ctx), c, font);
   }
 }
 
@@ -130,13 +131,14 @@ void hover_card(context &ctx, const city_map &map, font_handle font) {
       lines.push_back(std::string("Chỗ: ") + spot_name(s.kind));
       break;
     }
-  const f32 size = 11.0f, line_h = 13.0f;
+  const f32 k = ui_scale(ctx);
+  const f32 size = 20.0f * k, line_h = 24.0f * k;
   f32 w = 0.0f;
   for (const std::string &l : lines)
     w = std::max(w, text_measure(ctx, l.c_str(), size, font).x);
   const vec2 scr = screen_size(ctx);
-  const vec2 pos{scr.x - w - 16.0f, scr.y - static_cast<f32>(lines.size()) * line_h - 40.0f};
-  draw_rect(ctx, {pos - vec2{6.0f, 5.0f}, {w + 12.0f, static_cast<f32>(lines.size()) * line_h + 9.0f}},
+  const vec2 pos{scr.x - w - 24.0f * k, scr.y - static_cast<f32>(lines.size()) * line_h - 110.0f * k};
+  draw_rect(ctx, {pos - vec2{10.0f, 8.0f} * k, {w + 20.0f * k, static_cast<f32>(lines.size()) * line_h + 16.0f * k}},
             {0.1f, 0.12f, 0.11f, 0.85f});
   for (size_t i = 0; i < lines.size(); ++i)
     text(ctx, lines[i].c_str(), pos + vec2{0.0f, static_cast<f32>(i) * line_h}, size,
@@ -191,7 +193,8 @@ void view_draw_ui(context &ctx, const city_map &map, const view_options &opt, fo
     business_labels(ctx, map, font);
   }
   hover_label(ctx, map, opt, font);
-  hover_card(ctx, map, font);
+  if (opt.debug_card)
+    hover_card(ctx, map, font);
 }
 
 void debug_cleanup(context &ctx) {

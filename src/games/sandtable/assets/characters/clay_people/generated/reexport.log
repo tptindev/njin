@@ -1,0 +1,29 @@
+INFO Draco mesh compression is available, use library at C:\Program Files\Blender Foundation\Blender 4.4\4.4\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+21:47:53 | INFO: Starting glTF 2.0 export
+21:47:53 | INFO: Extracting primitive: reference_mesh
+21:47:53 | INFO: Primitives created: 4
+21:47:54 | INFO: Finished glTF 2.0 export in 1.0282690525054932 s
+
+21:47:54 | INFO: Starting glTF 2.0 export
+21:47:54 | INFO: Extracting primitive: lookout_mesh
+21:47:54 | INFO: Primitives created: 4
+21:47:55 | INFO: Finished glTF 2.0 export in 1.015634536743164 s
+
+21:47:55 | INFO: Starting glTF 2.0 export
+21:47:55 | INFO: Extracting primitive: collector_mesh
+21:47:55 | INFO: Primitives created: 5
+21:47:56 | INFO: Finished glTF 2.0 export in 1.1123263835906982 s
+
+21:47:56 | INFO: Starting glTF 2.0 export
+21:47:56 | INFO: Extracting primitive: enforcer_mesh
+21:47:56 | INFO: Primitives created: 4
+21:47:57 | INFO: Finished glTF 2.0 export in 1.0460131168365479 s
+
+REEXPORT_COMPLETE
+Blender 4.4.3 (hash 802179c51ccc built 2025-04-29 15:39:58)
+Read blend: "D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated\reference.blend"
+Read blend: "D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated\lookout.blend"
+Read blend: "D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated\collector.blend"
+Read blend: "D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated\enforcer.blend"
+
+Blender quit

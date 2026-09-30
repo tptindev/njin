@@ -149,7 +149,10 @@ void ui_end(context &ctx);
 /// @param columns Số widget trong hàng.
 void ui_row(context &ctx, i32 columns);
 
-/// Một dòng chữ. @param ctx Context của engine. @param text Chữ (UTF-8).
+/// Một dòng chữ. Trong một hàng (ui_row()) nó cao bằng một widget và chữ nằm giữa
+/// theo chiều dọc, thẳng hàng với nút bên cạnh.
+/// @param ctx Context của engine.
+/// @param text Chữ (UTF-8).
 void ui_label(context &ctx, const char *text);
 
 /// Khoảng trống. @param ctx Context của engine. @param height Chiều cao, pixel (trước `scale`).

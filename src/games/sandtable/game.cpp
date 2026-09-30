@@ -1,6 +1,7 @@
 #include "game.h"
 #include "audio.h"
 #include "crowd.h"
+#include "gang.h"
 #include "person.h"
 #include "render.h"
 #include "view.h"
@@ -16,22 +17,7 @@ game_state state;
 
 namespace {
 
-// The HUD is laid out in a virtual screen of the window divided by the UI
-// pixel size (2, more on very tall screens so the text stays readable); the
-// 3D table is drawn at twice that density (render_scale, main.cpp), so at the
-// window's own resolution. Set only when the size changes.
-void fit_view(context &ctx) {
-  static vec2 last{};
-  const vec2 win = window_size(ctx);
-  if (win.x < 1.0f || win.y < 1.0f || (win.x == last.x && win.y == last.y))
-    return;
-  last = win;
-  const f32 pixel = std::max(2.0f, std::floor(win.y / 540.0f));
-  window_set_virtual_size(ctx, {std::floor(win.x / pixel), std::floor(win.y / pixel)}, true);
-}
-
 void handle_input(context &ctx) {
-  fit_view(ctx);
   update_view(ctx, ui_mouse_over(ctx));
   world_input(ctx);
   if (key_pressed(ctx, key_f12))
@@ -189,8 +175,45 @@ void test_harness(context &ctx) {
     show_pose_row(false);
     view_reset();
   }
-  if (g == 7) {
+  // The player's headquarters: the lounge, the boss's office, then the men
+  // mustered before the door (after a few seconds' walk), then everyone's turf.
+  const i32 h = g - 5;
+  const i32 hq = gangs().empty() ? -1 : gang().hq;
+  if (h == 0 && hq >= 0) {
+    world_view() = {};
+    world_cut_around(false);
+    world_focus(hq);
+    state.cam_target = state.cam_target_goal;
+    state.cam_distance = state.cam_distance_goal;
+    state.cam_yaw = state.cam_yaw_goal;
+    state.cam_steep = state.cam_steep_goal = 1.0f;
+  }
+  if (h == 3)
+    screenshot(ctx, "sandtable_test_hq_ground.png");
+  if (h == 4 && hq >= 0)
+    world_view().floor = world().buildings[static_cast<size_t>(hq)].floors - 1;
+  if (h == 7)
+    screenshot(ctx, "sandtable_test_hq_top.png");
+  if (h == 8 && hq >= 0) {
+    world_unfocus();
+    gang_muster(ctx, true);
+    const city::building &b = world().buildings[static_cast<size_t>(hq)];
+    view_focus(b.door + b.front() * 30.0f, 5.0f, true);
+  }
+  if (h == 360)
+    screenshot(ctx, "sandtable_test_hq_muster.png");
+  if (h == 361) {
+    gang_muster(ctx, false);
+    world_view().show_turf = true;
+    view_reset();
+  }
+  if (h == 365)
+    screenshot(ctx, "sandtable_test_turf.png");
+  if (g == 5 + 370) {
     std::printf("[test] city %u: %s\n", world().desc.seed, world().report.ok() ? "ok" : "FAILED");
+    for (const gang_state &gs : gangs())
+      std::printf("[test] %s: hq %d, %d men, %d blocks\n", gs.name.c_str(), gs.hq, static_cast<i32>(gs.men.size()),
+                  gs.turf);
     std::printf("[test] done\n");
     // How well the crowd walked, after the run's minute or so of it.
     const crowd_report cr = crowd_check();
@@ -208,11 +231,17 @@ void startup(context &ctx) {
   world_generate(ctx, state.seed);
 }
 
-void update(context &ctx) { crowd_update(delta(ctx)); }
+void update(context &ctx) {
+  crowd_update(delta(ctx));
+  gang_update(delta(ctx));
+}
 
 // Before the physics steps (njin steps it right after the game's own
 // systems of this phase).
-void fixed_update(context &ctx) { crowd_step(ctx, delta(ctx)); }
+void fixed_update(context &ctx) {
+  crowd_step(ctx, delta(ctx));
+  gang_step(ctx, delta(ctx));
+}
 
 void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "sandtable_startup");

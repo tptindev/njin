@@ -237,11 +237,29 @@ void build_open(const building &b, interior_layout &L, room_kind kind, bool offi
 
 } // namespace
 
+std::vector<const building *> gang_hqs;
+
+void set_gang_hqs(std::vector<const building *> hqs) { gang_hqs = std::move(hqs); }
+
+bool is_gang_hq(const building &b) { return std::find(gang_hqs.begin(), gang_hqs.end(), &b) != gang_hqs.end(); }
+
 interior_layout build_interior(const building &b, i32 floor) {
   interior_layout L;
   floor = std::clamp(floor, 0, std::max(0, b.floors - 1));
   rng r(static_cast<u64>(b.look) * 31u + static_cast<u64>(floor) * 7919u);
   const bool up = floor > 0;
+  if (is_gang_hq(b)) {
+    // One hall a floor, the stairs at the back; the office walled off at the
+    // back of the lounge when there is no floor above for it.
+    const bool top = floor == b.floors - 1;
+    const room_kind kind = floor == 0 ? room_kind::lounge : top ? room_kind::boss_office : room_kind::meeting;
+    build_open(b, L, kind, b.floors == 1, false, floor);
+    for (interior_room &room : L.rooms)
+      if (room.kind == room_kind::office)
+        room.kind = room_kind::boss_office;
+    furnish_interior(b, L, r);
+    return L;
+  }
   switch (b.kind) {
   case building_kind::apartment: build_corridor(b, L, room_kind::apartment_unit, floor); break;
   case building_kind::hotel: build_corridor(b, L, room_kind::hotel_room, floor); break;

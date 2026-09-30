@@ -1,0 +1,12 @@
+[
+  {
+    "name": "district_03_collector",
+    "width": 1.08,
+    "head": 1.03,
+    "height": 1.83,
+    "shirt": [0.48, 0.105, 0.08],
+    "pants": [0.065, 0.20, 0.28],
+    "skin": [0.55, 0.29, 0.115],
+    "accessory": "satchel"
+  }
+]

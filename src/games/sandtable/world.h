@@ -17,11 +17,11 @@ city::view_options &world_view();
 void world_generate(context &ctx, u32 seed);
 
 // Debug keys: N/B the next or previous seed, R a random one, F1 the ground
-// overlay, F2 labels, F3 the road graph, F4 pins. Looking inside: a left
-// click on a building focuses it (world_focus), a click beside it or Esc lets
-// go (world_unfocus); C cuts open every building round the middle of the view
-// when close and nothing is in focus. PgUp/PgDn (or ] and [) go up and down
-// the floors of what is open.
+// overlay, F2 labels, F3 the road graph, F4 pins, T jumps to night (21:00) or
+// back to day (12:00). Looking inside: a left click on a building focuses it
+// (world_focus), a click beside it or Esc lets go (world_unfocus); C cuts
+// open every building round the middle of the view when close and nothing is
+// in focus. PgUp/PgDn (or ] and [) go up and down the floors of what is open.
 void world_input(context &ctx);
 
 // Focuses building `id`: it alone is cut open, and the camera turns to its
@@ -38,5 +38,6 @@ void world_update_view();
 
 // Cutting open everything round the middle of the view (the C key).
 void world_cut_around(bool on);
+bool world_cut_around_on();
 
 } // namespace sandtable

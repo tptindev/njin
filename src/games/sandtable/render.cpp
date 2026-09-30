@@ -1,6 +1,8 @@
 #include "render.h"
 #include "audio.h"
 #include "crowd.h"
+#include "gang.h"
+#include "hud.h"
 #include "person.h"
 #include "view.h"
 #include "weather.h"
@@ -111,6 +113,7 @@ void draw_pose_row(context &ctx) {
 // The men on the table: the townsfolk, and the pose sheet for the test run.
 void draw_men(context &ctx) {
   crowd_draw(ctx);
+  gang_draw(ctx);
   if (pose_row)
     draw_pose_row(ctx);
 }
@@ -137,17 +140,6 @@ void set_light(context &ctx) {
                     .fog_color = {0.06f + 0.1f * (1.0f - dark), 0.06f + 0.1f * (1.0f - dark),
                                   0.08f + 0.12f * (1.0f - dark), 1.0f},
                     .fog_density = 0.006f});
-}
-
-// --- Over the picture: text and marks in screen pixels ---
-
-void text(context &ctx, const char *str, vec2 pos, rgba col, f32 size = font_size) {
-  draw_text(ctx, str, {std::floor(pos.x), std::floor(pos.y)}, size, col, ui_font);
-}
-// Text with a one-pixel dark shadow, for text over the table.
-void text_shadow(context &ctx, const char *str, vec2 pos, rgba col, f32 size = font_size) {
-  text(ctx, str, pos + vec2{1.0f, 1.0f}, rgb(20, 14, 10, static_cast<i32>(200 * col.a)), size);
-  text(ctx, str, pos, col, size);
 }
 
 // --- Field ledger: paper, ink and a single vermilion command ---
@@ -211,60 +203,6 @@ ui_style make_hud_style() {
   return s;
 }
 
-void hud_label(context &ctx, const char *str, rgba color) {
-  ui_style s = ui_style_get(ctx);
-  const rgba old = s.label.text;
-  s.label.text = color;
-  ui_style_set(ctx, s);
-  ui_label(ctx, str);
-  s.label.text = old;
-  ui_style_set(ctx, s);
-}
-
-void top_bar(context &ctx) {
-  const vec2 scr = screen_size(ctx);
-  ui_begin(ctx, {.id = "top_bar", .anchor = {0.0f, 0.0f}, .pivot = {0.0f, 0.0f},
-                 .width = scr.x, .navigable = false});
-  char title[96];
-  std::snprintf(title, sizeof(title), "Sa Bàn Chiến Trận   ·   %02d:00", static_cast<i32>(state.hour));
-  hud_label(ctx, title, col_paper);
-  ui_end(ctx);
-}
-
-// What the generator made, and whether it passed its checks.
-void city_panel(context &ctx) {
-  const city::city_map &m = world();
-  char line[200];
-  std::snprintf(line, sizeof(line), "Thành phố #%u  ·  %d quận  ·  %d khối  ·  %d nhà  ·  %d cơ sở  ·  %d chỗ  ·  %.0f ms",
-                m.desc.seed, static_cast<i32>(m.districts.size()), static_cast<i32>(m.blocks.size()),
-                static_cast<i32>(m.buildings.size()), static_cast<i32>(m.businesses.size()),
-                static_cast<i32>(m.spots.size()), static_cast<f64>(m.report.gen_ms));
-  text_shadow(ctx, line, {8.0f, 28.0f}, col_paper, 12.0f);
-  const city::view_stats &vs = city::view_last_stats();
-  // Frames a second, smoothed over about half a second.
-  static f32 frame_time = 1.0f / 60.0f;
-  frame_time += (delta_real(ctx) - frame_time) * 0.05f;
-  char cull_line[160];
-  std::snprintf(cull_line, sizeof(cull_line), "Vẽ %d/%d ô  ·  chi tiết %d ô  ·  %u khối  ·  %.0f fps", vs.visible,
-                vs.chunks, vs.detailed, vs.instances, static_cast<f64>(1.0f / std::max(frame_time, 1e-4f)));
-  text_shadow(ctx, cull_line, {8.0f, 70.0f}, col_text_hint, 11.0f);
-  const city::view_options &v = world_view();
-  if (v.selected >= 0 || (v.around && !v.cut.empty())) {
-    const i32 floors = v.selected >= 0 ? m.buildings[static_cast<size_t>(v.selected)].floors : 0;
-    char floor_line[96];
-    if (floors > 0)
-      std::snprintf(floor_line, sizeof(floor_line), "Đang xem tầng %d/%d  (PgUp PgDn)", v.floor + 1, floors);
-    else
-      std::snprintf(floor_line, sizeof(floor_line), "Đang xem tầng %d  (PgUp PgDn)", v.floor + 1);
-    text_shadow(ctx, floor_line, {8.0f, 56.0f}, col_gold, 12.0f);
-  }
-  if (m.report.ok())
-    text_shadow(ctx, "Kiểm tra: đạt", {8.0f, 42.0f}, col_good, 12.0f);
-  else
-    for (size_t i = 0; i < m.report.errors.size() && i < 4; ++i)
-      text_shadow(ctx, m.report.errors[i].c_str(), {8.0f, 42.0f + static_cast<f32>(i) * 13.0f}, col_bad, 12.0f);
-}
-
 } // namespace
 
 void show_pose_row(bool on, vec2 at) {
@@ -275,6 +213,7 @@ void show_pose_row(bool on, vec2 at) {
 void render_init(context &ctx) {
   ui_font = font_load(ctx, "assets/fonts/BeVietnamPro-Bold.ttf", 32);
   hud_style = make_hud_style();
+  hud_init(ctx, ui_font);
   build_frame(ctx);
   post_fx_set(ctx, {.saturation = 1.08f, .vignette = 0.35f, .bloom = 0.55f, .bloom_threshold = 0.82f});
 }
@@ -283,6 +222,7 @@ void render_cleanup(context &ctx) {
   city::view_cleanup(ctx);
   city::view_shutdown(ctx);
   person_cleanup(ctx);
+  hud_cleanup(ctx);
   if (ui_font.id != 0) {
     font_unload(ctx, ui_font);
     ui_font = {};
@@ -325,16 +265,11 @@ void render_world(context &ctx) {
 }
 
 void render_ui(context &ctx) {
+  // The map's own labels (district names, the one under the mouse), then the
+  // HUD: a pill of money and men, the clock, a dock of icons, popups.
   ui_style_set(ctx, hud_style);
-  top_bar(ctx);
   city::view_draw_ui(ctx, world(), world_view(), ui_font);
-  city_panel(ctx);
-  const f32 bottom = screen_size(ctx).y;
-  text_shadow(ctx, "WASD: di chuyển  /  Q E: xoay  /  Lăn chuột: gần xa", {8.0f, bottom - 40.0f}, col_paper, 12.0f);
-  char keys[200];
-  std::snprintf(keys, sizeof(keys), "N B R: seed  /  F1 lớp phủ (%s)  /  F2 nhãn  /  F3 đồ thị  /  F4 ghim  /  Nhấp: mở nhà  /  C: mở quanh",
-                city::overlay_name(world_view().layer));
-  text_shadow(ctx, keys, {8.0f, bottom - 24.0f}, col_text_hint, 12.0f);
+  hud_draw(ctx);
 }
 
 } // namespace sandtable

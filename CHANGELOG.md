@@ -16,6 +16,19 @@ To release: edit that header, add a section here, commit, then
   reads it. The broad phase is rebuilt after many static bodies are added at once (a town's
   worth), which kept queries slow until then.
 
+- **Fixed**: `ui_label` inside a `ui_row` took only its text's height and sat at the top of
+  the row, beside buttons of `widget_height`; it now takes the row's height and is centred
+  in it (for `njin_sandtable`'s HUD rows).
+- `njin_sandtable`: gangs and a clean HUD. Three gangs start in small blocks far apart, each
+  with a headquarters laid out for it (the men's lounge on the ground floor, meeting rooms
+  between, the boss's office at the top) and its block's shops paying it. The men have
+  ranks (boss, right hand, captains, soldiers): inside they sit by floor, higher rank
+  higher up; mustered they stand in rows by rank before the door, facing the boss. Men are
+  sent to shops to squeeze or collect (harder when a rival already has the shop); a block
+  is a gang's when half its shops pay it, shown in the gang's colour. The screen keeps only
+  a resources pill, the clock with pause and speed, and a dock of icon buttons opening
+  popups (men, turf, books, debug); a card shows the building in focus. The game now draws
+  at the window's resolution instead of a pixel-art virtual screen.
 - **Fixed**: only letters, digits, arrows, space, Enter, Tab, Esc, Backspace and the
   modifiers ever read as pressed. Every other `key_code` (F1–F12, Home/End, Page Up/Down,
   Insert/Delete, punctuation such as `[` `]`, the Super keys and the keypad) had no raylib
@@ -61,8 +74,8 @@ To release: edit that header, add a section here, commit, then
   district under the mouse (a tint, an outline and its name large on the map) and frames
   the building under it. Street lamps come on at dusk: a bulb and a soft pool of light
   under every lamp in view, and real point lights on the twelve nearest the middle of the
-  view. The ground, roads and water are split into model tiles (`city/render_lod.*`) so
-  the engine culls the ones out of view.
+  view; T switches between day (12:00) and night (21:00). The ground, roads and water are
+  split into model tiles (`city/render_lod.*`) so the engine culls the ones out of view.
 
 ## 0.6.0
 

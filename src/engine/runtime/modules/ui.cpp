@@ -653,6 +653,13 @@ void ui_label(context &ctx, const char *text) {
   if (text == nullptr)
     return;
   const vec2 m = measure(ctx, ui, text);
+  // In a row it stands as tall as the widgets beside it, its text in the
+  // middle: level with a button's, and the row as high as any of them.
+  if (ui.row_cols > 0) {
+    const rect r = place(ui, sc(ui, ui.style.widget_height));
+    push_text(ctx, ui, text, {r.pos.x, rect_center(r).y - m.y * 0.5f}, ui.style.label.text);
+    return;
+  }
   const rect r = place(ui, m.y);
   push_text(ctx, ui, text, r.pos, ui.style.label.text);
 }

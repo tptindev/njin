@@ -436,6 +436,76 @@ void office(placer &P) {
   P.against("plant", side::front, 1.0f);
 }
 
+// --- A gang's headquarters -------------------------------------------------------------
+
+// Sảnh anh em: sofas round the walls, a low table and a rug, the TV on a
+// sideboard, a table with chairs to play cards at.
+void lounge(placer &P) {
+  zone couch;
+  if (P.against("couchBig", side::back, 0.5f, &couch) || P.against("couchSmall", side::back, 0.5f, &couch)) {
+    const f32 a = (couch.a0 + couch.a1) * 0.5f;
+    P.flat("carpet2", a, couch.b0 - 9.0f, side::back);
+    P.at("tableSmall", a, couch.b0 - 7.0f, side::back);
+  }
+  P.against("couchSmall", side::left, 0.6f) || P.against("couchSmall", side::left, 0.3f);
+  P.against("couchSmall", side::right, 0.6f) || P.against("couchSmall", side::right, 0.3f);
+  zone board;
+  if (P.against("sideboard", side::front, 0.25f, &board))
+    P.on("tv", board, P.height("sideboard"), 0.5f, 0.5f, side::front);
+  zone cards;
+  const f32 mid_a = (P.room.a0 + P.room.a1) * 0.5f, mid_b = (P.room.b0 + P.room.b1) * 0.5f;
+  if (P.at("table", mid_a + (P.room.a1 - P.room.a0) * 0.18f, mid_b - 2.0f, side::front, &cards, 0.8f)) {
+    const f32 ca = (cards.a0 + cards.a1) * 0.5f;
+    P.at("chair", ca, cards.b1 + 3.0f, side::back);
+    P.at("chair", ca, cards.b0 - 3.0f, side::front);
+  }
+  P.against("plant3", side::front, 0.95f);
+  P.against("plant", side::back, 0.02f);
+}
+
+// Phòng họp: a long table down the middle, chairs either side, a cabinet.
+void meeting(placer &P) {
+  const f32 mid_a = (P.room.a0 + P.room.a1) * 0.5f, mid_b = (P.room.b0 + P.room.b1) * 0.5f;
+  zone t;
+  if (P.at("table", mid_a, mid_b, side::front, &t, 1.1f)) {
+    const f32 w = t.a1 - t.a0;
+    for (i32 k = 0; k < 3; ++k) {
+      const f32 a = t.a0 + w * (0.2f + 0.3f * static_cast<f32>(k));
+      P.at("chair", a, t.b1 + 3.0f, side::back);
+      P.at("chair", a, t.b0 - 3.0f, side::front);
+    }
+  }
+  P.against("cabinet", side::back, 0.9f);
+  P.against("plant", side::front, 0.05f);
+  P.against("plant", side::front, 0.95f);
+}
+
+// Văn phòng đại ca: the desk before the back wall with his chair behind it,
+// two chairs for callers before it; a sofa and a rug to one side, the altar
+// cabinet (with offerings) to the other, plants in the corners.
+void boss_office(placer &P) {
+  const f32 mid_a = (P.room.a0 + P.room.a1) * 0.5f;
+  zone desk;
+  if (P.at("table", mid_a, P.room.b1 - 11.0f, side::front, &desk, 0.9f)) {
+    P.at("chair2", mid_a, desk.b1 + 3.2f, side::front);
+    P.at("chair", mid_a - 3.5f, desk.b0 - 3.2f, side::back);
+    P.at("chair", mid_a + 3.5f, desk.b0 - 3.2f, side::back);
+    P.on("tableLamp", desk, P.height("table", 0.9f), 0.15f, 0.5f, side::front);
+  }
+  zone sofa;
+  if (P.against("couchBig", side::left, 0.35f, &sofa) || P.against("couchSmall", side::left, 0.35f, &sofa)) {
+    P.flat("carpet", (sofa.a0 + sofa.a1) * 0.5f + 7.0f, (sofa.b0 + sofa.b1) * 0.5f, side::left, 0.8f);
+    P.at("tableSmall", sofa.a1 + 5.0f, (sofa.b0 + sofa.b1) * 0.5f, side::left);
+  }
+  zone altar;
+  if (P.against("cabinetBig", side::right, 0.7f, &altar))
+    for (i32 k = 0; k < 3; ++k)
+      P.on("product3", altar, P.height("cabinetBig"), 0.5f, 0.3f + 0.2f * static_cast<f32>(k), side::right, 1.2f);
+  P.against("plant3", side::back, 0.0f);
+  P.against("plant3", side::back, 1.0f);
+  P.against("plant", side::front, 1.0f);
+}
+
 void storage(placer &P) {
   // Pallets down every wall, boxes stacked on them; the floor between clear.
   const f32 ph = P.height("pallet");
@@ -516,6 +586,9 @@ void furnish_interior(const building &b, interior_layout &L, rng &r) {
     case room_kind::hall_temple:
     case room_kind::altar: temple(P); break;
     case room_kind::corridor: corridor(P); break;
+    case room_kind::lounge: lounge(P); break;
+    case room_kind::meeting: meeting(P); break;
+    case room_kind::boss_office: boss_office(P); break;
     default: break;
     }
   }

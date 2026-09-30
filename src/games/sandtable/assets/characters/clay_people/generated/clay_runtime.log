@@ -1,0 +1,1128 @@
+[   0.000] INFO  njin  Initializing raylib 6.0
+[   0.000] INFO  njin  Platform backend: DESKTOP (GLFW)
+[   0.000] INFO  njin  Supported raylib modules:
+[   0.000] INFO  njin      > rcore:..... loaded (mandatory)
+[   0.000] INFO  njin      > rlgl:...... loaded (mandatory)
+[   0.000] INFO  njin      > rshapes:... loaded (optional)
+[   0.000] INFO  njin      > rtextures:. loaded (optional)
+[   0.000] INFO  njin      > rtext:..... loaded (optional)
+[   0.000] INFO  njin      > rmodels:... loaded (optional)
+[   0.000] INFO  njin      > raudio:.... loaded (optional)
+[   0.644] INFO  njin  DISPLAY: Device initialized successfully 
+[   0.644] INFO  njin      > Display size: 1920 x 1080
+[   0.644] INFO  njin      > Screen size:  1280 x 720
+[   0.644] INFO  njin      > Render size:  1280 x 720
+[   0.644] INFO  njin      > Viewport offsets: 0, 0
+[   0.648] INFO  njin  GLAD: OpenGL extensions loaded successfully
+[   0.649] INFO  njin  GL: Supported extensions count: 404
+[   0.649] INFO  njin  GL: OpenGL device information:
+[   0.649] INFO  njin      > Vendor:   NVIDIA Corporation
+[   0.649] INFO  njin      > Renderer: NVIDIA GeForce RTX 3050 Laptop GPU/PCIe/SSE2
+[   0.649] INFO  njin      > Version:  3.3.0 NVIDIA 610.62
+[   0.649] INFO  njin      > GLSL:     3.30 NVIDIA via Cg compiler
+[   0.649] INFO  njin  GL: VAO extension detected, VAO functions loaded successfully
+[   0.649] INFO  njin  GL: NPOT textures extension detected, full NPOT textures supported
+[   0.649] INFO  njin  GL: DXT compressed textures supported
+[   0.649] INFO  njin  GL: ETC2/EAC compressed textures supported
+[   0.649] INFO  njin  PLATFORM: DESKTOP (GLFW - Win32): Initialized successfully
+[   0.649] DEBUG njin  TEXTURE: Load mipmap level 0 (1 x 1), size: 4, offset: 0
+[   0.649] INFO  njin  TEXTURE: [ID 1] Texture loaded successfully (1x1 | R8G8B8A8 | 1 mipmaps)
+[   0.650] INFO  njin  TEXTURE: [ID 1] Default texture loaded successfully
+[   0.664] INFO  njin  SHADER: [ID 1] Vertex shader compiled successfully
+[   0.665] INFO  njin  SHADER: [ID 2] Fragment shader compiled successfully
+[   0.685] INFO  njin  SHADER: [ID 3] Program shader loaded successfully
+[   0.685] INFO  njin  SHADER: [ID 3] Default shader loaded successfully
+[   0.687] INFO  njin  RLGL: Render batch vertex buffers loaded successfully in RAM (CPU)
+[   0.689] INFO  njin  RLGL: Render batch vertex buffers loaded successfully in VRAM (GPU)
+[   0.689] INFO  njin  RLGL: Default OpenGL state initialized successfully
+[   0.690] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 32768, offset: 0
+[   0.690] INFO  njin  TEXTURE: [ID 2] Texture loaded successfully (128x128 | GRAY_ALPHA | 1 mipmaps)
+[   0.690] INFO  njin  FONT: Default font loaded successfully (224 glyphs)
+[   0.690] INFO  njin  SYSTEM: Working Directory: D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated
+[   0.917] INFO  njin  AUDIO: Device initialized successfully
+[   0.917] INFO  njin      > Backend:       miniaudio | WASAPI
+[   0.917] INFO  njin      > Format:        32-bit IEEE Floating Point -> 32-bit IEEE Floating Point
+[   0.918] INFO  njin      > Channels:      2 -> 2
+[   0.918] INFO  njin      > Sample rate:   48000 -> 48000
+[   0.918] INFO  njin      > Periods size:  1440
+[   0.918] INFO  njin  TIMER: Target time per frame: 16.667 milliseconds
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.reload
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.debug
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.ui
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.dialog
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.camera
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.audio
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.hierarchy
+[   0.919] INFO  njin_ecs.cpp:178  module registered: njin.camera_follow
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.anim
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.particles
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.particles3d
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.render3d
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.sprite
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.collision
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.body
+[   0.920] INFO  njin_ecs.cpp:178  module registered: njin.timer
+[   0.921] INFO  njin_ecs.cpp:178  module registered: sandtable
+[   0.924] INFO  debug.cpp:851  debug: waiting for njin_inspector on 127.0.0.1:7779
+[   0.925] INFO  njin.cpp:106  njin 0.6.0
+[   0.926] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.935] INFO  njin  SHADER: [ID 5] Program shader loaded successfully
+[   0.937] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.948] INFO  njin  SHADER: [ID 6] Program shader loaded successfully
+[   0.950] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.958] INFO  njin  SHADER: [ID 7] Program shader loaded successfully
+[   0.959] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.970] INFO  njin  SHADER: [ID 8] Program shader loaded successfully
+[   0.973] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   1.002] INFO  njin  SHADER: [ID 9] Program shader loaded successfully
+[   1.004] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.005] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   1.026] INFO  njin  SHADER: [ID 11] Program shader loaded successfully
+[   1.026] INFO  particles_gpu.cpp:194  particles: GPU backend on (nvidia geforce rtx 3050 laptop gpu/pcie/sse2)
+[   1.149] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/fonts/BeVietnamPro-Bold.ttf] File loaded successfully
+[   1.156] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   1.159] DEBUG njin  TEXTURE: Load mipmap level 0 (1024 x 512), size: 1048576, offset: 0
+[   1.160] INFO  njin  TEXTURE: [ID 3] Texture loaded successfully (1024x512 | GRAY_ALPHA | 1 mipmaps)
+[   1.161] INFO  njin  FONT: Data loaded successfully (32 pixel size | 407 glyphs)
+[   1.162] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/floorWood.glb] File loaded successfully
+[   1.162] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/floorWood.glb] Model basic data (glb) loaded successfully
+[   1.162] INFO  njin      > Meshes count: 1
+[   1.162] INFO  njin      > Materials count: 1 (+1 default)
+[   1.162] DEBUG njin      > Buffers count: 1
+[   1.163] DEBUG njin      > Images count: 2
+[   1.163] DEBUG njin      > Textures count: 2
+[   1.163] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.164] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.164] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.165] INFO  njin  TEXTURE: [ID 4] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.166] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.167] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.167] INFO  njin  TEXTURE: [ID 5] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.168] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.168] INFO  njin  TEXTURE: [ID 6] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.168] INFO  njin  VAO: [ID 3] Mesh uploaded successfully to VRAM (GPU)
+[   1.169] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/floorTiles.glb] File loaded successfully
+[   1.169] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/floorTiles.glb] Model basic data (glb) loaded successfully
+[   1.169] INFO  njin      > Meshes count: 1
+[   1.169] INFO  njin      > Materials count: 1 (+1 default)
+[   1.169] DEBUG njin      > Buffers count: 1
+[   1.169] DEBUG njin      > Images count: 2
+[   1.169] DEBUG njin      > Textures count: 2
+[   1.170] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.170] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.170] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.171] INFO  njin  TEXTURE: [ID 7] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.171] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.172] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.172] INFO  njin  TEXTURE: [ID 8] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.172] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.172] INFO  njin  TEXTURE: [ID 9] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.173] INFO  njin  VAO: [ID 4] Mesh uploaded successfully to VRAM (GPU)
+[   1.173] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallWood.glb] File loaded successfully
+[   1.173] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallWood.glb] Model basic data (glb) loaded successfully
+[   1.173] INFO  njin      > Meshes count: 1
+[   1.174] INFO  njin      > Materials count: 1 (+1 default)
+[   1.174] DEBUG njin      > Buffers count: 1
+[   1.174] DEBUG njin      > Images count: 2
+[   1.174] DEBUG njin      > Textures count: 2
+[   1.174] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.175] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.175] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.175] INFO  njin  TEXTURE: [ID 10] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.176] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.176] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.177] INFO  njin  TEXTURE: [ID 11] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.177] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.177] INFO  njin  TEXTURE: [ID 12] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.177] INFO  njin  VAO: [ID 5] Mesh uploaded successfully to VRAM (GPU)
+[   1.177] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallDoorWood.glb] File loaded successfully
+[   1.178] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallDoorWood.glb] Model basic data (glb) loaded successfully
+[   1.178] INFO  njin      > Meshes count: 1
+[   1.178] INFO  njin      > Materials count: 1 (+1 default)
+[   1.178] DEBUG njin      > Buffers count: 1
+[   1.178] DEBUG njin      > Images count: 2
+[   1.178] DEBUG njin      > Textures count: 2
+[   1.178] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.179] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.179] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.179] INFO  njin  TEXTURE: [ID 13] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.180] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.180] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.180] INFO  njin  TEXTURE: [ID 14] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.181] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.181] INFO  njin  TEXTURE: [ID 15] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.181] INFO  njin  VAO: [ID 6] Mesh uploaded successfully to VRAM (GPU)
+[   1.181] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/doorWood.glb] File loaded successfully
+[   1.182] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/doorWood.glb] Model basic data (glb) loaded successfully
+[   1.182] INFO  njin      > Meshes count: 2
+[   1.182] INFO  njin      > Materials count: 1 (+1 default)
+[   1.182] DEBUG njin      > Buffers count: 1
+[   1.182] DEBUG njin      > Images count: 2
+[   1.182] DEBUG njin      > Textures count: 2
+[   1.182] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 2
+[   1.183] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.183] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.184] INFO  njin  TEXTURE: [ID 16] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.184] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.185] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.185] INFO  njin  TEXTURE: [ID 17] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.185] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.185] INFO  njin  TEXTURE: [ID 18] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.186] INFO  njin  VAO: [ID 7] Mesh uploaded successfully to VRAM (GPU)
+[   1.186] INFO  njin  VAO: [ID 8] Mesh uploaded successfully to VRAM (GPU)
+[   1.186] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/archWood.glb] File loaded successfully
+[   1.186] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/archWood.glb] Model basic data (glb) loaded successfully
+[   1.187] INFO  njin      > Meshes count: 1
+[   1.187] INFO  njin      > Materials count: 1 (+1 default)
+[   1.187] DEBUG njin      > Buffers count: 1
+[   1.187] DEBUG njin      > Images count: 2
+[   1.187] DEBUG njin      > Textures count: 2
+[   1.187] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.188] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.188] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.188] INFO  njin  TEXTURE: [ID 19] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.189] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.189] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.189] INFO  njin  TEXTURE: [ID 20] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.189] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.190] INFO  njin  TEXTURE: [ID 21] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.190] INFO  njin  VAO: [ID 9] Mesh uploaded successfully to VRAM (GPU)
+[   1.190] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cornerPillarWood.glb] File loaded successfully
+[   1.190] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cornerPillarWood.glb] Model basic data (glb) loaded successfully
+[   1.191] INFO  njin      > Meshes count: 1
+[   1.191] INFO  njin      > Materials count: 1 (+1 default)
+[   1.191] DEBUG njin      > Buffers count: 1
+[   1.191] DEBUG njin      > Images count: 2
+[   1.191] DEBUG njin      > Textures count: 2
+[   1.191] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.192] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.192] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.192] INFO  njin  TEXTURE: [ID 22] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.193] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.193] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.193] INFO  njin  TEXTURE: [ID 23] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.193] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.193] INFO  njin  TEXTURE: [ID 24] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.194] INFO  njin  VAO: [ID 10] Mesh uploaded successfully to VRAM (GPU)
+[   1.194] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/stairsWood.glb] File loaded successfully
+[   1.194] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/stairsWood.glb] Model basic data (glb) loaded successfully
+[   1.194] INFO  njin      > Meshes count: 1
+[   1.195] INFO  njin      > Materials count: 1 (+1 default)
+[   1.195] DEBUG njin      > Buffers count: 1
+[   1.195] DEBUG njin      > Images count: 2
+[   1.195] DEBUG njin      > Textures count: 2
+[   1.195] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.197] INFO  njin  IMAGE: Data loaded successfully (256x256 | R8G8B8A8 | 1 mipmaps)
+[   1.198] DEBUG njin  TEXTURE: Load mipmap level 0 (256 x 256), size: 262144, offset: 0
+[   1.198] INFO  njin  TEXTURE: [ID 25] Texture loaded successfully (256x256 | R8G8B8A8 | 1 mipmaps)
+[   1.201] INFO  njin  IMAGE: Data loaded successfully (256x256 | R8G8B8 | 1 mipmaps)
+[   1.201] DEBUG njin  TEXTURE: Load mipmap level 0 (256 x 256), size: 65536, offset: 0
+[   1.202] INFO  njin  TEXTURE: [ID 26] Texture loaded successfully (256x256 | GRAYSCALE | 1 mipmaps)
+[   1.202] DEBUG njin  TEXTURE: Load mipmap level 0 (256 x 256), size: 65536, offset: 0
+[   1.202] INFO  njin  TEXTURE: [ID 27] Texture loaded successfully (256x256 | GRAYSCALE | 1 mipmaps)
+[   1.202] INFO  njin  VAO: [ID 11] Mesh uploaded successfully to VRAM (GPU)
+[   1.203] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/stairsRailWood.glb] File loaded successfully
+[   1.203] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/stairsRailWood.glb] Model basic data (glb) loaded successfully
+[   1.203] INFO  njin      > Meshes count: 1
+[   1.203] INFO  njin      > Materials count: 1 (+1 default)
+[   1.203] DEBUG njin      > Buffers count: 1
+[   1.204] DEBUG njin      > Images count: 2
+[   1.204] DEBUG njin      > Textures count: 2
+[   1.204] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.204] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.204] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.205] INFO  njin  TEXTURE: [ID 28] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.205] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.206] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.206] INFO  njin  TEXTURE: [ID 29] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.206] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.206] INFO  njin  TEXTURE: [ID 30] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.206] INFO  njin  VAO: [ID 12] Mesh uploaded successfully to VRAM (GPU)
+[   1.207] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/stairsGuardWood.glb] File loaded successfully
+[   1.207] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/stairsGuardWood.glb] Model basic data (glb) loaded successfully
+[   1.207] INFO  njin      > Meshes count: 1
+[   1.207] INFO  njin      > Materials count: 1 (+1 default)
+[   1.207] DEBUG njin      > Buffers count: 1
+[   1.208] DEBUG njin      > Images count: 2
+[   1.208] DEBUG njin      > Textures count: 2
+[   1.208] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.209] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.209] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.209] INFO  njin  TEXTURE: [ID 31] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.210] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.210] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.210] INFO  njin  TEXTURE: [ID 32] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.210] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.211] INFO  njin  TEXTURE: [ID 33] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.212] INFO  njin  VAO: [ID 13] Mesh uploaded successfully to VRAM (GPU)
+[   1.212] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/couchSmall.glb] File loaded successfully
+[   1.213] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/couchSmall.glb] Model basic data (glb) loaded successfully
+[   1.213] INFO  njin      > Meshes count: 1
+[   1.213] INFO  njin      > Materials count: 1 (+1 default)
+[   1.213] DEBUG njin      > Buffers count: 1
+[   1.213] DEBUG njin      > Images count: 2
+[   1.213] DEBUG njin      > Textures count: 2
+[   1.213] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.214] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.215] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.215] INFO  njin  TEXTURE: [ID 34] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.216] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.216] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.216] INFO  njin  TEXTURE: [ID 35] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.216] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.217] INFO  njin  TEXTURE: [ID 36] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.217] INFO  njin  VAO: [ID 14] Mesh uploaded successfully to VRAM (GPU)
+[   1.217] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/couchBig.glb] File loaded successfully
+[   1.218] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/couchBig.glb] Model basic data (glb) loaded successfully
+[   1.218] INFO  njin      > Meshes count: 1
+[   1.218] INFO  njin      > Materials count: 1 (+1 default)
+[   1.218] DEBUG njin      > Buffers count: 1
+[   1.218] DEBUG njin      > Images count: 2
+[   1.218] DEBUG njin      > Textures count: 2
+[   1.218] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.219] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.219] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.219] INFO  njin  TEXTURE: [ID 37] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.220] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.220] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.221] INFO  njin  TEXTURE: [ID 38] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.221] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.221] INFO  njin  TEXTURE: [ID 39] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.221] INFO  njin  VAO: [ID 15] Mesh uploaded successfully to VRAM (GPU)
+[   1.222] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/tableSmall.glb] File loaded successfully
+[   1.222] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/tableSmall.glb] Model basic data (glb) loaded successfully
+[   1.222] INFO  njin      > Meshes count: 1
+[   1.222] INFO  njin      > Materials count: 1 (+1 default)
+[   1.222] DEBUG njin      > Buffers count: 1
+[   1.222] DEBUG njin      > Images count: 2
+[   1.222] DEBUG njin      > Textures count: 2
+[   1.222] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.223] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.224] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.224] INFO  njin  TEXTURE: [ID 40] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.224] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.225] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.225] INFO  njin  TEXTURE: [ID 41] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.225] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.225] INFO  njin  TEXTURE: [ID 42] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.229] INFO  njin  VAO: [ID 16] Mesh uploaded successfully to VRAM (GPU)
+[   1.229] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/table.glb] File loaded successfully
+[   1.230] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/table.glb] Model basic data (glb) loaded successfully
+[   1.230] INFO  njin      > Meshes count: 1
+[   1.230] INFO  njin      > Materials count: 1 (+1 default)
+[   1.230] DEBUG njin      > Buffers count: 1
+[   1.230] DEBUG njin      > Images count: 2
+[   1.230] DEBUG njin      > Textures count: 2
+[   1.230] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.231] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.231] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.232] INFO  njin  TEXTURE: [ID 43] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.232] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.233] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.233] INFO  njin  TEXTURE: [ID 44] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.233] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.233] INFO  njin  TEXTURE: [ID 45] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.233] INFO  njin  VAO: [ID 17] Mesh uploaded successfully to VRAM (GPU)
+[   1.233] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/chair.glb] File loaded successfully
+[   1.234] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/chair.glb] Model basic data (glb) loaded successfully
+[   1.234] INFO  njin      > Meshes count: 1
+[   1.234] INFO  njin      > Materials count: 1 (+1 default)
+[   1.234] DEBUG njin      > Buffers count: 1
+[   1.234] DEBUG njin      > Images count: 2
+[   1.234] DEBUG njin      > Textures count: 2
+[   1.234] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.235] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.235] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.236] INFO  njin  TEXTURE: [ID 46] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.236] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.237] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.237] INFO  njin  TEXTURE: [ID 47] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.237] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.237] INFO  njin  TEXTURE: [ID 48] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.238] INFO  njin  VAO: [ID 18] Mesh uploaded successfully to VRAM (GPU)
+[   1.238] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/chair2.glb] File loaded successfully
+[   1.238] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/chair2.glb] Model basic data (glb) loaded successfully
+[   1.238] INFO  njin      > Meshes count: 1
+[   1.238] INFO  njin      > Materials count: 1 (+1 default)
+[   1.239] DEBUG njin      > Buffers count: 1
+[   1.239] DEBUG njin      > Images count: 2
+[   1.239] DEBUG njin      > Textures count: 2
+[   1.239] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.240] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.240] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.240] INFO  njin  TEXTURE: [ID 49] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.241] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.241] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.241] INFO  njin  TEXTURE: [ID 50] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.242] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.242] INFO  njin  TEXTURE: [ID 51] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.242] INFO  njin  VAO: [ID 19] Mesh uploaded successfully to VRAM (GPU)
+[   1.242] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/tv.glb] File loaded successfully
+[   1.243] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/tv.glb] Model basic data (glb) loaded successfully
+[   1.243] INFO  njin      > Meshes count: 1
+[   1.243] INFO  njin      > Materials count: 2 (+1 default)
+[   1.243] DEBUG njin      > Buffers count: 1
+[   1.243] DEBUG njin      > Images count: 4
+[   1.243] DEBUG njin      > Textures count: 4
+[   1.243] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 2
+[   1.244] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.245] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.245] INFO  njin  TEXTURE: [ID 52] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.246] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.246] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.246] INFO  njin  TEXTURE: [ID 53] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.246] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.246] INFO  njin  TEXTURE: [ID 54] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.247] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.247] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.247] INFO  njin  TEXTURE: [ID 55] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.248] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.248] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.248] INFO  njin  TEXTURE: [ID 56] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.248] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.248] INFO  njin  TEXTURE: [ID 57] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.249] INFO  njin  VAO: [ID 20] Mesh uploaded successfully to VRAM (GPU)
+[   1.249] INFO  njin  VAO: [ID 21] Mesh uploaded successfully to VRAM (GPU)
+[   1.250] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/plant.glb] File loaded successfully
+[   1.250] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/plant.glb] Model basic data (glb) loaded successfully
+[   1.250] INFO  njin      > Meshes count: 1
+[   1.251] INFO  njin      > Materials count: 1 (+1 default)
+[   1.251] DEBUG njin      > Buffers count: 1
+[   1.251] DEBUG njin      > Images count: 2
+[   1.251] DEBUG njin      > Textures count: 2
+[   1.251] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.252] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.252] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.252] INFO  njin  TEXTURE: [ID 58] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.253] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.253] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.253] INFO  njin  TEXTURE: [ID 59] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.253] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.253] INFO  njin  TEXTURE: [ID 60] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.254] INFO  njin  VAO: [ID 22] Mesh uploaded successfully to VRAM (GPU)
+[   1.254] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/plant2.glb] File loaded successfully
+[   1.254] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/plant2.glb] Model basic data (glb) loaded successfully
+[   1.254] INFO  njin      > Meshes count: 1
+[   1.254] INFO  njin      > Materials count: 1 (+1 default)
+[   1.254] DEBUG njin      > Buffers count: 1
+[   1.254] DEBUG njin      > Images count: 2
+[   1.254] DEBUG njin      > Textures count: 2
+[   1.255] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.256] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.256] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.256] INFO  njin  TEXTURE: [ID 61] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.257] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.257] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.257] INFO  njin  TEXTURE: [ID 62] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.257] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.258] INFO  njin  TEXTURE: [ID 63] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.258] INFO  njin  VAO: [ID 23] Mesh uploaded successfully to VRAM (GPU)
+[   1.258] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/carpet.glb] File loaded successfully
+[   1.258] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/carpet.glb] Model basic data (glb) loaded successfully
+[   1.259] INFO  njin      > Meshes count: 1
+[   1.259] INFO  njin      > Materials count: 1 (+1 default)
+[   1.259] DEBUG njin      > Buffers count: 1
+[   1.259] DEBUG njin      > Images count: 2
+[   1.259] DEBUG njin      > Textures count: 2
+[   1.259] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.260] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.260] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.260] INFO  njin  TEXTURE: [ID 64] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.261] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.261] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.261] INFO  njin  TEXTURE: [ID 65] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.261] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.262] INFO  njin  TEXTURE: [ID 66] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.262] INFO  njin  VAO: [ID 24] Mesh uploaded successfully to VRAM (GPU)
+[   1.262] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/carpet2.glb] File loaded successfully
+[   1.262] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/carpet2.glb] Model basic data (glb) loaded successfully
+[   1.262] INFO  njin      > Meshes count: 1
+[   1.262] INFO  njin      > Materials count: 1 (+1 default)
+[   1.262] DEBUG njin      > Buffers count: 1
+[   1.262] DEBUG njin      > Images count: 2
+[   1.262] DEBUG njin      > Textures count: 2
+[   1.263] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.263] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.264] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.264] INFO  njin  TEXTURE: [ID 67] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.264] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.265] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.265] INFO  njin  TEXTURE: [ID 68] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.265] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.265] INFO  njin  TEXTURE: [ID 69] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.265] INFO  njin  VAO: [ID 25] Mesh uploaded successfully to VRAM (GPU)
+[   1.266] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bed.glb] File loaded successfully
+[   1.266] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bed.glb] Model basic data (glb) loaded successfully
+[   1.266] INFO  njin      > Meshes count: 1
+[   1.266] INFO  njin      > Materials count: 1 (+1 default)
+[   1.266] DEBUG njin      > Buffers count: 1
+[   1.266] DEBUG njin      > Images count: 2
+[   1.266] DEBUG njin      > Textures count: 2
+[   1.266] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.267] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.267] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.267] INFO  njin  TEXTURE: [ID 70] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.267] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.268] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.268] INFO  njin  TEXTURE: [ID 71] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.268] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.268] INFO  njin  TEXTURE: [ID 72] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.268] INFO  njin  VAO: [ID 26] Mesh uploaded successfully to VRAM (GPU)
+[   1.268] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bed2.glb] File loaded successfully
+[   1.268] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bed2.glb] Model basic data (glb) loaded successfully
+[   1.269] INFO  njin      > Meshes count: 1
+[   1.269] INFO  njin      > Materials count: 1 (+1 default)
+[   1.269] DEBUG njin      > Buffers count: 1
+[   1.269] DEBUG njin      > Images count: 2
+[   1.269] DEBUG njin      > Textures count: 2
+[   1.269] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.270] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.270] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.270] INFO  njin  TEXTURE: [ID 73] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.271] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.272] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.272] INFO  njin  TEXTURE: [ID 74] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.272] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.272] INFO  njin  TEXTURE: [ID 75] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.273] INFO  njin  VAO: [ID 27] Mesh uploaded successfully to VRAM (GPU)
+[   1.273] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bed3.glb] File loaded successfully
+[   1.273] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bed3.glb] Model basic data (glb) loaded successfully
+[   1.273] INFO  njin      > Meshes count: 1
+[   1.273] INFO  njin      > Materials count: 1 (+1 default)
+[   1.274] DEBUG njin      > Buffers count: 1
+[   1.274] DEBUG njin      > Images count: 2
+[   1.274] DEBUG njin      > Textures count: 2
+[   1.274] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.275] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.275] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.275] INFO  njin  TEXTURE: [ID 76] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.276] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.276] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.276] INFO  njin  TEXTURE: [ID 77] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.277] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.277] INFO  njin  TEXTURE: [ID 78] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.277] INFO  njin  VAO: [ID 28] Mesh uploaded successfully to VRAM (GPU)
+[   1.278] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinet.glb] File loaded successfully
+[   1.278] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinet.glb] Model basic data (glb) loaded successfully
+[   1.278] INFO  njin      > Meshes count: 3
+[   1.278] INFO  njin      > Materials count: 1 (+1 default)
+[   1.278] DEBUG njin      > Buffers count: 1
+[   1.278] DEBUG njin      > Images count: 2
+[   1.278] DEBUG njin      > Textures count: 2
+[   1.279] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 3
+[   1.280] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.280] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.280] INFO  njin  TEXTURE: [ID 79] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.281] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.281] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.281] INFO  njin  TEXTURE: [ID 80] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.281] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.281] INFO  njin  TEXTURE: [ID 81] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.282] INFO  njin  VAO: [ID 29] Mesh uploaded successfully to VRAM (GPU)
+[   1.282] INFO  njin  VAO: [ID 30] Mesh uploaded successfully to VRAM (GPU)
+[   1.282] INFO  njin  VAO: [ID 31] Mesh uploaded successfully to VRAM (GPU)
+[   1.282] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinetBig.glb] File loaded successfully
+[   1.283] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinetBig.glb] Model basic data (glb) loaded successfully
+[   1.283] INFO  njin      > Meshes count: 3
+[   1.283] INFO  njin      > Materials count: 1 (+1 default)
+[   1.283] DEBUG njin      > Buffers count: 1
+[   1.283] DEBUG njin      > Images count: 2
+[   1.283] DEBUG njin      > Textures count: 2
+[   1.283] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 3
+[   1.284] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.284] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.284] INFO  njin  TEXTURE: [ID 82] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.285] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.285] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.285] INFO  njin  TEXTURE: [ID 83] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.286] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.286] INFO  njin  TEXTURE: [ID 84] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.286] INFO  njin  VAO: [ID 32] Mesh uploaded successfully to VRAM (GPU)
+[   1.286] INFO  njin  VAO: [ID 33] Mesh uploaded successfully to VRAM (GPU)
+[   1.286] INFO  njin  VAO: [ID 34] Mesh uploaded successfully to VRAM (GPU)
+[   1.287] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/tableLamp.glb] File loaded successfully
+[   1.287] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/tableLamp.glb] Model basic data (glb) loaded successfully
+[   1.287] INFO  njin      > Meshes count: 1
+[   1.287] INFO  njin      > Materials count: 1 (+1 default)
+[   1.287] DEBUG njin      > Buffers count: 1
+[   1.287] DEBUG njin      > Images count: 3
+[   1.287] DEBUG njin      > Textures count: 3
+[   1.287] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.288] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.288] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.288] INFO  njin  TEXTURE: [ID 85] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.288] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.288] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.288] INFO  njin  TEXTURE: [ID 86] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.288] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.289] INFO  njin  TEXTURE: [ID 87] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.289] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.289] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.289] INFO  njin  TEXTURE: [ID 88] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.289] INFO  njin  VAO: [ID 35] Mesh uploaded successfully to VRAM (GPU)
+[   1.289] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallShelf.glb] File loaded successfully
+[   1.290] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallShelf.glb] Model basic data (glb) loaded successfully
+[   1.290] INFO  njin      > Meshes count: 1
+[   1.290] INFO  njin      > Materials count: 1 (+1 default)
+[   1.290] DEBUG njin      > Buffers count: 1
+[   1.290] DEBUG njin      > Images count: 2
+[   1.290] DEBUG njin      > Textures count: 2
+[   1.290] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.291] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.291] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.291] INFO  njin  TEXTURE: [ID 89] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.292] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.292] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.292] INFO  njin  TEXTURE: [ID 90] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.293] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.293] INFO  njin  TEXTURE: [ID 91] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.293] INFO  njin  VAO: [ID 36] Mesh uploaded successfully to VRAM (GPU)
+[   1.293] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinetSink.glb] File loaded successfully
+[   1.294] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinetSink.glb] Model basic data (glb) loaded successfully
+[   1.294] INFO  njin      > Meshes count: 3
+[   1.294] INFO  njin      > Materials count: 1 (+1 default)
+[   1.294] DEBUG njin      > Buffers count: 1
+[   1.294] DEBUG njin      > Images count: 2
+[   1.294] DEBUG njin      > Textures count: 2
+[   1.294] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 3
+[   1.295] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.295] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.295] INFO  njin  TEXTURE: [ID 92] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.296] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.296] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.296] INFO  njin  TEXTURE: [ID 93] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.297] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.297] INFO  njin  TEXTURE: [ID 94] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.297] INFO  njin  VAO: [ID 37] Mesh uploaded successfully to VRAM (GPU)
+[   1.297] INFO  njin  VAO: [ID 38] Mesh uploaded successfully to VRAM (GPU)
+[   1.297] INFO  njin  VAO: [ID 39] Mesh uploaded successfully to VRAM (GPU)
+[   1.298] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/fridge.glb] File loaded successfully
+[   1.298] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/fridge.glb] Model basic data (glb) loaded successfully
+[   1.298] INFO  njin      > Meshes count: 3
+[   1.298] INFO  njin      > Materials count: 1 (+1 default)
+[   1.298] DEBUG njin      > Buffers count: 1
+[   1.298] DEBUG njin      > Images count: 3
+[   1.299] DEBUG njin      > Textures count: 3
+[   1.299] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 3
+[   1.300] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.300] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.300] INFO  njin  TEXTURE: [ID 95] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.301] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.301] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.301] INFO  njin  TEXTURE: [ID 96] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.301] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.301] INFO  njin  TEXTURE: [ID 97] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.302] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.302] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.302] INFO  njin  TEXTURE: [ID 98] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.302] INFO  njin  VAO: [ID 40] Mesh uploaded successfully to VRAM (GPU)
+[   1.302] INFO  njin  VAO: [ID 41] Mesh uploaded successfully to VRAM (GPU)
+[   1.302] INFO  njin  VAO: [ID 42] Mesh uploaded successfully to VRAM (GPU)
+[   1.303] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/oven.glb] File loaded successfully
+[   1.303] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/oven.glb] Model basic data (glb) loaded successfully
+[   1.303] INFO  njin      > Meshes count: 1
+[   1.303] INFO  njin      > Materials count: 1 (+1 default)
+[   1.303] DEBUG njin      > Buffers count: 1
+[   1.304] DEBUG njin      > Images count: 2
+[   1.304] DEBUG njin      > Textures count: 2
+[   1.304] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.305] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.305] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.305] INFO  njin  TEXTURE: [ID 99] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.306] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.306] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.306] INFO  njin  TEXTURE: [ID 100] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.307] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.307] INFO  njin  TEXTURE: [ID 101] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.307] INFO  njin  VAO: [ID 43] Mesh uploaded successfully to VRAM (GPU)
+[   1.308] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/toilet.glb] File loaded successfully
+[   1.308] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/toilet.glb] Model basic data (glb) loaded successfully
+[   1.308] INFO  njin      > Meshes count: 2
+[   1.308] INFO  njin      > Materials count: 1 (+1 default)
+[   1.308] DEBUG njin      > Buffers count: 1
+[   1.308] DEBUG njin      > Images count: 2
+[   1.308] DEBUG njin      > Textures count: 2
+[   1.308] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 2
+[   1.309] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.309] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.309] INFO  njin  TEXTURE: [ID 102] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.310] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.311] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.311] INFO  njin  TEXTURE: [ID 103] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.311] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.311] INFO  njin  TEXTURE: [ID 104] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.312] INFO  njin  VAO: [ID 44] Mesh uploaded successfully to VRAM (GPU)
+[   1.312] INFO  njin  VAO: [ID 45] Mesh uploaded successfully to VRAM (GPU)
+[   1.313] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bathroomSink.glb] File loaded successfully
+[   1.313] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bathroomSink.glb] Model basic data (glb) loaded successfully
+[   1.313] INFO  njin      > Meshes count: 3
+[   1.313] INFO  njin      > Materials count: 1 (+1 default)
+[   1.313] DEBUG njin      > Buffers count: 1
+[   1.313] DEBUG njin      > Images count: 2
+[   1.313] DEBUG njin      > Textures count: 2
+[   1.313] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 3
+[   1.315] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.315] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.315] INFO  njin  TEXTURE: [ID 105] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.316] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.316] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.316] INFO  njin  TEXTURE: [ID 106] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.316] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.316] INFO  njin  TEXTURE: [ID 107] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.317] INFO  njin  VAO: [ID 46] Mesh uploaded successfully to VRAM (GPU)
+[   1.317] INFO  njin  VAO: [ID 47] Mesh uploaded successfully to VRAM (GPU)
+[   1.317] INFO  njin  VAO: [ID 48] Mesh uploaded successfully to VRAM (GPU)
+[   1.318] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bathroomSink2.glb] File loaded successfully
+[   1.318] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bathroomSink2.glb] Model basic data (glb) loaded successfully
+[   1.318] INFO  njin      > Meshes count: 1
+[   1.318] INFO  njin      > Materials count: 1 (+1 default)
+[   1.318] DEBUG njin      > Buffers count: 1
+[   1.318] DEBUG njin      > Images count: 2
+[   1.319] DEBUG njin      > Textures count: 2
+[   1.319] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.319] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.319] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.319] INFO  njin  TEXTURE: [ID 108] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.320] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.320] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.320] INFO  njin  TEXTURE: [ID 109] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.321] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.321] INFO  njin  TEXTURE: [ID 110] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.321] INFO  njin  VAO: [ID 49] Mesh uploaded successfully to VRAM (GPU)
+[   1.321] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bathtub.glb] File loaded successfully
+[   1.321] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/bathtub.glb] Model basic data (glb) loaded successfully
+[   1.322] INFO  njin      > Meshes count: 1
+[   1.322] INFO  njin      > Materials count: 1 (+1 default)
+[   1.322] DEBUG njin      > Buffers count: 1
+[   1.322] DEBUG njin      > Images count: 2
+[   1.322] DEBUG njin      > Textures count: 2
+[   1.322] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.323] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.323] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.323] INFO  njin  TEXTURE: [ID 111] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.324] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.324] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.324] INFO  njin  TEXTURE: [ID 112] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.325] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.325] INFO  njin  TEXTURE: [ID 113] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.325] INFO  njin  VAO: [ID 50] Mesh uploaded successfully to VRAM (GPU)
+[   1.325] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/shelves.glb] File loaded successfully
+[   1.326] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/shelves.glb] Model basic data (glb) loaded successfully
+[   1.326] INFO  njin      > Meshes count: 1
+[   1.326] INFO  njin      > Materials count: 1 (+1 default)
+[   1.326] DEBUG njin      > Buffers count: 1
+[   1.326] DEBUG njin      > Images count: 2
+[   1.326] DEBUG njin      > Textures count: 2
+[   1.326] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.327] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.328] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.328] INFO  njin  TEXTURE: [ID 114] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.329] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.329] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.329] INFO  njin  TEXTURE: [ID 115] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.330] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.330] INFO  njin  TEXTURE: [ID 116] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.330] INFO  njin  VAO: [ID 51] Mesh uploaded successfully to VRAM (GPU)
+[   1.330] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/shelves2.glb] File loaded successfully
+[   1.330] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/shelves2.glb] Model basic data (glb) loaded successfully
+[   1.331] INFO  njin      > Meshes count: 1
+[   1.331] INFO  njin      > Materials count: 1 (+1 default)
+[   1.331] DEBUG njin      > Buffers count: 1
+[   1.331] DEBUG njin      > Images count: 2
+[   1.331] DEBUG njin      > Textures count: 2
+[   1.331] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.331] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.332] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.332] INFO  njin  TEXTURE: [ID 117] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.333] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.333] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.333] INFO  njin  TEXTURE: [ID 118] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.333] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.333] INFO  njin  TEXTURE: [ID 119] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.334] INFO  njin  VAO: [ID 52] Mesh uploaded successfully to VRAM (GPU)
+[   1.334] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/sideboard.glb] File loaded successfully
+[   1.334] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/sideboard.glb] Model basic data (glb) loaded successfully
+[   1.335] INFO  njin      > Meshes count: 6
+[   1.335] INFO  njin      > Materials count: 1 (+1 default)
+[   1.335] DEBUG njin      > Buffers count: 1
+[   1.335] DEBUG njin      > Images count: 2
+[   1.335] DEBUG njin      > Textures count: 2
+[   1.335] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 6
+[   1.336] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.336] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.336] INFO  njin  TEXTURE: [ID 120] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.337] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.337] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.337] INFO  njin  TEXTURE: [ID 121] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.337] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.337] INFO  njin  TEXTURE: [ID 122] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.338] INFO  njin  VAO: [ID 53] Mesh uploaded successfully to VRAM (GPU)
+[   1.338] INFO  njin  VAO: [ID 54] Mesh uploaded successfully to VRAM (GPU)
+[   1.338] INFO  njin  VAO: [ID 55] Mesh uploaded successfully to VRAM (GPU)
+[   1.338] INFO  njin  VAO: [ID 56] Mesh uploaded successfully to VRAM (GPU)
+[   1.339] INFO  njin  VAO: [ID 57] Mesh uploaded successfully to VRAM (GPU)
+[   1.339] INFO  njin  VAO: [ID 58] Mesh uploaded successfully to VRAM (GPU)
+[   1.339] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/product.glb] File loaded successfully
+[   1.339] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/product.glb] Model basic data (glb) loaded successfully
+[   1.340] INFO  njin      > Meshes count: 1
+[   1.340] INFO  njin      > Materials count: 1 (+1 default)
+[   1.340] DEBUG njin      > Buffers count: 1
+[   1.340] DEBUG njin      > Images count: 2
+[   1.340] DEBUG njin      > Textures count: 2
+[   1.340] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.340] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.340] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.341] INFO  njin  TEXTURE: [ID 123] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.341] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.341] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.341] INFO  njin  TEXTURE: [ID 124] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.341] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.341] INFO  njin  TEXTURE: [ID 125] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.342] INFO  njin  VAO: [ID 59] Mesh uploaded successfully to VRAM (GPU)
+[   1.342] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/product2.glb] File loaded successfully
+[   1.342] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/product2.glb] Model basic data (glb) loaded successfully
+[   1.342] INFO  njin      > Meshes count: 1
+[   1.342] INFO  njin      > Materials count: 1 (+1 default)
+[   1.343] DEBUG njin      > Buffers count: 1
+[   1.343] DEBUG njin      > Images count: 2
+[   1.343] DEBUG njin      > Textures count: 2
+[   1.343] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.343] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.343] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.343] INFO  njin  TEXTURE: [ID 126] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.344] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.344] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.344] INFO  njin  TEXTURE: [ID 127] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.344] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.344] INFO  njin  TEXTURE: [ID 128] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.344] INFO  njin  VAO: [ID 60] Mesh uploaded successfully to VRAM (GPU)
+[   1.345] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/product3.glb] File loaded successfully
+[   1.345] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/product3.glb] Model basic data (glb) loaded successfully
+[   1.345] INFO  njin      > Meshes count: 1
+[   1.345] INFO  njin      > Materials count: 1 (+1 default)
+[   1.345] DEBUG njin      > Buffers count: 1
+[   1.345] DEBUG njin      > Images count: 2
+[   1.346] DEBUG njin      > Textures count: 2
+[   1.346] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.346] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.346] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.346] INFO  njin  TEXTURE: [ID 129] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.346] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.347] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.347] INFO  njin  TEXTURE: [ID 130] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.347] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.347] INFO  njin  TEXTURE: [ID 131] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.347] INFO  njin  VAO: [ID 61] Mesh uploaded successfully to VRAM (GPU)
+[   1.348] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/box.glb] File loaded successfully
+[   1.348] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/box.glb] Model basic data (glb) loaded successfully
+[   1.348] INFO  njin      > Meshes count: 1
+[   1.348] INFO  njin      > Materials count: 1 (+1 default)
+[   1.348] DEBUG njin      > Buffers count: 1
+[   1.348] DEBUG njin      > Images count: 2
+[   1.348] DEBUG njin      > Textures count: 2
+[   1.348] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.349] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.349] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.349] INFO  njin  TEXTURE: [ID 132] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.350] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.350] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.350] INFO  njin  TEXTURE: [ID 133] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.350] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.351] INFO  njin  TEXTURE: [ID 134] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.351] INFO  njin  VAO: [ID 62] Mesh uploaded successfully to VRAM (GPU)
+[   1.351] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/box2.glb] File loaded successfully
+[   1.351] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/box2.glb] Model basic data (glb) loaded successfully
+[   1.351] INFO  njin      > Meshes count: 1
+[   1.351] INFO  njin      > Materials count: 1 (+1 default)
+[   1.352] DEBUG njin      > Buffers count: 1
+[   1.352] DEBUG njin      > Images count: 2
+[   1.352] DEBUG njin      > Textures count: 2
+[   1.352] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.353] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.353] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.353] INFO  njin  TEXTURE: [ID 135] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.353] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.354] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.354] INFO  njin  TEXTURE: [ID 136] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.354] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.354] INFO  njin  TEXTURE: [ID 137] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.355] INFO  njin  VAO: [ID 63] Mesh uploaded successfully to VRAM (GPU)
+[   1.355] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/pallet.glb] File loaded successfully
+[   1.355] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/pallet.glb] Model basic data (glb) loaded successfully
+[   1.355] INFO  njin      > Meshes count: 1
+[   1.355] INFO  njin      > Materials count: 1 (+1 default)
+[   1.355] DEBUG njin      > Buffers count: 1
+[   1.356] DEBUG njin      > Images count: 2
+[   1.356] DEBUG njin      > Textures count: 2
+[   1.356] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.356] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.356] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.357] INFO  njin  TEXTURE: [ID 138] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.357] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.358] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.358] INFO  njin  TEXTURE: [ID 139] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.358] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.358] INFO  njin  TEXTURE: [ID 140] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.358] INFO  njin  VAO: [ID 64] Mesh uploaded successfully to VRAM (GPU)
+[   1.359] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinetHigh.glb] File loaded successfully
+[   1.359] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/cabinetHigh.glb] Model basic data (glb) loaded successfully
+[   1.359] INFO  njin      > Meshes count: 3
+[   1.359] INFO  njin      > Materials count: 1 (+1 default)
+[   1.359] DEBUG njin      > Buffers count: 1
+[   1.359] DEBUG njin      > Images count: 2
+[   1.359] DEBUG njin      > Textures count: 2
+[   1.359] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 3
+[   1.360] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.360] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.361] INFO  njin  TEXTURE: [ID 141] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.361] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.362] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.362] INFO  njin  TEXTURE: [ID 142] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.362] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.362] INFO  njin  TEXTURE: [ID 143] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.362] INFO  njin  VAO: [ID 65] Mesh uploaded successfully to VRAM (GPU)
+[   1.362] INFO  njin  VAO: [ID 66] Mesh uploaded successfully to VRAM (GPU)
+[   1.362] INFO  njin  VAO: [ID 67] Mesh uploaded successfully to VRAM (GPU)
+[   1.363] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/ceilingLight.glb] File loaded successfully
+[   1.363] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/ceilingLight.glb] Model basic data (glb) loaded successfully
+[   1.363] INFO  njin      > Meshes count: 1
+[   1.363] INFO  njin      > Materials count: 1 (+1 default)
+[   1.363] DEBUG njin      > Buffers count: 1
+[   1.363] DEBUG njin      > Images count: 3
+[   1.364] DEBUG njin      > Textures count: 3
+[   1.364] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.364] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.364] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.364] INFO  njin  TEXTURE: [ID 144] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.364] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.364] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.365] INFO  njin  TEXTURE: [ID 145] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.365] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.365] INFO  njin  TEXTURE: [ID 146] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.365] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.365] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.365] INFO  njin  TEXTURE: [ID 147] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.366] INFO  njin  VAO: [ID 68] Mesh uploaded successfully to VRAM (GPU)
+[   1.366] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallLight.glb] File loaded successfully
+[   1.366] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/wallLight.glb] Model basic data (glb) loaded successfully
+[   1.366] INFO  njin      > Meshes count: 1
+[   1.366] INFO  njin      > Materials count: 1 (+1 default)
+[   1.367] DEBUG njin      > Buffers count: 1
+[   1.367] DEBUG njin      > Images count: 3
+[   1.367] DEBUG njin      > Textures count: 3
+[   1.367] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.367] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.367] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.367] INFO  njin  TEXTURE: [ID 148] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.368] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.368] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.368] INFO  njin  TEXTURE: [ID 149] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.368] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.368] INFO  njin  TEXTURE: [ID 150] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.368] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.369] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.369] INFO  njin  TEXTURE: [ID 151] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.369] INFO  njin  VAO: [ID 69] Mesh uploaded successfully to VRAM (GPU)
+[   1.369] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/painting.glb] File loaded successfully
+[   1.370] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/painting.glb] Model basic data (glb) loaded successfully
+[   1.370] INFO  njin      > Meshes count: 1
+[   1.370] INFO  njin      > Materials count: 1 (+1 default)
+[   1.370] DEBUG njin      > Buffers count: 1
+[   1.370] DEBUG njin      > Images count: 2
+[   1.370] DEBUG njin      > Textures count: 2
+[   1.370] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.371] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.371] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.371] INFO  njin  TEXTURE: [ID 152] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.372] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.372] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.373] INFO  njin  TEXTURE: [ID 153] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.373] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.373] INFO  njin  TEXTURE: [ID 154] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.373] INFO  njin  VAO: [ID 70] Mesh uploaded successfully to VRAM (GPU)
+[   1.374] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/painting2.glb] File loaded successfully
+[   1.374] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/painting2.glb] Model basic data (glb) loaded successfully
+[   1.374] INFO  njin      > Meshes count: 1
+[   1.374] INFO  njin      > Materials count: 1 (+1 default)
+[   1.375] DEBUG njin      > Buffers count: 1
+[   1.375] DEBUG njin      > Images count: 2
+[   1.375] DEBUG njin      > Textures count: 2
+[   1.375] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.376] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.376] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.376] INFO  njin  TEXTURE: [ID 155] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.377] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.377] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.377] INFO  njin  TEXTURE: [ID 156] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.377] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.377] INFO  njin  TEXTURE: [ID 157] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.378] INFO  njin  VAO: [ID 71] Mesh uploaded successfully to VRAM (GPU)
+[   1.378] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/mirror.glb] File loaded successfully
+[   1.378] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/mirror.glb] Model basic data (glb) loaded successfully
+[   1.378] INFO  njin      > Meshes count: 1
+[   1.378] INFO  njin      > Materials count: 1 (+1 default)
+[   1.378] DEBUG njin      > Buffers count: 1
+[   1.378] DEBUG njin      > Images count: 2
+[   1.379] DEBUG njin      > Textures count: 2
+[   1.379] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.379] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.379] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.379] INFO  njin  TEXTURE: [ID 158] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.379] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.380] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.380] INFO  njin  TEXTURE: [ID 159] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.380] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.380] INFO  njin  TEXTURE: [ID 160] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.380] INFO  njin  VAO: [ID 72] Mesh uploaded successfully to VRAM (GPU)
+[   1.381] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/doormat.glb] File loaded successfully
+[   1.381] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/doormat.glb] Model basic data (glb) loaded successfully
+[   1.381] INFO  njin      > Meshes count: 1
+[   1.381] INFO  njin      > Materials count: 1 (+1 default)
+[   1.381] DEBUG njin      > Buffers count: 1
+[   1.381] DEBUG njin      > Images count: 2
+[   1.381] DEBUG njin      > Textures count: 2
+[   1.381] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.382] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.382] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 16384, offset: 0
+[   1.382] INFO  njin  TEXTURE: [ID 161] Texture loaded successfully (64x64 | R8G8B8A8 | 1 mipmaps)
+[   1.382] INFO  njin  IMAGE: Data loaded successfully (64x64 | R8G8B8 | 1 mipmaps)
+[   1.382] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.382] INFO  njin  TEXTURE: [ID 162] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.382] DEBUG njin  TEXTURE: Load mipmap level 0 (64 x 64), size: 4096, offset: 0
+[   1.383] INFO  njin  TEXTURE: [ID 163] Texture loaded successfully (64x64 | GRAYSCALE | 1 mipmaps)
+[   1.383] INFO  njin  VAO: [ID 73] Mesh uploaded successfully to VRAM (GPU)
+[   1.383] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/trashBin.glb] File loaded successfully
+[   1.383] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/trashBin.glb] Model basic data (glb) loaded successfully
+[   1.384] INFO  njin      > Meshes count: 1
+[   1.384] INFO  njin      > Materials count: 1 (+1 default)
+[   1.384] DEBUG njin      > Buffers count: 1
+[   1.384] DEBUG njin      > Images count: 2
+[   1.384] DEBUG njin      > Textures count: 2
+[   1.384] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.384] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.385] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.385] INFO  njin  TEXTURE: [ID 164] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.385] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.386] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.386] INFO  njin  TEXTURE: [ID 165] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.386] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.386] INFO  njin  TEXTURE: [ID 166] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.386] INFO  njin  VAO: [ID 74] Mesh uploaded successfully to VRAM (GPU)
+[   1.387] INFO  njin  FILEIO: [D:\projects\njin\build\bin\sandtable\assets/models/interior/plant3.glb] File loaded successfully
+[   1.387] INFO  njin  MODEL: [D:\projects\njin\build\bin\sandtable\assets/models/interior/plant3.glb] Model basic data (glb) loaded successfully
+[   1.387] INFO  njin      > Meshes count: 1
+[   1.387] INFO  njin      > Materials count: 1 (+1 default)
+[   1.387] DEBUG njin      > Buffers count: 1
+[   1.387] DEBUG njin      > Images count: 2
+[   1.387] DEBUG njin      > Textures count: 2
+[   1.387] DEBUG njin      > Primitives (triangles only) count based on hierarchy : 1
+[   1.389] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.389] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 65536, offset: 0
+[   1.389] INFO  njin  TEXTURE: [ID 167] Texture loaded successfully (128x128 | R8G8B8A8 | 1 mipmaps)
+[   1.390] INFO  njin  IMAGE: Data loaded successfully (128x128 | R8G8B8 | 1 mipmaps)
+[   1.390] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.390] INFO  njin  TEXTURE: [ID 168] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.390] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 16384, offset: 0
+[   1.390] INFO  njin  TEXTURE: [ID 169] Texture loaded successfully (128x128 | GRAYSCALE | 1 mipmaps)
+[   1.391] INFO  njin  VAO: [ID 75] Mesh uploaded successfully to VRAM (GPU)
+[   1.842] INFO  world.cpp:32  city 1: 110 roads, 52 blocks, 838 buildings, 241 businesses, 90 places, 405 ms, ok
+[   1.858] INFO  njin  VAO: [ID 76] Mesh uploaded successfully to VRAM (GPU)
+[   1.887] INFO  njin  VAO: [ID 77] Mesh uploaded successfully to VRAM (GPU)
+[   1.896] INFO  njin  VAO: [ID 78] Mesh uploaded successfully to VRAM (GPU)
+[   1.906] DEBUG njin  TEXTURE: Load mipmap level 0 (1280 x 720), size: 3686400, offset: 0
+[   1.906] INFO  njin  TEXTURE: [ID 170] Texture loaded successfully (1280x720 | R8G8B8A8 | 1 mipmaps)
+[   1.906] INFO  njin  TEXTURE: [ID 1] Depth renderbuffer loaded successfully (32 bits)
+[   1.909] INFO  njin  FBO: [ID 1] Framebuffer object created successfully
+[   1.909] DEBUG njin  TEXTURE: Load mipmap level 0 (1280 x 720), size: 3686400, offset: 0
+[   1.909] INFO  njin  TEXTURE: [ID 171] Texture loaded successfully (1280x720 | R8G8B8A8 | 1 mipmaps)
+[   1.910] INFO  njin  TEXTURE: [ID 2] Depth renderbuffer loaded successfully (32 bits)
+[   1.911] INFO  njin  FBO: [ID 2] Framebuffer object created successfully
+[   1.912] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.916] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   1.982] INFO  njin  SHADER: [ID 12] Program shader loaded successfully
+[   1.983] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.988] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   2.365] INFO  njin  SHADER: [ID 13] Program shader loaded successfully
+[   2.368] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   2.369] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   2.376] INFO  njin  SHADER: [ID 14] Program shader loaded successfully
+[   2.377] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   2.381] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   2.459] INFO  njin  SHADER: [ID 15] Program shader loaded successfully
+[   2.461] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   2.461] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   2.474] INFO  njin  SHADER: [ID 16] Program shader loaded successfully
+[   2.475] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   2.478] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   2.552] INFO  njin  SHADER: [ID 17] Program shader loaded successfully
+[   2.553] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   2.554] INFO  njin  SHADER: [ID 10] Fragment shader compiled successfully
+[   2.569] INFO  njin  SHADER: [ID 18] Program shader loaded successfully
+[   2.570] INFO  njin  VAO: [ID 88] Mesh uploaded successfully to VRAM (GPU)
+[   2.571] INFO  njin  VAO: [ID 89] Mesh uploaded successfully to VRAM (GPU)
+[   2.571] INFO  njin  VAO: [ID 90] Mesh uploaded successfully to VRAM (GPU)
+[   2.572] INFO  njin  VAO: [ID 91] Mesh uploaded successfully to VRAM (GPU)
+[   2.572] INFO  njin  VAO: [ID 92] Mesh uploaded successfully to VRAM (GPU)
+[   2.572] INFO  njin  VAO: [ID 93] Mesh uploaded successfully to VRAM (GPU)
+[   2.573] DEBUG njin  TEXTURE: Load mipmap level 0 (2048 x 2048), size: 4194304, offset: 0
+[   2.573] INFO  njin  TEXTURE: [ID 172] Texture loaded successfully (2048x2048 | GRAYSCALE | 1 mipmaps)
+[   2.574] INFO  njin  TEXTURE: Depth texture loaded successfully
+[   2.586] DEBUG njin  TEXTURE: Load mipmap level 0 (1280 x 720), size: 3686400, offset: 0
+[   2.586] INFO  njin  TEXTURE: [ID 174] Texture loaded successfully (1280x720 | R8G8B8A8 | 1 mipmaps)
+[   2.586] INFO  njin  TEXTURE: [ID 3] Depth renderbuffer loaded successfully (32 bits)
+[   2.587] INFO  njin  FBO: [ID 4] Framebuffer object created successfully
+[   2.588] DEBUG njin  TEXTURE: Load mipmap level 0 (1280 x 720), size: 3686400, offset: 0
+[   2.588] INFO  njin  TEXTURE: [ID 175] Texture loaded successfully (1280x720 | R8G8B8A8 | 1 mipmaps)
+[   2.588] INFO  njin  TEXTURE: [ID 4] Depth renderbuffer loaded successfully (32 bits)
+[   2.589] INFO  njin  FBO: [ID 5] Framebuffer object created successfully
+[   2.590] DEBUG njin  TEXTURE: Load mipmap level 0 (640 x 360), size: 921600, offset: 0
+[   2.590] INFO  njin  TEXTURE: [ID 176] Texture loaded successfully (640x360 | R8G8B8A8 | 1 mipmaps)
+[   2.590] INFO  njin  TEXTURE: [ID 5] Depth renderbuffer loaded successfully (32 bits)
+[   2.591] INFO  njin  FBO: [ID 6] Framebuffer object created successfully
+[   2.591] DEBUG njin  TEXTURE: Load mipmap level 0 (640 x 360), size: 921600, offset: 0
+[   2.591] INFO  njin  TEXTURE: [ID 177] Texture loaded successfully (640x360 | R8G8B8A8 | 1 mipmaps)
+[   2.591] INFO  njin  TEXTURE: [ID 6] Depth renderbuffer loaded successfully (32 bits)
+[   2.592] INFO  njin  FBO: [ID 7] Framebuffer object created successfully
+[   2.593] WARN  njin  FONT: [0x007c] Glyph height is bigger than requested font size: 17 > 16
+[   2.593] WARN  njin  FONT: [0x00a6] Glyph height is bigger than requested font size: 17 > 16
+[   2.594] WARN  njin  FONT: [0x1eac] Glyph height is bigger than requested font size: 17 > 16
+[   2.595] WARN  njin  FONT: [0x1eb6] Glyph height is bigger than requested font size: 17 > 16
+[   2.595] WARN  njin  FONT: [0x1ec6] Glyph height is bigger than requested font size: 17 > 16
+[   2.596] WARN  njin  FONT: [0x1ed8] Glyph height is bigger than requested font size: 17 > 16
+[   2.596] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.598] DEBUG njin  TEXTURE: Load mipmap level 0 (512 x 512), size: 524288, offset: 0
+[   2.598] INFO  njin  TEXTURE: [ID 178] Texture loaded successfully (512x512 | GRAY_ALPHA | 1 mipmaps)
+[   2.599] INFO  njin  FONT: Data loaded successfully (16 pixel size | 407 glyphs)
+[   2.602] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.603] DEBUG njin  TEXTURE: Load mipmap level 0 (512 x 512), size: 524288, offset: 0
+[   2.604] INFO  njin  TEXTURE: [ID 179] Texture loaded successfully (512x512 | GRAY_ALPHA | 1 mipmaps)
+[   2.604] INFO  njin  FONT: Data loaded successfully (14 pixel size | 407 glyphs)
+[   2.608] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.610] DEBUG njin  TEXTURE: Load mipmap level 0 (1024 x 512), size: 1048576, offset: 0
+[   2.610] INFO  njin  TEXTURE: [ID 180] Texture loaded successfully (1024x512 | GRAY_ALPHA | 1 mipmaps)
+[   2.611] INFO  njin  FONT: Data loaded successfully (28 pixel size | 407 glyphs)
+[   2.614] WARN  njin  FONT: [0x1ed4] Glyph height is bigger than requested font size: 11 > 10
+[   2.614] WARN  njin  FONT: [0x1ed6] Glyph height is bigger than requested font size: 11 > 10
+[   2.615] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.615] DEBUG njin  TEXTURE: Load mipmap level 0 (512 x 256), size: 262144, offset: 0
+[   2.615] INFO  njin  TEXTURE: [ID 181] Texture loaded successfully (512x256 | GRAY_ALPHA | 1 mipmaps)
+[   2.616] INFO  njin  FONT: Data loaded successfully (10 pixel size | 407 glyphs)
+[   2.619] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.620] DEBUG njin  TEXTURE: Load mipmap level 0 (512 x 512), size: 524288, offset: 0
+[   2.620] INFO  njin  TEXTURE: [ID 182] Texture loaded successfully (512x512 | GRAY_ALPHA | 1 mipmaps)
+[   2.620] INFO  njin  FONT: Data loaded successfully (20 pixel size | 407 glyphs)
+[   2.624] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.626] DEBUG njin  TEXTURE: Load mipmap level 0 (1024 x 512), size: 1048576, offset: 0
+[   2.627] INFO  njin  TEXTURE: [ID 183] Texture loaded successfully (1024x512 | GRAY_ALPHA | 1 mipmaps)
+[   2.627] INFO  njin  FONT: Data loaded successfully (24 pixel size | 407 glyphs)
+[   2.628] WARN  njin  FONT: [0x007c] Glyph height is bigger than requested font size: 13 > 12
+[   2.628] WARN  njin  FONT: [0x00a6] Glyph height is bigger than requested font size: 13 > 12
+[   2.630] WARN  njin  FONT: [0x1eac] Glyph height is bigger than requested font size: 13 > 12
+[   2.630] WARN  njin  FONT: [0x1eb6] Glyph height is bigger than requested font size: 13 > 12
+[   2.630] WARN  njin  FONT: [0x1ec6] Glyph height is bigger than requested font size: 13 > 12
+[   2.631] WARN  njin  FONT: [0x1ed4] Glyph height is bigger than requested font size: 13 > 12
+[   2.631] WARN  njin  FONT: [0x1ed8] Glyph height is bigger than requested font size: 13 > 12
+[   2.631] WARN  njin  FONT: Requested codepoints glyphs found: [407/679]
+[   2.632] DEBUG njin  TEXTURE: Load mipmap level 0 (512 x 512), size: 524288, offset: 0
+[   2.633] INFO  njin  TEXTURE: [ID 184] Texture loaded successfully (512x512 | GRAY_ALPHA | 1 mipmaps)
+[   2.633] INFO  njin  FONT: Data loaded successfully (12 pixel size | 407 glyphs)

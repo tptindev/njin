@@ -33,6 +33,10 @@ enum class room_kind : u8 {
   hall_storage,
   office,
   altar, // phòng thờ: the ancestors' room, up at the front of a tube house's top floor
+  // A gang's headquarters (build_interior of a building set_gang_hqs() names):
+  lounge,      // sảnh anh em: where the men sit about, ground floor
+  meeting,     // phòng họp: a long table, the floors between
+  boss_office, // văn phòng đại ca: the top floor
   count
 };
 
@@ -110,6 +114,14 @@ struct interior_layout {
 // building::floors - 1): each floor its own rooms, the stairs in the same
 // place on every floor.
 interior_layout build_interior(const building &b, i32 floor = 0);
+
+// The buildings that are gangs' headquarters (gameplay decides, gang.cpp):
+// they are laid out as one, whatever they were built as. The ground floor is
+// the men's lounge, the floors between meeting rooms, the top floor the
+// boss's office (with one floor, the office walled off at the back of the
+// lounge).
+void set_gang_hqs(std::vector<const building *> hqs);
+bool is_gang_hq(const building &b);
 
 // Puts the furniture into the rooms of a laid-out floor
 // (interior_furnish.cpp; build_interior() calls it).

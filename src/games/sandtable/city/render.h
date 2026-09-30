@@ -42,6 +42,15 @@ struct view_options {
   // name large) and the building (framed); -1 for none.
   i32 hover_district = -1;
   i32 hover_building = -1;
+  // The card telling what is under the mouse (render_debug.cpp): for looking
+  // at the generator's work, off in play.
+  bool debug_card = false;
+  // The gangs' turf on the map: per block, the gang that holds it (-1 none),
+  // drawn in `turf_colours[gang]`; rebuilt when `turf_version` changes.
+  const std::vector<i8> *turf = nullptr;
+  std::vector<rgba> turf_colours;
+  u32 turf_version = 0;
+  bool show_turf = false;
 };
 
 // What the last view_draw() drew, for the HUD: map chunks in view and with

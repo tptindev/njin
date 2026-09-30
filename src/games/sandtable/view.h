@@ -18,6 +18,10 @@ inline vec3 to3d(vec2 p, f32 height = 0.0f) { return {p.x * unit3d, height, p.y 
 
 // The camera for this frame.
 camera3d table_camera();
+
+// How big the HUD and the labels over the map are drawn: their sizes are in
+// pixels of a 720-line window, times this (1.5 at 1080 lines).
+inline f32 ui_scale(const context &ctx) { return clamp(screen_size(ctx).y / 720.0f, 0.75f, 3.0f); }
 // Moves the camera from the keyboard and mouse: WASD or the arrows to pan
 // (Shift faster), Q/E to turn, the wheel to come closer, the middle button to
 // drag the table. `in_hud` is when the mouse is over the UI: no wheel then.

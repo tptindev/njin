@@ -1,4 +1,4 @@
-add_executable(njin_sandtable main.cpp game.cpp world.cpp person.cpp crowd.cpp physics.cpp weather.cpp view.cpp render.cpp audio.cpp
+add_executable(njin_sandtable main.cpp game.cpp world.cpp person.cpp crowd.cpp physics.cpp gang.cpp hud.cpp weather.cpp view.cpp render.cpp audio.cpp
   city/city_map.cpp city/names.cpp city/check.cpp city/gen_core.cpp city/gen_terrain.cpp city/gen_streets.cpp
   city/gen_alleys.cpp city/gen_buildings.cpp city/gen_network.cpp city/gen_life.cpp city/interior.cpp city/interior_furnish.cpp
   city/render_common.cpp city/render_ground.cpp city/render_props.cpp

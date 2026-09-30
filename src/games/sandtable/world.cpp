@@ -1,7 +1,9 @@
 #include "world.h"
 #include "crowd.h"
+#include "gang.h"
 #include "physics.h"
 #include "view.h"
+#include "weather.h"
 
 #include <algorithm>
 #include <cmath>
@@ -85,9 +87,23 @@ void world_generate(context &ctx, u32 seed) {
   city::view_build(ctx, map);
   physics_build(ctx, map);
   crowd_spawn(ctx, seed);
+  gang_start(ctx, seed);
 }
 
 void world_input(context &ctx) {
+  // A popup has the keys and the mouse.
+  // The gangs' turf, for the map (set each frame: a reset view keeps it).
+  view.turf = &turf_owner();
+  if (view.turf_colours.size() != gangs().size()) {
+    view.turf_colours.clear();
+    for (const gang_state &g : gangs())
+      view.turf_colours.push_back(g.colour);
+  }
+  view.turf_version = turf_version();
+  if (state.popup_open) {
+    view.hover_district = view.hover_building = -1;
+    return;
+  }
   if (key_pressed(ctx, key_n))
     world_generate(ctx, state.seed + 1);
   if (key_pressed(ctx, key_b) && state.seed > 1)
@@ -106,6 +122,8 @@ void world_input(context &ctx) {
     view.markers = !view.markers;
   if (key_pressed(ctx, key_c))
     cut_around = !cut_around;
+  if (key_pressed(ctx, key_t))
+    state.hour = darkness() < 0.5f ? 21.0f : 12.0f; // toggle night/day
   if (key_pressed(ctx, key_escape) && view.selected >= 0)
     world_unfocus();
   // What the mouse is over, to light up.
@@ -141,6 +159,7 @@ void world_input(context &ctx) {
 }
 
 void world_cut_around(bool on) { cut_around = on; }
+bool world_cut_around_on() { return cut_around; }
 
 void world_update_view() {
   view.cut.clear();

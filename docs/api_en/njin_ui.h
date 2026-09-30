@@ -150,7 +150,10 @@ void ui_end(context &ctx);
 /// @param columns Number of widgets in the row.
 void ui_row(context &ctx, i32 columns);
 
-/// A line of text. @param ctx Engine context. @param text Text (UTF-8).
+/// A line of text. In a row (ui_row()) it stands as tall as a widget, its text
+/// in the middle top to bottom, level with a button beside it.
+/// @param ctx Engine context.
+/// @param text Text (UTF-8).
 void ui_label(context &ctx, const char *text);
 
 /// Empty space. @param ctx Engine context. @param height Height, pixels (before `scale`).

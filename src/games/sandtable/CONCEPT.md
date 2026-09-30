@@ -41,7 +41,8 @@ các chỗ có thể đặt trụ sở băng.
   một nhóm bước sinh. `check.cpp`: kiểm tra. `render_*.cpp`: phần vẽ.
 - `world.*`: thành phố đang chơi. Phím: N/B seed sau/trước, R seed ngẫu
   nhiên, F1 lớp phủ (quận, khối, đi bộ, xe), F2 nhãn, F3 đồ thị đường,
-  F4 ghim. Rê chuột để xem khối, nhà, cơ sở: quận dưới chuột được tô sáng
+  F4 ghim, T chuyển ngày (12:00) / đêm (21:00) (`weather.cpp` tính màu trời,
+  ánh sáng theo `state.hour`; không tự trôi). Rê chuột để xem khối, nhà, cơ sở: quận dưới chuột được tô sáng
   nhẹ, viền sáng quanh ranh giới và hiện tên lớn ngay trên bản đồ; nhà dưới
   chuột có khung sáng quanh nó (`city/render_hover.cpp`). Nhấp chuột vào một nhà để
   focus nó: chỉ nhà đó được mở ra (bỏ mái và các tầng trên, tường tầng trệt

@@ -36,6 +36,9 @@ inline constexpr rgba col_bad = rgb(235, 65, 60);
 
 struct game_state {
   f32 hour = 10.0f; // time of day, 0 to 24 (weather.h)
+  i32 day = 1;       // the gang's calendar (gang.h)
+  f32 speed = 1.0f;  // how fast the town's clock and the gang's men go: 0, 1 or 3
+  bool popup_open = false; // a HUD popup is up (hud.h): the clock stops, the map takes no input
   u32 seed = 1;      // the city's (city.h)
 
   // The camera (view.h): it looks at `cam_target` (table coordinates) from
