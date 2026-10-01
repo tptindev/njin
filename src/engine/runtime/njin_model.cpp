@@ -5,6 +5,7 @@
 #include <raymath.h>
 #include <rlgl.h>
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -105,7 +106,180 @@ void load_skin(model_slot &slot, const std::string &path, const char *name) {
 }
 } // namespace
 
-model_handle model_store_load(model_store &store, const char *path) {
+namespace {
+bool name_has(const char *name, const char *const *list, u32 count) {
+  if (name == nullptr || list == nullptr)
+    return false;
+  for (u32 i = 0; i < count; i++)
+    if (list[i] != nullptr && std::strstr(name, list[i]) != nullptr)
+      return true;
+  return false;
+}
+
+// The node name of each of raylib's meshes: LoadGLTF makes one mesh per
+// triangle primitive, visiting the nodes in file order (rmodels.c). Empty
+// when the file does not parse or the count does not match.
+std::vector<std::string> mesh_node_names(const cgltf_data *data, i32 mesh_count) {
+  std::vector<std::string> names;
+  for (cgltf_size i = 0; i < data->nodes_count; i++) {
+    const cgltf_node &node = data->nodes[i];
+    if (node.mesh == nullptr)
+      continue;
+    for (cgltf_size p = 0; p < node.mesh->primitives_count; p++)
+      if (node.mesh->primitives[p].type == cgltf_primitive_type_triangles)
+        names.push_back(node.name != nullptr ? node.name : "");
+  }
+  if ((i32)names.size() != mesh_count)
+    names.clear();
+  return names;
+}
+
+// Copies `count` items of `n` floats (or bytes) each, or `fill` when the mesh has none.
+template <typename T> void append(std::vector<T> &out, const T *src, i32 count, i32 n, T fill) {
+  for (i32 i = 0; i < count * n; i++)
+    out.push_back(src != nullptr ? src[i] : fill);
+}
+
+template <typename T> T *to_raylib_array(const std::vector<T> &v) {
+  T *p = (T *)MemAlloc((u32)(v.size() * sizeof(T)));
+  std::copy(v.begin(), v.end(), p);
+  return p;
+}
+
+// The meshes in `keep`, sharing material `material`, as few meshes as their
+// 16-bit indices allow. Bone data is dropped: the result is static.
+void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<Mesh> &out_meshes,
+                  std::vector<i32> &out_materials) {
+  std::vector<i32> materials;
+  for (const i32 k : keep)
+    if (std::find(materials.begin(), materials.end(), model.meshMaterial[k]) == materials.end())
+      materials.push_back(model.meshMaterial[k]);
+  for (const i32 material : materials) {
+    std::vector<f32> pos, nrm, uv, tan;
+    std::vector<u8> col;
+    std::vector<unsigned short> idx;
+    bool has_nrm = false, has_uv = false, has_tan = false, has_col = false;
+    for (const i32 k : keep)
+      if (model.meshMaterial[k] == material) {
+        const Mesh &m = model.meshes[k];
+        has_nrm |= m.normals != nullptr;
+        has_uv |= m.texcoords != nullptr;
+        has_tan |= m.tangents != nullptr;
+        has_col |= m.colors != nullptr;
+      }
+    const auto flush = [&]() {
+      if (pos.empty())
+        return;
+      Mesh m{};
+      m.vertexCount = (i32)(pos.size() / 3);
+      m.triangleCount = (i32)(idx.size() / 3);
+      m.vertices = to_raylib_array(pos);
+      m.normals = has_nrm ? to_raylib_array(nrm) : nullptr;
+      m.texcoords = to_raylib_array(uv.empty() ? std::vector<f32>(pos.size() / 3 * 2, 0.0f) : uv);
+      m.tangents = has_tan ? to_raylib_array(tan) : nullptr;
+      m.colors = has_col ? to_raylib_array(col) : nullptr;
+      m.indices = to_raylib_array(idx);
+      UploadMesh(&m, false);
+      out_meshes.push_back(m);
+      out_materials.push_back(material);
+      pos.clear(), nrm.clear(), uv.clear(), tan.clear(), col.clear(), idx.clear();
+    };
+    for (const i32 k : keep) {
+      if (model.meshMaterial[k] != material)
+        continue;
+      const Mesh &m = model.meshes[k];
+      if (m.vertices == nullptr || m.vertexCount <= 0)
+        continue;
+      if (pos.size() / 3 + (usize)m.vertexCount > 65535)
+        flush();
+      const u32 base = (u32)(pos.size() / 3);
+      append(pos, m.vertices, m.vertexCount, 3, 0.0f);
+      if (has_nrm)
+        append(nrm, m.normals, m.vertexCount, 3, 0.0f);
+      if (has_uv)
+        append(uv, m.texcoords, m.vertexCount, 2, 0.0f);
+      if (has_tan)
+        append(tan, m.tangents, m.vertexCount, 4, 0.0f);
+      if (has_col)
+        append(col, m.colors, m.vertexCount, 4, (u8)255);
+      if (m.indices != nullptr)
+        for (i32 i = 0; i < m.triangleCount * 3; i++)
+          idx.push_back((unsigned short)(base + m.indices[i]));
+      else
+        for (i32 i = 0; i < m.vertexCount; i++)
+          idx.push_back((unsigned short)(base + (u32)i));
+    }
+    flush();
+  }
+}
+
+// Leaves out the meshes of the nodes `desc` filters out, and merges the rest
+// by material when it asks. False when nothing is left.
+bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &desc, const char *path) {
+  const bool filtering = desc.skip_count > 0 || desc.only_count > 0;
+  if (!filtering && !desc.merge)
+    return true;
+  const std::vector<std::string> names = mesh_node_names(data, model.meshCount);
+  if (filtering && names.empty()) {
+    NJIN_WARN("model: %s: its meshes do not follow its nodes, the node filter is not applied", path);
+    return true;
+  }
+  std::vector<i32> keep;
+  for (i32 i = 0; i < model.meshCount; i++) {
+    const char *name = names.empty() ? "" : names[(usize)i].c_str();
+    if (desc.only_count > 0 && !name_has(name, desc.only_nodes, desc.only_count))
+      continue;
+    if (name_has(name, desc.skip_nodes, desc.skip_count))
+      continue;
+    keep.push_back(i);
+  }
+  if (keep.empty())
+    return false;
+  std::vector<Mesh> meshes;
+  std::vector<i32> materials;
+  if (desc.merge) {
+    merge_meshes(model, keep, meshes, materials);
+  } else {
+    for (const i32 k : keep) {
+      meshes.push_back(model.meshes[k]);
+      materials.push_back(model.meshMaterial[k]);
+      model.meshes[k] = Mesh{}; // moved: not unloaded below
+    }
+  }
+  for (i32 i = 0; i < model.meshCount; i++)
+    if (model.meshes[i].vaoId != 0 || model.meshes[i].vertices != nullptr)
+      UnloadMesh(model.meshes[i]);
+  RL_FREE(model.meshes);
+  RL_FREE(model.meshMaterial);
+  model.meshCount = (i32)meshes.size();
+  model.meshes = (Mesh *)RL_CALLOC(meshes.size(), sizeof(Mesh));
+  model.meshMaterial = (i32 *)RL_CALLOC(meshes.size(), sizeof(i32));
+  std::copy(meshes.begin(), meshes.end(), model.meshes);
+  std::copy(materials.begin(), materials.end(), model.meshMaterial);
+  return model.meshCount > 0;
+}
+
+// KHR_materials_transmission: raylib reads no such thing, so a pane of clear
+// glass would be an opaque sheet of its base colour. Drawn see-through
+// instead (render3d's translucent pass), lit like glass, casting no shadow.
+void apply_transmission(model_slot &slot, const cgltf_data *data) {
+  if ((usize)slot.model.materialCount != data->materials_count + 1)
+    return;
+  for (cgltf_size i = 0; i < data->materials_count; i++) {
+    const cgltf_material &m = data->materials[i];
+    if (!m.has_transmission || m.transmission.transmission_factor <= 0.0f)
+      continue;
+    model_material &mm = slot.materials[i + 1]; // raylib's default material is first
+    mm.color.a *= std::clamp(1.0f - 0.78f * m.transmission.transmission_factor, 0.08f, 1.0f);
+    mm.surface.cast_shadows = false;
+    mm.surface.specular = 0.9f;
+    mm.surface.shininess = 90.0f;
+  }
+}
+} // namespace
+
+model_handle model_store_load(model_store &store, const model_load_desc &desc) {
+  const char *path = desc.path;
   if (path == nullptr) {
     NJIN_WARN("model: path is null");
     return model_handle{};
@@ -116,9 +290,23 @@ model_handle model_store_load(model_store &store, const char *path) {
     NJIN_WARN("model: file not found: %s", path);
     return model_handle{};
   }
-  const Model model = LoadModel(resolved.c_str());
+  Model model = LoadModel(resolved.c_str());
   if (!model_loaded(model)) {
     NJIN_WARN("model: failed to load: %s", path);
+    return model_handle{};
+  }
+  cgltf_data *gltf = nullptr;
+  const char *ext = GetFileExtension(resolved.c_str());
+  const bool is_gltf = ext != nullptr && (TextIsEqual(TextToLower(ext), ".glb") || TextIsEqual(TextToLower(ext), ".gltf"));
+  if (is_gltf) {
+    cgltf_options options{};
+    if (cgltf_parse_file(&options, resolved.c_str(), &gltf) != cgltf_result_success)
+      gltf = nullptr;
+  }
+  if (gltf != nullptr && !filter_model(model, gltf, desc, path)) {
+    NJIN_WARN("model: %s: the node filter leaves no mesh", path);
+    cgltf_free(gltf);
+    UnloadModel(model);
     return model_handle{};
   }
   model_slot slot;
@@ -132,7 +320,12 @@ model_handle model_store_load(model_store &store, const char *path) {
         .color = {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f},
         .emission_color = {e.r / 255.0f, e.g / 255.0f, e.b / 255.0f, 1.0f}});
   }
-  load_skin(slot, resolved, path);
+  if (gltf != nullptr) {
+    apply_transmission(slot, gltf);
+    cgltf_free(gltf);
+  }
+  if (!desc.merge)
+    load_skin(slot, resolved, path);
   store.slots.push_back(std::move(slot));
   return model_handle{.id = (u32)store.slots.size()};
 }

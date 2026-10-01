@@ -1,0 +1,11 @@
+{
+  "removed": [
+    {
+      "path": "assets\\models\\procedural_building\\clay\\window_glazing_review.png",
+      "files": 1,
+      "bytes": 1064237
+    }
+  ],
+  "files": 1.0,
+  "bytes": 1064237.0
+}

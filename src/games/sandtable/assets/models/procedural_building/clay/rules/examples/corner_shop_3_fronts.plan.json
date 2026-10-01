@@ -1,0 +1,954 @@
+{
+  "schema": "sandtable.building-plan.v1",
+  "rule_version": 1,
+  "kit_revision": "unified-kit-v3",
+  "seed": 202,
+  "archetype": "corner_shop_3_fronts",
+  "style": "Brick",
+  "space_preset": "spacious",
+  "width_m": 12,
+  "depth_m": 10,
+  "footprint": {
+    "shape": "CornerShopHouse3Fronts",
+    "outer_m": [
+      [
+        0,
+        0
+      ],
+      [
+        12,
+        0
+      ],
+      [
+        12,
+        10
+      ],
+      [
+        0,
+        10
+      ]
+    ],
+    "holes_m": [],
+    "radius_m": null
+  },
+  "road_frontages": [
+    "south",
+    "east",
+    "west"
+  ],
+  "floors": [
+    {
+      "level": 0,
+      "elevation_m": 0,
+      "rooms": [
+        {
+          "id": "f0_front",
+          "type": "shop",
+          "polygon_m": [
+            [
+              0.2,
+              0.2
+            ],
+            [
+              11.8,
+              0.2
+            ],
+            [
+              11.8,
+              4.44
+            ],
+            [
+              0.2,
+              4.44
+            ]
+          ],
+          "net_area_m2": 49.184,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south",
+            "east",
+            "west"
+          ],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f0_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.2,
+              4.56
+            ],
+            [
+              3.08,
+              4.56
+            ],
+            [
+              3.08,
+              9.8
+            ],
+            [
+              0.2,
+              9.8
+            ]
+          ],
+          "net_area_m2": 15.0912,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0
+        },
+        {
+          "id": "f0_hall",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              3.2,
+              4.56
+            ],
+            [
+              11.8,
+              4.56
+            ],
+            [
+              11.8,
+              6.06
+            ],
+            [
+              3.2,
+              6.06
+            ]
+          ],
+          "net_area_m2": 12.9,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0
+        },
+        {
+          "id": "f0_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              3.2,
+              6.18
+            ],
+            [
+              5.5,
+              6.18
+            ],
+            [
+              5.5,
+              9.8
+            ],
+            [
+              3.2,
+              9.8
+            ]
+          ],
+          "net_area_m2": 8.326,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f0_service",
+          "type": "storage",
+          "polygon_m": [
+            [
+              5.62,
+              6.18
+            ],
+            [
+              7.92,
+              6.18
+            ],
+            [
+              7.92,
+              9.8
+            ],
+            [
+              5.62,
+              9.8
+            ]
+          ],
+          "net_area_m2": 8.326,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f0_rear",
+          "type": "office",
+          "polygon_m": [
+            [
+              8.04,
+              6.18
+            ],
+            [
+              11.8,
+              6.18
+            ],
+            [
+              11.8,
+              9.8
+            ],
+            [
+              8.04,
+              9.8
+            ]
+          ],
+          "net_area_m2": 13.6112,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "east"
+          ],
+          "furniture_coverage_target": 0.2
+        }
+      ],
+      "slab_voids_m": []
+    },
+    {
+      "level": 1,
+      "elevation_m": 3,
+      "rooms": [
+        {
+          "id": "f1_front",
+          "type": "living_dining_kitchen",
+          "polygon_m": [
+            [
+              0.2,
+              0.2
+            ],
+            [
+              5.94,
+              0.2
+            ],
+            [
+              5.94,
+              4.44
+            ],
+            [
+              0.2,
+              4.44
+            ]
+          ],
+          "net_area_m2": 24.3376,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south"
+          ],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f1_east",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              6.06,
+              0.2
+            ],
+            [
+              11.8,
+              0.2
+            ],
+            [
+              11.8,
+              4.44
+            ],
+            [
+              6.06,
+              4.44
+            ]
+          ],
+          "net_area_m2": 24.3376,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "east",
+            "south"
+          ],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f1_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.2,
+              4.56
+            ],
+            [
+              3.08,
+              4.56
+            ],
+            [
+              3.08,
+              9.8
+            ],
+            [
+              0.2,
+              9.8
+            ]
+          ],
+          "net_area_m2": 5.2864,
+          "floor_voids_m": [
+            [
+              [
+                0.22,
+                5.86
+              ],
+              [
+                1.62,
+                5.86
+              ],
+              [
+                1.62,
+                6.23
+              ],
+              [
+                3.06,
+                6.23
+              ],
+              [
+                3.06,
+                9.5
+              ],
+              [
+                0.22,
+                9.5
+              ]
+            ]
+          ],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0
+        },
+        {
+          "id": "f1_hall",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              3.2,
+              4.56
+            ],
+            [
+              11.8,
+              4.56
+            ],
+            [
+              11.8,
+              6.06
+            ],
+            [
+              3.2,
+              6.06
+            ]
+          ],
+          "net_area_m2": 12.9,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0
+        },
+        {
+          "id": "f1_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              3.2,
+              6.18
+            ],
+            [
+              5.5,
+              6.18
+            ],
+            [
+              5.5,
+              9.8
+            ],
+            [
+              3.2,
+              9.8
+            ]
+          ],
+          "net_area_m2": 8.326,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f1_service",
+          "type": "utility",
+          "polygon_m": [
+            [
+              5.62,
+              6.18
+            ],
+            [
+              7.92,
+              6.18
+            ],
+            [
+              7.92,
+              9.8
+            ],
+            [
+              5.62,
+              9.8
+            ]
+          ],
+          "net_area_m2": 8.326,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.2
+        },
+        {
+          "id": "f1_rear",
+          "type": "office",
+          "polygon_m": [
+            [
+              8.04,
+              6.18
+            ],
+            [
+              11.8,
+              6.18
+            ],
+            [
+              11.8,
+              9.8
+            ],
+            [
+              8.04,
+              9.8
+            ]
+          ],
+          "net_area_m2": 13.6112,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "east"
+          ],
+          "furniture_coverage_target": 0.2
+        }
+      ],
+      "slab_voids_m": [
+        [
+          [
+            0.22,
+            5.86
+          ],
+          [
+            1.62,
+            5.86
+          ],
+          [
+            1.62,
+            6.23
+          ],
+          [
+            3.06,
+            6.23
+          ],
+          [
+            3.06,
+            9.5
+          ],
+          [
+            0.22,
+            9.5
+          ]
+        ]
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p00",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_front",
+      "to_room": "f0_hall",
+      "center_m": [
+        5,
+        4.5
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.6,
+      "net_clear_width_m": 1.6,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p01",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_hall",
+      "to_room": "f0_stair",
+      "center_m": [
+        3.14,
+        5.4
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p02",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_hall",
+      "to_room": "f0_bath",
+      "center_m": [
+        4.2,
+        6.12
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p03",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_hall",
+      "to_room": "f0_service",
+      "center_m": [
+        6.7,
+        6.12
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p04",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_hall",
+      "to_room": "f0_rear",
+      "center_m": [
+        9.5,
+        6.12
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p05",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_front",
+      "to_room": "f1_hall",
+      "center_m": [
+        5,
+        4.5
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.6,
+      "net_clear_width_m": 1.6,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p06",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_east",
+      "to_room": "f1_hall",
+      "center_m": [
+        10,
+        4.5
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p07",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_hall",
+      "to_room": "f1_stair",
+      "center_m": [
+        3.14,
+        5.4
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p08",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_hall",
+      "to_room": "f1_bath",
+      "center_m": [
+        4.2,
+        6.12
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p09",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_hall",
+      "to_room": "f1_service",
+      "center_m": [
+        6.7,
+        6.12
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p10",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_hall",
+      "to_room": "f1_rear",
+      "center_m": [
+        9.5,
+        6.12
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": null
+    },
+    {
+      "id": "p11",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "outside",
+      "to_room": "f0_front",
+      "center_m": [
+        5,
+        0.1
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.05,
+      "net_clear_width_m": 0.9,
+      "height_m": 2.35,
+      "module_id": "Brick/DoorRigged"
+    },
+    {
+      "id": "vertical_main",
+      "floor_from": 0,
+      "floor_to": 1,
+      "from_room": "f0_stair",
+      "to_room": "f1_stair",
+      "center_m": [
+        2.34,
+        5.5
+      ],
+      "axis": "vertical",
+      "normal_m": [
+        0,
+        0
+      ],
+      "kind": "stair_link",
+      "aperture_width_m": 1.2,
+      "net_clear_width_m": 1.2,
+      "height_m": 2.8,
+      "module_id": null
+    }
+  ],
+  "stair_core": {
+    "id": "main",
+    "type": "dogleg",
+    "room_ids": [
+      "f0_stair",
+      "f1_stair"
+    ],
+    "clear_width_m": 1.2,
+    "riser_m": 0.2,
+    "tread_m": 0.25,
+    "split_risers": [
+      8,
+      7
+    ],
+    "lower_flight_m": [
+      0.34,
+      5.98,
+      1.54,
+      7.98
+    ],
+    "upper_flight_m": [
+      1.74,
+      6.23,
+      2.94,
+      7.98
+    ],
+    "lower_landing_m": [
+      0.34,
+      4.56,
+      1.54,
+      5.98
+    ],
+    "turn_landing_m": [
+      0.34,
+      7.98,
+      2.94,
+      9.38
+    ],
+    "upper_landing_m": [
+      1.74,
+      4.83,
+      2.94,
+      6.23
+    ],
+    "walking_line_m": [
+      [
+        0.94,
+        5.5,
+        0
+      ],
+      [
+        0.94,
+        5.98,
+        0
+      ],
+      [
+        0.94,
+        7.98,
+        1.6
+      ],
+      [
+        0.94,
+        8.68,
+        1.6
+      ],
+      [
+        2.34,
+        8.68,
+        1.6
+      ],
+      [
+        2.34,
+        7.98,
+        1.6
+      ],
+      [
+        2.34,
+        6.23,
+        3
+      ],
+      [
+        2.34,
+        5.5,
+        3
+      ]
+    ],
+    "geometry_source": "runtime_generated"
+  },
+  "required_module_ids": [
+    "Brick/Wall",
+    "Brick/Window",
+    "Brick/Shopfront",
+    "Brick/DoorRigged",
+    "Brick/Floor",
+    "Brick/FloorBand",
+    "Brick/Coping"
+  ],
+  "runtime_generated_geometry": [
+    "interior_partitions",
+    "interior_portal_frames_and_leaves",
+    "dogleg_stair",
+    "ceiling",
+    "slab_with_voids"
+  ],
+  "provenance": "Measured rule example, not an interior already authored in the Blender scene.",
+  "daylight_apertures": [
+    {
+      "floor": 0,
+      "room_id": "f0_front",
+      "center_m": [
+        1,
+        0
+      ],
+      "inward_normal": [
+        0,
+        1
+      ],
+      "module_id": "Brick/Shopfront",
+      "glazed_area_m2": 3.8
+    },
+    {
+      "floor": 0,
+      "room_id": "f0_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        0,
+        1
+      ],
+      "module_id": "Brick/Shopfront",
+      "glazed_area_m2": 3.8
+    },
+    {
+      "floor": 0,
+      "room_id": "f0_rear",
+      "center_m": [
+        12,
+        7
+      ],
+      "inward_normal": [
+        -1,
+        0
+      ],
+      "module_id": "Brick/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_front",
+      "center_m": [
+        1,
+        0
+      ],
+      "inward_normal": [
+        0,
+        1
+      ],
+      "module_id": "Brick/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        0,
+        1
+      ],
+      "module_id": "Brick/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_east",
+      "center_m": [
+        7,
+        0
+      ],
+      "inward_normal": [
+        0,
+        1
+      ],
+      "module_id": "Brick/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_east",
+      "center_m": [
+        9,
+        0
+      ],
+      "inward_normal": [
+        0,
+        1
+      ],
+      "module_id": "Brick/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_rear",
+      "center_m": [
+        12,
+        7
+      ],
+      "inward_normal": [
+        -1,
+        0
+      ],
+      "module_id": "Brick/Window",
+      "glazed_area_m2": 1.5
+    }
+  ]
+}

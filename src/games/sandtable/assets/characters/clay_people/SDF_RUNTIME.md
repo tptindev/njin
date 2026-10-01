@@ -56,9 +56,8 @@ tra trực quan ảnh cận, các biến thể và tư thế. `clay_sdf_walk.gif
 từ 24 frame renderer game, không phải render Blender. Không đo FPS bằng thời
 gian test vì việc ghi PNG làm tăng thời gian mỗi frame.
 
-Trong phiên này game khác đang giữ executable chung; bản kiểm tra riêng nằm
-tại `.clay-preview/njin_clay_preview.exe` trong thư mục Sandtable (không đưa
-binary vào Git). Bản game đang mở cần build/chạy lại để nhận thay đổi mới.
+Bản EXE preview riêng cùng ảnh/log kiểm tra đã được dọn để giảm dung lượng.
+Build lại game để chạy các chế độ kiểm tra ở trên.
 
 Các file `.blend`/`.glb` cũ là bản nghiên cứu mesh và rig, **không chứa shader
 ray marching này**. GLB thông thường không lưu được renderer SDF procedural.

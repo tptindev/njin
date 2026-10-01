@@ -25,11 +25,12 @@ f32 base = 0.0f;
 
 // The floors below the open one, whole, from outside.
 instances lower_boxes, lower_detail, lower_tanks, lower_glow;
-std::array<instances, piece_count> lower_parts;
+std::vector<instances> lower_parts; // one per module of the kit (render_kit.h)
 kit_sink lower_sink() {
   kit_sink s{{}, {lower_boxes, lower_detail, lower_tanks, lower_glow}};
-  for (i32 k = 0; k < piece_count; ++k)
-    s.parts[static_cast<size_t>(k)] = &lower_parts[static_cast<size_t>(k)];
+  lower_parts.resize(static_cast<size_t>(kit_module_count()));
+  for (instances &p : lower_parts)
+    s.parts.push_back(&p);
   return s;
 }
 
@@ -229,7 +230,8 @@ void cutaway_draw(context &ctx, const city_map &map, const view_options &opt) {
   lower_glow.clear();
   lights_pending.clear();
   for (const i32 id : opt.cut)
-    if (id >= 0 && id < static_cast<i32>(map.buildings.size()))
+    if (id >= 0 && id < static_cast<i32>(map.buildings.size()) &&
+        !pbk_cut_draw(ctx, id, id == opt.selected || opt.around ? opt.floor : 0))
       cut_open(map.buildings[static_cast<size_t>(id)], map, id == opt.selected || opt.around ? opt.floor : 0);
   if (opt.selected >= 0 && opt.selected < static_cast<i32>(map.buildings.size()))
     outline_of(map.buildings[static_cast<size_t>(opt.selected)]);
@@ -250,12 +252,12 @@ void cutaway_draw(context &ctx, const city_map &map, const view_options &opt) {
   caps.upload(ctx);
   material3d_set(ctx, {.specular = 0.05f, .shininess = 8.0f});
   caps.draw(ctx, mesh3d_cube);
-  for (i32 k = 0; k < piece_count; ++k) {
+  for (i32 k = 0; k < static_cast<i32>(lower_parts.size()); ++k) {
     instances &p = lower_parts[static_cast<size_t>(k)];
-    if (p.count() == 0)
+    if (p.count() == 0 || kit_model(k).id == 0)
       continue;
     p.upload(ctx);
-    draw_instanced3d(ctx, kit_model(static_cast<piece>(k)), p.buffer, 0, p.count());
+    draw_instanced3d(ctx, kit_model(k), p.buffer, 0, p.count());
   }
   lower_boxes.upload(ctx);
   lower_detail.upload(ctx);

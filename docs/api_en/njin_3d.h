@@ -332,6 +332,43 @@ void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 bl
 /// or broken.
 model_handle model_load(context &ctx, const char *path);
 
+/// How model_load() loads part of a glTF file: leaving out or keeping only
+/// some nodes, and merging the meshes that share a material into one.
+///
+/// Node names match as substrings: `"substrate"` matches the node
+/// `PBK_substrate.001`. Nodes without a mesh are not affected. The filter is
+/// ignored for OBJ files.
+struct model_load_desc {
+  const char *path = nullptr;               ///< File path, as for model_load().
+  const char *const *skip_nodes = nullptr;  ///< Leave out the meshes of nodes whose name contains one of these.
+  u32 skip_count = 0;                       ///< Number of strings in `skip_nodes`.
+  const char *const *only_nodes = nullptr;  ///< If set: keep only the meshes of nodes whose name contains one of these.
+  u32 only_count = 0;                       ///< Number of strings in `only_nodes`.
+  /// Merge the meshes that use the same material into one mesh (at most 65535
+  /// vertices each), so draw_instanced3d() issues fewer draws. Merged meshes
+  /// drop their bone data: the model is drawn in the file's rest pose, as a
+  /// still object.
+  bool merge = false;
+};
+
+/// Loads a model like model_load(), with the node filter and mesh merging of `desc`.
+///
+/// glTF materials with `KHR_materials_transmission` (clear glass) are drawn
+/// see-through: opacity from `transmissionFactor`, no shadow, drawn after
+/// every opaque part.
+///
+/// @code
+/// // A window frame without its piece of wall, merged by material.
+/// const char *skip[] = {"substrate", "floor_band"};
+/// const njin::model_handle frame =
+///     njin::model_load(ctx, {.path = "assets/window.glb", .skip_nodes = skip, .skip_count = 2, .merge = true});
+/// @endcode
+/// @param ctx Engine context.
+/// @param desc The file, the node filter and whether to merge meshes.
+/// @return Handle of the model, or an invalid handle if the file is missing,
+/// broken, or the filter keeps no mesh.
+model_handle model_load(context &ctx, const model_load_desc &desc);
+
 /// Frees a model along with its textures. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Model to free.

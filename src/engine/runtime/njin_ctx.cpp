@@ -267,8 +267,10 @@ void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
 }
 
 model_handle model_load(context &ctx, const char *path) {
-  return model_store_load(ctx.model, path);
+  return model_store_load(ctx.model, model_load_desc{.path = path});
 }
+
+model_handle model_load(context &ctx, const model_load_desc &desc) { return model_store_load(ctx.model, desc); }
 
 void model_unload(context &ctx, model_handle handle) {
   model_store_unload(ctx.model, handle);

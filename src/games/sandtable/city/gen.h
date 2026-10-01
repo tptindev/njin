@@ -6,6 +6,8 @@
 #include "city.h"
 #include "geometry.h"
 
+#include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -50,6 +52,15 @@ constexpr f32 alley_w = 18.0f;
 constexpr f32 min_block_area = 110.0f * 100.0f;
 constexpr f32 min_block_thick = 80.0f;
 constexpr f32 floor_h = floor_height;
+
+// Lots in whole bays of the building kit (2 m), at least `min_bays`: so
+// every facade is whole modules and the kit's rules can lay the inside out.
+constexpr f32 bay_w = 2.0f * units_per_metre;
+inline f32 in_bays(f32 len, i32 min_bays) {
+  return std::max(static_cast<f32>(min_bays), std::round(len / bay_w)) * bay_w;
+}
+// The kit's rules hold a building to 8 floors (building_rules.json).
+constexpr i32 max_floors = 8;
 
 // --- Name lists (names.cpp) ------------------------------------------------------
 

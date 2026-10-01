@@ -134,6 +134,9 @@ struct render3d_state {
   bool ready = false;  // shaders and meshes created
   bool failed = false; // creating them failed once: do not retry every frame
   bool active = false; // between begin_3d and end_3d
+  // end_3d's second pass: only the model parts whose material is see-through
+  // (alpha below 1: glTF transmission), after every opaque one, depth not written.
+  bool translucent_pass = false;
   Shader lit{};
   Shader sdf{};        // draw_shape3d, both passes
   Shader depth{};      // shadow pass, meshes

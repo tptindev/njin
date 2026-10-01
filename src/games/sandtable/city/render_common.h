@@ -51,6 +51,8 @@ struct instances {
   // In 3D units: position (the mesh's origin), size, colour, turn round y,
   // and tip round the mesh's own x first (degrees).
   void add3(vec3 pos, vec3 size, rgba col, f32 yaw = 0.0f, f32 pitch = 0.0f);
+  // Turned about x, y and z (degrees, njin's transform3d order), scaled `scale` evenly.
+  void add_turned(vec3 pos, f32 scale, rgba col, vec3 turn);
   // A box in table terms: centred on `at`, standing on `base` (world units
   // up), `size` = (along `angle`, height, across), world units.
   void box(vec2 at, f32 base, vec3 size, f32 angle, rgba col);
@@ -116,6 +118,20 @@ void cutaway_shutdown(context &ctx);   // game exit only: the kit's models
 void debug_build(context &ctx, const city_map &map);        // render_debug.cpp
 void debug_draw(context &ctx, const city_map &map, const view_options &opt);
 void debug_cleanup(context &ctx);
+
+// render_pbk.cpp: the houses of the procedural building kit, made near the
+// camera on a worker thread; the old kit draws a house until it is ready.
+namespace pbk { struct building3d; }
+void pbk_build(context &ctx, const city_map &map);
+void pbk_update(context &ctx, f32 dt);
+void pbk_draw(context &ctx, const view_options &opt);
+void pbk_cleanup(context &ctx);
+void pbk_shutdown(context &ctx);
+bool pbk_ready(i32 building);
+const std::vector<i32> &pbk_ready_list(); // sorted
+pbk::building3d *pbk_building(i32 building);
+// Draws building `id` cut open at `floor` if the kit made it; false if not.
+bool pbk_cut_draw(context &ctx, i32 id, i32 floor);
 
 void hover_build(context &ctx, const city_map &map);        // render_hover.cpp
 void hover_draw(context &ctx, const city_map &map, const view_options &opt);

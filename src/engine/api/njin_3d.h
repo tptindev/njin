@@ -309,6 +309,39 @@ void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 bl
 /// @return Handle của model, hoặc handle không hợp lệ nếu file thiếu hay lỗi.
 model_handle model_load(context &ctx, const char *path);
 
+/// Cách model_load() nạp một phần của file glTF: bỏ hay chỉ giữ một số node,
+/// và gộp các mesh cùng vật liệu thành một.
+///
+/// Tên node so theo chuỗi con: `"substrate"` khớp node `PBK_substrate.001`.
+/// Node không có mesh không bị ảnh hưởng. Với file OBJ thì bộ lọc bị bỏ qua.
+struct model_load_desc {
+  const char *path = nullptr;               ///< Đường dẫn file, như model_load().
+  const char *const *skip_nodes = nullptr;  ///< Bỏ mesh của node có tên chứa một trong các chuỗi này.
+  u32 skip_count = 0;                       ///< Số chuỗi trong `skip_nodes`.
+  const char *const *only_nodes = nullptr;  ///< Nếu có: chỉ giữ mesh của node có tên chứa một trong các chuỗi này.
+  u32 only_count = 0;                       ///< Số chuỗi trong `only_nodes`.
+  /// Gộp các mesh dùng cùng vật liệu thành một mesh (mỗi mesh tối đa 65535 đỉnh),
+  /// để draw_instanced3d() vẽ ít lệnh hơn. Mesh gộp bỏ dữ liệu xương: model vẽ ở
+  /// tư thế gốc trong file, như đồ vật đứng yên.
+  bool merge = false;
+};
+
+/// Nạp model như model_load(), với bộ lọc node và gộp mesh của `desc`.
+///
+/// Vật liệu glTF có `KHR_materials_transmission` (kính trong) được vẽ trong
+/// suốt: độ mờ theo `transmissionFactor`, không đổ bóng, vẽ sau mọi phần đục.
+///
+/// @code
+/// // Khung cửa sổ không có mảng tường của nó, gộp theo vật liệu.
+/// const char *skip[] = {"substrate", "floor_band"};
+/// const njin::model_handle frame =
+///     njin::model_load(ctx, {.path = "assets/window.glb", .skip_nodes = skip, .skip_count = 2, .merge = true});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc File, bộ lọc node và có gộp mesh hay không.
+/// @return Handle của model, hoặc handle không hợp lệ nếu file thiếu, lỗi, hay bộ lọc không giữ mesh nào.
+model_handle model_load(context &ctx, const model_load_desc &desc);
+
 /// Giải phóng model cùng các texture của nó. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Model cần giải phóng.

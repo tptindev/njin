@@ -1,5 +1,8 @@
 #include "render_lod.h"
 
+#include "pbk.h"
+#include "street_kit.h"
+
 // Street furniture and the things in the open places: trees, poles, lamps,
 // parked motorbikes, plastic stools, market stalls, containers, boats, and
 // the railings along the bridges.
@@ -27,9 +30,38 @@ chunked cubes_s, posts_s, lights;
 chunked pools;
 chunked *all_batches[] = {&big_cubes, &big_posts, &leaves, &cubes_s, &posts_s, &lights, &pools};
 
+// The street kit's furniture (street_kit.h): one batch and one model an
+// asset, close up only like the small boxes they stand in for.
+struct kit_batch {
+  const street::asset *a = nullptr;
+  model_handle model{};
+  chunked c;
+};
+std::vector<kit_batch> kit;
+
+kit_batch &kit_of(context &ctx, const street::asset &a) {
+  for (kit_batch &k : kit)
+    if (k.a == &a)
+      return k;
+  kit.push_back({&a, model_load(ctx, {.path = a.path.c_str(), .merge = true}), {}});
+  kit_batch &k = kit.back();
+  if (k.model.id == 0)
+    NJIN_WARN("street: %s (%s) did not load", a.id.c_str(), a.path.c_str());
+  // The file's colours are linear (glTF), the game's sRGB.
+  for (i32 i = 0; k.model.id != 0 && i < model_material_count(ctx, k.model); ++i) {
+    model_material mm = model_material_get(ctx, k.model, i);
+    mm.color = pbk::linear_to_srgb(mm.color);
+    if (mm.color.a >= 1.0f)
+      mm.surface = {.specular = 0.08f, .shininess = 12.0f};
+    model_material_set(ctx, k.model, i, mm);
+  }
+  return k;
+}
+
 // Every street lamp, for the real lights.
 struct lamp {
   vec2 at;
+  f32 height; // the bulb, world units up
   i32 chunk;
 };
 std::vector<lamp> lamps;
@@ -61,6 +93,33 @@ const rgba stools[] = {rgb8(210, 40, 40), rgb8(40, 90, 200), rgb8(230, 180, 40)}
 const rgba boxes_col[] = {rgb8(180, 60, 40), rgb8(40, 90, 150), rgb8(60, 130, 80), rgb8(210, 130, 40),
                           rgb8(140, 140, 146)};
 const rgba canvas[] = {rgb8(200, 50, 44), rgb8(40, 90, 170), rgb8(230, 200, 60), rgb8(60, 150, 80)};
+
+// A prop of the street kit at its real size: its origin on the ground at
+// the prop, its +X along the prop's angle. False for the kinds the kit has not got.
+bool add_kit(context &ctx, const prop &p, i32 chunk) {
+  const street::asset *a = street::asset_for(p);
+  if (!a)
+    return false;
+  kit_batch &k = kit_of(ctx, *a);
+  if (k.c.start.empty()) {
+    k.c.begin(chunk_count());
+    for (i32 c = 0; c <= chunk; ++c)
+      k.c.mark(c);
+  }
+  const f32 s = units_per_metre * unit3d;
+  k.c.inst.add3(to3d(p.pos), {s, s, s}, colors::white, -p.angle);
+  if (p.kind == prop_kind::lamp) {
+    // The bulb under the arm's end, its pool of light on the ground below.
+    const obb o{p.pos, {}, p.angle};
+    const vec2 at = p.pos + (o.axis_x() * a->light.x + o.axis_y() * a->light.z) * units_per_metre;
+    const f32 h = a->light.y * units_per_metre;
+    lights.inst.ball(at, h - 0.6f, 1.2f, bulb_col);
+    for (const auto &ring : pool_rings)
+      pools.inst.post(at, 0.05f / unit3d, pool_radius * ring[0], 0.002f / unit3d, pool_col);
+    lamps.push_back({at, h, chunk});
+  }
+  return true;
+}
 
 void add(const prop &p) {
   const bool small = p.kind == prop_kind::lamp || p.kind == prop_kind::pole || p.kind == prop_kind::motorbike ||
@@ -147,11 +206,16 @@ void props_build(context &ctx, const city_map &map) {
   for (i32 ch = 0; ch < chunks; ++ch) {
     for (chunked *c : all_batches)
       c->mark(ch);
+    for (kit_batch &k : kit)
+      if (!k.c.start.empty())
+        k.c.mark(ch);
     for (const i32 i : in_chunk[static_cast<size_t>(ch)]) {
       const prop &pr = map.props[static_cast<size_t>(i)];
+      if (add_kit(ctx, pr, ch))
+        continue;
       add(pr);
       if (pr.kind == prop_kind::lamp)
-        lamps.push_back({pr.pos, ch});
+        lamps.push_back({pr.pos, lamp_height, ch});
     }
     for (const i32 i : bridges[static_cast<size_t>(ch)])
       railings(map.spots[static_cast<size_t>(i)]);
@@ -160,6 +224,11 @@ void props_build(context &ctx, const city_map &map) {
     c->end();
     c->inst.upload(ctx);
   }
+  for (kit_batch &k : kit)
+    if (!k.c.start.empty()) {
+      k.c.end();
+      k.c.inst.upload(ctx);
+    }
 }
 
 namespace {
@@ -183,13 +252,13 @@ void shade_lamps(context &ctx, f32 on) {
 
 // Real lights on the lamps nearest the middle of the view.
 void light_lamps(context &ctx, f32 on) {
-  std::vector<std::pair<f32, vec2>> near;
+  std::vector<std::pair<f32, const lamp *>> near;
   for (const lamp &l : lamps) {
     if (!chunk_visible(l.chunk))
       continue;
     const f32 d = distance(l.at, cull().center);
     if (d < lamp_light_range)
-      near.emplace_back(d, l.at);
+      near.emplace_back(d, &l);
   }
   const size_t n = std::min(near.size(), static_cast<size_t>(lamp_lights) + 1);
   std::partial_sort(near.begin(), near.begin() + static_cast<std::ptrdiff_t>(n), near.end(),
@@ -200,7 +269,7 @@ void light_lamps(context &ctx, f32 on) {
     const f32 fade = 1.0f - smoothstep(edge * 0.6f, edge, near[i].first);
     if (fade <= 0.0f)
       continue;
-    light3d_add(ctx, {.position = to3d(near[i].second, lamp_height * unit3d),
+    light3d_add(ctx, {.position = to3d(near[i].second->at, near[i].second->height * unit3d),
                       .color = lamp_light,
                       .intensity = 1.8f * on * fade,
                       .radius = light_reach * unit3d});
@@ -218,6 +287,8 @@ void props_draw(context &ctx, const view_options &opt) {
   draw_chunks(ctx, big_posts, mesh3d_cylinder_low, all);
   draw_chunks(ctx, cubes_s, mesh3d_cube, near);
   draw_chunks(ctx, posts_s, mesh3d_cylinder_low, near);
+  for (const kit_batch &k : kit)
+    draw_chunks_model(ctx, k.c, k.model, near);
   material3d_set(ctx, {.specular = 0.05f, .shininess = 6.0f, .rim = {0.8f, 1.0f, 0.7f, 0.1f}});
   draw_chunks(ctx, leaves, mesh3d_sphere_low, all);
   // The lamps come on as the light goes, all of them in view.
@@ -237,6 +308,12 @@ void props_cleanup(context &ctx) {
     c->inst.destroy(ctx);
     c->start.clear();
   }
+  for (kit_batch &k : kit) {
+    k.c.inst.destroy(ctx);
+    if (k.model.id != 0)
+      model_unload(ctx, k.model);
+  }
+  kit.clear();
 }
 
 } // namespace sandtable::city

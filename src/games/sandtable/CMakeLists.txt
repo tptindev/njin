@@ -3,7 +3,8 @@ add_executable(njin_sandtable main.cpp game.cpp world.cpp person.cpp crowd.cpp p
   city/gen_alleys.cpp city/gen_buildings.cpp city/gen_network.cpp city/gen_life.cpp city/interior.cpp city/interior_furnish.cpp
   city/render_common.cpp city/render_ground.cpp city/render_props.cpp
   city/render_debug.cpp city/render_cutaway.cpp city/render_facade.cpp
-  city/render_lod.cpp city/render_hover.cpp city/render_kit.cpp)
+  city/render_lod.cpp city/render_hover.cpp city/render_kit.cpp
+  city/pbk_data.cpp city/pbk_geom.cpp city/pbk_gen.cpp city/pbk_check.cpp city/pbk_assemble.cpp city/pbk_tool.cpp city/pbk_render.cpp city/render_pbk.cpp city/street_kit.cpp pbk_preview.cpp)
 target_link_libraries(njin_sandtable PRIVATE njin::rt njin::gpu njin_warnings)
 
 set_target_properties(njin_sandtable PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/sandtable")
@@ -11,6 +12,12 @@ njin_add_assets(njin_sandtable assets)
 
 # The njin icon on the exe, its window and its taskbar button (Windows).
 njin_icon(njin_sandtable)
+
+# `cmake --build <dir> --target njin_sandtable_dist` makes dist/njin_sandtable-<version>.zip:
+# the exe (no console window outside Debug) and the assets folder.
+njin_package(njin_sandtable
+  NAME "Sa Bàn Chiến Trận"
+  ASSETS assets)
 
 target_sources(njin_sandtable PRIVATE kungfu_preview.cpp)
 # Animation review can build without unrelated city/gameplay source changes.

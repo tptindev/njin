@@ -1,0 +1,1038 @@
+{
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "kit_revision",
+    "design_intent",
+    "units",
+    "engine_adapter",
+    "sampling",
+    "parcel",
+    "space_presets",
+    "appearance",
+    "room_types",
+    "archetypes",
+    "layout",
+    "circulation",
+    "stairs",
+    "assembly",
+    "validation",
+    "integration_status"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number"
+    },
+    "kit_revision": {
+      "type": "string"
+    },
+    "design_intent": {
+      "type": "string"
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "length",
+        "area",
+        "angle",
+        "local_axes",
+        "bay_m",
+        "storey_m",
+        "exterior_wall_m",
+        "partition_wall_m",
+        "slab_m",
+        "interior_grid_m",
+        "geometry_epsilon_m"
+      ],
+      "properties": {
+        "length": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string"
+        },
+        "angle": {
+          "type": "string"
+        },
+        "local_axes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bay_m": {
+          "type": "number"
+        },
+        "storey_m": {
+          "type": "number"
+        },
+        "exterior_wall_m": {
+          "type": "number"
+        },
+        "partition_wall_m": {
+          "type": "number"
+        },
+        "slab_m": {
+          "type": "number"
+        },
+        "interior_grid_m": {
+          "type": "number"
+        },
+        "geometry_epsilon_m": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "engine_adapter": {
+      "type": "object",
+      "required": [
+        "table_world_units_per_metre",
+        "render_units_per_table_unit",
+        "render_units_per_metre",
+        "building_angle_unit",
+        "table_formula",
+        "render_formula",
+        "legacy_interior_cell_world_units",
+        "legacy_interior_cell_metres",
+        "desired_4m_room_cell_world_units"
+      ],
+      "properties": {
+        "table_world_units_per_metre": {
+          "type": "number"
+        },
+        "render_units_per_table_unit": {
+          "type": "number"
+        },
+        "render_units_per_metre": {
+          "type": "number"
+        },
+        "building_angle_unit": {
+          "type": "string"
+        },
+        "table_formula": {
+          "type": "string"
+        },
+        "render_formula": {
+          "type": "string"
+        },
+        "legacy_interior_cell_world_units": {
+          "type": "number"
+        },
+        "legacy_interior_cell_metres": {
+          "type": "number"
+        },
+        "desired_4m_room_cell_world_units": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sampling": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "uint32_overflow",
+        "seed_input",
+        "streams",
+        "stable_iteration",
+        "retry_count",
+        "failure"
+      ],
+      "properties": {
+        "algorithm": {
+          "type": "string"
+        },
+        "uint32_overflow": {
+          "type": "string"
+        },
+        "seed_input": {
+          "type": "string"
+        },
+        "streams": {
+          "type": "object",
+          "required": [
+            "footprint",
+            "program",
+            "layout",
+            "appearance",
+            "facade",
+            "furniture"
+          ],
+          "properties": {
+            "footprint": {
+              "type": "number"
+            },
+            "program": {
+              "type": "number"
+            },
+            "layout": {
+              "type": "number"
+            },
+            "appearance": {
+              "type": "number"
+            },
+            "facade": {
+              "type": "number"
+            },
+            "furniture": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "stable_iteration": {
+          "type": "string"
+        },
+        "retry_count": {
+          "type": "number"
+        },
+        "failure": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "parcel": {
+      "type": "object",
+      "required": [
+        "max_lot_coverage",
+        "front_setback_m",
+        "free_side_setback_m",
+        "party_wall_side_setback_m",
+        "rear_setback_m",
+        "garden_target_area_m2",
+        "balcony_and_awning_overhang_must_fit_reserved_apron",
+        "entrance_must_connect_to_walkable_street"
+      ],
+      "properties": {
+        "max_lot_coverage": {
+          "type": "number"
+        },
+        "front_setback_m": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "free_side_setback_m": {
+          "type": "array"
+        },
+        "party_wall_side_setback_m": {
+          "type": "number"
+        },
+        "rear_setback_m": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "garden_target_area_m2": {
+          "type": "number"
+        },
+        "balcony_and_awning_overhang_must_fit_reserved_apron": {
+          "type": "boolean"
+        },
+        "entrance_must_connect_to_walkable_street": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "space_presets": {
+      "type": "object",
+      "required": [
+        "comfortable",
+        "spacious",
+        "generous"
+      ],
+      "properties": {
+        "comfortable": {
+          "type": "object",
+          "required": [
+            "corridor_min_m",
+            "corridor_target_m",
+            "furniture_coverage_max",
+            "room_area_scale"
+          ],
+          "properties": {
+            "corridor_min_m": {
+              "type": "number"
+            },
+            "corridor_target_m": {
+              "type": "number"
+            },
+            "furniture_coverage_max": {
+              "type": "number"
+            },
+            "room_area_scale": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "spacious": {
+          "type": "object",
+          "required": [
+            "corridor_min_m",
+            "corridor_target_m",
+            "furniture_coverage_max",
+            "room_area_scale"
+          ],
+          "properties": {
+            "corridor_min_m": {
+              "type": "number"
+            },
+            "corridor_target_m": {
+              "type": "number"
+            },
+            "furniture_coverage_max": {
+              "type": "number"
+            },
+            "room_area_scale": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "generous": {
+          "type": "object",
+          "required": [
+            "corridor_min_m",
+            "corridor_target_m",
+            "furniture_coverage_max",
+            "room_area_scale"
+          ],
+          "properties": {
+            "corridor_min_m": {
+              "type": "number"
+            },
+            "corridor_target_m": {
+              "type": "number"
+            },
+            "furniture_coverage_max": {
+              "type": "number"
+            },
+            "room_area_scale": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "appearance": {
+      "type": "object",
+      "required": [
+        "styles",
+        "district_weights",
+        "per_building_style_count",
+        "palette_source",
+        "palette_color_space",
+        "palettes",
+        "window_density",
+        "balcony_chance",
+        "mandatory_room_windows_override_density",
+        "vertical_bay_alignment",
+        "detail_budget_per_bay",
+        "back_party_wall_windows",
+        "roof_ribs_follow_surface_normal",
+        "awning_min_clear_above_opening_m",
+        "awning_must_have_wall_mount"
+      ],
+      "properties": {
+        "styles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "district_weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "per_building_style_count": {
+          "type": "number"
+        },
+        "palette_source": {
+          "type": "string"
+        },
+        "palette_color_space": {
+          "type": "string"
+        },
+        "palettes": {
+          "type": "object",
+          "required": [
+            "Indochine",
+            "Modern",
+            "Brick"
+          ],
+          "properties": {
+            "Indochine": {
+              "type": "object",
+              "required": [
+                "wall",
+                "trim",
+                "frame",
+                "roof"
+              ],
+              "properties": {
+                "wall": {
+                  "type": "array"
+                },
+                "trim": {
+                  "type": "array"
+                },
+                "frame": {
+                  "type": "array"
+                },
+                "roof": {
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false
+            },
+            "Modern": {
+              "type": "object",
+              "required": [
+                "wall",
+                "trim",
+                "frame",
+                "roof"
+              ],
+              "properties": {
+                "wall": {
+                  "type": "array"
+                },
+                "trim": {
+                  "type": "array"
+                },
+                "frame": {
+                  "type": "array"
+                },
+                "roof": {
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false
+            },
+            "Brick": {
+              "type": "object",
+              "required": [
+                "wall",
+                "trim",
+                "frame",
+                "roof"
+              ],
+              "properties": {
+                "wall": {
+                  "type": "array"
+                },
+                "trim": {
+                  "type": "array"
+                },
+                "frame": {
+                  "type": "array"
+                },
+                "roof": {
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "window_density": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "balcony_chance": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "mandatory_room_windows_override_density": {
+          "type": "boolean"
+        },
+        "vertical_bay_alignment": {
+          "type": "boolean"
+        },
+        "detail_budget_per_bay": {
+          "type": "object",
+          "required": [
+            "primary_features",
+            "secondary_features"
+          ],
+          "properties": {
+            "primary_features": {
+              "type": "number"
+            },
+            "secondary_features": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "back_party_wall_windows": {
+          "type": "boolean"
+        },
+        "roof_ribs_follow_surface_normal": {
+          "type": "boolean"
+        },
+        "awning_min_clear_above_opening_m": {
+          "type": "number"
+        },
+        "awning_must_have_wall_mount": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "room_types": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "min_net_area_m2",
+          "target_net_area_m2",
+          "min_clear_width_m",
+          "daylight_required",
+          "privacy",
+          "legacy_room_kind"
+        ],
+        "properties": {
+          "min_net_area_m2": {
+            "type": "number"
+          },
+          "target_net_area_m2": {
+            "type": "number"
+          },
+          "min_clear_width_m": {
+            "type": "number"
+          },
+          "daylight_required": {
+            "type": "boolean"
+          },
+          "privacy": {
+            "type": "string"
+          },
+          "legacy_room_kind": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "archetypes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "footprint_shape",
+          "width_bays",
+          "depth_bays",
+          "floors",
+          "program",
+          "road_frontages",
+          "space_preset",
+          "roof_weights"
+        ],
+        "properties": {
+          "footprint_shape": {
+            "type": "string"
+          },
+          "width_bays": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "depth_bays": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "floors": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "program": {
+            "type": "object",
+            "required": [
+              "ground",
+              "upper"
+            ],
+            "properties": {
+              "ground": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "upper": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "road_frontages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "space_preset": {
+            "type": "string"
+          },
+          "independent_access": {
+            "type": "boolean"
+          },
+          "roof_weights": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "layout": {
+      "type": "object",
+      "required": [
+        "sequence",
+        "room_areas_are",
+        "wing_min_clear_width_m",
+        "wet_stack_alignment_tolerance_m",
+        "room_graph",
+        "daylight"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "room_areas_are": {
+          "type": "string"
+        },
+        "wing_min_clear_width_m": {
+          "type": "number"
+        },
+        "wet_stack_alignment_tolerance_m": {
+          "type": "number"
+        },
+        "room_graph": {
+          "type": "object",
+          "required": [
+            "must_connect_to",
+            "bedroom_may_be_through_room",
+            "bathroom_directly_opens_into_kitchen",
+            "preferred_adjacencies",
+            "commercial_private_access"
+          ],
+          "properties": {
+            "must_connect_to": {
+              "type": "string"
+            },
+            "bedroom_may_be_through_room": {
+              "type": "boolean"
+            },
+            "bathroom_directly_opens_into_kitchen": {
+              "type": "boolean"
+            },
+            "preferred_adjacencies": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "commercial_private_access": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "daylight": {
+          "type": "object",
+          "required": [
+            "bedroom_requires_facade_or_courtyard",
+            "living_requires_facade_or_courtyard",
+            "minimum_glazed_area_to_room_area",
+            "window_to_room_mapping_required"
+          ],
+          "properties": {
+            "bedroom_requires_facade_or_courtyard": {
+              "type": "boolean"
+            },
+            "living_requires_facade_or_courtyard": {
+              "type": "boolean"
+            },
+            "minimum_glazed_area_to_room_area": {
+              "type": "number"
+            },
+            "window_to_room_mapping_required": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "circulation": {
+      "type": "object",
+      "required": [
+        "actor_radius_m",
+        "wall_margin_m",
+        "single_actor_clear_m",
+        "two_actor_passing_clear_m",
+        "entrance_aperture_m",
+        "entrance_min_net_open_m",
+        "interior_door_min_net_open_m",
+        "headroom_min_m",
+        "furniture_distance_to_portal_m",
+        "door_swing",
+        "nav_validation"
+      ],
+      "properties": {
+        "actor_radius_m": {
+          "type": "number"
+        },
+        "wall_margin_m": {
+          "type": "number"
+        },
+        "single_actor_clear_m": {
+          "type": "number"
+        },
+        "two_actor_passing_clear_m": {
+          "type": "number"
+        },
+        "entrance_aperture_m": {
+          "type": "number"
+        },
+        "entrance_min_net_open_m": {
+          "type": "number"
+        },
+        "interior_door_min_net_open_m": {
+          "type": "number"
+        },
+        "headroom_min_m": {
+          "type": "number"
+        },
+        "furniture_distance_to_portal_m": {
+          "type": "number"
+        },
+        "door_swing": {
+          "type": "string"
+        },
+        "nav_validation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stairs": {
+      "type": "object",
+      "required": [
+        "fixed_core_on_all_floors",
+        "flight_clear_width_m",
+        "landing_clear_depth_m",
+        "riser_m",
+        "tread_m",
+        "risers_per_storey",
+        "straight",
+        "dogleg",
+        "upper_floor_slab_opening_required",
+        "headroom_check"
+      ],
+      "properties": {
+        "fixed_core_on_all_floors": {
+          "type": "boolean"
+        },
+        "flight_clear_width_m": {
+          "type": "number"
+        },
+        "landing_clear_depth_m": {
+          "type": "number"
+        },
+        "riser_m": {
+          "type": "number"
+        },
+        "tread_m": {
+          "type": "number"
+        },
+        "risers_per_storey": {
+          "type": "number"
+        },
+        "straight": {
+          "type": "object",
+          "required": [
+            "flight_run_m",
+            "min_core_length_including_two_landings_m",
+            "kit_role"
+          ],
+          "properties": {
+            "flight_run_m": {
+              "type": "number"
+            },
+            "min_core_length_including_two_landings_m": {
+              "type": "number"
+            },
+            "kit_role": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "dogleg": {
+          "type": "object",
+          "required": [
+            "split_risers",
+            "central_gap_m",
+            "min_core_clear_width_m",
+            "min_core_length_m",
+            "geometry_source"
+          ],
+          "properties": {
+            "split_risers": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "central_gap_m": {
+              "type": "number"
+            },
+            "min_core_clear_width_m": {
+              "type": "number"
+            },
+            "min_core_length_m": {
+              "type": "number"
+            },
+            "geometry_source": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "upper_floor_slab_opening_required": {
+          "type": "boolean"
+        },
+        "headroom_check": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assembly": {
+      "type": "object",
+      "required": [
+        "module_id_format",
+        "active_asset_ids",
+        "entrance_role",
+        "animated_rig_nonuniform_scale_allowed",
+        "shell",
+        "curve_families",
+        "curve_mating",
+        "rounded_corner_entrance",
+        "balcony",
+        "interior_geometry",
+        "collision_and_nav"
+      ],
+      "properties": {
+        "module_id_format": {
+          "type": "string"
+        },
+        "active_asset_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entrance_role": {
+          "type": "string"
+        },
+        "animated_rig_nonuniform_scale_allowed": {
+          "type": "boolean"
+        },
+        "shell": {
+          "type": "string"
+        },
+        "curve_families": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "radius_m",
+              "angle_degrees",
+              "pieces_per_quarter_turn"
+            ],
+            "properties": {
+              "radius_m": {
+                "type": "number"
+              },
+              "angle_degrees": {
+                "type": "number"
+              },
+              "pieces_per_quarter_turn": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "curve_mating": {
+          "type": "string"
+        },
+        "rounded_corner_entrance": {
+          "type": "string"
+        },
+        "balcony": {
+          "type": "string"
+        },
+        "interior_geometry": {
+          "type": "string"
+        },
+        "collision_and_nav": {
+          "type": "string"
+        },
+        "window_glazing": {
+          "type": "object",
+          "required": [
+            "wooden_shutter_modules",
+            "wooden_shutter_glass",
+            "other_window_glass"
+          ],
+          "properties": {
+            "wooden_shutter_modules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "wooden_shutter_glass": {
+              "type": "boolean"
+            },
+            "other_window_glass": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "hard",
+        "soft_score_weights",
+        "on_failure",
+        "preserve_hard_constraints"
+      ],
+      "properties": {
+        "hard": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "soft_score_weights": {
+          "type": "object",
+          "required": [
+            "room_target_area",
+            "daylight",
+            "short_private_routes",
+            "facade_rhythm",
+            "low_furniture_density"
+          ],
+          "properties": {
+            "room_target_area": {
+              "type": "number"
+            },
+            "daylight": {
+              "type": "number"
+            },
+            "short_private_routes": {
+              "type": "number"
+            },
+            "facade_rhythm": {
+              "type": "number"
+            },
+            "low_furniture_density": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "on_failure": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preserve_hard_constraints": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "integration_status": {
+      "type": "string"
+    },
+    "runtime_rule_packs": {
+      "type": "object",
+      "required": [
+        "street_distribution",
+        "window_shutters",
+        "path_base"
+      ],
+      "properties": {
+        "street_distribution": {
+          "type": "string"
+        },
+        "window_shutters": {
+          "type": "string"
+        },
+        "path_base": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sandtable building rule pack v1"
+}

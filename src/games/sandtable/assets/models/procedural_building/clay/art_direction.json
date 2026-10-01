@@ -1,0 +1,180 @@
+{
+  "variant": "handmade_clay",
+  "revision": "unified-kit-v3-clay-v8-window-glazing",
+  "palette_linear_rgba": {
+    "PBK_Brick_concrete": [
+      0.4236000027894974,
+      0.44700000371932985,
+      0.4392000111579895,
+      1
+    ],
+    "PBK_Brick_frame": [
+      0.2597999962806702,
+      0.25199999790787697,
+      0.23640000116229054,
+      1
+    ],
+    "PBK_Brick_glass": [
+      0.2130000002324581,
+      0.2988000055789948,
+      0.3378000032544136,
+      1
+    ],
+    "PBK_Brick_metal": [
+      0.23640000116229054,
+      0.25199999790787697,
+      0.2597999962806702,
+      1
+    ],
+    "PBK_Brick_roof": [
+      0.3378000032544136,
+      0.25199999790787697,
+      0.22470000069737434,
+      1
+    ],
+    "PBK_Brick_trim": [
+      0.7356000074386597,
+      0.6732000204563141,
+      0.5639999851226807,
+      1
+    ],
+    "PBK_Brick_wall": [
+      0.4938000055789947,
+      0.2988000055789948,
+      0.23640000116229054,
+      1
+    ],
+    "PBK_Indochine_concrete": [
+      0.4236000027894974,
+      0.44700000371932985,
+      0.4392000111579895,
+      1
+    ],
+    "PBK_Indochine_frame": [
+      0.23640000116229054,
+      0.34559999581575396,
+      0.30659999814033506,
+      1
+    ],
+    "PBK_Indochine_glass": [
+      0.2130000002324581,
+      0.2988000055789948,
+      0.3378000032544136,
+      1
+    ],
+    "PBK_Indochine_metal": [
+      0.23640000116229054,
+      0.25199999790787697,
+      0.2597999962806702,
+      1
+    ],
+    "PBK_Indochine_roof": [
+      0.4236000027894974,
+      0.23640000116229054,
+      0.20129999976754187,
+      1
+    ],
+    "PBK_Indochine_trim": [
+      0.8838000055789947,
+      0.8057999869823456,
+      0.6497999962806702,
+      1
+    ],
+    "PBK_Indochine_wall": [
+      0.720000022315979,
+      0.5874000092983246,
+      0.3924000092983246,
+      1
+    ],
+    "PBK_Modern_concrete": [
+      0.4236000027894974,
+      0.44700000371932985,
+      0.4392000111579895,
+      1
+    ],
+    "PBK_Modern_frame": [
+      0.22860000278949738,
+      0.2676000004649162,
+      0.2988000055789948,
+      1
+    ],
+    "PBK_Modern_glass": [
+      0.2130000002324581,
+      0.2988000055789948,
+      0.3378000032544136,
+      1
+    ],
+    "PBK_Modern_metal": [
+      0.23640000116229054,
+      0.25199999790787697,
+      0.2597999962806702,
+      1
+    ],
+    "PBK_Modern_roof": [
+      0.25199999790787697,
+      0.3144000023245811,
+      0.36119999256134033,
+      1
+    ],
+    "PBK_Modern_trim": [
+      0.8760000130176544,
+      0.8915999981403351,
+      0.8760000130176544,
+      1
+    ],
+    "PBK_Modern_wall": [
+      0.6965999981403351,
+      0.7278000148773194,
+      0.7278000148773194,
+      1
+    ]
+  },
+  "technical": {
+    "max_bevel_m": 0.065,
+    "segments": 5,
+    "roughness": [
+      0.82,
+      0.98
+    ],
+    "normal_tile_m": 0.25,
+    "contact_method": "same-pigment exact mesh union followed by rounded concave fillets",
+    "socket_planes_preserved": true,
+    "cross_module_smin": "requires assembly union or runtime SDF; individual GLBs do not blend automatically",
+    "exceptions": [
+      "continuous shells retain aperture-safe topology",
+      "bent dressing retains original topology and smooth normals"
+    ],
+    "frame_design": "single continuous rounded solid; entrance frame open at floor",
+    "frame_outer_corner_radius_m": 0.105,
+    "frame_edge_fillet_m": 0.012,
+    "glass_grid": false,
+    "accent_materials": {
+      "glass_transmission": 1.0,
+      "glass_roughness": 0.035,
+      "wood_roughness": 0.43,
+      "metallic_railings": 0.9,
+      "metal_roughness": 0.3
+    },
+    "wall_pattern": "plain clay; mortar decoration removed",
+    "window_shutters": "full aperture coverage, wooden louvers, two hinge bones, 115 degree outward swing",
+    "window_glazing": {
+      "wooden_shutter_windows": "no glass",
+      "other_panes": "sealed clear glass",
+      "transmission": 1.0,
+      "roughness": 0.035,
+      "ior": 1.45
+    }
+  },
+  "statistics": {
+    "union_operations": 404,
+    "rounded_meshes": 595,
+    "protected_edges": 1380,
+    "errors": [],
+    "curved_dressing_families_restored": 12,
+    "fully_weighted_rigid_door_leaf": true,
+    "continuous_frames": 24,
+    "removed_crossbars": 36
+  },
+  "provenance": "Original kit edited procedurally in Blender; deterministic authored grain, seed 41023.",
+  "runtime_status": "not yet integrated or approved in the game renderer"
+}

@@ -35,6 +35,14 @@ void handle_input(context &ctx) {
 struct test_config {
   bool enabled = false;
   i32 frame = 0;
+  // --pbk-city-test: the town's houses from the procedural building kit.
+  bool pbk = false;
+  i32 step = 0;
+  f32 clock = 0.0f;
+  vec2 at{};
+  i32 house = -1;
+  i32 frames = 0;
+  f32 frame_ms = 0.0f;
 };
 test_config test;
 
@@ -89,7 +97,117 @@ void frame_shot(const test_shot &s) {
   view_focus(at, 14.0f, true);
 }
 
+// The kit's houses in the town: a residential district from above once the
+// worker has made what is in view, closer, then one of its houses cut open
+// on two floors, and its street door opened.
+void pbk_city_harness(context &ctx) {
+  test.clock += delta_real(ctx);
+  world_view().hover_district = world_view().hover_building = -1;
+  const city::pbk_stats st = city::pbk_last_stats();
+  switch (test.step) {
+  case 0:
+    if (test.clock > 0.5f) {
+      state.hour = 12.0f;
+      test.at = {world_width * 0.5f, world_height * 0.5f};
+      for (const city::district &d : world().districts)
+        if (d.kind == city::district_kind::residential && !d.blocks.empty()) {
+          i32 best = d.blocks.front();
+          for (const i32 b : d.blocks)
+            if (world().blocks[static_cast<size_t>(b)].cells > world().blocks[static_cast<size_t>(best)].cells)
+              best = b;
+          test.at = world().blocks[static_cast<size_t>(best)].centroid;
+          break;
+        }
+      view_focus(test.at, 14.0f, true);
+      test.step = 1;
+      test.clock = 0.0f;
+    }
+    break;
+  case 1: // Until the worker has caught up with the view.
+    if (test.clock > 1.0f) {
+      // Frame time and draw calls over the district, once it has settled.
+      test.frames += 1;
+      test.frame_ms += delta_real(ctx) * 1000.0f;
+    }
+    if ((test.clock > 3.0f && st.queued == 0) || test.clock > 90.0f) {
+      const render_info ri = render_info_get(ctx);
+      NJIN_INFO("[pbk-city] after %.1f s: %d houses with full plans, %d NoFit, %d queued, %d eligible",
+                static_cast<f64>(test.clock), st.ready, st.nofit, st.queued, st.eligible);
+      NJIN_INFO("[pbk-city] district view: %.2f ms a frame over %d frames, %u draw calls, %u instanced",
+                static_cast<f64>(test.frame_ms / static_cast<f32>(std::max(1, test.frames))), test.frames,
+                ri.draw_calls, ri.instanced_calls);
+      screenshot(ctx, "sandtable_pbk_city.png");
+      view_focus(test.at, 6.0f, true);
+      test.step = 2;
+      test.clock = 0.0f;
+    }
+    break;
+  case 2:
+    if ((test.clock > 3.0f && st.queued == 0) || test.clock > 60.0f) {
+      NJIN_INFO("[pbk-city] close: %d made, %d NoFit, %d queued", st.ready, st.nofit, st.queued);
+      screenshot(ctx, "sandtable_pbk_city_close.png");
+      // The nearest house the kit made, picked as a click would.
+      f32 bd = 1e30f;
+      for (const i32 id : city::pbk_ready_ids()) {
+        const f32 d = distance(world().buildings[static_cast<size_t>(id)].box.center, test.at);
+        if (d < bd) {
+          bd = d;
+          test.house = id;
+        }
+      }
+      if (test.house < 0) {
+        NJIN_INFO("[pbk-city] FAIL no house made from the kit in view");
+        quit(ctx);
+        return;
+      }
+      world_view() = {};
+      world_cut_around(false);
+      world_focus(test.house);
+      state.cam_target = state.cam_target_goal;
+      state.cam_distance = state.cam_distance_goal;
+      state.cam_yaw = state.cam_yaw_goal;
+      state.cam_steep = state.cam_steep_goal = 1.0f;
+      test.step = 3;
+      test.clock = 0.0f;
+    }
+    break;
+  case 3:
+    if (test.clock > 0.6f) {
+      screenshot(ctx, "sandtable_pbk_city_cut_floor0.png");
+      world_view().floor = 1;
+      test.step = 4;
+      test.clock = 0.0f;
+    }
+    break;
+  case 4:
+    if (test.clock > 0.6f) {
+      screenshot(ctx, "sandtable_pbk_city_cut_floor1.png");
+      world_unfocus();
+      const city::building &b = world().buildings[static_cast<size_t>(test.house)];
+      const i32 door = city::pbk_door_toggle_near(test.house, b.box.center - b.box.axis_y() * b.box.half.y);
+      NJIN_INFO("[pbk-city] house %d: street door %d opened", test.house, door);
+      view_focus(b.box.center - b.box.axis_y() * (b.box.half.y + 4.0f), 3.0f, true);
+      test.step = 5;
+      test.clock = 0.0f;
+    }
+    break;
+  case 5:
+    if (test.clock > 2.0f) {
+      screenshot(ctx, "sandtable_pbk_city_door_open.png");
+      NJIN_INFO("[pbk-city] done");
+      quit(ctx);
+      test.step = 6;
+    }
+    break;
+  default: break;
+  }
+}
+
 void test_harness(context &ctx) {
+  if (test.pbk) {
+    pbk_city_harness(ctx);
+    return;
+  }
   if (!test.enabled)
     return;
   test.frame++;
@@ -215,11 +333,11 @@ void test_harness(context &ctx) {
   if (h == 605)
     screenshot(ctx, "sandtable_test_turf.png");
   if (g == 5 + 610) {
-    std::printf("[test] city %u: %s\n", world().desc.seed, world().report.ok() ? "ok" : "FAILED");
+    std::printf("[test] city %u: %s", world().desc.seed, world().report.ok() ? "ok" : "FAILED");
     for (const gang_state &gs : gangs())
-      std::printf("[test] %s: hq %d, %d men, %d blocks\n", gs.name.c_str(), gs.hq, static_cast<i32>(gs.men.size()),
+      std::printf("[test] %s: hq %d, %d men, %d blocks", gs.name.c_str(), gs.hq, static_cast<i32>(gs.men.size()),
                   gs.turf);
-    std::printf("[test] done\n");
+    std::printf("[test] done");
     // How well the crowd walked, after the run's minute or so of it.
     const crowd_report cr = crowd_check();
     NJIN_INFO("crowd: %d walkers, %d standing in one another, %d in a building, %d repaths", cr.walkers,
@@ -310,10 +428,11 @@ void setup(context &ctx) {
 
 } // namespace
 
-mod_desc module(bool test_mode, u32 seed) {
+mod_desc module(bool test_mode, u32 seed, bool pbk_test) {
   state.seed = seed;
   test = {};
   test.enabled = test_mode;
+  test.pbk = pbk_test;
   return {.name = "sandtable", .setup = setup};
 }
 

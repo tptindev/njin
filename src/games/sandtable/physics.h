@@ -25,6 +25,9 @@ inline vec2 from_phys(vec3 p) { return {p.x / metres_per_unit, p.z / metres_per_
 // The town's bodies, after each new city (they replace the last one's).
 void physics_build(context &ctx, const city::city_map &map);
 void physics_clear(context &ctx);
+// Takes away building `i`'s box, when a body of its own (city/render_pbk.cpp:
+// its walls with the door's opening) stands in for it; false if it had none.
+bool physics_drop_building(context &ctx, i32 i);
 
 // A person on foot, feet at `at`: a capsule as wide and tall as one.
 character3d_handle physics_person(context &ctx, vec2 at);

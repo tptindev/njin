@@ -1,6 +1,9 @@
 #include "city/city.h"
+#include "city/pbk.h"
+#include "city/render.h"
 #include "game.h"
 #include "kungfu_preview.h"
+#include "pbk_preview.h"
 #include "person.h"
 #include "types.h"
 
@@ -97,6 +100,8 @@ int main(int argc, char **argv) {
 
   bool test_mode = false;
   bool clay_preview = false;
+  // --pbk-preview: the building kit's scenes; --pbk-test runs their script.
+  bool pbk_preview = false, pbk_test = false, pbk_tour = false, pbk_city_test = false;
   u32 seed = 1;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -106,6 +111,15 @@ int main(int argc, char **argv) {
       clay_preview = true;
       kungfu_mode = true;
       clay_capture = arg == "--kungfu-test" || arg == "--boxing-test";
+    } else if (arg == "--pbk-city-test") {
+      pbk_city_test = true;
+    } else if (arg == "--no-pbk") {
+      // Every house from the old kit, none from the procedural building kit.
+      sandtable::city::pbk_city = false;
+    } else if (arg == "--pbk-preview" || arg == "--pbk-test" || arg == "--pbk-tour") {
+      pbk_preview = true;
+      pbk_test = arg == "--pbk-test";
+      pbk_tour = arg == "--pbk-tour";
     } else if (arg == "--clay-test" || arg == "--clay-preview") {
       clay_preview = true;
       clay_capture = arg == "--clay-test";
@@ -125,6 +139,10 @@ int main(int argc, char **argv) {
           more ? static_cast<u32>(std::strtoul(argv[++i], nullptr, 10)) : 1u;
       const i32 count = i + 1 < argc ? std::atoi(argv[++i]) : 50;
       return sandtable::city::run_city_check(first, count, true) == 0 ? 0 : 1;
+    } else if (arg == "--pbkcheck") {
+      // --pbkcheck [seeds]: the procedural building kit, no window.
+      const i32 seeds = more ? std::atoi(argv[++i]) : 40;
+      return sandtable::city::pbk::run_pbk_check(seeds, false) == 0 ? 0 : 1;
     } else if (arg == "--citymap" && i + 2 < argc) {
       // --citymap <seed> <file.ppm>: the raster of one city, a pixel a cell.
       sandtable::city::city_map map;
@@ -152,13 +170,14 @@ int main(int argc, char **argv) {
       // sizes follow the window's height (view.h ui_scale).
   });
 
-  mod_register(*ctx, kungfu_mode ? sandtable::kungfu_module(clay_capture)
+  mod_register(*ctx, pbk_preview ? sandtable::pbk_module(pbk_test, pbk_tour)
+                     : kungfu_mode ? sandtable::kungfu_module(clay_capture)
                      : clay_preview
                          ? mod_desc{.name = "clay_preview", .setup = clay_setup}
-                         : sandtable::module(test_mode, seed));
+                         : sandtable::module(test_mode, seed, pbk_city_test));
 
 #ifndef NDEBUG
-  if (!clay_preview)
+  if (!clay_preview && !pbk_preview)
     debug_server_start(*ctx);
 #endif
 

@@ -1,5 +1,7 @@
 #include "physics.h"
 
+#include "city/street_kit.h"
+
 #include <vector>
 
 namespace sandtable {
@@ -7,6 +9,7 @@ namespace sandtable {
 namespace {
 
 std::vector<body3d_handle> bodies;
+std::vector<body3d_handle> building_box; // one a building, 0 once dropped
 
 // A box standing on the ground at `at`, `size` world units (along `angle`,
 // height, across), from `base` up.
@@ -31,6 +34,17 @@ void post(context &ctx, vec2 at, f32 radius, f32 height) {
 
 // What stands in the way, the same sizes as render_props.cpp draws.
 void prop_body(context &ctx, const city::prop &p) {
+  // The street kit's furniture at its real size: its footprint from the
+  // kit's manifest (a lamp's or a pole's post only), its full height.
+  if (const city::street::asset *a = city::street::asset_for(p)) {
+    const city::obb f = city::street::footprint(p, *a);
+    const f32 h = a->height * city::units_per_metre;
+    if (a->post)
+      post(ctx, f.center, f.half.x, h);
+    else
+      box(ctx, f.center, 0.0f, {f.half.x * 2.0f, h, f.half.y * 2.0f}, f.angle);
+    return;
+  }
   const f32 s = p.scale;
   switch (p.kind) {
   case city::prop_kind::tree: post(ctx, p.pos, 1.0f * s, 9.0f * s); break;
@@ -57,6 +71,18 @@ void physics_clear(context &ctx) {
   for (const body3d_handle h : bodies)
     body3d_destroy(ctx, h);
   bodies.clear();
+  for (const body3d_handle h : building_box)
+    if (h.id != 0)
+      body3d_destroy(ctx, h);
+  building_box.clear();
+}
+
+bool physics_drop_building(context &ctx, i32 i) {
+  if (i < 0 || i >= static_cast<i32>(building_box.size()) || building_box[static_cast<size_t>(i)].id == 0)
+    return false;
+  body3d_destroy(ctx, building_box[static_cast<size_t>(i)]);
+  building_box[static_cast<size_t>(i)] = {};
+  return true;
 }
 
 void physics_build(context &ctx, const city::city_map &map) {
@@ -64,8 +90,12 @@ void physics_build(context &ctx, const city::city_map &map) {
   // The ground, a slab whose top is the street.
   const vec2 mid{map.desc.width * 0.5f, map.desc.height * 0.5f};
   box(ctx, mid, -20.0f, {map.desc.width + 400.0f, 20.0f, map.desc.height + 400.0f}, 0.0f);
-  for (const city::building &b : map.buildings)
+  for (const city::building &b : map.buildings) {
     box(ctx, b.box.center, 0.0f, {b.box.half.x * 2.0f, b.height, b.box.half.y * 2.0f}, b.box.angle);
+    building_box.push_back(bodies.empty() ? body3d_handle{} : bodies.back());
+    if (!bodies.empty())
+      bodies.pop_back();
+  }
   for (const city::prop &p : map.props)
     prop_body(ctx, p);
   // Railings along the bridges, as drawn.

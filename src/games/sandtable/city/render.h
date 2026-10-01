@@ -74,6 +74,19 @@ bool view_sees(vec2 p, f32 margin = 20.0f);
 // way the camera sees it), or -1.
 i32 view_pick(context &ctx, const city_map &map, vec2 screen);
 
+// Houses from the procedural building kit (city/render_pbk.cpp): on by
+// default; off (--no-pbk) draws every house with the old kit.
+extern bool pbk_city;
+struct pbk_stats {
+  i32 eligible = 0, queued = 0, ready = 0, nofit = 0;
+};
+pbk_stats pbk_last_stats();
+// The buildings drawn from the kit now, sorted.
+const std::vector<i32> &pbk_ready_ids();
+// Opens or shuts the kit door of building `id` nearest `at` (table units);
+// the door's index, or -1 when the building is not from the kit.
+i32 pbk_door_toggle_near(i32 id, vec2 at);
+
 // Loads what does not depend on the city itself (the interior kit's
 // models): once, at startup, before the first view_build().
 void view_init(context &ctx);

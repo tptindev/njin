@@ -64,7 +64,7 @@ void generator::make_landmarks() {
     i32 rid = -1;
     auto building_at = [&](building_kind kind, bool avenue, f32 w0, f32 w1, f32 d0, f32 d1, f32 ap, i32 f0, i32 f1,
                            spot_kind apron_kind) {
-      const f32 w = r.range(w0, w1), dd = r.range(d0, d1);
+      const f32 w = in_bays(r.range(w0, w1), 4), dd = in_bays(r.range(d0, d1), 4);
       if (!place_landmark(di, avenue, w, dd, ap, box, apron, r, rid))
         return -1;
       if (ap > 0.0f)
@@ -98,19 +98,19 @@ void generator::make_landmarks() {
       break;
     case district_kind::residential:
       if (r.chance(0.6f))
-        building_at(building_kind::school, false, 110.0f, 150.0f, 44.0f, 56.0f, 50.0f, 2, 3,
+        building_at(building_kind::school, false, 110.0f, 150.0f, 60.0f, 72.0f, 50.0f, 2, 3,
                     spot_kind::sports_field);
       else
         open_at(spot_kind::sports_field, 100.0f, 130.0f, 60.0f, 80.0f, ground::park);
       break;
     case district_kind::new_urban:
       for (i32 i = r.range(2, 4); i > 0; --i)
-        building_at(building_kind::apartment, false, 64.0f, 90.0f, 56.0f, 76.0f, 0.0f, 10, 16,
+        building_at(building_kind::apartment, false, 72.0f, 96.0f, 72.0f, 96.0f, 0.0f, 6, max_floors,
                     spot_kind::vacant_lot);
       open_at(spot_kind::parking, 90.0f, 130.0f, 60.0f, 80.0f, ground::lot);
       break;
     case district_kind::nightlife:
-      building_at(building_kind::hotel, false, 50.0f, 70.0f, 56.0f, 76.0f, 0.0f, 7, 11, spot_kind::vacant_lot);
+      building_at(building_kind::hotel, false, 60.0f, 72.0f, 72.0f, 84.0f, 0.0f, 5, max_floors, spot_kind::vacant_lot);
       open_at(spot_kind::parking, 70.0f, 100.0f, 50.0f, 70.0f, ground::lot);
       break;
     default:
@@ -149,41 +149,46 @@ void generator::front_houses(i32 road_id, rng &r) {
       building_kind kind = building_kind::tube_house;
       f32 w, d0, d1;
       i32 f0 = pf.floors_min, f1 = pf.floors_max;
+      // Lots in whole bays of the building kit, wide and deep enough for
+      // its rules: a nhà ống three bays and more, seven deep; flats and
+      // halls two rows of rooms and a corridor deep.
       if (alley) {
         kind = building_kind::house;
-        w = r.range(22.0f, 34.0f);
-        d0 = 26.0f;
-        d1 = r.range(34.0f, 48.0f);
+        w = in_bays(r.range(36.0f, 48.0f), 3);
+        d0 = 84.0f;
+        d1 = in_bays(r.range(84.0f, 108.0f), 7);
         f0 = 1;
         f1 = 3;
       } else if (dk == district_kind::new_urban && r.chance(0.4f)) {
         kind = building_kind::apartment;
-        w = r.range(56.0f, 84.0f);
-        d0 = 44.0f;
-        d1 = r.range(50.0f, 72.0f);
-        f0 = 7;
-        f1 = 13;
+        w = in_bays(r.range(60.0f, 96.0f), 5);
+        d0 = 60.0f;
+        d1 = in_bays(r.range(72.0f, 96.0f), 6);
+        f0 = 5;
+        f1 = max_floors;
       } else if ((dk == district_kind::docks || dk == district_kind::industrial) && r.chance(0.5f)) {
         kind = building_kind::workshop;
-        w = r.range(48.0f, 84.0f);
-        d0 = 44.0f;
-        d1 = r.range(50.0f, 90.0f);
+        w = in_bays(r.range(48.0f, 96.0f), 4);
+        d0 = 60.0f;
+        d1 = in_bays(r.range(72.0f, 108.0f), 6);
         f0 = 1;
         f1 = 2;
       } else if (dk == district_kind::nightlife && r.chance(0.1f)) {
         kind = building_kind::hotel;
-        w = r.range(44.0f, 60.0f);
-        d0 = 44.0f;
-        d1 = r.range(50.0f, 76.0f);
-        f0 = 6;
-        f1 = 10;
+        w = in_bays(r.range(48.0f, 72.0f), 4);
+        d0 = 60.0f;
+        d1 = in_bays(r.range(60.0f, 84.0f), 5);
+        f0 = 4;
+        f1 = max_floors;
       } else {
-        w = r.range(pf.front_min, pf.front_max);
-        d0 = std::min(pf.depth_min, 40.0f);
-        d1 = r.range(pf.depth_min, pf.depth_max);
+        w = in_bays(std::max(r.range(pf.front_min, pf.front_max), 36.0f), 3);
+        d0 = 96.0f; // 16 m: a shop, the stair and the back rooms of a tube house
+        d1 = in_bays(std::max(r.range(pf.depth_min, pf.depth_max), 108.0f), 9);
+        f1 = std::min(f1, 5); // the tube house's rules: up to five floors
+        f0 = std::min(f0, f1);
       }
       bool placed = false;
-      for (f32 depth = d1; depth >= d0 - 0.01f && !placed; depth -= std::max(8.0f, (d1 - d0) * 0.34f)) {
+      for (f32 depth = d1; depth >= d0 - 0.01f && !placed; depth -= bay_w) {
         obb box;
         if (!front_box(road_id, walk, s, side, w, depth, 1.0f, box))
           break;
@@ -220,23 +225,25 @@ void generator::fill_interior(i32 bi, rng &r) {
   const block &bk = m.blocks[static_cast<size_t>(bi)];
   const district_kind dk = m.districts[static_cast<size_t>(bk.district)].kind;
   building_kind kind = building_kind::house;
-  f32 w0 = 22.0f, w1 = 36.0f, d0 = 24.0f, d1 = 40.0f, gap = 0.0f, row_gap = 2.0f, skip = 0.12f;
+  // Small houses standing free, a garden width apart: the detached house's
+  // five bays and more.
+  f32 w0 = 60.0f, w1 = 84.0f, d0 = 60.0f, d1 = 84.0f, gap = 6.0f, row_gap = 8.0f, skip = 0.12f;
   i32 f0 = 1, f1 = 3;
   switch (dk) {
   case district_kind::docks:
     kind = building_kind::warehouse;
-    w0 = 60.0f, w1 = 110.0f, d0 = 44.0f, d1 = 70.0f, gap = 10.0f, row_gap = 14.0f, skip = 0.2f;
+    w0 = 60.0f, w1 = 120.0f, d0 = 72.0f, d1 = 96.0f, gap = 10.0f, row_gap = 14.0f, skip = 0.2f;
     f0 = 1, f1 = 2;
     break;
   case district_kind::industrial:
     kind = building_kind::workshop;
-    w0 = 48.0f, w1 = 90.0f, d0 = 40.0f, d1 = 64.0f, gap = 8.0f, row_gap = 12.0f, skip = 0.25f;
+    w0 = 48.0f, w1 = 96.0f, d0 = 72.0f, d1 = 96.0f, gap = 8.0f, row_gap = 12.0f, skip = 0.25f;
     f0 = 1, f1 = 2;
     break;
   case district_kind::new_urban:
     kind = building_kind::apartment;
-    w0 = 44.0f, w1 = 70.0f, d0 = 40.0f, d1 = 56.0f, gap = 18.0f, row_gap = 20.0f, skip = 0.3f;
-    f0 = 5, f1 = 10;
+    w0 = 60.0f, w1 = 96.0f, d0 = 72.0f, d1 = 96.0f, gap = 18.0f, row_gap = 20.0f, skip = 0.3f;
+    f0 = 5, f1 = max_floors;
     break;
   case district_kind::nightlife:
   case district_kind::market:
@@ -249,9 +256,9 @@ void generator::fill_interior(i32 bi, rng &r) {
   const f32 ext = length(bk.bounds.size) * 0.5f + 20.0f;
   const vec2 c = rect_center(bk.bounds);
   for (f32 b = -ext; b < ext;) {
-    const f32 depth = r.range(d0, d1);
+    const f32 depth = in_bays(r.range(d0, d1), 1);
     for (f32 a = -ext; a < ext;) {
-      const f32 w = r.range(w0, w1);
+      const f32 w = in_bays(r.range(w0, w1), 1);
       const vec2 p = c + u * (a + w * 0.5f) + v * (b + depth * 0.5f);
       const cell_info *ci = m.cell_at(p);
       if (!ci || ci->block != bi || ci->g != ground::free) {

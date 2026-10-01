@@ -1,4 +1,5 @@
 #include "gen.h"
+#include "street_kit.h"
 
 #include <algorithm>
 #include <cmath>
@@ -158,7 +159,9 @@ void generator::make_props() {
       continue;
     }
     const bool leafy = rd.kind == road_kind::avenue || rd.kind == road_kind::ring || rd.sidewalk >= 10.0f;
-    const f32 off = rd.width * 0.5f + rd.sidewalk * 0.55f;
+    // In a strip along the curb (sidewalk_layout.json's lamps and poles), so
+    // the rest of the sidewalk stays a walkway.
+    const f32 off = rd.width * 0.5f + std::min(2.4f, rd.sidewalk * 0.3f);
     for (const f32 side : {-1.0f, 1.0f}) {
       const f32 gap = leafy ? r.range(40.0f, 52.0f) : r.range(64.0f, 80.0f);
       for (f32 s = r.range(0.0f, gap); s < walk.length(); s += gap + r.range(-6.0f, 6.0f)) {
@@ -168,7 +171,8 @@ void generator::make_props() {
         if (!on_sidewalk(q))
           continue;
         if (leafy)
-          m.props.push_back({r.chance(0.8f) ? prop_kind::tree : prop_kind::lamp, q, r.range(0.0f, 360.0f),
+          // A lamp's arm (the kit's +X) reaches out over the road.
+          m.props.push_back({r.chance(0.8f) ? prop_kind::tree : prop_kind::lamp, q, angle_of(perp(t) * -side),
                              r.range(0.8f, 1.2f), r.next_u32()});
         else if (side > 0.0f)
           m.props.push_back({prop_kind::pole, q, angle_of(t), 1.0f, r.next_u32()});
@@ -198,7 +202,8 @@ void generator::make_props() {
     if (bz.kind == business_kind::street_food || bz.kind == business_kind::cafe) {
       for (i32 i = r.range(3, 8); i > 0; --i) {
         const f32 along = r.range(-bd.box.half.x, bd.box.half.x);
-        const vec2 q = face + fwd * r.range(3.0f, 10.0f) + side * along;
+        // Against the shop's front: the walkway beyond stays clear.
+        const vec2 q = face + fwd * r.range(2.0f, 4.5f) + side * along;
         if (std::fabs(along - door_along) < 5.0f)
           continue;
         if (on_sidewalk(q))
@@ -282,6 +287,10 @@ namespace {
 // The ground a prop stands on, as render_props.cpp draws it (world units).
 // False for what stands in no one's way (boats).
 bool prop_footprint(const prop &p, obb &out) {
+  if (const street::asset *a = street::asset_for(p)) {
+    out = street::footprint(p, *a);
+    return true;
+  }
   const f32 s = p.scale;
   vec2 half{};
   f32 angle = p.angle;

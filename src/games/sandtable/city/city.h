@@ -36,8 +36,8 @@ inline constexpr f32 floor_height = 3.0f * units_per_metre;   // a storey, 3 m
 
 struct city_desc {
   u32 seed = 1;
-  f32 width = 3200.0f;  // world units
-  f32 height = 2048.0f;
+  f32 width = 4800.0f;  // world units (800 m)
+  f32 height = 3072.0f; // 512 m
   f32 cell = 8.0f;      // size of a raster cell
   // < 0: the seed decides; 0 off, 1 on.
   i32 river = -1;

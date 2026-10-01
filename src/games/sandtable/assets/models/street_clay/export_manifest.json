@@ -1,0 +1,1286 @@
+{
+  "revision": "vietnam-street-clay-v1",
+  "source_sha256": "f1d6a424d6deea3610d9cb15b70c3dbd2820659966f8b4e692b1db15ceb378d7",
+  "units": "metre",
+  "axes": {
+    "up": "+Y",
+    "front": "+Z"
+  },
+  "blender_to_gltf": "[x,z,-y]",
+  "assets": [
+    {
+      "id": "street/StoneBench",
+      "collection": "ST_StoneBench",
+      "bounds_m": {
+        "min": [
+          -0.925000011920929,
+          -0.2750000059604645,
+          0.0
+        ],
+        "max": [
+          0.925000011920929,
+          0.2750000059604645,
+          0.45000001788139343
+        ]
+      },
+      "dimensions_m": [
+        1.850000023841858,
+        0.550000011920929,
+        0.45000001788139343
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.22500000894069672
+        ],
+        "size": [
+          1.850000023841858,
+          0.550000011920929,
+          0.45000001788139343
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Ghế đá không tựa",
+      "category": "seating",
+      "seat_height_m": 0.45,
+      "seat_points": [
+        [
+          -0.55,
+          0,
+          0.45
+        ],
+        [
+          0,
+          0,
+          0.45
+        ],
+        [
+          0.55,
+          0,
+          0.45
+        ]
+      ],
+      "path": "modules/StoneBench.glb",
+      "sha256": "190a8f8bc0850de96211a8119bda27564e5f26e4ec6d77bdb343067a50f450e7"
+    },
+    {
+      "id": "street/StoneBenchBack",
+      "collection": "ST_StoneBenchBack",
+      "bounds_m": {
+        "min": [
+          -0.925000011920929,
+          -0.2750000059604645,
+          0.0
+        ],
+        "max": [
+          0.925000011920929,
+          0.29187726974487305,
+          0.8799999952316284
+        ]
+      },
+      "dimensions_m": [
+        1.850000023841858,
+        0.5668772757053375,
+        0.8799999952316284
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.008438631892204285,
+          0.4399999976158142
+        ],
+        "size": [
+          1.850000023841858,
+          0.5668772757053375,
+          0.8799999952316284
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Ghế đá có tựa",
+      "category": "seating",
+      "seat_height_m": 0.45,
+      "seat_points": [
+        [
+          -0.55,
+          0,
+          0.45
+        ],
+        [
+          0,
+          0,
+          0.45
+        ],
+        [
+          0.55,
+          0,
+          0.45
+        ]
+      ],
+      "path": "modules/StoneBenchBack.glb",
+      "sha256": "fb3ec7c5235ee001dc53ec82730de40c158fa9e342829fc6f13c633588ff8697"
+    },
+    {
+      "id": "street/PublicBench",
+      "collection": "ST_PublicBench",
+      "bounds_m": {
+        "min": [
+          -0.8999999761581421,
+          -0.2434999942779541,
+          0.0
+        ],
+        "max": [
+          0.8999999761581421,
+          0.2434999942779541,
+          0.4625000059604645
+        ]
+      },
+      "dimensions_m": [
+        1.7999999523162842,
+        0.4869999885559082,
+        0.4625000059604645
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.23125000298023224
+        ],
+        "size": [
+          1.7999999523162842,
+          0.4869999885559082,
+          0.4625000059604645
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Ghế công cộng không tựa",
+      "category": "seating",
+      "seat_height_m": 0.46,
+      "seat_points": [
+        [
+          -0.5,
+          0,
+          0.46
+        ],
+        [
+          0.5,
+          0,
+          0.46
+        ]
+      ],
+      "path": "modules/PublicBench.glb",
+      "sha256": "9d55e96af96a818a38ab8b26407cf3d409d1d5533a7c4f595670d4bc489c3704"
+    },
+    {
+      "id": "street/PublicBenchBack",
+      "collection": "ST_PublicBenchBack",
+      "bounds_m": {
+        "min": [
+          -0.8999999761581421,
+          -0.2434999942779541,
+          0.0
+        ],
+        "max": [
+          0.8999999761581421,
+          0.3269945979118347,
+          0.8824999928474426
+        ]
+      },
+      "dimensions_m": [
+        1.7999999523162842,
+        0.5704945921897888,
+        0.8824999928474426
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.04174730181694031,
+          0.4412499964237213
+        ],
+        "size": [
+          1.7999999523162842,
+          0.5704945921897888,
+          0.8824999928474426
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Ghế công cộng có tựa",
+      "category": "seating",
+      "seat_height_m": 0.46,
+      "seat_points": [
+        [
+          -0.5,
+          0,
+          0.46
+        ],
+        [
+          0.5,
+          0,
+          0.46
+        ]
+      ],
+      "path": "modules/PublicBenchBack.glb",
+      "sha256": "f88e979114c244cc8ae9875f31f02cfc19944067cdc2648e776e9e965888d745"
+    },
+    {
+      "id": "street/PlasticChairHigh",
+      "collection": "ST_PlasticChairHigh",
+      "bounds_m": {
+        "min": [
+          -0.20999999344348907,
+          -0.20000000298023224,
+          0.0
+        ],
+        "max": [
+          0.20999999344348907,
+          0.24150000512599945,
+          0.8545279502868652
+        ]
+      },
+      "dimensions_m": [
+        0.41999998688697815,
+        0.4415000081062317,
+        0.8545279502868652
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.020750001072883606,
+          0.4272639751434326
+        ],
+        "size": [
+          0.41999998688697815,
+          0.4415000081062317,
+          0.8545279502868652
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Ghế nhựa cao",
+      "category": "seating",
+      "seat_height_m": 0.45202798284590245,
+      "seat_points": [
+        [
+          0,
+          0,
+          0.45202798284590245
+        ]
+      ],
+      "path": "modules/PlasticChairHigh.glb",
+      "sha256": "fab089326aca954c50e7763423392ecbbe7421bb6c979b26eda3ca0a0e25ff95"
+    },
+    {
+      "id": "street/PlasticChairLow",
+      "collection": "ST_PlasticChairLow",
+      "bounds_m": {
+        "min": [
+          -0.20999999344348907,
+          -0.20000000298023224,
+          0.0
+        ],
+        "max": [
+          0.20999999344348907,
+          0.24150000512599945,
+          0.6760427355766296
+        ]
+      },
+      "dimensions_m": [
+        0.41999998688697815,
+        0.4415000081062317,
+        0.6760427355766296
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.020750001072883606,
+          0.3380213677883148
+        ],
+        "size": [
+          0.41999998688697815,
+          0.4415000081062317,
+          0.6760427355766296
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Ghế nhựa thấp",
+      "category": "seating",
+      "seat_height_m": 0.2735427371039987,
+      "seat_points": [
+        [
+          0,
+          0,
+          0.2735427371039987
+        ]
+      ],
+      "path": "modules/PlasticChairLow.glb",
+      "sha256": "879e85ff54fb2edf121a8e1cb8f7553d663d191b78065cf91c82a68b22ff7001"
+    },
+    {
+      "id": "street/PlasticStoolHigh",
+      "collection": "ST_PlasticStoolHigh",
+      "bounds_m": {
+        "min": [
+          -0.1599999964237213,
+          -0.1599999964237213,
+          0.0
+        ],
+        "max": [
+          0.1599999964237213,
+          0.1599999964237213,
+          0.44207751750946045
+        ]
+      },
+      "dimensions_m": [
+        0.3199999928474426,
+        0.3199999928474426,
+        0.44207751750946045
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.22103875875473022
+        ],
+        "size": [
+          0.3199999928474426,
+          0.3199999928474426,
+          0.44207751750946045
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Đôn nhựa cao",
+      "category": "seating",
+      "seat_height_m": 0.44207752268761397,
+      "seat_points": [
+        [
+          0,
+          0,
+          0.44207752268761397
+        ]
+      ],
+      "path": "modules/PlasticStoolHigh.glb",
+      "sha256": "966361ab6822b10b760d1e5c712adacac6cb44a59f74c5a05918ea27c4cccbcf"
+    },
+    {
+      "id": "street/PlasticStoolLow",
+      "collection": "ST_PlasticStoolLow",
+      "bounds_m": {
+        "min": [
+          -0.1599999964237213,
+          -0.1599999964237213,
+          0.0
+        ],
+        "max": [
+          0.1599999964237213,
+          0.1599999964237213,
+          0.24404120445251465
+        ]
+      },
+      "dimensions_m": [
+        0.3199999928474426,
+        0.3199999928474426,
+        0.24404120445251465
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.12202060222625732
+        ],
+        "size": [
+          0.3199999928474426,
+          0.3199999928474426,
+          0.24404120445251465
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Đôn nhựa thấp",
+      "category": "seating",
+      "seat_height_m": 0.24404120236635207,
+      "seat_points": [
+        [
+          0,
+          0,
+          0.24404120236635207
+        ]
+      ],
+      "path": "modules/PlasticStoolLow.glb",
+      "sha256": "ef7c6212a4bb76cf4a60bac622d65835befad1d414e8296a8555767ba70655c0"
+    },
+    {
+      "id": "street/PlasticTableLow",
+      "collection": "ST_PlasticTableLow",
+      "bounds_m": {
+        "min": [
+          -0.36000001430511475,
+          -0.3100000023841858,
+          0.0
+        ],
+        "max": [
+          0.36000001430511475,
+          0.3100000023841858,
+          0.4812491238117218
+        ]
+      },
+      "dimensions_m": [
+        0.7200000286102295,
+        0.6200000047683716,
+        0.4812491238117218
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.2406245619058609
+        ],
+        "size": [
+          0.7200000286102295,
+          0.6200000047683716,
+          0.4812491238117218
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Bàn nhựa thấp",
+      "category": "furniture",
+      "table_height_m": 0.4812491139350459,
+      "path": "modules/PlasticTableLow.glb",
+      "sha256": "91f4ae26c5198fb1b3cc4b7d819ec0fb07c30a8c85441b494d90c71cd748ccfa"
+    },
+    {
+      "id": "street/FireHydrant",
+      "collection": "ST_FireHydrant",
+      "bounds_m": {
+        "min": [
+          -0.2904999852180481,
+          -0.1899999976158142,
+          0.0
+        ],
+        "max": [
+          0.2904999852180481,
+          0.1899999976158142,
+          0.7574999928474426
+        ]
+      },
+      "dimensions_m": [
+        0.5809999704360962,
+        0.3799999952316284,
+        0.7574999928474426
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.3787499964237213
+        ],
+        "size": [
+          0.5809999704360962,
+          0.3799999952316284,
+          0.7574999928474426
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Trụ cấp nước chữa cháy",
+      "category": "infrastructure",
+      "connection_points": {
+        "hose_left": [
+          -0.24,
+          0,
+          0.49
+        ],
+        "hose_right": [
+          0.24,
+          0,
+          0.49
+        ]
+      },
+      "clearance_m": 0.65,
+      "path": "modules/FireHydrant.glb",
+      "sha256": "b3f7eb0b1509f486a1368e2852bc54df7645ac2b8ac8bef1709db799c02a7e68"
+    },
+    {
+      "id": "street/StreetLampSingle",
+      "collection": "ST_StreetLampSingle",
+      "bounds_m": {
+        "min": [
+          -0.17000000178813934,
+          -0.17000000178813934,
+          0.0
+        ],
+        "max": [
+          1.1749999523162842,
+          0.17000000178813934,
+          5.060762882232666
+        ]
+      },
+      "dimensions_m": [
+        1.3449999541044235,
+        0.3400000035762787,
+        5.060762882232666
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.5024999752640724,
+          0.0,
+          2.530381441116333
+        ],
+        "size": [
+          1.3449999541044235,
+          0.3400000035762787,
+          5.060762882232666
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Trụ đèn một nhánh",
+      "category": "infrastructure",
+      "light_points": [
+        [
+          0.9,
+          0,
+          4.9
+        ]
+      ],
+      "light_color": [
+        1,
+        0.77,
+        0.4
+      ],
+      "path": "modules/StreetLampSingle.glb",
+      "sha256": "3f50b0c88d79b56712a2395b0fc910c895e6f0c6a43fe01554fc8cc8f41c0d57"
+    },
+    {
+      "id": "street/StreetLampDouble",
+      "collection": "ST_StreetLampDouble",
+      "bounds_m": {
+        "min": [
+          -1.1749999523162842,
+          -0.17000000178813934,
+          0.0
+        ],
+        "max": [
+          1.1749999523162842,
+          0.17000000178813934,
+          5.060762882232666
+        ]
+      },
+      "dimensions_m": [
+        2.3499999046325684,
+        0.3400000035762787,
+        5.060762882232666
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          2.530381441116333
+        ],
+        "size": [
+          2.3499999046325684,
+          0.3400000035762787,
+          5.060762882232666
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Trụ đèn hai nhánh",
+      "category": "infrastructure",
+      "light_points": [
+        [
+          -0.9,
+          0,
+          4.9
+        ],
+        [
+          0.9,
+          0,
+          4.9
+        ]
+      ],
+      "light_color": [
+        1,
+        0.77,
+        0.4
+      ],
+      "path": "modules/StreetLampDouble.glb",
+      "sha256": "c1ed327130c5fe9208dec82059ba20a351c61d680d9a640b96b1329999c08638"
+    },
+    {
+      "id": "street/UtilityPole",
+      "collection": "ST_UtilityPole",
+      "bounds_m": {
+        "min": [
+          -0.7749999761581421,
+          -0.28050002455711365,
+          0.0
+        ],
+        "max": [
+          0.7749999761581421,
+          0.17499999701976776,
+          7.150000095367432
+        ]
+      },
+      "dimensions_m": [
+        1.5499999523162842,
+        0.4555000215768814,
+        7.150000095367432
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          -0.05275001376867294,
+          3.575000047683716
+        ],
+        "size": [
+          1.5499999523162842,
+          0.4555000215768814,
+          7.150000095367432
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Trụ điện bê tông",
+      "category": "infrastructure",
+      "wire_sockets": [
+        [
+          -0.6,
+          0,
+          7.15
+        ],
+        [
+          0,
+          0,
+          7.15
+        ],
+        [
+          0.6,
+          0,
+          7.15
+        ]
+      ],
+      "path": "modules/UtilityPole.glb",
+      "sha256": "95af07b6c9dee0f8bcb20450f779b204dc921e5b76704811c7369fdebfe629db"
+    },
+    {
+      "id": "street/TrashBinRound",
+      "collection": "ST_TrashBinRound",
+      "bounds_m": {
+        "min": [
+          -0.27892670035362244,
+          -0.27892670035362244,
+          0.0
+        ],
+        "max": [
+          0.27892670035362244,
+          0.27892670035362244,
+          0.9549999833106995
+        ]
+      },
+      "dimensions_m": [
+        0.5578534007072449,
+        0.5578534007072449,
+        0.9549999833106995
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.47749999165534973
+        ],
+        "size": [
+          0.5578534007072449,
+          0.5578534007072449,
+          0.9549999833106995
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Thùng rác công cộng tròn",
+      "category": "infrastructure",
+      "path": "modules/TrashBinRound.glb",
+      "sha256": "e932f680a5d4d2fac355730880407f0221cdbc14cb0939c6a2e75271ae4ee5e2"
+    },
+    {
+      "id": "street/TrashBinWheelie",
+      "collection": "ST_TrashBinWheelie",
+      "bounds_m": {
+        "min": [
+          -0.2549999952316284,
+          -0.23499999940395355,
+          0.0
+        ],
+        "max": [
+          0.2549999952316284,
+          0.30966904759407043,
+          0.9075000286102295
+        ]
+      },
+      "dimensions_m": [
+        0.5099999904632568,
+        0.544669046998024,
+        0.9075000286102295
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.03733452409505844,
+          0.45375001430511475
+        ],
+        "size": [
+          0.5099999904632568,
+          0.544669046998024,
+          0.9075000286102295
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Thùng rác có bánh xe",
+      "category": "infrastructure",
+      "path": "modules/TrashBinWheelie.glb",
+      "sha256": "dfb417289925a9ccf1b5fbed53396ec33b694ea76b0b6e7a56a6625b3977d055"
+    },
+    {
+      "id": "street/StreetUmbrella",
+      "collection": "ST_StreetUmbrella",
+      "bounds_m": {
+        "min": [
+          -1.0987639427185059,
+          -1.0461621284484863,
+          0.0
+        ],
+        "max": [
+          1.0987639427185059,
+          1.0461621284484863,
+          2.3790442943573
+        ]
+      },
+      "dimensions_m": [
+        2.1975278854370117,
+        2.0923242568969727,
+        2.3790442943573
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          1.18952214717865
+        ],
+        "size": [
+          2.1975278854370117,
+          2.0923242568969727,
+          2.3790442943573
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Dù che quầy vỉa hè",
+      "category": "furniture",
+      "shade_radius_m": 1.1,
+      "path": "modules/StreetUmbrella.glb",
+      "sha256": "e625a35a946db26b49cc4ca3b6a1787b55889d50ef5bbb160a96a2ddbc544011"
+    },
+    {
+      "id": "street/HuTieuCart",
+      "collection": "ST_HuTieuCart",
+      "bounds_m": {
+        "min": [
+          -0.8635838627815247,
+          -0.4635000228881836,
+          0.0
+        ],
+        "max": [
+          0.8600000143051147,
+          0.4449999928474426,
+          2.0350000858306885
+        ]
+      },
+      "dimensions_m": [
+        1.7235838770866394,
+        0.9085000157356262,
+        2.0350000858306885
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          -0.001791924238204956,
+          -0.009250015020370483,
+          1.0175000429153442
+        ],
+        "size": [
+          1.7235838770866394,
+          0.9085000157356262,
+          2.0350000858306885
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Xe bán hủ tiếu",
+      "category": "vendor",
+      "service_anchor": [
+        0,
+        -0.65,
+        0
+      ],
+      "work_anchor": [
+        0,
+        0.8,
+        0
+      ],
+      "path": "modules/HuTieuCart.glb",
+      "sha256": "e154fcee7f913602ba518fd0ccfaf98ef9bea780068e697cd1761ccb57c880a7"
+    },
+    {
+      "id": "street/BanhMiCart",
+      "collection": "ST_BanhMiCart",
+      "bounds_m": {
+        "min": [
+          -0.8635838627815247,
+          -0.4635000228881836,
+          0.0
+        ],
+        "max": [
+          0.8600000143051147,
+          0.5299999713897705,
+          2.0350000858306885
+        ]
+      },
+      "dimensions_m": [
+        1.7235838770866394,
+        0.9934999942779541,
+        2.0350000858306885
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          -0.001791924238204956,
+          0.03324997425079346,
+          1.0175000429153442
+        ],
+        "size": [
+          1.7235838770866394,
+          0.9934999942779541,
+          2.0350000858306885
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Xe bánh mì tủ kính",
+      "category": "vendor",
+      "service_anchor": [
+        0,
+        -0.7,
+        0
+      ],
+      "work_anchor": [
+        0,
+        0.85,
+        0
+      ],
+      "path": "modules/BanhMiCart.glb",
+      "sha256": "b9c0c30ce31a62ad53e978ce34b1da160b05b18bb75e6f83e28800ed9a0fc635"
+    },
+    {
+      "id": "street/MiQuangCounter",
+      "collection": "ST_MiQuangCounter",
+      "bounds_m": {
+        "min": [
+          -0.8635838627815247,
+          -0.4635000228881836,
+          0.0
+        ],
+        "max": [
+          0.8600000143051147,
+          0.48000001907348633,
+          2.0350000858306885
+        ]
+      },
+      "dimensions_m": [
+        1.7235838770866394,
+        0.9435000419616699,
+        2.0350000858306885
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          -0.001791924238204956,
+          0.008249998092651367,
+          1.0175000429153442
+        ],
+        "size": [
+          1.7235838770866394,
+          0.9435000419616699,
+          2.0350000858306885
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Quầy mì Quảng",
+      "category": "vendor",
+      "service_anchor": [
+        0,
+        -0.7,
+        0
+      ],
+      "work_anchor": [
+        0,
+        0.85,
+        0
+      ],
+      "path": "modules/MiQuangCounter.glb",
+      "sha256": "9a48b2466ad61fb6f48f0045bad0e4527b30d7d99c2137d4fada66fe1431c653"
+    },
+    {
+      "id": "street/TeaShoulderPole",
+      "collection": "ST_TeaShoulderPole",
+      "bounds_m": {
+        "min": [
+          -1.027659296989441,
+          -0.2891473174095154,
+          0.0
+        ],
+        "max": [
+          1.027659296989441,
+          0.2891473174095154,
+          1.1456785202026367
+        ]
+      },
+      "dimensions_m": [
+        2.055318593978882,
+        0.5782946348190308,
+        1.1456785202026367
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.0,
+          0.0,
+          0.5728392601013184
+        ],
+        "size": [
+          2.055318593978882,
+          0.5782946348190308,
+          1.1456785202026367
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Gánh trà đá quang gánh",
+      "category": "vendor",
+      "carry_anchor": [
+        0,
+        0,
+        1.05
+      ],
+      "path": "modules/TeaShoulderPole.glb",
+      "sha256": "899c5dea0e26820b5b8e66a97c1eb6d34c0e87ae9bf23baa9ad868d5c23402aa"
+    },
+    {
+      "id": "street/TeaServiceSet",
+      "collection": "ST_TeaServiceSet",
+      "bounds_m": {
+        "min": [
+          -0.5249999761581421,
+          -0.45499998331069946,
+          0.0
+        ],
+        "max": [
+          0.4974091947078705,
+          0.2749999761581421,
+          0.6011140942573547
+        ]
+      },
+      "dimensions_m": [
+        1.0224091708660126,
+        0.7299999594688416,
+        0.6011140942573547
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          -0.013795390725135803,
+          -0.09000000357627869,
+          0.30055704712867737
+        ],
+        "size": [
+          1.0224091708660126,
+          0.7299999594688416,
+          0.6011140942573547
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Bộ thùng đá, ấm trà và ly",
+      "category": "vendor",
+      "path": "modules/TeaServiceSet.glb",
+      "sha256": "1547680aa3ce0d8fecf4b8f92f90da0500430bf6f61f503a18b664d6cacfd1b9"
+    },
+    {
+      "id": "street/HuTieuSpace",
+      "collection": "ST_HuTieuSpace",
+      "bounds_m": {
+        "min": [
+          -1.2400000095367432,
+          -1.9014999866485596,
+          0.0
+        ],
+        "max": [
+          2.598763942718506,
+          1.1961621046066284,
+          2.3790442943573
+        ]
+      },
+      "dimensions_m": [
+        3.838763952255249,
+        3.097662091255188,
+        2.3790442943573
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.6793819665908813,
+          -0.3526689410209656,
+          1.18952214717865
+        ],
+        "size": [
+          3.838763952255249,
+          3.097662091255188,
+          2.3790442943573
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Không gian bán hủ tiếu",
+      "category": "vendor_space",
+      "clearance_polygon_m": [
+        [
+          -1.4400000095367431,
+          -2.1014999866485597
+        ],
+        [
+          2.798763942718506,
+          -2.1014999866485597
+        ],
+        [
+          2.798763942718506,
+          1.3961621046066284
+        ],
+        [
+          -1.4400000095367431,
+          1.3961621046066284
+        ]
+      ],
+      "service_anchor": [
+        0,
+        -0.45,
+        0
+      ],
+      "work_anchor": [
+        0,
+        1.25,
+        0
+      ],
+      "passage_side": "front",
+      "suggested_walkway_m": 1.6,
+      "path": "modules/HuTieuSpace.glb",
+      "sha256": "656e497284a03d10bed47a336d0acb4321325c4299c8897549277cde484d8d98"
+    },
+    {
+      "id": "street/BanhMiSpace",
+      "collection": "ST_BanhMiSpace",
+      "bounds_m": {
+        "min": [
+          -1.2400000095367432,
+          -1.9014999866485596,
+          0.0
+        ],
+        "max": [
+          2.598763942718506,
+          1.1961621046066284,
+          2.3790442943573
+        ]
+      },
+      "dimensions_m": [
+        3.838763952255249,
+        3.097662091255188,
+        2.3790442943573
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.6793819665908813,
+          -0.3526689410209656,
+          1.18952214717865
+        ],
+        "size": [
+          3.838763952255249,
+          3.097662091255188,
+          2.3790442943573
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Không gian bán bánh mì",
+      "category": "vendor_space",
+      "clearance_polygon_m": [
+        [
+          -1.4400000095367431,
+          -2.1014999866485597
+        ],
+        [
+          2.798763942718506,
+          -2.1014999866485597
+        ],
+        [
+          2.798763942718506,
+          1.3961621046066284
+        ],
+        [
+          -1.4400000095367431,
+          1.3961621046066284
+        ]
+      ],
+      "service_anchor": [
+        0,
+        -0.45,
+        0
+      ],
+      "work_anchor": [
+        0,
+        1.25,
+        0
+      ],
+      "passage_side": "front",
+      "suggested_walkway_m": 1.6,
+      "path": "modules/BanhMiSpace.glb",
+      "sha256": "ffdbf21b743ab2046c46b91fec8640aba16d8fff02d1042ef8e8d514df3c7220"
+    },
+    {
+      "id": "street/MiQuangSpace",
+      "collection": "ST_MiQuangSpace",
+      "bounds_m": {
+        "min": [
+          -1.2400000095367432,
+          -1.9014999866485596,
+          0.0
+        ],
+        "max": [
+          2.598763942718506,
+          1.1961621046066284,
+          2.3790442943573
+        ]
+      },
+      "dimensions_m": [
+        3.838763952255249,
+        3.097662091255188,
+        2.3790442943573
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.6793819665908813,
+          -0.3526689410209656,
+          1.18952214717865
+        ],
+        "size": [
+          3.838763952255249,
+          3.097662091255188,
+          2.3790442943573
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Không gian bán mì Quảng",
+      "category": "vendor_space",
+      "clearance_polygon_m": [
+        [
+          -1.4400000095367431,
+          -2.1014999866485597
+        ],
+        [
+          2.798763942718506,
+          -2.1014999866485597
+        ],
+        [
+          2.798763942718506,
+          1.3961621046066284
+        ],
+        [
+          -1.4400000095367431,
+          1.3961621046066284
+        ]
+      ],
+      "service_anchor": [
+        0,
+        -0.45,
+        0
+      ],
+      "work_anchor": [
+        0,
+        1.25,
+        0
+      ],
+      "passage_side": "front",
+      "suggested_walkway_m": 1.6,
+      "path": "modules/MiQuangSpace.glb",
+      "sha256": "68cea7ab646a5b97232677660a4b0f2cb5a02948e058dc266990d846c2176758"
+    },
+    {
+      "id": "street/SidewalkTeaSpace",
+      "collection": "ST_SidewalkTeaSpace",
+      "bounds_m": {
+        "min": [
+          -1.625,
+          -1.559999942779541,
+          0.0
+        ],
+        "max": [
+          2.698763847351074,
+          1.4461621046066284,
+          2.3790442943573
+        ]
+      },
+      "dimensions_m": [
+        4.323763847351074,
+        3.0061620473861694,
+        2.3790442943573
+      ],
+      "collision": {
+        "type": "box",
+        "center": [
+          0.5368819236755371,
+          -0.0569189190864563,
+          1.18952214717865
+        ],
+        "size": [
+          4.323763847351074,
+          3.0061620473861694,
+          2.3790442943573
+        ],
+        "recommendation": "coarse placement only; split legs/supports for walkable vendor spaces"
+      },
+      "label_vi": "Gánh trà đá và chỗ ngồi vỉa hè",
+      "category": "vendor_space",
+      "clearance_polygon_m": [
+        [
+          -1.825,
+          -1.759999942779541
+        ],
+        [
+          2.8987638473510744,
+          -1.759999942779541
+        ],
+        [
+          2.8987638473510744,
+          1.6461621046066284
+        ],
+        [
+          -1.825,
+          1.6461621046066284
+        ]
+      ],
+      "suggested_walkway_m": 1.6,
+      "path": "modules/SidewalkTeaSpace.glb",
+      "sha256": "66189082b75f5ccfc2be9b60413c6cdfdb6f9ea2ec2d26ccac3052fa88919c24"
+    }
+  ]
+}

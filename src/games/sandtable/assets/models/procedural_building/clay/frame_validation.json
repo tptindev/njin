@@ -1,0 +1,179 @@
+{
+  "passed": true,
+  "continuous_frames": 24,
+  "crossbars_remaining": [],
+  "door_poses_checked": 99,
+  "frame_collisions": 0,
+  "results": [
+    {
+      "name": "PBK_Continuous_Frame_Brick_Balcony",
+      "role": "Balcony",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.14985191816190746
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Door",
+      "role": "Door",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.13751974442762402
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Shopfront",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.15564875381460422
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Shopfront.001",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.12560396386377465
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Shopfront.002",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.16523343299804294
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Window",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.1154293056757696
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Window.001",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.09314770863062503
+    },
+    {
+      "name": "PBK_Continuous_Frame_Brick_Window.002",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.12253707828497654
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Balcony",
+      "role": "Balcony",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.14985191816190746
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Door",
+      "role": "Door",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.13751974442762402
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Shopfront",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.15564875381460422
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Shopfront.001",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.12560396386377465
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Shopfront.002",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.16523343299804294
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Window",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.1154293056757696
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Window.001",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.09314770863062503
+    },
+    {
+      "name": "PBK_Continuous_Frame_Indochine_Window.002",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.12253707828497654
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Balcony",
+      "role": "Balcony",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.14985191816190746
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Door",
+      "role": "Door",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.13751974442762402
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Shopfront",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.15564875381460422
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Shopfront.001",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.12560396386377465
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Shopfront.002",
+      "role": "Shopfront",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.16523343299804294
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Window",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.1154293056757696
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Window.001",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.09314770863062503
+    },
+    {
+      "name": "PBK_Continuous_Frame_Modern_Window.002",
+      "role": "Window",
+      "components": 1,
+      "manifold": true,
+      "volume_m3": 0.12253707828497654
+    }
+  ],
+  "errors": [],
+  "glb_export_run": false
+}

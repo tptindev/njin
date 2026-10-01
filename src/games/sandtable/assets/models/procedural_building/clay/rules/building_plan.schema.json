@@ -1,0 +1,603 @@
+{
+  "type": "object",
+  "required": [
+    "schema",
+    "rule_version",
+    "kit_revision",
+    "seed",
+    "archetype",
+    "style",
+    "space_preset",
+    "width_m",
+    "depth_m",
+    "footprint",
+    "road_frontages",
+    "floors",
+    "portals",
+    "stair_core",
+    "required_module_ids",
+    "runtime_generated_geometry",
+    "provenance",
+    "daylight_apertures"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "rule_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kit_revision": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "archetype": {
+      "type": "string"
+    },
+    "style": {
+      "type": "string",
+      "enum": [
+        "Indochine",
+        "Modern",
+        "Brick"
+      ]
+    },
+    "space_preset": {
+      "type": "string",
+      "enum": [
+        "comfortable",
+        "spacious",
+        "generous"
+      ]
+    },
+    "width_m": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "depth_m": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "footprint": {
+      "type": "object",
+      "required": [
+        "shape",
+        "outer_m",
+        "holes_m",
+        "radius_m"
+      ],
+      "properties": {
+        "shape": {
+          "type": "string"
+        },
+        "outer_m": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 3
+        },
+        "holes_m": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "minItems": 3
+          }
+        },
+        "radius_m": {
+          "type": [
+            "string",
+            "number",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "road_frontages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "floors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "level",
+          "elevation_m",
+          "rooms",
+          "slab_voids_m"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          },
+          "elevation_m": {
+            "type": "number"
+          },
+          "rooms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "type",
+                "polygon_m",
+                "net_area_m2",
+                "floor_voids_m",
+                "daylight_edges",
+                "furniture_coverage_target"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "living",
+                    "living_dining_kitchen",
+                    "shop",
+                    "bedroom",
+                    "kitchen",
+                    "bathroom",
+                    "storage",
+                    "utility",
+                    "office",
+                    "corridor",
+                    "stair",
+                    "apartment_unit"
+                  ]
+                },
+                "polygon_m": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "minItems": 3
+                },
+                "net_area_m2": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "floor_voids_m": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "minItems": 3
+                  }
+                },
+                "daylight_edges": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "furniture_coverage_target": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "slab_voids_m": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "minItems": 3
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 8
+    },
+    "portals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "floor_from",
+          "floor_to",
+          "from_room",
+          "to_room",
+          "center_m",
+          "axis",
+          "kind",
+          "normal_m",
+          "aperture_width_m",
+          "net_clear_width_m",
+          "height_m",
+          "module_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "floor_from": {
+            "type": "number"
+          },
+          "floor_to": {
+            "type": "number"
+          },
+          "from_room": {
+            "type": "string"
+          },
+          "to_room": {
+            "type": "string"
+          },
+          "center_m": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "axis": {
+            "type": "string",
+            "enum": [
+              "x",
+              "y",
+              "vertical",
+              "tangent"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "door",
+              "open",
+              "stair_link"
+            ]
+          },
+          "normal_m": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "aperture_width_m": {
+            "type": "number"
+          },
+          "net_clear_width_m": {
+            "type": "number"
+          },
+          "height_m": {
+            "type": "number"
+          },
+          "module_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "stair_core": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type",
+            "room_ids",
+            "clear_width_m",
+            "riser_m",
+            "tread_m",
+            "walking_line_m",
+            "geometry_source",
+            "split_risers",
+            "lower_flight_m",
+            "upper_flight_m",
+            "lower_landing_m",
+            "turn_landing_m",
+            "upper_landing_m"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "dogleg"
+            },
+            "room_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "clear_width_m": {
+              "type": "number"
+            },
+            "riser_m": {
+              "type": "number"
+            },
+            "tread_m": {
+              "type": "number"
+            },
+            "split_risers": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "lower_flight_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "upper_flight_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "lower_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "turn_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "upper_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "walking_line_m": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3
+              }
+            },
+            "geometry_source": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type",
+            "room_ids",
+            "clear_width_m",
+            "riser_m",
+            "tread_m",
+            "walking_line_m",
+            "geometry_source",
+            "flight_m",
+            "bottom_landing_m",
+            "top_landing_m",
+            "risers"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "straight"
+            },
+            "room_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "clear_width_m": {
+              "type": "number"
+            },
+            "riser_m": {
+              "type": "number"
+            },
+            "tread_m": {
+              "type": "number"
+            },
+            "split_risers": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "lower_flight_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "upper_flight_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "lower_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "turn_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "upper_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "walking_line_m": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3
+              }
+            },
+            "geometry_source": {
+              "type": "string"
+            },
+            "flight_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "bottom_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "top_landing_m": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "risers": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "required_module_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "runtime_generated_geometry": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance": {
+      "type": "string"
+    },
+    "daylight_apertures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "floor",
+          "room_id",
+          "center_m",
+          "inward_normal",
+          "module_id",
+          "glazed_area_m2"
+        ],
+        "properties": {
+          "floor": {
+            "type": "number"
+          },
+          "room_id": {
+            "type": "string"
+          },
+          "center_m": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "inward_normal": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "module_id": {
+            "type": "string"
+          },
+          "glazed_area_m2": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Accepted building plan v1"
+}

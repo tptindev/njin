@@ -1,0 +1,798 @@
+{
+  "passed": true,
+  "modules_checked": 105,
+  "visual_variant": "handmade_clay",
+  "animated_modules": 13,
+  "door_poses_checked": 65,
+  "total_bytes": 59516380,
+  "scope": [
+    "GLB container and embedded resources",
+    "hashes and complete active asset set",
+    "root pivot",
+    "all geometry closed bounds after Blender re-import",
+    "skinned door pose bounds at five times and 90-degree rotation",
+    "source file unchanged",
+    "UV/tangents and embedded clay normal/roughness textures"
+  ],
+  "runtime_pending": [
+    "game importer/rendering",
+    "collision/navmesh/LOD"
+  ],
+  "results": [
+    {
+      "id": "Brick/ArcBand_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcBand_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcCoping_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcCoping_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcDoor_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 1.000000000001e-06,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcDoor_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 9.999999999732445e-07,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcFloor_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcFloor_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcParapet_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcParapet_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcShopfront_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcShopfront_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcWall_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcWall_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcWindow_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ArcWindow_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Balcony",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Column",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Coping",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/CornerShopfront90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 9.999999996956888e-07,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/CornerWindow90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 1.000000000139778e-06,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/DoorRigged",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Floor",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/FloorBand",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Gable",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/InnerCorner",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/OuterCorner",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Parapet",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Ridge",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/RoofSlope",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/ShopCornerPost90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Shopfront",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Stair",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Wall",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Brick/Window",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcBand_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcBand_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcCoping_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcCoping_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcDoor_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 1.000000000001e-06,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcDoor_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 9.999999999732445e-07,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcFloor_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcFloor_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcParapet_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcParapet_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcShopfront_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcShopfront_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcWall_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcWall_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcWindow_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 115.00000433853141,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcWindow_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 115.00000433853141,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Balcony",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Column",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Coping",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/CornerShopfront90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 9.999999996956888e-07,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/CornerWindow90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 115.00000433853141,
+      "catalog_bounds_error_m": 1.000000000139778e-06
+    },
+    {
+      "id": "Indochine/DoorRigged",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Floor",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/FloorBand",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Gable",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/InnerCorner",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/OuterCorner",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Parapet",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Ridge",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/RoofSlope",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/ShopCornerPost90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Shopfront",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Stair",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Wall",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Indochine/Window",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 115.00000433853141,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcBand_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcBand_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcCoping_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcCoping_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcDoor_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 1.000000000001e-06,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcDoor_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 9.999999999732445e-07,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcFloor_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcFloor_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcParapet_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcParapet_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcShopfront_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcShopfront_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcWall_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcWall_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcWindow_R2_A45",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ArcWindow_R4_A30",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Balcony",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Column",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Coping",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/CornerShopfront90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 9.999999996956888e-07,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/CornerWindow90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 1.000000000139778e-06,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/DoorRigged",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "door_pose_bounds_error_m": 0,
+      "door_poses_checked": 5,
+      "opening_angle_degrees": 90.00000933466734,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Floor",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/FloorBand",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Gable",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/InnerCorner",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/OuterCorner",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Parapet",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Ridge",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/RoofSlope",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/ShopCornerPost90",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Shopfront",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Stair",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Wall",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    },
+    {
+      "id": "Modern/Window",
+      "passed": true,
+      "errors": [],
+      "roundtrip_bounds_error_m": 0.0,
+      "catalog_bounds_error_m": 0.0
+    }
+  ],
+  "errors": []
+}

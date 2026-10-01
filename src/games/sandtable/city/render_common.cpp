@@ -79,6 +79,10 @@ void instances::add3(vec3 p, vec3 s, rgba c, f32 yaw, f32 pitch) {
   data.insert(data.end(), {p.x, p.y, p.z, 1.0f, c.r, c.g, c.b, c.a, pitch, yaw, 0.0f, 0.0f, s.x, s.y, s.z, 0.0f});
 }
 
+void instances::add_turned(vec3 p, f32 s, rgba c, vec3 r) {
+  data.insert(data.end(), {p.x, p.y, p.z, 1.0f, c.r, c.g, c.b, c.a, r.x, r.y, r.z, 0.0f, s, s, s, 0.0f});
+}
+
 void instances::box(vec2 at, f32 base, vec3 size, f32 angle, rgba col) {
   add3(to3d(at, (base + size.y * 0.5f) * unit3d), size * unit3d, col, -angle);
 }
@@ -220,6 +224,7 @@ void view_init(context &ctx) {
 }
 
 void view_shutdown(context &ctx) {
+  pbk_shutdown(ctx);
   cutaway_shutdown(ctx);
   kit_shutdown(ctx);
 }
@@ -229,6 +234,7 @@ void view_build(context &ctx, const city_map &map) {
   chunk_grid(map);
   ground_build(ctx, map);
   kit_build(ctx, map);
+  pbk_build(ctx, map);
   props_build(ctx, map);
   hover_build(ctx, map);
   debug_build(ctx, map);
@@ -236,8 +242,10 @@ void view_build(context &ctx, const city_map &map) {
 
 void view_draw(context &ctx, const city_map &map, const view_options &opt) {
   view_cull_update(ctx, map, opt);
+  pbk_update(ctx, delta(ctx));
   ground_draw(ctx, map, opt);
   kit_draw(ctx, opt);
+  pbk_draw(ctx, opt);
   props_draw(ctx, opt);
   cutaway_draw(ctx, map, opt);
   debug_draw(ctx, map, opt);
@@ -248,6 +256,7 @@ void view_draw_eye(context &ctx, const city_map &map, const view_options &opt, v
   const view_cull was = view_cull_around(at, reach);
   ground_draw(ctx, map, opt);
   kit_draw(ctx, opt);
+  pbk_draw(ctx, opt);
   props_draw(ctx, opt);
   cutaway_draw(ctx, map, opt);
   view_cull_restore(was);
@@ -256,6 +265,7 @@ void view_draw_eye(context &ctx, const city_map &map, const view_options &opt, v
 void view_cleanup(context &ctx) {
   ground_cleanup(ctx);
   kit_cleanup(ctx);
+  pbk_cleanup(ctx);
   props_cleanup(ctx);
   cutaway_cleanup(ctx);
   debug_cleanup(ctx);

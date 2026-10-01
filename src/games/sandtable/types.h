@@ -12,8 +12,8 @@ using namespace njin;
 
 // The table, in world units: x to the right and y toward the player. The
 // city (world.h) covers all of it; a man is about 20 units tall.
-inline constexpr f32 world_width = 3200.0f;
-inline constexpr f32 world_height = 2048.0f;
+inline constexpr f32 world_width = 4800.0f;
+inline constexpr f32 world_height = 3072.0f;
 
 constexpr rgba rgb(i32 r, i32 g, i32 b, i32 a = 255) {
   return {r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f};

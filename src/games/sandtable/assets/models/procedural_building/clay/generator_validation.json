@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "active_assets": 105,
+  "generated_cases": [
+    {
+      "name": "Clay_Test_Straight",
+      "shape": "Rectangle",
+      "style": "Modern",
+      "direct_meshes": 7,
+      "entrance_rigs": 1
+    },
+    {
+      "name": "Clay_Test_Rounded",
+      "shape": "CornerShopHouseRounded",
+      "style": "Indochine",
+      "direct_meshes": 10,
+      "entrance_rigs": 1
+    }
+  ],
+  "errors": []
+}

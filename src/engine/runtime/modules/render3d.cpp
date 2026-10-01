@@ -878,6 +878,9 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const i32 index = model.meshMaterial[i];
     const Material &file = model.materials[index];
     const model_material &mm = slot->materials[(usize)index];
+    // See-through parts only in the translucent pass, and never as shadow casters.
+    if ((mm.color.a < 1.0f) != ctx.render3d.translucent_pass)
+      continue;
     map_set maps{};
     for (usize m = 0; m < maps.size(); m++)
       maps[m] = file.maps[m];
@@ -1259,13 +1262,17 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   };
   std::vector<part> parts;
   Texture2D texture = default_texture();
-  if (c.mesh != nullptr) {
+  if (c.mesh != nullptr && s.translucent_pass) {
+    // A built-in shape has no see-through material.
+  } else if (c.mesh != nullptr) {
     mesh_texture(ctx, c.material.texture, texture);
     parts.push_back({c.mesh, texture, colors::white, &c.material});
   } else if (const model_slot *m = model_slot_of(ctx.model, c.model)) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const i32 index = m->model.meshMaterial[i];
       const model_material &mm = m->materials[(usize)index];
+      if ((mm.color.a < 1.0f) != (s.translucent_pass && !depth_only))
+        continue;
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
@@ -1273,7 +1280,10 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     }
   }
 
-  ctx.stats.instanced_calls++;
+  if (parts.empty())
+    return;
+  if (!s.translucent_pass)
+    ctx.stats.instanced_calls++;
   const Matrix mvp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   const i32 floats = (i32)slot->floats;
   const i32 stride = (i32)(slot->floats * sizeof(f32));
@@ -1330,6 +1340,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
 
 void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   const render3d_state &s = ctx.render3d;
+  if (s.translucent_pass && (c.is_shape || (c.mesh != nullptr && c.buffer.id == 0)))
+    return;
   if (c.is_shape) {
     draw_shape(s, c, view_proj, false, {}, false);
     return;
@@ -1340,10 +1352,12 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   }
   if (c.mesh == nullptr) {
     if (c.culled) {
-      ctx.stats.models3d_culled++;
+      if (!s.translucent_pass)
+        ctx.stats.models3d_culled++;
       return;
     }
-    ctx.stats.models3d++;
+    if (!s.translucent_pass)
+      ctx.stats.models3d++;
   }
   Shader custom{};
   const bool own = game_shader(ctx, c.shader, custom);
@@ -1699,6 +1713,16 @@ void end_3d(context &ctx) {
   rlActiveTextureSlot(0);
   for (const draw3d_cmd &c : s.cmds)
     draw_main(ctx, c, view_proj);
+  // Glass after everything it shows, tested against the depth but not
+  // writing it, so panes behind panes still show.
+  s.translucent_pass = true;
+  rlDrawRenderBatchActive();
+  rlDisableDepthMask();
+  for (const draw3d_cmd &c : s.cmds)
+    draw_main(ctx, c, view_proj);
+  rlDrawRenderBatchActive();
+  rlEnableDepthMask();
+  s.translucent_pass = false;
   for (i32 unit : {shadow_unit, lamp_unit}) {
     rlActiveTextureSlot(unit);
     rlDisableTexture();
