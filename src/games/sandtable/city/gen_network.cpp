@@ -106,14 +106,16 @@ void generator::make_nav() {
   for (i32 y = 0; y < m.rows; ++y)
     for (i32 x = 0; x < m.cols; ++x) {
       const cell_info &ci = m.at(x, y);
+      // On foot any open ground is as good as any other: sidewalk, street,
+      // square, yard or park.
       u8 foot = 0;
       switch (ci.g) {
       case ground::road:
       case ground::bridge:
-      case ground::plaza: foot = 1; break;
+      case ground::plaza:
       case ground::free:
       case ground::lot:
-      case ground::park: foot = 2; break;
+      case ground::park: foot = 1; break;
       default: break;
       }
       nav_set_cost(m.foot, {x, y}, foot);

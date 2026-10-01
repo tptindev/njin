@@ -1,5 +1,9 @@
 # Clay people / Người đất sét Sa Bàn Chiến Trận
 
+**Bản game đã chuyển sang SDF ray marching.** Xem [SDF_RUNTIME.md](SDF_RUNTIME.md)
+để chỉnh nhân vật, bề mặt đất sét và chạy preview thật. Nội dung dưới đây mô tả
+bộ mesh Blender/GLB thử nghiệm trước đó, không phải renderer nhân vật hiện tại.
+
 Model procedural theo ảnh tham chiếu người dùng: đầu trơn đa diện, áo đỏ,
 quần xanh, tay chân dài. Các biến thể phục vụ nhận diện cá thể ở góc RTS:
 `reference`, `lookout` (mũ), `collector` (túi đeo), `enforcer` (vai rộng/tóc).

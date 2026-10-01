@@ -174,35 +174,14 @@ void seat_men(i32 gi) {
 
 // --- Outside: rows by rank before the door, facing the boss ----------------------------
 
-bool on_sidewalk(vec2 p) {
-  const city::cell_info *c = world().cell_at(p);
-  return c != nullptr && c->g == city::ground::road && !c->carriage;
-}
-
-// How deep the sidewalk runs straight out from the door, world units: the
-// rows of a muster must fit in it, or they stand in the carriageway.
-f32 sidewalk_depth(const city::building &b) {
-  const f32 step = 0.25f * city::units_per_metre;
-  f32 depth = 0.0f;
-  for (f32 t = step; t < 12.0f * city::units_per_metre; t += step) {
-    if (on_sidewalk(b.door + b.front() * t))
-      depth = t;
-    else if (depth > 0.0f)
-      break;
-  }
-  return depth;
-}
-
-// The men line up on the sidewalk before the door: the boss by it, facing
-// out; the others in rows facing him, by rank (right hands, captains,
-// soldiers) front to back, as many rows as the sidewalk is deep and the rows
-// as wide as they need to be.
+// The men line up before the door, on whatever ground is there (sidewalk or
+// street): the boss by it, facing out; the others in rows facing him, by
+// rank (right hands, captains, soldiers) front to back, eight to a row.
 place muster_place(const gang_state &g, i32 index) {
   const city::building &b = hq_of(g);
   const vec2 out = b.front(), across = b.box.axis_x();
   const f32 metre = city::units_per_metre;
-  const f32 depth = std::max(sidewalk_depth(b), 2.5f * metre);
-  const f32 boss_at = std::min(1.0f * metre, depth * 0.3f);
+  const f32 boss_at = 1.0f * metre;
   const lackey &m = g.men[static_cast<size_t>(index)];
   if (m.rk == rank::boss)
     return {b.door + out * boss_at, angle_of(out), act::idle};
@@ -217,11 +196,10 @@ place muster_place(const gang_state &g, i32 index) {
     if (rank_order(o.rk) < rank_order(m.rk) || (rank_order(o.rk) == rank_order(m.rk) && i < index))
       ++order;
   }
-  // Rows a metre apart from 1.2 m past the boss to half a metre short of the
-  // kerb; men a metre apart along a row.
-  const f32 first = boss_at + 1.2f * metre, last = depth - 0.5f * metre;
-  const i32 rows = std::clamp(static_cast<i32>((last - first) / metre) + 1, 1, count);
-  const i32 per_row = (count + rows - 1) / rows;
+  // Rows a metre apart from 1.5 m past the boss; men a metre apart along a
+  // row.
+  const f32 first = boss_at + 1.5f * metre;
+  const i32 per_row = std::min(8, std::max(1, count));
   const i32 row = order / per_row, col = order % per_row;
   const i32 in_row = std::min(per_row, count - row * per_row);
   const vec2 at = b.door + out * (first + static_cast<f32>(row) * metre) +
@@ -245,6 +223,8 @@ lackey make_man(rank r) {
            : r == rank::deputy  ? 260 + gang_rng.range(0, 40)
            : r == rank::captain ? 160 + gang_rng.range(0, 30)
                                 : 60 + 6 * (m.strength + m.wits) + gang_rng.range(0, 20);
+  m.wallet = r == rank::boss ? 0 : gang_rng.range(100, 300);
+  m.morale = r == rank::boss ? 100.0f : static_cast<f32>(gang_rng.range(62, 80));
   return m;
 }
 
@@ -315,6 +295,12 @@ void update_turf() {
     ++block_version;
 }
 
+// A beating: health down, and he is shaken.
+void hurt(lackey &m, f32 lo, f32 hi) {
+  m.health = std::max(5.0f, m.health - gang_rng.range(lo, hi));
+  m.morale = std::max(0.0f, m.morale - 3.0f);
+}
+
 // At the door: a shop that pays this gang pays what it owes; any other is
 // squeezed, harder if it pays another gang.
 void settle(context &ctx, i32 gi, lackey &m) {
@@ -322,10 +308,56 @@ void settle(context &ctx, i32 gi, lackey &m) {
   const city::business &bz = world().businesses[static_cast<size_t>(m.target)];
   shop_state &s = S[static_cast<size_t>(m.target)];
   char line[220];
+  if (m.sent_on == errand::raid)
+    g.raid.hit.push_back(m.target);
+  if (!business_open(m.target)) {
+    if (m.sent_on == errand::raid)
+      NJIN_INFO("[gang] %s: %s finds %s shut", g.name.c_str(), m.name.c_str(), bz.name.c_str());
+    if (gi == 0) {
+      std::snprintf(line, sizeof(line), "%s đã đóng cửa, %s về tay không", bz.name.c_str(), m.name.c_str());
+      ui_toast(ctx, line, {.kind = ui_toast_warning});
+    }
+    return;
+  }
+  if (m.sent_on == errand::raid) {
+    // Someone else's shop, paying up on the spot, unless its gang's men are
+    // about: then the raid is off.
+    if (s.owner < 0 || s.owner == gi)
+      return;
+    if (gang_guards(s.owner, m.target)) {
+      g.raid.on = false;
+      if (gang_rng.chance(0.6f))
+        hurt(m, 15.0f, 40.0f);
+      NJIN_INFO("[gang] %s: %s finds %s's men at %s, raid off", g.name.c_str(), m.name.c_str(),
+                G[static_cast<size_t>(s.owner)].name.c_str(), bz.name.c_str());
+      if (s.owner == 0) {
+        std::snprintf(line, sizeof(line), "Người của %s tới %s, thấy anh em mình nên rút", g.name.c_str(),
+                      bz.name.c_str());
+        ui_toast(ctx, line, {.kind = ui_toast_success});
+      }
+      return;
+    }
+    // About a day of its protection, more for a man who leans harder.
+    const f32 knack = 1.0f + 0.05f * static_cast<f32>(m.strength + m.wits - 10);
+    const i32 take = std::max(20, static_cast<i32>(static_cast<f32>(bz.protection / 7) * knack));
+    m.carrying += take;
+    g.raid.taken += take;
+    // It has paid once today: what it owes its own gang is that much less.
+    s.owed = std::max(0, s.owed - take);
+    s.raided_by = gi;
+    s.raided_day = state.day;
+    s.raided_amount = take;
+    NJIN_INFO("[gang] %s: %s takes %dk at %s (%d/%dk)", g.name.c_str(), m.name.c_str(), take, bz.name.c_str(),
+              g.raid.taken, g.raid.quota);
+    if (g.raid.taken >= g.raid.quota)
+      g.raid.on = false;
+    return;
+  }
   if (s.owner == gi) {
     const f32 knack = 1.0f + 0.03f * static_cast<f32>(m.wits - 5);
     m.carrying = static_cast<i32>(static_cast<f32>(s.owed) * knack);
     s.owed = 0;
+    s.last_seen = state.day;
     if (m.carrying == 0 && gi == 0) {
       std::snprintf(line, sizeof(line), "%s: %s chưa nợ gì", m.name.c_str(), bz.name.c_str());
       ui_toast(ctx, line);
@@ -335,10 +367,13 @@ void settle(context &ctx, i32 gi, lackey &m) {
   const i32 before = s.owner;
   const f32 odds = clamp(0.35f + 0.07f * static_cast<f32>(m.strength) - 0.12f * static_cast<f32>(bz.tier - 1) -
                              (before >= 0 ? 0.25f : 0.0f),
-                         0.05f, 0.95f);
+                         0.05f, 0.95f) -
+                   (m.fatigue > 60.0f ? 0.1f : 0.0f) - (m.health < 70.0f ? 0.1f : 0.0f);
   if (gang_rng.chance(odds)) {
     s.owner = gi;
     s.owed = 0;
+    s.last_seen = state.day;
+    m.morale = std::min(100.0f, m.morale + 2.0f);
     m.carrying = std::max(20, bz.protection / 7);
     if (gi == 0) {
       if (before >= 0)
@@ -351,7 +386,15 @@ void settle(context &ctx, i32 gi, lackey &m) {
     update_turf();
   } else {
     m.carrying = 0;
-    if (gi == 0) {
+    // Thrown out, maybe roughly: harder where another gang's men stand by.
+    const bool guarded = before >= 0 && gang_guards(before, m.target);
+    const bool beaten = gang_rng.chance(guarded ? 0.7f : 0.2f + 0.05f * static_cast<f32>(bz.tier));
+    if (beaten)
+      hurt(m, guarded ? 15.0f : 8.0f, guarded ? 40.0f : 25.0f);
+    if (gi == 0 && beaten) {
+      std::snprintf(line, sizeof(line), "%s bị đánh ở %s, về với vết thương", m.name.c_str(), bz.name.c_str());
+      ui_toast(ctx, line, {.kind = ui_toast_error});
+    } else if (gi == 0) {
       if (before >= 0)
         std::snprintf(line, sizeof(line), "%s: đã có %s bảo kê, đuổi %s về", bz.name.c_str(),
                       G[static_cast<size_t>(before)].name.c_str(), m.name.c_str());
@@ -363,20 +406,206 @@ void settle(context &ctx, i32 gi, lackey &m) {
   (void)g;
 }
 
+// The next shop of a raid for man `m`: one of the raided gang's, open, in the
+// raid's block, not called at yet nor someone else's next; the nearest. -1
+// when the raid is over.
+i32 raid_next(i32 gi, const lackey &m) {
+  const gang_state &g = G[static_cast<size_t>(gi)];
+  if (!g.raid.on || g.raid.block < 0)
+    return -1;
+  const city::block &bk = world().blocks[static_cast<size_t>(g.raid.block)];
+  i32 best = -1;
+  f32 best_d = 1e30f;
+  for (const i32 b : bk.businesses) {
+    if (S[static_cast<size_t>(b)].owner != g.raid.victim || !business_open(b) ||
+        std::find(g.raid.hit.begin(), g.raid.hit.end(), b) != g.raid.hit.end())
+      continue;
+    bool taken = false;
+    for (const lackey &o : g.men)
+      if (&o != &m && o.target == b && o.task != job::idle)
+        taken = true;
+    const f32 d = distance(m.pos, world().businesses[static_cast<size_t>(b)].door);
+    if (!taken && d < best_d) {
+      best_d = d;
+      best = b;
+    }
+  }
+  return best;
+}
+
+// The day's upkeep of gang `gi`: wages (what is owed first, the highest ranks
+// first), the clinic, each man's food and rent, and how each feels about it.
+// Returns the toast line for the player's gang.
+std::string upkeep(i32 gi) {
+  gang_state &g = G[static_cast<size_t>(gi)];
+  std::vector<lackey *> order;
+  for (lackey &m : g.men)
+    if (m.rk != rank::boss)
+      order.push_back(&m);
+  std::stable_sort(order.begin(), order.end(), [](const lackey *a, const lackey *b) { return a->rk > b->rk; });
+  i32 paid = 0, short_of = 0;
+  for (lackey *m : order) {
+    const i32 due = m->wage + m->unpaid;
+    const i32 give = std::min(due, std::max(0, g.money));
+    g.money -= give;
+    paid += give;
+    m->wallet += give;
+    m->unpaid = due - give;
+    // Paid today's wage in full (old debts may still be outstanding)?
+    m->unpaid_days = m->unpaid > 0 ? m->unpaid_days + 1 : 0;
+    short_of += m->unpaid;
+  }
+  if (paid > 0)
+    note(g, -paid, "Trả lương anh em");
+  i32 clinic = 0;
+  for (lackey &m : g.men) {
+    m.treated = false;
+    if (m.health < 100.0f && m.treat && g.money >= clinic_cost) {
+      g.money -= clinic_cost;
+      clinic += clinic_cost;
+      m.treated = true;
+    }
+  }
+  if (clinic > 0)
+    note(g, -clinic, "Tiền thuốc men");
+  i32 unhappy = 0;
+  for (lackey &m : g.men) {
+    if (m.rk == rank::boss) {
+      m.morale = 100.0f;
+      continue;
+    }
+    const i32 cost = living_cost(m.rk);
+    m.hungry = m.wallet < cost;
+    m.wallet = std::max(0, m.wallet - cost);
+    f32 up = 0.0f, down = 0.0f;
+    if (m.unpaid_days == 0) {
+      up += 3.0f + std::min(3.0f, static_cast<f32>(m.wage - cost) / 30.0f);
+    } else {
+      down += 8.0f + 6.0f * static_cast<f32>(m.unpaid_days - 1);
+    }
+    if (m.hungry)
+      down += 12.0f;
+    if (m.health < 70.0f && !m.treated)
+      down += 6.0f;
+    if (m.fatigue > 70.0f)
+      down += 5.0f;
+    if (m.wallet >= cost * 5)
+      up += 2.0f;
+    // Grit: a hard man takes it better (5 is the usual).
+    down *= clamp(1.4f - 0.08f * static_cast<f32>(m.grit), 0.5f, 1.3f);
+    m.morale = clamp(m.morale + up - down, 0.0f, 100.0f);
+    if (m.morale < quit_morale) {
+      ++unhappy;
+      const f32 odds = (0.15f + 0.6f * (quit_morale - m.morale) / quit_morale) *
+                       clamp(1.2f - 0.05f * static_cast<f32>(m.grit), 0.6f, 1.2f);
+      if (gang_rng.chance(odds))
+        m.quitting = true;
+    }
+  }
+  char line[200];
+  std::snprintf(line, sizeof(line), "Ngày %d: trả lương %dk%s", state.day, paid, clinic > 0 ? ", thuốc men" : "");
+  std::string out = line;
+  if (short_of > 0) {
+    std::snprintf(line, sizeof(line), " · còn nợ lương %dk", short_of);
+    out += line;
+  }
+  if (unhappy > 0) {
+    std::snprintf(line, sizeof(line), " · %d người bất mãn", unhappy);
+    out += line;
+  }
+  return out;
+}
+
+// Shops their gang has not called at for days, with none of its men about,
+// may stop paying.
+void neglect(context &ctx) {
+  const city::city_map &map = world();
+  i32 lost = 0;
+  for (size_t i = 0; i < map.businesses.size(); ++i) {
+    shop_state &s = S[i];
+    if (s.owner < 0)
+      continue;
+    if (gang_guards(s.owner, static_cast<i32>(i))) {
+      s.last_seen = state.day;
+      continue;
+    }
+    const i32 away = state.day - s.last_seen;
+    if (away < neglect_days || !gang_rng.chance(std::min(0.8f, 0.25f * static_cast<f32>(away - neglect_days + 1))))
+      continue;
+    lost += s.owner == 0 ? 1 : 0;
+    s.owner = -1;
+    s.owed = 0;
+  }
+  if (lost > 0) {
+    char line[160];
+    std::snprintf(line, sizeof(line), "%d cơ sở thôi nộp: lâu rồi không ai của mình ghé", lost);
+    ui_toast(ctx, line, {.kind = ui_toast_warning, .seconds = 8.0f});
+  }
+  update_turf();
+}
+
 void new_day(context &ctx) {
   const city::city_map &map = world();
   for (size_t i = 0; i < map.businesses.size(); ++i)
     if (S[i].owner >= 0)
       S[i].owed += std::max(1, map.businesses[i].protection / 7);
-  gang_state &g = G[0];
-  const i32 wages = gang_wages_per_day();
-  if (wages > 0) {
-    g.money -= wages;
-    note(g, -wages, "Trả lương anh em");
+  std::string mine;
+  for (i32 gi = 0; gi < static_cast<i32>(G.size()); ++gi) {
+    const std::string line = upkeep(gi);
+    if (gi == 0)
+      mine = line;
   }
-  char line[120];
-  std::snprintf(line, sizeof(line), "Ngày %d: trả lương %dk", state.day, wages);
-  ui_toast(ctx, line, {.kind = g.money < 0 ? ui_toast_error : ui_toast_info});
+  neglect(ctx);
+  const gang_state &g = G[0];
+  const bool trouble = gang_wages_owed() > 0;
+  ui_toast(ctx, mine.c_str(), {.kind = trouble ? ui_toast_error : ui_toast_info});
+  (void)g;
+}
+
+// Through the hours: tired out on a job, rested at the headquarters (better
+// at night), healing, fast at the clinic.
+void wear(f32 hours) {
+  const bool night = !hour_between(state.hour, 7.0f, 22.0f);
+  for (gang_state &g : G)
+    for (lackey &m : g.men) {
+      if (m.inside)
+        m.fatigue -= (night ? 18.0f : 10.0f) * hours;
+      else if (m.task != job::idle)
+        m.fatigue += 7.0f * hours;
+      else
+        m.fatigue += 2.0f * hours;
+      m.fatigue = clamp(m.fatigue, 0.0f, 100.0f);
+      if (m.health < 100.0f)
+        m.health = std::min(100.0f, m.health + (m.treated ? 3.0f : 0.6f) * hours);
+    }
+}
+
+// Men who have walked out, once they are back in: gone from the gang.
+void drop_quitters(context &ctx) {
+  for (i32 gi = 0; gi < static_cast<i32>(G.size()); ++gi) {
+    gang_state &g = G[static_cast<size_t>(gi)];
+    for (i32 i = static_cast<i32>(g.men.size()) - 1; i >= 0; --i) {
+      lackey &m = g.men[static_cast<size_t>(i)];
+      if (!m.quitting || !m.inside || m.task != job::idle)
+        continue;
+      if (gi == 0) {
+        char line[200];
+        std::snprintf(line, sizeof(line), "%s bỏ băng ra đi%s", m.name.c_str(),
+                      m.unpaid > 0 ? ": bị nợ lương" : m.hungry ? ": không đủ ăn" : ": chán nản");
+        ui_toast(ctx, line, {.kind = ui_toast_error, .seconds = 8.0f});
+      }
+      NJIN_INFO("[gang] %s: %s walks out (morale %.0f, owed %dk)", g.name.c_str(), m.name.c_str(),
+                static_cast<f64>(m.morale), m.unpaid);
+      if (m.body.id != 0)
+        character3d_destroy(ctx, m.body);
+      g.men.erase(g.men.begin() + i);
+      extras[static_cast<size_t>(gi)].erase(extras[static_cast<size_t>(gi)].begin() + i);
+      if (focus_gi == gi && focus_mi == i)
+        focus_gi = focus_mi = -1;
+      else if (focus_gi == gi && focus_mi > i)
+        --focus_mi;
+    }
+  }
 }
 
 void steer(context &ctx, lackey &m, man_extra &x, f32 dt, f32 speed) {
@@ -458,6 +687,19 @@ void step_man(context &ctx, i32 gi, i32 i, f32 dt, f32 speed) {
     m.timer -= dt * speed;
     if (m.timer <= 0.0f) {
       settle(ctx, gi, m);
+      // On a raid, on to the next shop while there is one.
+      if (m.sent_on == errand::raid) {
+        const i32 next = raid_next(gi, m);
+        if (next >= 0 && path_to(m, world().businesses[static_cast<size_t>(next)].door)) {
+          m.target = next;
+          m.task = job::going;
+          set_act(m, act::walk);
+          x.check_at = m.pos;
+          x.check_time = 0.0f;
+          break;
+        }
+        g.raid.on = false;
+      }
       path_to(m, hq.door);
       m.task = job::returning;
       set_act(m, act::walk);
@@ -465,20 +707,55 @@ void step_man(context &ctx, i32 gi, i32 i, f32 dt, f32 speed) {
       x.check_time = 0.0f;
     }
     break;
+  case job::patrolling: {
+    // Worn out: home. At each shop: its gang's shops round him are seen to,
+    // then on to another.
+    if (m.fatigue >= tired_limit || m.beat < 0) {
+      path_to(m, hq.door);
+      m.task = job::returning;
+      break;
+    }
+    if (m.agent.done() || (m.target >= 0 && distance(m.pos, world().businesses[static_cast<size_t>(m.target)].door) < arrive * 2.0f)) {
+      constexpr f32 reach = 12.0f * city::units_per_metre;
+      const city::block &bk = world().blocks[static_cast<size_t>(m.beat)];
+      for (const i32 b : bk.businesses)
+        if (S[static_cast<size_t>(b)].owner == gi && distance(world().businesses[static_cast<size_t>(b)].door, m.pos) < reach)
+          S[static_cast<size_t>(b)].last_seen = state.day;
+      i32 next = -1;
+      if (bk.businesses.size() > 1 || m.target < 0) {
+        for (i32 tries = 0; tries < 6 && (next < 0 || next == m.target); ++tries)
+          next = bk.businesses.empty() ? -1 : bk.businesses[static_cast<size_t>(gang_rng.range(0, static_cast<i32>(bk.businesses.size()) - 1))];
+      }
+      const vec2 goal = next >= 0 ? world().businesses[static_cast<size_t>(next)].door : bk.centroid;
+      m.target = next;
+      if (!path_to(m, goal)) {
+        path_to(m, hq.door);
+        m.task = job::returning;
+      }
+      set_act(m, act::walk);
+    }
+    break;
+  }
   case job::returning:
     if (distance(m.pos, hq.door) < arrive * 2.0f || m.agent.done()) {
       if (m.carrying > 0) {
         const city::business &bz = world().businesses[static_cast<size_t>(m.target)];
+        const std::string from = m.sent_on == errand::raid && g.raid.victim >= 0
+                                     ? "địa bàn " + G[static_cast<size_t>(g.raid.victim)].name
+                                     : bz.name;
         g.money += m.carrying;
-        note(g, m.carrying, "Thu ở " + bz.name);
+        m.morale = std::min(100.0f, m.morale + 1.0f);
+        note(g, m.carrying, "Thu ở " + from);
         if (gi == 0) {
           char line[160];
-          std::snprintf(line, sizeof(line), "%s mang về %dk từ %s", m.name.c_str(), m.carrying, bz.name.c_str());
+          std::snprintf(line, sizeof(line), "%s mang về %dk từ %s", m.name.c_str(), m.carrying, from.c_str());
           ui_toast(ctx, line, {.kind = ui_toast_success});
         }
       }
       m.carrying = 0;
       m.target = -1;
+      m.beat = -1;
+      m.sent_on = errand::usual;
       m.task = job::idle;
     }
     break;
@@ -627,16 +904,37 @@ void gang_start(context &ctx, u32 seed) {
   update_turf();
 }
 
-bool gang_recruit(context &ctx) {
-  gang_state &g = G[0];
+bool gang_hire(context &ctx, i32 gi) {
+  if (gi < 0 || gi >= static_cast<i32>(G.size()))
+    return false;
+  gang_state &g = G[static_cast<size_t>(gi)];
   if (g.money < recruit_cost)
     return false;
   g.money -= recruit_cost;
-  add_man(ctx, 0, rank::soldier);
-  seat_men(0);
-  step_in(ctx, g.men.back(), extras[0].back());
+  add_man(ctx, gi, rank::soldier);
+  seat_men(gi);
+  step_in(ctx, g.men.back(), extras[static_cast<size_t>(gi)].back());
   note(g, -recruit_cost, "Tuyển " + g.men.back().name);
   return true;
+}
+
+bool gang_recruit(context &ctx) { return gang_hire(ctx, 0); }
+
+bool gang_guards(i32 gi, i32 b) {
+  if (gi < 0 || gi >= static_cast<i32>(G.size()) || b < 0 || b >= static_cast<i32>(world().businesses.size()))
+    return false;
+  const gang_state &g = G[static_cast<size_t>(gi)];
+  const vec2 door = world().businesses[static_cast<size_t>(b)].door;
+  constexpr f32 street_reach = 12.0f * city::units_per_metre;
+  constexpr f32 home_reach = 25.0f * city::units_per_metre;
+  i32 home = 0;
+  for (const lackey &m : g.men) {
+    if (!m.inside && distance(m.pos, door) <= street_reach)
+      return true;
+    if (m.inside)
+      ++home;
+  }
+  return home >= 2 && distance(hq_of(g).door, door) <= home_reach;
 }
 
 void gang_muster(context &, bool out) {
@@ -644,45 +942,124 @@ void gang_muster(context &, bool out) {
     G[0].mustered = out;
 }
 
-bool gang_send(context &ctx, i32 mi, i32 b) {
-  if (G.empty() || mi < 0 || mi >= static_cast<i32>(G[0].men.size()) || b < 0 ||
-      b >= static_cast<i32>(world().businesses.size()))
+bool gang_order(context &ctx, i32 gi, i32 mi, i32 b, errand e) {
+  if (gi < 0 || gi >= static_cast<i32>(G.size()) || mi < 0 || mi >= static_cast<i32>(G[static_cast<size_t>(gi)].men.size()) ||
+      b < 0 || b >= static_cast<i32>(world().businesses.size()))
     return false;
-  gang_state &g = G[0];
+  gang_state &g = G[static_cast<size_t>(gi)];
   lackey &m = g.men[static_cast<size_t>(mi)];
-  if (m.task != job::idle || m.rk == rank::boss)
+  man_extra &x = extras[static_cast<size_t>(gi)][static_cast<size_t>(mi)];
+  if (gang_cannot_go(m))
     return false;
+  const bool was_inside = m.inside;
   step_out(ctx, m, g);
   if (!path_to(m, world().businesses[static_cast<size_t>(b)].door)) {
-    if (!g.mustered)
-      step_in(ctx, m, extras[0][static_cast<size_t>(mi)]);
+    if (was_inside && !g.mustered)
+      step_in(ctx, m, x);
     return false;
   }
   m.target = b;
+  m.sent_on = e;
   m.task = job::going;
   set_act(m, act::walk);
-  extras[0][static_cast<size_t>(mi)].check_at = m.pos;
-  extras[0][static_cast<size_t>(mi)].check_time = 0.0f;
+  x.check_at = m.pos;
+  x.check_time = 0.0f;
+  return true;
+}
+
+bool gang_send(context &ctx, i32 mi, i32 b) { return gang_order(ctx, 0, mi, b); }
+
+bool gang_patrol(context &ctx, i32 gi, i32 mi, i32 block) {
+  if (gi < 0 || gi >= static_cast<i32>(G.size()) || mi < 0 || mi >= static_cast<i32>(G[static_cast<size_t>(gi)].men.size()) ||
+      block < 0 || block >= static_cast<i32>(world().blocks.size()))
+    return false;
+  gang_state &g = G[static_cast<size_t>(gi)];
+  lackey &m = g.men[static_cast<size_t>(mi)];
+  man_extra &x = extras[static_cast<size_t>(gi)][static_cast<size_t>(mi)];
+  if (gang_cannot_go(m))
+    return false;
+  const bool was_inside = m.inside;
+  step_out(ctx, m, g);
+  const city::block &bk = world().blocks[static_cast<size_t>(block)];
+  const i32 first = bk.businesses.empty() ? -1 : bk.businesses.front();
+  if (!path_to(m, first >= 0 ? world().businesses[static_cast<size_t>(first)].door : bk.centroid)) {
+    if (was_inside && !g.mustered)
+      step_in(ctx, m, x);
+    return false;
+  }
+  m.beat = block;
+  m.target = first;
+  m.sent_on = errand::usual;
+  m.task = job::patrolling;
+  set_act(m, act::walk);
+  x.check_at = m.pos;
+  x.check_time = 0.0f;
+  return true;
+}
+
+bool gang_raid(context &ctx, i32 gi, i32 mi, i32 b) {
+  if (gi < 0 || gi >= static_cast<i32>(G.size()) || b < 0 || b >= static_cast<i32>(S.size()))
+    return false;
+  const i32 victim = S[static_cast<size_t>(b)].owner;
+  const i32 block = world().businesses[static_cast<size_t>(b)].block;
+  if (victim < 0 || victim == gi || block < 0)
+    return false;
+  gang_state &g = G[static_cast<size_t>(gi)];
+  // A new raid unless this joins the one going on in that block.
+  if (!(g.raid.on && g.raid.block == block && g.raid.victim == victim)) {
+    raid_plan r;
+    r.on = true;
+    r.victim = victim;
+    r.block = block;
+    r.day = state.day;
+    for (const i32 o : world().blocks[static_cast<size_t>(block)].businesses)
+      if (S[static_cast<size_t>(o)].owner == victim)
+        r.quota += std::max(20, world().businesses[static_cast<size_t>(o)].protection / 7);
+    const raid_plan old = g.raid;
+    g.raid = r;
+    if (!gang_order(ctx, gi, mi, b, errand::raid)) {
+      g.raid = old;
+      return false;
+    }
+    return true;
+  }
+  return gang_order(ctx, gi, mi, b, errand::raid);
+}
+
+bool gang_recall(context &ctx, i32 gi, i32 mi) {
+  if (gi < 0 || gi >= static_cast<i32>(G.size()) || mi < 0 || mi >= static_cast<i32>(G[static_cast<size_t>(gi)].men.size()))
+    return false;
+  gang_state &g = G[static_cast<size_t>(gi)];
+  lackey &m = g.men[static_cast<size_t>(mi)];
+  if (m.task == job::idle || m.task == job::returning)
+    return false;
+  path_to(m, hq_of(g).door);
+  m.task = job::returning;
+  set_act(m, act::walk);
+  if (gi == 0) {
+    char line[160];
+    std::snprintf(line, sizeof(line), "%s rút về trụ sở", m.name.c_str());
+    ui_toast(ctx, line);
+  }
+  (void)ctx;
   return true;
 }
 
 void gang_step(context &ctx, f32 dt) {
   if (G.empty())
     return;
-  const f32 speed = state.popup_open ? 0.0f : state.speed;
-  state.hour += dt * speed / seconds_per_hour;
-  if (state.hour >= 24.0f) {
-    state.hour -= 24.0f;
-    ++state.day;
+  const f32 speed = clock_speed();
+  if (clock_new_day())
     new_day(ctx);
-  }
+  wear(dt * speed / seconds_per_hour);
   for (i32 gi = 0; gi < static_cast<i32>(G.size()); ++gi)
     for (i32 i = 0; i < static_cast<i32>(G[static_cast<size_t>(gi)].men.size()); ++i)
       step_man(ctx, gi, i, dt, speed);
+  drop_quitters(ctx);
 }
 
 void gang_update(f32 dt) {
-  const f32 speed = state.popup_open ? 0.0f : state.speed;
+  const f32 speed = clock_speed();
   for (gang_state &g : G)
     for (lackey &m : g.men) {
       const f32 pace = m.now == act::walk ? clamp(m.speed / walk_pace, 0.25f, 3.5f) : std::max(speed, 0.2f);
@@ -815,6 +1192,47 @@ i32 gang_income_per_day() {
   return sum;
 }
 
+i32 living_cost(rank r) {
+  switch (r) {
+  case rank::boss: return 0; // he lives at the headquarters, on the gang
+  case rank::deputy: return 140;
+  case rank::captain: return 100;
+  default: return 70; // a bowl of rice twice a day and a shared room
+  }
+}
+
+const char *mood_name(f32 morale) {
+  return morale >= 75.0f ? "Hăng hái" : morale >= 50.0f ? "Ổn" : morale >= quit_morale ? "Bực bội" : "Muốn bỏ";
+}
+
+const char *gang_cannot_go(const lackey &m) {
+  if (m.task != job::idle)
+    return "Đang bận";
+  if (m.quitting)
+    return "Sắp bỏ đi";
+  if (m.health < hurt_limit)
+    return "Bị thương";
+  if (m.fatigue >= tired_limit)
+    return "Mệt";
+  return nullptr;
+}
+
+i32 gang_clinic_per_day() {
+  i32 sum = 0;
+  if (!G.empty())
+    for (const lackey &m : G[0].men)
+      sum += m.health < 100.0f && m.treat ? clinic_cost : 0;
+  return sum;
+}
+
+i32 gang_wages_owed() {
+  i32 sum = 0;
+  if (!G.empty())
+    for (const lackey &m : G[0].men)
+      sum += m.unpaid;
+  return sum;
+}
+
 i32 gang_wages_per_day() {
   i32 sum = 0;
   if (!G.empty())
@@ -829,11 +1247,14 @@ const char *job_name(job j) {
   case job::going: return "Đang đi";
   case job::talking: return "Đang nói chuyện";
   case job::returning: return "Đang về";
+  case job::patrolling: return "Đang tuần tra";
   }
   return "";
 }
 
 const char *gang_target_name(const lackey &m) {
+  if (m.task == job::patrolling && m.beat >= 0)
+    return world().districts[static_cast<size_t>(world().blocks[static_cast<size_t>(m.beat)].district)].name.c_str();
   if (m.target < 0)
     return "";
   return world().businesses[static_cast<size_t>(m.target)].name.c_str();

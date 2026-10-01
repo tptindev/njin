@@ -1,26 +1,105 @@
 # Sa Bàn Chiến Trận: concept
 
-Người chơi là **đại ca** của một băng đảng. Không tự tay đánh nhau: đại ca
-quản lý đàn em, giao việc cho từng người và nhìn cả vùng từ trên xuống như
-một sa bàn. Game kết hợp **sim** (quản lý người, tiền, quan hệ) và **RTS**
-(điều quân trên bản đồ, theo thời gian thực).
+Người chơi là **đại ca** của một băng đảng. Phần lớn thời gian đại ca không
+tự tay đánh nhau: đại ca quản lý đàn em, giao việc cho từng người và nhìn cả
+vùng từ trên xuống như một sa bàn. Game kết hợp **sim** (quản lý người, tiền,
+quan hệ) và **RTS** (điều quân trên bản đồ, theo thời gian thực). Khi muốn,
+đại ca có thể **nhập vai Boss** để tự tay ra trận.
 
 Góc nhìn: 3D, nhìn từ trên xuống (camera RTS: kéo, xoay, zoom), người là
 tượng đất sét.
 
+## Nhập vai Boss
+
+Boss là một nhân vật có thật trên bản đồ, đi cùng đàn em như mọi người khác.
+
+- Nhập vai lúc nào cũng được, thoát ra lúc nào cũng được. Khi nhập, camera
+  chuyển mượt từ sa bàn nhìn xuống sang góc nhìn thứ ba sau lưng Boss, và
+  người chơi điều khiển Boss trực tiếp. Khi thoát, camera trở về sa bàn.
+- Không nhập thì Boss là bot: tự đi theo lệnh như một đàn em, gặp combat thì
+  tự đánh.
+- Simulation vẫn chạy khi đang nhập vai: đàn em vẫn làm theo lệnh đã giao,
+  bot vẫn tự đánh. Nhập vai là một công cụ chiến thuật, không biến game
+  thành action game.
+
 ## Vòng chơi
 
-- **Đàn em**: mỗi người là một cá thể, có tên và chỉ số riêng. Đại ca tuyển
-  người, giữ người, giao việc.
+- **Đàn em**: mỗi người là một cá thể, có tên, chỉ số, tính cách và khả
+  năng riêng. Đại ca tuyển người, giữ người, giao việc.
 - **Thu tiền bảo kê**: giao đàn em đi thu tiền ở các cơ sở trong địa bàn.
   Đây là nguồn thu chính.
-- **Giữ địa bàn**: băng khác và các thế lực khác sẽ đến lấn; phải cắt người
-  canh giữ.
-- **Tranh giành địa bàn**: đem người sang đánh chiếm địa bàn của băng khác.
-- **Bành trướng**: địa bàn rộng thì thu nhiều hơn, nhưng cũng phải giữ nhiều
-  chỗ hơn.
-- **Phi vụ**: các việc lớn có hệ thống (không phải kịch bản viết tay),
-  giao cho một nhóm đàn em làm.
+- **Giữ địa bàn**: băng khác có thể đưa người sang địa bàn của mình để thu
+  tiền bảo kê. Cơ sở và dân cư thường phải trả nếu tại chỗ không có đủ người
+  của ta bảo vệ.
+- **Bị băng khác thu tiền**: băng địch thu cho đến khi đạt doanh thu mục
+  tiêu (quota) rồi rút về địa bàn của chúng. Sau đó chủ cơ sở hoặc người dân
+  có thể báo cho đại ca.
+- **Trả đũa**: đại ca kéo đàn em sang địa bàn đối phương, thu tiền bảo kê
+  ngay tại các cơ sở của chúng, vừa lấy tiền vừa khiêu khích.
+- **Phản ứng của đối phương**: khi bị xâm phạm đủ nghiêm trọng, băng chủ địa
+  bàn tập hợp đàn em và kéo đến giải quyết. Hai bên gặp nhau thì thành một
+  trận đối đầu (xem dưới).
+- **Tranh giành địa bàn**: các trận đối đầu dần làm thay đổi ảnh hưởng và
+  quyền kiểm soát từng khu vực, không phải một trận là chiếm được cả vùng.
+- **Bành trướng**: địa bàn rộng thì thu nhiều hơn, nhưng cần nhiều người hơn
+  để tuần tra, bảo vệ và phản ứng khi bị xâm nhập.
+- **Phi vụ**: các việc lớn do hệ thống sinh ra (không phải kịch bản viết
+  tay), giao cho một nhóm đàn em làm.
+
+## Vòng bảo kê và trả đũa
+
+Vòng lặp này tự phát sinh từ simulation, không cần nhiệm vụ viết tay:
+
+> Băng địch vào địa bàn → thu tiền ở cơ sở của mình → đạt quota → rút đi →
+> dân/cơ sở báo cho đại ca → đại ca điều tra hoặc bỏ qua → tập hợp đàn em →
+> sang địa bàn địch → thu tiền bảo kê ngược lại → đối phương phát hiện → tập
+> hợp lực lượng → trận đối đầu → hoàn thành mục tiêu → rút quân → ảnh hưởng
+> giữa hai băng thay đổi.
+
+## Trận đối đầu (combat encounter)
+
+Đánh nhau không phải là hai phe đánh đến khi một bên chết sạch. Khi hai băng
+đối đầu, game chuyển sang một **trận có thời gian và mục tiêu cụ thể**.
+
+- Người chơi điều nhóm kiểu RTS từ sa bàn, hoặc nhập vai Boss để tự đánh
+  những pha quan trọng, rồi thoát ra để chỉ huy tiếp. Ai không được điều
+  khiển (kể cả Boss) thì bot tự đánh.
+- Mỗi trận có một hoặc nhiều điều kiện thắng, ví dụ:
+  - trong 120 giây, làm ít nhất 60% lực lượng địch mất khả năng chiến đấu;
+  - hết giờ, phe mình còn ít nhất 70% sức chiến đấu;
+  - thu được ít nhất $5.000 tiền bảo kê trước khi rút;
+  - giữ một vị trí trong một khoảng thời gian;
+  - đánh gục một thành viên quan trọng của đối phương;
+  - bảo vệ một đàn em đang thu tiền;
+  - xong mục tiêu và rút khỏi địa bàn trước khi viện binh tới.
+- **Sức chiến đấu** (combat capacity) không chỉ là số người còn đứng. Nó tính
+  từ: người còn đánh được, stamina, thương tích, morale, trạng thái bị đánh
+  ngã (knockdown), người bỏ chạy, người đang bị khống chế.
+
+Ví dụ:
+
+> **Retaliation Run**: thời gian 3:00; thu $8.000; làm mất khả năng chiến
+> đấu ≥ 50% lực lượng địch; giữ sức chiến đấu phe mình ≥ 65%. Đạt mục tiêu
+> rồi cả nhóm phải rút khỏi khu vực.
+
+Mục tiêu không phải lúc nào cũng là diệt sạch đối thủ, mà là làm xong một
+phi vụ có lời rồi rời đi với tổn thất chấp nhận được.
+
+## Ý nghĩa chiến thuật
+
+Trước và trong mỗi trận, người chơi phải cân nhắc:
+
+- đem bao nhiêu đàn em, chọn ai;
+- mục tiêu tiền là bao nhiêu;
+- đánh nhanh rồi rút, hay cố gây thiệt hại lớn;
+- có đưa Boss vào trận không, và khi nào tự nhập vai, khi nào để bot đánh
+  để mình rảnh tay chỉ huy;
+- có đáng chịu thương vong để trả đũa không;
+- ở nhà còn đủ người giữ địa bàn trong lúc lực lượng chính đi đánh không.
+
+Nếu kéo gần hết đàn em sang địa bàn đối phương, một băng thứ ba có thể lợi
+dụng mà tiến vào địa bàn đang bỏ trống. Vì vậy combat là một phần của **quản
+lý tổ chức và địa bàn**, không phải một minigame tách khỏi simulation.
 
 ## Đã có (phần hình và tiếng)
 
@@ -119,7 +198,58 @@ các chỗ có thể đặt trụ sở băng.
   mọi cửa: không đỗ xe, không bày ghế chắn cửa. Người kẹt quá 1,5 s thì tìm
   đường khác. `--test` in số người đứng lẫn vào nhau, trong nhà, và số lần
   tìm đường lại.
+- Thế giới chạy theo đồng hồ (`clock.*`): một giờ trong game là 60 giây ở
+  tốc độ 1 (`seconds_per_hour`; một ngày 24 phút, 8 phút ở tốc độ nhanh), theo tốc độ người chơi chọn, dừng khi mở
+  popup. Mỗi loại cơ sở có giờ mở cửa (`business_hours`: chợ 4–18, quán
+  ăn 6–23:30, bar 18–3, sòng bạc 20–5, khách sạn cả ngày...); quán đóng thì
+  đàn em tới thu về tay không. Thẻ cơ sở trên HUD ghi giờ mở và lần bị băng
+  khác thu gần nhất.
+- Dân (`crowd.*`, 800 người): mỗi người có nhà, phần lớn có chỗ làm ở một
+  cơ sở với ca làm theo giờ mở của nó, có giờ ngủ, giờ dậy (một số cú đêm).
+  Rảnh thì đi ăn vào giờ cơm, tối đi chơi (karaoke, bar, cà phê), đi việc
+  vặt ở cửa hàng đang mở, về nhà hoặc đi dạo; khuya thì về nhà. Trong nhà
+  thì không hiện trên bàn: phố đông buổi sáng, tối đông nhất, khuya gần như
+  vắng. Khách ngồi ghế nhựa chỉ có khi quán mở. Người ngoài tầm camera đi
+  nhanh gấp 4 (`unseen_boost`), vì đồng hồ chạy nhanh hơn bước chân nhiều.
+- Băng đối thủ (`gang_ai.*`): mỗi giờ từ 8:00 đến 23:00 đại ca của chúng
+  cử người đi thu ở các quán của mình đang mở và đang nợ, thỉnh thoảng ép
+  một quán chưa nộp ai cạnh địa bàn, và mỗi ngày tối đa một lần đánh mối
+  sang địa bàn người chơi (`errand::raid`): 2–3 người đi từ quán này sang
+  quán khác trong một khối, thu khoảng một ngày tiền bảo kê mỗi quán cho
+  đến khi đủ quota. Quán có người của chủ địa bàn ở gần (ngoài đường trong
+  12 m, hoặc trụ sở trong 25 m có ít nhất hai người ở nhà) thì không trả,
+  và băng kia bỏ cuộc. Thu xong cả nhóm về, một lúc sau chủ quán báo cho
+  đại ca (toast). Mỗi ngày mới chúng trả lương và tuyển thêm người nếu đủ
+  tiền.
+- Kinh tế nuôi quân (`gang.*`): tiền của băng vào từ bảo kê, ra cho lương,
+  thuốc men và tuyển người; không bao giờ âm, lương không trả nổi thì thành
+  nợ với từng người (trả nợ cũ trước, cấp cao trước). Mỗi đàn em có ví
+  riêng: lương vào, ăn uống và thuê nhà ra mỗi ngày (`living_cost`: lính
+  70k, tổ trưởng 100k, cánh tay phải 140k). Tinh thần lên khi được trả đủ
+  và dư, xuống khi bị nợ lương (càng nhiều ngày càng nặng), không đủ ăn,
+  bị thương không được chữa, hay quá mệt; Lì làm nó xuống chậm hơn. Dưới
+  25 thì mỗi ngày có thể bỏ đi (về tới trụ sở là đi). Đi làm thì mệt, ở trụ
+  sở thì hồi (ban đêm nhanh hơn); mệt từ 80 thì không đi. Ép quán thất bại
+  hay đụng người canh thì có thể bị đánh; chữa ở phòng khám 80k/ngày thì
+  hồi nhanh, không thì chậm; máu dưới 40 thì không đi được. Quán lâu ngày
+  (3 ngày) không ai của băng ghé và không có người gần đó thì dần thôi nộp,
+  nên băng ít người thì địa bàn co lại. Đại ca không lương, không bỏ đi, và
+  cũng được giao việc như mọi người: còn một mình thì tự làm hết.
+- Việc của đàn em (giao từ thẻ cơ sở): thu tiền bảo kê (quán của mình),
+  tuần tra (đi vòng các quán trong khối cho tới khi mệt: giữ quán nộp, chặn
+  đánh mối), gây hấn (sang quán băng khác thu tiền tại chỗ, đi tiếp các quán
+  của băng đó trong khối), bành trướng (ép quán chưa nộp ai, hoặc giành mối
+  của băng khác), rút lui (gọi về trụ sở ngay, trong popup đàn em).
+- Popup Đàn em là lưới card (tên, cấp bậc, việc đang làm, thanh tinh thần,
+  mệt, máu, ví và nợ lương); bấm một card mở thông tin đầy đủ của người đó:
+  lương, chi tiêu, ví, nợ, chữa trị, xem trên bản đồ, rút về.
+- Log mỗi ngày một dòng `[econ]` cho mỗi băng: tiền, số người, nợ lương,
+  tinh thần trung bình, số người bị thương, mệt, số quán, số khối.
+- Log mỗi giờ game một dòng `[clock]`: số dân ngoài đường, đang ngủ, đang
+  làm, số quán mở, đàn em từng băng; `[ai]` và `[gang]` ghi việc của các
+  băng đối thủ.
+- `--hour H` (giờ bắt đầu), `--speed S` (tốc độ đồng hồ, để thử nhanh).
 - `--seed N`, `--citycheck [seed đầu] [số seed]` (kiểm tra hàng loạt, không
   mở cửa sổ), `--citymap <seed> <file.ppm>` (ảnh raster một pixel một ô).
 
-Gameplay đã bị xóa; sẽ làm lại từ concept này, trên thành phố ở trên.
+Việc chưa làm so với concept này: xem `BACKLOG.md`.

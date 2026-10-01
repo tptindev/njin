@@ -1,0 +1,282 @@
+[   0.000] INFO  njin  Initializing raylib 6.0
+[   0.000] INFO  njin  Platform backend: DESKTOP (GLFW)
+[   0.000] INFO  njin  Supported raylib modules:
+[   0.000] INFO  njin      > rcore:..... loaded (mandatory)
+[   0.000] INFO  njin      > rlgl:...... loaded (mandatory)
+[   0.001] INFO  njin      > rshapes:... loaded (optional)
+[   0.001] INFO  njin      > rtextures:. loaded (optional)
+[   0.001] INFO  njin      > rtext:..... loaded (optional)
+[   0.001] INFO  njin      > rmodels:... loaded (optional)
+[   0.001] INFO  njin      > raudio:.... loaded (optional)
+[   0.496] INFO  njin  DISPLAY: Device initialized successfully 
+[   0.496] INFO  njin      > Display size: 1920 x 1080
+[   0.496] INFO  njin      > Screen size:  1280 x 720
+[   0.496] INFO  njin      > Render size:  1280 x 720
+[   0.496] INFO  njin      > Viewport offsets: 0, 0
+[   0.499] INFO  njin  GLAD: OpenGL extensions loaded successfully
+[   0.499] INFO  njin  GL: Supported extensions count: 404
+[   0.499] INFO  njin  GL: OpenGL device information:
+[   0.499] INFO  njin      > Vendor:   NVIDIA Corporation
+[   0.499] INFO  njin      > Renderer: NVIDIA GeForce RTX 3050 Laptop GPU/PCIe/SSE2
+[   0.499] INFO  njin      > Version:  3.3.0 NVIDIA 610.62
+[   0.499] INFO  njin      > GLSL:     3.30 NVIDIA via Cg compiler
+[   0.499] INFO  njin  GL: VAO extension detected, VAO functions loaded successfully
+[   0.499] INFO  njin  GL: NPOT textures extension detected, full NPOT textures supported
+[   0.499] INFO  njin  GL: DXT compressed textures supported
+[   0.499] INFO  njin  GL: ETC2/EAC compressed textures supported
+[   0.499] INFO  njin  PLATFORM: DESKTOP (GLFW - Win32): Initialized successfully
+[   0.499] DEBUG njin  TEXTURE: Load mipmap level 0 (1 x 1), size: 4, offset: 0
+[   0.500] INFO  njin  TEXTURE: [ID 1] Texture loaded successfully (1x1 | R8G8B8A8 | 1 mipmaps)
+[   0.500] INFO  njin  TEXTURE: [ID 1] Default texture loaded successfully
+[   0.516] INFO  njin  SHADER: [ID 1] Vertex shader compiled successfully
+[   0.517] INFO  njin  SHADER: [ID 2] Fragment shader compiled successfully
+[   0.537] INFO  njin  SHADER: [ID 3] Program shader loaded successfully
+[   0.537] INFO  njin  SHADER: [ID 3] Default shader loaded successfully
+[   0.538] INFO  njin  RLGL: Render batch vertex buffers loaded successfully in RAM (CPU)
+[   0.541] INFO  njin  RLGL: Render batch vertex buffers loaded successfully in VRAM (GPU)
+[   0.541] INFO  njin  RLGL: Default OpenGL state initialized successfully
+[   0.541] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 32768, offset: 0
+[   0.542] INFO  njin  TEXTURE: [ID 2] Texture loaded successfully (128x128 | GRAY_ALPHA | 1 mipmaps)
+[   0.542] INFO  njin  FONT: Default font loaded successfully (224 glyphs)
+[   0.542] INFO  njin  SYSTEM: Working Directory: D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated\kungfu
+[   0.773] INFO  njin  AUDIO: Device initialized successfully
+[   0.774] INFO  njin      > Backend:       miniaudio | WASAPI
+[   0.774] INFO  njin      > Format:        32-bit IEEE Floating Point -> 32-bit IEEE Floating Point
+[   0.774] INFO  njin      > Channels:      2 -> 2
+[   0.774] INFO  njin      > Sample rate:   48000 -> 48000
+[   0.774] INFO  njin      > Periods size:  1440
+[   0.774] INFO  njin  TIMER: Target time per frame: 16.667 milliseconds
+[   0.774] INFO  njin_ecs.cpp:178  module registered: njin.reload
+[   0.774] INFO  njin_ecs.cpp:178  module registered: njin.debug
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.ui
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.dialog
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.camera
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.audio
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.hierarchy
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.camera_follow
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.anim
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.particles
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.particles3d
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.render3d
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.sprite
+[   0.775] INFO  njin_ecs.cpp:178  module registered: njin.collision
+[   0.776] INFO  njin_ecs.cpp:178  module registered: njin.body
+[   0.776] INFO  njin_ecs.cpp:178  module registered: njin.timer
+[   0.776] INFO  njin_ecs.cpp:178  module registered: kungfu_preview
+[   0.776] INFO  njin.cpp:106  njin 0.6.0
+[   0.777] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.783] INFO  njin  SHADER: [ID 5] Program shader loaded successfully
+[   0.784] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.792] INFO  njin  SHADER: [ID 6] Program shader loaded successfully
+[   0.793] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.800] INFO  njin  SHADER: [ID 7] Program shader loaded successfully
+[   0.801] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.810] INFO  njin  SHADER: [ID 8] Program shader loaded successfully
+[   0.811] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.830] INFO  njin  SHADER: [ID 9] Program shader loaded successfully
+[   0.831] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.841] INFO  njin  SHADER: [ID 10] Program shader loaded successfully
+[   0.842] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   0.843] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   0.859] INFO  njin  SHADER: [ID 12] Program shader loaded successfully
+[   0.859] INFO  particles_gpu.cpp:194  particles: GPU backend on (nvidia geforce rtx 3050 laptop gpu/pcie/sse2)
+[   0.861] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   0.864] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   0.933] INFO  njin  SHADER: [ID 13] Program shader loaded successfully
+[   0.934] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   0.938] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.183] INFO  njin  SHADER: [ID 14] Program shader loaded successfully
+[   1.184] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.185] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.189] INFO  njin  SHADER: [ID 15] Program shader loaded successfully
+[   1.190] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.193] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.259] INFO  njin  SHADER: [ID 16] Program shader loaded successfully
+[   1.260] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.261] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.272] INFO  njin  SHADER: [ID 17] Program shader loaded successfully
+[   1.273] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.275] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.351] INFO  njin  SHADER: [ID 18] Program shader loaded successfully
+[   1.351] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.352] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.366] INFO  njin  SHADER: [ID 19] Program shader loaded successfully
+[   1.366] INFO  njin  VAO: [ID 2] Mesh uploaded successfully to VRAM (GPU)
+[   1.369] INFO  njin  VAO: [ID 3] Mesh uploaded successfully to VRAM (GPU)
+[   1.369] INFO  njin  VAO: [ID 4] Mesh uploaded successfully to VRAM (GPU)
+[   1.370] INFO  njin  VAO: [ID 5] Mesh uploaded successfully to VRAM (GPU)
+[   1.370] INFO  njin  VAO: [ID 6] Mesh uploaded successfully to VRAM (GPU)
+[   1.371] INFO  njin  VAO: [ID 7] Mesh uploaded successfully to VRAM (GPU)
+[   1.371] DEBUG njin  TEXTURE: Load mipmap level 0 (2048 x 2048), size: 4194304, offset: 0
+[   1.371] INFO  njin  TEXTURE: [ID 3] Texture loaded successfully (2048x2048 | GRAYSCALE | 1 mipmaps)
+[   1.371] INFO  njin  TEXTURE: Depth texture loaded successfully
+[   1.592] INFO  njin  FILEIO: [kungfu_00.png] File saved successfully
+[   1.592] INFO  njin  FILEIO: [kungfu_00.png] Image exported successfully
+[   1.592] INFO  njin_window.cpp:47  screenshot saved: kungfu_00.png
+[   1.905] INFO  njin  FILEIO: [kungfu_01.png] File saved successfully
+[   1.905] INFO  njin  FILEIO: [kungfu_01.png] Image exported successfully
+[   1.905] INFO  njin_window.cpp:47  screenshot saved: kungfu_01.png
+[   2.116] INFO  njin  FILEIO: [kungfu_02.png] File saved successfully
+[   2.116] INFO  njin  FILEIO: [kungfu_02.png] Image exported successfully
+[   2.117] INFO  njin_window.cpp:47  screenshot saved: kungfu_02.png
+[   2.334] INFO  njin  FILEIO: [kungfu_03.png] File saved successfully
+[   2.335] INFO  njin  FILEIO: [kungfu_03.png] Image exported successfully
+[   2.335] INFO  njin_window.cpp:47  screenshot saved: kungfu_03.png
+[   2.555] INFO  njin  FILEIO: [kungfu_04.png] File saved successfully
+[   2.555] INFO  njin  FILEIO: [kungfu_04.png] Image exported successfully
+[   2.555] INFO  njin_window.cpp:47  screenshot saved: kungfu_04.png
+[   2.774] INFO  njin  FILEIO: [kungfu_05.png] File saved successfully
+[   2.774] INFO  njin  FILEIO: [kungfu_05.png] Image exported successfully
+[   2.774] INFO  njin_window.cpp:47  screenshot saved: kungfu_05.png
+[   2.987] INFO  njin  FILEIO: [kungfu_06.png] File saved successfully
+[   2.988] INFO  njin  FILEIO: [kungfu_06.png] Image exported successfully
+[   2.988] INFO  njin_window.cpp:47  screenshot saved: kungfu_06.png
+[   3.206] INFO  njin  FILEIO: [kungfu_07.png] File saved successfully
+[   3.206] INFO  njin  FILEIO: [kungfu_07.png] Image exported successfully
+[   3.206] INFO  njin_window.cpp:47  screenshot saved: kungfu_07.png
+[   3.435] INFO  njin  FILEIO: [kungfu_08.png] File saved successfully
+[   3.436] INFO  njin  FILEIO: [kungfu_08.png] Image exported successfully
+[   3.436] INFO  njin_window.cpp:47  screenshot saved: kungfu_08.png
+[   3.661] INFO  njin  FILEIO: [kungfu_09.png] File saved successfully
+[   3.662] INFO  njin  FILEIO: [kungfu_09.png] Image exported successfully
+[   3.662] INFO  njin_window.cpp:47  screenshot saved: kungfu_09.png
+[   3.888] INFO  njin  FILEIO: [kungfu_10.png] File saved successfully
+[   3.889] INFO  njin  FILEIO: [kungfu_10.png] Image exported successfully
+[   3.889] INFO  njin_window.cpp:47  screenshot saved: kungfu_10.png
+[   4.112] INFO  njin  FILEIO: [kungfu_11.png] File saved successfully
+[   4.112] INFO  njin  FILEIO: [kungfu_11.png] Image exported successfully
+[   4.112] INFO  njin_window.cpp:47  screenshot saved: kungfu_11.png
+[   4.342] INFO  njin  FILEIO: [kungfu_12.png] File saved successfully
+[   4.342] INFO  njin  FILEIO: [kungfu_12.png] Image exported successfully
+[   4.342] INFO  njin_window.cpp:47  screenshot saved: kungfu_12.png
+[   4.580] INFO  njin  FILEIO: [kungfu_13.png] File saved successfully
+[   4.580] INFO  njin  FILEIO: [kungfu_13.png] Image exported successfully
+[   4.580] INFO  njin_window.cpp:47  screenshot saved: kungfu_13.png
+[   4.821] INFO  njin  FILEIO: [kungfu_14.png] File saved successfully
+[   4.822] INFO  njin  FILEIO: [kungfu_14.png] Image exported successfully
+[   4.822] INFO  njin_window.cpp:47  screenshot saved: kungfu_14.png
+[   5.061] INFO  njin  FILEIO: [kungfu_15.png] File saved successfully
+[   5.061] INFO  njin  FILEIO: [kungfu_15.png] Image exported successfully
+[   5.061] INFO  njin_window.cpp:47  screenshot saved: kungfu_15.png
+[   5.301] INFO  njin  FILEIO: [kungfu_16.png] File saved successfully
+[   5.301] INFO  njin  FILEIO: [kungfu_16.png] Image exported successfully
+[   5.301] INFO  njin_window.cpp:47  screenshot saved: kungfu_16.png
+[   5.545] INFO  njin  FILEIO: [kungfu_17.png] File saved successfully
+[   5.546] INFO  njin  FILEIO: [kungfu_17.png] Image exported successfully
+[   5.546] INFO  njin_window.cpp:47  screenshot saved: kungfu_17.png
+[   5.787] INFO  njin  FILEIO: [kungfu_18.png] File saved successfully
+[   5.787] INFO  njin  FILEIO: [kungfu_18.png] Image exported successfully
+[   5.787] INFO  njin_window.cpp:47  screenshot saved: kungfu_18.png
+[   6.039] INFO  njin  FILEIO: [kungfu_19.png] File saved successfully
+[   6.040] INFO  njin  FILEIO: [kungfu_19.png] Image exported successfully
+[   6.040] INFO  njin_window.cpp:47  screenshot saved: kungfu_19.png
+[   6.278] INFO  njin  FILEIO: [kungfu_20.png] File saved successfully
+[   6.278] INFO  njin  FILEIO: [kungfu_20.png] Image exported successfully
+[   6.279] INFO  njin_window.cpp:47  screenshot saved: kungfu_20.png
+[   6.518] INFO  njin  FILEIO: [kungfu_21.png] File saved successfully
+[   6.518] INFO  njin  FILEIO: [kungfu_21.png] Image exported successfully
+[   6.518] INFO  njin_window.cpp:47  screenshot saved: kungfu_21.png
+[   6.755] INFO  njin  FILEIO: [kungfu_22.png] File saved successfully
+[   6.755] INFO  njin  FILEIO: [kungfu_22.png] Image exported successfully
+[   6.755] INFO  njin_window.cpp:47  screenshot saved: kungfu_22.png
+[   6.998] INFO  njin  FILEIO: [kungfu_23.png] File saved successfully
+[   6.998] INFO  njin  FILEIO: [kungfu_23.png] Image exported successfully
+[   6.998] INFO  njin_window.cpp:47  screenshot saved: kungfu_23.png
+[   7.238] INFO  njin  FILEIO: [kungfu_24.png] File saved successfully
+[   7.238] INFO  njin  FILEIO: [kungfu_24.png] Image exported successfully
+[   7.238] INFO  njin_window.cpp:47  screenshot saved: kungfu_24.png
+[   7.479] INFO  njin  FILEIO: [kungfu_25.png] File saved successfully
+[   7.479] INFO  njin  FILEIO: [kungfu_25.png] Image exported successfully
+[   7.480] INFO  njin_window.cpp:47  screenshot saved: kungfu_25.png
+[   7.715] INFO  njin  FILEIO: [kungfu_26.png] File saved successfully
+[   7.715] INFO  njin  FILEIO: [kungfu_26.png] Image exported successfully
+[   7.716] INFO  njin_window.cpp:47  screenshot saved: kungfu_26.png
+[   7.952] INFO  njin  FILEIO: [kungfu_27.png] File saved successfully
+[   7.952] INFO  njin  FILEIO: [kungfu_27.png] Image exported successfully
+[   7.953] INFO  njin_window.cpp:47  screenshot saved: kungfu_27.png
+[   8.193] INFO  njin  FILEIO: [kungfu_28.png] File saved successfully
+[   8.193] INFO  njin  FILEIO: [kungfu_28.png] Image exported successfully
+[   8.193] INFO  njin_window.cpp:47  screenshot saved: kungfu_28.png
+[   8.433] INFO  njin  FILEIO: [kungfu_29.png] File saved successfully
+[   8.433] INFO  njin  FILEIO: [kungfu_29.png] Image exported successfully
+[   8.433] INFO  njin_window.cpp:47  screenshot saved: kungfu_29.png
+[   8.668] INFO  njin  FILEIO: [kungfu_30.png] File saved successfully
+[   8.669] INFO  njin  FILEIO: [kungfu_30.png] Image exported successfully
+[   8.669] INFO  njin_window.cpp:47  screenshot saved: kungfu_30.png
+[   8.905] INFO  njin  FILEIO: [kungfu_31.png] File saved successfully
+[   8.905] INFO  njin  FILEIO: [kungfu_31.png] Image exported successfully
+[   8.906] INFO  njin_window.cpp:47  screenshot saved: kungfu_31.png
+[   9.161] INFO  njin  FILEIO: [kungfu_32.png] File saved successfully
+[   9.161] INFO  njin  FILEIO: [kungfu_32.png] Image exported successfully
+[   9.162] INFO  njin_window.cpp:47  screenshot saved: kungfu_32.png
+[   9.421] INFO  njin  FILEIO: [kungfu_33.png] File saved successfully
+[   9.421] INFO  njin  FILEIO: [kungfu_33.png] Image exported successfully
+[   9.422] INFO  njin_window.cpp:47  screenshot saved: kungfu_33.png
+[   9.658] INFO  njin  FILEIO: [kungfu_34.png] File saved successfully
+[   9.658] INFO  njin  FILEIO: [kungfu_34.png] Image exported successfully
+[   9.659] INFO  njin_window.cpp:47  screenshot saved: kungfu_34.png
+[   9.897] INFO  njin  FILEIO: [kungfu_35.png] File saved successfully
+[   9.897] INFO  njin  FILEIO: [kungfu_35.png] Image exported successfully
+[   9.897] INFO  njin_window.cpp:47  screenshot saved: kungfu_35.png
+[  10.138] INFO  njin  FILEIO: [kungfu_36.png] File saved successfully
+[  10.138] INFO  njin  FILEIO: [kungfu_36.png] Image exported successfully
+[  10.138] INFO  njin_window.cpp:47  screenshot saved: kungfu_36.png
+[  10.387] INFO  njin  FILEIO: [kungfu_37.png] File saved successfully
+[  10.387] INFO  njin  FILEIO: [kungfu_37.png] Image exported successfully
+[  10.387] INFO  njin_window.cpp:47  screenshot saved: kungfu_37.png
+[  10.635] INFO  njin  FILEIO: [kungfu_38.png] File saved successfully
+[  10.635] INFO  njin  FILEIO: [kungfu_38.png] Image exported successfully
+[  10.635] INFO  njin_window.cpp:47  screenshot saved: kungfu_38.png
+[  10.875] INFO  njin  FILEIO: [kungfu_39.png] File saved successfully
+[  10.876] INFO  njin  FILEIO: [kungfu_39.png] Image exported successfully
+[  10.876] INFO  njin_window.cpp:47  screenshot saved: kungfu_39.png
+[  11.111] INFO  njin  FILEIO: [kungfu_40.png] File saved successfully
+[  11.111] INFO  njin  FILEIO: [kungfu_40.png] Image exported successfully
+[  11.111] INFO  njin_window.cpp:47  screenshot saved: kungfu_40.png
+[  11.349] INFO  njin  FILEIO: [kungfu_41.png] File saved successfully
+[  11.349] INFO  njin  FILEIO: [kungfu_41.png] Image exported successfully
+[  11.349] INFO  njin_window.cpp:47  screenshot saved: kungfu_41.png
+[  11.595] INFO  njin  FILEIO: [kungfu_42.png] File saved successfully
+[  11.595] INFO  njin  FILEIO: [kungfu_42.png] Image exported successfully
+[  11.595] INFO  njin_window.cpp:47  screenshot saved: kungfu_42.png
+[  11.833] INFO  njin  FILEIO: [kungfu_43.png] File saved successfully
+[  11.833] INFO  njin  FILEIO: [kungfu_43.png] Image exported successfully
+[  11.833] INFO  njin_window.cpp:47  screenshot saved: kungfu_43.png
+[  12.072] INFO  njin  FILEIO: [kungfu_44.png] File saved successfully
+[  12.073] INFO  njin  FILEIO: [kungfu_44.png] Image exported successfully
+[  12.073] INFO  njin_window.cpp:47  screenshot saved: kungfu_44.png
+[  12.310] INFO  njin  FILEIO: [kungfu_45.png] File saved successfully
+[  12.310] INFO  njin  FILEIO: [kungfu_45.png] Image exported successfully
+[  12.310] INFO  njin_window.cpp:47  screenshot saved: kungfu_45.png
+[  12.547] INFO  njin  FILEIO: [kungfu_46.png] File saved successfully
+[  12.547] INFO  njin  FILEIO: [kungfu_46.png] Image exported successfully
+[  12.547] INFO  njin_window.cpp:47  screenshot saved: kungfu_46.png
+[  12.792] INFO  njin  FILEIO: [kungfu_47.png] File saved successfully
+[  12.792] INFO  njin  FILEIO: [kungfu_47.png] Image exported successfully
+[  12.792] INFO  njin_window.cpp:47  screenshot saved: kungfu_47.png
+[  12.793] INFO  njin  SHADER: [ID 12] Unloaded shader program data from VRAM (GPU)
+[  12.794] INFO  njin  FBO: [ID 1] Unloaded framebuffer from VRAM (GPU)
+[  12.794] INFO  njin  SHADER: [ID 18] Unloaded shader program data from VRAM (GPU)
+[  12.794] INFO  njin  SHADER: [ID 19] Unloaded shader program data from VRAM (GPU)
+[  12.794] INFO  njin  VAO: [ID 2] Unloaded vertex array data from VRAM (GPU)
+[  12.794] INFO  njin  VAO: [ID 3] Unloaded vertex array data from VRAM (GPU)
+[  12.794] INFO  njin  VAO: [ID 4] Unloaded vertex array data from VRAM (GPU)
+[  12.794] INFO  njin  VAO: [ID 5] Unloaded vertex array data from VRAM (GPU)
+[  12.794] INFO  njin  VAO: [ID 6] Unloaded vertex array data from VRAM (GPU)
+[  12.794] INFO  njin  VAO: [ID 7] Unloaded vertex array data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 13] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 14] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 16] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 17] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 15] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 7] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 8] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 9] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 10] Unloaded shader program data from VRAM (GPU)
+[  12.795] INFO  njin  SHADER: [ID 5] Unloaded shader program data from VRAM (GPU)
+[  12.796] INFO  njin  SHADER: [ID 6] Unloaded shader program data from VRAM (GPU)
+[  12.817] INFO  njin  AUDIO: Device closed successfully
+[  12.817] INFO  njin  TEXTURE: [ID 2] Unloaded texture data from VRAM (GPU)
+[  12.817] INFO  njin  SHADER: [ID 3] Default shader unloaded successfully
+[  12.817] INFO  njin  TEXTURE: [ID 1] Default texture unloaded successfully
+[  12.850] INFO  njin  Window closed successfully

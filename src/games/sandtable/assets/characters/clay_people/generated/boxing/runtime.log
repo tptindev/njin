@@ -1,0 +1,282 @@
+[   0.000] INFO  njin  Initializing raylib 6.0
+[   0.000] INFO  njin  Platform backend: DESKTOP (GLFW)
+[   0.000] INFO  njin  Supported raylib modules:
+[   0.000] INFO  njin      > rcore:..... loaded (mandatory)
+[   0.000] INFO  njin      > rlgl:...... loaded (mandatory)
+[   0.000] INFO  njin      > rshapes:... loaded (optional)
+[   0.000] INFO  njin      > rtextures:. loaded (optional)
+[   0.000] INFO  njin      > rtext:..... loaded (optional)
+[   0.000] INFO  njin      > rmodels:... loaded (optional)
+[   0.000] INFO  njin      > raudio:.... loaded (optional)
+[   0.561] INFO  njin  DISPLAY: Device initialized successfully 
+[   0.561] INFO  njin      > Display size: 1920 x 1080
+[   0.561] INFO  njin      > Screen size:  1280 x 720
+[   0.561] INFO  njin      > Render size:  1280 x 720
+[   0.561] INFO  njin      > Viewport offsets: 0, 0
+[   0.565] INFO  njin  GLAD: OpenGL extensions loaded successfully
+[   0.565] INFO  njin  GL: Supported extensions count: 404
+[   0.565] INFO  njin  GL: OpenGL device information:
+[   0.565] INFO  njin      > Vendor:   NVIDIA Corporation
+[   0.565] INFO  njin      > Renderer: NVIDIA GeForce RTX 3050 Laptop GPU/PCIe/SSE2
+[   0.565] INFO  njin      > Version:  3.3.0 NVIDIA 610.62
+[   0.565] INFO  njin      > GLSL:     3.30 NVIDIA via Cg compiler
+[   0.565] INFO  njin  GL: VAO extension detected, VAO functions loaded successfully
+[   0.566] INFO  njin  GL: NPOT textures extension detected, full NPOT textures supported
+[   0.566] INFO  njin  GL: DXT compressed textures supported
+[   0.566] INFO  njin  GL: ETC2/EAC compressed textures supported
+[   0.566] INFO  njin  PLATFORM: DESKTOP (GLFW - Win32): Initialized successfully
+[   0.566] DEBUG njin  TEXTURE: Load mipmap level 0 (1 x 1), size: 4, offset: 0
+[   0.566] INFO  njin  TEXTURE: [ID 1] Texture loaded successfully (1x1 | R8G8B8A8 | 1 mipmaps)
+[   0.566] INFO  njin  TEXTURE: [ID 1] Default texture loaded successfully
+[   0.581] INFO  njin  SHADER: [ID 1] Vertex shader compiled successfully
+[   0.582] INFO  njin  SHADER: [ID 2] Fragment shader compiled successfully
+[   0.602] INFO  njin  SHADER: [ID 3] Program shader loaded successfully
+[   0.602] INFO  njin  SHADER: [ID 3] Default shader loaded successfully
+[   0.603] INFO  njin  RLGL: Render batch vertex buffers loaded successfully in RAM (CPU)
+[   0.606] INFO  njin  RLGL: Render batch vertex buffers loaded successfully in VRAM (GPU)
+[   0.606] INFO  njin  RLGL: Default OpenGL state initialized successfully
+[   0.606] DEBUG njin  TEXTURE: Load mipmap level 0 (128 x 128), size: 32768, offset: 0
+[   0.607] INFO  njin  TEXTURE: [ID 2] Texture loaded successfully (128x128 | GRAY_ALPHA | 1 mipmaps)
+[   0.607] INFO  njin  FONT: Default font loaded successfully (224 glyphs)
+[   0.607] INFO  njin  SYSTEM: Working Directory: D:\projects\njin\src\games\sandtable\assets\characters\clay_people\generated\boxing
+[   0.825] INFO  njin  AUDIO: Device initialized successfully
+[   0.825] INFO  njin      > Backend:       miniaudio | WASAPI
+[   0.825] INFO  njin      > Format:        32-bit IEEE Floating Point -> 32-bit IEEE Floating Point
+[   0.826] INFO  njin      > Channels:      2 -> 2
+[   0.826] INFO  njin      > Sample rate:   48000 -> 48000
+[   0.826] INFO  njin      > Periods size:  1440
+[   0.826] INFO  njin  TIMER: Target time per frame: 16.667 milliseconds
+[   0.826] INFO  njin_ecs.cpp:178  module registered: njin.reload
+[   0.826] INFO  njin_ecs.cpp:178  module registered: njin.debug
+[   0.826] INFO  njin_ecs.cpp:178  module registered: njin.ui
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.dialog
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.camera
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.audio
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.hierarchy
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.camera_follow
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.anim
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.particles
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.particles3d
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.render3d
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.sprite
+[   0.827] INFO  njin_ecs.cpp:178  module registered: njin.collision
+[   0.828] INFO  njin_ecs.cpp:178  module registered: njin.body
+[   0.828] INFO  njin_ecs.cpp:178  module registered: njin.timer
+[   0.828] INFO  njin_ecs.cpp:178  module registered: kungfu_preview
+[   0.828] INFO  njin.cpp:106  njin 0.6.0
+[   0.829] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.836] INFO  njin  SHADER: [ID 5] Program shader loaded successfully
+[   0.837] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.847] INFO  njin  SHADER: [ID 6] Program shader loaded successfully
+[   0.848] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.854] INFO  njin  SHADER: [ID 7] Program shader loaded successfully
+[   0.855] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.863] INFO  njin  SHADER: [ID 8] Program shader loaded successfully
+[   0.865] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.882] INFO  njin  SHADER: [ID 9] Program shader loaded successfully
+[   0.883] INFO  njin  SHADER: [ID 4] Fragment shader compiled successfully
+[   0.893] INFO  njin  SHADER: [ID 10] Program shader loaded successfully
+[   0.894] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   0.895] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   0.909] INFO  njin  SHADER: [ID 12] Program shader loaded successfully
+[   0.909] INFO  particles_gpu.cpp:194  particles: GPU backend on (nvidia geforce rtx 3050 laptop gpu/pcie/sse2)
+[   0.910] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   0.914] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   0.970] INFO  njin  SHADER: [ID 13] Program shader loaded successfully
+[   0.971] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   0.974] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.218] INFO  njin  SHADER: [ID 14] Program shader loaded successfully
+[   1.219] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.219] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.224] INFO  njin  SHADER: [ID 15] Program shader loaded successfully
+[   1.225] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.228] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.297] INFO  njin  SHADER: [ID 16] Program shader loaded successfully
+[   1.298] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.299] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.309] INFO  njin  SHADER: [ID 17] Program shader loaded successfully
+[   1.310] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.313] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.383] INFO  njin  SHADER: [ID 18] Program shader loaded successfully
+[   1.384] INFO  njin  SHADER: [ID 4] Vertex shader compiled successfully
+[   1.384] INFO  njin  SHADER: [ID 11] Fragment shader compiled successfully
+[   1.398] INFO  njin  SHADER: [ID 19] Program shader loaded successfully
+[   1.398] INFO  njin  VAO: [ID 2] Mesh uploaded successfully to VRAM (GPU)
+[   1.400] INFO  njin  VAO: [ID 3] Mesh uploaded successfully to VRAM (GPU)
+[   1.401] INFO  njin  VAO: [ID 4] Mesh uploaded successfully to VRAM (GPU)
+[   1.401] INFO  njin  VAO: [ID 5] Mesh uploaded successfully to VRAM (GPU)
+[   1.401] INFO  njin  VAO: [ID 6] Mesh uploaded successfully to VRAM (GPU)
+[   1.401] INFO  njin  VAO: [ID 7] Mesh uploaded successfully to VRAM (GPU)
+[   1.402] DEBUG njin  TEXTURE: Load mipmap level 0 (2048 x 2048), size: 4194304, offset: 0
+[   1.402] INFO  njin  TEXTURE: [ID 3] Texture loaded successfully (2048x2048 | GRAYSCALE | 1 mipmaps)
+[   1.402] INFO  njin  TEXTURE: Depth texture loaded successfully
+[   1.615] INFO  njin  FILEIO: [boxing_00.png] File saved successfully
+[   1.616] INFO  njin  FILEIO: [boxing_00.png] Image exported successfully
+[   1.616] INFO  njin_window.cpp:47  screenshot saved: boxing_00.png
+[   1.918] INFO  njin  FILEIO: [boxing_01.png] File saved successfully
+[   1.919] INFO  njin  FILEIO: [boxing_01.png] Image exported successfully
+[   1.919] INFO  njin_window.cpp:47  screenshot saved: boxing_01.png
+[   2.131] INFO  njin  FILEIO: [boxing_02.png] File saved successfully
+[   2.131] INFO  njin  FILEIO: [boxing_02.png] Image exported successfully
+[   2.132] INFO  njin_window.cpp:47  screenshot saved: boxing_02.png
+[   2.350] INFO  njin  FILEIO: [boxing_03.png] File saved successfully
+[   2.350] INFO  njin  FILEIO: [boxing_03.png] Image exported successfully
+[   2.350] INFO  njin_window.cpp:47  screenshot saved: boxing_03.png
+[   2.564] INFO  njin  FILEIO: [boxing_04.png] File saved successfully
+[   2.564] INFO  njin  FILEIO: [boxing_04.png] Image exported successfully
+[   2.564] INFO  njin_window.cpp:47  screenshot saved: boxing_04.png
+[   2.787] INFO  njin  FILEIO: [boxing_05.png] File saved successfully
+[   2.787] INFO  njin  FILEIO: [boxing_05.png] Image exported successfully
+[   2.787] INFO  njin_window.cpp:47  screenshot saved: boxing_05.png
+[   3.007] INFO  njin  FILEIO: [boxing_06.png] File saved successfully
+[   3.007] INFO  njin  FILEIO: [boxing_06.png] Image exported successfully
+[   3.008] INFO  njin_window.cpp:47  screenshot saved: boxing_06.png
+[   3.217] INFO  njin  FILEIO: [boxing_07.png] File saved successfully
+[   3.217] INFO  njin  FILEIO: [boxing_07.png] Image exported successfully
+[   3.217] INFO  njin_window.cpp:47  screenshot saved: boxing_07.png
+[   3.430] INFO  njin  FILEIO: [boxing_08.png] File saved successfully
+[   3.430] INFO  njin  FILEIO: [boxing_08.png] Image exported successfully
+[   3.430] INFO  njin_window.cpp:47  screenshot saved: boxing_08.png
+[   3.653] INFO  njin  FILEIO: [boxing_09.png] File saved successfully
+[   3.653] INFO  njin  FILEIO: [boxing_09.png] Image exported successfully
+[   3.653] INFO  njin_window.cpp:47  screenshot saved: boxing_09.png
+[   3.871] INFO  njin  FILEIO: [boxing_10.png] File saved successfully
+[   3.872] INFO  njin  FILEIO: [boxing_10.png] Image exported successfully
+[   3.872] INFO  njin_window.cpp:47  screenshot saved: boxing_10.png
+[   4.095] INFO  njin  FILEIO: [boxing_11.png] File saved successfully
+[   4.096] INFO  njin  FILEIO: [boxing_11.png] Image exported successfully
+[   4.096] INFO  njin_window.cpp:47  screenshot saved: boxing_11.png
+[   4.318] INFO  njin  FILEIO: [boxing_12.png] File saved successfully
+[   4.318] INFO  njin  FILEIO: [boxing_12.png] Image exported successfully
+[   4.318] INFO  njin_window.cpp:47  screenshot saved: boxing_12.png
+[   4.547] INFO  njin  FILEIO: [boxing_13.png] File saved successfully
+[   4.547] INFO  njin  FILEIO: [boxing_13.png] Image exported successfully
+[   4.548] INFO  njin_window.cpp:47  screenshot saved: boxing_13.png
+[   4.775] INFO  njin  FILEIO: [boxing_14.png] File saved successfully
+[   4.775] INFO  njin  FILEIO: [boxing_14.png] Image exported successfully
+[   4.776] INFO  njin_window.cpp:47  screenshot saved: boxing_14.png
+[   5.007] INFO  njin  FILEIO: [boxing_15.png] File saved successfully
+[   5.008] INFO  njin  FILEIO: [boxing_15.png] Image exported successfully
+[   5.008] INFO  njin_window.cpp:47  screenshot saved: boxing_15.png
+[   5.243] INFO  njin  FILEIO: [boxing_16.png] File saved successfully
+[   5.243] INFO  njin  FILEIO: [boxing_16.png] Image exported successfully
+[   5.243] INFO  njin_window.cpp:47  screenshot saved: boxing_16.png
+[   5.475] INFO  njin  FILEIO: [boxing_17.png] File saved successfully
+[   5.476] INFO  njin  FILEIO: [boxing_17.png] Image exported successfully
+[   5.476] INFO  njin_window.cpp:47  screenshot saved: boxing_17.png
+[   5.719] INFO  njin  FILEIO: [boxing_18.png] File saved successfully
+[   5.720] INFO  njin  FILEIO: [boxing_18.png] Image exported successfully
+[   5.720] INFO  njin_window.cpp:47  screenshot saved: boxing_18.png
+[   5.962] INFO  njin  FILEIO: [boxing_19.png] File saved successfully
+[   5.963] INFO  njin  FILEIO: [boxing_19.png] Image exported successfully
+[   5.963] INFO  njin_window.cpp:47  screenshot saved: boxing_19.png
+[   6.198] INFO  njin  FILEIO: [boxing_20.png] File saved successfully
+[   6.199] INFO  njin  FILEIO: [boxing_20.png] Image exported successfully
+[   6.199] INFO  njin_window.cpp:47  screenshot saved: boxing_20.png
+[   6.434] INFO  njin  FILEIO: [boxing_21.png] File saved successfully
+[   6.434] INFO  njin  FILEIO: [boxing_21.png] Image exported successfully
+[   6.434] INFO  njin_window.cpp:47  screenshot saved: boxing_21.png
+[   6.668] INFO  njin  FILEIO: [boxing_22.png] File saved successfully
+[   6.668] INFO  njin  FILEIO: [boxing_22.png] Image exported successfully
+[   6.669] INFO  njin_window.cpp:47  screenshot saved: boxing_22.png
+[   6.913] INFO  njin  FILEIO: [boxing_23.png] File saved successfully
+[   6.913] INFO  njin  FILEIO: [boxing_23.png] Image exported successfully
+[   6.913] INFO  njin_window.cpp:47  screenshot saved: boxing_23.png
+[   7.163] INFO  njin  FILEIO: [boxing_24.png] File saved successfully
+[   7.163] INFO  njin  FILEIO: [boxing_24.png] Image exported successfully
+[   7.163] INFO  njin_window.cpp:47  screenshot saved: boxing_24.png
+[   7.406] INFO  njin  FILEIO: [boxing_25.png] File saved successfully
+[   7.407] INFO  njin  FILEIO: [boxing_25.png] Image exported successfully
+[   7.407] INFO  njin_window.cpp:47  screenshot saved: boxing_25.png
+[   7.643] INFO  njin  FILEIO: [boxing_26.png] File saved successfully
+[   7.643] INFO  njin  FILEIO: [boxing_26.png] Image exported successfully
+[   7.643] INFO  njin_window.cpp:47  screenshot saved: boxing_26.png
+[   7.889] INFO  njin  FILEIO: [boxing_27.png] File saved successfully
+[   7.889] INFO  njin  FILEIO: [boxing_27.png] Image exported successfully
+[   7.889] INFO  njin_window.cpp:47  screenshot saved: boxing_27.png
+[   8.129] INFO  njin  FILEIO: [boxing_28.png] File saved successfully
+[   8.129] INFO  njin  FILEIO: [boxing_28.png] Image exported successfully
+[   8.129] INFO  njin_window.cpp:47  screenshot saved: boxing_28.png
+[   8.370] INFO  njin  FILEIO: [boxing_29.png] File saved successfully
+[   8.371] INFO  njin  FILEIO: [boxing_29.png] Image exported successfully
+[   8.371] INFO  njin_window.cpp:47  screenshot saved: boxing_29.png
+[   8.608] INFO  njin  FILEIO: [boxing_30.png] File saved successfully
+[   8.608] INFO  njin  FILEIO: [boxing_30.png] Image exported successfully
+[   8.608] INFO  njin_window.cpp:47  screenshot saved: boxing_30.png
+[   8.842] INFO  njin  FILEIO: [boxing_31.png] File saved successfully
+[   8.842] INFO  njin  FILEIO: [boxing_31.png] Image exported successfully
+[   8.842] INFO  njin_window.cpp:47  screenshot saved: boxing_31.png
+[   9.079] INFO  njin  FILEIO: [boxing_32.png] File saved successfully
+[   9.079] INFO  njin  FILEIO: [boxing_32.png] Image exported successfully
+[   9.079] INFO  njin_window.cpp:47  screenshot saved: boxing_32.png
+[   9.311] INFO  njin  FILEIO: [boxing_33.png] File saved successfully
+[   9.311] INFO  njin  FILEIO: [boxing_33.png] Image exported successfully
+[   9.311] INFO  njin_window.cpp:47  screenshot saved: boxing_33.png
+[   9.554] INFO  njin  FILEIO: [boxing_34.png] File saved successfully
+[   9.554] INFO  njin  FILEIO: [boxing_34.png] Image exported successfully
+[   9.554] INFO  njin_window.cpp:47  screenshot saved: boxing_34.png
+[   9.799] INFO  njin  FILEIO: [boxing_35.png] File saved successfully
+[   9.799] INFO  njin  FILEIO: [boxing_35.png] Image exported successfully
+[   9.799] INFO  njin_window.cpp:47  screenshot saved: boxing_35.png
+[  10.038] INFO  njin  FILEIO: [boxing_36.png] File saved successfully
+[  10.038] INFO  njin  FILEIO: [boxing_36.png] Image exported successfully
+[  10.038] INFO  njin_window.cpp:47  screenshot saved: boxing_36.png
+[  10.281] INFO  njin  FILEIO: [boxing_37.png] File saved successfully
+[  10.281] INFO  njin  FILEIO: [boxing_37.png] Image exported successfully
+[  10.281] INFO  njin_window.cpp:47  screenshot saved: boxing_37.png
+[  10.525] INFO  njin  FILEIO: [boxing_38.png] File saved successfully
+[  10.526] INFO  njin  FILEIO: [boxing_38.png] Image exported successfully
+[  10.526] INFO  njin_window.cpp:47  screenshot saved: boxing_38.png
+[  10.778] INFO  njin  FILEIO: [boxing_39.png] File saved successfully
+[  10.778] INFO  njin  FILEIO: [boxing_39.png] Image exported successfully
+[  10.778] INFO  njin_window.cpp:47  screenshot saved: boxing_39.png
+[  11.020] INFO  njin  FILEIO: [boxing_40.png] File saved successfully
+[  11.021] INFO  njin  FILEIO: [boxing_40.png] Image exported successfully
+[  11.021] INFO  njin_window.cpp:47  screenshot saved: boxing_40.png
+[  11.258] INFO  njin  FILEIO: [boxing_41.png] File saved successfully
+[  11.258] INFO  njin  FILEIO: [boxing_41.png] Image exported successfully
+[  11.258] INFO  njin_window.cpp:47  screenshot saved: boxing_41.png
+[  11.501] INFO  njin  FILEIO: [boxing_42.png] File saved successfully
+[  11.501] INFO  njin  FILEIO: [boxing_42.png] Image exported successfully
+[  11.502] INFO  njin_window.cpp:47  screenshot saved: boxing_42.png
+[  11.741] INFO  njin  FILEIO: [boxing_43.png] File saved successfully
+[  11.741] INFO  njin  FILEIO: [boxing_43.png] Image exported successfully
+[  11.741] INFO  njin_window.cpp:47  screenshot saved: boxing_43.png
+[  11.978] INFO  njin  FILEIO: [boxing_44.png] File saved successfully
+[  11.978] INFO  njin  FILEIO: [boxing_44.png] Image exported successfully
+[  11.979] INFO  njin_window.cpp:47  screenshot saved: boxing_44.png
+[  12.236] INFO  njin  FILEIO: [boxing_45.png] File saved successfully
+[  12.236] INFO  njin  FILEIO: [boxing_45.png] Image exported successfully
+[  12.236] INFO  njin_window.cpp:47  screenshot saved: boxing_45.png
+[  12.475] INFO  njin  FILEIO: [boxing_46.png] File saved successfully
+[  12.475] INFO  njin  FILEIO: [boxing_46.png] Image exported successfully
+[  12.476] INFO  njin_window.cpp:47  screenshot saved: boxing_46.png
+[  12.718] INFO  njin  FILEIO: [boxing_47.png] File saved successfully
+[  12.718] INFO  njin  FILEIO: [boxing_47.png] Image exported successfully
+[  12.718] INFO  njin_window.cpp:47  screenshot saved: boxing_47.png
+[  12.719] INFO  njin  SHADER: [ID 12] Unloaded shader program data from VRAM (GPU)
+[  12.720] INFO  njin  FBO: [ID 1] Unloaded framebuffer from VRAM (GPU)
+[  12.720] INFO  njin  SHADER: [ID 18] Unloaded shader program data from VRAM (GPU)
+[  12.720] INFO  njin  SHADER: [ID 19] Unloaded shader program data from VRAM (GPU)
+[  12.720] INFO  njin  VAO: [ID 2] Unloaded vertex array data from VRAM (GPU)
+[  12.720] INFO  njin  VAO: [ID 3] Unloaded vertex array data from VRAM (GPU)
+[  12.720] INFO  njin  VAO: [ID 4] Unloaded vertex array data from VRAM (GPU)
+[  12.720] INFO  njin  VAO: [ID 5] Unloaded vertex array data from VRAM (GPU)
+[  12.720] INFO  njin  VAO: [ID 6] Unloaded vertex array data from VRAM (GPU)
+[  12.721] INFO  njin  VAO: [ID 7] Unloaded vertex array data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 13] Unloaded shader program data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 14] Unloaded shader program data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 16] Unloaded shader program data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 17] Unloaded shader program data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 15] Unloaded shader program data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 7] Unloaded shader program data from VRAM (GPU)
+[  12.721] INFO  njin  SHADER: [ID 8] Unloaded shader program data from VRAM (GPU)
+[  12.722] INFO  njin  SHADER: [ID 9] Unloaded shader program data from VRAM (GPU)
+[  12.722] INFO  njin  SHADER: [ID 10] Unloaded shader program data from VRAM (GPU)
+[  12.722] INFO  njin  SHADER: [ID 5] Unloaded shader program data from VRAM (GPU)
+[  12.722] INFO  njin  SHADER: [ID 6] Unloaded shader program data from VRAM (GPU)
+[  12.738] INFO  njin  AUDIO: Device closed successfully
+[  12.738] INFO  njin  TEXTURE: [ID 2] Unloaded texture data from VRAM (GPU)
+[  12.739] INFO  njin  SHADER: [ID 3] Default shader unloaded successfully
+[  12.739] INFO  njin  TEXTURE: [ID 1] Default texture unloaded successfully
+[  12.774] INFO  njin  Window closed successfully

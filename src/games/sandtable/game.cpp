@@ -1,7 +1,9 @@
 #include "game.h"
 #include "audio.h"
+#include "clock.h"
 #include "crowd.h"
 #include "gang.h"
+#include "gang_ai.h"
 #include "person.h"
 #include "render.h"
 #include "view.h"
@@ -10,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 namespace sandtable {
 
@@ -238,11 +241,61 @@ void update(context &ctx) {
   gang_update(delta(ctx));
 }
 
+// Each hour of the town, a line in the log: how the town is living.
+void log_hour() {
+  const crowd_report cr = crowd_check();
+  const city::city_map &m = world();
+  i32 open = 0;
+  for (i32 b = 0; b < static_cast<i32>(m.businesses.size()); ++b)
+    open += business_open(b) ? 1 : 0;
+  char men[200] = "";
+  for (const gang_state &g : gangs()) {
+    i32 out = 0;
+    for (const lackey &l : g.men)
+      out += l.inside ? 0 : 1;
+    const size_t at = std::strlen(men);
+    std::snprintf(men + at, sizeof(men) - at, " | %s: %d/%d out, %dk, %d blocks", g.name.c_str(), out,
+                  static_cast<i32>(g.men.size()), g.money, g.turf);
+  }
+  NJIN_INFO("[clock] day %d %02d:00: %d/%d townsfolk out (%d asleep, %d at work), %d seated, %d/%d shops open%s",
+            state.day, static_cast<i32>(state.hour), cr.walkers, cr.residents, cr.asleep, cr.at_work, cr.seated, open,
+            static_cast<i32>(m.businesses.size()), men);
+}
+
+// Each new day, a line per gang: how its money and its men are holding up.
+void log_day() {
+  for (const gang_state &g : gangs()) {
+    f32 mood = 0.0f;
+    i32 owed = 0, hurt = 0, tired = 0, n = 0;
+    for (const lackey &l : g.men) {
+      if (l.rk == rank::boss)
+        continue;
+      ++n;
+      mood += l.morale;
+      owed += l.unpaid;
+      hurt += l.health < hurt_limit ? 1 : 0;
+      tired += l.fatigue >= tired_limit ? 1 : 0;
+    }
+    i32 paying = 0;
+    for (const shop_state &s : shops())
+      paying += &gangs()[static_cast<size_t>(s.owner < 0 ? 0 : s.owner)] == &g && s.owner >= 0 ? 1 : 0;
+    NJIN_INFO("[econ] day %d %s: %dk cash, %d men + boss, owed %dk, morale %.0f, %d hurt, %d tired, %d shops, %d blocks",
+              state.day, g.name.c_str(), g.money, n, owed, static_cast<f64>(n > 0 ? mood / static_cast<f32>(n) : 0.0f),
+              hurt, tired, paying, g.turf);
+  }
+}
+
 // Before the physics steps (njin steps it right after the game's own
-// systems of this phase).
+// systems of this phase). The clock first: everything else keeps to it.
 void fixed_update(context &ctx) {
+  clock_step(delta(ctx));
   crowd_step(ctx, delta(ctx));
   gang_step(ctx, delta(ctx));
+  gang_ai_step(ctx);
+  if (clock_new_hour())
+    log_hour();
+  if (clock_new_day())
+    log_day();
 }
 
 void setup(context &ctx) {

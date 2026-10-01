@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -104,7 +105,7 @@ void make_styles() {
   dock_style.spacing = 8.0f;
   fit_rounding(dock_style);
   card_style = base_style();
-  card_style.width = 336.0f;
+  card_style.width = 380.0f;
   card_style.widget_height = 32.0f;
   card_style.padding = 14.0f;
   card_style.spacing = 6.0f;
@@ -145,6 +146,8 @@ struct pending_icon {
   rgba tint;
 };
 std::vector<pending_icon> waiting;
+// Anything else drawn over a panel once it is drawn (the men's cards).
+std::vector<std::function<void(context &)>> overlays;
 std::string tip_text;
 rect tip_over{};
 
@@ -156,6 +159,9 @@ void drawn(context &ctx) {
       texture_draw_ex(ctx, icons[p.i],
                       {.pos = p.centre, .scale = {p.size / 64.0f, p.size / 64.0f}, .origin = {0.5f, 0.5f}, .tint = p.tint});
   waiting.clear();
+  for (const auto &f : overlays)
+    f(ctx);
+  overlays.clear();
 }
 
 // The name of the icon button under the mouse, over it: drawn last of all.
@@ -214,7 +220,8 @@ std::string money(i32 k) {
 
 // --- What is open --------------------------------------------------------------------
 
-enum class popup { none, men, turf, books, debug };
+enum class popup { none, men, man, turf, books, debug };
+i32 shown_man = -1; // popup::man: whose card was opened
 popup open_popup = popup::none;
 
 void open(popup p) { open_popup = open_popup == p ? popup::none : p; }
@@ -339,7 +346,21 @@ void card(context &ctx) {
     label(ctx, line, ink);
     std::snprintf(line, sizeof(line), "Bảo kê %s/tuần", money(bz->protection).c_str());
     label(ctx, line, ink);
+    const opening o = business_hours(bz->kind);
+    const bool open = business_open(b.business);
+    if (o.open == o.close)
+      std::snprintf(line, sizeof(line), "Mở cả ngày");
+    else
+      std::snprintf(line, sizeof(line), "Mở %02d:%02d–%02d:%02d · %s", static_cast<i32>(o.open),
+                    static_cast<i32>(o.open * 60.0f) % 60, static_cast<i32>(o.close) % 24,
+                    static_cast<i32>(o.close * 60.0f) % 60, open ? "đang mở" : "đã đóng");
+    label(ctx, line, open ? ink : ink_dim);
     const shop_state &s = shops()[static_cast<size_t>(b.business)];
+    if (s.raided_by >= 0 && s.raided_day >= state.day - 1) {
+      std::snprintf(line, sizeof(line), "%s bị %s thu %s", s.raided_day == state.day ? "Hôm nay" : "Hôm qua",
+                    gangs()[static_cast<size_t>(s.raided_by)].name.c_str(), money(s.raided_amount).c_str());
+      label(ctx, line, gangs()[static_cast<size_t>(s.raided_by)].colour);
+    }
     if (s.owner == 0)
       std::snprintf(line, sizeof(line), "Đang nộp cho băng mình · nợ %s", money(s.owed).c_str());
     else if (s.owner > 0)
@@ -375,16 +396,43 @@ void card(context &ctx) {
   }
   if (bz) {
     ui_space(ctx, 4.0f);
+    // Two jobs a man can be given here, by whom the shop pays: ours,
+    // collect or patrol its block; nobody's, squeeze it or patrol; another
+    // gang's, take it over or raid it (take their money here and now).
     const i32 owner = shops()[static_cast<size_t>(b.business)].owner;
-    label(ctx, owner == 0 ? "Cử người đi thu:" : owner > 0 ? "Cử người đi giành mối:" : "Cử người đi ép nộp:", ink_dim);
+    const char *first = owner == 0 ? "Thu" : "Bành trướng";
+    const char *second = owner > 0 ? "Gây hấn" : "Tuần tra";
+    label(ctx, owner == 0 ? "Giao việc: thu tiền, hoặc tuần tra khối này"
+               : owner > 0 ? "Giao việc: giành mối, hoặc sang thu tiền của họ ngay"
+                           : "Giao việc: ép nộp, hoặc tuần tra khối này",
+          ink_dim);
     bool any = false;
+    // Everyone at home, the boss too (with no one else he goes himself);
+    // the worn out and the hurt say why they cannot.
     for (i32 i = 0; i < static_cast<i32>(g.men.size()); ++i) {
       const lackey &man = g.men[static_cast<size_t>(i)];
-      if (man.task != job::idle || man.rk == rank::boss)
+      if (man.task != job::idle)
         continue;
       any = true;
-      std::snprintf(line, sizeof(line), "%s · %s · sức %d##send%d", man.name.c_str(), rank_name(man.rk), man.strength, i);
-      if (ui_button(ctx, line) && !gang_send(ctx, i, b.business))
+      if (const char *why = gang_cannot_go(man)) {
+        std::snprintf(line, sizeof(line), "%s · %s", man.name.c_str(), why);
+        label(ctx, line, ink_dim);
+        continue;
+      }
+      ui_row(ctx, 3);
+      label(ctx, man.name.c_str(), man.rk == rank::boss ? accent : ink);
+      std::snprintf(line, sizeof(line), "%s##a%d", first, i);
+      bool ok = true, pressed = false;
+      if (ui_button(ctx, line)) {
+        pressed = true;
+        ok = gang_send(ctx, i, b.business);
+      }
+      std::snprintf(line, sizeof(line), "%s##b%d", second, i);
+      if (ui_button(ctx, line)) {
+        pressed = true;
+        ok = owner > 0 ? gang_raid(ctx, 0, i, b.business) : gang_patrol(ctx, 0, i, bz->block);
+      }
+      if (pressed && !ok)
         ui_toast(ctx, "Không tìm được đường tới đó", {.kind = ui_toast_warning});
     }
     if (!any)
@@ -500,36 +548,176 @@ void popup_end(context &ctx) {
   drawn(ctx);
 }
 
+// A bar of `value` out of 100 with its name, in `r`.
+void meter(context &ctx, rect r, const char *name, f32 value, rgba fill) {
+  draw_text(ctx, name, r.pos, 13.0f * k, ink_dim, font);
+  const f32 x = r.pos.x + 64.0f * k, w = r.size.x - 64.0f * k;
+  const rect track{{x, r.pos.y + 4.0f * k}, {w, 7.0f * k}};
+  draw_rect(ctx, track, rgb(0, 0, 0, 110));
+  draw_rect(ctx, {track.pos, {w * clamp(value / 100.0f, 0.0f, 1.0f), track.size.y}}, fill);
+}
+
+rgba mood_colour(f32 morale) {
+  return morale < quit_morale ? gang_red : morale < 50.0f ? accent : rgb(120, 206, 140);
+}
+
+// What he is doing, in a few words.
+std::string doing(const lackey &m) {
+  if (m.task != job::idle)
+    return std::string(job_name(m.task)) + " " + gang_target_name(m);
+  const char *why = gang_cannot_go(m);
+  return why ? std::string("Ở trụ sở · ") + why : "Rảnh, ở trụ sở";
+}
+
+// One man's card in the grid: name and rank, what he is doing, his mood,
+// tiredness and health as bars, his pocket.
+void man_card(context &ctx, rect r, const lackey &m) {
+  const f32 pad = 10.0f * k;
+  const bool boss = m.rk == rank::boss;
+  draw_rect(ctx, {r.pos, {4.0f * k, r.size.y}}, boss ? accent : mood_colour(m.morale));
+  vec2 at = r.pos + vec2{pad + 4.0f * k, pad};
+  draw_text(ctx, m.name.c_str(), at, 17.0f * k, boss ? accent : ink, font);
+  at.y += 21.0f * k;
+  char line[160];
+  std::snprintf(line, sizeof(line), "%s · Sức %d · Lì %d · Lanh %d", rank_name(m.rk), m.strength, m.grit, m.wits);
+  draw_text(ctx, line, at, 13.0f * k, ink_dim, font);
+  at.y += 18.0f * k;
+  const bool stuck = m.task == job::idle && gang_cannot_go(m);
+  draw_text(ctx, doing(m).c_str(), at, 14.0f * k, m.task != job::idle ? accent : stuck ? gang_red : ink, font);
+  at.y += 21.0f * k;
+  const f32 w = r.size.x - pad * 2.0f - 4.0f * k;
+  if (!boss) {
+    meter(ctx, {at, {w, 14.0f * k}}, "Tinh thần", m.morale, mood_colour(m.morale));
+    at.y += 15.0f * k;
+  }
+  meter(ctx, {at, {w, 14.0f * k}}, "Mệt", m.fatigue, m.fatigue >= tired_limit ? gang_red : rgb(150, 160, 180));
+  at.y += 15.0f * k;
+  meter(ctx, {at, {w, 14.0f * k}}, "Máu", m.health, m.health < hurt_limit ? gang_red : rgb(120, 206, 140));
+  at.y += 17.0f * k;
+  if (!boss) {
+    std::string pocket = "Ví " + money(m.wallet);
+    if (m.unpaid > 0)
+      pocket += "  ·  nợ lương " + money(m.unpaid);
+    draw_text(ctx, pocket.c_str(), at, 13.0f * k, m.unpaid > 0 ? gang_red : ink_dim, font);
+  }
+}
+
+// The men as a grid of cards; a click on one opens all of him (man_popup).
 void men_popup(context &ctx) {
   gang_state &g = gang();
   char title[64], line[200];
   std::snprintf(title, sizeof(title), "Đàn em · %d người", static_cast<i32>(g.men.size()));
   popup_begin(ctx, "men", title);
-  std::snprintf(line, sizeof(line), "Lương cả băng: %s/ngày", money(gang_wages_per_day()).c_str());
+  std::snprintf(line, sizeof(line), "Lương %s/ngày · thuốc men %s/ngày · tiền mặt %s",
+                money(gang_wages_per_day()).c_str(), money(gang_clinic_per_day()).c_str(), money(g.money).c_str());
   label(ctx, line, ink_dim);
-  for (i32 i = 0; i < static_cast<i32>(g.men.size()); ++i) {
-    const lackey &m = g.men[static_cast<size_t>(i)];
-    ui_row(ctx, 4);
-    label(ctx, m.name.c_str(), m.rk == rank::boss ? accent : ink);
-    std::snprintf(line, sizeof(line), "%s · Sức %d · Lì %d · Lanh %d", rank_name(m.rk), m.strength, m.grit, m.wits);
-    label(ctx, line, ink_dim);
-    if (m.task == job::idle)
-      std::snprintf(line, sizeof(line), "%s", job_name(m.task));
-    else
-      std::snprintf(line, sizeof(line), "%s · %s", job_name(m.task), gang_target_name(m));
-    label(ctx, line, m.task == job::idle ? ink_dim : accent);
-    std::snprintf(line, sizeof(line), "Xem##look%d", i);
-    if (ui_button(ctx, line)) {
-      open_popup = popup::none;
-      gang_focus_man(0, i);
-      view_focus(m.pos, 10.0f);
-    }
+  if (const i32 owed = gang_wages_owed(); owed > 0) {
+    std::snprintf(line, sizeof(line), "Đang nợ lương anh em %s: trả đủ trước khi họ bỏ đi", money(owed).c_str());
+    label(ctx, line, gang_red);
   }
+  // Cards: buttons as tall as a card, three to a row; what is on them is
+  // drawn over once the popup is.
+  constexpr i32 cols = 3;
+  ui_style tall = popup_style;
+  tall.widget_height = 136.0f;
+  use(ctx, tall);
+  const i32 n = static_cast<i32>(g.men.size());
+  for (i32 i = 0; i < n; ++i) {
+    if (i % cols == 0)
+      ui_row(ctx, cols);
+    std::snprintf(line, sizeof(line), "##man%d", i);
+    if (ui_button(ctx, line)) {
+      shown_man = i;
+      open_popup = popup::man;
+    }
+    const rect r = ui_last_rect(ctx);
+    overlays.push_back([r, i](context &c) {
+      if (i < static_cast<i32>(gang().men.size()))
+        man_card(c, r, gang().men[static_cast<size_t>(i)]);
+    });
+  }
+  // The last row filled, so its cards keep their width.
+  for (i32 i = n; i % cols != 0; ++i)
+    ui_space(ctx, 0.0f);
+  use(ctx, popup_style);
   ui_space(ctx, 8.0f);
+  ui_row(ctx, 2);
   std::snprintf(line, sizeof(line), "Tuyển thêm đàn em (%s)##recruit_popup", money(recruit_cost).c_str());
   if (ui_button(ctx, line, g.money >= recruit_cost))
     gang_recruit(ctx);
+  bool out = false;
+  for (const lackey &m : g.men)
+    out = out || (m.task != job::idle && m.task != job::returning);
+  if (ui_button(ctx, "Rút hết về trụ sở##recall_all", out))
+    for (i32 i = 0; i < n; ++i)
+      gang_recall(ctx, 0, i);
   popup_end(ctx);
+}
+
+// All of one man: what he is, how he is, what he costs; look at him, call
+// him back, have him treated.
+void man_popup(context &ctx) {
+  gang_state &g = gang();
+  if (shown_man < 0 || shown_man >= static_cast<i32>(g.men.size())) {
+    open_popup = popup::men; // he has gone
+    return;
+  }
+  lackey &m = g.men[static_cast<size_t>(shown_man)];
+  const bool boss = m.rk == rank::boss;
+  char line[200];
+  popup_begin(ctx, "man", m.name.c_str());
+  const auto row = [&](const char *name, const std::string &value, rgba col) {
+    ui_row(ctx, 2);
+    label(ctx, name, ink_dim);
+    label(ctx, value.c_str(), col);
+  };
+  std::snprintf(line, sizeof(line), "%s · Sức %d · Lì %d · Lanh %d", rank_name(m.rk), m.strength, m.grit, m.wits);
+  row("Cấp bậc", line, boss ? accent : ink);
+  row("Đang làm", doing(m), m.task != job::idle ? accent : ink);
+  if (m.carrying > 0)
+    row("Đang cầm", money(m.carrying), rgb(120, 206, 140));
+  if (!boss) {
+    std::snprintf(line, sizeof(line), "%s (%.0f/100)", mood_name(m.morale), static_cast<f64>(m.morale));
+    row("Tinh thần", line, mood_colour(m.morale));
+  }
+  std::snprintf(line, sizeof(line), "%.0f/100%s", static_cast<f64>(m.fatigue),
+                m.fatigue >= tired_limit ? " · cần nghỉ" : "");
+  row("Mệt", line, m.fatigue >= tired_limit ? gang_red : ink);
+  std::snprintf(line, sizeof(line), "%.0f/100%s", static_cast<f64>(m.health),
+                m.health >= 100.0f ? "" : m.treated ? " · đang chữa" : " · không được chữa");
+  row("Máu", line, m.health < hurt_limit ? gang_red : ink);
+  if (!boss) {
+    row("Lương", money(m.wage) + "/ngày", ink);
+    row("Chi tiêu", money(living_cost(m.rk)) + "/ngày (ăn uống, thuê nhà)", ink);
+    row("Ví riêng", money(m.wallet), m.hungry ? gang_red : ink);
+    if (m.unpaid > 0) {
+      std::snprintf(line, sizeof(line), "%s · %d ngày", money(m.unpaid).c_str(), m.unpaid_days);
+      row("Băng nợ lương", line, gang_red);
+    }
+    if (m.hungry)
+      label(ctx, "Hôm nay không đủ tiền ăn và tiền nhà.", gang_red);
+    if (m.quitting)
+      label(ctx, "Đã quyết bỏ đi: về tới trụ sở là đi luôn.", gang_red);
+  } else {
+    label(ctx, "Đại ca không lấy lương, ở luôn trụ sở, và không bao giờ bỏ băng.", ink_dim);
+  }
+  if (m.health < 100.0f) {
+    std::snprintf(line, sizeof(line), "Cho đi chữa (%s/ngày)##treat", money(clinic_cost).c_str());
+    ui_toggle(ctx, line, m.treat);
+  }
+  ui_space(ctx, 8.0f);
+  ui_row(ctx, 3);
+  if (ui_button(ctx, "Xem trên bản đồ##look")) {
+    open_popup = popup::none;
+    gang_focus_man(0, shown_man);
+    view_focus(m.pos, 10.0f);
+  }
+  if (ui_button(ctx, "Rút về##recall", m.task != job::idle && m.task != job::returning))
+    gang_recall(ctx, 0, shown_man);
+  if (ui_button(ctx, "Quay lại##back") || ui_back(ctx))
+    open_popup = popup::men;
+  ui_popup_end(ctx);
+  drawn(ctx);
 }
 
 void turf_popup(context &ctx) {
@@ -567,7 +755,7 @@ void turf_popup(context &ctx) {
   }
   i32 idle = -1;
   for (i32 i = 0; i < static_cast<i32>(g.men.size()) && idle < 0; ++i)
-    if (g.men[static_cast<size_t>(i)].task == job::idle && g.men[static_cast<size_t>(i)].rk != rank::boss)
+    if (!gang_cannot_go(g.men[static_cast<size_t>(i)]) && g.men[static_cast<size_t>(i)].rk != rank::boss)
       idle = i;
   for (const i32 s : owing) {
     ui_row(ctx, 3);
@@ -584,7 +772,8 @@ void books_popup(context &ctx) {
   const gang_state &g = gang();
   popup_begin(ctx, "books", "Sổ sách");
   char line[200];
-  const i32 in = gang_income_per_day(), out = gang_wages_per_day();
+  const i32 in = gang_income_per_day(), wages = gang_wages_per_day(), clinic = gang_clinic_per_day();
+  const i32 out = wages + clinic;
   ui_row(ctx, 2);
   label(ctx, "Tiền mặt", ink_dim);
   label(ctx, money(g.money).c_str(), g.money < 0 ? gang_red : accent);
@@ -593,7 +782,17 @@ void books_popup(context &ctx) {
   label(ctx, ("+" + money(in)).c_str(), rgb(120, 206, 140));
   ui_row(ctx, 2);
   label(ctx, "Lương / ngày", ink_dim);
-  label(ctx, money(-out).c_str(), gang_red);
+  label(ctx, money(-wages).c_str(), gang_red);
+  if (clinic > 0) {
+    ui_row(ctx, 2);
+    label(ctx, "Thuốc men / ngày", ink_dim);
+    label(ctx, money(-clinic).c_str(), gang_red);
+  }
+  if (const i32 owed = gang_wages_owed(); owed > 0) {
+    ui_row(ctx, 2);
+    label(ctx, "Đang nợ lương", ink_dim);
+    label(ctx, money(-owed).c_str(), gang_red);
+  }
   ui_row(ctx, 2);
   label(ctx, "Lãi / ngày", ink_dim);
   label(ctx, money(in - out).c_str(), in - out >= 0 ? ink : gang_red);
@@ -700,6 +899,7 @@ void hud_draw(context &ctx) {
     camera_wall(ctx);
   switch (open_popup) {
   case popup::men: men_popup(ctx); break;
+  case popup::man: man_popup(ctx); break;
   case popup::turf: turf_popup(ctx); break;
   case popup::books: books_popup(ctx); break;
   case popup::debug: debug_popup(ctx); break;

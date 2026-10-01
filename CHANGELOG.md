@@ -8,6 +8,42 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+- `njin_sandtable`: the town runs on a clock (`clock.h`, 60 game-seconds an hour at speed 1,
+  stopped while a popup is open). Each business kind has opening hours (`business_hours`); a
+  man sent to a shut shop comes home empty-handed, and its card shows the hours and whether it
+  is open now. The 800 townsfolk each have a home, most a job with a shift tied to their
+  workplace's hours, and a wake/sleep time (some night owls); free, they go out for meals,
+  an evening out, errands or a walk, or stay in, and are off the table while indoors — the
+  street fills by morning, peaks in the evening and empties at night. Someone out of the
+  camera's view walks 4x as fast, since the clock runs far ahead of real footsteps. Rival
+  gangs (`gang_ai.h`) send men to collect from their own open, owing shops, occasionally
+  squeeze an unclaimed shop next to their turf, and once a day may raid a block of the
+  player's turf (several men taking each shop's money in turn until a quota is met or the
+  player's men are found nearby), then report it to the player through a toast once they are
+  home. `--hour H` and `--speed S` set the starting hour and clock speed for testing; an
+  `[econ]` line each day and `[clock]`/`[ai]`/`[gang]` lines each hour log how the town and
+  its gangs are doing.
+- `njin_sandtable`: an economy that can starve a gang. Protection pays wages (owed ranks paid
+  first when money is short), the clinic and new men; a man has his own pocket (wages in,
+  food and rent out by rank) and morale that rises when paid in full with something to spare
+  and falls when he is owed, hungry, hurt and untreated, or worn out (grit softens the fall).
+  Below 25 he may quit once back at the headquarters. Jobs tire a man (rest, faster at night,
+  recovers him); a failed squeeze or a guarded shop can hurt him, healed fast by a paid clinic
+  or slowly without one; too tired or too hurt, he will not go out. A shop none of its gang
+  has visited for days, with no one of theirs nearby, stops paying, so a gang short of men
+  loses turf it cannot hold. The boss draws no wage, never quits, and can be sent like anyone.
+- `njin_sandtable`: five orders for a man from a shop's card — collect (its own shops),
+  patrol (walks a block of the turf shop to shop until tired, keeping it paid and raiders
+  off), raid (takes another gang's money on the spot and moves to its next shop in the
+  block), expand (squeezes an unclaimed shop or takes over another gang's) and recall (back
+  to the headquarters now). The men popup is now a grid of cards (name, rank, task, morale/
+  fatigue/health bars, pocket); clicking one opens his full details (wage, spending, debts,
+  clinic toggle, look at him on the map, recall him).
+- `njin_sandtable`: the kung fu action set was replaced with boxing and kicks (`boxing_guard`,
+  `boxing_combo`, `boxing_hook`, `boxing_front_kick`, `boxing_round_kick`, `boxing_block`,
+  `boxing_low_kick`, see `assets/characters/clay_people/BOXING.md`), on the same procedural
+  clay rig; `person_style` exposes build (width, head, limb, softness, clay) independent of
+  identity and clothing colour.
 - **A second eye in the same 3D pass**: `begin_3d(ctx, camera, target, clear)` draws a whole
   extra 3D pass into a render texture instead of the screen (its own aspect ratio, no sun
   shadows, no gizmos, not counted for `post_fx::dof`), for a camera other than the game's own
@@ -23,10 +59,11 @@ To release: edit that header, add a section here, commit, then
 - `njin_sandtable`: a ring under the man looked at (a click on him in the world, or "Xem" in
   the men popup), following him as he walks and sitting on the right floor when he is inside;
   Esc or a click on empty ground lets it go.
-- **Fixed**: a gang mustering before its headquarters could spread into the carriageway when
-  the sidewalk there was narrow — `muster_place` only offset from the door, never checked what
-  it landed on. Rows now fit within however deep the sidewalk actually runs there
-  (`sidewalk_depth`), the boss by the door and the rest behind him by rank.
+- `njin_sandtable`: people on foot go anywhere open, not only along sidewalks. Passers-by
+  pick where to walk to and where they first stand on any open ground (street, sidewalk,
+  square, yard, park), and the foot nav grid prices all of it the same, so a path cuts across
+  the street or a park instead of going round by the pavement. A gang musters before its
+  door in rows of eight by rank, on the sidewalk or out into the street as it comes.
 - **Fixed**: a man standing idle inside a headquarters (no physics there) could end up placed
   right against another man or a chair, since a standing spot was only checked against the
   clear of its own grid cell, not the spot itself. `places_on` now keeps every seat and
