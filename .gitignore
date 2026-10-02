@@ -9,3 +9,21 @@ njin_model_editor.ini
 /docs/doxygen_warnings_en.txt
 __pycache__/
 compile_commands.json
+
+# Only the explicit small examples belong to the engine repository.
+/src/games/*
+!/src/games/README.md
+!/src/games/shared/
+!/src/games/sandbox/
+!/src/games/pong/
+!/src/games/platformer/
+!/src/games/topdown/
+!/src/games/debug_demo/
+!/src/games/render_demo/
+!/src/games/tower_defense/
+!/src/games/lighting_demo/
+!/src/games/fps/
+!/src/games/sokoban/
+!/src/games/platformer3d/
+**/build/
+**/build-*/

@@ -1,3 +1,10 @@
+cmake_minimum_required(VERSION 3.28)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(njin_lighting_demo VERSION 0.1.0 LANGUAGES CXX)
+endif()
+set(NJIN_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." CACHE PATH "njin source checkout")
+include("${NJIN_ROOT}/cmake/njin_game.cmake")
+
 # A gallery of the 2D lighting: twelve rooms, one case in each. Read main.cpp for the rooms and the keys.
 add_executable(njin_lighting_demo main.cpp module.cpp common.cpp rooms_lights.cpp rooms_occluders.cpp rooms_surfaces.cpp
                                   hud.cpp)

@@ -42,6 +42,11 @@ JSON và xuất model tĩnh OBJ. Xem [hướng dẫn Model Editor](src/tools/mod
 | `njin_sokoban` | Đẩy thùng 2.5D: instancing, nhân vật hình SDF, đèn trên ô đích |
 | `njin_platformer3d` | Platformer 3D góc nhìn thứ ba trên vật lý Jolt: nhảy đôi, bục di chuyển, thùng đẩy được |
 
+Các demo có thể build độc lập, tái sử dụng engine đã build; xem
+[hướng dẫn game project](src/games/README.md). Dùng `-DNJIN_BUILD_EXAMPLES=OFF`
+để chỉ cấu hình engine và tools. Game nghiêm túc được quản lý bằng repository
+riêng; thư mục game mới được ignore mặc định.
+
 ## Yêu cầu
 
 - CMake **3.28 trở lên**

@@ -95,19 +95,31 @@ include(cmake/njin.cmake)
 add_subdirectory(src/engine/api)
 add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
-add_subdirectory(src/games/sandbox)
-add_subdirectory(src/games/pong)
-add_subdirectory(src/games/platformer)
-add_subdirectory(src/games/topdown)
-add_subdirectory(src/games/debug_demo)
-add_subdirectory(src/games/render_demo)
-add_subdirectory(src/games/tower_defense)
-add_subdirectory(src/games/crowd)
-add_subdirectory(src/games/lighting_demo)
-add_subdirectory(src/games/sandtable)
-add_subdirectory(src/games/fps)
-add_subdirectory(src/games/sokoban)
-add_subdirectory(src/games/platformer3d)
+# Export the engine build for standalone games. Private games are never
+# discovered or added by this project.
+set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer EnTT)
+if(TARGET glfw)
+  get_target_property(_njin_glfw_type glfw TYPE)
+  if(_njin_glfw_type STREQUAL "OBJECT_LIBRARY")
+    # raylib already embeds these objects. Its upstream link interface also
+    # mentions glfw inside a list expression, which exports as plain -lglfw.
+    get_target_property(_njin_raylib_links raylib INTERFACE_LINK_LIBRARIES)
+    string(REPLACE ";glfw" "" _njin_raylib_links "${_njin_raylib_links}")
+    set_property(TARGET raylib PROPERTY INTERFACE_LINK_LIBRARIES "${_njin_raylib_links}")
+  else()
+    list(APPEND _njin_export_targets glfw)
+  endif()
+endif()
+export(TARGETS ${_njin_export_targets}
+  NAMESPACE njin_prebuilt:: FILE "${CMAKE_BINARY_DIR}/njinTargets.cmake")
+
+option(NJIN_BUILD_EXAMPLES "Build the small examples shipped with njin" ON)
+if(NJIN_BUILD_EXAMPLES)
+  foreach(example sandbox pong platformer topdown debug_demo render_demo
+                  tower_defense lighting_demo fps sokoban platformer3d)
+    add_subdirectory(src/games/${example})
+  endforeach()
+endif()
 
 # Debug inspector: a separate window that connects to a running game (see
 # njin_debug.h). Downloads Dear ImGui and rlImGui on first configure.

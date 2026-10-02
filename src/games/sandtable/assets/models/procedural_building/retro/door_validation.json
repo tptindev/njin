@@ -1,8 +1,0 @@
-{
-  "passed": true,
-  "rigs": 11,
-  "poses_checked": 99,
-  "max_vertex_error_m": 5.371884110874135e-06,
-  "wall_collisions": 0,
-  "errors": []
-}

@@ -1,3 +1,10 @@
+cmake_minimum_required(VERSION 3.28)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(njin_platformer3d VERSION 0.1.0 LANGUAGES CXX)
+endif()
+set(NJIN_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." CACHE PATH "njin source checkout")
+include("${NJIN_ROOT}/cmake/njin_game.cmake")
+
 # A 3D platformer on the 3D API (njin_3d.h) and 3D physics: third-person camera,
 # an animated robot, floating platforms. The two models in assets/ are built by
 # tools/make_assets.py.
