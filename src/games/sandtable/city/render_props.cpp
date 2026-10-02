@@ -1,6 +1,7 @@
 #include "render_lod.h"
 
 #include "pbk.h"
+#include "pbk_render.h"
 #include "street_kit.h"
 
 // Street furniture and the things in the open places: trees, poles, lamps,
@@ -50,9 +51,13 @@ kit_batch &kit_of(context &ctx, const street::asset &a) {
   // The file's colours are linear (glTF), the game's sRGB.
   for (i32 i = 0; k.model.id != 0 && i < model_material_count(ctx, k.model); ++i) {
     model_material mm = model_material_get(ctx, k.model, i);
+    const bool was_glass = mm.color.a < 1.0f;
     mm.color = pbk::linear_to_srgb(mm.color);
-    if (mm.color.a >= 1.0f)
-      mm.surface = {.specular = 0.08f, .shininess = 12.0f};
+    if (was_glass)
+      mm.color = {0.34f, 0.46f, 0.53f, 1.0f};
+    mm.color.a = 1.0f;
+    mm.surface.specular = was_glass ? 0.12f : 0.08f;
+    mm.surface.shininess = was_glass ? 18.0f : 12.0f;
     model_material_set(ctx, k.model, i, mm);
   }
   return k;
@@ -251,7 +256,7 @@ void shade_lamps(context &ctx, f32 on) {
 }
 
 // Real lights on the lamps nearest the middle of the view.
-void light_lamps(context &ctx, f32 on) {
+void light_lamps(context &ctx, f32 on, i32 budget) {
   std::vector<std::pair<f32, const lamp *>> near;
   for (const lamp &l : lamps) {
     if (!chunk_visible(l.chunk))
@@ -260,12 +265,12 @@ void light_lamps(context &ctx, f32 on) {
     if (d < lamp_light_range)
       near.emplace_back(d, &l);
   }
-  const size_t n = std::min(near.size(), static_cast<size_t>(lamp_lights) + 1);
+  const size_t n = std::min(near.size(), static_cast<size_t>(budget) + 1);
   std::partial_sort(near.begin(), near.begin() + static_cast<std::ptrdiff_t>(n), near.end(),
                     [](const auto &a, const auto &b) { return a.first < b.first; });
   // The first lamp left out marks where the lights have faded to nothing.
-  const f32 edge = near.size() > static_cast<size_t>(lamp_lights) ? near[lamp_lights].first : lamp_light_range;
-  for (size_t i = 0; i < std::min(near.size(), static_cast<size_t>(lamp_lights)); ++i) {
+  const f32 edge = near.size() > static_cast<size_t>(budget) ? near[budget].first : lamp_light_range;
+  for (size_t i = 0; i < std::min(near.size(), static_cast<size_t>(budget)); ++i) {
     const f32 fade = 1.0f - smoothstep(edge * 0.6f, edge, near[i].first);
     if (fade <= 0.0f)
       continue;
@@ -295,7 +300,9 @@ void props_draw(context &ctx, const view_options &opt) {
   const f32 on = smoothstep(0.25f, 0.45f, opt.night);
   if (on > 0.01f) {
     shade_lamps(ctx, on);
-    light_lamps(ctx, on);
+    const i32 budget = opt.camera == camera_mode::observation && opt.cut.empty() ? lamp_lights :
+        static_cast<i32>(std::clamp(pbk::lighting_budget("max_street_lights_immersive", 8), 0.0f, 8.0f));
+    light_lamps(ctx, on, budget);
     material3d_set(ctx, {.unlit = true, .cast_shadows = false});
     draw_chunks(ctx, lights, mesh3d_sphere_low, all);
     draw_chunks(ctx, pools, mesh3d_cylinder_low, all);

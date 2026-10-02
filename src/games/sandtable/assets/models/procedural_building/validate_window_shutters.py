@@ -3,7 +3,7 @@ from pathlib import Path
 import json,sys,math
 import bpy
 from mathutils.bvhtree import BVHTree
-BASE=Path(__file__).resolve().parent;ROOT=BASE/'clay';sys.path.insert(0,str(BASE))
+BASE=Path(__file__).resolve().parent;ROOT=BASE/'retro';sys.path.insert(0,str(BASE))
 from export_modules import materialize,bounds
 original=bpy.context.scene;errors=[];cases=[]
 def bvh(ob,deps):

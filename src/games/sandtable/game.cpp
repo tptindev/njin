@@ -8,6 +8,7 @@
 #include "render.h"
 #include "view.h"
 #include "world.h"
+#include "city/pbk_render.h"
 
 #include <algorithm>
 #include <cmath>
@@ -194,9 +195,62 @@ void pbk_city_harness(context &ctx) {
   case 5:
     if (test.clock > 2.0f) {
       screenshot(ctx, "sandtable_pbk_city_door_open.png");
+      state.hour = 21.0f;
+      state.speed = 0;
+      view_focus(test.at, 10.0f, true);
+      test.step = 6;
+      test.clock = 0;
+    }
+    break;
+  case 6:
+    if (test.clock > 1.0f) {
+      screenshot(ctx, "sandtable_pbk_city_windows_night.png");
+      NJIN_INFO("[pbk-city] night near: %u instances",
+                city::view_last_stats().instances);
+      test.step = 7;
+      test.clock = 0;
+    }
+    break;
+  case 7:
+    // screenshot() captures the next rendered frame: don't change the
+    // camera in the same step that asks for the night screenshot.
+    if (test.clock > 0.2f) {
+      // Exercise the actual eye pass through a ground-floor glass window,
+      // including cached interiors and its budgeted room lights.
+      bool eye_queued = false;
+      for (const i32 id : city::pbk_ready_ids()) {
+        city::pbk::building3d *b = city::pbk_building(id);
+        if (!b || distance(b->at.center, test.at) > 100) continue;
+        for (const city::pbk::module_place &m : b->as.modules) {
+          const auto *mi = city::pbk::load_manifest().find(m.id);
+          if (!mi || mi->family != "Window" || mi->radius != 0 || m.shutter >= 0 || m.floor != 0)
+            continue;
+          capture_room_camera(id);
+          eye_queued = true;
+          break;
+        }
+        if (eye_queued) break;
+      }
+      if (!eye_queued) NJIN_WARN("[pbk-city] FAIL no ground-floor glass window for eye test");
+      view_focus(test.at, 75.0f, true);
+      test.step = 8;
+      test.clock = 0;
+    }
+    break;
+  case 8:
+    if (test.clock > 1.0f) {
+      screenshot(ctx, "sandtable_pbk_city_windows_lod.png");
+      NJIN_INFO("[pbk-city] far LOD: %d detailed chunks, %u instances",
+                city::view_last_stats().detailed, city::view_last_stats().instances);
+      test.step = 9;
+      test.clock = 0;
+    }
+    break;
+  case 9:
+    if (test.clock > 0.2f) {
       NJIN_INFO("[pbk-city] done");
       quit(ctx);
-      test.step = 6;
+      test.step = 10;
     }
     break;
   default: break;

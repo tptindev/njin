@@ -71,6 +71,9 @@ std::vector<std::pair<u32, u32>> chunk_ranges(const chunked &b, const std::vecto
 void draw_ranges(context &ctx, const chunked &b, mesh3d_kind mesh, const std::vector<std::pair<u32, u32>> &ranges);
 void draw_ranges_model(context &ctx, const chunked &b, model_handle model,
                        const std::vector<std::pair<u32, u32>> &ranges);
+// Split visible instances into opaque reflective and nearby clear glass.
+void draw_window_chunks(context &ctx, const chunked &b, const std::string &key,
+                        bool detailed_only, const view_options &opt, const skip_list *skip = nullptr);
 
 template <typename Want>
 void draw_chunks(context &ctx, const chunked &b, mesh3d_kind mesh, Want want, const skip_list *skip) {

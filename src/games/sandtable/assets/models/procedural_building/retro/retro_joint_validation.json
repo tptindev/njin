@@ -1,0 +1,97 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "id": "Brick/ArcShopfront_R2_A45",
+      "frame_wall_gap_m": 1.2996608234061569e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Brick/ArcShopfront_R4_A30",
+      "frame_wall_gap_m": 4.090407079715419e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Brick/ArcWindow_R2_A45",
+      "frame_wall_gap_m": 8.432058384855168e-09,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Brick/ArcWindow_R4_A30",
+      "frame_wall_gap_m": 2.0433176928236207e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Brick/Shopfront",
+      "frame_wall_gap_m": 0.0,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Brick/Window",
+      "frame_wall_gap_m": 0.0,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcShopfront_R2_A45",
+      "frame_wall_gap_m": 1.2996608234061569e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcShopfront_R4_A30",
+      "frame_wall_gap_m": 4.090407079715419e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcWindow_R2_A45",
+      "frame_wall_gap_m": 8.432058384855168e-09,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Indochine/ArcWindow_R4_A30",
+      "frame_wall_gap_m": 2.0433176928236207e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Indochine/Shopfront",
+      "frame_wall_gap_m": 0.0,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Indochine/Window",
+      "frame_wall_gap_m": 0.0,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Modern/ArcShopfront_R2_A45",
+      "frame_wall_gap_m": 1.2996608234061569e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Modern/ArcShopfront_R4_A30",
+      "frame_wall_gap_m": 4.090407079715419e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Modern/ArcWindow_R2_A45",
+      "frame_wall_gap_m": 8.432058384855168e-09,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Modern/ArcWindow_R4_A30",
+      "frame_wall_gap_m": 2.0433176928236207e-08,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Modern/Shopfront",
+      "frame_wall_gap_m": 0.0,
+      "pane_depth_m": 0.0
+    },
+    {
+      "id": "Modern/Window",
+      "frame_wall_gap_m": 0.0,
+      "pane_depth_m": 0.0
+    }
+  ],
+  "errors": [],
+  "export_run": false
+}

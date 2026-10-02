@@ -3,7 +3,7 @@ from pathlib import Path
 import json, math, ast
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/'assets/models/procedural_building/clay/rules'
+OUT=ROOT/'assets/models/procedural_building/retro/rules'
 KIT=json.loads((OUT.parent/'kit_manifest.json').read_text(encoding='utf8'))
 CURRENT_RULES=json.loads((OUT/'building_rules.json').read_text(encoding='utf8'))
 KIT_PALETTES={style:[colors[role] for role in ('wall','trim','frame','roof')]
@@ -274,6 +274,9 @@ def main():
     # Preserve the current runtime extensions when regenerating architectural fixtures.
     if 'runtime_rule_packs' in CURRENT_RULES: RULES['runtime_rule_packs']=CURRENT_RULES['runtime_rule_packs']
     if 'window_glazing' in CURRENT_RULES['assembly']: RULES['assembly']['window_glazing']=CURRENT_RULES['assembly']['window_glazing']
+    if 'wall_rendering' in CURRENT_RULES['assembly']:
+        RULES['assembly']['wall_rendering']=CURRENT_RULES['assembly']['wall_rendering']
+        RULES['assembly']['shell']=CURRENT_RULES['assembly']['shell']
     write('building_rules.json',RULES)
     rs=schema_for(RULES);rs['$schema']='https://json-schema.org/draft/2020-12/schema';rs['title']='Sandtable building rule pack v1'
     # Profiles/styles are open dictionaries, not fixed to the shipped presets.

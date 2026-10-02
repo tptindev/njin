@@ -1,8 +1,0 @@
-{
-  "kit_revision": "unified-kit-v3-clay-v8-window-glazing",
-  "source_saved": true,
-  "export_required": false,
-  "glb_export_run": true,
-  "note": "Exported all 105 clay GLBs from v8 saved source; roundtrip geometry, PBR textures, rig and animation validated.",
-  "export_validated": true
-}

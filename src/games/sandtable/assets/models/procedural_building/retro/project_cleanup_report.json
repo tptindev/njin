@@ -1,0 +1,166 @@
+{
+  "deleted": [
+    {
+      "path": ".retro-preview\\njin_retro_preview.exe",
+      "bytes": 192968837
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\boxing\\runtime.log",
+      "bytes": 20692
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_runtime.log",
+      "bytes": 16677
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_all_actions.png",
+      "bytes": 89350
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_closeup.png",
+      "bytes": 103788
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_poses.png",
+      "bytes": 117828
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_00.png",
+      "bytes": 101908
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_01.png",
+      "bytes": 101053
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_02.png",
+      "bytes": 102596
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_03.png",
+      "bytes": 101049
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_04.png",
+      "bytes": 100945
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_05.png",
+      "bytes": 101647
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_06.png",
+      "bytes": 101493
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_07.png",
+      "bytes": 101524
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_08.png",
+      "bytes": 101043
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_09.png",
+      "bytes": 101535
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_10.png",
+      "bytes": 102844
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_11.png",
+      "bytes": 101456
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_12.png",
+      "bytes": 102739
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_13.png",
+      "bytes": 103503
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_14.png",
+      "bytes": 103916
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_15.png",
+      "bytes": 103077
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_16.png",
+      "bytes": 102485
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_17.png",
+      "bytes": 101779
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_18.png",
+      "bytes": 101670
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_19.png",
+      "bytes": 101536
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_20.png",
+      "bytes": 102308
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_21.png",
+      "bytes": 102512
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_22.png",
+      "bytes": 102995
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk_23.png",
+      "bytes": 102806
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\retro_sdf_walk.gif",
+      "bytes": 335563
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\generation.log",
+      "bytes": 28096
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\kungfu\\runtime.log",
+      "bytes": 20692
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\motion.log",
+      "bytes": 106078
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\reexport.log",
+      "bytes": 1511
+    },
+    {
+      "path": "assets\\characters\\retro_people\\generated\\verification.log",
+      "bytes": 7234
+    },
+    {
+      "path": "assets\\models\\retro_game_kit_glb.zip",
+      "bytes": 50674997
+    },
+    {
+      "path": "assets\\models\\procedural_building\\retro\\retro_full_kit.png",
+      "bytes": 3285219
+    },
+    {
+      "path": "assets\\models\\procedural_building\\retro\\retro_shutter_animation.gif",
+      "bytes": 4830126
+    },
+    {
+      "path": "assets\\models\\street_retro\\street_catalog.png",
+      "bytes": 4266550
+    }
+  ],
+  "files": 40,
+  "bytes": 259323657.0
+}

@@ -190,11 +190,11 @@ struct rules {
   const std::array<rgba, 4> *palette(const std::string &style) const;
 };
 
-// The kit's folder, relative to the game's working directory: the clay
+// The kit's folder, relative to the game's working directory: the retro
 // edition, whose manifest, modules, textures and rules all sit in it (the
 // manifest's paths are relative to it).
-inline constexpr const char *kit_dir = "assets/models/procedural_building/clay";
-// The original kit's rule package: only the archetypes and room types the clay
+inline constexpr const char *kit_dir = "assets/models/procedural_building/retro";
+// The original kit's rule package: only the archetypes and room types the retro
 // package has not got are read from it (load_rules).
 inline constexpr const char *legacy_rules_path = "assets/models/procedural_building/rules/building_rules.json";
 
@@ -495,6 +495,7 @@ struct glb_summary {
   i32 incomplete = 0; // primitives without normals, or a textured one without UVs or the tangents its normal map needs
   i32 images = 0, embedded_images = 0; // embedded: in the GLB's own buffer, no file beside it
   i32 glass = 0;                       // materials with KHR_materials_transmission
+  std::vector<i32> glazing_materials; // source material indices, including opaque *_glass
   std::vector<std::string> textured;   // materials with a base colour texture
 };
 glb_summary read_glb(const std::string &path);

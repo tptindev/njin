@@ -83,6 +83,7 @@ void feeds_render(context &ctx) {
   // The town as the main view has it, less what is only for the table seen
   // from above: nothing cut open, lit up or labelled.
   city::view_options eye = world_view();
+  eye.camera = city::camera_mode::live;
   eye.cut.clear();
   eye.selected = -1;
   eye.around = false;
@@ -113,7 +114,10 @@ void feeds_render(context &ctx) {
         continue;
     }
     const lackey &m = men[static_cast<size_t>(f.man)];
-    begin_3d(ctx, eye_of(m), f.view, sky);
+    const camera3d camera = eye_of(m);
+    eye.eye_position = camera.position;
+    eye.eye_position_valid = true;
+    begin_3d(ctx, camera, f.view, sky);
     city::view_draw_eye(ctx, world(), eye, m.pos, reach);
     crowd_draw_around(ctx, m.pos, reach);
     gang_draw_around(ctx, m.pos, reach);

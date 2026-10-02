@@ -14,7 +14,7 @@ import bpy
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from export_modules import bounds
 
-ROOT = Path(__file__).resolve().parent / 'clay'
+ROOT = Path(__file__).resolve().parent / 'retro'
 
 
 def read_glb(path):
@@ -90,8 +90,8 @@ def main():
             assert gltf['asset']['version'] == '2.0'
             assert all('uri' not in b for b in gltf.get('buffers', [])), 'external buffer'
             assert all('uri' not in i for i in gltf.get('images', [])), 'external image'
-            if source.get('visual_variant') == 'handmade_clay':
-                assert gltf.get('images'), 'clay textures missing'
+            if source.get('visual_variant') == 'handmade_retro' and not source.get('visual_profile','').startswith('city-low-poly-'):
+                assert gltf.get('images'), 'retro textures missing'
                 for material in gltf.get('materials', []):
                     pbr = material.get('pbrMetallicRoughness', {})
                     role = material.get('extras', {}).get('surface_role')
@@ -102,7 +102,8 @@ def main():
                     if role == 'metal':
                         assert pbr.get('metallicFactor', 0) >= .8, 'metal accent lost'
                     if role == 'glass':
-                        assert material.get('extensions', {}).get('KHR_materials_transmission', {}).get('transmissionFactor', 0) > .5, 'glass transmission lost'
+                        assert material.get('alphaMode', 'OPAQUE') == 'OPAQUE', 'glass must be opaque'
+                        assert abs(material.get('pbrMetallicRoughness', {}).get('baseColorFactor', [1,1,1,1])[3] - 1.) < 1e-5, 'glass opacity must be 100%'
                 for mesh in gltf['meshes']:
                     for primitive in mesh['primitives']:
                         mat = gltf['materials'][primitive['material']]
@@ -184,8 +185,8 @@ def main():
                         'skinned door pose bounds at five times and 90-degree rotation', 'source file unchanged'],
               'runtime_pending': ['game importer/rendering', 'collision/navmesh/LOD'],
               'results': results, 'errors': errors}
-    if source.get('visual_variant') == 'handmade_clay':
-        report['scope'].append('UV/tangents and embedded clay normal/roughness textures')
+    if source.get('visual_variant') == 'handmade_retro' and not source.get('visual_profile','').startswith('city-low-poly-'):
+        report['scope'].append('UV/tangents and embedded retro normal/roughness textures')
     (ROOT / 'export_validation.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf8')
     print('PBK_VALIDATION_DONE', report['passed'], len(results), errors, flush=True)
     if errors:

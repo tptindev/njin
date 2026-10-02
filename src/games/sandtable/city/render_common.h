@@ -6,6 +6,7 @@
 #include "render.h"
 
 #include <vector>
+#include <algorithm>
 
 namespace sandtable::city {
 
@@ -28,6 +29,10 @@ inline constexpr f32 layer_island = 0.05f;
 
 constexpr rgba rgb8(i32 r, i32 g, i32 b) { return {r / 255.0f, g / 255.0f, b / 255.0f, 1.0f}; }
 inline rgba shade(rgba c, f32 k) { return {c.r * k, c.g * k, c.b * k, c.a}; }
+inline f32 smooth_fade(f32 lo, f32 hi, f32 x) {
+  const f32 t = std::clamp((x - lo) / (hi - lo), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
 
 // A number from `look` and a salt, spread evenly: 0 to 1, or an index.
 u32 mix(u32 look, u32 salt);

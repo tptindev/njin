@@ -20,6 +20,7 @@ njin_package(njin_sandtable
   ASSETS assets)
 
 target_sources(njin_sandtable PRIVATE kungfu_preview.cpp)
+target_sources(njin_sandtable PRIVATE city/pbk_lighting.cpp)
 # Animation review can build without unrelated city/gameplay source changes.
 add_executable(njin_sandtable_kungfu EXCLUDE_FROM_ALL tools/kungfu_main.cpp kungfu_preview.cpp person.cpp)
 target_link_libraries(njin_sandtable_kungfu PRIVATE njin::rt njin::gpu njin_warnings)

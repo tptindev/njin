@@ -1,0 +1,687 @@
+{
+  "schema": "sandtable.street-distribution.v1",
+  "version": 1,
+  "asset_revision": "vietnam-street-retro-v4",
+  "units": "metre",
+  "purpose": "gameplay placement defaults, not a real street design standard",
+  "coordinates": {
+    "authoring": "X along street, Y from curb towards buildings, Z up; serving front -Y towards road",
+    "gltf_adapter": "[x,z,-y] exactly once; geometry and authoring anchors/clearance polygons must use the same transform"
+  },
+  "sampling": {
+    "algorithm": "sha256-counter-v1",
+    "key": "world_seed|street_segment_id|rule_version|group|slot_index|attempt_index",
+    "uniform": "first 8 SHA256 bytes as big-endian uint64; (value+0.5)/2^64 clamped to [2^-53,1-2^-53]",
+    "stable_order": "sorted street IDs then fixed group order; never global frame RNG",
+    "group_order": [
+      "hydrant",
+      "pole",
+      "lamp",
+      "vendor",
+      "bin",
+      "bench"
+    ],
+    "candidate_attempts": 8,
+    "slot_jitter_fraction": 0.2,
+    "on_failure": "skip optional placement; never shrink an asset or walkway"
+  },
+  "zone_spawn_probability_per_slot": {
+    "residential": {
+      "bench": 0.35,
+      "lamp": 1.0,
+      "pole": 0.7,
+      "hydrant": 0.55,
+      "bin": 0.3,
+      "vendor_cluster": 0.08,
+      "vendor_anchor": 0.08
+    },
+    "commercial": {
+      "bench": 0.45,
+      "lamp": 1.0,
+      "pole": 0.65,
+      "hydrant": 0.65,
+      "bin": 0.8,
+      "vendor_cluster": 0.45,
+      "vendor_anchor": 0.45
+    },
+    "market": {
+      "bench": 0.2,
+      "lamp": 1.0,
+      "pole": 0.6,
+      "hydrant": 0.7,
+      "bin": 0.95,
+      "vendor_cluster": 0.7,
+      "vendor_anchor": 0.7
+    },
+    "park": {
+      "bench": 0.85,
+      "lamp": 1.0,
+      "pole": 0.0,
+      "hydrant": 0.3,
+      "bin": 0.75,
+      "vendor_cluster": 0.12,
+      "vendor_anchor": 0.12
+    }
+  },
+  "groups": {
+    "bench": {
+      "assets": [
+        "street/StoneBench",
+        "street/StoneBenchBack",
+        "street/PublicBench",
+        "street/PublicBenchBack"
+      ],
+      "weights": [
+        1,
+        3,
+        1,
+        3
+      ],
+      "slot_spacing_m": 20
+    },
+    "lamp": {
+      "assets": [
+        "street/StreetLampSingle",
+        "street/StreetLampDouble"
+      ],
+      "weights": [
+        4,
+        1
+      ],
+      "slot_spacing_m": 22
+    },
+    "pole": {
+      "assets": [
+        "street/UtilityPole"
+      ],
+      "weights": [
+        1
+      ],
+      "slot_spacing_m": 35
+    },
+    "hydrant": {
+      "assets": [
+        "street/FireHydrant"
+      ],
+      "weights": [
+        1
+      ],
+      "slot_spacing_m": 60
+    },
+    "bin": {
+      "assets": [
+        "street/TrashBinRound",
+        "street/TrashBinWheelie"
+      ],
+      "weights": [
+        3,
+        1
+      ],
+      "slot_spacing_m": 24
+    },
+    "vendor_cluster": {
+      "assets": [
+        "street/HuTieuSpace",
+        "street/BanhMiSpace",
+        "street/MiQuangSpace",
+        "street/SidewalkTeaSpace"
+      ],
+      "weights": [
+        3,
+        4,
+        2,
+        3
+      ],
+      "slot_spacing_m": 16
+    },
+    "vendor_anchor": {
+      "assets": [
+        "street/HuTieuCart",
+        "street/BanhMiCart",
+        "street/MiQuangCounter",
+        "street/TeaShoulderPole"
+      ],
+      "weights": [
+        3,
+        4,
+        2,
+        3
+      ],
+      "slot_spacing_m": 16
+    },
+    "high_seat": {
+      "assets": [
+        "street/PlasticChairHigh",
+        "street/PlasticStoolHigh"
+      ],
+      "weights": [
+        3,
+        1
+      ],
+      "slot_spacing_m": 0
+    },
+    "low_seat": {
+      "assets": [
+        "street/PlasticChairLow",
+        "street/PlasticStoolLow"
+      ],
+      "weights": [
+        2,
+        3
+      ],
+      "slot_spacing_m": 0
+    },
+    "low_table": {
+      "assets": [
+        "street/PlasticTableLow"
+      ],
+      "weights": [
+        1
+      ],
+      "slot_spacing_m": 0
+    },
+    "shade": {
+      "assets": [
+        "street/StreetUmbrella"
+      ],
+      "weights": [
+        1
+      ],
+      "slot_spacing_m": 0
+    },
+    "tea_service": {
+      "assets": [
+        "street/TeaServiceSet"
+      ],
+      "weights": [
+        1
+      ],
+      "slot_spacing_m": 0
+    }
+  },
+  "vendor": {
+    "modes": {
+      "complete_cluster": 0.75,
+      "decomposed": 0.25
+    },
+    "one_mode_per_vendor_slot": true,
+    "minimum_spacing_m": 8.0,
+    "max_per_100m": 5,
+    "max_frontage_coverage": 0.35,
+    "no_vendor_on_sidewalk_narrower_than_m": 3.2,
+    "opening_hours": [
+      6,
+      22
+    ],
+    "closed_hours_behavior": "retain static asset; suppress customers/service; do not despawn furniture",
+    "complete_cluster_children_already_included": true,
+    "decomposed_children": {
+      "street/HuTieuCart": {
+        "high_seat_count": [
+          2,
+          4
+        ],
+        "low_table_count": [
+          0,
+          0
+        ],
+        "shade_count": [
+          0,
+          1
+        ]
+      },
+      "street/BanhMiCart": {
+        "high_seat_count": [
+          0,
+          2
+        ],
+        "low_table_count": [
+          0,
+          0
+        ],
+        "shade_count": [
+          0,
+          1
+        ]
+      },
+      "street/MiQuangCounter": {
+        "high_seat_count": [
+          2,
+          4
+        ],
+        "low_table_count": [
+          0,
+          0
+        ],
+        "shade_count": [
+          0,
+          1
+        ]
+      },
+      "street/TeaShoulderPole": {
+        "low_seat_count": [
+          2,
+          5
+        ],
+        "low_table_count": [
+          1,
+          1
+        ],
+        "tea_service_count": [
+          1,
+          1
+        ],
+        "shade_count": [
+          0,
+          1
+        ]
+      }
+    },
+    "child_placement": "use parent service/work anchors; chairs/stools 0.55m apart, face service/table; table-to-seat edge gap 0.30m; umbrella shades seats",
+    "chair_stool_choice": "sample high_seat or low_seat group; low table only with low seats",
+    "reserve_entire_group_before_commit": true,
+    "if_child_group_does_not_fit": "reduce optional seats/shade, then reject whole vendor group"
+  },
+  "placement": {
+    "curb_margin_m": 0.15,
+    "facade_margin_m": 0.2,
+    "walkway_clear_width_m": 1.6,
+    "door_approach_clear_width_m": 1.5,
+    "door_approach_depth_m": 1.5,
+    "intersection_corner_exclusion_m": 3.0,
+    "generic_prop_gap_m": 0.25,
+    "max_ground_coverage": 0.35,
+    "minimum_headroom_m": 2.3,
+    "geometry": "transform actual bounds_m and clearance_polygon_m; fit entire footprint/service/work envelope inside permitted band",
+    "bands": "curb strip + continuous clear walkway + frontage strip; choose a strip that fits actual asset depth, not a fixed universal strip width",
+    "hard_rejections": [
+      "outside sidewalk polygon",
+      "walkway blocked",
+      "door approach/swing overlap",
+      "corner or crossing exclusion overlap",
+      "reserved service/work zone overlap",
+      "prop overlap",
+      "hydrant access blocked",
+      "canopy below headroom over walkway",
+      "bin within 2m of food service",
+      "vendor density exceeded"
+    ],
+    "utilities": "reject pole wire corridors crossing road/door clearances; lights and hydrants use gameplay zones; narrow sidewalks may skip all props",
+    "lod": "keep stable IDs; visual LOD/culling must not change placement or collision"
+  },
+  "assets": {
+    "street/StoneBench": {
+      "group": "bench",
+      "selection_weight": 1,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 20,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/StoneBenchBack": {
+      "group": "bench",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 20,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/PublicBench": {
+      "group": "bench",
+      "selection_weight": 1,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 20,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/PublicBenchBack": {
+      "group": "bench",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 20,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/StreetLampSingle": {
+      "group": "lamp",
+      "selection_weight": 4,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 22,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [],
+      "lights": "use light_points; light enabled 18:00-06:00, no geometry respawn"
+    },
+    "street/StreetLampDouble": {
+      "group": "lamp",
+      "selection_weight": 1,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 22,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [],
+      "lights": "use light_points; light enabled 18:00-06:00, no geometry respawn"
+    },
+    "street/UtilityPole": {
+      "group": "pole",
+      "selection_weight": 1,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 35,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [],
+      "wire_link": "adjacent accepted poles; use wire_sockets, never cross doorway/corner clearance"
+    },
+    "street/FireHydrant": {
+      "group": "hydrant",
+      "selection_weight": 1,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 60,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [],
+      "access_clearance_m": 0.65
+    },
+    "street/TrashBinRound": {
+      "group": "bin",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 24,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [],
+      "keep_from_food_service_m": 2.0
+    },
+    "street/TrashBinWheelie": {
+      "group": "bin",
+      "selection_weight": 1,
+      "spawn_mode": "standalone",
+      "band": "curb",
+      "minimum_same_group_spacing_m": 24,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [],
+      "keep_from_food_service_m": 2.0
+    },
+    "street/HuTieuSpace": {
+      "group": "vendor_cluster",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "decomposed vendor at same vendor_slot_id"
+      ]
+    },
+    "street/BanhMiSpace": {
+      "group": "vendor_cluster",
+      "selection_weight": 4,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "decomposed vendor at same vendor_slot_id"
+      ]
+    },
+    "street/MiQuangSpace": {
+      "group": "vendor_cluster",
+      "selection_weight": 2,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "decomposed vendor at same vendor_slot_id"
+      ]
+    },
+    "street/SidewalkTeaSpace": {
+      "group": "vendor_cluster",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "decomposed vendor at same vendor_slot_id"
+      ]
+    },
+    "street/HuTieuCart": {
+      "group": "vendor_anchor",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "complete vendor cluster at same vendor_slot_id"
+      ]
+    },
+    "street/BanhMiCart": {
+      "group": "vendor_anchor",
+      "selection_weight": 4,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "complete vendor cluster at same vendor_slot_id"
+      ]
+    },
+    "street/MiQuangCounter": {
+      "group": "vendor_anchor",
+      "selection_weight": 2,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "complete vendor cluster at same vendor_slot_id"
+      ]
+    },
+    "street/TeaShoulderPole": {
+      "group": "vendor_anchor",
+      "selection_weight": 3,
+      "spawn_mode": "standalone",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 16,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": [
+        "complete vendor cluster at same vendor_slot_id"
+      ]
+    },
+    "street/PlasticChairHigh": {
+      "group": "high_seat",
+      "selection_weight": 3,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/PlasticStoolHigh": {
+      "group": "high_seat",
+      "selection_weight": 1,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/PlasticChairLow": {
+      "group": "low_seat",
+      "selection_weight": 2,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/PlasticStoolLow": {
+      "group": "low_seat",
+      "selection_weight": 3,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/PlasticTableLow": {
+      "group": "low_table",
+      "selection_weight": 1,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/StreetUmbrella": {
+      "group": "shade",
+      "selection_weight": 1,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    },
+    "street/TeaServiceSet": {
+      "group": "tea_service",
+      "selection_weight": 1,
+      "spawn_mode": "composition_child",
+      "band": "frontage",
+      "minimum_same_group_spacing_m": 0,
+      "grounded": true,
+      "scale_range": [
+        1,
+        1
+      ],
+      "rotation": "front faces road (-Y local); seats face table; benches face walkway",
+      "exclusive_with": []
+    }
+  },
+  "runtime_status": "data contract only; C++ consumer pending"
+}

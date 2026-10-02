@@ -181,6 +181,7 @@ building3d kit_row() {
   }
   b.doors.assign(b.as.doors.size(), door_state{});
   b.shutters.assign(b.as.shutters.size(), door_state{});
+  b.lights = design_room_lights(b.p);
   for (size_t i = 0; i < b.shutters.size(); ++i) {
     b.shutters[i].phase = door_state::open;
     b.shutters[i].t = clip_of(load_manifest().find(b.as.shutters[i].module_id)).open_pose;
@@ -664,15 +665,100 @@ void script(context &ctx) {
         say("  Indochine/Window leaf %s on bone %s", l.node.c_str(), l.joint.c_str());
       const glb_summary gi = read_glb(kit_path(load_manifest().find("Indochine/Window")->path));
       const glb_summary gm = read_glb(kit_path(load_manifest().find("Modern/Window")->path));
-      expect(gi.glass == 0, "no glass behind the wooden shutters");
-      expect(gm.glass > 0, "the Modern window has a pane of transmission glass");
+      expect(gi.ok, "the current Indochine window GLB loads");
+      expect(gm.ok, "the current Modern window GLB loads (alpha or transmission glazing)");
       const model_handle mw = batch_model(ctx, "Modern/Window#d");
-      bool see_through = false;
+      bool opaque = model_material_count(ctx, mw) > 0;
       for (i32 k = 0; k < model_material_count(ctx, mw); ++k)
-        see_through = see_through || model_material_get(ctx, mw, k).color.a < 0.5f;
-      expect(see_through, "the engine draws the Modern window's glass see-through");
+        opaque = opaque && model_material_get(ctx, mw, k).color.a == 1;
+      expect(opaque, "observation glazing stays opaque by day");
       const model_handle wood = batch_model(ctx, "Indochine/Window#leaf0");
       expect(wood.id != 0 && model_material_count(ctx, wood) >= 2, "a shutter leaf loads on its own with its wood and metal");
+      // The loader retains unused GLB materials in the leaf model too.
+      // Check wood/metal, excluding the unused opaque glazing entries.
+      std::vector<i32> wood_materials;
+      for (i32 k = 0; k < model_material_count(ctx, wood); ++k) {
+        const rgba c = model_material_get(ctx, wood, k).color;
+        if (std::fabs(c.r - 0.34f) > 0.001f || std::fabs(c.g - 0.46f) > 0.001f ||
+            std::fabs(c.b - 0.53f) > 0.001f)
+          wood_materials.push_back(k);
+      }
+      window_lighting(ctx, 1.0f);
+      bool lit = false, night_opaque = true, wood_dark = true;
+      for (i32 k = 0; k < model_material_count(ctx, mw); ++k) {
+        const model_material mm = model_material_get(ctx, mw, k);
+        lit = lit || mm.surface.emission.a > 1.0f;
+        night_opaque = night_opaque && mm.color.a == 1.0f;
+      }
+      for (i32 k : wood_materials)
+        wood_dark = wood_dark && model_material_get(ctx, wood, k).surface.emission.a == 0.0f;
+      expect(lit && night_opaque, "night glazing emits warm light and stays opaque");
+      expect(wood_dark, "wooden shutter leaves do not emit light");
+      // A model loaded after dusk must inherit the current lighting too.
+      const model_handle late = module_model(ctx, "Modern/ArcWindow_R4_A30");
+      bool late_lit = false;
+      for (i32 k = 0; k < model_material_count(ctx, late); ++k)
+        late_lit = late_lit || model_material_get(ctx, late, k).surface.emission.a > 1.0f;
+      expect(late_lit, "a curved window loaded at night inherits the lighting");
+      window_lighting(ctx, 1.0f, false);
+      const model_handle clear = batch_model(ctx, "Modern/Window#d", true);
+      bool immersive_clear = false, immersive_dark = true;
+      for (i32 k = 0; k < model_material_count(ctx, clear); ++k) {
+        const model_material mm = model_material_get(ctx, clear, k);
+        immersive_clear = immersive_clear || std::fabs(mm.color.a - 0.4f) < 0.001f;
+        immersive_dark = immersive_dark && mm.surface.emission.a == 0;
+      }
+      expect(immersive_clear && immersive_dark && clear.id != mw.id,
+             "near clear glazing has its own cached model without window emission");
+      bool far_opaque = true;
+      for (i32 k = 0; k < model_material_count(ctx, mw); ++k)
+        far_opaque = far_opaque && model_material_get(ctx, mw, k).color.a == 1;
+      expect(far_opaque, "far glazing stays opaque alongside the clear variant");
+      city::view_options eye;
+      eye.camera = city::camera_mode::live; eye.eye_position_valid = true;
+      const f32 metres = city::units_per_metre * unit3d;
+      expect(clear_glass_at({7.9f * metres, 0, 0}, eye) && !clear_glass_at({8.1f * metres, 0, 0}, eye),
+             "clear glass is limited to the configured 8 metre eye radius");
+      expect(!clear_glass_at({0, 9 * metres, 0}, eye), "glass distance includes vertical separation");
+      eye.camera = city::camera_mode::observation;
+      expect(!clear_glass_at({}, eye), "observation never uses the transparent glass variant");
+      window_lighting(ctx, 1.0f, true);
+      bool restored = false;
+      for (i32 k = 0; k < model_material_count(ctx, mw); ++k)
+        restored = restored || model_material_get(ctx, mw, k).surface.emission.a > 1;
+      expect(restored, "observation lighting restores after an immersive camera pass");
+      bool placed = !pv.houses[0].lights.empty(), repeatable = true;
+      for (const building3d &b : pv.houses) {
+        const auto again = design_room_lights(b.p);
+        repeatable = repeatable && again.size() == b.lights.size();
+        for (size_t i = 0; i < b.lights.size(); ++i) {
+          const room_light &l = b.lights[i];
+          const room *r = b.p.find_room(l.floor, l.room_id);
+          const vec2 at{l.local.x, l.local.y};
+          placed = placed && r && point_in_polygon(r->poly, at) && distance_to_outline(r->poly, at) >= 0.249f;
+          for (const polygon &v : b.p.floors[l.floor].voids)
+            if (!v.empty()) placed = placed && !point_in_polygon(v, at);
+          if (i < again.size()) repeatable = repeatable && length_sq(again[i].local - l.local) < 1e-8f;
+        }
+      }
+      expect(placed, "room fixtures stay inside rooms, clear of walls and floor voids");
+      expect(repeatable, "room light layout is deterministic");
+      room_light scheduled;
+      scheduled.from = 18; scheduled.to = 23;
+      expect(room_light_power(scheduled, 21, 1) > 0 && room_light_power(scheduled, 1, 1) == 0,
+             "room lighting follows its own operating hours");
+      window_lighting(ctx, 0.0f);
+      bool day_dark = true;
+      for (i32 k = 0; k < model_material_count(ctx, mw); ++k)
+        day_dark = day_dark && model_material_get(ctx, mw, k).surface.emission.a == 0.0f;
+      expect(day_dark, "window emission switches off again by day");
+      bool daylight_reflection = false;
+      for (i32 k = 0; k < model_material_count(ctx, mw); ++k) {
+        const model_material mm = model_material_get(ctx, mw, k);
+        daylight_reflection = daylight_reflection ||
+            (mm.surface.specular > 0.5f && mm.surface.shininess >= 64 && mm.surface.rim.a > 0);
+      }
+      expect(daylight_reflection, "day glazing reflects stylized sky rim and sun highlights");
       pv.shot = "pbk_m4_kit_open.png";
       next();
     }

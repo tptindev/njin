@@ -13,5 +13,7 @@ void render_ui(context &ctx);
 // from start to end down the rows, drawn while `on`: for the test run to
 // look at every animation.
 void show_pose_row(bool on, vec2 at = {});
+// One-shot eye-view screenshot for --pbk-city-test; runs in the render phase.
+void capture_room_camera(i32 house);
 
 } // namespace sandtable

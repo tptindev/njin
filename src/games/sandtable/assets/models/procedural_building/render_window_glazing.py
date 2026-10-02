@@ -2,7 +2,7 @@
 from pathlib import Path
 import sys,bpy
 from mathutils import Vector
-BASE=Path(__file__).resolve().parent;ROOT=BASE/'clay';sys.path.insert(0,str(BASE))
+BASE=Path(__file__).resolve().parent;ROOT=BASE/'retro';sys.path.insert(0,str(BASE))
 from export_modules import materialize
 source=bpy.context.scene
 scene=bpy.data.scenes.new('Glazing_Review');bpy.context.window.scene=scene;scene.world=source.world

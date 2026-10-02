@@ -3,7 +3,7 @@ from pathlib import Path
 import json,math,copy,argparse
 from make_building_rules import area,clip,inset_convex
 
-ROOT=Path(__file__).resolve().parents[1];PACK=ROOT/'assets/models/procedural_building/clay/rules'
+ROOT=Path(__file__).resolve().parents[1];PACK=ROOT/'assets/models/procedural_building/retro/rules'
 rules=json.loads((PACK/'building_rules.json').read_text(encoding='utf8'))
 manifest=json.loads((PACK.parent/'kit_manifest.json').read_text(encoding='utf8'))
 active={x['id'] for x in manifest['modules'] if x['asset']}

@@ -13,7 +13,7 @@ import sys
 import bpy
 from mathutils import Matrix, Euler
 
-ROOT = Path(__file__).resolve().parent / 'clay'
+ROOT = Path(__file__).resolve().parent / 'retro'
 OUT = ROOT / 'modules'
 
 
@@ -93,7 +93,7 @@ def main():
     global ROOT, OUT
     parser = argparse.ArgumentParser()
     parser.add_argument('--limit', type=int)
-    parser.add_argument('--root', type=Path, help='Alternate kit directory, e.g. clay')
+    parser.add_argument('--root', type=Path, help='Alternate kit directory, e.g. retro')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
     if args.root:
         ROOT = args.root.resolve()
@@ -162,7 +162,7 @@ def main():
         path.parent.mkdir(parents=True, exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=str(path), export_format='GLB', use_active_scene=True,
             export_yup=True, export_extras=True, export_cameras=False, export_lights=False,
-            export_tangents=manifest.get('visual_variant') == 'handmade_clay',
+            export_tangents=manifest.get('visual_variant') == 'handmade_retro',
             export_animations=bool(rigs), export_animation_mode='SCENE', export_anim_scene_split_object=False,
             export_nla_strips_merged_animation_name=clip_name, export_frame_range=True,
             export_anim_slide_to_zero=True, export_force_sampling=True, export_frame_step=1,

@@ -1,0 +1,81 @@
+{
+  "passed": true,
+  "revision": "unified-kit-v3-retro-v16-stairs",
+  "cases": [
+    {
+      "module": "Indochine/Stair",
+      "vertices": 64,
+      "triangles": 124,
+      "tread_heights_m": [
+        0.2,
+        0.4,
+        0.6,
+        0.8,
+        1.0,
+        1.2,
+        1.4,
+        1.6,
+        1.8,
+        2.0,
+        2.2,
+        2.4,
+        2.6,
+        2.8,
+        3.0
+      ],
+      "volume_m3": 7.2,
+      "closed": true
+    },
+    {
+      "module": "Modern/Stair",
+      "vertices": 64,
+      "triangles": 124,
+      "tread_heights_m": [
+        0.2,
+        0.4,
+        0.6,
+        0.8,
+        1.0,
+        1.2,
+        1.4,
+        1.6,
+        1.8,
+        2.0,
+        2.2,
+        2.4,
+        2.6,
+        2.8,
+        3.0
+      ],
+      "volume_m3": 7.2,
+      "closed": true
+    },
+    {
+      "module": "Brick/Stair",
+      "vertices": 64,
+      "triangles": 124,
+      "tread_heights_m": [
+        0.2,
+        0.4,
+        0.6,
+        0.8,
+        1.0,
+        1.2,
+        1.4,
+        1.6,
+        1.8,
+        2.0,
+        2.2,
+        2.4,
+        2.6,
+        2.8,
+        3.0
+      ],
+      "volume_m3": 7.2,
+      "closed": true
+    }
+  ],
+  "idempotent_style_pass": true,
+  "generator_reopened": true,
+  "export_run": false
+}

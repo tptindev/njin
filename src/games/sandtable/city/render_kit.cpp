@@ -16,6 +16,7 @@ namespace {
 // shutter), `leaf_part` the first of a module's.
 std::vector<std::string> ids;
 std::vector<model_handle> models;
+std::vector<std::string> part_keys;
 std::map<std::string, i32> index_of;
 std::vector<i32> leaf_part;
 
@@ -443,13 +444,13 @@ void pagoda(const building &b, kit_sink &s) {
 // --- The city's batches --------------------------------------------------------------
 
 std::vector<chunked> cparts;
-chunked cboxes, cdetail, ctanks, cglow;
+chunked cboxes, cdetail, ctanks, cglow, cfar;
 
 // Where each building's instances are in every batch, for leaving out the
 // ones open in the cutaway and the ones the procedural plans draw.
 std::vector<std::vector<std::pair<u32, u32>>> spans;
 
-i32 batch_count() { return static_cast<i32>(cparts.size()) + 4; }
+i32 batch_count() { return static_cast<i32>(cparts.size()) + 5; }
 
 chunked &batch(i32 k) {
   if (k < static_cast<i32>(cparts.size()))
@@ -458,7 +459,8 @@ chunked &batch(i32 k) {
   case 0: return cboxes;
   case 1: return cdetail;
   case 2: return ctanks;
-  default: return cglow;
+  case 3: return cglow;
+  default: return cfar;
   }
 }
 
@@ -507,6 +509,7 @@ void kit_init(context &ctx) {
     // caches them by revision and ID): the town lays its own wall ring, as
     // the kit's generator does. Roof pieces have no substrate: whole.
     models.push_back(pbk::batch_model(ctx, mi.id + "#d"));
+    part_keys.push_back(mi.id + "#d");
   }
   // The leaves of the animated modules, one part each.
   leaf_part.assign(ids.size(), -1);
@@ -515,8 +518,10 @@ void kit_init(context &ctx) {
     if (!rig.ok)
       continue;
     leaf_part[i] = static_cast<i32>(models.size());
-    for (i32 k = 0; k < static_cast<i32>(rig.leaves.size()); ++k)
+    for (i32 k = 0; k < static_cast<i32>(rig.leaves.size()); ++k) {
       models.push_back(pbk::leaf_model(ctx, ids[i], k));
+      part_keys.push_back(ids[i] + "#leaf" + std::to_string(k));
+    }
   }
   cparts.resize(models.size());
 }
@@ -525,6 +530,7 @@ void kit_shutdown(context &) {
   // The modules' models belong to pbk_render: pbk_shutdown() unloads them.
   ids.clear();
   models.clear();
+  part_keys.clear();
   index_of.clear();
   leaf_part.clear();
   cparts.clear();
@@ -565,6 +571,9 @@ void kit_build(context &ctx, const city_map &map) {
         sp[static_cast<size_t>(k)].first = batch(k).inst.count();
       const building &b = map.buildings[static_cast<size_t>(bi)];
       kit_building(b, map, b.floors, true, sink);
+      cfar.inst.box(b.box.center, 0,
+                    {b.box.half.x * 2, b.floors * pbk::storey * units_per_metre, b.box.half.y * 2},
+                    b.box.angle, {0.72f, 0.65f, 0.54f, 1});
       for (i32 k = 0; k < batch_count(); ++k)
         sp[static_cast<size_t>(k)].second = batch(k).inst.count();
     }
@@ -581,28 +590,35 @@ void kit_build(context &ctx, const city_map &map) {
 }
 
 void kit_draw(context &ctx, const view_options &opt) {
+  pbk::window_lighting(ctx, opt.night, opt.camera == camera_mode::observation);
   // The whole town from the kit, chunk by chunk as the camera sees it.
   const f32 r = cull().detail_r;
   i32 detailed = 0;
   for (i32 c = 0; c < chunk_count(); ++c)
     detailed += chunk_visible(c) && chunk_detailed(c, r) ? 1 : 0;
   count_detailed(detailed);
-  const auto near = [](i32) { return true; };
+  const auto near = [r](i32 c) { return chunk_detailed(c, r); };
+  const auto far = [&](i32 c) { return !near(c); };
   const i32 n = static_cast<i32>(cparts.size());
   for (i32 k = 0; k < n; ++k) {
     if (cparts[static_cast<size_t>(k)].inst.count() == 0)
       continue;
     const skip_list sk = skips(opt.cut, k);
-    draw_chunks_model(ctx, cparts[static_cast<size_t>(k)], models[static_cast<size_t>(k)], near, &sk);
+    const pbk::module_info *mi = k < static_cast<i32>(ids.size()) ? pbk::load_manifest().find(ids[k]) : nullptr;
+    const bool roof = mi && (mi->family == "RoofSlope" || mi->family == "Ridge" || mi->family == "Gable" ||
+                             mi->family == "Parapet" || mi->family == "Coping");
+    draw_window_chunks(ctx, cparts[k], part_keys[k], !roof, opt, &sk);
   }
   const skip_list sb = skips(opt.cut, n), sd = skips(opt.cut, n + 1), st = skips(opt.cut, n + 2),
                   sg = skips(opt.cut, n + 3);
   material3d_set(ctx, {.specular = 0.08f, .shininess = 12.0f});
   draw_chunks(ctx, cboxes, mesh3d_cube, near, &sb);
   draw_chunks(ctx, cdetail, mesh3d_cube, near, &sd);
+  const skip_list sf = skips(opt.cut, n + 4);
+  draw_chunks(ctx, cfar, mesh3d_cube, far, &sf);
   material3d_set(ctx, {.specular = 0.5f, .shininess = 40.0f});
   draw_chunks(ctx, ctanks, mesh3d_cylinder_low, near, &st);
-  if (opt.night > 0.3f) {
+  if (opt.night > 0.3f && opt.camera == camera_mode::observation) {
     material3d_set(ctx, {.unlit = true, .cast_shadows = false});
     draw_chunks(ctx, cglow, mesh3d_cube, near, &sg);
   }

@@ -83,16 +83,45 @@ void box_of(instances &out, const building3d &b, const solid &s, f32 z1, rgba co
 }
 
 instances leaf_boxes;
+struct glazing_material { model_handle model; i32 index; bool clear = false; };
+std::vector<glazing_material> glazing;
+f32 window_on = 0.0f;
+bool observation_glass = true;
+f32 glass_dark = 0;
+
+void light_glazing(model_material &mm, bool clear = false) {
+  const f32 on = clear ? 0 : window_on;
+  mm.color = on > 0.0f ? rgba{0.34f + 0.54f * on, 0.46f + 0.22f * on,
+                                   0.53f - 0.21f * on, 1.0f} : rgba{0.34f, 0.46f, 0.53f, 1.0f};
+  mm.surface.emission = {1.0f, 0.68f, 0.32f, 1.4f * on};
+  mm.color.a = clear ? std::clamp(glazing_option("near_opacity", 0.4f), 0.05f, 0.6f) : 1;
+  // Cheap stylized sky reflection: Fresnel rim and sun highlight. No
+  // scene reflection render or extra texture capture for each window.
+  const f32 daylight = 1 - glass_dark;
+  mm.surface.specular = clear ? 0.15f : glazing_option("reflection_specular", 0.7f) * daylight + 0.1f;
+  mm.surface.shininess = clear ? 32 : 96;
+  mm.surface.rim = {0.64f, 0.82f, 1, (clear ? 0.04f : 0.28f) * daylight};
+  mm.surface.cast_shadows = false;
+}
 
 // The file's colours are linear (glTF): as sRGB, the colours the rest of the
-// game draws in. Clay is rough; glass keeps the loader's see-through finish.
-void finish_materials(context &ctx, model_handle m) {
+// game draws in. Source glazing is opaque; near observation may use 40% opacity.
+void finish_materials(context &ctx, model_handle m, const glb_summary &source, bool clear = false) {
+  const i32 offset = model_material_count(ctx, m) - source.materials;
   for (i32 k = 0; m.id != 0 && k < model_material_count(ctx, m); ++k) {
     model_material mm = model_material_get(ctx, m, k);
+    const bool was_glass = mm.color.a < 1.0f || (offset >= 0 &&
+        std::find(source.glazing_materials.begin(), source.glazing_materials.end(), k - offset) != source.glazing_materials.end());
     mm.color = linear_to_srgb(mm.color);
-    if (mm.color.a >= 1.0f) {
-      mm.surface.specular = 0.06f;
-      mm.surface.shininess = 10.0f;
+    if (was_glass)
+      mm.color = {0.34f, 0.46f, 0.53f, 0.40f};
+    else
+      mm.color.a = 1.0f;
+    mm.surface.specular = was_glass ? 0.12f : 0.06f;
+    mm.surface.shininess = was_glass ? 18.0f : 10.0f;
+    if (was_glass) {
+      glazing.push_back({m, k, clear});
+      light_glazing(mm, clear);
     }
     model_material_set(ctx, m, k, mm);
   }
@@ -101,10 +130,11 @@ void finish_materials(context &ctx, model_handle m) {
 // Part of a module's file: without its leaves (an animated module's still
 // part), without its substrate and floor band too (`dressing`), or one leaf
 // (`only`). Meshes merged by material: one draw a material per batch.
-model_handle load_part(context &ctx, const module_info &mi, bool dressing, const std::string *only) {
+model_handle load_part(context &ctx, const module_info &mi, bool dressing, const std::string *only, bool clear = false) {
   std::vector<std::string> skip;
   if (dressing) {
     skip.push_back("substrate");
+    skip.push_back("Exterior_Surface");
     skip.push_back("floor_band");
   }
   if (!only && mi.animated)
@@ -136,7 +166,7 @@ model_handle load_part(context &ctx, const module_info &mi, bool dressing, const
   const model_handle m = model_load(ctx, d);
   if (m.id == 0)
     NJIN_WARN("pbk: %s (%s) did not load", mi.id.c_str(), path.c_str());
-  finish_materials(ctx, m);
+  finish_materials(ctx, m, g, clear);
   return m;
 }
 
@@ -164,6 +194,21 @@ f32 clip_time(const building3d &b, const module_place &m) {
 
 } // namespace
 
+void window_lighting(context &ctx, f32 night, bool observation) {
+  const f32 on = observation ? std::round(smooth_fade(0.25f, 0.55f, night) * 64.0f) / 64.0f : 0.0f;
+  const f32 dark = std::round(std::clamp(night, 0.0f, 1.0f) * 64) / 64;
+  if (on == window_on && observation == observation_glass && dark == glass_dark)
+    return;
+  window_on = on;
+  observation_glass = observation;
+  glass_dark = dark;
+  for (const glazing_material &g : glazing) {
+    model_material mm = model_material_get(ctx, g.model, g.index);
+    light_glazing(mm, g.clear);
+    model_material_set(ctx, g.model, g.index, mm);
+  }
+}
+
 leaf_pose leaf_pose_at(const module_rig &rig, i32 k, f32 t, vec3 origin, f32 yaw, f32 scale) {
   const mat4 m = leaf_matrix(rig, k, t, origin, yaw, scale);
   return {{m.m[12], m.m[13], m.m[14]}, mat4_euler(m), scale};
@@ -174,6 +219,7 @@ building3d make_building(const plan &p, vec2 center, f32 angle) {
   b.p = p;
   b.at = {center, angle, p.width, p.depth};
   b.as = assemble(p);
+  b.lights = design_room_lights(p);
   const manifest &M = load_manifest();
   b.doors.assign(b.as.doors.size(), door_state{});
   for (size_t i = 0; i < b.as.doors.size(); ++i)
@@ -201,7 +247,7 @@ model_handle module_model(context &ctx, const std::string &id) {
     m = model_load(ctx, path.c_str());
     if (m.id == 0)
       NJIN_WARN("pbk: %s (%s) did not load", id.c_str(), path.c_str());
-    finish_materials(ctx, m);
+    finish_materials(ctx, m, read_glb(path));
   } else {
     NJIN_WARN("pbk: module %s is not in the manifest", id.c_str());
   }
@@ -209,8 +255,16 @@ model_handle module_model(context &ctx, const std::string &id) {
   return m;
 }
 
-model_handle batch_model(context &ctx, const std::string &key) {
-  const std::string rk = rev_key(key);
+bool has_glazing(model_handle model) {
+  return std::any_of(glazing.begin(), glazing.end(), [&](const glazing_material &g) { return g.model.id == model.id; });
+}
+model_handle batch_model(context &ctx, const std::string &key, bool clear_glass) {
+  if (clear_glass) {
+    const model_handle normal = batch_model(ctx, key);
+    if (!has_glazing(normal))
+      return normal;
+  }
+  const std::string rk = rev_key(key) + (clear_glass ? "|clear" : "");
   auto it = batches.find(rk);
   if (it != batches.end())
     return it->second;
@@ -222,9 +276,9 @@ model_handle batch_model(context &ctx, const std::string &key) {
       const module_rig &rig = module_rig_of(id);
       const i32 k = std::atoi(tag.c_str() + 4);
       if (k >= 0 && k < static_cast<i32>(rig.leaves.size()))
-        m = load_part(ctx, *mi, false, &rig.leaves[static_cast<size_t>(k)].node);
+        m = load_part(ctx, *mi, false, &rig.leaves[static_cast<size_t>(k)].node, clear_glass);
     } else {
-      m = load_part(ctx, *mi, tag == "d", nullptr);
+      m = load_part(ctx, *mi, tag == "d", nullptr, clear_glass);
     }
   } else {
     NJIN_WARN("pbk: module %s is not in the manifest", id.c_str());
@@ -238,6 +292,10 @@ model_handle leaf_model(context &ctx, const std::string &id, i32 k) {
 }
 
 void models_unload(context &ctx) {
+  glazing.clear();
+  window_on = 0.0f;
+  observation_glass = true;
+  glass_dark = 0;
   for (std::map<std::string, model_handle> *list : {&batches, &models, &prop_models})
     for (auto &[k, m] : *list)
       if (m.id != 0)
@@ -298,7 +356,7 @@ void add_static(context &ctx, const building3d &b, const view_cut &v, static_bat
   for (const module_place &m : b.as.modules) {
     // A door shows on its open floor too, as the walls round it do, cut low.
     const bool show = m.floor < 0 ? sh.roof() : (sh.whole(m.floor) || ((m.inside || m.door >= 0) && sh.any(m.floor)));
-    if (!show || (v.shell && m.inside))
+    if (!show || (v.shell && m.inside) || (v.inside_only && !m.inside))
       continue;
     if (m.door >= 0 && !sh.whole(m.floor))
       continue; // a cut floor's door: only its leaf, drawn with draw_doors
@@ -311,6 +369,9 @@ void add_static(context &ctx, const building3d &b, const view_cut &v, static_bat
     if (so.kind == sk_leaf || so.kind == sk_prop || so.kind == sk_collision)
       continue;
     const i32 f = so.floor;
+    if (v.inside_only && (so.kind == sk_exterior || so.kind == sk_facade || so.kind == sk_shell ||
+                         (so.kind == sk_slab && f == sh.storeys)))
+      continue;
     if (v.shell && !(f == sh.storeys && sh.roof()) && so.kind != sk_facade && so.kind != sk_shell)
       continue;
     if (so.kind == sk_slab) {
@@ -491,19 +552,29 @@ void place_shutter_bodies(context &ctx, building3d &b, i32 i, bool move) {
 void doors_update(context &ctx, building3d &b, f32 dt) {
   for (i32 i = 0; i < static_cast<i32>(b.doors.size()); ++i) {
     door_state &s = b.doors[static_cast<size_t>(i)];
+    if (s.phase != door_state::opening && s.phase != door_state::closing && s.sampled_time == s.t)
+      continue;
     const bool moving = advance(s, clip_of(b, i), dt);
-    s.angle = leaf_angle(b, i, s.t);
+    if (s.sampled_time != s.t) {
+      s.angle = leaf_angle(b, i, s.t);
+      s.sampled_time = s.t;
+    }
     if (moving)
       place_leaf_body(ctx, b, i, true);
   }
   for (i32 i = 0; i < static_cast<i32>(b.shutters.size()); ++i) {
     door_state &s = b.shutters[static_cast<size_t>(i)];
+    if (s.phase != door_state::opening && s.phase != door_state::closing && s.sampled_time == s.t)
+      continue;
     const std::string &id = b.as.shutters[static_cast<size_t>(i)].module_id;
     const door_clip c = clip_of(load_manifest().find(id));
     if (advance(s, c, dt))
       place_shutter_bodies(ctx, b, i, true);
-    const module_rig &rig = module_rig_of(id);
-    s.angle = rig.ok ? rig.turn(0, s.t, c.shut_pose) : 0.0f;
+    if (s.sampled_time != s.t) {
+      const module_rig &rig = module_rig_of(id);
+      s.angle = rig.ok ? rig.turn(0, s.t, c.shut_pose) : 0.0f;
+      s.sampled_time = s.t;
+    }
   }
 }
 
@@ -535,7 +606,7 @@ i32 door_pick(const building3d &b, const ray3d &ray, f32 *distance_out) {
   return best;
 }
 
-void draw_doors(context &ctx, const building3d &b, const view_cut &v) {
+void draw_doors(context &ctx, const building3d &b, const view_cut &v, const view_options *eye) {
   const shown sh = shown_of(b, v);
   const f32 s = render_scale();
   leaf_boxes.clear();
@@ -543,20 +614,23 @@ void draw_doors(context &ctx, const building3d &b, const view_cut &v) {
   for (const module_place &m : b.as.modules) {
     if (m.door < 0 && m.shutter < 0)
       continue;
+    if (v.inside_only && !m.inside)
+      continue;
     if (m.door >= 0 ? !sh.any(m.floor) : !sh.whole(m.floor))
       continue;
     const module_rig &rig = module_rig_of(m.id);
     const module_xf x = xf_of(b, m);
     const f32 t = clip_time(b, m);
     for (i32 k = 0; k < static_cast<i32>(rig.leaves.size()); ++k) {
-      const model_handle lm = leaf_model(ctx, m.id, k);
       const leaf_pose lp = leaf_pose_at(rig, k, t, x.origin, x.yaw, s);
+      const model_handle lm = batch_model(ctx, m.id + "#leaf" + std::to_string(k),
+          eye && clear_glass_at(lp.pos + vec3{0, 1.5f * s, 0}, *eye));
       draw_model(ctx, lm, {.position = lp.pos, .rotation = lp.rot, .scale = {s, s, s}});
     }
   }
   for (i32 i = 0; i < static_cast<i32>(b.as.doors.size()); ++i) {
     const door &d = b.as.doors[static_cast<size_t>(i)];
-    if (d.rigged || !sh.any(d.floor))
+    if (v.shell || d.rigged || !sh.any(d.floor))
       continue;
     const vec2 dir = along_of(d.closed_angle + b.doors[static_cast<size_t>(i)].angle);
     const vec2 c = d.hinge + dir * (d.width * 0.5f);

@@ -14,19 +14,19 @@
 #include <string>
 
 namespace {
-bool clay_capture = false;
+bool retro_capture = false;
 bool kungfu_mode = false;
-int clay_frame = 0;
-float clay_time = 0;
-void clay_start(njin::context &ctx) { sandtable::person_init(ctx); }
-void clay_render(njin::context &ctx) {
+int retro_frame = 0;
+float retro_time = 0;
+void retro_start(njin::context &ctx) { sandtable::person_init(ctx); }
+void retro_render(njin::context &ctx) {
   using namespace njin;
   using namespace sandtable;
-  ++clay_frame;
-  clay_time += delta(ctx);
-  const bool sheet = clay_capture && clay_frame >= 6 && clay_frame <= 11;
-  const bool all_poses = clay_capture && clay_frame >= 36;
-  const bool motion = clay_capture && clay_frame >= 12;
+  ++retro_frame;
+  retro_time += delta(ctx);
+  const bool sheet = retro_capture && retro_frame >= 6 && retro_frame <= 11;
+  const bool all_poses = retro_capture && retro_frame >= 36;
+  const bool motion = retro_capture && retro_frame >= 12;
   begin_3d(ctx, {.position = all_poses ? vec3{.2f, 1.10f, 2.5f}
                              : sheet   ? vec3{.25f, .48f, 1.32f}
                                        : vec3{.25f, .27f, .64f},
@@ -67,31 +67,31 @@ void clay_render(njin::context &ctx) {
                         .identity = static_cast<u32>(i)});
   } else {
     draw_person(ctx, {.facing = 90,
-                      .now = clay_capture && !motion ? act::talk : act::walk,
-                      .time = motion ? static_cast<f32>(clay_frame - 12) / 24.0f
-                              : clay_capture ? .8f
-                                             : clay_time,
+                      .now = retro_capture && !motion ? act::talk : act::walk,
+                      .time = motion ? static_cast<f32>(retro_frame - 12) / 24.0f
+                              : retro_capture ? .8f
+                                             : retro_time,
                       .tint = rgb(177, 68, 54)});
   }
   end_3d(ctx);
-  if (clay_capture && clay_frame == 4)
-    screenshot(ctx, "clay_sdf_closeup.png");
-  if (clay_capture && clay_frame == 9)
-    screenshot(ctx, "clay_sdf_poses.png");
-  if (motion && clay_frame < 36) {
+  if (retro_capture && retro_frame == 4)
+    screenshot(ctx, "retro_sdf_closeup.png");
+  if (retro_capture && retro_frame == 9)
+    screenshot(ctx, "retro_sdf_poses.png");
+  if (motion && retro_frame < 36) {
     char file[64];
-    std::snprintf(file, sizeof(file), "clay_sdf_walk_%02d.png",
-                  clay_frame - 12);
+    std::snprintf(file, sizeof(file), "retro_sdf_walk_%02d.png",
+                  retro_frame - 12);
     screenshot(ctx, file);
   }
-  if (clay_capture && clay_frame == 38)
-    screenshot(ctx, "clay_sdf_all_actions.png");
-  if (clay_capture && clay_frame == 40)
+  if (retro_capture && retro_frame == 38)
+    screenshot(ctx, "retro_sdf_all_actions.png");
+  if (retro_capture && retro_frame == 40)
     quit(ctx);
 }
-void clay_setup(njin::context &ctx) {
-  njin::ecs_register(ctx, njin::phase_startup, clay_start, "clay_start");
-  njin::ecs_register(ctx, njin::phase_render, clay_render, "clay_render");
+void retro_setup(njin::context &ctx) {
+  njin::ecs_register(ctx, njin::phase_startup, retro_start, "retro_start");
+  njin::ecs_register(ctx, njin::phase_render, retro_render, "retro_render");
 }
 } // namespace
 
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
   using namespace njin;
 
   bool test_mode = false;
-  bool clay_preview = false;
+  bool retro_preview = false;
   // --pbk-preview: the building kit's scenes; --pbk-test runs their script.
   bool pbk_preview = false, pbk_test = false, pbk_tour = false, pbk_city_test = false;
   u32 seed = 1;
@@ -108,9 +108,9 @@ int main(int argc, char **argv) {
     const bool more = i + 1 < argc;
     if (arg == "--kungfu-test" || arg == "--kungfu-preview" ||
         arg == "--boxing-test" || arg == "--boxing-preview") {
-      clay_preview = true;
+      retro_preview = true;
       kungfu_mode = true;
-      clay_capture = arg == "--kungfu-test" || arg == "--boxing-test";
+      retro_capture = arg == "--kungfu-test" || arg == "--boxing-test";
     } else if (arg == "--pbk-city-test") {
       pbk_city_test = true;
     } else if (arg == "--no-pbk") {
@@ -120,9 +120,9 @@ int main(int argc, char **argv) {
       pbk_preview = true;
       pbk_test = arg == "--pbk-test";
       pbk_tour = arg == "--pbk-tour";
-    } else if (arg == "--clay-test" || arg == "--clay-preview") {
-      clay_preview = true;
-      clay_capture = arg == "--clay-test";
+    } else if (arg == "--retro-test" || arg == "--retro-preview") {
+      retro_preview = true;
+      retro_capture = arg == "--retro-test";
     } else if (arg == "--test" || arg == "-t")
       test_mode = true;
     else if (arg == "--seed" && more)
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
       .width = 1280.0f,
       .height = 720.0f,
       .target_fps = 60.0f,
-      .clear_bg_color = clay_preview ? rgba{.80f, .75f, .64f, 1}
+      .clear_bg_color = retro_preview ? rgba{.80f, .75f, .64f, 1}
                                      : rgba{0.05f, 0.05f, 0.07f, 1.0f},
       .exit_key = key_none,
       .resizable = true,
@@ -171,13 +171,13 @@ int main(int argc, char **argv) {
   });
 
   mod_register(*ctx, pbk_preview ? sandtable::pbk_module(pbk_test, pbk_tour)
-                     : kungfu_mode ? sandtable::kungfu_module(clay_capture)
-                     : clay_preview
-                         ? mod_desc{.name = "clay_preview", .setup = clay_setup}
+                     : kungfu_mode ? sandtable::kungfu_module(retro_capture)
+                     : retro_preview
+                         ? mod_desc{.name = "retro_preview", .setup = retro_setup}
                          : sandtable::module(test_mode, seed, pbk_city_test));
 
 #ifndef NDEBUG
-  if (!clay_preview && !pbk_preview)
+  if (!retro_preview && !pbk_preview)
     debug_server_start(*ctx);
 #endif
 

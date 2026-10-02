@@ -1,0 +1,53 @@
+{
+  "schema": "sandtable.interior-lighting.v1",
+  "units": "metres; plan x/y horizontal, z up; hours in game time",
+  "placement": {
+    "fixture": "ceiling panel",
+    "grid_m": 0.5,
+    "wall_clearance_m": 0.25,
+    "ceiling_offset_m": 0.30,
+    "area_per_fixture_m2": 12,
+    "max_fixtures_per_room": 4,
+    "algorithm": "first nearest room bounding-box centre, then farthest from existing fixtures; reject outside polygon and floor voids",
+    "stable_order": "floor, room index, fixture index"
+  },
+  "camera_policy": {
+    "observation": "daytime stylized sky reflection and sun highlights; night window emission; exterior shell",
+    "third_person": "window emission off; near glass transparent, distant glass opaque and reflective",
+    "live": "same as third_person; independent render pass",
+    "closed_wood_shutters": "occlude interior naturally; never emit light"
+  },
+  "glass_lod": {
+    "clear_radius_m": 8,
+    "near_opacity": 0.4,
+    "reflection_specular": 0.7,
+    "distance": "3D eye to module bounds centre, in metres",
+    "reflection": "stylized sky Fresnel rim and directional sun highlight; no scene reflection capture",
+    "batching": "separate cached clear and reflective model variants, split visible instance ranges",
+    "interiors": "only nearby house footprints within clear radius plus 1 metre; keep existing house/light budget"
+  },
+  "runtime_budget": {
+    "max_interior_houses_per_view": 8,
+    "max_room_lights_per_view": 4,
+    "max_street_lights_immersive": 8,
+    "room_light_shadows": false,
+    "interior_reach_world_units": 140,
+    "cache_geometry": true,
+    "fixture_instancing": true
+  },
+  "profiles": {
+    "default": {"rgb": [1, 0.82, 0.62], "intensity": 1.1, "radius_m": 3.5, "hours": [18, 6], "day_factor": 0},
+    "living": {"rgb": [1, 0.78, 0.54], "intensity": 1.2, "radius_m": 4, "hours": [17, 24], "day_factor": 0},
+    "living_dining_kitchen": {"rgb": [1, 0.84, 0.66], "intensity": 1.4, "radius_m": 4, "hours": [17, 24], "day_factor": 0},
+    "bedroom": {"rgb": [1, 0.72, 0.48], "intensity": 0.8, "radius_m": 3, "hours": [18, 23], "day_factor": 0},
+    "kitchen": {"rgb": [1, 0.90, 0.78], "intensity": 1.4, "radius_m": 3.5, "hours": [5, 23], "day_factor": 0.25},
+    "bathroom": {"rgb": [0.92, 0.95, 1], "intensity": 1, "radius_m": 2.5, "hours": [0, 24], "day_factor": 0.2},
+    "utility": {"rgb": [1, 0.92, 0.82], "intensity": 0.7, "radius_m": 2.5, "hours": [6, 22], "day_factor": 0.15},
+    "storage": {"rgb": [1, 0.86, 0.65], "intensity": 0.6, "radius_m": 2.5, "hours": [8, 22], "day_factor": 0.1},
+    "office": {"rgb": [1, 0.94, 0.85], "intensity": 1.3, "radius_m": 3.5, "hours": [8, 23], "day_factor": 0.6},
+    "shop": {"rgb": [1, 0.90, 0.73], "intensity": 1.5, "radius_m": 4, "hours": [7, 23], "day_factor": 0.8},
+    "market_floor": {"rgb": [1, 0.92, 0.78], "intensity": 1.5, "radius_m": 4, "hours": [6, 23], "day_factor": 0.8},
+    "stair": {"rgb": [1, 0.86, 0.67], "intensity": 0.7, "radius_m": 3, "hours": [0, 24], "day_factor": 0.15},
+    "corridor": {"rgb": [1, 0.86, 0.67], "intensity": 0.7, "radius_m": 3, "hours": [0, 24], "day_factor": 0.15}
+  }
+}

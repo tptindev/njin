@@ -1,4 +1,5 @@
 #include "render_lod.h"
+#include "pbk_render.h"
 
 #include <algorithm>
 #include <cmath>
@@ -34,6 +35,46 @@ f32 chunk_distance(i32 c, vec2 p) {
 } // namespace
 
 const view_cull &cull() { return state_cull; }
+void draw_window_chunks(context &ctx, const chunked &b, const std::string &key,
+                        bool detailed_only, const view_options &opt, const skip_list *skip) {
+  if (b.start.empty() || b.inst.buffer.id == 0) return;
+  std::vector<u8> wanted(static_cast<size_t>(chunk_count()));
+  for (i32 c = 0; c < chunk_count(); ++c)
+    wanted[c] = chunk_visible(c) && (!detailed_only || chunk_detailed(c, cull().detail_r));
+  const auto ranges = chunk_ranges(b, wanted, skip);
+  const model_handle mirror = pbk::batch_model(ctx, key);
+  if (opt.camera == camera_mode::observation || !opt.eye_position_valid || !pbk::has_glazing(mirror)) {
+    draw_ranges_model(ctx, b, mirror, ranges);
+    return;
+  }
+  const auto *mi = pbk::load_manifest().find(key.substr(0, key.find('#')));
+  const vec3 local = mi ? (mi->lo + mi->hi) * 0.5f : vec3{};
+  std::vector<std::pair<u32, u32>> close, distant;
+  const auto add = [](auto &list, u32 i) {
+    if (!list.empty() && list.back().second == i) list.back().second = i + 1;
+    else list.emplace_back(i, i + 1);
+  };
+  for (const auto &[from, to] : ranges)
+    for (u32 i = from; i < std::min(to, b.inst.count()); ++i) {
+      const f32 *p = b.inst.data.data() + i * 16;
+      const f32 yaw = p[9] * pi / 180.0f;
+      const vec3 center{p[0] + local.x * p[12] * std::cos(yaw) + local.z * p[14] * std::sin(yaw),
+                        p[1] + local.y * p[13],
+                        p[2] - local.x * p[12] * std::sin(yaw) + local.z * p[14] * std::cos(yaw)};
+      add(pbk::clear_glass_at(center, opt) ? close : distant, i);
+    }
+  if (close.empty()) {
+    draw_ranges_model(ctx, b, mirror, ranges);
+    return;
+  }
+  const model_handle clear = pbk::batch_model(ctx, key, true);
+  if (clear.id == mirror.id) {
+    draw_ranges_model(ctx, b, mirror, ranges);
+    return;
+  }
+  draw_ranges_model(ctx, b, mirror, distant);
+  draw_ranges_model(ctx, b, clear, close);
+}
 const view_stats &view_last_stats() { return stats; }
 
 i32 chunk_count() { return state_cull.cols * state_cull.rows; }

@@ -2,7 +2,7 @@
 from pathlib import Path
 import bpy
 from mathutils import Vector
-ROOT=Path(__file__).resolve().parent/'clay';FRAMES=ROOT/'shutter_animation_frames';FRAMES.mkdir(exist_ok=True)
+ROOT=Path(__file__).resolve().parent/'retro';FRAMES=ROOT/'shutter_animation_frames';FRAMES.mkdir(exist_ok=True)
 source=bpy.data.scenes['PBK_Modular_Buildings'];scene=bpy.data.scenes.new('Shutter_Animation_Review')
 bpy.context.window.scene=scene;scene.collection.children.link(bpy.data.collections['PBK_Indochine_Window']);scene.world=source.world
 for ob in source.objects:

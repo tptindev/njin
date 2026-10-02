@@ -5,7 +5,7 @@
 // Every module is loaded by its manifest ID through the engine's glTF loader,
 // which keeps each material with its colour, its embedded texture (the wood's
 // grain), UVs, normals and tangents, and draws glass with
-// KHR_materials_transmission see-through. The nodes' transforms are applied
+// opaque glazing for the town's retro assets. The nodes' transforms are applied
 // as the file has them; the instance scales by the manifest's
 // engine_render_scale once and turns only about +Y: no axis swap.
 //
@@ -29,7 +29,20 @@ struct door_state {
   f32 t = 0.0f;       // the clip's time
   bool locked = false;
   f32 angle = 0.0f;   // the leaf's turn from shut, degrees (from the bone, or the leaf's timeline)
+  f32 sampled_time = -1.0f; // invalid initially; idle poses are sampled only once
 };
+struct room_light {
+  std::string room_id;
+  i32 floor = 0;
+  vec3 local{}; // plan metres, z up
+  rgba color{1, 0.8f, 0.6f, 1};
+  f32 intensity = 1, radius = 3, from = 18, to = 6, day_factor = 0;
+};
+std::vector<room_light> design_room_lights(const plan &p);
+f32 room_light_power(const room_light &l, f32 hour, f32 night);
+f32 lighting_budget(const char *name, f32 fallback);
+f32 glazing_option(const char *name, f32 fallback);
+bool clear_glass_at(vec3 center, const view_options &opt);
 
 // A building of the kit on the table.
 struct building3d {
@@ -42,6 +55,7 @@ struct building3d {
   std::vector<body3d_handle> leaves; // kinematic, one per door
   std::vector<std::vector<body3d_handle>> shutter_leaves; // kinematic, per ground-floor shutter, per leaf
   i32 city_building = -1;
+  std::vector<room_light> lights;
 };
 
 // Puts a plan on the table at `center`/`angle` (table units, degrees) and
@@ -55,10 +69,14 @@ model_handle module_model(context &ctx, const std::string &id);
 // animated module without its leaves), "ID#d" for its dressing only (no
 // substrate, no floor band: a wall the town lays as one welded ring per
 // storey, as the kit's generator does), meshes merged by material.
-model_handle batch_model(context &ctx, const std::string &key);
+model_handle batch_model(context &ctx, const std::string &key, bool clear_glass = false);
+bool has_glazing(model_handle model);
 // Leaf `k` of an animated module (module_rig_of(id).leaves[k]), merged.
 model_handle leaf_model(context &ctx, const std::string &id, i32 k);
 void models_unload(context &ctx);
+// Observation: emissive night glazing. Immersive: clear, no emission.
+// Quantized changes avoid touching every material each frame.
+void window_lighting(context &ctx, f32 night, bool observation = true);
 
 // Where leaf `k` of module `m` stands at clip time `t`, as an instance
 // (render units, degrees about x, y, z; uniform scale).
@@ -90,13 +108,14 @@ struct view_cut {
   // Only what shows from outside: the modules and the roof. A shut house in
   // the town sends nothing of its inside to the GPU.
   bool shell = false;
+  bool inside_only = false;
 };
 
 void add_static(context &ctx, const building3d &b, const view_cut &v, static_batch &out);
 
 // The animated part: the leaves of doors and shutters at their clip's time,
 // the leaves between rooms.
-void draw_doors(context &ctx, const building3d &b, const view_cut &v);
+void draw_doors(context &ctx, const building3d &b, const view_cut &v, const view_options *eye = nullptr);
 
 // --- Doors and shutters ------------------------------------------------------------------
 

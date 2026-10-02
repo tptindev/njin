@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "kit_revision": "unified-kit-v3-retro-v15-surface-walls",
+  "build_target": "njin_sandtable",
+  "runtime_command": "--pbk-test",
+  "runtime_assertions_passed": 45,
+  "runtime_failures": 0,
+  "checks": [
+    "game GLB importer/materials",
+    "door and shutter playback",
+    "day/night glazing and immersive variants",
+    "procedural example/generated building render",
+    "street prop importer and sidewalk layout"
+  ],
+  "fps_benchmark_run": false
+}

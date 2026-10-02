@@ -15,8 +15,12 @@ namespace sandtable::city {
 enum class overlay : u8 { none = 0, districts, blocks, foot, car, count };
 
 const char *overlay_name(overlay o);
+enum class camera_mode : u8 { observation, third_person, live };
 
 struct view_options {
+  camera_mode camera = camera_mode::observation;
+  vec3 eye_position{}; // render units; actual eye for glass distance LOD
+  bool eye_position_valid = false;
   overlay layer = overlay::none;
   bool labels = true;   // district names from afar, shop names up close
   bool graph = false;   // the road graph: edges and junctions

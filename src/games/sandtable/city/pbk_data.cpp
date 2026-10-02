@@ -269,7 +269,7 @@ const rules &load_rules() {
                          {v["corridor_min_m"].f32_or(1.4f), v["corridor_target_m"].f32_or(1.6f),
                           v["furniture_coverage_max"].f32_or(0.25f), v["room_area_scale"].f32_or(1.0f)}});
   read_archetypes(j, r);
-  // The clay package is the source of the rules. The archetypes and room
+  // The retro package is the source of the rules. The archetypes and room
   // types the game gained after it was cut (tube houses, flats, halls) are
   // taken from the original kit's package, only those it lacks.
   json_value legacy;
@@ -278,7 +278,7 @@ const rules &load_rules() {
     read_room_types(legacy, r);
     read_archetypes(legacy, r);
     if (r.archetypes.size() > a || r.rooms.size() > t)
-      NJIN_INFO("pbk: %d archetypes and %d room types not in the clay rules taken from %s",
+      NJIN_INFO("pbk: %d archetypes and %d room types not in the retro rules taken from %s",
                 static_cast<i32>(r.archetypes.size() - a), static_cast<i32>(r.rooms.size() - t), legacy_rules_path);
   }
   const json_value &ap = j["appearance"];
@@ -903,6 +903,10 @@ glb_summary read_glb(const std::string &path) {
   for (usize i = 0; i < g.json["materials"].size(); ++i) {
     const json_value &mt = g.json["materials"][i];
     s.glass += mt["extensions"].has("KHR_materials_transmission") ? 1 : 0;
+    const std::string material_name = mt["name"].string_or("");
+    if (material_name.find("_glass") != std::string::npos ||
+        mt["extensions"].has("KHR_materials_transmission"))
+      s.glazing_materials.push_back(static_cast<i32>(i));
     if (mt["pbrMetallicRoughness"].has("baseColorTexture"))
       s.textured.push_back(mt["name"].string_or(""));
   }

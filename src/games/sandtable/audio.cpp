@@ -124,7 +124,7 @@ sound_handle make_charge(context &ctx) {
   return sound_load_samples(ctx, samples.data(), count, rate);
 }
 
-// Two clay chips knocking together: short bright clicks with a woody body.
+// Two retro chips knocking together: short bright clicks with a woody body.
 sound_handle make_chip(context &ctx) {
   constexpr i32 rate = 44100;
   constexpr i32 count = static_cast<i32>(rate * 0.12f);

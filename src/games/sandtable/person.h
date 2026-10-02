@@ -4,8 +4,7 @@
 
 namespace sandtable {
 
-// A procedural articulated clay person, ray-marched through draw_sdf_blend.
-// Rounded limbs fuse at joints; tint applies to clothes, not skin/shoes.
+// Shared skinned assets/models/person.glb with per-person animation and tint.
 
 enum class act : u8 {
   idle = 0,
@@ -37,14 +36,14 @@ f32 act_duration(act a);
 // Whether it repeats (walking) or plays once and holds (a punch, dying).
 bool act_loops(act a);
 
-// Shape controls independent of identity and clothing colour. Values are
-// clamped at draw time to keep the analytic SDF and the existing rig valid.
+// Width scales the GLB silhouette. Other legacy shape fields remain for caller
+// compatibility and do not deform the source skeleton.
 struct person_style {
   f32 width = 1.0f;
   f32 head = 1.0f;
   f32 limb = 1.0f;
   f32 softness = 1.0f;
-  f32 clay = 0.38f;
+  f32 retro = 0.38f;
 };
 
 struct person_draw {

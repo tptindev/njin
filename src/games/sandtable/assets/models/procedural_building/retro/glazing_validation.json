@@ -1,0 +1,141 @@
+{
+  "revision": "unified-kit-v3-retro-v12-shopfront-base20",
+  "passed": true,
+  "restored_glass_objects": [],
+  "window_cases": [
+    {
+      "id": "Brick/ArcShopfront_R2_A45",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Brick/ArcShopfront_R4_A30",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Brick/ArcWindow_R2_A45",
+      "glass_panes": 1
+    },
+    {
+      "id": "Brick/ArcWindow_R4_A30",
+      "glass_panes": 1
+    },
+    {
+      "id": "Brick/CornerShopfront90",
+      "glass_panes": 2,
+      "frame_bases": 2,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Brick/CornerWindow90",
+      "glass_panes": 2
+    },
+    {
+      "id": "Brick/Shopfront",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Brick/Window",
+      "glass_panes": 1
+    },
+    {
+      "id": "Indochine/ArcShopfront_R2_A45",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Indochine/ArcShopfront_R4_A30",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Indochine/ArcWindow_R2_A45",
+      "glass_panes": 1
+    },
+    {
+      "id": "Indochine/ArcWindow_R4_A30",
+      "glass_panes": 1
+    },
+    {
+      "id": "Indochine/CornerShopfront90",
+      "glass_panes": 2,
+      "frame_bases": 2,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Indochine/CornerWindow90",
+      "glass_panes": 2
+    },
+    {
+      "id": "Indochine/Shopfront",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Indochine/Window",
+      "glass_panes": 1
+    },
+    {
+      "id": "Modern/ArcShopfront_R2_A45",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Modern/ArcShopfront_R4_A30",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Modern/ArcWindow_R2_A45",
+      "glass_panes": 1
+    },
+    {
+      "id": "Modern/ArcWindow_R4_A30",
+      "glass_panes": 1
+    },
+    {
+      "id": "Modern/CornerShopfront90",
+      "glass_panes": 2,
+      "frame_bases": 2,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Modern/CornerWindow90",
+      "glass_panes": 2
+    },
+    {
+      "id": "Modern/Shopfront",
+      "glass_panes": 1,
+      "frame_bases": 1,
+      "glass_ratio": 0.8,
+      "base_ratio": 0.2
+    },
+    {
+      "id": "Modern/Window",
+      "glass_panes": 1
+    }
+  ],
+  "generator_reopened": true,
+  "export_run": false
+}

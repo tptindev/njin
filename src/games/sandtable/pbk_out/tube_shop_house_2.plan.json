@@ -1,0 +1,1636 @@
+{
+  "schema": "sandtable.building-plan.v1",
+  "rule_version": 1,
+  "kit_revision": "unified-kit-v3-retro-v15-surface-walls",
+  "seed": 1013904226,
+  "archetype": "tube_shop_house",
+  "style": "Modern",
+  "space_preset": "spacious",
+  "width_m": 4,
+  "depth_m": 20,
+  "footprint": {
+    "shape": "Rectangle",
+    "outer_m": [
+      [
+        0,
+        0
+      ],
+      [
+        4,
+        0
+      ],
+      [
+        4,
+        20
+      ],
+      [
+        0,
+        20
+      ]
+    ],
+    "holes_m": [],
+    "radius_m": null
+  },
+  "road_frontages": [
+    "south"
+  ],
+  "floors": [
+    {
+      "level": 0,
+      "elevation_m": 0,
+      "rooms": [
+        {
+          "id": "f0_front",
+          "type": "shop",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              7.119999408721924
+            ],
+            [
+              0.20000000298023224,
+              7.119999408721924
+            ]
+          ],
+          "net_area_m2": 24.911998748779297,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f0_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              13.839999198913574
+            ],
+            [
+              0.20000000298023224,
+              13.839999198913574
+            ]
+          ],
+          "net_area_m2": 23.759998321533203,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f0_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              13.959999084472656
+            ],
+            [
+              2,
+              13.959999084472656
+            ],
+            [
+              2,
+              16.19999885559082
+            ],
+            [
+              0.20000000298023224,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 4.031999588012695,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f0_way",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              2.119999885559082,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              16.19999885559082
+            ],
+            [
+              2.119999885559082,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 3.7631988525390625,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f0_back",
+          "type": "kitchen",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              19.799999237060547
+            ],
+            [
+              0.20000000298023224,
+              19.799999237060547
+            ]
+          ],
+          "net_area_m2": 12.527999877929688,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "north"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        }
+      ],
+      "slab_voids_m": []
+    },
+    {
+      "level": 1,
+      "elevation_m": 3,
+      "rooms": [
+        {
+          "id": "f1_front",
+          "type": "living_dining_kitchen",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              7.119999408721924
+            ],
+            [
+              0.20000000298023224,
+              7.119999408721924
+            ]
+          ],
+          "net_area_m2": 24.911998748779297,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f1_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              13.839999198913574
+            ],
+            [
+              0.20000000298023224,
+              13.839999198913574
+            ]
+          ],
+          "net_area_m2": 19.8539981842041,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f1_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              13.959999084472656
+            ],
+            [
+              2,
+              13.959999084472656
+            ],
+            [
+              2,
+              16.19999885559082
+            ],
+            [
+              0.20000000298023224,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 4.031999588012695,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f1_way",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              2.119999885559082,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              16.19999885559082
+            ],
+            [
+              2.119999885559082,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 3.7631988525390625,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f1_back",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              19.799999237060547
+            ],
+            [
+              0.20000000298023224,
+              19.799999237060547
+            ]
+          ],
+          "net_area_m2": 12.527999877929688,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "north"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        }
+      ],
+      "slab_voids_m": [
+        [
+          [
+            0.18000000715255737,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            12.389999389648438
+          ],
+          [
+            0.18000000715255737,
+            12.389999389648438
+          ]
+        ]
+      ]
+    },
+    {
+      "level": 2,
+      "elevation_m": 6,
+      "rooms": [
+        {
+          "id": "f2_front",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              7.119999408721924
+            ],
+            [
+              0.20000000298023224,
+              7.119999408721924
+            ]
+          ],
+          "net_area_m2": 24.911998748779297,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f2_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              13.839999198913574
+            ],
+            [
+              0.20000000298023224,
+              13.839999198913574
+            ]
+          ],
+          "net_area_m2": 19.8539981842041,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f2_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              13.959999084472656
+            ],
+            [
+              2,
+              13.959999084472656
+            ],
+            [
+              2,
+              16.19999885559082
+            ],
+            [
+              0.20000000298023224,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 4.031999588012695,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f2_way",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              2.119999885559082,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              16.19999885559082
+            ],
+            [
+              2.119999885559082,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 3.7631988525390625,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f2_back",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              19.799999237060547
+            ],
+            [
+              0.20000000298023224,
+              19.799999237060547
+            ]
+          ],
+          "net_area_m2": 12.527999877929688,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "north"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        }
+      ],
+      "slab_voids_m": [
+        [
+          [
+            0.18000000715255737,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            12.389999389648438
+          ],
+          [
+            0.18000000715255737,
+            12.389999389648438
+          ]
+        ]
+      ]
+    },
+    {
+      "level": 3,
+      "elevation_m": 9,
+      "rooms": [
+        {
+          "id": "f3_front",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              7.119999408721924
+            ],
+            [
+              0.20000000298023224,
+              7.119999408721924
+            ]
+          ],
+          "net_area_m2": 24.911998748779297,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f3_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              13.839999198913574
+            ],
+            [
+              0.20000000298023224,
+              13.839999198913574
+            ]
+          ],
+          "net_area_m2": 19.8539981842041,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f3_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              13.959999084472656
+            ],
+            [
+              2,
+              13.959999084472656
+            ],
+            [
+              2,
+              16.19999885559082
+            ],
+            [
+              0.20000000298023224,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 4.031999588012695,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f3_way",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              2.119999885559082,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              16.19999885559082
+            ],
+            [
+              2.119999885559082,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 3.7631988525390625,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f3_back",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              19.799999237060547
+            ],
+            [
+              0.20000000298023224,
+              19.799999237060547
+            ]
+          ],
+          "net_area_m2": 12.527999877929688,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "north"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        }
+      ],
+      "slab_voids_m": [
+        [
+          [
+            0.18000000715255737,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            12.389999389648438
+          ],
+          [
+            0.18000000715255737,
+            12.389999389648438
+          ]
+        ]
+      ]
+    },
+    {
+      "level": 4,
+      "elevation_m": 12,
+      "rooms": [
+        {
+          "id": "f4_front",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              0.20000000298023224
+            ],
+            [
+              3.799999952316284,
+              7.119999408721924
+            ],
+            [
+              0.20000000298023224,
+              7.119999408721924
+            ]
+          ],
+          "net_area_m2": 24.911998748779297,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "south"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f4_stair",
+          "type": "stair",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              7.239999294281006
+            ],
+            [
+              3.799999952316284,
+              13.839999198913574
+            ],
+            [
+              0.20000000298023224,
+              13.839999198913574
+            ]
+          ],
+          "net_area_m2": 19.8539981842041,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f4_bath",
+          "type": "bathroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              13.959999084472656
+            ],
+            [
+              2,
+              13.959999084472656
+            ],
+            [
+              2,
+              16.19999885559082
+            ],
+            [
+              0.20000000298023224,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 4.031999588012695,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f4_way",
+          "type": "corridor",
+          "polygon_m": [
+            [
+              2.119999885559082,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              13.959999084472656
+            ],
+            [
+              3.799999952316284,
+              16.19999885559082
+            ],
+            [
+              2.119999885559082,
+              16.19999885559082
+            ]
+          ],
+          "net_area_m2": 3.7631988525390625,
+          "floor_voids_m": [],
+          "daylight_edges": [],
+          "furniture_coverage_target": 0.20000000298023224
+        },
+        {
+          "id": "f4_back",
+          "type": "bedroom",
+          "polygon_m": [
+            [
+              0.20000000298023224,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              16.31999969482422
+            ],
+            [
+              3.799999952316284,
+              19.799999237060547
+            ],
+            [
+              0.20000000298023224,
+              19.799999237060547
+            ]
+          ],
+          "net_area_m2": 12.527999877929688,
+          "floor_voids_m": [],
+          "daylight_edges": [
+            "north"
+          ],
+          "furniture_coverage_target": 0.20000000298023224
+        }
+      ],
+      "slab_voids_m": [
+        [
+          [
+            0.18000000715255737,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            9.239999771118164
+          ],
+          [
+            1.4200000762939453,
+            12.389999389648438
+          ],
+          [
+            0.18000000715255737,
+            12.389999389648438
+          ]
+        ]
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p00",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_front",
+      "to_room": "f0_stair",
+      "center_m": [
+        2.5999999046325684,
+        7.179999351501465
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p01",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_stair",
+      "to_room": "f0_way",
+      "center_m": [
+        2.9600000381469727,
+        13.899999618530273
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.5800000429153442,
+      "net_clear_width_m": 1.5800000429153442,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p02",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_way",
+      "to_room": "f0_bath",
+      "center_m": [
+        2.059999942779541,
+        15.079999923706055
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p03",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "f0_way",
+      "to_room": "f0_back",
+      "center_m": [
+        2.9600000381469727,
+        16.259998321533203
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p04",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_front",
+      "to_room": "f1_stair",
+      "center_m": [
+        2.5999999046325684,
+        7.179999351501465
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p05",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_stair",
+      "to_room": "f1_way",
+      "center_m": [
+        2.9600000381469727,
+        13.899999618530273
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.5800000429153442,
+      "net_clear_width_m": 1.5800000429153442,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p06",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_way",
+      "to_room": "f1_bath",
+      "center_m": [
+        2.059999942779541,
+        15.079999923706055
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p07",
+      "floor_from": 1,
+      "floor_to": 1,
+      "from_room": "f1_way",
+      "to_room": "f1_back",
+      "center_m": [
+        2.9600000381469727,
+        16.259998321533203
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p08",
+      "floor_from": 2,
+      "floor_to": 2,
+      "from_room": "f2_front",
+      "to_room": "f2_stair",
+      "center_m": [
+        2.5999999046325684,
+        7.179999351501465
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p09",
+      "floor_from": 2,
+      "floor_to": 2,
+      "from_room": "f2_stair",
+      "to_room": "f2_way",
+      "center_m": [
+        2.9600000381469727,
+        13.899999618530273
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.5800000429153442,
+      "net_clear_width_m": 1.5800000429153442,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p10",
+      "floor_from": 2,
+      "floor_to": 2,
+      "from_room": "f2_way",
+      "to_room": "f2_bath",
+      "center_m": [
+        2.059999942779541,
+        15.079999923706055
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p11",
+      "floor_from": 2,
+      "floor_to": 2,
+      "from_room": "f2_way",
+      "to_room": "f2_back",
+      "center_m": [
+        2.9600000381469727,
+        16.259998321533203
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p12",
+      "floor_from": 3,
+      "floor_to": 3,
+      "from_room": "f3_front",
+      "to_room": "f3_stair",
+      "center_m": [
+        2.5999999046325684,
+        7.179999351501465
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p13",
+      "floor_from": 3,
+      "floor_to": 3,
+      "from_room": "f3_stair",
+      "to_room": "f3_way",
+      "center_m": [
+        2.9600000381469727,
+        13.899999618530273
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.5800000429153442,
+      "net_clear_width_m": 1.5800000429153442,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p14",
+      "floor_from": 3,
+      "floor_to": 3,
+      "from_room": "f3_way",
+      "to_room": "f3_bath",
+      "center_m": [
+        2.059999942779541,
+        15.079999923706055
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p15",
+      "floor_from": 3,
+      "floor_to": 3,
+      "from_room": "f3_way",
+      "to_room": "f3_back",
+      "center_m": [
+        2.9600000381469727,
+        16.259998321533203
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p16",
+      "floor_from": 4,
+      "floor_to": 4,
+      "from_room": "f4_front",
+      "to_room": "f4_stair",
+      "center_m": [
+        2.5999999046325684,
+        7.179999351501465
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p17",
+      "floor_from": 4,
+      "floor_to": 4,
+      "from_room": "f4_stair",
+      "to_room": "f4_way",
+      "center_m": [
+        2.9600000381469727,
+        13.899999618530273
+      ],
+      "axis": "y",
+      "kind": "open",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.5800000429153442,
+      "net_clear_width_m": 1.5800000429153442,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p18",
+      "floor_from": 4,
+      "floor_to": 4,
+      "from_room": "f4_way",
+      "to_room": "f4_bath",
+      "center_m": [
+        2.059999942779541,
+        15.079999923706055
+      ],
+      "axis": "x",
+      "kind": "door",
+      "normal_m": [
+        1,
+        0
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p19",
+      "floor_from": 4,
+      "floor_to": 4,
+      "from_room": "f4_way",
+      "to_room": "f4_back",
+      "center_m": [
+        2.9600000381469727,
+        16.259998321533203
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": null
+    },
+    {
+      "id": "p20",
+      "floor_from": 0,
+      "floor_to": 0,
+      "from_room": "outside",
+      "to_room": "f0_front",
+      "center_m": [
+        1,
+        0.10000000149011612
+      ],
+      "axis": "y",
+      "kind": "door",
+      "normal_m": [
+        0,
+        1
+      ],
+      "aperture_width_m": 1.0499999523162842,
+      "net_clear_width_m": 0.949999988079071,
+      "height_m": 2.3499999046325684,
+      "module_id": "Modern/DoorRigged"
+    },
+    {
+      "id": "vertical_0",
+      "floor_from": 0,
+      "floor_to": 1,
+      "from_room": "f0_stair",
+      "to_room": "f1_stair",
+      "center_m": [
+        0.8000000715255737,
+        7.939999580383301
+      ],
+      "axis": "vertical",
+      "kind": "stair_link",
+      "normal_m": [
+        0,
+        0
+      ],
+      "aperture_width_m": 1.2000000476837158,
+      "net_clear_width_m": 1.2000000476837158,
+      "height_m": 3,
+      "module_id": null
+    },
+    {
+      "id": "vertical_1",
+      "floor_from": 1,
+      "floor_to": 2,
+      "from_room": "f1_stair",
+      "to_room": "f2_stair",
+      "center_m": [
+        0.8000000715255737,
+        7.939999580383301
+      ],
+      "axis": "vertical",
+      "kind": "stair_link",
+      "normal_m": [
+        0,
+        0
+      ],
+      "aperture_width_m": 1.2000000476837158,
+      "net_clear_width_m": 1.2000000476837158,
+      "height_m": 3,
+      "module_id": null
+    },
+    {
+      "id": "vertical_2",
+      "floor_from": 2,
+      "floor_to": 3,
+      "from_room": "f2_stair",
+      "to_room": "f3_stair",
+      "center_m": [
+        0.8000000715255737,
+        7.939999580383301
+      ],
+      "axis": "vertical",
+      "kind": "stair_link",
+      "normal_m": [
+        0,
+        0
+      ],
+      "aperture_width_m": 1.2000000476837158,
+      "net_clear_width_m": 1.2000000476837158,
+      "height_m": 3,
+      "module_id": null
+    },
+    {
+      "id": "vertical_3",
+      "floor_from": 3,
+      "floor_to": 4,
+      "from_room": "f3_stair",
+      "to_room": "f4_stair",
+      "center_m": [
+        0.8000000715255737,
+        7.939999580383301
+      ],
+      "axis": "vertical",
+      "kind": "stair_link",
+      "normal_m": [
+        0,
+        0
+      ],
+      "aperture_width_m": 1.2000000476837158,
+      "net_clear_width_m": 1.2000000476837158,
+      "height_m": 3,
+      "module_id": null
+    }
+  ],
+  "stair_core": {
+    "id": "main",
+    "type": "straight",
+    "room_ids": [
+      "f0_stair",
+      "f1_stair",
+      "f2_stair",
+      "f3_stair",
+      "f4_stair"
+    ],
+    "clear_width_m": 1.2000000476837158,
+    "riser_m": 0.20000000298023224,
+    "tread_m": 0.25,
+    "flight_m": [
+      0.20000000298023224,
+      8.639999389648438,
+      1.4000000953674316,
+      12.389999389648438
+    ],
+    "bottom_landing_m": [
+      0.20000000298023224,
+      7.239999294281006,
+      1.4000000953674316,
+      8.639999389648438
+    ],
+    "top_landing_m": [
+      0.20000000298023224,
+      12.389999389648438,
+      1.4000000953674316,
+      13.789999008178711
+    ],
+    "risers": 15,
+    "walking_line_m": [
+      [
+        0.8000000715255737,
+        7.939999103546143,
+        0
+      ],
+      [
+        0.8000000715255737,
+        8.639999389648438,
+        0
+      ],
+      [
+        0.8000000715255737,
+        12.389999389648438,
+        3
+      ],
+      [
+        0.8000000715255737,
+        13.089999198913574,
+        3
+      ]
+    ],
+    "geometry_source": "runtime_generated"
+  },
+  "required_module_ids": [
+    "Modern/Wall",
+    "Modern/Window",
+    "Modern/DoorRigged",
+    "Modern/Column",
+    "Modern/Parapet",
+    "Modern/Shopfront",
+    "Modern/Stair"
+  ],
+  "runtime_generated_geometry": [
+    "interior_partitions",
+    "interior_portal_frames_and_leaves",
+    "ceiling",
+    "slab_with_voids",
+    "straight_stair_kit_module"
+  ],
+  "provenance": "Generated at runtime by sandtable pbk_gen.cpp from building_rules.json",
+  "daylight_apertures": [
+    {
+      "floor": 0,
+      "room_id": "f0_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Shopfront",
+      "glazed_area_m2": 3.799999952316284
+    },
+    {
+      "floor": 0,
+      "room_id": "f0_back",
+      "center_m": [
+        1,
+        20
+      ],
+      "inward_normal": [
+        -0,
+        -1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_front",
+      "center_m": [
+        1,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 1,
+      "room_id": "f1_back",
+      "center_m": [
+        1,
+        20
+      ],
+      "inward_normal": [
+        -0,
+        -1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 2,
+      "room_id": "f2_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 2,
+      "room_id": "f2_front",
+      "center_m": [
+        1,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 2,
+      "room_id": "f2_back",
+      "center_m": [
+        1,
+        20
+      ],
+      "inward_normal": [
+        -0,
+        -1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 3,
+      "room_id": "f3_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 3,
+      "room_id": "f3_front",
+      "center_m": [
+        1,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 3,
+      "room_id": "f3_back",
+      "center_m": [
+        1,
+        20
+      ],
+      "inward_normal": [
+        -0,
+        -1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 4,
+      "room_id": "f4_front",
+      "center_m": [
+        3,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 4,
+      "room_id": "f4_front",
+      "center_m": [
+        1,
+        0
+      ],
+      "inward_normal": [
+        -0,
+        1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    },
+    {
+      "floor": 4,
+      "room_id": "f4_back",
+      "center_m": [
+        1,
+        20
+      ],
+      "inward_normal": [
+        -0,
+        -1
+      ],
+      "module_id": "Modern/Window",
+      "glazed_area_m2": 1.5
+    }
+  ],
+  "generator": {
+    "layout": "tube",
+    "stair_side": "west",
+    "front_m": 6.919999599456787,
+    "layout_seed": 2341100406,
+    "facade_seed": 1634047374,
+    "request": {
+      "seed": 1013904226,
+      "archetype": "tube_shop_house",
+      "district": "new_urban",
+      "style": "",
+      "width_m": 4,
+      "depth_m": 20,
+      "floors": 5
+    },
+    "tries": 3,
+    "roof": "Flat"
+  }
+}

@@ -1,0 +1,216 @@
+{
+  "schema": "sandtable.railings-rules.v1",
+  "asset_revision": "retro-railings-v1",
+  "asset_manifest": "asset_manifest.json",
+  "units": "metre",
+  "socket_space": "Blender XYZ; convert to glTF [x,z,-y]",
+  "styles": [
+    "Indochine",
+    "Modern",
+    "Brick"
+  ],
+  "contexts": {
+    "stair": {
+      "design_weights": {
+        "StairSlope": 6,
+        "StairHandrail": 3
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    },
+    "balcony": {
+      "design_weights": {
+        "StraightVertical": 5,
+        "SquareFrame": 4,
+        "DiagonalCross": 2,
+        "Wave": 2,
+        "Arch": 2,
+        "Diamond": 1,
+        "SolidParapet": 2
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    },
+    "bridge": {
+      "design_weights": {
+        "BridgeHeavy": 5,
+        "DiagonalCross": 4,
+        "DiagonalSingle": 2,
+        "Arch": 3,
+        "StraightVertical": 3,
+        "WoodFence": 2,
+        "SolidParapet": 2
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    },
+    "lake": {
+      "design_weights": {
+        "LakeLow": 4,
+        "WoodFence": 3,
+        "Wave": 2,
+        "StraightVertical": 3,
+        "RiversideBars": 2
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    },
+    "river": {
+      "design_weights": {
+        "RiversideBars": 6,
+        "StraightVertical": 4,
+        "BridgeHeavy": 2,
+        "SolidParapet": 2,
+        "StraightHorizontal": 1
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    },
+    "terrace": {
+      "design_weights": {
+        "SquareGrid": 4,
+        "SquareFrame": 4,
+        "StraightHorizontal": 3,
+        "StraightVertical": 3,
+        "SolidParapet": 2
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    },
+    "park": {
+      "design_weights": {
+        "WoodFence": 5,
+        "LakeLow": 3,
+        "Wave": 2,
+        "Arch": 2,
+        "StraightVertical": 2
+      },
+      "height_policy": "use chosen asset height along the whole connected chain"
+    }
+  },
+  "route_shapes": {
+    "straight": "selected context design",
+    "corner_90": "Corner90",
+    "arc_r2_45": "ArcR2A45",
+    "arc_r4_30": "ArcR4A30",
+    "stair_3m_3_75m": "StairSlope",
+    "stair_wall_mount": "StairHandrail",
+    "wall_mount": "WallHandrail"
+  },
+  "terminals": {
+    "free_end": "EndPost",
+    "height_or_pattern_transition": "TransitionPost"
+  },
+  "selection": {
+    "seed_key": [
+      "world_seed",
+      "edge_chain_id",
+      "context",
+      "style"
+    ],
+    "scope": "one pattern and material palette per connected edge chain; never reroll each tile",
+    "priority": "route geometry overrides ornament selection",
+    "balcony": "follow building style",
+    "public_edges": "choose one style per bridge or waterfront zone"
+  },
+  "assembly": {
+    "straight_span_m": 2,
+    "start_socket": "start",
+    "end_socket": "end",
+    "placement": "align start to previous end; rotate by matching end/start tangents",
+    "height": "attach floor/path sockets to walking surface; top handrail sockets must meet exactly",
+    "curve": "fixed-radius arc modules; never nonuniformly scale curves",
+    "corner": "Corner90 preserves a continuous top rail through the 90 degree turn",
+    "stair": "3m rise / 3.75m run, 15x200mm risers and 250mm treads; mount beside the flight",
+    "stairs_both_sides": "duplicate with lateral offset; no full-flight collider in the walkway",
+    "wall_mount": "WallHandrail and StairHandrail have brackets and no floor posts",
+    "shared_posts": "hide previous EndPost when next StartPost occupies the same socket; keep the final EndPost",
+    "terminal_height": "scale a simple EndPost vertically by selected asset height / 1.1; TransitionPost supports joining distinct rail heights",
+    "short_remainder": "trim/regenerate the final straight tile with capped rails; do not stretch a 2m tile along a whole bridge",
+    "door_and_stair_landings": "split edge chains at access openings; keep thresholds and landings clear",
+    "edge_offset_m": 0.06,
+    "terminal_snap_tolerance_m": 0.001
+  },
+  "collision": {
+    "method": "separate thin edge barrier; stair barrier follows rise; do not use entire railing AABB as a filled box",
+    "clearance": "keep route width and door keepouts from parent building/street rules",
+    "ends": "no collider across a gate or access opening"
+  },
+  "rendering": {
+    "instancing_key": [
+      "revision",
+      "asset_id",
+      "material_style",
+      "boundary_post_mask"
+    ],
+    "lod0": "full rail and infill",
+    "lod1": "keep posts and top rail; omit ornamental infill",
+    "lod2": "edge silhouette or omit below pixel threshold",
+    "frustum_culling": "per edge chunk, with model bounds",
+    "opaque_materials": true,
+    "backface_culling": true,
+    "shadow_budget": "nearby rails only; simplify distant shadow casters"
+  },
+  "asset_ids": [
+    "railings/Indochine/StraightVertical",
+    "railings/Indochine/StraightHorizontal",
+    "railings/Indochine/SquareGrid",
+    "railings/Indochine/SquareFrame",
+    "railings/Indochine/DiagonalCross",
+    "railings/Indochine/DiagonalSingle",
+    "railings/Indochine/Wave",
+    "railings/Indochine/Arch",
+    "railings/Indochine/Diamond",
+    "railings/Indochine/SolidParapet",
+    "railings/Indochine/WoodFence",
+    "railings/Indochine/BridgeHeavy",
+    "railings/Indochine/RiversideBars",
+    "railings/Indochine/LakeLow",
+    "railings/Indochine/Corner90",
+    "railings/Indochine/ArcR2A45",
+    "railings/Indochine/ArcR4A30",
+    "railings/Indochine/StairSlope",
+    "railings/Indochine/StairHandrail",
+    "railings/Indochine/WallHandrail",
+    "railings/Indochine/EndPost",
+    "railings/Indochine/TransitionPost",
+    "railings/Modern/StraightVertical",
+    "railings/Modern/StraightHorizontal",
+    "railings/Modern/SquareGrid",
+    "railings/Modern/SquareFrame",
+    "railings/Modern/DiagonalCross",
+    "railings/Modern/DiagonalSingle",
+    "railings/Modern/Wave",
+    "railings/Modern/Arch",
+    "railings/Modern/Diamond",
+    "railings/Modern/SolidParapet",
+    "railings/Modern/WoodFence",
+    "railings/Modern/BridgeHeavy",
+    "railings/Modern/RiversideBars",
+    "railings/Modern/LakeLow",
+    "railings/Modern/Corner90",
+    "railings/Modern/ArcR2A45",
+    "railings/Modern/ArcR4A30",
+    "railings/Modern/StairSlope",
+    "railings/Modern/StairHandrail",
+    "railings/Modern/WallHandrail",
+    "railings/Modern/EndPost",
+    "railings/Modern/TransitionPost",
+    "railings/Brick/StraightVertical",
+    "railings/Brick/StraightHorizontal",
+    "railings/Brick/SquareGrid",
+    "railings/Brick/SquareFrame",
+    "railings/Brick/DiagonalCross",
+    "railings/Brick/DiagonalSingle",
+    "railings/Brick/Wave",
+    "railings/Brick/Arch",
+    "railings/Brick/Diamond",
+    "railings/Brick/SolidParapet",
+    "railings/Brick/WoodFence",
+    "railings/Brick/BridgeHeavy",
+    "railings/Brick/RiversideBars",
+    "railings/Brick/LakeLow",
+    "railings/Brick/Corner90",
+    "railings/Brick/ArcR2A45",
+    "railings/Brick/ArcR4A30",
+    "railings/Brick/StairSlope",
+    "railings/Brick/StairHandrail",
+    "railings/Brick/WallHandrail",
+    "railings/Brick/EndPost",
+    "railings/Brick/TransitionPost"
+  ]
+}

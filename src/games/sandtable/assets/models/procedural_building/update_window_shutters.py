@@ -2,27 +2,27 @@
 from pathlib import Path
 import json,sys,math
 import bpy
-BASE=Path(__file__).resolve().parent;ROOT=BASE/'clay';sys.path.insert(0,str(BASE))
-from clay_frame_geometry import rounded_loop
-import clay_window_shutters as shutters
+BASE=Path(__file__).resolve().parent;ROOT=BASE/'retro';sys.path.insert(0,str(BASE))
+from retro_frame_geometry import rounded_loop
+import retro_window_shutters as shutters
 shutters.rounded_loop=rounded_loop
 from export_modules import materialize,bounds
-REV='unified-kit-v3-clay-v7-fitted-shutters'
+REV='unified-kit-v3-retro-v7-fitted-shutters'
 scene=bpy.data.scenes['PBK_Modular_Buildings'];bpy.context.window.scene=scene
 for ob in list(bpy.data.objects):
     if ob.get('shutter_leaf') or ob.get('shutter_rig') or ob.get('shutter_hardware'):
         bpy.data.objects.remove(ob,do_unlink=True)
 shutters.ensure_window_shutters()
 text=bpy.data.texts['PBK_Generator.py'];generator=text.as_string().split('\n# Working shutter revision')[0]
-generator=generator.replace('unified-kit-v3-clay-v4-plain-walls',REV)
-generator=generator.replace('unified-kit-v3-clay-v5-shutters',REV)
-generator=generator.replace('unified-kit-v3-clay-v6-louvers',REV)
+generator=generator.replace('unified-kit-v3-retro-v4-plain-walls',REV)
+generator=generator.replace('unified-kit-v3-retro-v5-shutters',REV)
+generator=generator.replace('unified-kit-v3-retro-v6-louvers',REV)
 # Decorative slabs are replaced by complete hinge-controlled shutter assemblies.
 if "        if style == 'Indochine' and role == 'Window':" in generator:
     start=generator.index("        if style == 'Indochine' and role == 'Window':")
     end=generator.index("    elif role == 'Floor':",start)
     generator=generator[:start]+generator[end:]
-generator+='\n# Working shutter revision\n'+(BASE/'clay_window_shutters.py').read_text(encoding='utf8')
+generator+='\n# Working shutter revision\n'+(BASE/'retro_window_shutters.py').read_text(encoding='utf8')
 generator+='''
 _shutter_load_library = load_library
 def load_library():

@@ -1,0 +1,137 @@
+{
+  "passed": true,
+  "assets_checked": 25,
+  "revision": "vietnam-street-retro-v4",
+  "results": [
+    {
+      "id": "street/StoneBench",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/StoneBenchBack",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PublicBench",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PublicBenchBack",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PlasticChairHigh",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PlasticChairLow",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PlasticStoolHigh",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PlasticStoolLow",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/PlasticTableLow",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/FireHydrant",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/StreetLampSingle",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/StreetLampDouble",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/UtilityPole",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/TrashBinRound",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/TrashBinWheelie",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/StreetUmbrella",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/HuTieuCart",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/BanhMiCart",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/MiQuangCounter",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/TeaShoulderPole",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/TeaServiceSet",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/HuTieuSpace",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/BanhMiSpace",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/MiQuangSpace",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    },
+    {
+      "id": "street/SidewalkTeaSpace",
+      "passed": true,
+      "roundtrip_bounds_error_m": 0.0
+    }
+  ],
+  "errors": [],
+  "runtime_pending": [
+    "game importer/rendering",
+    "collision/navmesh"
+  ]
+}

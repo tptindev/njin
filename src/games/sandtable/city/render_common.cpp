@@ -240,7 +240,9 @@ void view_build(context &ctx, const city_map &map) {
   debug_build(ctx, map);
 }
 
-void view_draw(context &ctx, const city_map &map, const view_options &opt) {
+void view_draw(context &ctx, const city_map &map, const view_options &requested) {
+  view_options opt = requested;
+  if (!opt.eye_position_valid) { opt.eye_position = table_camera().position; opt.eye_position_valid = true; }
   view_cull_update(ctx, map, opt);
   pbk_update(ctx, delta(ctx));
   ground_draw(ctx, map, opt);
@@ -253,12 +255,20 @@ void view_draw(context &ctx, const city_map &map, const view_options &opt) {
 }
 
 void view_draw_eye(context &ctx, const city_map &map, const view_options &opt, vec2 at, f32 reach) {
+  view_options eye = opt;
+  eye.camera = camera_mode::live;
+  if (!eye.eye_position_valid) {
+    eye.eye_position = to3d(at, 1.6f * units_per_metre * unit3d);
+    eye.eye_position_valid = true;
+  }
+  eye.cut.clear();
+  eye.selected = -1;
   const view_cull was = view_cull_around(at, reach);
   ground_draw(ctx, map, opt);
-  kit_draw(ctx, opt);
-  pbk_draw(ctx, opt);
-  props_draw(ctx, opt);
-  cutaway_draw(ctx, map, opt);
+  kit_draw(ctx, eye);
+  pbk_draw(ctx, eye);
+  props_draw(ctx, eye);
+  cutaway_draw(ctx, map, eye);
   view_cull_restore(was);
 }
 

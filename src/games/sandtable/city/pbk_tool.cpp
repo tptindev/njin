@@ -72,10 +72,10 @@ void check_manifest() {
       fail("a primitive without normals, or the UVs and tangents its textures need", mi.id);
     if (g.embedded_images != g.images)
       fail("a texture outside the GLB", mi.id);
-    totals[0] += g.glass > 0 ? 1 : 0;
+    totals[0] += g.glazing_materials.empty() ? 0 : 1;
     totals[1] += g.textured.empty() ? 0 : 1;
     // Wooden shutters close the window: no pane of glass behind them.
-    if (mi.shutters && g.glass > 0)
+    if (mi.shutters && !g.glazing_materials.empty())
       fail("a window with wooden shutters has glass", mi.id);
     if (!mi.animated)
       continue;

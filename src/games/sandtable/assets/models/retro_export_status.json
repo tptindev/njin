@@ -1,0 +1,30 @@
+{
+    "passed":  true,
+    "selection":  "All",
+    "packs":  [
+                  {
+                      "pack":  "Building",
+                      "revision":  "unified-kit-v3-retro-v17-window-cross",
+                      "models":  105,
+                      "bytes":  9442400,
+                      "validated":  true
+                  },
+                  {
+                      "pack":  "Street",
+                      "revision":  "vietnam-street-retro-v4",
+                      "models":  25,
+                      "bytes":  2681184,
+                      "validated":  true
+                  },
+                  {
+                      "pack":  "Railings",
+                      "revision":  "retro-railings-v1",
+                      "models":  66,
+                      "bytes":  1119760,
+                      "validated":  true
+                  }
+              ],
+    "total_models":  196,
+    "total_bytes":  13243344,
+    "logs":  "C:\\Users\\tptin\\AppData\\Local\\Temp\\sandtable-retro-export-810ca08c9f074263a59e303187fc3b6c"
+}

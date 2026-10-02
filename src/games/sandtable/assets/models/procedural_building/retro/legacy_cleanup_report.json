@@ -1,0 +1,168 @@
+{
+  "archived": [
+    {
+      "path": "modules",
+      "files": 105,
+      "bytes": 2881804.0
+    },
+    {
+      "path": "rules",
+      "files": 14,
+      "bytes": 227837.0
+    },
+    {
+      "path": "__pycache__",
+      "files": 3,
+      "bytes": 41592.0
+    },
+    {
+      "path": "modular_building_kit.blend",
+      "files": 1,
+      "bytes": 12924491.0
+    },
+    {
+      "path": "export_manifest.json",
+      "files": 1,
+      "bytes": 317343.0
+    },
+    {
+      "path": "export_validation.json",
+      "files": 1,
+      "bytes": 19912.0
+    },
+    {
+      "path": "kit_manifest.json",
+      "files": 1,
+      "bytes": 278637.0
+    },
+    {
+      "path": "awning_validation.json",
+      "files": 1,
+      "bytes": 11039.0
+    },
+    {
+      "path": "catalog_validation.json",
+      "files": 1,
+      "bytes": 1069.0
+    },
+    {
+      "path": "door_validation.json",
+      "files": 1,
+      "bytes": 151.0
+    },
+    {
+      "path": "roof_validation.json",
+      "files": 1,
+      "bytes": 17234.0
+    },
+    {
+      "path": "rounded_validation.json",
+      "files": 1,
+      "bytes": 391.0
+    },
+    {
+      "path": "validation.json",
+      "files": 1,
+      "bytes": 9499.0
+    },
+    {
+      "path": "build_retro_kit.py",
+      "files": 1,
+      "bytes": 16949.0
+    },
+    {
+      "path": "fix_retro_frames.py",
+      "files": 1,
+      "bytes": 5728.0
+    },
+    {
+      "path": "repair_retro_shells.py",
+      "files": 1,
+      "bytes": 4909.0
+    },
+    {
+      "path": "generate.py",
+      "files": 1,
+      "bytes": 59231.0
+    },
+    {
+      "path": "repair_v2.py",
+      "files": 1,
+      "bytes": 3328.0
+    },
+    {
+      "path": "render_awning_review.py",
+      "files": 1,
+      "bytes": 791.0
+    },
+    {
+      "path": "render_catalog.py",
+      "files": 1,
+      "bytes": 783.0
+    },
+    {
+      "path": "render_corner_review.py",
+      "files": 1,
+      "bytes": 851.0
+    },
+    {
+      "path": "render_doors.py",
+      "files": 1,
+      "bytes": 839.0
+    },
+    {
+      "path": "render_review.py",
+      "files": 1,
+      "bytes": 661.0
+    },
+    {
+      "path": "render_roof_review.py",
+      "files": 1,
+      "bytes": 655.0
+    },
+    {
+      "path": "render_rounded.py",
+      "files": 1,
+      "bytes": 668.0
+    },
+    {
+      "path": "render_three_fronts.py",
+      "files": 1,
+      "bytes": 952.0
+    },
+    {
+      "path": "validate_awning.py",
+      "files": 1,
+      "bytes": 3072.0
+    },
+    {
+      "path": "validate_catalog.py",
+      "files": 1,
+      "bytes": 4370.0
+    },
+    {
+      "path": "validate_doors.py",
+      "files": 1,
+      "bytes": 2428.0
+    },
+    {
+      "path": "validate_roof.py",
+      "files": 1,
+      "bytes": 2631.0
+    },
+    {
+      "path": "validate_rounded.py",
+      "files": 1,
+      "bytes": 2800.0
+    },
+    {
+      "path": "validate.py",
+      "files": 1,
+      "bytes": 9663.0
+    }
+  ],
+  "files": 151.0,
+  "bytes": 16852308.0,
+  "archive": ".legacy-kit-archive/procedural_building",
+  "reason": "Retained recovery copy outside active assets after retro migration."
+}

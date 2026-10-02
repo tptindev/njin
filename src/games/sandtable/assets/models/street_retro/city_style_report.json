@@ -1,0 +1,145 @@
+{
+  "profile": "city-low-poly-v2",
+  "materials_updated": 21,
+  "meshes": [],
+  "triangles_before": 0,
+  "triangles_after": 0,
+  "retro": {
+    "profile": "city-retro-v2-tight-joints",
+    "surface_collections": 0,
+    "frames_rebuilt": 0
+  },
+  "assets": [
+    {
+      "id": "street/StoneBench",
+      "before": 276,
+      "after": 36
+    },
+    {
+      "id": "street/StoneBenchBack",
+      "before": 552,
+      "after": 72
+    },
+    {
+      "id": "street/PublicBench",
+      "before": 1012,
+      "after": 132
+    },
+    {
+      "id": "street/PublicBenchBack",
+      "before": 1664,
+      "after": 304
+    },
+    {
+      "id": "street/PlasticChairHigh",
+      "before": 1012,
+      "after": 132
+    },
+    {
+      "id": "street/PlasticChairLow",
+      "before": 1012,
+      "after": 132
+    },
+    {
+      "id": "street/PlasticStoolHigh",
+      "before": 644,
+      "after": 84
+    },
+    {
+      "id": "street/PlasticStoolLow",
+      "before": 644,
+      "after": 84
+    },
+    {
+      "id": "street/PlasticTableLow",
+      "before": 460,
+      "after": 60
+    },
+    {
+      "id": "street/FireHydrant",
+      "before": 3764,
+      "after": 404
+    },
+    {
+      "id": "street/StreetLampSingle",
+      "before": 852,
+      "after": 140
+    },
+    {
+      "id": "street/StreetLampDouble",
+      "before": 1132,
+      "after": 220
+    },
+    {
+      "id": "street/UtilityPole",
+      "before": 8836,
+      "after": 860
+    },
+    {
+      "id": "street/TrashBinRound",
+      "before": 2984,
+      "after": 248
+    },
+    {
+      "id": "street/TrashBinWheelie",
+      "before": 1644,
+      "after": 156
+    },
+    {
+      "id": "street/StreetUmbrella",
+      "before": 2800,
+      "after": 384
+    },
+    {
+      "id": "street/HuTieuCart",
+      "before": 14996,
+      "after": 2264
+    },
+    {
+      "id": "street/BanhMiCart",
+      "before": 8652,
+      "after": 1092
+    },
+    {
+      "id": "street/MiQuangCounter",
+      "before": 15980,
+      "after": 2840
+    },
+    {
+      "id": "street/TeaShoulderPole",
+      "before": 5580,
+      "after": 684
+    },
+    {
+      "id": "street/TeaServiceSet",
+      "before": 6020,
+      "after": 732
+    },
+    {
+      "id": "street/HuTieuSpace",
+      "before": 24904,
+      "after": 4736
+    },
+    {
+      "id": "street/BanhMiSpace",
+      "before": 14144,
+      "after": 2124
+    },
+    {
+      "id": "street/MiQuangSpace",
+      "before": 27040,
+      "after": 5504
+    },
+    {
+      "id": "street/SidewalkTeaSpace",
+      "before": 15504,
+      "after": 2196
+    }
+  ],
+  "revision": "vietnam-street-retro-v4",
+  "export_run": false,
+  "catalog_asset_count": 25,
+  "catalog_triangles_before": 162108,
+  "catalog_triangles_after": 25620,
+  "catalog_reduction_percent": 84.2
+}

@@ -4,16 +4,16 @@
 
 namespace sandtable {
 namespace {
-bool clay_capture = false;
-int clay_frame = 0;
-f32 clay_time = 0;
+bool retro_capture = false;
+int retro_frame = 0;
+f32 retro_time = 0;
 void kungfu_render(njin::context &ctx) {
   using namespace njin;
   using namespace sandtable;
-  ++clay_frame;
-  clay_time += delta(ctx);
+  ++retro_frame;
+  retro_time += delta(ctx);
   const f32 clock =
-      clay_capture ? static_cast<f32>(clay_frame - 1) / 24.0f : clay_time;
+      retro_capture ? static_cast<f32>(retro_frame - 1) / 24.0f : retro_time;
   const f32 t = std::fmod(clock, 2.0f);
   begin_3d(ctx, {.position = {.15f, 1.20f, 1.52f},
                  .target = {0, .14f, -.39f},
@@ -44,11 +44,11 @@ void kungfu_render(njin::context &ctx) {
                       .tint = colors[i]});
   }
   end_3d(ctx);
-  if (clay_capture) {
+  if (retro_capture) {
     char name[64];
-    std::snprintf(name, sizeof(name), "boxing_%02d.png", clay_frame - 1);
+    std::snprintf(name, sizeof(name), "boxing_%02d.png", retro_frame - 1);
     screenshot(ctx, name);
-    if (clay_frame == 48)
+    if (retro_frame == 48)
       quit(ctx);
   }
 }
@@ -60,9 +60,9 @@ void setup(context &ctx) {
 }
 } // namespace
 mod_desc kungfu_module(bool capture) {
-  clay_capture = capture;
-  clay_frame = 0;
-  clay_time = 0;
+  retro_capture = capture;
+  retro_frame = 0;
+  retro_time = 0;
   return {.name = "kungfu_preview", .setup = setup};
 }
 } // namespace sandtable

@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-// The street furniture kit (assets/models/street_clay): lamps, poles,
-// benches, plastic stools and chairs, the street-food carts, as clay GLBs in
+// The street furniture kit (assets/models/street_retro): lamps, poles,
+// benches, plastic stools and chairs, the street-food carts, as retro GLBs in
 // metres, +Y up, the front +Z. The town's props of those kinds are drawn
 // from it at their real size, and their footprints (what people on foot walk
 // round, what the physics stops them at) come from its manifest. Data only,
@@ -14,7 +14,7 @@
 
 namespace sandtable::city::street {
 
-inline constexpr const char *kit_dir = "assets/models/street_clay";
+inline constexpr const char *kit_dir = "assets/models/street_retro";
 
 struct asset {
   std::string id, path;

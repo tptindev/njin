@@ -8,6 +8,7 @@
 #include "view.h"
 #include "weather.h"
 #include "world.h"
+#include "city/pbk_render.h"
 
 #include <algorithm>
 #include <cmath>
@@ -36,6 +37,7 @@ struct batch {
 };
 
 batch frame{}; // the wooden frame round the sand
+i32 room_camera_capture = -1;
 void push(batch &b, vec3 pos, vec3 scale, rgba col, vec3 rot = {}) {
   b.data.insert(b.data.end(), {pos.x, pos.y, pos.z, 1.0f, col.r, col.g, col.b, col.a, rot.x, rot.y, rot.z, 0.0f,
                                scale.x, scale.y, scale.z, 0.0f});
@@ -210,6 +212,7 @@ void show_pose_row(bool on, vec2 at) {
   pose_row = on;
   pose_row_at = at;
 }
+void capture_room_camera(i32 house) { room_camera_capture = house; }
 
 void render_init(context &ctx) {
   ui_font = font_load(ctx, "assets/fonts/BeVietnamPro-Bold.ttf", 32);
@@ -266,6 +269,37 @@ void render_world(context &ctx) {
   end_3d(ctx);
   // The men's own cameras, each into its render texture (feeds.h).
   feeds_render(ctx);
+  if (room_camera_capture >= 0) {
+    const i32 id = room_camera_capture;
+    room_camera_capture = -1;
+    city::pbk::building3d *b = city::pbk_building(id);
+    if (b) for (const city::pbk::module_place &m : b->as.modules) {
+      const auto *mi = city::pbk::load_manifest().find(m.id);
+      if (!mi || mi->family != "Window" || mi->radius != 0 || m.shutter >= 0 || m.floor != 0) continue;
+      const vec3 target = b->at.to_render(city::pbk::module_to_plan({1, 1.55f, -1}, m.pos, m.yaw));
+      const auto texture = render_texture_load(ctx, 640, 360);
+      const light3d original = light3d_get(ctx);
+      light3d flat = original; flat.shadows = false;
+      light3d_set(ctx, flat);
+      bool saved = true;
+      for (const f32 distance : {2.8f, 11.0f}) {
+      const vec3 pos = b->at.to_render(city::pbk::module_to_plan({1, 1.55f, distance}, m.pos, m.yaw));
+      city::view_options eye = world_view();
+      eye.eye_position = pos; eye.eye_position_valid = true;
+      begin_3d(ctx, {.position = pos, .target = target, .fovy = 62,
+                     .near_plane = 0.02f, .far_plane = 20, .entities = false}, texture, {0.04f, 0.05f, 0.09f, 1});
+      city::view_draw_eye(ctx, world(), eye, {pos.x / unit3d, pos.z / unit3d}, 140);
+      end_3d(ctx);
+      saved = render_texture_save(ctx, texture, distance < 8 ? "sandtable_pbk_city_interior_live.png" :
+                                  "sandtable_pbk_city_glass_far.png") && saved;
+      }
+      render_texture_unload(ctx, texture);
+      light3d_set(ctx, original);
+      city::pbk::window_lighting(ctx, world_view().night, true);
+      NJIN_INFO("[pbk-city] live interior screenshot: %s", saved ? "PASS" : "FAIL");
+      break;
+    }
+  }
 }
 
 void render_ui(context &ctx) {
