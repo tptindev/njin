@@ -41,9 +41,13 @@ void check_manifest() {
   }
   std::printf("  %d modules, kit %s, render scale %.4f\n", static_cast<i32>(m.modules.size()), m.kit_revision.c_str(),
               m.render_scale);
+  std::printf("  visual %s; source %s; export %s\n", m.visual_variant.c_str(),
+              m.source_revision.c_str(), m.export_pending ? "pending (using existing GLBs)" : "current");
   if (std::fabs(m.render_scale - units_per_metre / 32.0f) > 1e-5f)
     fail("engine_render_scale is not units_per_metre * unit3d");
   const rules &R = load_rules();
+  if (R.kit_revision != m.kit_revision)
+    fail("runtime rules revision does not match available GLBs");
   i32 doors = 0;
   i32 totals[2] = {0, 0};
   for (const module_info &mi : m.modules) {

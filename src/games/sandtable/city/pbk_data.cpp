@@ -254,6 +254,14 @@ const rules &load_rules() {
   }
   r.version = j["version"].int_or(0);
   r.kit_revision = j["kit_revision"].string_or("");
+  // Plans identify the geometry actually available to the runtime. Authoring
+  // rules may already describe the next source edit, before its manual export.
+  const manifest &exported = load_manifest();
+  if (exported.loaded && r.kit_revision != exported.kit_revision) {
+    NJIN_WARN("pbk: rules target %s; generated plans use available GLBs %s",
+              r.kit_revision.c_str(), exported.kit_revision.c_str());
+    r.kit_revision = exported.kit_revision;
+  }
   const json_value &smp = j["sampling"];
   r.retry_count = smp["retry_count"].int_or(32);
   const json_value &st = smp["streams"];
@@ -590,6 +598,18 @@ const manifest &load_manifest() {
       return;
     }
     m.kit_revision = j["kit_revision"].string_or("");
+    m.visual_variant = j["visual_variant"].string_or("");
+    m.source_revision = m.kit_revision;
+    json_value status;
+    if (json_load(path_in_kit("source_status.json").c_str(), status)) {
+      m.source_revision = status["kit_revision"].string_or(m.kit_revision.c_str());
+      m.export_pending = status["export_required"].bool_or(false) || m.source_revision != m.kit_revision;
+    }
+    NJIN_INFO("pbk: loading %s, visual %s, from %s", m.kit_revision.c_str(),
+              m.visual_variant.c_str(), kit_dir);
+    if (m.export_pending)
+      NJIN_WARN("pbk: source %s awaits manual export; rendering existing GLBs %s",
+                m.source_revision.c_str(), m.kit_revision.c_str());
     m.render_scale = j["engine_render_scale"].f32_or(0.1875f);
     for (usize i = 0; i < j["modules"].size(); ++i) {
       const json_value &e = j["modules"][i];

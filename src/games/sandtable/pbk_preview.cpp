@@ -401,6 +401,8 @@ void script(context &ctx) {
   switch (pv.step) {
   case 0: // Milestone 1: the Wall and the rigged door, shut.
     if (t > 0.6f) {
+      expect(load_rules().kit_revision == load_manifest().kit_revision,
+             "runtime plans reference the exported geometry revision");
       const model_handle w = module_model(ctx, "Indochine/Wall"), d = module_model(ctx, "Indochine/DoorRigged");
       expect(w.id != 0 && d.id != 0, "Indochine/Wall and Indochine/DoorRigged load through model_load");
       // raylib puts a default material first, then the file's own.

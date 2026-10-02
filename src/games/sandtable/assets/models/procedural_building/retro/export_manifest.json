@@ -1,9 +1,9 @@
 {
   "schema": "sandtable.module-exports.v1",
-  "kit_revision": "unified-kit-v3-retro-v17-window-cross",
+  "kit_revision": "unified-kit-v3-retro-v18-low-poly-balcony",
   "visual_variant": "low_poly_retro",
   "source": "modular_building_kit.blend",
-  "source_sha256": "47755d0e0609f4ef34f56d310e897e59b98e6f0093e17d2f22bc04e61d414801",
+  "source_sha256": "4013b3fa1f3bc225790cd4884613671ccfa7b82f393cf4c1781a7021a32f4c7e",
   "format": "glTF 2.0 binary",
   "units": "metre",
   "axes": {
@@ -23,7 +23,7 @@
     {
       "id": "Brick/ArcBand_R2_A45",
       "collection": "PBK_Brick_ArcBand_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -88,8 +88,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcBand_R2_A45.glb",
-      "bytes": 9992,
-      "sha256": "0e99fa886e72ba82f8ecd27495cb9b19a89abd54b2bea6dfe1f42bb25c1b21db",
+      "bytes": 9996,
+      "sha256": "45d132b2d9f4da46abdad658a8b9d3622d55ba2dcf771ae10b7eefd731f9771c",
       "pivot_gltf_m": [
         0,
         0,
@@ -160,7 +160,7 @@
     {
       "id": "Brick/ArcBand_R4_A30",
       "collection": "PBK_Brick_ArcBand_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -225,8 +225,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcBand_R4_A30.glb",
-      "bytes": 7304,
-      "sha256": "3903ba39c4d6d77447a55eb11741e82e67042c2a43566347f7c48a89dba9333f",
+      "bytes": 7308,
+      "sha256": "d98dffbe6ff8c69386b8422cad8ff095d67e551847f55731224d196500c1bcb6",
       "pivot_gltf_m": [
         0,
         0,
@@ -297,7 +297,7 @@
     {
       "id": "Brick/ArcCoping_R2_A45",
       "collection": "PBK_Brick_ArcCoping_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -362,8 +362,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcCoping_R2_A45.glb",
-      "bytes": 10012,
-      "sha256": "0c5fdda39f38903e423adf886bfec6ea7bd9844ecabdac7035ad9a7275f97d15",
+      "bytes": 10016,
+      "sha256": "086a57e87d6d534a5a1736fd993a754fdce578147ed685150c1efe592e9b7337",
       "pivot_gltf_m": [
         0,
         0,
@@ -434,7 +434,7 @@
     {
       "id": "Brick/ArcCoping_R4_A30",
       "collection": "PBK_Brick_ArcCoping_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -499,8 +499,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcCoping_R4_A30.glb",
-      "bytes": 7328,
-      "sha256": "5c99ff002327c37efebf8126a5d4a6bb5cd49ef977766ecce77cfde3cecc92d7",
+      "bytes": 7332,
+      "sha256": "82dc0b16aae02c57a6ac595756d0dd6bf1e959889561e9e0d1278da25ec6496b",
       "pivot_gltf_m": [
         0,
         0,
@@ -571,7 +571,7 @@
     {
       "id": "Brick/ArcDoor_R2_A45",
       "collection": "PBK_Brick_ArcDoor_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -637,8 +637,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcDoor_R2_A45.glb",
-      "bytes": 343072,
-      "sha256": "b957b92ff5a3d1d1ddf243926c30bb3f52e3989a775bb9fd31a1fbf6690e98cf",
+      "bytes": 343076,
+      "sha256": "d7a44aeb3c46870c612ff5cd61bbbb6ba820ae81d9e891db2a05b5d300397c2c",
       "pivot_gltf_m": [
         0,
         0,
@@ -800,7 +800,7 @@
     {
       "id": "Brick/ArcDoor_R4_A30",
       "collection": "PBK_Brick_ArcDoor_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -866,8 +866,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcDoor_R4_A30.glb",
-      "bytes": 340416,
-      "sha256": "0367a7cfc0451478b1d588dc9a1e716e7567f56c451316cb3eb3fb0effbe0403",
+      "bytes": 340420,
+      "sha256": "4cfab42792be2e1ff194c19ad8eb891fa8227f52de36eda51ed653be6ba8c2b9",
       "pivot_gltf_m": [
         0,
         0,
@@ -1029,7 +1029,7 @@
     {
       "id": "Brick/ArcFloor_R2_A45",
       "collection": "PBK_Brick_ArcFloor_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1104,8 +1104,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcFloor_R2_A45.glb",
-      "bytes": 8704,
-      "sha256": "c2a7156bc726295213f85487a94f791c4fc45a9ba499c2aa32795e99f097c0dc",
+      "bytes": 8708,
+      "sha256": "48c2bb1f8a024bcdeb51f72ef74c9580e1a5f6620756ad4dbc37010fe808881a",
       "pivot_gltf_m": [
         0,
         0,
@@ -1186,7 +1186,7 @@
     {
       "id": "Brick/ArcFloor_R4_A30",
       "collection": "PBK_Brick_ArcFloor_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1261,8 +1261,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcFloor_R4_A30.glb",
-      "bytes": 6776,
-      "sha256": "35259fb1cd02ab639346997229fbacc9694d4d53c0386f9851d203787c1db3c3",
+      "bytes": 6780,
+      "sha256": "682636dcd6323333a3955cb8f45a5ba3b59551960daa09c5de351a9f87e97e4a",
       "pivot_gltf_m": [
         0,
         0,
@@ -1343,7 +1343,7 @@
     {
       "id": "Brick/ArcParapet_R2_A45",
       "collection": "PBK_Brick_ArcParapet_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1408,8 +1408,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcParapet_R2_A45.glb",
-      "bytes": 9964,
-      "sha256": "8903654caf371268dd5ab643d5676388abfd26084dc3d7015874a3fd1e938aa0",
+      "bytes": 9968,
+      "sha256": "58353b618bca4c06daf9f748dc3cf47cc9384b87f4b4ee5ae7c086c7312370a9",
       "pivot_gltf_m": [
         0,
         0,
@@ -1480,7 +1480,7 @@
     {
       "id": "Brick/ArcParapet_R4_A30",
       "collection": "PBK_Brick_ArcParapet_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1545,8 +1545,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ArcParapet_R4_A30.glb",
-      "bytes": 7260,
-      "sha256": "c2af112828791f51f5bd467583feb94922a623029bb818d0f35591da5466074c",
+      "bytes": 7264,
+      "sha256": "04c7a21169047a40406b831a87a8a323d89f97f1a87ef5702dd3777f4e21ac45",
       "pivot_gltf_m": [
         0,
         0,
@@ -1617,7 +1617,7 @@
     {
       "id": "Brick/ArcShopfront_R2_A45",
       "collection": "PBK_Brick_ArcShopfront_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1685,8 +1685,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcShopfront_R2_A45.glb",
-      "bytes": 70148,
-      "sha256": "cbe682215feefd805f42d259e25507ba09eaaf564209bca6e42c041f4bfa8150",
+      "bytes": 70152,
+      "sha256": "d4e08de0c9fcc2882080582dfa11ad0f82817715466a36a2878ad6a0a2838e6b",
       "pivot_gltf_m": [
         0,
         0,
@@ -1757,7 +1757,7 @@
     {
       "id": "Brick/ArcShopfront_R4_A30",
       "collection": "PBK_Brick_ArcShopfront_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1825,8 +1825,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcShopfront_R4_A30.glb",
-      "bytes": 65636,
-      "sha256": "4c0b26e1577123633b06214a4050c472530dbd8f0cfb03c879bc8eab983d1c73",
+      "bytes": 65640,
+      "sha256": "2c7d8b0e8f272cb6c7131863cf97034d9235ec711dfe093ac46fe1be62f24ee2",
       "pivot_gltf_m": [
         0,
         0,
@@ -1897,7 +1897,7 @@
     {
       "id": "Brick/ArcWall_R2_A45",
       "collection": "PBK_Brick_ArcWall_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -1963,8 +1963,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcWall_R2_A45.glb",
-      "bytes": 11932,
-      "sha256": "fb36769957c976e0dc10c73f7b04fd25eafcee4be38d6ab5b9d5c2abba07d185",
+      "bytes": 11936,
+      "sha256": "60be837212be65d1aa69c8ae47d75250ec2361793ff872f36ee4749da13957c0",
       "pivot_gltf_m": [
         0,
         0,
@@ -2035,7 +2035,7 @@
     {
       "id": "Brick/ArcWall_R4_A30",
       "collection": "PBK_Brick_ArcWall_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -2101,8 +2101,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcWall_R4_A30.glb",
-      "bytes": 9224,
-      "sha256": "db6917d1db68e003d1f547e837e7bd1bdcbe2ac710c5df8438563e8b7e445b19",
+      "bytes": 9228,
+      "sha256": "55c4d315f36bcccc62b8817115bd6dc7a2cb185afe1490d4134981593aafae9c",
       "pivot_gltf_m": [
         0,
         0,
@@ -2173,7 +2173,7 @@
     {
       "id": "Brick/ArcWindow_R2_A45",
       "collection": "PBK_Brick_ArcWindow_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -2240,8 +2240,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcWindow_R2_A45.glb",
-      "bytes": 33676,
-      "sha256": "b809677e6d5bf755c540f9a90bf981a0acdee70a2536aff7158640e311af1a37",
+      "bytes": 33680,
+      "sha256": "eb7e167f445e86807d81c20ba0a3bc5f7286f93c25092e3507b81b0cc01286a4",
       "pivot_gltf_m": [
         0,
         0,
@@ -2312,7 +2312,7 @@
     {
       "id": "Brick/ArcWindow_R4_A30",
       "collection": "PBK_Brick_ArcWindow_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -2379,8 +2379,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/ArcWindow_R4_A30.glb",
-      "bytes": 30884,
-      "sha256": "6bbe176755c85843358a9a9e2cd80643e102f33ae45d4b2f30e490c14e5bc616",
+      "bytes": 30888,
+      "sha256": "b223fe9bb85395c16384a3302904b18e60821b5ab27e105f3ec35d058e39bc8f",
       "pivot_gltf_m": [
         0,
         0,
@@ -2451,7 +2451,7 @@
     {
       "id": "Brick/Balcony",
       "collection": "PBK_Brick_Balcony",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -2505,7 +2505,7 @@
       "radius_m": null,
       "angle_degrees": null,
       "meshes": 67,
-      "triangles": 14734,
+      "triangles": 494,
       "animated": false,
       "replacement_module": null,
       "generator_usage": "canonical assembly; facade dressing excludes substrate and floor_band",
@@ -2517,8 +2517,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/Balcony.glb",
-      "bytes": 1314680,
-      "sha256": "91b5986fa1bdff5aa35ee22ab9242b12a3bf1abba1b3874146903999be0ac330",
+      "bytes": 58324,
+      "sha256": "f9f8e81877cd970c28f05e34fe5f3c387cc6cefe8bda9ca614e292683681a5e7",
       "pivot_gltf_m": [
         0,
         0,
@@ -2589,7 +2589,7 @@
     {
       "id": "Brick/Column",
       "collection": "PBK_Brick_Column",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -2644,8 +2644,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Column.glb",
-      "bytes": 2256,
-      "sha256": "7027e3832c675f457eec93fb1148ccc2f4c59b842f873d34b2e3cc51c7c25899",
+      "bytes": 2260,
+      "sha256": "240ff41aabfee29c0697a9dbf9bd4040f9f0243f365db86142240f6aa314c0a1",
       "pivot_gltf_m": [
         0,
         0,
@@ -2706,7 +2706,7 @@
     {
       "id": "Brick/Coping",
       "collection": "PBK_Brick_Coping",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -2771,8 +2771,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Coping.glb",
-      "bytes": 2240,
-      "sha256": "69a9682e0a6778beec191b0abee040723e9da2c99ba3a3a62383834b6b6b5ede",
+      "bytes": 2244,
+      "sha256": "e1bf8202316c8ed2b433ce05b40d3ed2feef09d22428966747431d3af2fe247a",
       "pivot_gltf_m": [
         0,
         0,
@@ -2843,7 +2843,7 @@
     {
       "id": "Brick/CornerShopfront90",
       "collection": "PBK_Brick_CornerShopfront90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -2906,8 +2906,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/CornerShopfront90.glb",
-      "bytes": 102228,
-      "sha256": "3eaed1c5a6f77a4044b1c6babd57d3fdbd349126bd7f7d295a83d76a4337630e",
+      "bytes": 102232,
+      "sha256": "fbd5652ca083691cd5bd0b11f395e7a4f8e54a91833c93e5b6bb70cf9f527c7a",
       "pivot_gltf_m": [
         0,
         0,
@@ -2973,7 +2973,7 @@
     {
       "id": "Brick/CornerWindow90",
       "collection": "PBK_Brick_CornerWindow90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -3035,8 +3035,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/CornerWindow90.glb",
-      "bytes": 84144,
-      "sha256": "03a7790edc42c4da74d0ec2b5721ef7db992a60f3c4e74f8c540e04149040226",
+      "bytes": 84148,
+      "sha256": "125168edcf86d42889def571c99841655a62c5cd3b659c7d701582429b144a60",
       "pivot_gltf_m": [
         0,
         0,
@@ -3102,7 +3102,7 @@
     {
       "id": "Brick/DoorRigged",
       "collection": "PBK_Brick_DoorRigged",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -3173,8 +3173,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/DoorRigged.glb",
-      "bytes": 334220,
-      "sha256": "9a458c038bf13447130a89c6acedd7fc63f1bc05e80d8ff0143a96faaa0e0050",
+      "bytes": 334224,
+      "sha256": "036255531cac24675fc0704ac42999fc882426bd848026d83798095ceea91b23",
       "pivot_gltf_m": [
         0,
         0,
@@ -3341,7 +3341,7 @@
     {
       "id": "Brick/Floor",
       "collection": "PBK_Brick_Floor",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -3411,8 +3411,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Floor.glb",
-      "bytes": 2568,
-      "sha256": "5aa4229cd14c3fbdaff6e02bece72ac96c8e2f0ce5e4c76d0ac51f066e0828ea",
+      "bytes": 2572,
+      "sha256": "1960b2ce076e7fc5313ecea3b51132ea7a138e5972df8a652f4e2aa837aa8aa0",
       "pivot_gltf_m": [
         0,
         0,
@@ -3488,7 +3488,7 @@
     {
       "id": "Brick/FloorBand",
       "collection": "PBK_Brick_FloorBand",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -3553,8 +3553,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/FloorBand.glb",
-      "bytes": 6236,
-      "sha256": "25debd74d8579aed38918306ec3258bc8a6d1a727b4c40e5982122f8c0576cae",
+      "bytes": 6240,
+      "sha256": "4f551829bdd0545c0db7115f6b16f5479b46fe08d725b7a51a5eb8cd1f01a63b",
       "pivot_gltf_m": [
         0,
         0,
@@ -3625,7 +3625,7 @@
     {
       "id": "Brick/Gable",
       "collection": "PBK_Brick_Gable",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -3685,8 +3685,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Gable.glb",
-      "bytes": 1600,
-      "sha256": "ce959bfd9647e322122631e3402c4dd511e76343bb288a329ae25a1894851de9",
+      "bytes": 1604,
+      "sha256": "282b30f13edd7a08803d4b4c71793676933dd6ac2fb159957f00526cb6c761b8",
       "pivot_gltf_m": [
         0,
         0,
@@ -3752,7 +3752,7 @@
     {
       "id": "Brick/InnerCorner",
       "collection": "PBK_Brick_InnerCorner",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -3813,8 +3813,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/InnerCorner.glb",
-      "bytes": 1860,
-      "sha256": "ffe74a66d7c851d449995fd324d8cd2a2cc49ffc5f0deea5f5a71124b9c06794",
+      "bytes": 1864,
+      "sha256": "015621ecb82272d5ca7d125ed1cb4f5efc6b43c2551e67a1fd2e45c8b2e0f852",
       "pivot_gltf_m": [
         0,
         0,
@@ -3880,7 +3880,7 @@
     {
       "id": "Brick/OuterCorner",
       "collection": "PBK_Brick_OuterCorner",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -3941,8 +3941,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/OuterCorner.glb",
-      "bytes": 1860,
-      "sha256": "60d3acd7f22ecea6728d0d2da0dfed7231c83d916f5724d1cf37981283eaea5c",
+      "bytes": 1864,
+      "sha256": "276be026da3926d74c6e566879a38643e6ef5014d0a614f2b29a9ff389e45985",
       "pivot_gltf_m": [
         0,
         0,
@@ -4008,7 +4008,7 @@
     {
       "id": "Brick/Parapet",
       "collection": "PBK_Brick_Parapet",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4068,8 +4068,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Parapet.glb",
-      "bytes": 3832,
-      "sha256": "7dc3f78d9be14fc605db26ab2fb852d4d3eebd2bc238c062b40227631caf7e12",
+      "bytes": 3836,
+      "sha256": "fe8d02da9b5b41e5abc5fd87339fa39124ad4e847c29c86c5cadf7b6e22344c7",
       "pivot_gltf_m": [
         0,
         0,
@@ -4135,7 +4135,7 @@
     {
       "id": "Brick/Ridge",
       "collection": "PBK_Brick_Ridge",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4200,8 +4200,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Ridge.glb",
-      "bytes": 2256,
-      "sha256": "96845f0d602ad2ed17e32710d6819f874119c410ef71a2d0d177b9b6a7b7daed",
+      "bytes": 2260,
+      "sha256": "ee8348d5794ac24779bbf7625d2aaf490b946767b8f1fdb9383f982d1382be64",
       "pivot_gltf_m": [
         0,
         0,
@@ -4272,7 +4272,7 @@
     {
       "id": "Brick/RoofSlope",
       "collection": "PBK_Brick_RoofSlope",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4337,8 +4337,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/RoofSlope.glb",
-      "bytes": 1660,
-      "sha256": "0df7a3fe4832c47a9f2fa2ab31054acb786dfe73d4f3c612559ed049ffa5bca9",
+      "bytes": 1664,
+      "sha256": "0ac131ff4f0e24943721ce7f1e238a221cdf4bfb67e21954176dbeb478a23349",
       "pivot_gltf_m": [
         0,
         0,
@@ -4409,7 +4409,7 @@
     {
       "id": "Brick/ShopCornerPost90",
       "collection": "PBK_Brick_ShopCornerPost90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -4464,8 +4464,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/ShopCornerPost90.glb",
-      "bytes": 69556,
-      "sha256": "b069d474bfeea8435c982324bb837538502a329b54d7c9fc066035e39e2c0a61",
+      "bytes": 69560,
+      "sha256": "020518bfcdf3211d7fbb1c29d3bcf2e96aad416ca163cbe023115f1b93110924",
       "pivot_gltf_m": [
         0,
         0,
@@ -4526,7 +4526,7 @@
     {
       "id": "Brick/Shopfront",
       "collection": "PBK_Brick_Shopfront",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4594,8 +4594,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/Shopfront.glb",
-      "bytes": 30408,
-      "sha256": "c20cdad010ede9cedc7073c311c06a568ebbea592754fe742288fb7de5aebca8",
+      "bytes": 30412,
+      "sha256": "69257bee9c2d04cd0708e6a574393bddfb706dc55c581433c74bb65624aeac8d",
       "pivot_gltf_m": [
         0,
         0,
@@ -4666,7 +4666,7 @@
     {
       "id": "Brick/Stair",
       "collection": "PBK_Brick_Stair",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4721,8 +4721,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Brick/Stair.glb",
-      "bytes": 7004,
-      "sha256": "8245036c04ac276262430939e3fe740928bf40c5208b647acb7684299930553d",
+      "bytes": 7008,
+      "sha256": "b3cc26761cbee029c160055baa3522199da30d1eab66bc072c5de8a85fab2fe7",
       "pivot_gltf_m": [
         0,
         0,
@@ -4783,7 +4783,7 @@
     {
       "id": "Brick/Wall",
       "collection": "PBK_Brick_Wall",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4849,8 +4849,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/Wall.glb",
-      "bytes": 4752,
-      "sha256": "75c4f89df95f26b42e77b72e8933463ad16f7d9776f8aa18da42a182ac64f120",
+      "bytes": 4756,
+      "sha256": "cbf75afc86684f3068246bb2f3f2241efa43dc305bb28a4ab68f0e815de1328c",
       "pivot_gltf_m": [
         0,
         0,
@@ -4921,7 +4921,7 @@
     {
       "id": "Brick/Window",
       "collection": "PBK_Brick_Window",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -4988,8 +4988,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Brick/Window.glb",
-      "bytes": 13336,
-      "sha256": "895b554b6d15c31b38fb9ac073c3e7c18342e18c1c5bcee8f271f8ce2acf37a2",
+      "bytes": 13340,
+      "sha256": "a03a4a5179af0e1ac9e213a6e5f63153bba6a42f71df34bb9d63751852277452",
       "pivot_gltf_m": [
         0,
         0,
@@ -5060,7 +5060,7 @@
     {
       "id": "Indochine/ArcBand_R2_A45",
       "collection": "PBK_Indochine_ArcBand_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -5125,8 +5125,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcBand_R2_A45.glb",
-      "bytes": 10004,
-      "sha256": "76c736e09ca1bc48651a69dd2a2524306268e8ab1fed2d7e83674b608d210981",
+      "bytes": 10008,
+      "sha256": "3563d56a1049dd64d2a4dcba197ca2da5a162d46f8a0412de34ab20694ea2c99",
       "pivot_gltf_m": [
         0,
         0,
@@ -5197,7 +5197,7 @@
     {
       "id": "Indochine/ArcBand_R4_A30",
       "collection": "PBK_Indochine_ArcBand_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -5262,8 +5262,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcBand_R4_A30.glb",
-      "bytes": 7312,
-      "sha256": "aa937fc0a5fc8abe0e04dbb713459f9d06efd3a83a0a3c342dd0c88f6f41a705",
+      "bytes": 7316,
+      "sha256": "aeae21e542dd97542911d272eeff0f248a5efe5dee9b0397affaf63cd919172d",
       "pivot_gltf_m": [
         0,
         0,
@@ -5334,7 +5334,7 @@
     {
       "id": "Indochine/ArcCoping_R2_A45",
       "collection": "PBK_Indochine_ArcCoping_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -5399,8 +5399,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcCoping_R2_A45.glb",
-      "bytes": 10024,
-      "sha256": "a5830483f2d0c708547c0d20dec239dce3d7ef174360d55b0902f1def18cab1c",
+      "bytes": 10028,
+      "sha256": "a499890a97356f1d66399628e4935f5d2e0a419c16c937378efb2b5f053f1765",
       "pivot_gltf_m": [
         0,
         0,
@@ -5471,7 +5471,7 @@
     {
       "id": "Indochine/ArcCoping_R4_A30",
       "collection": "PBK_Indochine_ArcCoping_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -5536,8 +5536,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcCoping_R4_A30.glb",
-      "bytes": 7336,
-      "sha256": "64ece3f716326675a90a5d7e851a09c8870822e69b8d7cf12f1688dc210d85db",
+      "bytes": 7340,
+      "sha256": "c29ecbd7c777bbeb68e69718baac7c737a0884fa1fa8af5fd22c4c419dd573f8",
       "pivot_gltf_m": [
         0,
         0,
@@ -5608,7 +5608,7 @@
     {
       "id": "Indochine/ArcDoor_R2_A45",
       "collection": "PBK_Indochine_ArcDoor_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -5674,8 +5674,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcDoor_R2_A45.glb",
-      "bytes": 343124,
-      "sha256": "6cc271b16b6e21237dd0a32dc978f145a10e184c8eea5c2713a988605dc604de",
+      "bytes": 343128,
+      "sha256": "07c0191c27d69b0650b2824ea479afdd1a27cb6f59a596c8c9f4e4f6e6736ba0",
       "pivot_gltf_m": [
         0,
         0,
@@ -5837,7 +5837,7 @@
     {
       "id": "Indochine/ArcDoor_R4_A30",
       "collection": "PBK_Indochine_ArcDoor_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -5903,8 +5903,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcDoor_R4_A30.glb",
-      "bytes": 340464,
-      "sha256": "4dc4281d36eacd380728ca60682321351aa737a9926bdf9fee05ee6d6d1b192e",
+      "bytes": 340468,
+      "sha256": "3c159c3dd6a2764ca83df1122a452cb67ab1faa7b80f6e1e50fdf1f4cf443f68",
       "pivot_gltf_m": [
         0,
         0,
@@ -6066,7 +6066,7 @@
     {
       "id": "Indochine/ArcFloor_R2_A45",
       "collection": "PBK_Indochine_ArcFloor_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -6141,8 +6141,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcFloor_R2_A45.glb",
-      "bytes": 8712,
-      "sha256": "6b6287d1e2091cae4fac4623b60406937f51115f6078789bd7d5744b1aae7a15",
+      "bytes": 8716,
+      "sha256": "ae9a5ca1b1adc1a6010cf0dd5c4e1d9b841818d32ee9ccfbab49f778dbc877e7",
       "pivot_gltf_m": [
         0,
         0,
@@ -6223,7 +6223,7 @@
     {
       "id": "Indochine/ArcFloor_R4_A30",
       "collection": "PBK_Indochine_ArcFloor_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -6298,8 +6298,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcFloor_R4_A30.glb",
-      "bytes": 6784,
-      "sha256": "3c61d26ae58015348f764fd6fbad7620927e8bce23ba5c54b7f6e68cbe02e4bb",
+      "bytes": 6788,
+      "sha256": "ae1098ee8468fb6301c624ab09b26afffb03ab4a025774a9ec19078d83f63553",
       "pivot_gltf_m": [
         0,
         0,
@@ -6380,7 +6380,7 @@
     {
       "id": "Indochine/ArcParapet_R2_A45",
       "collection": "PBK_Indochine_ArcParapet_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -6445,8 +6445,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcParapet_R2_A45.glb",
-      "bytes": 9976,
-      "sha256": "84cef8148bfb617566996f7ababcd6ad46445412fbe33494a542c809de79b84f",
+      "bytes": 9980,
+      "sha256": "20116df13e86d801086c9b8bb0ddc04e9b99acd1b1a3b5807fa2d2188b74c2bb",
       "pivot_gltf_m": [
         0,
         0,
@@ -6517,7 +6517,7 @@
     {
       "id": "Indochine/ArcParapet_R4_A30",
       "collection": "PBK_Indochine_ArcParapet_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -6582,8 +6582,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ArcParapet_R4_A30.glb",
-      "bytes": 7268,
-      "sha256": "d7de6d1921c6e9fd8856b6cae89599515c519a43ba4b473e1830eb7bc830117d",
+      "bytes": 7272,
+      "sha256": "64eccf07768774c15fee62fa7fd88081835a16f9d98827aa9882e6bfbc4557db",
       "pivot_gltf_m": [
         0,
         0,
@@ -6654,7 +6654,7 @@
     {
       "id": "Indochine/ArcShopfront_R2_A45",
       "collection": "PBK_Indochine_ArcShopfront_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -6722,8 +6722,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcShopfront_R2_A45.glb",
-      "bytes": 70192,
-      "sha256": "e5d8869722432c59026081094c62ebf8e7f549512c765c41645e519df0fc555a",
+      "bytes": 70196,
+      "sha256": "0d340d02b436462dc8eea9b2df18a27f8f42ab7e09461fd713387c9205ca8e83",
       "pivot_gltf_m": [
         0,
         0,
@@ -6794,7 +6794,7 @@
     {
       "id": "Indochine/ArcShopfront_R4_A30",
       "collection": "PBK_Indochine_ArcShopfront_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -6862,8 +6862,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcShopfront_R4_A30.glb",
-      "bytes": 65680,
-      "sha256": "691893e454a6b2df419e662fec871d70acca15aa2fa9c1b697c906f9113fe0b1",
+      "bytes": 65684,
+      "sha256": "96a47664e68cf80a11be2917d68893f7e8629c316ee55a7581105930b9609e17",
       "pivot_gltf_m": [
         0,
         0,
@@ -6934,7 +6934,7 @@
     {
       "id": "Indochine/ArcWall_R2_A45",
       "collection": "PBK_Indochine_ArcWall_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -7000,8 +7000,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcWall_R2_A45.glb",
-      "bytes": 11956,
-      "sha256": "23319d4490eb01c36dcd69dd1115b08a70e5b74cdec81b8ce468959473935f03",
+      "bytes": 11960,
+      "sha256": "09f37a8d0dcea3a8ad9868b670395a4b5cb967e130b42e368caae91d3e7ba796",
       "pivot_gltf_m": [
         0,
         0,
@@ -7072,7 +7072,7 @@
     {
       "id": "Indochine/ArcWall_R4_A30",
       "collection": "PBK_Indochine_ArcWall_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -7138,8 +7138,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcWall_R4_A30.glb",
-      "bytes": 9248,
-      "sha256": "6c9f31e05b761bcc5c94e492681fc4575f9da2bf3b02ab2581d66aa4ed256b61",
+      "bytes": 9252,
+      "sha256": "e6c31da08c7c091b1a76595029372912db20751451e795b0bd061c8c048ad4b0",
       "pivot_gltf_m": [
         0,
         0,
@@ -7210,7 +7210,7 @@
     {
       "id": "Indochine/ArcWindow_R2_A45",
       "collection": "PBK_Indochine_ArcWindow_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -7297,8 +7297,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcWindow_R2_A45.glb",
-      "bytes": 207012,
-      "sha256": "5b981c2649e5405b0101c37aa0411159ca68a445c9a96af46ecc3cedf8124e35",
+      "bytes": 207016,
+      "sha256": "d1aac257fb8244ce013648bd2e153ced15f7615be69f797ecb3f186315a4767d",
       "pivot_gltf_m": [
         0,
         0,
@@ -7460,7 +7460,7 @@
     {
       "id": "Indochine/ArcWindow_R4_A30",
       "collection": "PBK_Indochine_ArcWindow_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -7547,8 +7547,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/ArcWindow_R4_A30.glb",
-      "bytes": 165188,
-      "sha256": "5230361c54c436ded10a09811b16c88368de7fecb252ddcb817540df6af206a8",
+      "bytes": 165192,
+      "sha256": "ce882f1c41a3400ea133a52523b47a40eecc4e35cc2d3e3a415c95dfa506b552",
       "pivot_gltf_m": [
         0,
         0,
@@ -7710,7 +7710,7 @@
     {
       "id": "Indochine/Balcony",
       "collection": "PBK_Indochine_Balcony",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -7764,7 +7764,7 @@
       "radius_m": null,
       "angle_degrees": null,
       "meshes": 43,
-      "triangles": 14734,
+      "triangles": 494,
       "animated": false,
       "replacement_module": null,
       "generator_usage": "canonical assembly; facade dressing excludes substrate and floor_band",
@@ -7776,8 +7776,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/Balcony.glb",
-      "bytes": 1314724,
-      "sha256": "25ca273666fe27739c1d0175790fd5c4c28066b8a83c890f33309552f0799ae8",
+      "bytes": 58384,
+      "sha256": "17b759b53f0fb54877659492c6e741a5943f1403fa4e5037ea8ad8d33bb5eeea",
       "pivot_gltf_m": [
         0,
         0,
@@ -7848,7 +7848,7 @@
     {
       "id": "Indochine/Column",
       "collection": "PBK_Indochine_Column",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -7903,8 +7903,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Column.glb",
-      "bytes": 2260,
-      "sha256": "4868ca089a7ecee2a2b96f0d2388b85d01a838056ee42fe8f999db49f4fe42f0",
+      "bytes": 2264,
+      "sha256": "5116d2bb7a198a90b7ad57e8eeb80c14e7f07a12014fbd834a2d1225c879ef01",
       "pivot_gltf_m": [
         0,
         0,
@@ -7965,7 +7965,7 @@
     {
       "id": "Indochine/Coping",
       "collection": "PBK_Indochine_Coping",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -8030,8 +8030,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Coping.glb",
-      "bytes": 2244,
-      "sha256": "128054128c95469f32a4ef00f744ddf3f637d346f5b0f812336254af52421350",
+      "bytes": 2248,
+      "sha256": "4f6970f4d79b66df8e77adfaa086045c8f7a8802db14de36d24a9b1b3a3212e0",
       "pivot_gltf_m": [
         0,
         0,
@@ -8102,7 +8102,7 @@
     {
       "id": "Indochine/CornerShopfront90",
       "collection": "PBK_Indochine_CornerShopfront90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -8165,8 +8165,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/CornerShopfront90.glb",
-      "bytes": 102280,
-      "sha256": "954d4d83b0b7362afd3376361a75ecb937a7dde4963817ddf5920da4850022c6",
+      "bytes": 102284,
+      "sha256": "01f7f3e6909fb873a4701978721d801a6708543832b1e86eb5d5e987279dcab9",
       "pivot_gltf_m": [
         0,
         0,
@@ -8232,7 +8232,7 @@
     {
       "id": "Indochine/CornerWindow90",
       "collection": "PBK_Indochine_CornerWindow90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -8314,8 +8314,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/CornerWindow90.glb",
-      "bytes": 250540,
-      "sha256": "b122ae5a8999af75cd560f8511ef5767c0c4f4b4ed6c8f7061af847eadf8e232",
+      "bytes": 250544,
+      "sha256": "44df822bec4c0d789d1d995effd5b73bb43e315741ab977e31e146bf0837cc3f",
       "pivot_gltf_m": [
         0,
         0,
@@ -8472,7 +8472,7 @@
     {
       "id": "Indochine/DoorRigged",
       "collection": "PBK_Indochine_DoorRigged",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -8543,8 +8543,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/DoorRigged.glb",
-      "bytes": 334268,
-      "sha256": "fb2b01e082435d2a4e8660ff7a78f88ce0c3aa4fed27f68833780285a1bc584a",
+      "bytes": 334272,
+      "sha256": "402bd3dc9a555393aabdf71246228ced86fe855532120127f625500fe3d5b43f",
       "pivot_gltf_m": [
         0,
         0,
@@ -8711,7 +8711,7 @@
     {
       "id": "Indochine/Floor",
       "collection": "PBK_Indochine_Floor",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -8781,8 +8781,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Floor.glb",
-      "bytes": 2576,
-      "sha256": "bc9925d89d91b1aab73e84ce883baf17f43fd19230a95eda4cadd2bc05bfe808",
+      "bytes": 2580,
+      "sha256": "5379a1d6941c97b144a4a7e9c7c4e55c097142a59e9b1a097e552c6de01fb318",
       "pivot_gltf_m": [
         0,
         0,
@@ -8858,7 +8858,7 @@
     {
       "id": "Indochine/FloorBand",
       "collection": "PBK_Indochine_FloorBand",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -8923,8 +8923,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/FloorBand.glb",
-      "bytes": 6244,
-      "sha256": "776b649c04620d0435cdc75d5dafaec84ce0ecd6bf7bad0bbc91af946e809425",
+      "bytes": 6248,
+      "sha256": "416ec9de3d2211af60230d7fda1b5c23787b494f049bd9e8d91af49de21f6ab2",
       "pivot_gltf_m": [
         0,
         0,
@@ -8995,7 +8995,7 @@
     {
       "id": "Indochine/Gable",
       "collection": "PBK_Indochine_Gable",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9055,8 +9055,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Gable.glb",
-      "bytes": 1616,
-      "sha256": "cc1a3ceb55ae4cb8efed9e3cb3f64250038c8c2dc4c3c2ead45f95067de08ef9",
+      "bytes": 1620,
+      "sha256": "93349c17573ef6d6b710315d7e65c8b50aa48bb6d86fbce30a8105705e3c4582",
       "pivot_gltf_m": [
         0,
         0,
@@ -9122,7 +9122,7 @@
     {
       "id": "Indochine/InnerCorner",
       "collection": "PBK_Indochine_InnerCorner",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9183,8 +9183,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/InnerCorner.glb",
-      "bytes": 1876,
-      "sha256": "8617f00f43663eb2d1a885fb3c0846565fecabad464c4129f9cec53300878e2d",
+      "bytes": 1880,
+      "sha256": "d5063e97186c89b5848a811bc3d882ef798b6d52396755798df00ca98891c542",
       "pivot_gltf_m": [
         0,
         0,
@@ -9250,7 +9250,7 @@
     {
       "id": "Indochine/OuterCorner",
       "collection": "PBK_Indochine_OuterCorner",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9311,8 +9311,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/OuterCorner.glb",
-      "bytes": 1876,
-      "sha256": "c39c22dcd1c001a76b3c7f19924aa1accdcda7f1f00414b47586cd5ed2d4564f",
+      "bytes": 1880,
+      "sha256": "cee64b86cdbf750e4f6f7840a9f4d74a88f5e643e0bea5cb97bf9a7d05c736bb",
       "pivot_gltf_m": [
         0,
         0,
@@ -9378,7 +9378,7 @@
     {
       "id": "Indochine/Parapet",
       "collection": "PBK_Indochine_Parapet",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9438,8 +9438,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Parapet.glb",
-      "bytes": 3836,
-      "sha256": "b9da011d9e7904badace7fa818cd6d827ef147a42b33d7b59a4c42e398eb77e3",
+      "bytes": 3840,
+      "sha256": "12912414110f3adbb35051a5ac52008aed3353d843c57bfbf47fbb043246c48a",
       "pivot_gltf_m": [
         0,
         0,
@@ -9505,7 +9505,7 @@
     {
       "id": "Indochine/Ridge",
       "collection": "PBK_Indochine_Ridge",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9570,8 +9570,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Ridge.glb",
-      "bytes": 2260,
-      "sha256": "f808a9a5f09d48aa158ee0ef864412d3162d567bcddc8042286928134bea45f7",
+      "bytes": 2264,
+      "sha256": "0e0ddb86c4c6424d4d68872ded0ed5bb9ccce0b5d16ccb91f02a70a1ab43ac87",
       "pivot_gltf_m": [
         0,
         0,
@@ -9642,7 +9642,7 @@
     {
       "id": "Indochine/RoofSlope",
       "collection": "PBK_Indochine_RoofSlope",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9707,8 +9707,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/RoofSlope.glb",
-      "bytes": 1676,
-      "sha256": "d4c5e1773192c2e13ea81b38f5616f7a4c79912a67f7a20835d1128e96616d33",
+      "bytes": 1680,
+      "sha256": "9790e0ec98fd5dd78c2f3d9db1be49408843236c4061859f04db32df842e4ee4",
       "pivot_gltf_m": [
         0,
         0,
@@ -9779,7 +9779,7 @@
     {
       "id": "Indochine/ShopCornerPost90",
       "collection": "PBK_Indochine_ShopCornerPost90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -9834,8 +9834,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/ShopCornerPost90.glb",
-      "bytes": 69564,
-      "sha256": "de1f1d22076363be493fea223d4652967e31230fcaac129d48e103934291d83d",
+      "bytes": 69568,
+      "sha256": "3d963c88ebd8fbbdff24527e81988f23f1e6930ac7317418ef665e2dddc11e26",
       "pivot_gltf_m": [
         0,
         0,
@@ -9896,7 +9896,7 @@
     {
       "id": "Indochine/Shopfront",
       "collection": "PBK_Indochine_Shopfront",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -9964,8 +9964,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/Shopfront.glb",
-      "bytes": 30456,
-      "sha256": "5d198792e0122c35285393448d6506a415bf1101a372ccf5994cc7524214c00e",
+      "bytes": 30460,
+      "sha256": "b5244ff97c2253474894c90a45550754dfbfb28429c87ec9bc01a4d1c4ab4fbe",
       "pivot_gltf_m": [
         0,
         0,
@@ -10036,7 +10036,7 @@
     {
       "id": "Indochine/Stair",
       "collection": "PBK_Indochine_Stair",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -10091,8 +10091,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Indochine/Stair.glb",
-      "bytes": 7016,
-      "sha256": "6c3b9be94909cf94ee03ec2674dde5915514f5a923a2fcccd3426a469f54bdbc",
+      "bytes": 7020,
+      "sha256": "8da73acd1396caeb30f47febc21bb5a7dea52df8cc51d6705c447a5f8cd83155",
       "pivot_gltf_m": [
         0,
         0,
@@ -10153,7 +10153,7 @@
     {
       "id": "Indochine/Wall",
       "collection": "PBK_Indochine_Wall",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -10219,8 +10219,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/Wall.glb",
-      "bytes": 4768,
-      "sha256": "0ca379b9bdc5fd90f1b1187b5dca2dfc671e49a057f2cfb3b5c0de1ca2523d87",
+      "bytes": 4772,
+      "sha256": "7bc2912010bf4ec1c1f3831c5d24ba37ea15e56830fc43294622fbd61065c432",
       "pivot_gltf_m": [
         0,
         0,
@@ -10291,7 +10291,7 @@
     {
       "id": "Indochine/Window",
       "collection": "PBK_Indochine_Window",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -10378,8 +10378,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Indochine/Window.glb",
-      "bytes": 103768,
-      "sha256": "cb6a215e1d1449f93e9a87cfe60b128cf5b1e66897f6c62f7d2c724ddf8e7b0f",
+      "bytes": 103772,
+      "sha256": "418fbaef1f0407931b7a9e32944224944b9e73bbbad3a2c2813686f82e7085cb",
       "pivot_gltf_m": [
         0,
         0,
@@ -10541,7 +10541,7 @@
     {
       "id": "Modern/ArcBand_R2_A45",
       "collection": "PBK_Modern_ArcBand_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -10606,8 +10606,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcBand_R2_A45.glb",
-      "bytes": 9996,
-      "sha256": "49f6f7cee556f92283a2dd9a84d82cdd011d6a27614f4c311f05056387abb0ff",
+      "bytes": 10000,
+      "sha256": "8db372a90e18b3e7cbf6a2267f70edf7b5d0ecbd55e34af17133342fc78d9572",
       "pivot_gltf_m": [
         0,
         0,
@@ -10678,7 +10678,7 @@
     {
       "id": "Modern/ArcBand_R4_A30",
       "collection": "PBK_Modern_ArcBand_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -10743,8 +10743,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcBand_R4_A30.glb",
-      "bytes": 7308,
-      "sha256": "9c205df5dbf78f4fd434138e063b241f67a91398cab477c256b6f1ada3fb6f64",
+      "bytes": 7312,
+      "sha256": "0c5c9a3fa50cce5d6ef03475ae43b31f399a67987c67e7c3a9782350cbac5676",
       "pivot_gltf_m": [
         0,
         0,
@@ -10815,7 +10815,7 @@
     {
       "id": "Modern/ArcCoping_R2_A45",
       "collection": "PBK_Modern_ArcCoping_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -10880,8 +10880,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcCoping_R2_A45.glb",
-      "bytes": 10020,
-      "sha256": "ec40ee37466c469b0a64c72f49a050629d0d0c7e070ca0f31b8fab3194914131",
+      "bytes": 10024,
+      "sha256": "bc0224d9f28cb733707d410d6169c4da5a0a43528b2ebb8cfe8bcbcbd61e3a2e",
       "pivot_gltf_m": [
         0,
         0,
@@ -10952,7 +10952,7 @@
     {
       "id": "Modern/ArcCoping_R4_A30",
       "collection": "PBK_Modern_ArcCoping_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -11017,8 +11017,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcCoping_R4_A30.glb",
-      "bytes": 7328,
-      "sha256": "eb29b8024e3c09beece2b37c00353bffcf564336a0730980f58190209bc8994c",
+      "bytes": 7332,
+      "sha256": "2cfff1e18fd8201cd8f8baa3a633ec2e0afa813584a272ae421c24693c9729d5",
       "pivot_gltf_m": [
         0,
         0,
@@ -11089,7 +11089,7 @@
     {
       "id": "Modern/ArcDoor_R2_A45",
       "collection": "PBK_Modern_ArcDoor_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -11155,8 +11155,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcDoor_R2_A45.glb",
-      "bytes": 343092,
-      "sha256": "6e59ff7391365408bafaf9d478a09f0deed1e00e2ab6df874384fed2df3495c4",
+      "bytes": 343096,
+      "sha256": "0570738da6361413da0acb73a2cdfe1b5eda3dae153eee76798808d8fbd54037",
       "pivot_gltf_m": [
         0,
         0,
@@ -11318,7 +11318,7 @@
     {
       "id": "Modern/ArcDoor_R4_A30",
       "collection": "PBK_Modern_ArcDoor_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -11384,8 +11384,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcDoor_R4_A30.glb",
-      "bytes": 340432,
-      "sha256": "64036d305799c49556219c2c1f6dc7108d23167e52f171a8a4c8659257a3ead9",
+      "bytes": 340436,
+      "sha256": "0ba92b26d51ed3cacc3f81bd015123fdcf0fca99073c037c79addca93dd43127",
       "pivot_gltf_m": [
         0,
         0,
@@ -11547,7 +11547,7 @@
     {
       "id": "Modern/ArcFloor_R2_A45",
       "collection": "PBK_Modern_ArcFloor_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -11622,8 +11622,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcFloor_R2_A45.glb",
-      "bytes": 8704,
-      "sha256": "ee03498a950ae592da96a76ff34362129969df08576b6516392404906308b635",
+      "bytes": 8708,
+      "sha256": "347a404eaea1314bff1102e6138349684fddb6aff58d61301777c801acf79ba2",
       "pivot_gltf_m": [
         0,
         0,
@@ -11704,7 +11704,7 @@
     {
       "id": "Modern/ArcFloor_R4_A30",
       "collection": "PBK_Modern_ArcFloor_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -11779,8 +11779,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcFloor_R4_A30.glb",
-      "bytes": 6776,
-      "sha256": "725dd18e5ba9974775792f64dd63190739e787acbcf40bf03b3cc98189f90b14",
+      "bytes": 6780,
+      "sha256": "c308f3a87dc12fd37e200913a915d248275922ef6bb4ee93880828b7831004fc",
       "pivot_gltf_m": [
         0,
         0,
@@ -11861,7 +11861,7 @@
     {
       "id": "Modern/ArcParapet_R2_A45",
       "collection": "PBK_Modern_ArcParapet_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -11926,8 +11926,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcParapet_R2_A45.glb",
-      "bytes": 9968,
-      "sha256": "0798044279db34cbf4561c4732057aa0b3f94e768fde074412216cc9b9633cf1",
+      "bytes": 9972,
+      "sha256": "ea5d348902c6d3151c9fe61367d35235a8fac77c6aefa2bbafcd979381115ca7",
       "pivot_gltf_m": [
         0,
         0,
@@ -11998,7 +11998,7 @@
     {
       "id": "Modern/ArcParapet_R4_A30",
       "collection": "PBK_Modern_ArcParapet_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12063,8 +12063,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ArcParapet_R4_A30.glb",
-      "bytes": 7260,
-      "sha256": "15c50baaa8e642fa9c53bf2231ae870875137798b6e9738500056d8096e2fbc4",
+      "bytes": 7264,
+      "sha256": "c6966c14ce63c283ac9e70ccf2684d44417a7f7637922c7fc278bef9bc062f38",
       "pivot_gltf_m": [
         0,
         0,
@@ -12135,7 +12135,7 @@
     {
       "id": "Modern/ArcShopfront_R2_A45",
       "collection": "PBK_Modern_ArcShopfront_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12203,8 +12203,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcShopfront_R2_A45.glb",
-      "bytes": 70160,
-      "sha256": "050ab2348d8b9de235b121c097125d63f4d7056831c50a893cf579cbc12a2112",
+      "bytes": 70164,
+      "sha256": "5615e3f086d428de9b5f122197674ceacacc2e242b5b14094b9cb5feacb73b5d",
       "pivot_gltf_m": [
         0,
         0,
@@ -12275,7 +12275,7 @@
     {
       "id": "Modern/ArcShopfront_R4_A30",
       "collection": "PBK_Modern_ArcShopfront_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12343,8 +12343,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcShopfront_R4_A30.glb",
-      "bytes": 65648,
-      "sha256": "4f36411ec1c07e18b2eb5cb4d5331de50512127f5ae4485c715d5ef1be41ff5f",
+      "bytes": 65652,
+      "sha256": "d0380bc91d8de9dfac6e5ab072be3f97cabad7a27559a19baf10070ef3340fcc",
       "pivot_gltf_m": [
         0,
         0,
@@ -12415,7 +12415,7 @@
     {
       "id": "Modern/ArcWall_R2_A45",
       "collection": "PBK_Modern_ArcWall_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12481,8 +12481,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcWall_R2_A45.glb",
-      "bytes": 11940,
-      "sha256": "04ae1a5372a5f64317d7f218eb217c509d68590019059e8574df4c9abae269b5",
+      "bytes": 11944,
+      "sha256": "bef3857124b3227ad5c69d86daa9128da8cd21794692166fdd4292292492fb17",
       "pivot_gltf_m": [
         0,
         0,
@@ -12553,7 +12553,7 @@
     {
       "id": "Modern/ArcWall_R4_A30",
       "collection": "PBK_Modern_ArcWall_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12619,8 +12619,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcWall_R4_A30.glb",
-      "bytes": 9232,
-      "sha256": "be740bbad12b926ccc98ff3f5d67aab77333fb0461b7f5706bfa38cc6f84721d",
+      "bytes": 9236,
+      "sha256": "2b0c9015057105f97a139a6f74cdfe54fd5fc9400bf53308410d08c9e1989d9b",
       "pivot_gltf_m": [
         0,
         0,
@@ -12691,7 +12691,7 @@
     {
       "id": "Modern/ArcWindow_R2_A45",
       "collection": "PBK_Modern_ArcWindow_R2_A45",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12758,8 +12758,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcWindow_R2_A45.glb",
-      "bytes": 33684,
-      "sha256": "d7cadb77143b6cf35376ee0f62612a0fffc671c82a64e49e6067e4a7a8353766",
+      "bytes": 33688,
+      "sha256": "1bffaeab53cbeb15a8787787bea2d6d9bb0cde76b16ceabf6131fc424aa404aa",
       "pivot_gltf_m": [
         0,
         0,
@@ -12830,7 +12830,7 @@
     {
       "id": "Modern/ArcWindow_R4_A30",
       "collection": "PBK_Modern_ArcWindow_R4_A30",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -12897,8 +12897,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/ArcWindow_R4_A30.glb",
-      "bytes": 30896,
-      "sha256": "14a7d68b91669577b6e90c01449daf86b621bf913cfeacc2dbb881911c0b8ce6",
+      "bytes": 30900,
+      "sha256": "ea1751d309d8b4de06ba38811ecd73ffdbb97369c53de3f9a0dc4a5ea9679ac7",
       "pivot_gltf_m": [
         0,
         0,
@@ -12969,7 +12969,7 @@
     {
       "id": "Modern/Balcony",
       "collection": "PBK_Modern_Balcony",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -13023,7 +13023,7 @@
       "radius_m": null,
       "angle_degrees": null,
       "meshes": 43,
-      "triangles": 14734,
+      "triangles": 494,
       "animated": false,
       "replacement_module": null,
       "generator_usage": "canonical assembly; facade dressing excludes substrate and floor_band",
@@ -13035,8 +13035,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/Balcony.glb",
-      "bytes": 1314684,
-      "sha256": "09c26017d244a1f64d4e5fc93b226332e41efdafaa8a1ff64b0665296c446aaf",
+      "bytes": 58340,
+      "sha256": "aa7eb78f74585f50ae23300b2d53b5f64e6df5f008bbcfd3dc0771d3066ba0b8",
       "pivot_gltf_m": [
         0,
         0,
@@ -13107,7 +13107,7 @@
     {
       "id": "Modern/Column",
       "collection": "PBK_Modern_Column",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -13162,8 +13162,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Column.glb",
-      "bytes": 2256,
-      "sha256": "b535fb7feaefabc582ff7db099df68ed9e61731a68f23d278ba7f9e262fac7fc",
+      "bytes": 2260,
+      "sha256": "d5924ed2ec363400165843eed623c0a7009b7ca1ab91922831ffeef463200104",
       "pivot_gltf_m": [
         0,
         0,
@@ -13224,7 +13224,7 @@
     {
       "id": "Modern/Coping",
       "collection": "PBK_Modern_Coping",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -13289,8 +13289,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Coping.glb",
-      "bytes": 2240,
-      "sha256": "3c6f420c2447c238f273f6fbe22a0ddabe4743edec3415ccc5df6f71861df0cd",
+      "bytes": 2244,
+      "sha256": "032c32fbb170587a14e8ba26a5b85f6b5f24c367e6945a564b157807a075a427",
       "pivot_gltf_m": [
         0,
         0,
@@ -13361,7 +13361,7 @@
     {
       "id": "Modern/CornerShopfront90",
       "collection": "PBK_Modern_CornerShopfront90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -13424,8 +13424,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/CornerShopfront90.glb",
-      "bytes": 102244,
-      "sha256": "521a17dd9481e3daa1bbc59e0b6f555d720c68361f37eb696d6fe6a88e19ae10",
+      "bytes": 102248,
+      "sha256": "dae506ffd8fb09695a07b0f0e37cc2088667fc11c5a589095af7d0ed7eae1c66",
       "pivot_gltf_m": [
         0,
         0,
@@ -13491,7 +13491,7 @@
     {
       "id": "Modern/CornerWindow90",
       "collection": "PBK_Modern_CornerWindow90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -13553,8 +13553,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/CornerWindow90.glb",
-      "bytes": 84160,
-      "sha256": "0abb86f09bd25b7311f715eb58d3dd8a91dd15455ce1c924c741decc3979409e",
+      "bytes": 84164,
+      "sha256": "74c4033509b9c5bf40335cf2e7932fe13a5dafcd954902616c99defd1a531492",
       "pivot_gltf_m": [
         0,
         0,
@@ -13620,7 +13620,7 @@
     {
       "id": "Modern/DoorRigged",
       "collection": "PBK_Modern_DoorRigged",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -13691,8 +13691,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/DoorRigged.glb",
-      "bytes": 334236,
-      "sha256": "03536982b074b6582cbecd701c305782860997d5ae75c0dc96a3acaf5e566e45",
+      "bytes": 334240,
+      "sha256": "90ecae06f9843c5f4e70e256563b27eab6ef59c5f1a20c6ee9b1d56f18338f34",
       "pivot_gltf_m": [
         0,
         0,
@@ -13859,7 +13859,7 @@
     {
       "id": "Modern/Floor",
       "collection": "PBK_Modern_Floor",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -13929,8 +13929,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Floor.glb",
-      "bytes": 2568,
-      "sha256": "10be3ac6ad5a9e9f6b3d88c4e39e31b75ed6defc55fa4b67a78fca2def94aa32",
+      "bytes": 2572,
+      "sha256": "54745fbedb31242c27e6e44da92c9750df1d1356536b4dcfacddae3d5228ca5a",
       "pivot_gltf_m": [
         0,
         0,
@@ -14006,7 +14006,7 @@
     {
       "id": "Modern/FloorBand",
       "collection": "PBK_Modern_FloorBand",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -14071,8 +14071,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/FloorBand.glb",
-      "bytes": 6240,
-      "sha256": "b06fe36b8c3a5e09d39e4ca57fe5c5311d29c155bf5e3ddf76f3bc32ac696cb4",
+      "bytes": 6244,
+      "sha256": "c752ad3880af761d1a7575c263dab60bcd70ed8c0ff24179bf569abf9f307c47",
       "pivot_gltf_m": [
         0,
         0,
@@ -14143,7 +14143,7 @@
     {
       "id": "Modern/Gable",
       "collection": "PBK_Modern_Gable",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -14203,8 +14203,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Gable.glb",
-      "bytes": 1600,
-      "sha256": "c3e659852eff1ccd8bf7e58353b7e7f26b23f301c376ca0c99ea0fb02ec816a8",
+      "bytes": 1604,
+      "sha256": "7ca37829fcedf94dfb109f0ef060f0eac54ddb0d56577c6760a76f7694623091",
       "pivot_gltf_m": [
         0,
         0,
@@ -14270,7 +14270,7 @@
     {
       "id": "Modern/InnerCorner",
       "collection": "PBK_Modern_InnerCorner",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -14331,8 +14331,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/InnerCorner.glb",
-      "bytes": 1864,
-      "sha256": "b0ee80daee1e5ef4de856891de9983118be991b4c5d5038c9a02383a7eb70e61",
+      "bytes": 1868,
+      "sha256": "1648c1d24ef0c4f500049b08e8fabe662016ab2ad39bec5cdb717499645ae392",
       "pivot_gltf_m": [
         0,
         0,
@@ -14398,7 +14398,7 @@
     {
       "id": "Modern/OuterCorner",
       "collection": "PBK_Modern_OuterCorner",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -14459,8 +14459,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/OuterCorner.glb",
-      "bytes": 1864,
-      "sha256": "b52e6be8e02f4d57ce75535161cf9cdec8e4df804ad84eb8d05da2d27c8415fd",
+      "bytes": 1868,
+      "sha256": "b68b0dbe4eb0a339083720f52395984c1be0689629d44f5545f18dbd96420bf6",
       "pivot_gltf_m": [
         0,
         0,
@@ -14526,7 +14526,7 @@
     {
       "id": "Modern/Parapet",
       "collection": "PBK_Modern_Parapet",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -14586,8 +14586,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Parapet.glb",
-      "bytes": 3836,
-      "sha256": "f4f71312008b7cd1d960ea68c9071da36c036838f4979770e4edcffc7c105449",
+      "bytes": 3840,
+      "sha256": "f2f10e3da20b2835e7c73468fc82dfd95a88d00e6b919c0bd2ba8055c5295262",
       "pivot_gltf_m": [
         0,
         0,
@@ -14653,7 +14653,7 @@
     {
       "id": "Modern/Ridge",
       "collection": "PBK_Modern_Ridge",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -14718,8 +14718,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Ridge.glb",
-      "bytes": 2260,
-      "sha256": "f6e673e451b5d7d46ac235751915fefa17771d17dc606fb70f20bd60f8dfd8f3",
+      "bytes": 2264,
+      "sha256": "8006b0a0e80d788a968c09cee63ed244869e9d54d2d7208accfde5fa917e2cf0",
       "pivot_gltf_m": [
         0,
         0,
@@ -14790,7 +14790,7 @@
     {
       "id": "Modern/RoofSlope",
       "collection": "PBK_Modern_RoofSlope",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -14855,8 +14855,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/RoofSlope.glb",
-      "bytes": 1664,
-      "sha256": "c8802fd21af060dc9737b6e17b0746ef9fe82a0ac2c14ff9a49b31952378b29c",
+      "bytes": 1668,
+      "sha256": "a7fa600ff878093d9dd18cd657b8bdfd9ba4a028a72016584b42a03e2aa76a86",
       "pivot_gltf_m": [
         0,
         0,
@@ -14927,7 +14927,7 @@
     {
       "id": "Modern/ShopCornerPost90",
       "collection": "PBK_Modern_ShopCornerPost90",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "dressing_only",
       "nominal_size_m": [
@@ -14982,8 +14982,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/ShopCornerPost90.glb",
-      "bytes": 69560,
-      "sha256": "15123027bcbc4ba2e43c438f29ebe885c283a582f59ff85006ef42c465b97abd",
+      "bytes": 69564,
+      "sha256": "8f0d76b451eb006fcf62f5f16ee7efd88059703b0730aa2f47a67e6a16e2f52c",
       "pivot_gltf_m": [
         0,
         0,
@@ -15044,7 +15044,7 @@
     {
       "id": "Modern/Shopfront",
       "collection": "PBK_Modern_Shopfront",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -15112,8 +15112,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/Shopfront.glb",
-      "bytes": 30424,
-      "sha256": "05a1541165c833f97f7e7bc71312dd552b379dba1af8e9b9ff8bf2134d07b8b8",
+      "bytes": 30428,
+      "sha256": "93acb7714932ad07ad39f3e03a9ae316fda87af6f6cf328c59aeb904999863bf",
       "pivot_gltf_m": [
         0,
         0,
@@ -15184,7 +15184,7 @@
     {
       "id": "Modern/Stair",
       "collection": "PBK_Modern_Stair",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -15239,8 +15239,8 @@
       "bounds_mode": "bind_pose",
       "visual_profile": "city-retro-v2-tight-joints",
       "path": "modules/Modern/Stair.glb",
-      "bytes": 7004,
-      "sha256": "5f7ecd1446ed3b8095db641c65f00c556c9dc41b02d65cab498260e462b0ae4f",
+      "bytes": 7008,
+      "sha256": "54c15318e2555e1aef7b77fb1a46819ef8c166348612bc30b0a3460701200de2",
       "pivot_gltf_m": [
         0,
         0,
@@ -15301,7 +15301,7 @@
     {
       "id": "Modern/Wall",
       "collection": "PBK_Modern_Wall",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -15367,8 +15367,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/Wall.glb",
-      "bytes": 4756,
-      "sha256": "015438d4dff0c4f03fb94335d5e85f870030c4cad6c1e06ec577883cac83cafc",
+      "bytes": 4760,
+      "sha256": "fe93ce1677f29b8f4e74dc55a0fbc6339e8569ac486167206e075113f6c2cd5b",
       "pivot_gltf_m": [
         0,
         0,
@@ -15439,7 +15439,7 @@
     {
       "id": "Modern/Window",
       "collection": "PBK_Modern_Window",
-      "revision": "unified-kit-v3-retro-v17-window-cross",
+      "revision": "unified-kit-v3-retro-v18-low-poly-balcony",
       "asset": true,
       "assembly_mode": "full_module",
       "nominal_size_m": [
@@ -15506,8 +15506,8 @@
       "visual_profile": "city-retro-v2-tight-joints",
       "render_wall_thickness_m": 0.0,
       "path": "modules/Modern/Window.glb",
-      "bytes": 13344,
-      "sha256": "d900311e00e6a42d2eae242905829ef92d0fc130286fb66eb52d67f703880621",
+      "bytes": 13348,
+      "sha256": "67734f753d90a4a4357872d1114604fe3554dfec0a3d67fe6e8999c609316e1d",
       "pivot_gltf_m": [
         0,
         0,

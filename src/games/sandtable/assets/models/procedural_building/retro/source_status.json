@@ -1,8 +1,9 @@
 {
-  "kit_revision": "unified-kit-v3-retro-v18-low-poly-balcony",
-  "source_saved": true,
-  "export_required": true,
-  "export_validated": false,
-  "glb_export_run": false,
-  "note": "City low-poly source updated; existing GLBs remain previous revision until explicit export."
+    "kit_revision":  "unified-kit-v3-retro-v18-low-poly-balcony",
+    "source_saved":  true,
+    "export_required":  false,
+    "export_validated":  true,
+    "glb_export_run":  true,
+    "source_sha256":  "4013b3fa1f3bc225790cd4884613671ccfa7b82f393cf4c1781a7021a32f4c7e",
+    "note":  "Saved source exported and validated: hashes, complete catalog, pivots, bounds and animation where applicable."
 }

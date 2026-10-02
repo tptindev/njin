@@ -396,6 +396,9 @@ struct module_info {
 struct manifest {
   bool loaded = false;
   std::string kit_revision;
+  std::string source_revision;       // authoring revision, possibly not exported yet
+  std::string visual_variant;
+  bool export_pending = false;
   f32 render_scale = 0.1875f;
   std::vector<module_info> modules;
   const module_info *find(const std::string &id) const;

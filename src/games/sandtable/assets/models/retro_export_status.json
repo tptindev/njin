@@ -4,9 +4,9 @@
     "packs":  [
                   {
                       "pack":  "Building",
-                      "revision":  "unified-kit-v3-retro-v17-window-cross",
+                      "revision":  "unified-kit-v3-retro-v18-low-poly-balcony",
                       "models":  105,
-                      "bytes":  9442400,
+                      "bytes":  5673768,
                       "validated":  true
                   },
                   {
@@ -25,6 +25,6 @@
                   }
               ],
     "total_models":  196,
-    "total_bytes":  13243344,
-    "logs":  "C:\\Users\\tptin\\AppData\\Local\\Temp\\sandtable-retro-export-810ca08c9f074263a59e303187fc3b6c"
+    "total_bytes":  9474712,
+    "logs":  "C:\\Users\\tptin\\AppData\\Local\\Temp\\sandtable-retro-export-e3613c7dc518426c8218d85b69d0f4f3"
 }
