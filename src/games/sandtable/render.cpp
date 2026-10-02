@@ -57,6 +57,11 @@ void draw(context &ctx, mesh3d_kind mesh, const batch &b) {
 // --- The table ---
 
 constexpr f32 table_bottom = -1.2f; // the underside of the sand
+// The city raster owns Y=0 and the water sits slightly below it. The backing
+// slab must stay below both: a slab ending at zero fought the raster for the
+// same depth value, producing alternating sand/ground stripes while moving.
+constexpr f32 table_surface = city::layer_water - 0.08f;
+static_assert(table_bottom < table_surface && table_surface < city::layer_water);
 
 // The wooden frame round the sand, its top edge lighter: built once.
 void build_frame(context &ctx) {
@@ -77,14 +82,15 @@ void build_frame(context &ctx) {
   upload(ctx, frame);
 }
 
-// The sand: one flat slab from the underside up to height 0, over the dark
+// The sand: one flat slab below the city surfaces, over the dark
 // wooden table everything stands on.
 void draw_table(context &ctx) {
   const f32 w = world_width * unit3d, h = world_height * unit3d;
   material3d_set(ctx, {.specular = 0.1f, .cast_shadows = false});
   draw_plane3d(ctx, {w * 0.5f, table_bottom - 0.02f, h * 0.5f}, {400.0f, 400.0f}, rgb(52, 36, 26));
-  material3d_set(ctx, {.specular = 0.06f, .shininess = 10.0f});
-  draw_cube3d(ctx, {w * 0.5f, table_bottom * 0.5f, h * 0.5f}, {w, -table_bottom, h}, col_sand);
+  material3d_set(ctx, {.specular = 0.06f, .shininess = 10.0f, .cast_shadows = false});
+  draw_cube3d(ctx, {w * 0.5f, (table_bottom + table_surface) * 0.5f, h * 0.5f},
+              {w, table_surface - table_bottom, h}, col_sand);
   material3d_set(ctx, {.specular = 0.08f, .shininess = 12.0f});
   draw(ctx, mesh3d_cube, frame);
   material3d_set(ctx, {});

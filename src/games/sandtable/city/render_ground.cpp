@@ -25,6 +25,20 @@ constexpr rgba col_alley = rgb8(118, 114, 108);
 constexpr rgba col_marking = rgb8(226, 222, 206);
 constexpr rgba col_grass = rgb8(96, 142, 72);
 
+// These meshes are models, so material3d_set() does not affect them. Layered
+// road/sidewalk/marking planes must receive shadows but never cast onto each
+// other: their tiny height gaps become bands in the sun's depth texture.
+void finish_ground(context &ctx, const mesh_set &set) {
+  for (const model_handle h : set.models)
+    for (i32 i = 0; i < model_material_count(ctx, h); ++i) {
+      model_material mm = model_material_get(ctx, h, i);
+      mm.surface.specular = 0.04f;
+      mm.surface.shininess = 8.0f;
+      mm.surface.cast_shadows = false;
+      model_material_set(ctx, h, i, mm);
+    }
+}
+
 rgba overlay_color(const city_map &map, i32 x, i32 y, overlay o) {
   const cell_info &c = map.at(x, y);
   switch (o) {
@@ -87,6 +101,7 @@ void build_raster(context &ctx, const city_map &map, overlay o, mesh_set &out) {
     }
   }
   out.build(ctx, b);
+  finish_ground(ctx, out);
 }
 
 void build_water(const city_map &map, mesh_builder &b) {
@@ -177,10 +192,10 @@ void ground_build(context &ctx, const city_map &map) {
   build_places(map, b);
   build_roads(map, b);
   surfaces.build(ctx, b);
+  finish_ground(ctx, surfaces);
 }
 
 void ground_draw(context &ctx, const city_map &map, const view_options &opt) {
-  material3d_set(ctx, {.specular = 0.04f, .shininess = 8.0f, .cast_shadows = false});
   if (opt.layer == overlay::none) {
     raster.draw(ctx);
   } else {
@@ -192,7 +207,6 @@ void ground_draw(context &ctx, const city_map &map, const view_options &opt) {
   // The nav overlays are about the raster: nothing drawn over it.
   if (opt.layer != overlay::foot && opt.layer != overlay::car)
     surfaces.draw(ctx);
-  material3d_set(ctx, {});
 }
 
 void ground_cleanup(context &ctx) {

@@ -1,4 +1,8 @@
-# Sa Bàn Chiến Trận: concept
+# Địa Bàn: concept
+
+**Địa Bàn** là game mô phỏng quản lý băng đảng và chiến thuật thời gian thực
+trong một thành phố Việt Nam. Tên gọi nhấn mạnh việc xây dựng tổ chức, giữ
+ảnh hưởng và tranh giành quyền kiểm soát từng khu phố.
 
 Người chơi là **đại ca** của một băng đảng. Phần lớn thời gian đại ca không
 tự tay đánh nhau: đại ca quản lý đàn em, giao việc cho từng người và nhìn cả
@@ -6,8 +10,8 @@ vùng từ trên xuống như một sa bàn. Game kết hợp **sim** (quản l�
 quan hệ) và **RTS** (điều quân trên bản đồ, theo thời gian thực). Khi muốn,
 đại ca có thể **nhập vai Boss** để tự tay ra trận.
 
-Góc nhìn: 3D, nhìn từ trên xuống (camera RTS: kéo, xoay, zoom), người là
-tượng đất sét.
+Góc nhìn: 3D, nhìn từ trên xuống (camera RTS: kéo, xoay, zoom), đồ họa
+low-poly retro.
 
 ## Nhập vai Boss
 

@@ -248,9 +248,79 @@ void pbk_city_harness(context &ctx) {
     break;
   case 9:
     if (test.clock > 0.2f) {
+      state.hour = 12.0f;
+      state.speed = 0;
+      view_focus(test.at, 75.0f, true);
+      test.step = 10;
+      test.clock = 0;
+    }
+    break;
+  case 10:
+    if (test.clock > 0.5f) {
+      screenshot(ctx, "sandtable_hover_off_before.png");
+      test.step = 11;
+      test.clock = 0;
+    }
+    break;
+  case 11:
+    // Cross the HUD/world boundary repeatedly with a fixed camera and hour:
+    // the highlight must not alter shadows, depth or other mesh materials.
+    if (test.clock > 0.2f) {
+      test.step = 12;
+      test.clock = 0;
+    }
+    break;
+  case 12:
+    if (test.house >= 0)
+      world_view().hover_district = world().buildings[static_cast<size_t>(test.house)].district;
+    if (test.clock > 0.3f) {
+      screenshot(ctx, "sandtable_hover_on.png");
+      test.step = 13;
+      test.clock = 0;
+    }
+    break;
+  case 13:
+    if (test.house >= 0 && test.clock < 0.2f)
+      world_view().hover_district = world().buildings[static_cast<size_t>(test.house)].district;
+    if (test.clock > 0.4f) {
+      screenshot(ctx, "sandtable_hover_off_after.png");
+      test.step = 14;
+      test.clock = 0;
+    }
+    break;
+  case 14:
+    if (test.clock > 0.2f) {
+      state.cam_yaw_goal = 10.0f;
+      test.step = 15;
+      test.clock = 0;
+    }
+    break;
+  case 15:
+    if (test.clock > 1.2f) {
+      screenshot(ctx, "sandtable_ground_orbit.png");
+      test.step = 16;
+      test.clock = 0;
+    }
+    break;
+  case 16:
+    if (test.clock > 0.2f) {
+      state.cam_yaw_goal = 0;
+      test.step = 17;
+      test.clock = 0;
+    }
+    break;
+  case 17:
+    if (test.clock > 1.2f) {
+      screenshot(ctx, "sandtable_ground_orbit_return.png");
+      test.step = 18;
+      test.clock = 0;
+    }
+    break;
+  case 18:
+    if (test.clock > 0.2f) {
       NJIN_INFO("[pbk-city] done");
       quit(ctx);
-      test.step = 10;
+      test.step = 19;
     }
     break;
   default: break;

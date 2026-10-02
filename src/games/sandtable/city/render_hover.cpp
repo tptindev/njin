@@ -7,7 +7,7 @@
 
 // What the mouse is over, lit up: the district (a light tint over its ground,
 // a bright line round its edge, its name large on the map) and the building
-// (a bright frame round it). And the gangs' turf, when asked for: each gang's
+// (a bright outline at its roof). And the gangs' turf, when asked for: each gang's
 // blocks tinted and outlined in its colour.
 
 namespace sandtable::city {
@@ -52,6 +52,23 @@ constexpr f32 ring_radius = 6.0f;    // world units, about a metre round him
 constexpr f32 ring_width = 1.2f;
 constexpr i32 ring_segments = 20;
 const rgba ring_col{1.0f, 0.95f, 0.7f, 1.0f};
+
+// draw_model uses its own materials, not material3d_set(). Keep overlay alpha
+// in the material so the renderer sends it to the translucent, no-depth-write
+// pass, and never lets hover/turf geometry enter the sun's shadow map.
+void build_overlay(context &ctx, mesh_builder &builder, mesh_set &out, f32 alpha) {
+  for (rgba &c : builder.col)
+    c.a = 1.0f;
+  out.build(ctx, builder);
+  for (const model_handle h : out.models)
+    for (i32 i = 0; i < model_material_count(ctx, h); ++i) {
+      model_material mm = model_material_get(ctx, h, i);
+      mm.color.a = alpha;
+      mm.surface.unlit = true;
+      mm.surface.cast_shadows = false;
+      model_material_set(ctx, h, i, mm);
+    }
+}
 
 // The ring, `ring_segments` short tangential bars, centred on `at`, at the
 // height people's feet are drawn (draw_person's lift, 0.04 3D units: the
@@ -120,22 +137,20 @@ void build_region(context &ctx, const city_map &map, const std::function<bool(i3
                 {static_cast<f32>(x) * cs, static_cast<f32>(end) * cs}, w, layer_edge, edge);
       y = end;
     }
-  out.fill.build(ctx, f);
-  out.edge.build(ctx, l);
-  out.edge_far.build(ctx, lf);
+  build_overlay(ctx, f, out.fill, tint.a);
+  build_overlay(ctx, l, out.edge, edge.a);
+  build_overlay(ctx, lf, out.edge_far, edge.a);
 }
 
-// Twelve thin bars along the edges of building `b`'s box.
+// Only the roof perimeter: no ground-level outline or vertical corner posts.
 void build_frame(context &ctx, const building &b) {
   frame.clear();
   const f32 top = b.height + 1.0f;
   for (i32 k = 0; k < 4; ++k) {
     const vec2 a = b.box.corner(k), c = b.box.corner((k + 1) % 4);
     const vec2 d = c - a;
-    for (const f32 h : {0.3f, top})
-      frame.box((a + c) * 0.5f, h - frame_width * 0.5f, {length(d) + frame_width, frame_width, frame_width},
-                angle_of(d), frame_col);
-    frame.post(a, 0.0f, frame_width * 0.5f, top, frame_col);
+    frame.box((a + c) * 0.5f, top - frame_width * 0.5f,
+              {length(d) + frame_width, frame_width, frame_width}, angle_of(d), frame_col);
   }
   frame.upload(ctx);
 }

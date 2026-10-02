@@ -16,8 +16,19 @@ njin_icon(njin_sandtable)
 # `cmake --build <dir> --target njin_sandtable_dist` makes dist/njin_sandtable-<version>.zip:
 # the exe (no console window outside Debug) and the assets folder.
 njin_package(njin_sandtable
-  NAME "Sa Bàn Chiến Trận"
+  NAME "Địa Bàn"
   ASSETS assets)
+
+# The generated Windows resource contains the UTF-8 Vietnamese product name.
+if(WIN32)
+  if(MINGW)
+    set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/njin_sandtable_package.rc"
+      APPEND PROPERTY COMPILE_OPTIONS "--codepage=65001")
+  elseif(MSVC)
+    set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/njin_sandtable_package.rc"
+      APPEND PROPERTY COMPILE_OPTIONS "/c65001")
+  endif()
+endif()
 
 target_sources(njin_sandtable PRIVATE kungfu_preview.cpp)
 target_sources(njin_sandtable PRIVATE city/pbk_lighting.cpp)

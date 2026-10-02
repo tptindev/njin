@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
   }
 
   context *ctx = create({
-      .title = "Sa Bàn Chiến Trận",
+      .title = "Địa Bàn",
       .width = 1280.0f,
       .height = 720.0f,
       .target_fps = 60.0f,
