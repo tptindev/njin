@@ -98,7 +98,7 @@
  "docs/pages/prefabs.md": "c24c2f2edc695f0d600f4358e032aa8c52e0d381",
  "docs/pages/procgen.md": "0bd6416b254aab119e26a9d1fa2a3bb6511ddf95",
  "docs/pages/rendering.md": "8a7797cef6a4b4057533b61d4c17ca2509c624a4",
- "docs/pages/samples.md": "747b1ff2220bf2bd8feb48e5efd3cb2745d08b7e",
+ "docs/pages/samples.md": "f814eac5600e4de7babf91d145f322327409fb7c",
  "docs/pages/scenes.md": "c371eb87cbaebd2828ab8e1a352b61230ff8df05",
  "docs/pages/screen_timers.md": "b1f5fca73be8f32df1b6e3e142196ed84a9b3471",
  "docs/pages/settings.md": "b7b0a415ced2d419c79bb235b49405da2714bc01",
@@ -156,6 +156,6 @@
  "src/engine/api/njin_timer.h": "f5d5da631499b048185cbb1dbfea3812a32fe7bd",
  "src/engine/api/njin_ui.h": "ae9e2cdbd0a1a8f9c8447b2af831b76c48430e3a",
  "src/engine/api/njin_ui_layout.h": "3a2f950c6f9346e02087abd2136fab43d59fc10f",
- "src/engine/api/njin_version.h": "791b6794273e5edc04b542ba266fecd595069e9a",
+ "src/engine/api/njin_version.h": "52dd82364995596d362e0d042a44d4e60c73c75d",
  "src/engine/api/njin_window.h": "38ac4c028ebcaf2d8c23594c540057a3ea2af06b"
 }

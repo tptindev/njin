@@ -22,7 +22,7 @@
 /// is still 0, the API is not stable, so a MINOR release may still change the API; `CHANGELOG.md` will
 /// say so clearly when that happens.
 #define NJIN_VERSION_MAJOR 0 ///< MAJOR number: raised for a big change, may be incompatible with older versions.
-#define NJIN_VERSION_MINOR 5 ///< MINOR number: raised when new features are added, still compatible within the line.
+#define NJIN_VERSION_MINOR 1 ///< MINOR number: raised when new features are added, still compatible within the line.
 #define NJIN_VERSION_PATCH 0 ///< PATCH number: raised for bug and security fixes only.
 
 /// The version as a number for comparison: `MAJOR * 10000 + MINOR * 100 + PATCH`.

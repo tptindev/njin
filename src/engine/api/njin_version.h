@@ -22,7 +22,7 @@
 /// là 0, API chưa ổn định nên bản MINOR vẫn có thể đổi API; `CHANGELOG.md` sẽ
 /// nói rõ khi có chuyện đó.
 #define NJIN_VERSION_MAJOR 0 ///< Số MAJOR: tăng khi có biến đổi lớn, có thể không tương thích bản cũ.
-#define NJIN_VERSION_MINOR 6 ///< Số MINOR: tăng khi thêm tính năng mới, vẫn tương thích trong nhánh.
+#define NJIN_VERSION_MINOR 1 ///< Số MINOR: tăng khi thêm tính năng mới, vẫn tương thích trong nhánh.
 #define NJIN_VERSION_PATCH 0 ///< Số PATCH: tăng khi chỉ sửa lỗi và bảo mật.
 
 /// Số phiên bản dạng số để so sánh: `MAJOR * 10000 + MINOR * 100 + PATCH`.

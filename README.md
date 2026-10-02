@@ -7,7 +7,7 @@
 
 njin là game engine mã nguồn mở viết bằng C++20, làm cả game **2D** lẫn **3D**. Engine dùng EnTT cho ECS, raylib cho cửa sổ, đồ họa, âm thanh và input, và Jolt Physics cho vật lý 3D; game chỉ cần include API của njin qua `njin.h`.
 
-Phiên bản hiện tại: **0.5.0**. API vẫn đang phát triển và có thể thay đổi giữa các bản minor trước 1.0. Xem [CHANGELOG.md](CHANGELOG.md) để biết chi tiết.
+Phiên bản hiện tại: **0.1.0**. Đây là bản phát hành mở đầu từ trạng thái nguồn hiện tại. API vẫn đang phát triển và có thể thay đổi giữa các bản minor trước 1.0. Xem [CHANGELOG.md](CHANGELOG.md) để biết chi tiết.
 
 ## Tính năng
 

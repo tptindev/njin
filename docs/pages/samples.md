@@ -65,8 +65,8 @@ build\bin\topdown\njin_topdown.exe
 Số phiên bản của njin (semver) nằm ở một chỗ duy nhất: `src/engine/api/njin_version.h`. CMake, log
 lúc khởi động, njin::version() và njin_inspector đều đọc từ đó; `njin_package()` mặc định dùng nó làm
 phiên bản của game nếu bạn không đặt `VERSION`. Trước 1.0 API còn có thể đổi giữa hai bản MINOR. Lịch
-sử nằm ở `CHANGELOG.md`. So `NJIN_VERSION` với `njin::version()` để phát hiện game và engine build từ
-hai bản khác nhau.
+sử nằm ở `CHANGELOG.md`; `0.1.0` là bản phát hành mở đầu từ source tree hiện tại. So `NJIN_VERSION` với
+`njin::version()` để phát hiện game và engine build từ hai bản khác nhau.
 
 ## Đóng gói bản phát hành
 

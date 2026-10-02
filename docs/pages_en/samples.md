@@ -66,8 +66,8 @@ build\bin\topdown\njin_topdown.exe
 njin's version number (semver) lives in one place: `src/engine/api/njin_version.h`. CMake, the log
 at startup, njin::version() and njin_inspector all read from it; `njin_package()` uses it by default as
 the game's version if you do not set `VERSION`. Before 1.0 the API may still change between two MINOR releases. The
-history is in `CHANGELOG.md`. Compare `NJIN_VERSION` with `njin::version()` to detect a game and an engine built from
-two different releases.
+history is in `CHANGELOG.md`; `0.1.0` is the initial release from the current source tree. Compare
+`NJIN_VERSION` with `njin::version()` to detect a game and an engine built from two different releases.
 
 ## Packaging a release
 
