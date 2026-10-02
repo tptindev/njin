@@ -351,9 +351,56 @@ void pbk_city_harness(context &ctx) {
     break;
   case 22:
     if (test.clock > 0.2f) {
+      test.house = -1;
+      for (i32 id = 0; id < static_cast<i32>(world().buildings.size()); ++id) {
+        vec2 at{};
+        const auto reqs = city::pbk::requests_for_building(world(), id, at);
+        if (!reqs.empty() && (reqs.front().archetype == "l_wing_house" || reqs.front().archetype == "t_wing_house")) {
+          test.house = id; test.at = at;
+          if (reqs.front().archetype == "t_wing_house") break;
+        }
+      }
+      if (test.house >= 0) state.cam_yaw_goal = 205.0f - world().buildings[test.house].box.angle;
+      view_focus(test.at, 5.0f, true);
+      test.step = 23;
+      test.clock = 0;
+    }
+    break;
+  case 23:
+    if ((test.clock > 4 && city::pbk_last_stats().queued == 0) || test.clock > 30) {
+      auto *house = test.house >= 0 ? city::pbk_building(test.house) : nullptr;
+      NJIN_INFO("[city-layout] wing house: %s", house ? house->p.shape.c_str() : "NOT GENERATED");
+      screenshot(ctx, "sandtable_wing_house.png");
+      test.step = 24; test.clock = 0;
+    }
+    break;
+  case 24:
+    if (test.clock > 0.2f) {
+      for (i32 id = 0; id < static_cast<i32>(world().buildings.size()); ++id) {
+        vec2 at{};
+        const auto reqs = city::pbk::requests_for_building(world(), id, at);
+        if (!reqs.empty() && reqs.front().archetype == "corner_shop_rounded") {
+          test.house = id; test.at = at; break;
+        }
+      }
+      if (test.house >= 0) state.cam_yaw_goal = 205.0f - world().buildings[test.house].box.angle;
+      view_focus(test.at, 5.0f, true);
+      test.step = 25; test.clock = 0;
+    }
+    break;
+  case 25:
+    if ((test.clock > 4 && city::pbk_last_stats().queued == 0) || test.clock > 30) {
+      auto *house = test.house >= 0 ? city::pbk_building(test.house) : nullptr;
+      NJIN_INFO("[city-layout] corner house: %s", house ? house->p.shape.c_str() : "NOT GENERATED");
+      screenshot(ctx, "sandtable_corner_house.png");
+      test.step = 26; test.clock = 0;
+    }
+    break;
+  case 26:
+    if (test.clock > 0.2f) {
       NJIN_INFO("[pbk-city] done");
       quit(ctx);
-      test.step = 23;
+      test.step = 27;
     }
     break;
   default: break;

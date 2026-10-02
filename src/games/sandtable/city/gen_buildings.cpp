@@ -41,7 +41,7 @@ bool generator::place_landmark(i32 district_id, bool avenue, f32 w, f32 depth, f
     const road &rd = m.roads[static_cast<size_t>(fs.road)];
     const polyline_walk walk(rd.pts);
     obb all;
-    if (!front_box(fs.road, walk, fs.s, fs.side, w, depth + apron, 3.0f, all))
+    if (!front_box(fs.road, walk, fs.s, fs.side, w, depth + apron, 8.4f, all))
       continue;
     const cell_info *c = m.cell_at(all.center);
     if (!c || !fits(all, c->block))
@@ -102,12 +102,18 @@ void generator::make_landmarks() {
                     spot_kind::sports_field);
       else
         open_at(spot_kind::sports_field, 100.0f, 130.0f, 60.0f, 80.0f, ground::park);
+      // Reserve wing-house plots before frontage houses consume them.
+      for (i32 i = 0; i < 2; ++i)
+        building_at(building_kind::house, false, 108.0f, 120.0f, 84.0f, 108.0f, 0.0f, 2, 3,
+                    spot_kind::vacant_lot);
       break;
     case district_kind::new_urban:
       for (i32 i = r.range(2, 4); i > 0; --i)
         building_at(building_kind::apartment, false, 72.0f, 96.0f, 72.0f, 96.0f, 0.0f, 6, max_floors,
                     spot_kind::vacant_lot);
       open_at(spot_kind::parking, 90.0f, 130.0f, 60.0f, 80.0f, ground::lot);
+      building_at(building_kind::house, false, 108.0f, 120.0f, 84.0f, 108.0f, 0.0f, 2, 3,
+                  spot_kind::vacant_lot);
       break;
     case district_kind::nightlife:
       building_at(building_kind::hotel, false, 60.0f, 72.0f, 72.0f, 84.0f, 0.0f, 5, max_floors, spot_kind::vacant_lot);
@@ -182,26 +188,32 @@ void generator::front_houses(i32 road_id, rng &r) {
         f1 = max_floors;
       } else {
         w = in_bays(std::max(r.range(pf.front_min, pf.front_max), 36.0f), 3);
-        d0 = 96.0f; // 16 m: a shop, the stair and the back rooms of a tube house
+        if (r.chance(0.18f)) w = in_bays(r.range(60.0f, 84.0f), 5);
+        d0 = dk == district_kind::residential || dk == district_kind::new_urban ? 84.0f : 96.0f;
         d1 = in_bays(std::max(r.range(pf.depth_min, pf.depth_max), 108.0f), 9);
         f1 = std::min(f1, 5); // the tube house's rules: up to five floors
         f0 = std::min(f0, f1);
       }
       bool placed = false;
-      for (f32 depth = d1; depth >= d0 - 0.01f && !placed; depth -= bay_w) {
-        obb box;
-        if (!front_box(road_id, walk, s, side, w, depth, 1.0f, box))
-          break;
-        const cell_info *c = m.cell_at(box.center);
-        if (!c || !fits(box, c->block))
-          continue;
-        const i32 b = add_building(box, kind, r.range(f0, f1), road_id, r.next_u32());
-        building &bd = m.buildings[static_cast<size_t>(b)];
-        bd.number = ++count * 2 - (side > 0 ? 1 : 0);
-        placed = true;
-      }
+      // Try progressively narrower and shallower legal lots before giving
+      // up a frontage, instead of abandoning every gap below the first roll.
+      f32 used_width = w;
+      const f32 min_width = kind == building_kind::tube_house ? 36.0f :
+          kind == building_kind::house ? 36.0f : 48.0f;
+      for (f32 width = w; width >= min_width && !placed; width -= bay_w)
+        for (f32 depth = d1; depth >= d0 - 0.01f && !placed; depth -= bay_w) {
+          obb box;
+          if (!front_box(road_id, walk, s, side, width, depth, 8.4f, box)) continue;
+          const cell_info *c = m.cell_at(box.center);
+          if (!c || !fits(box, c->block)) continue;
+          const i32 b = add_building(box, kind, r.range(f0, f1), road_id, r.next_u32());
+          building &bd = m.buildings[static_cast<size_t>(b)];
+          bd.number = ++count * 2 - (side > 0 ? 1 : 0);
+          used_width = width;
+          placed = true;
+        }
       if (placed)
-        s += w + (r.chance(alley ? 0.2f : 0.08f) ? r.range(6.0f, 16.0f) : 0.0f);
+        s += used_width + (r.chance(alley ? 0.12f : 0.04f) ? r.range(6.0f, 16.0f) : 0.0f);
       else
         s += 6.0f;
     }
@@ -217,6 +229,24 @@ void generator::make_houses() {
 
   for (i32 bi = 0; bi < static_cast<i32>(m.blocks.size()); ++bi)
     fill_interior(bi, r);
+
+  // A finer second pass fills compact usable gaps missed by random rows.
+  // Reserve a walking apron around every infill plot; keep industrial yards.
+  for (i32 bi = 0; bi < static_cast<i32>(m.blocks.size()); ++bi) {
+    const block &bk = m.blocks[static_cast<size_t>(bi)];
+    const auto dk = m.districts[static_cast<size_t>(bk.district)].kind;
+    if (dk == district_kind::industrial || dk == district_kind::docks) continue;
+    i32 infill = 0;
+    for (f32 y = bk.bounds.pos.y + 36; y < bk.bounds.pos.y + bk.bounds.size.y - 36 && infill < 8; y += bay_w)
+      for (f32 x = bk.bounds.pos.x + 36; x < bk.bounds.pos.x + bk.bounds.size.x - 36 && infill < 8; x += bay_w) {
+        const vec2 at{x, y};
+        const cell_info *c = m.cell_at(at);
+        if (!c || c->block != bi || c->g != ground::free) continue;
+        if (!fits({at, {36.0f, 39.0f}, bk.axis}, bi)) continue;
+        add_building({at, {30.0f, 30.0f}, bk.axis}, building_kind::house, 1, -1, r.next_u32());
+        ++infill;
+      }
+  }
 }
 
 // Inside a block, behind the street fronts: rows of whatever the district
@@ -227,52 +257,59 @@ void generator::fill_interior(i32 bi, rng &r) {
   building_kind kind = building_kind::house;
   // Small houses standing free, a garden width apart: the detached house's
   // five bays and more.
-  f32 w0 = 60.0f, w1 = 84.0f, d0 = 60.0f, d1 = 84.0f, gap = 6.0f, row_gap = 8.0f, skip = 0.12f;
+  f32 w0 = 60.0f, w1 = 84.0f, d0 = 60.0f, d1 = 84.0f, gap = 6.0f, row_gap = 10.0f, skip = 0.04f;
   i32 f0 = 1, f1 = 3;
   switch (dk) {
   case district_kind::docks:
     kind = building_kind::warehouse;
-    w0 = 60.0f, w1 = 120.0f, d0 = 72.0f, d1 = 96.0f, gap = 10.0f, row_gap = 14.0f, skip = 0.2f;
+    w0 = 60.0f, w1 = 120.0f, d0 = 72.0f, d1 = 96.0f, gap = 10.0f, row_gap = 14.0f, skip = 0.08f;
     f0 = 1, f1 = 2;
     break;
   case district_kind::industrial:
     kind = building_kind::workshop;
-    w0 = 48.0f, w1 = 96.0f, d0 = 72.0f, d1 = 96.0f, gap = 8.0f, row_gap = 12.0f, skip = 0.25f;
+    w0 = 48.0f, w1 = 96.0f, d0 = 72.0f, d1 = 96.0f, gap = 8.0f, row_gap = 12.0f, skip = 0.08f;
     f0 = 1, f1 = 2;
     break;
   case district_kind::new_urban:
     kind = building_kind::apartment;
-    w0 = 60.0f, w1 = 96.0f, d0 = 72.0f, d1 = 96.0f, gap = 18.0f, row_gap = 20.0f, skip = 0.3f;
+    w0 = 60.0f, w1 = 96.0f, d0 = 72.0f, d1 = 96.0f, gap = 18.0f, row_gap = 20.0f, skip = 0.12f;
     f0 = 5, f1 = max_floors;
     break;
   case district_kind::nightlife:
   case district_kind::market:
-    skip = 0.18f;
+    skip = 0.06f;
     break;
   default:
     break;
   }
+  // Some generous interior plots support true rear wings rather than just
+  // rectangular frontage houses. Smaller candidates then fill the leftovers.
+  const bool varied_houses = kind == building_kind::house;
   const vec2 u = from_angle(bk.axis), v = perp(u);
   const f32 ext = length(bk.bounds.size) * 0.5f + 20.0f;
   const vec2 c = rect_center(bk.bounds);
   for (f32 b = -ext; b < ext;) {
-    const f32 depth = in_bays(r.range(d0, d1), 1);
+    const f32 depth = in_bays(varied_houses && r.chance(0.22f) ? r.range(84.0f, 108.0f) : r.range(d0, d1), 1);
     for (f32 a = -ext; a < ext;) {
-      const f32 w = in_bays(r.range(w0, w1), 1);
+      const f32 w = in_bays(varied_houses && depth >= 84.0f && r.chance(0.3f) ? r.range(84.0f, 120.0f) : r.range(w0, w1), 1);
       const vec2 p = c + u * (a + w * 0.5f) + v * (b + depth * 0.5f);
       const cell_info *ci = m.cell_at(p);
       if (!ci || ci->block != bi || ci->g != ground::free) {
         a += 6.0f;
         continue;
       }
-      const obb box{p, {w * 0.5f, depth * 0.5f}, bk.axis};
-      if (fits(box, bi)) {
-        if (!r.chance(skip))
-          add_building(box, kind, r.range(f0, f1), -1, r.next_u32());
-        a += w + gap;
-      } else {
-        a += 6.0f;
-      }
+      bool placed = false;
+      f32 used_width = w;
+      const f32 min_width = kind == building_kind::house ? 60.0f : w0;
+      for (f32 width = w; width >= min_width && !placed; width -= bay_w)
+        for (f32 dep = depth; dep >= d0 && !placed; dep -= bay_w) {
+          const vec2 at = c + u * (a + width * 0.5f) + v * (b + dep * 0.5f);
+          const obb box{at, {width * 0.5f, dep * 0.5f}, bk.axis};
+          if (!fits(box, bi)) continue;
+          if (!r.chance(skip)) add_building(box, kind, r.range(f0, f1), -1, r.next_u32());
+          placed = true; used_width = width;
+        }
+      a += placed ? used_width + gap : 6.0f;
     }
     b += depth + row_gap;
   }

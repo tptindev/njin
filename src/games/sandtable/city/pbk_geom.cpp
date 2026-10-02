@@ -1,5 +1,6 @@
 #include "../view.h"
 #include "pbk.h"
+#include "geometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,17 +21,22 @@ f32 arc_piece_angle(f32 radius) { return radius > 3.0f ? 30.0f : 45.0f; }
 } // namespace
 
 bool shape_supported(const std::string &shape, std::string *why) {
-  if (shape == "Rectangle" || shape == "CornerShopHouse" || shape == "CornerShopHouse3Fronts" ||
+  if (shape == "LShape" || shape == "TShape" || shape == "Rectangle" || shape == "CornerShopHouse" || shape == "CornerShopHouse3Fronts" ||
       shape == "CornerShopHouseRounded")
     return true;
   if (why)
     *why = "footprint shape " + shape +
-           " is not built by this runtime (Courtyard/U/T need custom tiles, rules/README.vi.md)";
+           " is not built by this runtime (Courtyard/U need custom layouts, rules/README.vi.md)";
   return false;
 }
 
 polygon footprint_inset(const plan &p, f32 d, i32 steps) {
   const f32 W = p.width, D = p.depth;
+  if (p.shape == "LShape")
+    return {{d,d},{W-d,d},{W-d,D-4-d},{W-4-d,D-4-d},{W-4-d,D-d},{d,D-d}};
+  if (p.shape == "TShape")
+    return {{d,d},{W-d,d},{W-d,D-4-d},{W-4-d,D-4-d},{W-4-d,D-d},
+            {4+d,D-d},{4+d,D-4-d},{d,D-4-d}};
   if (!rounded(p))
     return {{d, d}, {W - d, d}, {W - d, D - d}, {d, D - d}};
   const f32 R = p.radius;
@@ -59,6 +65,12 @@ bool side_glazable(const plan &p, const std::string &side) {
   return false; // a party wall
 }
 
+bool facade_axis(const bay_slot &b) {
+  if (b.arc || b.count <= 3) return true;
+  const i32 edge = std::min(b.index, b.count - 1 - b.index);
+  return edge % 2 == 1;
+}
+
 std::vector<bay_slot> exterior_bays(const plan &p) {
   std::vector<bay_slot> out;
   const f32 W = p.width, D = p.depth;
@@ -74,6 +86,16 @@ std::vector<bay_slot> exterior_bays(const plan &p) {
                                  {"west", {0.0f, 0.0f}, {0.0f, D}, {-1.0f, 0.0f}},
                                  {"north", {0.0f, D}, {W, D}, {0.0f, 1.0f}},
                                  {"east", {W, D}, {W, R}, {1.0f, 0.0f}}};
+  if (p.shape == "LShape" || p.shape == "TShape") {
+    sides.clear();
+    const polygon outline = footprint_inset(p, 0);
+    for (size_t i = 0; i < outline.size(); ++i) {
+      const vec2 a = outline[(i + 1) % outline.size()], b = outline[i];
+      const vec2 along = normalize(b-a), normal{-along.y, along.x};
+      const char *name = normal.y < -0.5f ? "south" : normal.y > 0.5f ? "north" : normal.x > 0 ? "east" : "west";
+      sides.push_back({name, a, b, normal});
+    }
+  }
   for (const side_def &s : sides) {
     const f32 len = distance(s.a, s.b);
     const i32 n = std::max(1, static_cast<i32>(std::lround(len / bay)));
@@ -172,13 +194,45 @@ std::vector<request> requests_for_building(const city_map &map, i32 id, vec2 &ce
   const i32 wb = static_cast<i32>(std::floor(b.box.half.x * 2.0f / units_per_metre / bay + 1e-3f));
   const i32 db = static_cast<i32>(std::floor(b.box.half.y * 2.0f / units_per_metre / bay + 1e-3f));
   std::vector<const char *> kinds;
+  // Real road frontage and neighbour clearance, rather than treating every lot as detached.
+  const auto street_side = [&](vec2 normal, f32 extent) {
+    const vec2 at = b.box.center + normal * extent;
+    for (const road &rd : map.roads) {
+      if (rd.kind == road_kind::alley) continue;
+      vec2 q{};
+      if (closest_on(rd.pts, at, q) < rd.reach() + 18.0f && dot(q-at, normal) > 0) return true;
+    }
+    return false;
+  };
+  const bool east = street_side(b.box.axis_x(), b.box.half.x);
+  const bool west = street_side(-b.box.axis_x(), b.box.half.x);
+  bool detached = true;
+  for (const building &other : map.buildings) {
+    if (&other == &b) continue;
+    for (const f32 side : {-1.0f, 1.0f})
+      if (other.box.contains(b.box.center + b.box.axis_x() * (side * (b.box.half.x + 3)))) detached = false;
+  }
+  bool balcony_clear = true;
+  const vec2 front = -b.box.axis_y();
+  for (const f32 x : {-b.box.half.x * 0.75f, 0.0f, b.box.half.x * 0.75f}) {
+    const vec2 at = b.box.center + b.box.axis_x() * x + front * (b.box.half.y + 1.2f * units_per_metre);
+    const cell_info *c = map.cell_at(at);
+    if (!c || c->g == ground::water)
+      balcony_clear = false;
+    for (const road &rd : map.roads) {
+      vec2 q{};
+      if (closest_on(rd.pts, at, q) < rd.reach() + 0.1f) balcony_clear = false;
+    }
+    for (const building &other : map.buildings)
+      if (&other != &b && other.box.contains(at)) balcony_clear = false;
+  }
   switch (b.kind) {
   case building_kind::tube_house:
   case building_kind::house:
     if (b.business >= 0)
       kinds = {"shop_house", "tube_shop_house"};
     else
-      kinds = {"detached_spacious", "townhouse", "tube_house"};
+      kinds = detached && b.kind == building_kind::house ? std::vector<const char *>{"detached_spacious", "townhouse", "tube_house"} : std::vector<const char *>{"townhouse", "tube_house", "detached_spacious"};
     break;
   case building_kind::apartment: kinds = {"apartment_block"}; break;
   case building_kind::hotel: kinds = {"hotel"}; break;
@@ -187,6 +241,15 @@ std::vector<request> requests_for_building(const city_map &map, i32 id, vec2 &ce
   case building_kind::warehouse: kinds = {"warehouse_hall"}; break;
   case building_kind::market_hall: kinds = {"market_hall"}; break;
   default: return no(std::string("kind ") + building_name(b.kind));
+  }
+  if ((b.kind == building_kind::house || b.kind == building_kind::tube_house) && b.business >= 0 && east) {
+    if (west) kinds.insert(kinds.begin(), "corner_shop_3_fronts");
+    kinds.insert(kinds.begin(), "corner_shop_house");
+    if (sub_seed(b.look, 109) % 3 != 0) kinds.insert(kinds.begin(), "corner_shop_rounded");
+  }
+  if (b.kind == building_kind::house && b.business < 0) {
+    if (sub_seed(b.look, 111) % 3 != 0) kinds.insert(kinds.begin(), "l_wing_house");
+    if (sub_seed(b.look, 112) % 3 == 0) kinds.insert(kinds.begin(), "t_wing_house");
   }
   std::string last;
   for (const char *k : kinds) {
@@ -204,6 +267,7 @@ std::vector<request> requests_for_building(const city_map &map, i32 id, vec2 &ce
     }
     request req;
     req.seed = b.look;
+    req.balconies = balcony_clear;
     req.archetype = k;
     req.floors = b.floors;
     req.district = b.district >= 0 ? district_key(map.districts[static_cast<size_t>(b.district)].kind) : "residential";

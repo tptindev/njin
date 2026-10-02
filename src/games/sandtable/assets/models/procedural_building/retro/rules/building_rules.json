@@ -209,12 +209,12 @@
       }
     },
     "window_density": [
-      0.55,
-      0.9
+      0.12,
+      0.28
     ],
     "balcony_chance": [
-      0.15,
-      0.4
+      0.55,
+      0.8
     ],
     "mandatory_room_windows_override_density": true,
     "vertical_bay_alignment": true,
@@ -225,7 +225,10 @@
     "back_party_wall_windows": false,
     "roof_ribs_follow_surface_normal": true,
     "awning_min_clear_above_opening_m": 0.06,
-    "awning_must_have_wall_mount": true
+    "awning_must_have_wall_mount": true,
+    "max_balconies_per_street_side_per_floor": 1,
+    "optional_windows_require_alternating_bays": true,
+    "balcony_projection_m": 1.2
   },
   "room_types": {
     "living": {
@@ -626,6 +629,80 @@
       "roof_weights": {
         "Flat": 1
       }
+    },
+    "l_wing_house": {
+      "footprint_shape": "LShape",
+      "width_bays": [
+        7,
+        10
+      ],
+      "depth_bays": [
+        7,
+        10
+      ],
+      "floors": [
+        1,
+        3
+      ],
+      "program": {
+        "ground": [
+          "living",
+          "kitchen",
+          "bathroom"
+        ],
+        "upper": [
+          "bedroom",
+          "bathroom"
+        ]
+      },
+      "road_frontages": [
+        "south"
+      ],
+      "space_preset": "spacious",
+      "independent_access": false,
+      "roof_weights": {
+        "Flat": 1
+      },
+      "rear_notch_depth_m": 4,
+      "wing_min_clear_m": 6,
+      "free_standing": true
+    },
+    "t_wing_house": {
+      "footprint_shape": "TShape",
+      "width_bays": [
+        9,
+        12
+      ],
+      "depth_bays": [
+        7,
+        10
+      ],
+      "floors": [
+        1,
+        3
+      ],
+      "program": {
+        "ground": [
+          "living",
+          "kitchen",
+          "bathroom"
+        ],
+        "upper": [
+          "bedroom",
+          "bathroom"
+        ]
+      },
+      "road_frontages": [
+        "south"
+      ],
+      "space_preset": "spacious",
+      "independent_access": false,
+      "roof_weights": {
+        "Flat": 1
+      },
+      "rear_notch_depth_m": 4,
+      "wing_min_clear_m": 6,
+      "free_standing": true
     }
   },
   "layout": {
@@ -677,7 +754,7 @@
     "daylight": {
       "bedroom_requires_facade_or_courtyard": true,
       "living_requires_facade_or_courtyard": true,
-      "minimum_glazed_area_to_room_area": 0.08,
+      "minimum_glazed_area_to_room_area": 0.05,
       "window_to_room_mapping_required": true
     }
   },

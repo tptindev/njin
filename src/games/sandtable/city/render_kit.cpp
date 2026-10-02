@@ -401,7 +401,7 @@ void street_house(const building &b, district_kind dk, i32 floors, bool roof, ki
 void tower(const building &b, bool hotel, i32 floors, bool roof, kit_sink &s) {
   dress d;
   d.shop = true;
-  d.windows = hotel ? 0.95f : 0.85f;
+  d.windows = hotel ? 0.48f : 0.32f;
   d.balconies = hotel ? 0.0f : 0.35f;
   dressed_building(b, "Modern", d, floors, roof, s);
   if (!roof)
@@ -420,7 +420,7 @@ void brick_hall(const building &b, i32 floors, bool roof, kit_sink &s) {
   const bool market = b.kind == building_kind::market_hall;
   const bool shed = b.kind == building_kind::warehouse || b.kind == building_kind::workshop;
   d.shop = market;
-  d.windows = shed ? 0.35f : 0.85f;
+  d.windows = shed ? 0.18f : 0.35f;
   d.balconies = 0.0f;
   d.pitched = shed || market;
   dressed_building(b, "Brick", d, floors, roof, s);

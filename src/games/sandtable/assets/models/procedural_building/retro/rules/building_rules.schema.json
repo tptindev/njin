@@ -501,6 +501,18 @@
         },
         "awning_must_have_wall_mount": {
           "type": "boolean"
+        },
+        "max_balconies_per_street_side_per_floor": {
+          "type": "integer",
+          "const": 1
+        },
+        "optional_windows_require_alternating_bays": {
+          "type": "boolean",
+          "const": true
+        },
+        "balcony_projection_m": {
+          "type": "number",
+          "const": 1.2
         }
       },
       "additionalProperties": false

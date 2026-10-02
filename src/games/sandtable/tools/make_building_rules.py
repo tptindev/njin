@@ -43,6 +43,8 @@ def profile(shape,w,d,floors,program,fronts,**extra):
 
 PROFILES={
  'detached_spacious':profile('Rectangle',[5,8],[5,8],[1,3],{'ground':['living','kitchen','bathroom'],'upper':['bedroom','bathroom']},['south'],roof_weights={'Flat':.45,'Gable':.55}),
+ 'l_wing_house':profile('LShape',[7,10],[7,10],[1,3],{'ground':['living','kitchen','bathroom'],'upper':['bedroom','bathroom']},['south'],rear_notch_depth_m=4,wing_min_clear_m=6,free_standing=True,roof_weights={'Flat':1}),
+ 't_wing_house':profile('TShape',[9,12],[7,10],[1,3],{'ground':['living','kitchen','bathroom'],'upper':['bedroom','bathroom']},['south'],rear_notch_depth_m=4,wing_min_clear_m=6,free_standing=True,roof_weights={'Flat':1}),
  'townhouse':profile('Rectangle',[3,4],[6,9],[2,4],{'ground':['living','kitchen','bathroom'],'upper':['bedroom','bathroom']},['south'],space_override_on_small_lot=False,roof_weights={'Flat':.9,'Gable':.1}),
  'shop_house':profile('Rectangle',[4,6],[5,8],[2,4],{'ground':['shop','storage','bathroom'],'upper':['living_dining_kitchen','bedroom','bathroom']},['south'],roof_weights={'Flat':.9,'Gable':.1}),
  'corner_shop_house':profile('CornerShopHouse',[4,6],[4,7],[2,4],{'ground':['shop','storage','bathroom'],'upper':['living_dining_kitchen','bedroom','bathroom']},['south','east'],roof_weights={'Flat':1}),
@@ -95,7 +97,8 @@ RULES={
    'per_building_style_count':1,'palette_source':'../generate.py PALETTES; Blender Principled Base Color',
    'palette_color_space':'linear_rgba',
    'palettes':{style:dict(zip(('wall','trim','frame','roof'),map(list,colors))) for style,colors in KIT_PALETTES.items()},
-   'window_density':[.55,.9],'balcony_chance':[.15,.4],
+   'window_density':[.12,.28],'balcony_chance':[.55,.8],
+   'max_balconies_per_street_side_per_floor':1,'optional_windows_require_alternating_bays':True,'balcony_projection_m':1.2,
    'mandatory_room_windows_override_density':True,'vertical_bay_alignment':True,
    'detail_budget_per_bay':{'primary_features':1,'secondary_features':2},
    'back_party_wall_windows':False,'roof_ribs_follow_surface_normal':True,
@@ -110,7 +113,7 @@ RULES={
        'preferred_adjacencies':[['living','kitchen'],['living','corridor'],['shop','storage'],['corridor','bedroom'],['corridor','bathroom'],['corridor','stair']],
        'commercial_private_access':'If independent_access is enabled, connect upper core to a separate street entrance; do not traverse shop.'},
    'daylight':{'bedroom_requires_facade_or_courtyard':True,'living_requires_facade_or_courtyard':True,
-       'minimum_glazed_area_to_room_area':.08,'window_to_room_mapping_required':True}},
+       'minimum_glazed_area_to_room_area':.05,'window_to_room_mapping_required':True}},
  'circulation':{'actor_radius_m':.3,'wall_margin_m':.1,'single_actor_clear_m':.8,'two_actor_passing_clear_m':1.4,
       'entrance_aperture_m':1.05,'entrance_min_net_open_m':.9,'interior_door_min_net_open_m':.9,
       'headroom_min_m':2.2,'furniture_distance_to_portal_m':.35,
@@ -286,6 +289,10 @@ def main():
     common=['footprint_shape','width_bays','depth_bays','floors','program','road_frontages','space_preset','roof_weights']
     prop=rs['properties']['archetypes']['additionalProperties'];prop['required']=common;prop['additionalProperties']=True
     prop['properties']['roof_weights']={'type':'object','minProperties':1,'additionalProperties':{'type':'number','minimum':0,'maximum':1}}
+    rs['properties']['appearance']['properties'].update(
+        max_balconies_per_street_side_per_floor={'type':'integer','const':1},
+        optional_windows_require_alternating_bays={'type':'boolean','const':True},
+        balcony_projection_m={'type':'number','const':1.2})
     rs['properties']['appearance']['properties']['district_weights']={'type':'object','additionalProperties':{'type':'object','minProperties':1,'additionalProperties':{'type':'number','minimum':0,'maximum':1}}}
     write('building_rules.schema.json',rs)
     plans=[example('detached_spacious','Modern',101),example('corner_shop_3_fronts','Brick',202),example('corner_shop_rounded','Indochine',303)]
@@ -303,6 +310,7 @@ def main():
     room_schema=floor['rooms']['items']['properties'];room_schema['polygon_m']=polygon;room_schema['type']['enum']=list(ROOMS)
     room_schema['floor_voids_m']={'type':'array','items':polygon}
     room_schema['net_area_m2'].update(minimum=0)
+    ps['properties']['generator']={'type':'object','additionalProperties':True}
     ps['properties']['style']['enum']=RULES['appearance']['styles'];ps['properties']['space_preset']['enum']=list(RULES['space_presets'])
     portal_schema=ps['properties']['portals']['items']['properties'];portal_schema['module_id']={'type':['string','null']}
     portal_schema['kind']['enum']=['door','open','stair_link'];portal_schema['axis']['enum']=['x','y','vertical','tangent']

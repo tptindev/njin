@@ -131,6 +131,7 @@ struct request {
   f32 width = 12.0f, depth = 10.0f;
   i32 floors = 2;
   std::vector<std::string> road_sides{"south"};
+  bool balconies = true; // city adapter reserves a clear frontage apron
   f32 radius = 4.0f; // CornerShopHouseRounded
 };
 
@@ -178,7 +179,8 @@ struct rules {
   std::vector<std::pair<std::string, preset_rule>> presets;
   std::vector<std::pair<std::string, std::vector<std::pair<std::string, f32>>>> district_styles;
   std::vector<std::pair<std::string, std::array<rgba, 4>>> palettes; // wall, trim, frame, roof (linear)
-  f32 window_density[2] = {0.55f, 0.9f};
+  f32 window_density[2] = {0.12f, 0.28f};
+  f32 balcony_chance[2] = {0.55f, 0.8f};
   f32 actor_radius = 0.3f, wall_margin = 0.1f, headroom = 2.2f, door_clear = 0.9f, portal_keepout = 0.35f;
   f32 glazing_ratio = 0.08f, wet_tolerance = 0.1f;
   f32 stair_flight = 1.2f, stair_landing = 1.4f, stair_core_width = 2.84f, stair_core_length = 4.8f;
@@ -353,6 +355,8 @@ struct assembly {
 // (windows beyond the required ones) are drawn from the plan's facade seed,
 // so the same plan always assembles the same way.
 assembly assemble(const plan &p);
+// Exact unions of adjacent coplanar facade boxes, preserving doorway holes.
+std::vector<solid> collision_solids(const assembly &as, bool inside);
 
 // Placing a plan on the table: what rules/README.vi.md calls the adapter.
 struct placement {
@@ -506,9 +510,8 @@ glb_summary read_glb(const std::string &path);
 
 // --- The footprint and its facade ------------------------------------------------------
 
-// The footprint shapes this runtime builds: a rectangle, or one with its
-// front right corner rounded (CornerShopHouseRounded). Courtyard, U and T
-// need custom tiles (rules/README.vi.md) and are refused.
+// The runtime builds rectangles, L/T wings and corner shop houses, including
+// rounded corners. Courtyard and U shapes still need custom room layouts.
 bool shape_supported(const std::string &shape, std::string *why);
 
 // The outline `inset` metres in from the outer face (0: the outer face
@@ -534,6 +537,9 @@ struct bay_slot {
 };
 // The bays of every side, in the order modules chain round the building.
 std::vector<bay_slot> exterior_bays(const plan &p);
+// Design axes on top of the 2 m construction grid: mirrored groups with
+// solid end bays on wider elevations. Small fronts retain usable openings.
+bool facade_axis(const bay_slot &b);
 
 // The room a bay of floor `floor` opens onto (its inside, 0.4 m in), or null.
 const room *room_behind(const plan &p, i32 floor, const bay_slot &b);

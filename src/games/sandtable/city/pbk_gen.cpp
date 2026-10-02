@@ -102,7 +102,7 @@ const char *pick_weighted(const std::vector<std::pair<std::string, f32>> &w, u32
 
 // The glazing a module gives (measured by the rule examples).
 f32 glazing_of(const std::string &module_id) {
-  return module_id.find("Shopfront") != std::string::npos ? 3.8f : 1.5f;
+  return module_id.find("Shopfront") != std::string::npos ? 3.8f : 1.18f * 1.5f;
 }
 
 std::string arc_id(const std::string &style, const char *role, f32 radius) {
@@ -244,9 +244,19 @@ bool finish_plan(attempt &at, const std::string &style, f32 radius, u32 facade_s
         if (behind && behind->id == rm.id)
           cand.push_back(&b);
       }
-      // Street fronts first, then the middle of the room's run.
+      // Reuse the elevation's axes across floors; room/daylight constraints
+      // may use secondary bays, but never choose a new random grid per floor.
       std::stable_sort(cand.begin(), cand.end(), [&](const bay_slot *a, const bay_slot *b) {
-        return has(p.frontages, a->side) > has(p.frontages, b->side);
+        const auto rank = [&](const bay_slot *b) {
+          f32 value = (has(p.frontages, b->side) ? 4.0f : 0.0f) + (facade_axis(*b) ? 16.0f : 0.0f);
+          for (const auto &q : p.apertures)
+            if (q.floor == f - 1 && distance(q.center, b->center) < 0.05f) value += 6.0f;
+          // A centered pair/axis reads as a group; the extreme corner bays
+          // are reserves, used only when the room needs extra glazing.
+          value -= std::fabs(static_cast<f32>(b->index) - (b->count - 1) * 0.5f) * 0.1f;
+          return value;
+        };
+        return rank(a) > rank(b);
       });
       f32 glass = 0.0f;
       const f32 need = R.glazing_ratio * rm.area;
@@ -310,6 +320,8 @@ attempt try_layout(const request &req, const archetype_rule &A, const preset_rul
   const i32 floors = req.floors;
   const bool multi = floors > 1;
   const bool rnd = A.shape == "CornerShopHouseRounded";
+  const bool wing = A.shape == "LShape" || A.shape == "TShape";
+  const f32 rear_left = A.shape == "TShape" ? 4.0f : 0.0f, rear_right = wing ? 4.0f : 0.0f;
   const bool shop = shop_type(req.archetype);
   p.archetype = req.archetype;
   p.style = style;
@@ -325,7 +337,7 @@ attempt try_layout(const request &req, const archetype_rule &A, const preset_rul
   // The bands, front to back.
   const f32 x0 = ext_wall, x1 = W - ext_wall, y_back = D - ext_wall;
   const f32 iw = x1 - x0, id = y_back - ext_wall;
-  const bool core_west = rnd || r.chance(0.5f);
+  const bool core_west = rnd || wing || r.chance(0.5f);
   const f32 corridor = snap(r.range(P.corridor_min, std::max(P.corridor_min, P.corridor_target - 0.1f)));
 
   // The rooms of each floor.
@@ -391,16 +403,18 @@ attempt try_layout(const request &req, const archetype_rule &A, const preset_rul
     at.fail.push_back(buf);
     return at;
   }
-  const f32 fd = snap(front_min + (front_max - front_min) * r.range(0.45f, 0.85f));
+  const f32 fd = wing ? snap(D - 4.0f - ext_wall - corridor - 2.0f * partition) :
+      snap(front_min + (front_max - front_min) * r.range(0.45f, 0.85f));
+  if (fd < front_min || fd > front_max) { at.fail.push_back("wing body cannot fit the front rooms and stair"); return at; }
   const f32 yf = ext_wall + fd;
   const f32 y_hall = yf + partition;
   const f32 y_rear = y_hall + corridor + partition;
   const f32 rd = y_back - y_rear;
 
   // Across: the core at one end of the corridor.
-  const f32 cx0 = core_west ? x0 : x1 - core_w;
-  const f32 hall_x0 = multi ? (core_west ? x0 + core_w + partition : x0) : x0;
-  const f32 hall_x1 = multi ? (core_west ? x1 : x1 - core_w - partition) : x1;
+  const f32 cx0 = core_west ? x0 + rear_left : x1 - core_w;
+  const f32 hall_x0 = multi ? (core_west ? x0 + rear_left + core_w + partition : x0) : x0 + rear_left;
+  const f32 hall_x1 = multi ? (core_west ? x1 - rear_right : x1 - core_w - partition) : x1 - rear_right;
   const f32 hall_w = hall_x1 - hall_x0;
 
   // The back rooms, the same on every floor so the wet stack lines up.
@@ -507,6 +521,12 @@ attempt try_layout(const request &req, const archetype_rule &A, const preset_rul
       }
       front.pop_back();
       fp.front.pop_back();
+    }
+    if (wing && widths.size() == 2) {
+      // Rear wings have a central access spine: balance the front rooms so
+      // both meet it, rather than giving all spare width to the first room.
+      widths[0] = std::max((iw - partition) * 0.5f, hall_x0 - x0 + 1.05f + 0.74f);
+      widths[1] = iw - partition - widths[0];
     }
     // Each front room must meet the corridor wide enough for its doorway: the
     // narrow one goes beside the corridor, not over the stair core.
@@ -1183,6 +1203,64 @@ attempt try_hall(const request &req, const archetype_rule &A, const preset_rule 
   return at;
 }
 
+// Appearance is part of the saved plan, so glazing, lighting and rendering
+// all know that a floor-level balcony door replaced an ordinary window.
+void design_balconies(plan &p) {
+  if (!p.generator["balconies_allowed"].bool_or(true)) return;
+  const rules &R = load_rules();
+  rng fr(sub_seed(p.seed, R.salt_facade));
+  const f32 chance = fr.range(R.balcony_chance[0], R.balcony_chance[1]);
+  // Choose the building's balcony stack, rather than independent floor
+  // coins which leave arbitrary gaps in a primary vertical feature.
+  if (static_cast<f32>(sub_seed(p.seed, 991u) % 10000u) / 10000.0f >= chance) return;
+  const auto bays = exterior_bays(p);
+  bool any = false;
+  for (i32 f = 1; f < p.storeys(); ++f) {
+    std::vector<const bay_slot *> candidates;
+    for (const auto &b : bays) {
+      const room *behind = room_behind(p, f, b);
+      if (!b.arc && b.side == "south" && !b.first && !b.last && behind &&
+          (behind->type == "living" || behind->type == "living_dining_kitchen" || behind->type == "bedroom"))
+        candidates.push_back(&b);
+    }
+    if (candidates.empty()) continue;
+    std::stable_sort(candidates.begin(), candidates.end(), [&](const bay_slot *a, const bay_slot *b) {
+      const auto rank = [&](const bay_slot *q) {
+        f32 value = facade_axis(*q) ? 4.0f : 0.0f;
+        for (const auto &old : p.apertures)
+          if (old.floor == f - 1 && old.module_id.find("Balcony") != std::string::npos &&
+              distance(old.center, q->center) < 0.05f) value += 20.0f;
+        for (const auto &door : p.portals)
+          if (door.exterior()) value -= distance(door.center, q->center) * 0.2f;
+        return value;
+      };
+      return rank(a) > rank(b);
+    });
+    const auto &b = *candidates.front();
+    const room *behind = room_behind(p, f, b);
+    aperture a;
+    a.floor = f; a.room = behind->id; a.center = b.center; a.inward = -b.out;
+    a.module_id = p.style + "/Balcony"; a.glazed = 1.6f * 2.4f;
+    bool replaced = false;
+    for (auto &old : p.apertures) if (old.floor == f && distance(old.center, a.center) < 0.05f) {
+      old = a; replaced = true; break;
+    }
+    if (!replaced) p.apertures.push_back(a);
+    // Keep daylight requirements while removing redundant windows in this room.
+    f32 glass = 0;
+    for (const auto &q : p.apertures) if (q.floor == f && q.room == a.room) glass += q.glazed;
+    for (size_t i = p.apertures.size(); i-- > 0;) {
+      const auto &q = p.apertures[i];
+      if (q.floor == f && q.room == a.room && q.module_id.find("Window") != std::string::npos &&
+          glass - q.glazed >= R.glazing_ratio * behind->area) {
+        glass -= q.glazed; p.apertures.erase(p.apertures.begin() + static_cast<std::ptrdiff_t>(i));
+      }
+    }
+    any = true;
+  }
+  if (any) p.required_modules.push_back(p.style + "/Balcony");
+}
+
 } // namespace
 
 gen_result generate(const request &req) {
@@ -1267,6 +1345,8 @@ gen_result generate(const request &req) {
                                            : try_layout(req, *A, *P, style, radius, ls, facade_seed);
     if (at.fail.empty()) {
       at.p.seed = req.seed;
+      at.p.generator.set("balconies_allowed", req.balconies);
+      design_balconies(at.p);
       const assembly as = assemble(at.p);
       const check_report rep = check_plan(at.p, &as);
       if (!rep.ok())

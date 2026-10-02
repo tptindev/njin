@@ -129,6 +129,39 @@ void check_manifest() {
 
 // The checks a plan's assembly must pass beyond check_plan.
 void check_assembly(const plan &p, const assembly &as, const char *name) {
+  // A visual opening must be present in the plan used by daylight and
+  // lighting. The former assembly-only random pass violated this contract.
+  const auto facade = exterior_bays(p);
+  for (const auto &m : as.modules) {
+    if (m.id.find("Window") == std::string::npos && m.id.find("Balcony") == std::string::npos) continue;
+    for (const auto &b : facade) {
+      if (distance(vec2{m.pos.x, m.pos.y}, b.origin) > 0.05f) continue;
+      bool planned = false;
+      for (const auto &a : p.apertures)
+        if (a.floor == m.floor && distance(a.center, b.center) < 0.05f) planned = true;
+      if (!planned) fail("rendered window absent from aperture plan", name);
+    }
+  }
+  const auto merged = collision_solids(as, false);
+  const auto covers = [](const std::vector<solid> &boxes, vec2 at, f32 z) {
+    for (const auto &s : boxes) {
+      const vec2 u = from_angle(s.angle), v{-u.y, u.x}, d = at - s.c;
+      if (z >= s.z0 && z <= s.z1 && std::fabs(dot(d,u)) <= s.half.x && std::fabs(dot(d,v)) <= s.half.y)
+        return true;
+    }
+    return false;
+  };
+  std::vector<solid> original;
+  for (const auto &s : as.solids) if (s.kind == sk_exterior || s.kind == sk_facade) original.push_back(s);
+  for (const auto &bay : exterior_bays(p))
+    for (const f32 across : {-0.31f, -0.1f, 0.03f})
+      for (i32 f = 0; f < p.storeys(); ++f)
+        for (const f32 height : {0.5f, 2.5f}) {
+          const vec2 at = bay.center + bay.out * across;
+          const f32 z = f * storey + height;
+          if (covers(original, at, z) != covers(merged, at, z)) fail("merged collider changed a facade or doorway", name);
+        }
+  std::printf("  %s: facade colliders %zu -> %zu\n", name, original.size(), merged.size());
   // The street door: shut, nothing is reached; open, everything.
   std::vector<std::string> shut;
   for (const door &d : as.doors)
@@ -226,7 +259,8 @@ void check_generator(i32 seeds, bool verbose) {
   }
 
   // Every archetype it builds, over its range of sizes and floors.
-  const case_ cases[] = {{"detached_spacious", 10, 16, 10, 16, 1, 3}, {"townhouse", 6, 8, 12, 18, 2, 4},
+  const case_ cases[] = {{"l_wing_house", 14, 20, 14, 20, 1, 3}, {"t_wing_house", 18, 24, 14, 20, 1, 3},
+                         {"detached_spacious", 10, 16, 10, 16, 1, 3}, {"townhouse", 6, 8, 12, 18, 2, 4},
                          {"shop_house", 8, 12, 10, 16, 2, 4},        {"corner_shop_house", 8, 12, 8, 14, 2, 4},
                          {"corner_shop_3_fronts", 10, 14, 10, 14, 2, 4}, {"corner_shop_rounded", 10, 14, 10, 14, 2, 4},
                          {"tube_house", 4, 6, 14, 22, 1, 5},           {"tube_shop_house", 4, 6, 16, 22, 1, 5},
@@ -396,6 +430,8 @@ void city_tally(u32 seed) {
       if (g.ok) {
         ++ok;
         ++tally["ok: " + rq.archetype];
+        for (const auto &a : g.p.apertures)
+          if (a.module_id.find("Balcony") != std::string::npos) ++tally["balcony bays"];
         break;
       }
     }

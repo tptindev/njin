@@ -647,11 +647,43 @@ void draw_doors(context &ctx, const building3d &b, const view_cut &v, const view
 
 // --- Physics --------------------------------------------------------------------------------
 
+std::vector<solid> collision_solids(const assembly &as, bool inside) {
+  std::vector<solid> boxes;
+  for (const auto &s : as.solids)
+    if (s.kind != sk_leaf && s.kind != sk_shell &&
+        (inside || s.kind == sk_exterior || s.kind == sk_facade)) boxes.push_back(s);
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (size_t i = 0; i < boxes.size(); ++i) {
+      auto &a = boxes[i];
+      if (a.kind != sk_exterior && a.kind != sk_facade) continue;
+      for (size_t j = i + 1; j < boxes.size();) {
+        const auto b = boxes[j];
+        if (a.kind != b.kind || std::fabs(a.angle - b.angle) > 0.001f) { ++j; continue; }
+        const vec2 u = from_angle(a.angle), v{-u.y, u.x};
+        const f32 dx = dot(b.c - a.c, u), dy = dot(b.c - a.c, v);
+        const auto same = [](f32 x, f32 y) { return std::fabs(x-y) < 0.0001f; };
+        bool merged = false;
+        if (same(a.z0, b.z0) && same(a.z1, b.z1) && same(dy, 0) && same(a.half.y, b.half.y) &&
+            std::fabs(dx) <= a.half.x + b.half.x + 0.0001f) {
+          const f32 lo = std::min(-a.half.x, dx - b.half.x), hi = std::max(a.half.x, dx + b.half.x);
+          a.c += u * ((lo+hi)*0.5f); a.half.x = (hi-lo)*0.5f; merged = true;
+        } else if (same(dx, 0) && same(dy, 0) && same(a.half.x, b.half.x) && same(a.half.y, b.half.y) &&
+                   a.z0 <= b.z1 + 0.0001f && b.z0 <= a.z1 + 0.0001f) {
+          a.z0 = std::min(a.z0, b.z0); a.z1 = std::max(a.z1, b.z1); merged = true;
+        }
+        if (merged) { boxes.erase(boxes.begin() + static_cast<std::ptrdiff_t>(j)); changed = true; }
+        else ++j;
+      }
+    }
+  }
+  return boxes;
+}
+
 void physics_add(context &ctx, building3d &b, bool inside) {
   physics_remove(ctx, b);
-  for (const solid &s : b.as.solids) {
-    if (s.kind == sk_leaf || s.kind == sk_shell || (!inside && s.kind != sk_exterior && s.kind != sk_facade))
-      continue;
+  for (const solid &s : collision_solids(b.as, inside)) {
     const vec2 c = b.at.to_table(s.c);
     const body3d_handle h = body3d_create(
         ctx, {.shape = shape3d_box,

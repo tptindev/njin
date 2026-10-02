@@ -308,6 +308,8 @@ const rules &load_rules() {
   }
   r.window_density[0] = ap["window_density"][usize{0}].f32_or(0.55f);
   r.window_density[1] = ap["window_density"][usize{1}].f32_or(0.9f);
+  r.balcony_chance[0] = ap["balcony_chance"][usize{0}].f32_or(0.55f);
+  r.balcony_chance[1] = ap["balcony_chance"][usize{1}].f32_or(0.8f);
   const json_value &c = j["circulation"];
   r.actor_radius = c["actor_radius_m"].f32_or(0.3f);
   r.wall_margin = c["wall_margin_m"].f32_or(0.1f);

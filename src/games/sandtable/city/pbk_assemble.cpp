@@ -215,8 +215,6 @@ struct builder {
     for (const portal &q : p.portals)
       if (q.exterior())
         entry = &q;
-    rng fr(sub_seed(p.seed, R.salt_facade));
-    const f32 density = fr.range(R.window_density[0], R.window_density[1]);
     // roles[f][bay]: Wall, Window, Shopfront, DoorRigged.
     std::vector<std::vector<std::string>> roles(static_cast<size_t>(floors), std::vector<std::string>(bays.size(), "Wall"));
     i32 door_bay = -1;
@@ -238,19 +236,18 @@ struct builder {
         bool set = false;
         for (const aperture &a : p.apertures)
           if (a.floor == f && distance(a.center, b.center) < 0.3f) {
-            role = a.module_id.find("Shopfront") != std::string::npos ? "Shopfront" : "Window";
+            role = a.module_id.find("Balcony") != std::string::npos ? "Balcony" :
+                a.module_id.find("Shopfront") != std::string::npos ? "Shopfront" : "Window";
             set = true;
           }
         if (set)
           continue;
         if (f == 0 && front && behind && behind->type == "shop")
           role = "Shopfront";
-        else if (side_glazable(p, b.side) && behind && behind->type != "bathroom" &&
-                 pick_bay(fr, f, static_cast<i32>(i)) < density)
-          role = "Window";
+        // Openings come from the plan. Adding random windows here used to
+        // destroy the designed rhythm and bypass glazing/lighting data.
       }
-    // Vertical rhythm: an upper bay over a ground one keeps its column, so a
-    // window above a wall is fine; nothing else to line up on a 2 m grid.
+    // Plan apertures carry the shared vertical axes and room constraints.
     (void)door_bay;
 
     const size_t n = bays.size();
@@ -290,7 +287,44 @@ struct builder {
           shell_bay(b, role, z0, f);
         }
         as.solids.push_back(wall_solid(b.origin, b.end, -b.out, ext_wall, z0, z1, f, sk_exterior, pal[0]));
+        if (role == "Balcony") {
+          // The asset draws its slab and rails; use separate thin collision.
+          const vec2 along = normalize(b.end - b.origin);
+          as.solids.push_back({b.center + b.out * 0.6f, {1.0f, 0.6f}, angle_of(along),
+            z0 - slab, z0, f, sk_collision, concrete});
+          as.solids.push_back(wall_solid(b.origin + b.out * 1.2f, b.end + b.out * 1.2f,
+            -b.out, 0.06f, z0, z0 + 1.1f, f, sk_collision, frame_col));
+          for (const vec2 edge : {b.origin, b.end})
+            as.solids.push_back(wall_solid(edge, edge + b.out * 1.2f, along, 0.06f,
+              z0, z0 + 1.1f, f, sk_collision, frame_col));
+        }
       }
+
+    // Base / body / crown: continuous datums, including the entrance bay.
+    // Upper floor joints are quiet; the street-level lintel and roof carry
+    // the stronger horizontal accents. Keep all dressing out of openings.
+    for (size_t i = 0; i < bays.size(); ++i) {
+      const auto &b = bays[i];
+      if (b.arc) continue; // the curved assets already contain their trim
+      const bool street = std::find(p.frontages.begin(), p.frontages.end(), b.side) != p.frontages.end();
+      const f32 ext0 = b.first ? 0.065f : 0.0f, ext1 = b.last ? 0.065f : 0.0f;
+      if (roles[0][i] == "Wall" || roles[0][i] == "Window")
+        shell_box(b, 0, bay, 0.02f, 0.28f, -0.035f, 0.025f, 0, concrete);
+      // End piers frame the elevation; no pilaster on every 2 m tile.
+      // They stay in the smallest shopfront's 15 cm solid margin.
+      const rgba pier = {pal[0].r * 0.92f, pal[0].g * 0.92f, pal[0].b * 0.92f, 1};
+      for (i32 f = 0; f < floors; ++f) {
+        const f32 bottom = f == 0 ? 0.28f : elev(f);
+        if (b.first) shell_box(b, 0, 0.12f, bottom, elev(f + 1), -0.025f, 0.025f, f, pier);
+        if (b.last) shell_box(b, bay - 0.12f, bay, bottom, elev(f + 1), -0.025f, 0.025f, f, pier);
+        const bool crown = f == floors - 1;
+        const bool base = f == 0 && street && floors > 1;
+        const f32 height = crown ? 0.18f : base ? 0.14f : 0.045f;
+        const f32 proud = crown ? 0.10f : base ? 0.065f : 0.025f;
+        shell_box(b, -ext0, bay + ext1, elev(f + 1) - height, elev(f + 1),
+                  -proud, 0.025f, f, crown || base ? pal[1] : pal[0]);
+      }
+    }
 
     // The roof's edge: generate.py's continuous parapet (0.76 m of wall, its
     // coping 0.08 m of trim from 0.04 m proud to 0.24 m in) on the straight
@@ -342,12 +376,6 @@ struct builder {
     } else {
       shell_box(b, 0.0f, bay, z0, z0 + storey, 0.0f, ext_wall, f, pal[0]);
     }
-    const f32 ext0 = b.first ? 0.065f : 0.0f, ext1 = b.last ? 0.065f : 0.0f;
-    shell_box(b, -ext0, bay + ext1, z0 + 2.84f, z0 + storey, -0.065f, 0.025f, f, pal[1]);
-  }
-
-  f32 pick_bay(rng &, i32 f, i32 i) const {
-    return static_cast<f32>(sub_seed(p.seed ^ 0x5bd1e995u, static_cast<u32>(f * 131 + i * 17)) % 10000u) / 10000.0f;
   }
 
   void street_door(vec2 origin, f32 yaw, vec2 out) {
@@ -750,7 +778,7 @@ assembly assemble(const plan &p) {
   b.furnish();
   if (p.generator["roof"].is(json_value::string) && std::string(p.generator["roof"].str) != "Flat")
     b.as.notes.push_back("roof " + p.generator["roof"].str + " built flat: the kit's gable spans 4 m");
-  b.as.notes.push_back("balconies not placed (optional in the rules; their access door and slab are not built yet)");
+
   return std::move(b.as);
 }
 
