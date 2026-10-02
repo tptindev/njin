@@ -9,6 +9,7 @@
 #include "view.h"
 #include "world.h"
 #include "city/pbk_render.h"
+#include "city/railings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -318,9 +319,41 @@ void pbk_city_harness(context &ctx) {
     break;
   case 18:
     if (test.clock > 0.2f) {
+      for (const auto &e : city::railing_layout(world()))
+        if (e.bridge) { view_focus((e.a + e.b) * 0.5f, 9.0f, true); break; }
+      test.step = 19;
+      test.clock = 0;
+    }
+    break;
+  case 19:
+    if (test.clock > 1.0f) {
+      screenshot(ctx, "sandtable_bridge_railings.png");
+      test.step = 20;
+      test.clock = 0;
+    }
+    break;
+  case 20:
+    if (test.clock > 0.2f) {
+      for (const auto &e : city::railing_layout(world()))
+        if (!e.bridge && e.a.x > 200 && e.a.y > 200 && distance(e.a, e.b) > 20) {
+          view_focus((e.a + e.b) * 0.5f, 9.0f, true); break;
+        }
+      test.step = 21;
+      test.clock = 0;
+    }
+    break;
+  case 21:
+    if (test.clock > 1.0f) {
+      screenshot(ctx, "sandtable_river_railings.png");
+      test.step = 22;
+      test.clock = 0;
+    }
+    break;
+  case 22:
+    if (test.clock > 0.2f) {
       NJIN_INFO("[pbk-city] done");
       quit(ctx);
-      test.step = 19;
+      test.step = 23;
     }
     break;
   default: break;

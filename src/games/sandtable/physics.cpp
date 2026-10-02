@@ -1,6 +1,8 @@
 #include "physics.h"
 
 #include "city/street_kit.h"
+#include "city/railings.h"
+#include "city/render_common.h"
 
 #include <vector>
 
@@ -98,12 +100,11 @@ void physics_build(context &ctx, const city::city_map &map) {
   }
   for (const city::prop &p : map.props)
     prop_body(ctx, p);
-  // Railings along the bridges, as drawn.
-  for (const city::spot &sp : map.spots)
-    if (sp.kind == city::spot_kind::bridge)
-      for (const f32 side : {-1.0f, 1.0f})
-        box(ctx, sp.box.center + sp.box.axis_y() * (side * (sp.box.half.y - 1.0f)), 0.0f,
-            {sp.box.half.x * 2.0f + 8.0f, 3.5f, 1.4f}, sp.box.angle);
+  // One thin edge barrier, exactly the same route and height as the model.
+  for (const city::railing_edge &e : city::railing_layout(map))
+    box(ctx, (e.a + e.b) * 0.5f, city::layer_sidewalk / unit3d,
+        {distance(e.a, e.b) + city::railing_thickness, city::railing_height, city::railing_thickness},
+        angle_of(e.b - e.a));
 }
 
 character3d_handle physics_person(context &ctx, vec2 at) {

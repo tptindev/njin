@@ -38,8 +38,8 @@ SolidParapet dùng bê tông. Toàn bộ 66 module có tổng 18.624 tam giác.
   Trụ kết thúc thấp được scale theo chiều cao tay vịn đã chọn.
 - Tách chuỗi tại cửa, cổng và chiếu nghỉ. Collider là hàng rào mỏng theo cạnh,
   không dùng toàn bộ AABB thành một khối chắn lối đi.
-- Có contract instancing, culling và LOD trong rule. Chưa thêm consumer C++,
-  chưa tự đặt các lan can mới vào bản đồ hoặc thay lan can ban công hiện có.
+- Có contract instancing, culling và LOD trong rule. Consumer C++ đã đặt lan can cầu và hai bờ sông bằng asset GLB;
+  lan can ban công vẫn thuộc bộ kit nhà. Xem `../../../docs/waterfront-railings.vi.md`.
 
 `rule_reference.py` là ví dụ chọn mẫu ổn định theo seed và quyền sở hữu trụ nối.
 Rule building đã liên kết pack này qua `runtime_rule_packs.railings`.

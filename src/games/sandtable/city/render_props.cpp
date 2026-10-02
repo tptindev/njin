@@ -3,6 +3,7 @@
 #include "pbk.h"
 #include "pbk_render.h"
 #include "street_kit.h"
+#include "railings.h"
 
 // Street furniture and the things in the open places: trees, poles, lamps,
 // parked motorbikes, plastic stools, market stalls, containers, boats, and
@@ -39,6 +40,62 @@ struct kit_batch {
   chunked c;
 };
 std::vector<kit_batch> kit;
+struct rail_batch { model_handle model{}; chunked c; };
+rail_batch rail_models[4]; // river, bridge, shared post, pattern transition
+chunked rail_short; // regenerated capped final tiles, near only
+rgba rail_color[2];
+chunked rail_simple; // distant top rails; posts remain instanced assets
+struct rail_piece { vec2 a, b; i32 kind; bool remainder; };
+
+void load_rails(context &ctx, const city_map &map) {
+  for (auto &r : rail_models) r.c.begin(chunk_count());
+  rail_simple.begin(chunk_count());
+  rail_short.begin(chunk_count());
+  json_value rules, manifest;
+  const std::string root = "assets/models/railings_retro/";
+  if (!json_load((root + "railing_rules.json").c_str(), rules) ||
+      !json_load((root + "export_manifest.json").c_str(), manifest)) {
+    NJIN_WARN("railings: rules or export manifest missing"); return;
+  }
+  const char *contexts[] = {"river", "bridge"};
+  const char *skip[] = {"StartPost", "EndPost"};
+  for (i32 k = 0; k < 4; ++k) {
+    std::string design = rules["terminals"][k == 3 ? "height_or_pattern_transition" : "free_end"].string_or("EndPost");
+    if (k < 2) {
+      const auto &weights = rules["contexts"][contexts[k]]["design_weights"];
+      f32 sum = 0;
+      for (const auto &[name, w] : weights.members) sum += w.f32_or(0);
+      f32 roll = pick01(map.desc.seed, 701 + k) * sum;
+      for (const auto &[name, w] : weights.members) {
+        design = name; roll -= w.f32_or(0); if (roll < 0) break;
+      }
+    }
+    // One palette for this connected public waterfront; no per-tile rerolls.
+    const std::string id = "railings/Modern/" + design;
+    for (usize i = 0; i < manifest["assets"].size(); ++i) {
+      const auto &a = manifest["assets"][i];
+      if (id != a["id"].string_or("")) continue;
+      const std::string path = root + a["path"].string_or("");
+      rail_models[k].model = model_load(ctx, {.path = path.c_str(),
+        .skip_nodes = k < 2 ? skip : nullptr, .skip_count = k < 2 ? 2u : 0u, .merge = true});
+      NJIN_INFO("railings: %s", id.c_str());
+      for (i32 m = 0; m < model_material_count(ctx, rail_models[k].model); ++m) {
+        auto material = model_material_get(ctx, rail_models[k].model, m);
+        material.color = pbk::linear_to_srgb(material.color);
+        material.color.a = 1;
+        // The loader also exposes an unused white default material.
+        if (k < 2 && (m == 0 || material.color.r + material.color.g + material.color.b <
+            rail_color[k].r + rail_color[k].g + rail_color[k].b)) rail_color[k] = material.color;
+        material.surface.specular = 0.08f;
+        material.surface.shininess = 12;
+        material.surface.cast_shadows = false; // thin infill need not enter the shadow pass
+        model_material_set(ctx, rail_models[k].model, m, material);
+      }
+      break;
+    }
+    if (!rail_models[k].model.id) NJIN_WARN("railings: asset %s missing", id.c_str());
+  }
+}
 
 kit_batch &kit_of(context &ctx, const street::asset &a) {
   for (kit_batch &k : kit)
@@ -184,13 +241,29 @@ void add(const prop &p) {
   }
 }
 
-// Low concrete railings along both edges of a bridge.
-void railings(const spot &s) {
-  {
-    for (const f32 side : {-1.0f, 1.0f})
-      big_cubes.inst.box(s.box.center + s.box.axis_y() * (side * (s.box.half.y - 1.0f)), 0.0f,
-                {s.box.half.x * 2.0f + 8.0f, 3.5f, 1.4f}, s.box.angle, rgb8(200, 196, 188));
+// Capped short straight pieces are regenerated, never a stretched whole bridge.
+void add_rail(const rail_piece &p) {
+  const f32 len = distance(p.a, p.b), angle = angle_of(p.b - p.a);
+  const vec2 mid = (p.a + p.b) * 0.5f;
+  const f32 base = layer_sidewalk / unit3d;
+  const rgba metal = p.kind < 2 ? rail_color[p.kind] : rgb8(64, 72, 78);
+  if (p.kind >= 2) {
+    const f32 scale = units_per_metre * unit3d;
+    rail_models[p.kind].c.inst.add3(to3d(p.a, layer_sidewalk), {scale, scale, scale}, colors::white);
+    return;
   }
+  rail_simple.inst.box(mid, base + railing_height - 0.3f, {len, 0.3f, 0.3f}, angle, metal);
+  if (!p.remainder) {
+    const f32 scale = units_per_metre * unit3d;
+    rail_models[p.kind].c.inst.add3(to3d(p.a, layer_sidewalk), {scale, scale, scale}, colors::white, -angle);
+    return;
+  }
+  rail_short.inst.box(mid, base + railing_height - 0.3f, {len, 0.3f, 0.3f}, angle, metal);
+  rail_short.inst.box(mid, base + 0.8f, {len, 0.25f, 0.25f}, angle, metal);
+  const i32 bars = static_cast<i32>(std::ceil(len / (0.15f * units_per_metre)));
+  for (i32 i = 1; i < bars; ++i)
+    rail_short.inst.box(p.a + (p.b - p.a) * (static_cast<f32>(i) / bars), base + 0.8f,
+      {0.12f, railing_height - 1.1f, 0.12f}, angle, metal);
 }
 
 } // namespace
@@ -204,10 +277,29 @@ void props_build(context &ctx, const city_map &map) {
   std::vector<std::vector<i32>> in_chunk(static_cast<size_t>(chunks));
   for (i32 i = 0; i < static_cast<i32>(map.props.size()); ++i)
     in_chunk[static_cast<size_t>(chunk_of(map.props[static_cast<size_t>(i)].pos))].push_back(i);
-  std::vector<std::vector<i32>> bridges(static_cast<size_t>(chunks));
-  for (i32 i = 0; i < static_cast<i32>(map.spots.size()); ++i)
-    if (map.spots[static_cast<size_t>(i)].kind == spot_kind::bridge)
-      bridges[static_cast<size_t>(chunk_of(map.spots[static_cast<size_t>(i)].box.center))].push_back(i);
+  load_rails(ctx, map);
+  std::vector<std::vector<rail_piece>> rails(static_cast<size_t>(chunks));
+  struct joint { vec2 p; bool bridge, transition = false; };
+  std::vector<joint> joints;
+  const auto post = [&](vec2 p, bool bridge) {
+    for (auto &q : joints) if (distance(p, q.p) < 0.006f) {
+      q.transition = q.transition || q.bridge != bridge; return;
+    }
+    joints.push_back({p, bridge});
+  };
+  for (const railing_edge &e : railing_layout(map)) {
+    const f32 len = distance(e.a, e.b), span = 2 * units_per_metre;
+    const vec2 dir = (e.b - e.a) / len;
+    post(e.a, e.bridge);
+    for (f32 at = 0; at < len - 0.006f; at += span) {
+      const f32 end = std::min(at + span, len);
+      const vec2 a = e.a + dir * at, b = e.a + dir * end;
+      rails[chunk_of((a + b) * 0.5f)].push_back({a, b, e.bridge ? 1 : 0, end - at < span - 0.006f});
+      post(b, e.bridge);
+    }
+  }
+  for (const auto &j : joints)
+    rails[chunk_of(j.p)].push_back({j.p, j.p, j.transition ? 3 : 2, false});
   for (i32 ch = 0; ch < chunks; ++ch) {
     for (chunked *c : all_batches)
       c->mark(ch);
@@ -222,9 +314,14 @@ void props_build(context &ctx, const city_map &map) {
       if (pr.kind == prop_kind::lamp)
         lamps.push_back({pr.pos, lamp_height, ch});
     }
-    for (const i32 i : bridges[static_cast<size_t>(ch)])
-      railings(map.spots[static_cast<size_t>(i)]);
+    rail_simple.mark(ch);
+    rail_short.mark(ch);
+    for (auto &r : rail_models) r.c.mark(ch);
+    for (const auto &r : rails[ch]) add_rail(r);
   }
+  rail_simple.end(); rail_simple.inst.upload(ctx);
+  rail_short.end(); rail_short.inst.upload(ctx);
+  for (auto &r : rail_models) { r.c.end(); r.c.inst.upload(ctx); }
   for (chunked *c : all_batches) {
     c->end();
     c->inst.upload(ctx);
@@ -290,6 +387,13 @@ void props_draw(context &ctx, const view_options &opt) {
   material3d_set(ctx, {.specular = 0.1f, .shininess = 14.0f});
   draw_chunks(ctx, big_cubes, mesh3d_cube, all);
   draw_chunks(ctx, big_posts, mesh3d_cylinder_low, all);
+  for (i32 i = 0; i < 2; ++i) draw_chunks_model(ctx, rail_models[i].c, rail_models[i].model, near);
+  draw_chunks_model(ctx, rail_models[2].c, rail_models[2].model, all);
+  draw_chunks_model(ctx, rail_models[3].c, rail_models[3].model, all);
+  material3d_set(ctx, {.specular = 0.08f, .shininess = 12.0f, .cast_shadows = false});
+  draw_chunks(ctx, rail_short, mesh3d_cube, near);
+  draw_chunks(ctx, rail_simple, mesh3d_cube, [prop_r](i32 c) { return !chunk_detailed(c, prop_r); });
+  material3d_set(ctx, {.specular = 0.1f, .shininess = 14.0f});
   draw_chunks(ctx, cubes_s, mesh3d_cube, near);
   draw_chunks(ctx, posts_s, mesh3d_cylinder_low, near);
   for (const kit_batch &k : kit)
@@ -311,6 +415,13 @@ void props_draw(context &ctx, const view_options &opt) {
 }
 
 void props_cleanup(context &ctx) {
+  rail_simple.inst.destroy(ctx); rail_simple.start.clear();
+  rail_short.inst.destroy(ctx); rail_short.start.clear();
+  for (auto &r : rail_models) {
+    r.c.inst.destroy(ctx); r.c.start.clear();
+    if (r.model.id) model_unload(ctx, r.model);
+    r.model = {};
+  }
   for (chunked *c : all_batches) {
     c->inst.destroy(ctx);
     c->start.clear();

@@ -1,4 +1,5 @@
 #include "city/city.h"
+#include "city/railings.h"
 #include "city/pbk.h"
 #include "city/render.h"
 #include "game.h"
@@ -133,7 +134,10 @@ int main(int argc, char **argv) {
       sandtable::state.hour = std::clamp(static_cast<f32>(std::atof(argv[++i])), 0.0f, 23.99f);
     else if (arg == "--speed" && more)
       sandtable::state.speed = std::max(0.0f, static_cast<f32>(std::atof(argv[++i])));
-    else if (arg == "--citycheck") {
+    else if (arg == "--railcheck") {
+      const i32 seeds = more ? std::atoi(argv[++i]) : 10;
+      return sandtable::city::run_railing_check(seeds) == 0 ? 0 : 1;
+    } else if (arg == "--citycheck") {
       // --citycheck [first seed] [count]: generate and validate, no window.
       const u32 first =
           more ? static_cast<u32>(std::strtoul(argv[++i], nullptr, 10)) : 1u;
