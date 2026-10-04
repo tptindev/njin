@@ -119,6 +119,34 @@ njin::draw_model_anim(ctx, robot, {.position = pos, .rotation = {0, yaw, 0}},
 
 With an entity, njin::model3d holds the pose and the engine advances its time every frame (@ref entities_3d).
 
+### Characters assembled from parts {#model_skinned}
+
+When each character is a combination of parts (head, body, arms, hair, hat) chosen by a set of
+genes, exporting a file for every combination is not an option. model_create_skinned() makes a
+skinned model from a mesh the game assembles (njin::skinned_mesh3d_data: positions, four bones and
+four weights per vertex, indices), split into parts, one material each. The new model copies the
+skeleton of a loaded skinned model and **shares** its animations: one clip library, loaded once for
+every character.
+
+@code
+// The clip library loaded once; one model per combination of parts.
+const njin::model_handle clips = njin::model_load(ctx, "assets/shared_animations.glb");
+const njin::model_handle body = njin::model_create_skinned(
+    ctx, {.positions = pos.data(), .vertex_count = n, .joints = joints.data(), .weights = weights.data(),
+          .indices = idx.data(), .index_count = (njin::u32)idx.size(), .skeleton = clips});
+// Each person their own pose and palette on the same mesh.
+const njin::model_recolor palette[] = {{.material = 0, .color = skin}, {.material = 1, .color = shirt}};
+njin::draw_model_anim(ctx, body, at, {.anim = njin::model_anim_find(ctx, body, "Walk_Loop"), .time = t},
+                      njin::colors::white, palette, 2);
+@endcode
+
+| Task | Function |
+|---|---|
+| Bone indices by name, to bind each part to the right bones | model_bone_find(), model_bone_name(), model_bone_count() |
+| One bone in a pose (props in a hand, hit zones on bones) | model_bone_pose(): position and three axes in model space, as draw_model_anim() places it |
+| Several recoloured materials in one draw | draw_model_anim() with an array of njin::model_recolor |
+| The clip library freed first | The assembled model keeps only its rest pose |
+
 ## Lighting
 
 | Part | Set with | Notes |

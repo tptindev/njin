@@ -95,8 +95,8 @@ void shader_set_vec4_array(context &ctx, shader_handle handle, const char *name,
 /// Use it for extra images the shader reads: color palette (LUT), noise, mask,
 /// normal map. Each shader takes at most 4 extra images; setting the same name
 /// again replaces the image. The image is bound every time the shader is enabled
-/// (shader_begin(), camera_set_post_shader(), draw_instanced()), so calling this
-/// once is enough. When the image is reloaded by hot reload, the shader sees the new image.
+/// (shader_begin(), camera_set_post_shader(), draw_instanced(), and 3D shapes
+/// drawn with a game shader), so calling this once is enough. When the image is reloaded by hot reload, the shader sees the new image.
 ///
 /// - Use a standalone image, from texture_load(). An image packed in an atlas is rejected,
 ///   because the shader would see the whole atlas page rather than just that image.

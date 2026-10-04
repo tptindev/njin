@@ -209,11 +209,14 @@ void material3d_set(context &ctx, const material3d &material);
 /// shadows are computed), in the order called. The shape is lit per
 /// light3d_set(), light3d_add() and material3d_set(). If the game has bound
 /// its own shader with shader_begin(), the shape draws with it; the engine
-/// sets the `vec3` uniforms `lightDir`, `lightColor`, `ambient` and `viewPos`
-/// (camera position) when the shader declares them. Attributes and the
-/// `mvp`, `matModel`, `matNormal`, `colDiffuse` uniforms follow raylib's
-/// standard names. Because the shape draws at end_3d(), a uniform the game
-/// sets with `shader_set_*` keeps its last value before end_3d().
+/// sets the `vec3` uniforms `lightDir`, `lightColor`, `ambient`, `viewPos`
+/// (camera position), `fogColor`, the `float` uniform `fogDensity` (the fog
+/// as light3d_set()) and the `int` uniform `instanceFloats` (0 when not drawn
+/// instanced) when the shader declares them, and binds the extra images set
+/// with shader_set_texture(). Attributes and the `mvp`, `matModel`,
+/// `matNormal`, `colDiffuse` uniforms follow raylib's standard names. Because
+/// the shape draws at end_3d(), a uniform the game sets with `shader_set_*`
+/// keeps its last value before end_3d().
 /// @param ctx Engine context.
 /// @param center Box centre.
 /// @param size Size along x, y, z.
@@ -435,6 +438,56 @@ struct mesh3d_data {
 /// wrong (a warning says why).
 model_handle model_create(context &ctx, const mesh3d_data &mesh);
 
+/// A skinned mesh the game assembles at run time, for model_create_skinned():
+/// a character put together from several parts (head, body, arms, hair...) by
+/// a set of genes, without exporting a file for every combination. The
+/// pointers only need to live until model_create_skinned() returns.
+struct skinned_mesh3d_data {
+  const vec3 *positions = nullptr; ///< Positions of the `vertex_count` vertices, in the rest pose of `skeleton`.
+  /// Per-vertex normals (length 1). nullptr makes the engine compute them as model_create() does.
+  const vec3 *normals = nullptr;
+  u32 vertex_count = 0; ///< Number of vertices.
+  /// Four bones per vertex: bone indices of `skeleton` (model_bone_find()), so
+  /// at most 255 bones.
+  const u8 *joints = nullptr;
+  const f32 *weights = nullptr; ///< Four weights per vertex, in the order of `joints`, summing to 1.
+  /// Three indices per triangle, counter-clockwise seen from the front.
+  const u32 *indices = nullptr;
+  u32 index_count = 0; ///< Number of indices, a multiple of 3.
+  /// Splits the triangles into parts, one material each (material `k` is part
+  /// `k`, white): the end index of each part in `indices`, ascending, the last
+  /// ending at `index_count`. nullptr is one part. At most 65535 vertices per
+  /// part.
+  const u32 *part_ends = nullptr;
+  u32 part_count = 0; ///< Number of parts in `part_ends`.
+  /// A skinned model loaded with model_load(): the new model copies its
+  /// skeleton and rest pose and **shares** its animations (no copy), so
+  /// model_anim_find(), draw_model_anim() and model_bone_pose() on the new
+  /// model play this one's clips. Freeing this model first leaves the new one
+  /// with its rest pose only.
+  model_handle skeleton{};
+};
+
+/// Makes a skinned model from a mesh in memory, using another model's
+/// skeleton and animations (a clip library loaded once for every character).
+/// Drawn with draw_model_anim() like a model loaded from a file, each draw
+/// with its own pose and (with njin::model_recolor) its own palette, so many
+/// characters share one mesh with a motion and an outfit each.
+///
+/// @code
+/// // The clip library once; one model per combination of parts.
+/// const njin::model_handle clips = njin::model_load(ctx, "assets/shared_animations.glb");
+/// const njin::model_handle body = njin::model_create_skinned(
+///     ctx, {.positions = pos.data(), .vertex_count = n, .joints = joints.data(), .weights = weights.data(),
+///           .indices = idx.data(), .index_count = (njin::u32)idx.size(), .skeleton = clips});
+/// njin::draw_model_anim(ctx, body, at, {.anim = njin::model_anim_find(ctx, body, "Walk_Loop"), .time = t});
+/// @endcode
+/// @param ctx The engine context.
+/// @param mesh The mesh, its parts and the model for the skeleton.
+/// @return The model's handle, or an invalid handle if the mesh is wrong or
+/// `skeleton` is not a skinned model (a warning says why). Free it with model_unload().
+model_handle model_create_skinned(context &ctx, const skinned_mesh3d_data &mesh);
+
 /// How model_lod_build() makes the levels of detail (LOD) of a model.
 struct model_lod_desc {
   i32 levels = 3;        ///< Simplified levels, 1..4. Level k keeps about `ratio` to the power k of the triangles.
@@ -494,8 +547,10 @@ struct model_material {
   texture_handle normal{};   ///< Normal map (tangent space, green pointing up, as in glTF).
   texture_handle emission{}; ///< Self-lit image, multiplied by `emission_color`.
   rgba emission_color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Colour multiplied into the emission image (the file's, or `emission`).
-  /// This part's own shader, like shader_begin() for a primitive. Invalid
-  /// means the engine's built-in shader.
+  /// This part's own shader, like shader_begin() for a primitive, also when
+  /// the model is drawn with draw_instanced3d() (the shader reads
+  /// `instanceFloats` to know which way it is drawn). Invalid means the
+  /// engine's built-in shader.
   shader_handle shader{};
   /// Shininess, emission, unlit, shadow casting, `world_uv`. `surface.texture`
   /// and `surface.normal` are unused here (`albedo`, `normal` are).
@@ -647,6 +702,68 @@ struct model_recolor {
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor &recolor);
 
+/// Like draw_model_anim() above, with several recoloured materials at once: a
+/// character's own palette (skin, hair, shirt, trousers) on a shared model.
+/// @code
+/// const njin::model_recolor palette[] = {{.material = 0, .color = skin}, {.material = 1, .color = shirt}};
+/// njin::draw_model_anim(ctx, body, at, pose, njin::colors::white, palette, 2);
+/// @endcode
+/// @param ctx The engine context.
+/// @param handle The model.
+/// @param transform Position, orientation and scale.
+/// @param pose The pose.
+/// @param tint Colour multiplied into the whole model (after the recolouring).
+/// @param recolors The recoloured materials; a material listed twice takes the first colour.
+/// @param count Number of elements in `recolors`.
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint, const model_recolor *recolors, u32 count);
+
+/// The model's number of bones (0 without bones or for an invalid handle).
+/// @param ctx The engine context.
+/// @param handle The model.
+/// @return The number of bones.
+i32 model_bone_count(const context &ctx, model_handle handle);
+
+/// A bone's name, as in the glTF file.
+/// @param ctx The engine context.
+/// @param handle The model.
+/// @param bone 0..model_bone_count() - 1.
+/// @return The name, or an empty string if `bone` or the handle is invalid.
+const char *model_bone_name(const context &ctx, model_handle handle, i32 bone);
+
+/// Finds a bone by name (the whole string must match).
+/// @param ctx The engine context.
+/// @param handle The model.
+/// @param name The bone's name.
+/// @return The index 0..model_bone_count() - 1, or -1 if there is none.
+i32 model_bone_find(const context &ctx, model_handle handle, const char *name);
+
+/// A bone in a pose: its position and three axes in the model's space (before
+/// the draw's transform), as draw_model_anim() places it.
+struct bone_pose3d {
+  vec3 position{0.0f, 0.0f, 0.0f}; ///< The bone's origin.
+  vec3 x_axis{1.0f, 0.0f, 0.0f};   ///< The bone's x axis, length 1.
+  vec3 y_axis{0.0f, 1.0f, 0.0f};   ///< The y axis (along the bone with Blender's rigs), length 1.
+  vec3 z_axis{0.0f, 0.0f, 1.0f};   ///< The z axis, length 1.
+};
+
+/// Bone `bone` in pose `pose` (worked out as draw_model_anim() does, blending
+/// two animations too), to put an object in a hand, hit zones on bones, or
+/// know where a foot is. Multiply by the draw's transform for the world.
+///
+/// @code
+/// // A cigarette in the right hand, in the world.
+/// const njin::bone_pose3d hand = njin::model_bone_pose(ctx, man, pose, hand_r);
+/// const njin::vec3 at = pos + hand.position * scale; // the model is not turned
+/// @endcode
+/// @param ctx The engine context.
+/// @param handle A skinned model.
+/// @param pose The pose; `anim` -1 (and no blend) is the rest pose.
+/// @param bone 0..model_bone_count() - 1.
+/// @return The bone's pose; the default value (the origin, the standard axes)
+/// if the handle or `bone` is invalid.
+bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model_pose &pose, i32 bone);
+
 /// A ray in the 3D world, used to pick something under the mouse, fire a
 /// shot, check line of sight.
 struct ray3d {
@@ -771,7 +888,9 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 /// under the same instance data convention as the one above. Each part keeps
 /// its own material's image and colour (model_material_set()). A normal map is
 /// used only when the game set `model_material::normal` (a file's own normal
-/// map is ignored here); emission images are not used.
+/// map is ignored here); emission images are not used. A part with a
+/// `model_material::shader` draws with that shader instead of `shader`, as in
+/// draw_model().
 /// @param ctx Engine context.
 /// @param model Model from model_load().
 /// @param buffer Buffer written with instance_buffer_upload().

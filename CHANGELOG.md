@@ -8,6 +8,24 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+## 0.2.0
+
+- `model_create_skinned()` builds a skinned model from a game-assembled mesh
+  (`skinned_mesh3d_data`: positions, four bone indices and weights per vertex,
+  split into parts, indices), copying the skeleton of an already-loaded model
+  and sharing its animations, so one clip library serves many characters built
+  from parts (hair, head, body) picked per instance. `model_bone_find()`,
+  `model_bone_name()`, `model_bone_count()` look up bones by name;
+  `model_bone_pose()` gives a bone's world-space pose for the current
+  `draw_model_anim()` call (attaching props, hit boxes). `draw_model_anim()`
+  also takes an array of `model_recolor` to recolour several materials in one
+  draw (shared mesh, per-character palette).
+- Game shaders used in 3D draws (`shader_begin()`, a model material's own
+  `model_material::shader`, including on a part drawn with `draw_instanced3d()`)
+  now get `fogColor`/`fogDensity` uniforms when declared, and the extra
+  textures set with `shader_set_texture()` are bound for them too. A model
+  material's own shader is now honoured in `draw_instanced3d()`, drawing that
+  part with it instead of the call's shader, as `draw_model()` already did.
 - `model_material_find()` finds a model's material by (the start of) its glTF
   name; `draw_model_anim()` takes a `model_recolor` to draw one material in
   another colour for that draw only (a uniform on a shared character model).

@@ -62,6 +62,18 @@ void shader_slot_set_optional_vec3(const shader_slot &slot, const char *name, ve
   SetShaderValue(slot.shader, loc, v, SHADER_UNIFORM_VEC3);
 }
 
+void shader_slot_set_optional_f32(const shader_slot &slot, const char *name, f32 value) {
+  const i32 loc = uniform_loc(slot, name, false);
+  if (loc >= 0)
+    SetShaderValue(slot.shader, loc, &value, SHADER_UNIFORM_FLOAT);
+}
+
+void shader_slot_set_optional_i32(const shader_slot &slot, const char *name, i32 value) {
+  const i32 loc = uniform_loc(slot, name, false);
+  if (loc >= 0)
+    SetShaderValue(slot.shader, loc, &value, SHADER_UNIFORM_INT);
+}
+
 shader_handle shader_store_load(shader_store &store, const char *vspath,
                                 const char *fspath) {
   if (vspath == nullptr && fspath == nullptr) {
@@ -211,6 +223,22 @@ void shader_bind_textures(const context &ctx, const shader_slot &slot) {
 
 void shader_bind_textures_instanced(const context &ctx, const shader_slot &slot) {
   int unit = 1;
+  for (const shader_texture_binding &b : slot.textures) {
+    const u32 gl = gl_id_of(ctx, b);
+    const i32 loc = uniform_loc(slot, b.name.c_str());
+    if (gl != 0 && loc >= 0) {
+      rlActiveTextureSlot(unit);
+      rlEnableTexture(gl);
+      rlSetUniform(loc, &unit, RL_SHADER_UNIFORM_INT, 1);
+    }
+    unit++;
+  }
+  rlActiveTextureSlot(0);
+}
+
+void shader_bind_textures_from(const context &ctx, const shader_slot &slot, i32 first_unit) {
+  rlEnableShader(slot.shader.id);
+  i32 unit = first_unit;
   for (const shader_texture_binding &b : slot.textures) {
     const u32 gl = gl_id_of(ctx, b);
     const i32 loc = uniform_loc(slot, b.name.c_str());

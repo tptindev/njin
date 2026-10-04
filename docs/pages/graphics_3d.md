@@ -114,6 +114,33 @@ njin::draw_model_anim(ctx, robot, {.position = pos, .rotation = {0, yaw, 0}},
 
 Với entity, njin::model3d giữ tư thế và engine tự tăng thời gian mỗi frame (@ref entities_3d).
 
+### Nhân vật ghép mảnh {#model_skinned}
+
+Khi mỗi nhân vật là một tổ hợp mảnh (đầu, thân, tay, tóc, mũ) theo một bộ gen, xuất sẵn một
+file cho mỗi tổ hợp là không được. model_create_skinned() tạo model có xương từ một lưới game tự
+ghép (njin::skinned_mesh3d_data: vị trí, bốn xương và bốn trọng số mỗi đỉnh, chỉ số), chia thành
+các phần, mỗi phần một vật liệu. Model mới chép bộ xương của một model có xương đã nạp, và
+**dùng chung** các animation của nó: một thư viện clip nạp một lần cho mọi nhân vật.
+
+@code
+// Thư viện clip nạp một lần; mỗi tổ hợp mảnh ghép một model.
+const njin::model_handle clips = njin::model_load(ctx, "assets/shared_animations.glb");
+const njin::model_handle body = njin::model_create_skinned(
+    ctx, {.positions = pos.data(), .vertex_count = n, .joints = joints.data(), .weights = weights.data(),
+          .indices = idx.data(), .index_count = (njin::u32)idx.size(), .skeleton = clips});
+// Mỗi người một tư thế, một bảng màu trên cùng lưới.
+const njin::model_recolor palette[] = {{.material = 0, .color = skin}, {.material = 1, .color = shirt}};
+njin::draw_model_anim(ctx, body, at, {.anim = njin::model_anim_find(ctx, body, "Walk_Loop"), .time = t},
+                      njin::colors::white, palette, 2);
+@endcode
+
+| Việc | Hàm |
+|---|---|
+| Chỉ số xương theo tên, để ghép đúng xương vào mảnh | model_bone_find(), model_bone_name(), model_bone_count() |
+| Một xương ở một tư thế (gắn đồ vào tay, vùng trúng đòn theo xương) | model_bone_pose(): vị trí và ba trục trong không gian model, như draw_model_anim() đặt nó |
+| Nhiều vật liệu đổi màu trong một lần vẽ | draw_model_anim() với một mảng njin::model_recolor |
+| Giải phóng thư viện clip trước | Model ghép chỉ còn tư thế gốc |
+
 ## Ánh sáng
 
 | Phần | Đặt bằng | Ghi chú |

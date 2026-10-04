@@ -26,6 +26,11 @@ namespace {
 // Past raylib's material map slots (0..11), so DrawMesh never rebinds them.
 constexpr i32 shadow_unit = 14;
 constexpr i32 lamp_unit = 15;
+// A game shader's extra textures (shader_set_texture()): above the units a
+// model's own maps take (DrawMesh binds up to MATERIAL_MAP_BRDF), below the
+// shadow maps.
+constexpr i32 game_texture_unit = 10;
+static_assert(game_texture_unit + (i32)shader_max_textures <= shadow_unit);
 // The shadow atlas of the point and spot lights: one row per shadowed light,
 // one tile per face (a point light has 6, a spot light 1).
 constexpr i32 lamp_faces = 6;
@@ -994,6 +999,12 @@ bool game_shader(const context &ctx, shader_handle handle, Shader &out) {
   shader_slot_set_optional_vec3(*slot, "lightColor", rgb(s.light.color));
   shader_slot_set_optional_vec3(*slot, "ambient", rgb(s.light.ambient));
   shader_slot_set_optional_vec3(*slot, "viewPos", s.camera.position);
+  shader_slot_set_optional_vec3(*slot, "fogColor", rgb(s.light.fog_color));
+  shader_slot_set_optional_f32(*slot, "fogDensity", std::max(s.light.fog_density, 0.0f));
+  // Not drawn instanced, unless draw_instanced_cmd() says otherwise: one
+  // shader can then serve a model drawn both ways.
+  shader_slot_set_optional_i32(*slot, "instanceFloats", 0);
+  shader_bind_textures_from(ctx, *slot, game_texture_unit);
   out = slot->shader;
   return true;
 }
@@ -1407,9 +1418,9 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   const u32 count = std::min(c.count, slot->count - c.first);
   if (count == 0)
     return;
-  Shader shader = depth_only ? s.depth_instanced : s.lit_instanced;
-  const bool own = !depth_only && game_shader(ctx, c.shader, shader);
-  const bool built_in = !depth_only && !own;
+  Shader call_shader = depth_only ? s.depth_instanced : s.lit_instanced;
+  const bool own = !depth_only && game_shader(ctx, c.shader, call_shader);
+  const bool call_built_in = !depth_only && !own;
 
   // The meshes to draw, each with its albedo texture and colour, and the
   // normal map the game set (a file's own normal map is not used here).
@@ -1421,6 +1432,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     bool double_sided = false;
     Texture2D normal{};
     Texture2D under{}, under_normal{};
+    shader_handle shader{}; // the part's own (model_material::shader)
   };
   std::vector<part> parts;
   Texture2D texture = default_texture();
@@ -1440,6 +1452,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
       parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
+      parts.back().shader = mm.shader;
       mesh_texture(ctx, mm.normal, parts.back().normal);
     }
   }
@@ -1455,6 +1468,11 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   const i32 floats = (i32)slot->floats;
   const i32 stride = (i32)(slot->floats * sizeof(f32));
   for (const part &p : parts) {
+    // A part with a shader of its own draws with it, as in draw_model().
+    Shader shader = call_shader;
+    bool built_in = call_built_in;
+    if (!depth_only && game_shader(ctx, p.shader, shader))
+      built_in = false;
     if (built_in)
       set_draw_uniforms(shader, s.instanced_locs, c.fx, *p.surface, colors::white, p.normal.id > 0, false,
                         p.under.id > 0, p.under_normal.id > 0);

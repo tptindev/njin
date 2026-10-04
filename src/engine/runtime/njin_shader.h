@@ -88,6 +88,8 @@ void shader_store_set_vec3(shader_store &store, shader_handle handle, const char
 // Sets `name` only if the shader declares it, with no warning when it does
 // not: for values the engine offers a game shader (render3d's light).
 void shader_slot_set_optional_vec3(const shader_slot &slot, const char *name, vec3 value);
+void shader_slot_set_optional_f32(const shader_slot &slot, const char *name, f32 value);
+void shader_slot_set_optional_i32(const shader_slot &slot, const char *name, i32 value);
 void shader_store_set_rgba(shader_store &store, shader_handle handle, const char *name, vec4 value);
 void shader_store_set_vec4_array(shader_store &store, shader_handle handle, const char *name,
                                  const vec4 *values, u32 count);
@@ -107,4 +109,8 @@ struct context;
 void shader_bind_textures(const context &ctx, const shader_slot &slot);
 void shader_bind_textures_instanced(const context &ctx, const shader_slot &slot);
 void shader_unbind_textures_instanced(const shader_slot &slot);
+// Binds the extra textures on units `first_unit` onwards and leaves them
+// bound, with the shader enabled: for render3d, whose draws use the units
+// below for their own maps.
+void shader_bind_textures_from(const context &ctx, const shader_slot &slot, i32 first_unit);
 } // namespace njin

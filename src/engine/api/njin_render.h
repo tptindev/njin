@@ -94,8 +94,8 @@ void shader_set_vec4_array(context &ctx, shader_handle handle, const char *name,
 ///
 /// Dùng cho ảnh phụ mà shader đọc: bảng màu (LUT), nhiễu, mặt nạ, normal map.
 /// Mỗi shader nhận tối đa 4 ảnh phụ; đặt lại cùng tên thì thay ảnh. Ảnh được gắn
-/// mỗi khi shader bật (shader_begin(), camera_set_post_shader(), draw_instanced()),
-/// nên gọi hàm này một lần là đủ. Ảnh nạp lại khi hot reload thì shader thấy ảnh mới.
+/// mỗi khi shader bật (shader_begin(), camera_set_post_shader(), draw_instanced(),
+/// và các hình 3D vẽ bằng shader của game), nên gọi hàm này một lần là đủ. Ảnh nạp lại khi hot reload thì shader thấy ảnh mới.
 ///
 /// - Dùng ảnh riêng, từ texture_load(). Ảnh xếp trong atlas bị từ chối, vì shader
 ///   sẽ thấy cả trang atlas chứ không phải riêng ảnh đó.

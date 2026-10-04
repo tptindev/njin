@@ -195,10 +195,13 @@ void material3d_set(context &ctx, const material3d &material);
 /// ghi lại và vẽ thật ở end_3d() (sau khi tính bóng đổ), theo đúng thứ tự gọi. Hình
 /// được chiếu sáng theo light3d_set(), light3d_add() và material3d_set(). Nếu game đã bật shader của mình bằng
 /// shader_begin(), hình vẽ bằng shader đó; engine đặt sẵn các uniform `vec3`
-/// `lightDir`, `lightColor`, `ambient` và `viewPos` (vị trí camera) nếu shader
-/// khai báo chúng. Attribute và các uniform `mvp`, `matModel`, `matNormal`,
-/// `colDiffuse` theo tên chuẩn của raylib. Vì hình vẽ ở end_3d(), uniform mà game
-/// đặt bằng `shader_set_*` lấy giá trị cuối cùng trước end_3d().
+/// `lightDir`, `lightColor`, `ambient`, `viewPos` (vị trí camera), `fogColor`,
+/// uniform `float` `fogDensity` (sương như light3d_set()) và uniform `int`
+/// `instanceFloats` (0 khi không vẽ instanced) nếu shader khai báo chúng, và gắn
+/// các ảnh phụ đặt bằng shader_set_texture(). Attribute và các uniform `mvp`,
+/// `matModel`, `matNormal`, `colDiffuse` theo tên chuẩn của raylib. Vì hình vẽ ở
+/// end_3d(), uniform mà game đặt bằng `shader_set_*` lấy giá trị cuối cùng trước
+/// end_3d().
 /// @param ctx Context của engine.
 /// @param center Tâm hộp.
 /// @param size Kích thước theo x, y, z.
@@ -504,8 +507,9 @@ struct model_material {
   texture_handle normal{};   ///< Normal map (tangent space, xanh lá hướng lên như glTF).
   texture_handle emission{}; ///< Ảnh phát sáng, nhân với `emission_color`.
   rgba emission_color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu nhân vào ảnh phát sáng (của file hay `emission`).
-  /// Shader riêng cho phần này, như shader_begin() với hình khối. Không hợp lệ là
-  /// shader có sẵn của engine.
+  /// Shader riêng cho phần này, như shader_begin() với hình khối, cả khi model
+  /// vẽ bằng draw_instanced3d() (shader đọc `instanceFloats` để biết mình đang
+  /// vẽ kiểu nào). Không hợp lệ là shader có sẵn của engine.
   shader_handle shader{};
   /// Độ bóng, phát sáng, unlit, đổ bóng, `world_uv`. `surface.texture` và
   /// `surface.normal` không dùng ở đây (đã có `albedo`, `normal`).
@@ -830,7 +834,8 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 /// ước dữ liệu instance với bản trên. Mỗi phần giữ ảnh và màu của vật liệu nó
 /// (model_material_set()). Normal map chỉ dùng khi game tự đặt
 /// `model_material::normal` (normal map trong file bị bỏ qua ở đây); ảnh phát
-/// sáng không dùng.
+/// sáng không dùng. Phần có `model_material::shader` vẽ bằng shader đó thay cho
+/// `shader`, như draw_model().
 /// @param ctx Context của engine.
 /// @param model Model từ model_load().
 /// @param buffer Bộ đệm đã ghi bằng instance_buffer_upload().
