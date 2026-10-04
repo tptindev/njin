@@ -177,6 +177,11 @@ vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
 enum texture_filter {
   filter_nearest, ///< Keeps every pixel, sharp edges. Use for pixel art.
   filter_linear,  ///< Smoothing. Default.
+  /// Smooth at any distance: mipmaps made and trilinear filtering. For images
+  /// repeated over large 3D surfaces seen from afar (walls, floors), where
+  /// `filter_linear` shimmers. Images in an atlas and render textures get
+  /// `filter_linear`.
+  filter_mipmap,
 };
 
 /// Changes the sampling method of a texture.

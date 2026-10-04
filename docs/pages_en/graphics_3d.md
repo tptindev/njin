@@ -65,6 +65,9 @@ njin::model_material_set(ctx, crate, 0, m);                    // -1 for every p
 
 A normal map needs no tangent in the file: the shader builds one from screen derivatives.
 
+A material marked `doubleSided` in the glTF (leaves, paper, single-layer cloth) is drawn on both
+faces: `model_material::double_sided`, changeable with model_material_set().
+
 ### Culling out of view and levels of detail {#model_lod}
 
 draw_model(), draw_model_anim() and njin::model3d leave out a model whose bounding box is
@@ -109,6 +112,8 @@ njin::draw_model_anim(ctx, robot, {.position = pos, .rotation = {0, yaw, 0}},
 | Bone computation | On the GPU, at most 128 bones, 4 bones per vertex |
 | Shadows | Follow the pose |
 | Many copies | Each draw has its own pose: the same model, a different motion for each one |
+| Uniforms | model_material_find() finds a material by name; draw_model_anim() with a njin::model_recolor recolours it for one draw |
+| Motions that hold their last frame | Each clip's last frame is taken from the one before it (raylib returns the clip's first pose at exactly its end time) |
 | Uses the rest pose | Parts drawn with a game shader, draw_instanced3d(), ray3d_model() |
 | No armature | The root bone has no parent node in the glTF: the engine warns, the model has no animations |
 

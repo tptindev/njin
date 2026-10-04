@@ -177,6 +177,10 @@ vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
 enum texture_filter {
   filter_nearest, ///< Giữ nguyên từng pixel, sắc cạnh. Dùng cho pixel art.
   filter_linear,  ///< Làm mượt. Mặc định.
+  /// Làm mượt ở mọi khoảng cách: tạo mipmap và lọc tam tuyến. Cho ảnh lặp lại
+  /// trên mặt 3D lớn nhìn từ xa (tường, sàn), nơi `filter_linear` lấp lánh. Ảnh
+  /// trong atlas và render texture lấy `filter_linear`.
+  filter_mipmap,
 };
 
 /// Đổi cách lấy mẫu của texture.

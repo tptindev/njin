@@ -13,6 +13,23 @@ struct context;
 /// @param ctx Engine context.
 void quit(context &ctx);
 
+/// Intercept closing the window: the [x] button, Alt+F4, and the exit key
+/// (config::exit_key).
+///
+/// When on, closing the window no longer quits the game; it only makes
+/// window_close_requested() return `true` for one frame. The game decides what
+/// to do (ask the player again, save, unload its resources) and then calls
+/// quit(). Off by default.
+/// @param ctx The engine context.
+/// @param on `true` to intercept.
+void window_set_close_intercept(context &ctx, bool on);
+
+/// The player has just closed the window while window_set_close_intercept() is
+/// on.
+/// @param ctx The engine context.
+/// @return `true` in exactly the frame of the close request.
+bool window_close_requested(const context &ctx);
+
 /// Change the window size. Has no effect while in fullscreen.
 /// @param ctx Engine context.
 /// @param size New size, in pixels.

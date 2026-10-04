@@ -13,6 +13,20 @@ struct context;
 /// @param ctx Context của engine.
 void quit(context &ctx);
 
+/// Chặn nút đóng cửa sổ: nút [x], Alt+F4, và phím thoát (config::exit_key).
+///
+/// Khi bật, đóng cửa sổ không thoát game nữa mà chỉ làm
+/// window_close_requested() trả về `true` trong một frame. Game tự quyết làm
+/// gì (hỏi lại người chơi, lưu, dọn tài nguyên) rồi gọi quit(). Mặc định tắt.
+/// @param ctx Context của engine.
+/// @param on `true` để chặn.
+void window_set_close_intercept(context &ctx, bool on);
+
+/// Người chơi vừa đóng cửa sổ trong lúc window_set_close_intercept() đang bật.
+/// @param ctx Context của engine.
+/// @return `true` trong đúng frame có yêu cầu đóng.
+bool window_close_requested(const context &ctx);
+
 /// Đổi kích thước cửa sổ. Không có tác dụng khi đang toàn màn hình.
 /// @param ctx Context của engine.
 /// @param size Kích thước mới, tính bằng pixel.

@@ -73,6 +73,10 @@ struct context {
 
   time_state time;
   bool quit = false;
+  // window_set_close_intercept(): closing the window only sets
+  // close_requested, for one frame, instead of ending the loop.
+  bool close_intercept = false;
+  bool close_requested = false;
   // Paths requested by screenshot() this frame, taken at its end.
   std::vector<std::string> screenshots;
   rng random;

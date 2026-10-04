@@ -158,6 +158,28 @@ struct material3d {
   /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
   f32 clay = 0.0f;
   f32 clay_detail = 9.0f; ///< Grain frequency relative to the largest SDF part radius.
+  /// Normal map (tangent space, xanh lá hướng lên như glTF, tức OpenGL +Y) cho
+  /// hình khối và draw_instanced3d(). Không hợp lệ là không dùng. Với model,
+  /// đặt `model_material::normal`.
+  texture_handle normal{};
+  /// Lớn hơn 0: ảnh (`texture`, `normal`, và ảnh của vật liệu model) dán theo
+  /// vị trí trong thế giới thay cho UV của lưới, mỗi ô ảnh `world_uv` đơn vị 3D.
+  /// Mặt đứng: u chạy ngang theo mặt, v hướng lên (đỉnh ảnh ở trên), nên vệt
+  /// nước chảy thẳng xuống dù hình xoay thế nào; mặt nằm: u theo x, v theo z.
+  /// Cho tường và sàn ghép từ nhiều khối: ảnh liền qua các khối, không giãn
+  /// theo cỡ khối, và dùng được với lưới không có UV. Mặc định 0: UV của lưới.
+  /// Ảnh dán theo cách này được trộn từ hai vị trí lệch nhau theo một nhiễu
+  /// chậm, nên các ô ảnh không lộ thành lưới.
+  f32 world_uv = 0.0f;
+  /// Lớp dưới, chỉ khi `world_uv` > 0: ảnh màu và normal map của thứ nằm dưới
+  /// lớp ảnh chính (gạch dưới lớp vữa), lộ ra từng mảng nơi lớp trên đã bong,
+  /// nhiều hơn ở chân tường, mép mảng bong hơi tối. Không nhân với màu vẽ.
+  /// Lớp dưới chỉ dịch theo bước 1/8 ô, nên hoa văn lưới như gạch (lặp mỗi
+  /// 1/8 ô) giữ nguyên mạch. Không hợp lệ là không có lớp dưới.
+  texture_handle under{};
+  texture_handle under_normal{}; ///< Normal map của lớp dưới, như `normal`.
+  /// Phần lớp dưới lộ ra, 0 (không) đến 1 (toàn bộ, lớp trên bong hết).
+  f32 under_amount = 0.0f;
 };
 
 /// Đặt bề mặt cho các hình 3D vẽ sau lệnh này, đến lần gọi tiếp theo hoặc
@@ -378,6 +400,56 @@ struct mesh3d_data {
 /// @return Handle của model, hoặc handle không hợp lệ nếu lưới rỗng hay sai (cảnh báo nói vì sao).
 model_handle model_create(context &ctx, const mesh3d_data &mesh);
 
+/// Một lưới có xương do game tự ghép lúc chạy, cho model_create_skinned():
+/// nhân vật ghép từ nhiều mảnh (đầu, thân, tay, tóc...) theo một bộ gen, mà
+/// không xuất sẵn một file cho mỗi tổ hợp. Các con trỏ chỉ cần sống đến khi
+/// model_create_skinned() trả về.
+struct skinned_mesh3d_data {
+  const vec3 *positions = nullptr; ///< Vị trí `vertex_count` đỉnh, ở tư thế gốc của `skeleton`.
+  /// Pháp tuyến từng đỉnh (độ dài 1). nullptr thì engine tự tính như model_create().
+  const vec3 *normals = nullptr;
+  u32 vertex_count = 0; ///< Số đỉnh.
+  /// Bốn xương mỗi đỉnh: chỉ số xương của `skeleton` (model_bone_find()), nên
+  /// tối đa 255 xương.
+  const u8 *joints = nullptr;
+  const f32 *weights = nullptr; ///< Bốn trọng số mỗi đỉnh, cùng thứ tự `joints`, cộng lại bằng 1.
+  /// Ba chỉ số một tam giác, ngược chiều kim đồng hồ khi nhìn từ mặt trước.
+  const u32 *indices = nullptr;
+  u32 index_count = 0; ///< Số chỉ số, bội của 3.
+  /// Chia tam giác thành các phần, mỗi phần một vật liệu (vật liệu `k` là phần
+  /// `k`, màu trắng): chỉ số kết thúc của từng phần trong `indices`, tăng dần,
+  /// phần cuối kết thúc ở `index_count`. nullptr là một phần. Mỗi phần tối đa
+  /// 65535 đỉnh.
+  const u32 *part_ends = nullptr;
+  u32 part_count = 0; ///< Số phần trong `part_ends`.
+  /// Model có xương đã nạp bằng model_load(): model mới chép bộ xương và tư
+  /// thế gốc của nó, và **dùng chung** các animation của nó (không chép), nên
+  /// model_anim_find(), draw_model_anim() và model_bone_pose() trên model mới
+  /// chạy các clip của model này. Giải phóng model này trước thì model mới chỉ
+  /// còn tư thế gốc.
+  model_handle skeleton{};
+};
+
+/// Tạo model có xương từ một lưới trong bộ nhớ, dùng bộ xương và animation
+/// của model khác (một thư viện clip nạp một lần cho mọi nhân vật). Vẽ bằng
+/// draw_model_anim() như model nạp từ file, mỗi lần vẽ một tư thế và (với
+/// njin::model_recolor) một bảng màu riêng, nên nhiều nhân vật dùng chung một
+/// lưới mà vẫn mỗi người một động tác, một bộ quần áo.
+///
+/// @code
+/// // Thư viện clip một lần; mỗi tổ hợp mảnh ghép một model.
+/// const njin::model_handle clips = njin::model_load(ctx, "assets/shared_animations.glb");
+/// const njin::model_handle body = njin::model_create_skinned(
+///     ctx, {.positions = pos.data(), .vertex_count = n, .joints = joints.data(), .weights = weights.data(),
+///           .indices = idx.data(), .index_count = (njin::u32)idx.size(), .skeleton = clips});
+/// njin::draw_model_anim(ctx, body, at, {.anim = njin::model_anim_find(ctx, body, "Walk_Loop"), .time = t});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param mesh Lưới, các phần và model cho bộ xương.
+/// @return Handle của model, hoặc handle không hợp lệ nếu lưới sai hay `skeleton`
+/// không phải model có xương (cảnh báo nói vì sao). Giải phóng bằng model_unload().
+model_handle model_create_skinned(context &ctx, const skinned_mesh3d_data &mesh);
+
 /// Cách model_lod_build() làm các mức chi tiết (LOD) của một model.
 struct model_lod_desc {
   i32 levels = 3;        ///< Số mức giản lược, 1..4. Mức k giữ khoảng `ratio` mũ k số tam giác.
@@ -435,7 +507,12 @@ struct model_material {
   /// Shader riêng cho phần này, như shader_begin() với hình khối. Không hợp lệ là
   /// shader có sẵn của engine.
   shader_handle shader{};
-  material3d surface{}; ///< Độ bóng, phát sáng, unlit, đổ bóng. `surface.texture` không dùng ở đây.
+  /// Độ bóng, phát sáng, unlit, đổ bóng, `world_uv`. `surface.texture` và
+  /// `surface.normal` không dùng ở đây (đã có `albedo`, `normal`).
+  material3d surface{};
+  /// Vẽ cả hai mặt của mỗi tam giác (không bỏ mặt sau), cho lá cây, giấy, vải
+  /// mỏng một lớp. Mặc định theo `doubleSided` của vật liệu trong file glTF.
+  bool double_sided = false;
 };
 
 /// Số vật liệu của model.
@@ -443,6 +520,15 @@ struct model_material {
 /// @param handle Model.
 /// @return Số vật liệu, 0 nếu handle không hợp lệ.
 i32 model_material_count(const context &ctx, model_handle handle);
+
+/// Tìm vật liệu theo tên đặt trong file glTF.
+///
+/// So theo tiền tố: `"Human_Shirt"` khớp vật liệu `Human_Shirt_53_19_16`.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param name Tên hoặc phần đầu của tên.
+/// @return Chỉ số của vật liệu đầu tiên khớp, hoặc -1 nếu không có (hay file không phải glTF).
+i32 model_material_find(const context &ctx, model_handle handle, const char *name);
 
 /// Vật liệu thứ `index` của model.
 /// @param ctx Context của engine.
@@ -542,6 +628,94 @@ struct model_pose {
 /// @param tint Màu nhân vào màu của model.
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint = colors::white);
+
+/// Màu thay cho màu gốc của một vật liệu, chỉ trong một lần vẽ.
+struct model_recolor {
+  i32 material = -1;                 ///< Vật liệu (model_material_find()). -1 là không đổi gì.
+  rgba color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu thay cho njin::model_material::color; độ trong suốt giữ của vật liệu.
+};
+
+/// Như draw_model_anim() ở trên, và vật liệu `recolor.material` mang màu
+/// `recolor.color` trong lần vẽ này.
+///
+/// Để nhiều bản vẽ của cùng một model mỗi bản một màu áo (đồng phục của từng
+/// phe) mà không phải nạp model nhiều lần hay đổi model_material_set() giữa
+/// các lần vẽ: các lần vẽ chỉ chạy ở end_3d(), nên model_material_set() ở giữa
+/// chúng không có tác dụng riêng cho từng lần.
+/// @code
+/// const njin::i32 shirt = njin::model_material_find(ctx, man, "Shirt");
+/// njin::draw_model_anim(ctx, man, at, pose, njin::colors::white, {.material = shirt, .color = team_red});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model từ model_load().
+/// @param transform Vị trí, hướng và tỉ lệ.
+/// @param pose Tư thế.
+/// @param tint Màu nhân vào màu của cả model (sau khi đổi màu vật liệu).
+/// @param recolor Vật liệu đổi màu và màu mới.
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint, const model_recolor &recolor);
+
+/// Như draw_model_anim() ở trên, với nhiều vật liệu đổi màu một lúc: bảng màu
+/// riêng của một nhân vật (da, tóc, áo, quần) trên một model dùng chung.
+/// @code
+/// const njin::model_recolor palette[] = {{.material = 0, .color = skin}, {.material = 1, .color = shirt}};
+/// njin::draw_model_anim(ctx, body, at, pose, njin::colors::white, palette, 2);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param transform Vị trí, hướng và tỉ lệ.
+/// @param pose Tư thế.
+/// @param tint Màu nhân vào màu của cả model (sau khi đổi màu vật liệu).
+/// @param recolors Các vật liệu đổi màu; một vật liệu có mặt hai lần lấy màu đầu tiên.
+/// @param count Số phần tử của `recolors`.
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint, const model_recolor *recolors, u32 count);
+
+/// Số xương của model (0 nếu không có xương hay handle không hợp lệ).
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @return Số xương.
+i32 model_bone_count(const context &ctx, model_handle handle);
+
+/// Tên một xương, như trong file glTF.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param bone 0..model_bone_count() - 1.
+/// @return Tên, hoặc chuỗi rỗng nếu `bone` hay handle không hợp lệ.
+const char *model_bone_name(const context &ctx, model_handle handle, i32 bone);
+
+/// Tìm xương theo tên (so đúng cả chuỗi).
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param name Tên xương.
+/// @return Chỉ số 0..model_bone_count() - 1, hoặc -1 nếu không có.
+i32 model_bone_find(const context &ctx, model_handle handle, const char *name);
+
+/// Một xương ở một tư thế: vị trí và ba trục của nó trong không gian của
+/// model (trước transform của lần vẽ), như draw_model_anim() đặt nó.
+struct bone_pose3d {
+  vec3 position{0.0f, 0.0f, 0.0f}; ///< Gốc của xương.
+  vec3 x_axis{1.0f, 0.0f, 0.0f};   ///< Trục x của xương, độ dài 1.
+  vec3 y_axis{0.0f, 1.0f, 0.0f};   ///< Trục y (dọc theo xương với rig của Blender), độ dài 1.
+  vec3 z_axis{0.0f, 0.0f, 1.0f};   ///< Trục z, độ dài 1.
+};
+
+/// Xương `bone` ở tư thế `pose` (cùng cách tính với draw_model_anim(), kể cả
+/// khi trộn hai animation), để gắn đồ vào tay, đặt vùng trúng đòn theo xương,
+/// hay biết bàn chân đang ở đâu. Nhân với transform của lần vẽ để ra thế giới.
+///
+/// @code
+/// // Điếu thuốc trong tay phải, ở thế giới.
+/// const njin::bone_pose3d hand = njin::model_bone_pose(ctx, man, pose, hand_r);
+/// const njin::vec3 at = pos + hand.position * scale; // model không xoay
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model có xương.
+/// @param pose Tư thế; `anim` -1 (và không trộn) là tư thế gốc.
+/// @param bone 0..model_bone_count() - 1.
+/// @return Tư thế của xương; giá trị mặc định (gốc tọa độ, các trục chuẩn) nếu
+/// handle hay `bone` không hợp lệ.
+bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model_pose &pose, i32 bone);
 
 /// Một tia trong thế giới 3D, dùng để chọn vật bằng chuột, bắn đạn, kiểm tra
 /// tầm nhìn.
@@ -654,7 +828,9 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 
 /// Vẽ `count` bản của một model bằng một lệnh vẽ cho mỗi phần của model, cùng quy
 /// ước dữ liệu instance với bản trên. Mỗi phần giữ ảnh và màu của vật liệu nó
-/// (model_material_set()); normal map và ảnh phát sáng không dùng ở đây.
+/// (model_material_set()). Normal map chỉ dùng khi game tự đặt
+/// `model_material::normal` (normal map trong file bị bỏ qua ở đây); ảnh phát
+/// sáng không dùng.
 /// @param ctx Context của engine.
 /// @param model Model từ model_load().
 /// @param buffer Bộ đệm đã ghi bằng instance_buffer_upload().
@@ -681,6 +857,15 @@ struct fx3d {
   f32 edge_width = 0.08f; ///< Độ dày viền, theo thang ngẫu nhiên 0..1.
   f32 grain = 0.1f;       ///< Cỡ mỗi mảng, đơn vị thế giới.
   f32 seed = 0.0f;        ///< Đổi hình mẫu tan, để hai vật không tan giống hệt nhau.
+  /// Khoét chỗ che (sphere masking), cho camera góc thứ ba: phần hình nằm giữa
+  /// camera và `mask_center` (đơn vị thế giới 3D), trong một hình nón loe dần
+  /// tới bán kính `mask_radius` ở `mask_center`, bị bỏ đi theo mẫu chấm, mép
+  /// mờ dần, nên nhân vật sau tường vẫn thấy được. Mặt đất dưới chân (thấp hơn
+  /// `mask_center` quá 0,6 `mask_radius`) giữ nguyên. Bóng đổ không đổi. Đặt khi
+  /// vẽ những gì có thể che (nhà, cây), tắt trước khi vẽ nhân vật.
+  /// `mask_radius` bằng 0 là tắt.
+  vec3 mask_center{0.0f, 0.0f, 0.0f};
+  f32 mask_radius = 0.0f; ///< Bán kính chỗ khoét ở `mask_center`, đơn vị thế giới 3D.
 };
 
 /// Đặt hiệu ứng cho các hình 3D vẽ sau lệnh này, đến lần gọi tiếp theo hoặc

@@ -168,6 +168,31 @@ struct material3d {
   /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
   f32 clay = 0.0f;
   f32 clay_detail = 9.0f; ///< Grain frequency relative to the closest SDF part radius.
+  /// Normal map (tangent space, green up as in glTF, that is OpenGL +Y) for
+  /// shapes and draw_instanced3d(). Invalid means none. For a model, set
+  /// `model_material::normal`.
+  texture_handle normal{};
+  /// Above 0: the images (`texture`, `normal`, and a model material's images)
+  /// are mapped by world position instead of the mesh's UVs, one image tile
+  /// every `world_uv` 3D units. Upright faces: u runs across the face, v up
+  /// (the image's top up), so water streaks run straight down however the
+  /// shape is turned; flat faces: u along x, v along z. For walls and floors
+  /// put together from many pieces: the image runs on across them, is not
+  /// stretched by their size, and works on meshes without UVs. Default 0: the
+  /// mesh's UVs. An image mapped this way is blended from two offsets picked
+  /// by a slow noise, so its tiles do not show as a grid.
+  f32 world_uv = 0.0f;
+  /// The layer underneath, only with `world_uv` above 0: colour image and
+  /// normal map of what lies under the main image (brick under render),
+  /// showing in patches where the top layer has worn off, more of them at the
+  /// foot of a wall, with a slightly dark rim at their edge. Not multiplied by
+  /// the draw colour. The under layer only shifts in steps of 1/8 of a tile,
+  /// so a grid pattern such as brick (repeating every 1/8 tile) keeps its
+  /// joints. Invalid means no under layer.
+  texture_handle under{};
+  texture_handle under_normal{}; ///< Normal map of the under layer, as `normal`.
+  /// How much of the under layer shows, 0 (none) to 1 (all of it, the top layer gone).
+  f32 under_amount = 0.0f;
 };
 
 /// Sets the surface for 3D shapes drawn after this call, until the next call
@@ -472,7 +497,12 @@ struct model_material {
   /// This part's own shader, like shader_begin() for a primitive. Invalid
   /// means the engine's built-in shader.
   shader_handle shader{};
-  material3d surface{}; ///< Shininess, emission, unlit, shadow casting. `surface.texture` is unused here.
+  /// Shininess, emission, unlit, shadow casting, `world_uv`. `surface.texture`
+  /// and `surface.normal` are unused here (`albedo`, `normal` are).
+  material3d surface{};
+  /// Draw both faces of every triangle (no back-face culling), for leaves,
+  /// paper, single-layer cloth. Defaults to the glTF material's `doubleSided`.
+  bool double_sided = false;
 };
 
 /// Number of materials of a model.
@@ -480,6 +510,15 @@ struct model_material {
 /// @param handle Model.
 /// @return Number of materials, 0 if the handle is invalid.
 i32 model_material_count(const context &ctx, model_handle handle);
+
+/// Finds a material by the name it has in the glTF file.
+///
+/// Matches by prefix: `"Human_Shirt"` matches the material `Human_Shirt_53_19_16`.
+/// @param ctx The engine context.
+/// @param handle The model.
+/// @param name The name or its beginning.
+/// @return The index of the first material that matches, or -1 if none does (or the file is not glTF).
+i32 model_material_find(const context &ctx, model_handle handle, const char *name);
 
 /// The `index`th material of a model.
 /// @param ctx Engine context.
@@ -581,6 +620,32 @@ struct model_pose {
 /// @param tint Colour multiplied into the model's colour.
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint = colors::white);
+
+/// A colour in place of one material's own, for one draw only.
+struct model_recolor {
+  i32 material = -1;                 ///< The material (model_material_find()). -1 changes nothing.
+  rgba color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Replaces njin::model_material::color; the material keeps its opacity.
+};
+
+/// Like draw_model_anim() above, and material `recolor.material` has colour
+/// `recolor.color` in this draw.
+///
+/// For many draws of one model, each in its own shirt colour (each side's
+/// uniform), without loading the model several times or changing
+/// model_material_set() between draws: the draws only run at end_3d(), so a
+/// model_material_set() between them does not apply to each one on its own.
+/// @code
+/// const njin::i32 shirt = njin::model_material_find(ctx, man, "Shirt");
+/// njin::draw_model_anim(ctx, man, at, pose, njin::colors::white, {.material = shirt, .color = team_red});
+/// @endcode
+/// @param ctx The engine context.
+/// @param handle A model from model_load().
+/// @param transform Position, orientation and scale.
+/// @param pose The pose.
+/// @param tint A colour multiplied into the whole model (after the material's recolour).
+/// @param recolor The material recoloured and its new colour.
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint, const model_recolor &recolor);
 
 /// A ray in the 3D world, used to pick something under the mouse, fire a
 /// shot, check line of sight.
@@ -704,8 +769,9 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 
 /// Draws `count` copies of a model with one draw call per part of the model,
 /// under the same instance data convention as the one above. Each part keeps
-/// its own material's image and colour (model_material_set()); normal maps
-/// and emission images are not used here.
+/// its own material's image and colour (model_material_set()). A normal map is
+/// used only when the game set `model_material::normal` (a file's own normal
+/// map is ignored here); emission images are not used.
 /// @param ctx Engine context.
 /// @param model Model from model_load().
 /// @param buffer Buffer written with instance_buffer_upload().
@@ -734,6 +800,16 @@ struct fx3d {
   f32 edge_width = 0.08f; ///< Edge thickness, on the 0..1 random scale.
   f32 grain = 0.1f;       ///< Size of each patch, world units.
   f32 seed = 0.0f;        ///< Changes the dissolve pattern, so two objects do not dissolve identically.
+  /// Cuts away what is in the way (sphere masking), for a third-person
+  /// camera: the part of the shape between the camera and `mask_center`
+  /// (3D world units), inside a cone widening to `mask_radius` at
+  /// `mask_center`, is dropped in a dither pattern with a soft edge, so a
+  /// character behind a wall stays visible. The ground underfoot (more than
+  /// 0.6 `mask_radius` below `mask_center`) stays. Shadows do not change. Set it
+  /// while drawing what can block the view (buildings, trees), turn it off
+  /// before drawing the characters. `mask_radius` 0 is off.
+  vec3 mask_center{0.0f, 0.0f, 0.0f};
+  f32 mask_radius = 0.0f; ///< Radius of the cut at `mask_center`, 3D world units.
 };
 
 /// Sets the effect for 3D shapes drawn after this call, until the next call

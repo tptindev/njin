@@ -62,6 +62,9 @@ njin::model_material_set(ctx, crate, 0, m);                    // -1 cho mọi p
 
 Normal map không cần tangent trong file: shader tự dựng hệ trục từ đạo hàm màn hình.
 
+Vật liệu đánh dấu `doubleSided` trong glTF (lá cây, giấy, vải một lớp) được vẽ cả hai mặt:
+`model_material::double_sided`, đổi được bằng model_material_set().
+
 ### Cắt bỏ ngoài tầm nhìn và mức chi tiết {#model_lod}
 
 draw_model(), draw_model_anim() và njin::model3d bỏ qua model có hộp bao nằm ngoài tầm nhìn
@@ -104,6 +107,8 @@ njin::draw_model_anim(ctx, robot, {.position = pos, .rotation = {0, yaw, 0}},
 | Tính xương | Trên GPU, tối đa 128 xương, 4 xương mỗi đỉnh |
 | Bóng đổ | Theo đúng tư thế |
 | Nhiều bản | Mỗi lần vẽ một tư thế riêng: cùng một model, mỗi con một động tác |
+| Đồng phục | model_material_find() tìm vật liệu theo tên; draw_model_anim() với njin::model_recolor đổi màu nó trong một lần vẽ |
+| Động tác giữ khung cuối | Khung cuối của mỗi clip lấy từ khung liền trước (raylib trả về tư thế đầu clip ở đúng thời điểm cuối) |
 | Dùng tư thế gốc | Phần vẽ bằng shader của game, draw_instanced3d(), ray3d_model() |
 | Không có armature | Xương gốc không có node cha trong glTF: engine cảnh báo, model không có animation |
 

@@ -5,6 +5,7 @@
 #include "njin_3d.h"
 #include <raylib.h>
 #include <algorithm>
+#include <string>
 #include <vector>
 
 namespace njin {
@@ -28,6 +29,9 @@ struct model_slot {
   // stay the game's to unload. Applied over a copy of the file's material at
   // each draw, so the file's own textures are never replaced for good.
   std::vector<model_material> materials;
+  // Each material's name in the glTF file ("" for raylib's default first
+  // one, and for every material of a file that is not glTF).
+  std::vector<std::string> material_names;
   BoundingBox bounds{}; // of the file's meshes, in model space
   // Skeletal animation (glTF skin): the file's clips, and per mesh the bone
   // index and weight buffers, uploaded next to the mesh's own (raylib is built
@@ -40,6 +44,9 @@ struct model_slot {
   std::vector<u32> weight_vbo;
   bool skinned = false; // at least one mesh has bone buffers and the skeleton fits
   std::vector<Matrix> inv_bind; // per bone, the inverse of its rest pose (model space)
+  // model_create_skinned: the model whose skeleton this one copies and whose
+  // clips it plays (never copied). 0 = its own clips, if any.
+  model_handle anim_from{};
   // Levels of detail (model_lod_build): lods[k - 1][i] is mesh i at level k.
   // A mesh with vaoId 0 has nothing simpler at that level: the level above
   // is drawn. Level 1 below `lod_screen` of the screen's height, each next
@@ -91,7 +98,15 @@ inline model_slot *model_slot_of(model_store &store, model_handle handle) {
   return const_cast<model_slot *>(model_slot_of(static_cast<const model_store &>(store), handle));
 }
 
+// The slot whose clips `m` plays: the one it borrows them from
+// (model_create_skinned), or `m` itself, also when that one is gone.
+inline const model_slot &model_anim_owner(const model_store &store, const model_slot &m) {
+  const model_slot *owner = m.anim_from.id != 0 ? model_slot_of(store, m.anim_from) : nullptr;
+  return owner != nullptr && owner->model.skeleton.boneCount == m.model.skeleton.boneCount ? *owner : m;
+}
+
 model_handle model_store_load(model_store &store, const model_load_desc &desc);
 model_handle model_store_create(model_store &store, const mesh3d_data &mesh);
+model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d_data &mesh);
 void model_store_unload(model_store &store, model_handle handle);
 } // namespace njin

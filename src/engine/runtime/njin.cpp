@@ -113,7 +113,11 @@ void run(context &ctx) {
 
   Color clearbg = RAYWHITE;
   to_raylib(ctx.cfg.clear_bg_color, clearbg);
-  while (!WindowShouldClose() && !ctx.quit) {
+  while (!ctx.quit) {
+    // raylib holds a close (the [x], Alt+F4, the exit key) for one frame.
+    ctx.close_requested = WindowShouldClose();
+    if (ctx.close_requested && !ctx.close_intercept)
+      break;
     time_state &time = ctx.time;
     time.dt_real = GetFrameTime();
     time.elapsed = (f32)GetTime();

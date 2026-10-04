@@ -35,9 +35,9 @@ struct render3d_locations {
   i32 fog_color = -1, fog_density = -1;
   i32 light_count = -1, light_pos = -1, light_colors = -1, light_spot = -1;
   i32 surface = -1, emission = -1, rim = -1, emission_color = -1, unlit = -1;
-  i32 use_normal_map = -1, use_emission_map = -1;
+  i32 use_normal_map = -1, use_emission_map = -1, world_uv = -1, under_amount = -1, use_under_normal = -1;
   i32 shadow_on = -1, shadow_map = -1, light_vp = -1, shadow_params = -1;
-  i32 flash = -1, dissolve = -1, edge_color = -1;
+  i32 flash = -1, dissolve = -1, edge_color = -1, view_mask = -1;
   // The SDF shader only.
   i32 clay_surface = -1;
   i32 shape_kind = -1, shape_dims = -1, shape_bounds = -1, shape_to_local = -1, shape_to_world = -1;
@@ -77,6 +77,10 @@ struct draw3d_cmd {
   // still casts its shadow into it, so only the camera pass skips it.
   u8 lod = 0;
   bool culled = false;
+  // Models: materials drawn in another colour than their own (draw_model_anim
+  // with model_recolor), in render3d_state::recolors. count 0 = none.
+  u32 recolor_first = 0;
+  u32 recolor_count = 0;
 };
 
 // Depth seen from the sun. A colour attachment is kept too, so the
@@ -174,6 +178,7 @@ struct render3d_state {
   f32 tan_half_fovy = 1.0f;
   mutable std::vector<draw3d_cmd> cmds;
   mutable std::vector<Matrix> bones; // bone matrices of the posed draws
+  mutable std::vector<model_recolor> recolors; // materials recoloured by the draws
   mutable std::vector<sdf_part> blend_parts; // parts of the blended SDF shapes
   std::vector<light3d_source> lights;
   bool entities = true; // camera3d::entities of the open pass

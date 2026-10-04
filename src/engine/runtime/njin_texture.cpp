@@ -18,6 +18,18 @@ render_texture_slot *render_texture_slot_of(render_texture_store &store,
   return const_cast<render_texture_slot *>(render_texture_slot_of(
       static_cast<const render_texture_store &>(store), handle));
 }
+
+// filter_mipmap on a texture of its own: the mipmaps made once, then
+// trilinear. An atlas page is shared, so a packed image stays linear.
+void apply_filter(texture_slot &slot) {
+  if (slot.filter != filter_mipmap || slot.packed) {
+    SetTextureFilter(slot.texture, texture_filter_to_raylib(slot.filter));
+    return;
+  }
+  if (slot.texture.mipmaps <= 1)
+    GenTextureMipmaps(&slot.texture);
+  SetTextureFilter(slot.texture, slot.texture.mipmaps > 1 ? TEXTURE_FILTER_TRILINEAR : TEXTURE_FILTER_BILINEAR);
+}
 } // namespace
 
 // Textures
@@ -69,7 +81,7 @@ bool texture_store_reload(texture_store &store, texture_handle handle) {
   }
   UnloadTexture(slot->texture);
   slot->texture = texture;
-  SetTextureFilter(slot->texture, texture_filter_to_raylib(slot->filter));
+  apply_filter(*slot);
   slot->version++;
   return true;
 }
@@ -123,7 +135,7 @@ void texture_store_set_filter(texture_store &store, texture_handle handle,
   if (slot == nullptr)
     return;
   slot->filter = filter;
-  SetTextureFilter(slot->texture, texture_filter_to_raylib(filter));
+  apply_filter(*slot);
 }
 
 void texture_store_draw_ex(const texture_store &store, texture_handle handle,

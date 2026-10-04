@@ -53,6 +53,28 @@ bool gltf_skin_loadable(const std::string &path, const char *name) {
   return ok;
 }
 
+// The bone buffers of every skinned mesh of `slot` on the GPU, for the
+// skinning shader.
+void upload_skin(model_slot &slot) {
+  const Model &model = slot.model;
+  slot.bone_vbo.assign((usize)model.meshCount, 0);
+  slot.weight_vbo.assign((usize)model.meshCount, 0);
+  for (i32 i = 0; i < model.meshCount; i++) {
+    const Mesh &mesh = model.meshes[i];
+    if (mesh.boneIndices == nullptr || mesh.boneWeights == nullptr || mesh.vaoId == 0)
+      continue;
+    rlEnableVertexArray(mesh.vaoId);
+    slot.bone_vbo[(usize)i] = rlLoadVertexBuffer(mesh.boneIndices, mesh.vertexCount * 4 * (i32)sizeof(u8), false);
+    rlSetVertexAttribute(skin_bone_loc, 4, RL_UNSIGNED_BYTE, false, 0, 0);
+    rlEnableVertexAttribute(skin_bone_loc);
+    slot.weight_vbo[(usize)i] = rlLoadVertexBuffer(mesh.boneWeights, mesh.vertexCount * 4 * (i32)sizeof(f32), false);
+    rlSetVertexAttribute(skin_weight_loc, 4, RL_FLOAT, false, 0, 0);
+    rlEnableVertexAttribute(skin_weight_loc);
+    rlDisableVertexArray();
+    slot.skinned = true;
+  }
+}
+
 // The file's animation clips that match the model's skeleton, and the bone
 // buffers of every skinned mesh on the GPU for the skinning shader.
 void load_skin(model_slot &slot, const std::string &path, const char *name) {
@@ -75,6 +97,16 @@ void load_skin(model_slot &slot, const std::string &path, const char *name) {
       else
         NJIN_WARN("model: %s: animation '%s' does not match the skeleton, skipped", name, anims[i].name);
     }
+    // raylib samples a glTF clip at 60 frames a second, but at the clip's
+    // very end (its last key's time) it finds no key interval and returns
+    // the first pose (GetPoseAtTimeGLTF): a held motion (a fall, a kick)
+    // would end standing. The frame 1/60 s before the end stands in for it.
+    for (i32 i = 0; i < kept; i++) {
+      ModelAnimation &a = anims[i];
+      if (a.keyframeCount >= 2)
+        std::copy(a.keyframePoses[a.keyframeCount - 2], a.keyframePoses[a.keyframeCount - 2] + a.boneCount,
+                  a.keyframePoses[a.keyframeCount - 1]);
+    }
     slot.anims = anims;
     slot.anim_count = count;
     // The skipped clips stay at the end of the array until unload frees them.
@@ -87,22 +119,7 @@ void load_skin(model_slot &slot, const std::string &path, const char *name) {
                                     MatrixTranslate(t.translation.x, t.translation.y, t.translation.z));
     slot.inv_bind.push_back(MatrixInvert(m));
   }
-  slot.bone_vbo.assign((usize)model.meshCount, 0);
-  slot.weight_vbo.assign((usize)model.meshCount, 0);
-  for (i32 i = 0; i < model.meshCount; i++) {
-    const Mesh &mesh = model.meshes[i];
-    if (mesh.boneIndices == nullptr || mesh.boneWeights == nullptr || mesh.vaoId == 0)
-      continue;
-    rlEnableVertexArray(mesh.vaoId);
-    slot.bone_vbo[(usize)i] = rlLoadVertexBuffer(mesh.boneIndices, mesh.vertexCount * 4 * (i32)sizeof(u8), false);
-    rlSetVertexAttribute(skin_bone_loc, 4, RL_UNSIGNED_BYTE, false, 0, 0);
-    rlEnableVertexAttribute(skin_bone_loc);
-    slot.weight_vbo[(usize)i] = rlLoadVertexBuffer(mesh.boneWeights, mesh.vertexCount * 4 * (i32)sizeof(f32), false);
-    rlSetVertexAttribute(skin_weight_loc, 4, RL_FLOAT, false, 0, 0);
-    rlEnableVertexAttribute(skin_weight_loc);
-    rlDisableVertexArray();
-    slot.skinned = true;
-  }
+  upload_skin(slot);
 }
 } // namespace
 
@@ -320,8 +337,17 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
         .color = {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f},
         .emission_color = {e.r / 255.0f, e.g / 255.0f, e.b / 255.0f, 1.0f}});
   }
+  slot.material_names.assign(slot.materials.size(), std::string());
   if (gltf != nullptr) {
     apply_transmission(slot, gltf);
+    // raylib's default material is first, then the file's in order. raylib
+    // reads neither the names nor doubleSided.
+    if ((usize)slot.model.materialCount == gltf->materials_count + 1)
+      for (cgltf_size i = 0; i < gltf->materials_count; i++) {
+        if (gltf->materials[i].name != nullptr)
+          slot.material_names[i + 1] = gltf->materials[i].name;
+        slot.materials[i + 1].double_sided = gltf->materials[i].double_sided != 0;
+      }
     cgltf_free(gltf);
   }
   if (!desc.merge)
@@ -429,6 +455,138 @@ model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
   slot.alive = true;
   slot.bounds = GetModelBoundingBox(model);
   slot.materials.push_back(model_material{});
+  store.slots.push_back(std::move(slot));
+  return model_handle{.id = (u32)store.slots.size()};
+}
+
+model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d_data &mesh) {
+  const model_slot *bones = model_slot_of(store, mesh.skeleton);
+  if (bones == nullptr || !bones->skinned || bones->model.skeleton.boneCount <= 0) {
+    NJIN_WARN("model_create_skinned: the skeleton model is not a loaded model with a skin");
+    return model_handle{};
+  }
+  const i32 bone_count = bones->model.skeleton.boneCount;
+  if (mesh.positions == nullptr || mesh.joints == nullptr || mesh.weights == nullptr || mesh.vertex_count == 0 ||
+      mesh.indices == nullptr || mesh.index_count == 0 || mesh.index_count % 3 != 0) {
+    NJIN_WARN("model_create_skinned: positions, joints, weights and indices (a multiple of 3) are needed");
+    return model_handle{};
+  }
+  for (u32 i = 0; i < mesh.index_count; i++)
+    if (mesh.indices[i] >= mesh.vertex_count) {
+      NJIN_WARN("model_create_skinned: index %u is %u, past the %u vertices", i, mesh.indices[i], mesh.vertex_count);
+      return model_handle{};
+    }
+  for (u32 i = 0; i < mesh.vertex_count * 4; i++)
+    if (mesh.joints[i] >= bone_count) {
+      NJIN_WARN("model_create_skinned: vertex %u names bone %u, the skeleton has %d", i / 4, (u32)mesh.joints[i],
+                bone_count);
+      return model_handle{};
+    }
+  // The parts: index ranges, each its own mesh and material.
+  std::vector<u32> ends;
+  if (mesh.part_ends != nullptr && mesh.part_count > 0)
+    ends.assign(mesh.part_ends, mesh.part_ends + mesh.part_count);
+  else
+    ends.push_back(mesh.index_count);
+  for (usize k = 0; k < ends.size(); k++)
+    if (ends[k] % 3 != 0 || ends[k] > mesh.index_count || (k > 0 && ends[k] < ends[k - 1]) ||
+        (k + 1 == ends.size() && ends[k] != mesh.index_count)) {
+      NJIN_WARN("model_create_skinned: part %u ends at index %u: the ends must rise by whole triangles to %u",
+                (u32)k, ends[k], mesh.index_count);
+      return model_handle{};
+    }
+  std::vector<f32> normals((usize)mesh.vertex_count * 3);
+  if (mesh.normals != nullptr) {
+    for (u32 i = 0; i < mesh.vertex_count; i++) {
+      normals[(usize)i * 3] = mesh.normals[i].x;
+      normals[(usize)i * 3 + 1] = mesh.normals[i].y;
+      normals[(usize)i * 3 + 2] = mesh.normals[i].z;
+    }
+  } else {
+    smooth_normals({.positions = mesh.positions, .vertex_count = mesh.vertex_count, .indices = mesh.indices,
+                    .index_count = mesh.index_count},
+                   normals.data());
+  }
+
+  // raylib frees all of these with RL_FREE in UnloadModel, so they come from MemAlloc.
+  const i32 parts = (i32)ends.size();
+  Model model{};
+  model.transform = MatrixIdentity();
+  model.meshCount = parts;
+  model.materialCount = parts;
+  model.meshes = (Mesh *)MemAlloc((u32)(sizeof(Mesh) * (usize)parts));
+  model.materials = (Material *)MemAlloc((u32)(sizeof(Material) * (usize)parts));
+  model.meshMaterial = (i32 *)MemAlloc((u32)(sizeof(i32) * (usize)parts));
+  std::vector<i32> local(mesh.vertex_count, -1);
+  bool ok = true;
+  for (i32 k = 0; k < parts; k++) {
+    const u32 from = k == 0 ? 0 : ends[(usize)k - 1], to = ends[(usize)k];
+    // Only the vertices this part's triangles use, in first-use order.
+    std::fill(local.begin(), local.end(), -1);
+    std::vector<u32> used;
+    for (u32 i = from; i < to; i++)
+      if (local[mesh.indices[i]] < 0) {
+        local[mesh.indices[i]] = (i32)used.size();
+        used.push_back(mesh.indices[i]);
+      }
+    if (used.size() > 65535) {
+      NJIN_WARN("model_create_skinned: part %d uses %u vertices, at most 65535 (split it)", k, (u32)used.size());
+      ok = false;
+    }
+    Mesh m{};
+    const usize n = used.size(), room = std::max<usize>(n, 1);
+    m.vertexCount = (i32)n;
+    m.triangleCount = (i32)((to - from) / 3);
+    m.vertices = (f32 *)MemAlloc((u32)(room * 3 * sizeof(f32)));
+    m.normals = (f32 *)MemAlloc((u32)(room * 3 * sizeof(f32)));
+    m.texcoords = (f32 *)MemAlloc((u32)(room * 2 * sizeof(f32))); // zeros: the shader samples a white texture
+    m.colors = (u8 *)MemAlloc((u32)(room * 4));
+    m.boneIndices = (u8 *)MemAlloc((u32)(room * 4));
+    m.boneWeights = (f32 *)MemAlloc((u32)(room * 4 * sizeof(f32)));
+    m.indices = (unsigned short *)MemAlloc((u32)(std::max<u32>(to - from, 3) * sizeof(unsigned short)));
+    for (usize j = 0; j < n; j++) {
+      const usize v = used[j];
+      m.vertices[j * 3] = mesh.positions[v].x;
+      m.vertices[j * 3 + 1] = mesh.positions[v].y;
+      m.vertices[j * 3 + 2] = mesh.positions[v].z;
+      for (usize c = 0; c < 3; c++)
+        m.normals[j * 3 + c] = normals[v * 3 + c];
+      for (usize c = 0; c < 4; c++) {
+        m.colors[j * 4 + c] = 255;
+        m.boneIndices[j * 4 + c] = mesh.joints[v * 4 + c];
+        m.boneWeights[j * 4 + c] = mesh.weights[v * 4 + c];
+      }
+    }
+    for (u32 i = from; i < to; i++)
+      m.indices[i - from] = (unsigned short)std::max(local[mesh.indices[i]], 0);
+    if (ok && n > 0)
+      UploadMesh(&m, false);
+    model.meshes[k] = m;
+    model.materials[k] = LoadMaterialDefault();
+    model.meshMaterial[k] = k;
+  }
+  // The skeleton's bones and rest pose, copied: UnloadModel frees the model's own.
+  const ModelSkeleton &from = bones->model.skeleton;
+  model.skeleton.boneCount = from.boneCount;
+  model.skeleton.bones = (BoneInfo *)MemAlloc((u32)(sizeof(BoneInfo) * (usize)from.boneCount));
+  model.skeleton.bindPose = (Transform *)MemAlloc((u32)(sizeof(Transform) * (usize)from.boneCount));
+  std::memcpy(model.skeleton.bones, from.bones, sizeof(BoneInfo) * (usize)from.boneCount);
+  std::memcpy(model.skeleton.bindPose, from.bindPose, sizeof(Transform) * (usize)from.boneCount);
+  if (!ok || !model_loaded(model)) {
+    if (ok)
+      NJIN_WARN("model_create_skinned: the mesh could not be uploaded");
+    UnloadModel(model);
+    return model_handle{};
+  }
+  model_slot slot;
+  slot.model = model;
+  slot.alive = true;
+  slot.bounds = GetModelBoundingBox(model);
+  slot.materials.assign((usize)parts, model_material{});
+  slot.material_names.assign((usize)parts, std::string());
+  slot.inv_bind = bones->inv_bind;
+  slot.anim_from = mesh.skeleton;
+  upload_skin(slot);
   store.slots.push_back(std::move(slot));
   return model_handle{.id = (u32)store.slots.size()};
 }

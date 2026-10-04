@@ -26,6 +26,7 @@ Besides the title, size, FPS and background color, njin::config has:
 | njin::cursor_set_visible() | Show or hide the mouse cursor |
 | njin::cursor_set_locked() | Lock the cursor inside the window; read njin::mouse_delta() |
 | njin::quit() | Quit at the end of the frame. `phase_shutdown` still runs |
+| njin::window_set_close_intercept(), njin::window_close_requested() | The [x] does not quit at once but tells the game; the game cleans up, then calls njin::quit() |
 
 **Keep the game view fitting every window size.** Design the game for one fixed size,
 then every frame set the camera's zoom to fit the window:

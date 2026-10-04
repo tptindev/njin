@@ -8,6 +8,7 @@
 #include "njin_cfg.h"
 #include "njin_log.h"
 #include <algorithm>
+#include <cstring>
 #include <entt/entity/registry.hpp>
 
 namespace njin {
@@ -278,9 +279,24 @@ void model_unload(context &ctx, model_handle handle) {
 
 model_handle model_create(context &ctx, const mesh3d_data &mesh) { return model_store_create(ctx.model, mesh); }
 
+model_handle model_create_skinned(context &ctx, const skinned_mesh3d_data &mesh) {
+  return model_store_create_skinned(ctx.model, mesh);
+}
+
 i32 model_material_count(const context &ctx, model_handle handle) {
   const model_slot *slot = model_slot_of(ctx.model, handle);
   return slot != nullptr ? (i32)slot->materials.size() : 0;
+}
+
+i32 model_material_find(const context &ctx, model_handle handle, const char *name) {
+  const model_slot *slot = model_slot_of(ctx.model, handle);
+  if (slot == nullptr || name == nullptr || name[0] == '\0')
+    return -1;
+  const usize n = std::strlen(name);
+  for (usize i = 0; i < slot->material_names.size(); i++)
+    if (slot->material_names[i].compare(0, n, name) == 0)
+      return (i32)i;
+  return -1;
 }
 
 model_material model_material_get(const context &ctx, model_handle handle, i32 index) {

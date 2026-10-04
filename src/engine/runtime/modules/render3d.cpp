@@ -76,6 +76,7 @@ uniform mat4 lightVP;
 uniform vec4 shadowParams;    // texel size (0..1), softness in texels, texel size in world units
 uniform vec4 flash;
 uniform vec4 dissolve;        // amount, edge width, grain, seed
+uniform vec4 viewMask;        // fx3d mask: centre xyz, radius (0 off)
 uniform vec4 edgeColor;
 // Shadows of point and spot lights: the atlas row of each light (-1 = none),
 // each face's view-projection, and per row near, far, the size of a texel
@@ -100,6 +101,34 @@ float dissolve_cut(vec3 pos) {
   if (cut < dissolve.x)
     discard;
   return cut;
+}
+
+// Sphere masking (fx3d::mask_*): what lies between the camera and the
+// mask's centre, inside a cone widening to its radius there, is dropped in
+// an ordered dither, thinning out toward the cone's edge.
+void view_mask_cut(vec3 pos) {
+  if (viewMask.w <= 0.0)
+    return;
+  vec3 ab = viewMask.xyz - viewPos;
+  float len2 = dot(ab, ab);
+  if (len2 <= 1e-6)
+    return;
+  float t = dot(pos - viewPos, ab) / len2;
+  if (t <= 0.0 || t >= 0.97)
+    return;
+  float r = viewMask.w * mix(0.35, 1.0, t);
+  // The ground he stands on stays: only what rises above his feet is cut.
+  if (pos.y < viewMask.y - viewMask.w * 0.6)
+    return;
+  float d = length(pos - (viewPos + ab * t));
+  float k = 1.0 - smoothstep(r * 0.6, r, d); // 1 in the middle, 0 at the edge
+  if (k <= 0.0)
+    return;
+  const float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+                                    3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+  ivec2 c = ivec2(gl_FragCoord.xy) & 3;
+  if ((bayer[c.y * 4 + c.x] + 0.5) / 16.0 < k)
+    discard;
 }
 
 // Share of the sun reaching `pos`, 3x3 percentage-closer filtering.
@@ -217,30 +246,124 @@ uniform sampler2D emissionMap;
 uniform vec4 emissionColor;    // tint of the emission map
 uniform int useNormalMap;
 uniform int useEmissionMap;
+uniform float worldUv;         // > 0: texture coordinates from the world position, a tile this size
+uniform sampler2D underMap;    // material3d::under, under the albedo where it has worn off
+uniform sampler2D underNormalMap;
+uniform float underAmount;     // 0 none of it shows (or no under layer)
+uniform int useUnderNormal;
 
 // Normal mapping without tangents: the frame comes from screen derivatives
 // (Christian Schueler, "Normal Mapping Without Precomputed Tangents").
-vec3 mapped_normal(vec3 n) {
+vec3 mapped_normal(vec3 n, vec2 uv) {
   vec3 dp1 = dFdx(fragPos);
   vec3 dp2 = dFdy(fragPos);
-  vec2 duv1 = dFdx(fragTexCoord);
-  vec2 duv2 = dFdy(fragTexCoord);
+  vec2 duv1 = dFdx(uv);
+  vec2 duv2 = dFdy(uv);
   vec3 dp2perp = cross(dp2, n);
   vec3 dp1perp = cross(n, dp1);
   vec3 t = dp2perp * duv1.x + dp1perp * duv2.x;
   vec3 b = dp2perp * duv1.y + dp1perp * duv2.y;
   float invmax = inversesqrt(max(max(dot(t, t), dot(b, b)), 1e-12));
-  vec3 m = texture(texture2, fragTexCoord).xyz * 2.0 - 1.0;
+  vec3 m = texture(texture2, uv).xyz * 2.0 - 1.0;
   return normalize(mat3(t * invmax, b * invmax, n) * m);
 }
 
+// material3d::world_uv: a wall's u along it and v up (the image's top up, its
+// green +Y up too), a floor's u along x and v along z. The frame is exact, so
+// the normal map needs no derivatives.
+void world_frame(vec3 n, out vec2 uv, out vec3 t, out vec3 b) {
+  b = abs(n.y) > 0.7 ? vec3(0.0, 0.0, n.y > 0.0 ? -1.0 : 1.0) : vec3(0.0, 1.0, 0.0);
+  t = normalize(cross(b, n));
+  b = cross(n, t);
+  // Texture rows go down the image: v grows downward on it.
+  uv = vec2(dot(fragPos, t), -dot(fragPos, b)) / worldUv;
+}
+
+// Smooth value noise, about one bump per unit of `p`.
+float value_noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(vec3(i, 0.0)), b = hash(vec3(i + vec2(1.0, 0.0), 0.0));
+  float c = hash(vec3(i + vec2(0.0, 1.0), 0.0)), d = hash(vec3(i + vec2(1.0, 1.0), 0.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// A world-mapped image without its tile showing (Inigo Quilez, "texture
+// repetition", the cheap way): a slow noise steps through eight offsets of
+// the image and two neighbouring ones are blended, so no two tiles nearby
+// read the same. Offsets only: the image keeps its up (streaks run down, the
+// normal map's frame holds). The normal map takes the same offsets and blend.
+void untile(vec2 uv, out vec2 offa, out vec2 offb, out float k) {
+  float l = value_noise(uv * 0.45) * 8.0;
+  float ia = floor(l);
+  offa = sin(vec2(3.0, 7.0) * ia);
+  offb = sin(vec2(3.0, 7.0) * (ia + 1.0));
+  k = fract(l);
+}
+
+vec4 untiled(sampler2D s, vec2 uv, vec2 offa, vec2 offb, float k) {
+  vec2 dx = dFdx(uv), dy = dFdy(uv);
+  vec4 a = textureGrad(s, uv + offa, dx, dy);
+  vec4 b = textureGrad(s, uv + offb, dx, dy);
+  return mix(a, b, smoothstep(0.2, 0.8, k));
+}
+
 void main() {
-  vec4 base = texture(texture0, fragTexCoord) * colDiffuse * fragColor;
-  float cut = dissolve_cut(fragPos);
+  vec2 uv = fragTexCoord;
   vec3 n = normalize(fragNormal);
-  if (useNormalMap == 1)
-    n = mapped_normal(n);
-  vec3 glow = useEmissionMap == 1 ? texture(emissionMap, fragTexCoord).rgb * emissionColor.rgb : vec3(0.0);
+  vec3 wt, wb;
+  vec2 offa, offb;
+  float k = 0.0;
+  vec4 albedo;
+  if (worldUv > 0.0) {
+    world_frame(n, uv, wt, wb);
+    untile(uv, offa, offb, k);
+    albedo = untiled(texture0, uv, offa, offb, k);
+    // Large patches a little lighter or darker: a wall is never even.
+    albedo.rgb *= mix(0.86, 1.1, value_noise(uv * 0.21 + 17.0));
+  } else {
+    albedo = texture(texture0, uv);
+  }
+  vec4 base = albedo * colDiffuse * fragColor;
+  // The under layer where the top one has worn off: patches from a slow
+  // noise, more of them near the ground, a dark rim at their edge. Its
+  // offsets snap to eighths of the tile, so a pattern on that grid (brick
+  // courses) keeps its joints.
+  float bare = 0.0;
+  vec2 ua = floor(offa * 8.0 + 0.5) / 8.0, ub = floor(offb * 8.0 + 0.5) / 8.0;
+  if (worldUv > 0.0 && underAmount > 0.0) {
+    // Patches drawn out downward, as damp and grime run, and fewer of them
+    // up the wall: the top layer gathers at the foot.
+    float wear = value_noise(vec2(uv.x * 0.9, uv.y * 0.3) + 31.0) * 0.6 + value_noise(uv * 1.7 + 7.0) * 0.4;
+    wear -= 0.25 * exp(-max(fragPos.y / worldUv, 0.0) * 1.2);
+    float t = 1.0 - underAmount;
+    // A wide edge: the two layers fade into each other, no seam.
+    bare = smoothstep(t - 0.16, t + 0.16, wear);
+    vec3 under = untiled(underMap, uv, ua, ub, k).rgb;
+    // The top layer's own marks (stains, cracks, streaks) carried onto the
+    // under one, as the image against its own blurred self: they stay where
+    // the under layer shows, only fainter.
+    vec2 dx = dFdx(uv), dy = dFdy(uv);
+    vec3 top = untiled(texture0, uv, offa, offb, k).rgb;
+    vec3 blur = textureLod(texture0, uv + offa, 7.0).rgb;
+    float marks = dot(top, vec3(0.3, 0.59, 0.11)) / max(dot(blur, vec3(0.3, 0.59, 0.11)), 0.05);
+    under *= mix(1.0, clamp(marks, 0.5, 1.4), 0.55);
+    base.rgb = mix(base.rgb, under, bare);
+  }
+  view_mask_cut(fragPos);
+  float cut = dissolve_cut(fragPos);
+  if (useNormalMap == 1 || bare > 0.0) {
+    if (worldUv > 0.0) {
+      vec3 m = useNormalMap == 1 ? untiled(texture2, uv, offa, offb, k).xyz * 2.0 - 1.0 : vec3(0.0, 0.0, 1.0);
+      if (bare > 0.0 && useUnderNormal == 1)
+        m = mix(m, untiled(underNormalMap, uv, ua, ub, k).xyz * 2.0 - 1.0, bare);
+      n = normalize(mat3(wt, wb, n) * m);
+    } else {
+      n = mapped_normal(n, uv);
+    }
+  }
+  vec3 glow = useEmissionMap == 1 ? texture(emissionMap, uv).rgb * emissionColor.rgb : vec3(0.0);
   finalColor = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
 }
 )";
@@ -416,6 +539,7 @@ void main() {
     finalColor = vec4(1.0);
     return;
   }
+  view_mask_cut(pos);
   float cut = dissolve_cut(pos);
   vec3 localNormal = sdf_normal(local, eps);
   vec3 albedo = colDiffuse.rgb;
@@ -584,12 +708,16 @@ render3d_locations find_locations(Shader shader) {
   l.unlit = loc("unlit");
   l.use_normal_map = loc("useNormalMap");
   l.use_emission_map = loc("useEmissionMap");
+  l.world_uv = loc("worldUv");
+  l.under_amount = loc("underAmount");
+  l.use_under_normal = loc("useUnderNormal");
   l.shadow_on = loc("shadowOn");
   l.shadow_map = loc("shadowMap");
   l.light_vp = loc("lightVP");
   l.shadow_params = loc("shadowParams");
   l.flash = loc("flash");
   l.dissolve = loc("dissolve");
+  l.view_mask = loc("viewMask");
   l.edge_color = loc("edgeColor");
   l.clay_surface = loc("claySurface");
   l.shape_kind = loc("shapeKind");
@@ -648,11 +776,17 @@ bool ensure_ready(render3d_state &s) {
     s.skinned_locs = find_locations(s.lit_skinned);
     s.depth_skinned_bones = GetShaderLocation(s.depth_skinned, "boneMatrices");
     s.lit_skinned.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(s.lit_skinned, "emissionMap");
+    s.lit_skinned.locs[SHADER_LOC_MAP_ROUGHNESS] = GetShaderLocation(s.lit_skinned, "underMap");
+    s.lit_skinned.locs[SHADER_LOC_MAP_OCCLUSION] = GetShaderLocation(s.lit_skinned, "underNormalMap");
   } else {
     NJIN_WARN("3d: the skinning shader failed to compile, animated models are drawn in their rest pose");
   }
-  // DrawMesh binds the emission map through the emission slot's location.
+  // DrawMesh binds the emission map through the emission slot's location,
+  // and material3d::under through two slots the built-in shader has no
+  // other use for (roughness, occlusion).
   s.lit.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(s.lit, "emissionMap");
+  s.lit.locs[SHADER_LOC_MAP_ROUGHNESS] = GetShaderLocation(s.lit, "underMap");
+  s.lit.locs[SHADER_LOC_MAP_OCCLUSION] = GetShaderLocation(s.lit, "underNormalMap");
   // Enough segments that a sphere or capsule filling a good part of the
   // screen still reads as round.
   s.cube = GenMeshCube(1.0f, 1.0f, 1.0f);
@@ -829,11 +963,13 @@ bool mesh_texture(const context &ctx, texture_handle handle, Texture2D &out) {
 
 // Uniforms of the built-in shader for one draw.
 void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, const material3d &m,
-                       rgba emission_color, bool normal_map, bool emission_map) {
+                       rgba emission_color, bool normal_map, bool emission_map, bool under_map = false,
+                       bool under_normal = false) {
   set_vec4(sh, l.flash, v4(fx.flash));
   set_vec4(sh, l.dissolve,
            {clamp(fx.dissolve, 0.0f, 1.0f), fx.edge_width, fx.grain > 0.0f ? fx.grain : 0.1f, fx.seed});
   set_vec4(sh, l.edge_color, v4(fx.edge_color));
+  set_vec4(sh, l.view_mask, {fx.mask_center.x, fx.mask_center.y, fx.mask_center.z, std::max(fx.mask_radius, 0.0f)});
   set_vec2(sh, l.surface, {m.specular, std::max(m.shininess, 1.0f)});
   set_vec2(sh, l.clay_surface, {clamp(m.clay, 0.0f, 1.0f), std::max(m.clay_detail, 0.1f)});
   set_vec4(sh, l.emission, v4(m.emission));
@@ -842,6 +978,9 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
   set_i32(sh, l.unlit, m.unlit ? 1 : 0);
   set_i32(sh, l.use_normal_map, normal_map ? 1 : 0);
   set_i32(sh, l.use_emission_map, emission_map ? 1 : 0);
+  set_f32(sh, l.world_uv, std::max(m.world_uv, 0.0f));
+  set_f32(sh, l.under_amount, under_map && m.world_uv > 0.0f ? std::clamp(m.under_amount, 0.0f, 1.0f) : 0.0f);
+  set_i32(sh, l.use_under_normal, under_normal ? 1 : 0);
 }
 
 // The shader for a draw recorded with `handle` bound: the game's, given the
@@ -891,16 +1030,35 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
       maps[MATERIAL_MAP_NORMAL].texture = texture;
     if (mesh_texture(ctx, mm.emission, texture))
       maps[MATERIAL_MAP_EMISSION].texture = texture;
+    // A file's roughness and occlusion maps are not drawn; those slots carry
+    // the under layer when the game gave one.
+    maps[MATERIAL_MAP_ROUGHNESS].texture = Texture2D{};
+    maps[MATERIAL_MAP_OCCLUSION].texture = Texture2D{};
+    if (mesh_texture(ctx, mm.surface.under, texture))
+      maps[MATERIAL_MAP_ROUGHNESS].texture = texture;
+    if (maps[MATERIAL_MAP_ROUGHNESS].texture.id > 0 && mesh_texture(ctx, mm.surface.under_normal, texture))
+      maps[MATERIAL_MAP_OCCLUSION].texture = texture;
     if (maps[MATERIAL_MAP_DIFFUSE].texture.id == 0)
       maps[MATERIAL_MAP_DIFFUSE].texture = default_texture();
-    const rgba color{mm.color.r * c.color.r, mm.color.g * c.color.g, mm.color.b * c.color.b,
-                     mm.color.a * c.color.a};
+    rgba own = mm.color;
+    for (u32 r = 0; r < c.recolor_count; r++) {
+      const model_recolor &rc = ctx.render3d.recolors[c.recolor_first + r];
+      if (rc.material == index) {
+        own = rgba{rc.color.r, rc.color.g, rc.color.b, mm.color.a};
+        break;
+      }
+    }
+    const rgba color{own.r * c.color.r, own.g * c.color.g, own.b * c.color.b, own.a * c.color.a};
     to_raylib(color, maps[MATERIAL_MAP_DIFFUSE].color);
     const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
     const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok &&
                        (lod != nullptr ? lod->bone_vbo != 0
                                        : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
+    if (mm.double_sided)
+      rlDisableBackfaceCulling();
     fn(lod != nullptr ? lod->mesh : model.meshes[i], maps, mm, transform, posed);
+    if (mm.double_sided)
+      rlEnableBackfaceCulling();
   }
 }
 
@@ -1253,12 +1411,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   const bool own = !depth_only && game_shader(ctx, c.shader, shader);
   const bool built_in = !depth_only && !own;
 
-  // The meshes to draw, each with its albedo texture and colour.
+  // The meshes to draw, each with its albedo texture and colour, and the
+  // normal map the game set (a file's own normal map is not used here).
   struct part {
     const Mesh *mesh;
     Texture2D texture;
     rgba color;
     const material3d *surface;
+    bool double_sided = false;
+    Texture2D normal{};
+    Texture2D under{}, under_normal{};
   };
   std::vector<part> parts;
   Texture2D texture = default_texture();
@@ -1267,6 +1429,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   } else if (c.mesh != nullptr) {
     mesh_texture(ctx, c.material.texture, texture);
     parts.push_back({c.mesh, texture, colors::white, &c.material});
+    mesh_texture(ctx, c.material.normal, parts.back().normal);
   } else if (const model_slot *m = model_slot_of(ctx.model, c.model)) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const i32 index = m->model.meshMaterial[i];
@@ -1276,12 +1439,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
-      parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface});
+      parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
+      mesh_texture(ctx, mm.normal, parts.back().normal);
     }
   }
 
   if (parts.empty())
     return;
+  for (part &p : parts)
+    if (mesh_texture(ctx, p.surface->under, p.under))
+      mesh_texture(ctx, p.surface->under_normal, p.under_normal);
   if (!s.translucent_pass)
     ctx.stats.instanced_calls++;
   const Matrix mvp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
@@ -1289,7 +1456,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   const i32 stride = (i32)(slot->floats * sizeof(f32));
   for (const part &p : parts) {
     if (built_in)
-      set_draw_uniforms(shader, s.instanced_locs, c.fx, *p.surface, colors::white, false, false);
+      set_draw_uniforms(shader, s.instanced_locs, c.fx, *p.surface, colors::white, p.normal.id > 0, false,
+                        p.under.id > 0, p.under_normal.id > 0);
     rlEnableShader(shader.id);
     rlSetUniformMatrix(rlGetLocationUniform(shader.id, "mvp"), mvp);
     rlSetUniform(rlGetLocationUniform(shader.id, "instanceFloats"), &floats, RL_SHADER_UNIFORM_INT, 1);
@@ -1300,6 +1468,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       rlActiveTextureSlot(0);
       rlEnableTexture(p.texture.id);
       rlSetUniform(rlGetLocationUniform(shader.id, "texture0"), &unit, RL_SHADER_UNIFORM_INT, 1);
+      // The normal map and the under layer on the units DrawMesh would give them.
+      const struct { u32 id; i32 unit; const char *name; } extra[] = {
+          {p.normal.id, 2, "texture2"}, {p.under.id, 3, "underMap"}, {p.under_normal.id, 4, "underNormalMap"}};
+      for (const auto &e : extra)
+        if (e.id > 0) {
+          rlActiveTextureSlot(e.unit);
+          rlEnableTexture(e.id);
+          rlSetUniform(rlGetLocationUniform(shader.id, e.name), &e.unit, RL_SHADER_UNIFORM_INT, 1);
+        }
+      rlActiveTextureSlot(0);
     }
     if (!rlEnableVertexArray(p.mesh->vaoId))
       continue;
@@ -1321,10 +1499,14 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       rlEnableVertexAttribute((u32)locs[i]);
       rlSetVertexAttributeDivisor((u32)locs[i], 1);
     }
+    if (p.double_sided)
+      rlDisableBackfaceCulling();
     if (p.mesh->indices != nullptr)
       rlDrawVertexArrayElementsInstanced(0, p.mesh->triangleCount * 3, nullptr, (i32)count);
     else
       rlDrawVertexArrayInstanced(0, p.mesh->vertexCount, (i32)count);
+    if (p.double_sided)
+      rlEnableBackfaceCulling();
     for (i32 i = 0; i < 4; i++) {
       if (locs[i] < 0 || i >= floats / 4)
         continue;
@@ -1332,6 +1514,12 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       restore_mesh_attribute(*p.mesh, locs[i]);
     }
     rlDisableVertexArray();
+    if (!depth_only)
+      for (const i32 unit : {2, 3, 4}) {
+        rlActiveTextureSlot(unit);
+        rlDisableTexture();
+      }
+    rlActiveTextureSlot(0);
   }
   if (!depth_only)
     rlDisableTexture();
@@ -1366,9 +1554,18 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     Texture2D texture{};
     if (mesh_texture(ctx, c.material.texture, texture))
       maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+    const bool normal_map = mesh_texture(ctx, c.material.normal, texture);
+    if (normal_map)
+      maps[MATERIAL_MAP_NORMAL].texture = texture;
+    const bool under = mesh_texture(ctx, c.material.under, texture);
+    if (under)
+      maps[MATERIAL_MAP_ROUGHNESS].texture = texture;
+    const bool under_normal = under && mesh_texture(ctx, c.material.under_normal, texture);
+    if (under_normal)
+      maps[MATERIAL_MAP_OCCLUSION].texture = texture;
     to_raylib(c.color, maps[MATERIAL_MAP_DIFFUSE].color);
     if (!own)
-      set_draw_uniforms(s.lit, s.locs, c.fx, c.material, colors::white, false, false);
+      set_draw_uniforms(s.lit, s.locs, c.fx, c.material, colors::white, normal_map, false, under, under_normal);
     Material material{};
     material.shader = own ? custom : s.lit;
     material.maps = maps.data();
@@ -1392,7 +1589,8 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     }
     if (built_in)
       set_draw_uniforms(shader, posed ? s.skinned_locs : s.locs, c.fx, mm.surface, mm.emission_color,
-                        maps[MATERIAL_MAP_NORMAL].texture.id > 0, maps[MATERIAL_MAP_EMISSION].texture.id > 0);
+                        maps[MATERIAL_MAP_NORMAL].texture.id > 0, maps[MATERIAL_MAP_EMISSION].texture.id > 0,
+                        maps[MATERIAL_MAP_ROUGHNESS].texture.id > 0, maps[MATERIAL_MAP_OCCLUSION].texture.id > 0);
     Material material{};
     material.shader = shader;
     material.maps = maps.data();
@@ -1415,7 +1613,8 @@ Matrix transform_matrix(const transform3d &t) {
 constexpr f32 anim_fps = 60.0f;
 
 // Bone `b` of clip `anim` at `time` seconds, in model space as raylib keeps
-// the keyframes; the rest pose for anim < 0.
+// the keyframes; the rest pose for anim < 0. `m` is the slot that owns the
+// clips (model_anim_owner).
 Transform sample_bone(const model_slot &m, i32 anim, f32 time, bool loop, i32 b) {
   if (anim < 0 || anim >= m.anim_kept)
     return m.model.skeleton.bindPose[b];
@@ -1447,23 +1646,29 @@ Matrix pose_matrix(const Transform &t) {
 
 // Appends the bone matrices of `pose` to the pass's pool, as raylib's
 // UpdateModelAnimation computes them. False (nothing added) for the rest pose.
-bool pose_bones(const render3d_state &s, const model_slot &m, const model_pose &pose, u32 &first, u32 &count) {
+// Bone `b` of `pose`, model space, blended as the pose asks; `clips` owns
+// the clips (model_anim_owner).
+Transform posed_bone(const model_slot &clips, const model_pose &pose, i32 b) {
   const f32 k = clamp(pose.blend, 0.0f, 1.0f);
-  const bool blending = pose.blend_anim >= 0 && k > 0.0f;
+  Transform t = sample_bone(clips, pose.anim, pose.time, pose.loop, b);
+  if (pose.blend_anim >= 0 && k > 0.0f) {
+    const Transform u = sample_bone(clips, pose.blend_anim, pose.blend_time, pose.blend_loop, b);
+    t = Transform{Vector3Lerp(t.translation, u.translation, k), QuaternionSlerp(t.rotation, u.rotation, k),
+                  Vector3Lerp(t.scale, u.scale, k)};
+  }
+  return t;
+}
+
+bool pose_bones(const render3d_state &s, const model_slot &m, const model_slot &clips, const model_pose &pose,
+                u32 &first, u32 &count) {
+  const bool blending = pose.blend_anim >= 0 && pose.blend > 0.0f;
   if (!m.skinned || (pose.anim < 0 && !blending))
     return false;
   const i32 bones = m.model.skeleton.boneCount;
   first = (u32)s.bones.size();
   count = (u32)bones;
-  for (i32 b = 0; b < bones; b++) {
-    Transform t = sample_bone(m, pose.anim, pose.time, pose.loop, b);
-    if (blending) {
-      const Transform u = sample_bone(m, pose.blend_anim, pose.blend_time, pose.blend_loop, b);
-      t = Transform{Vector3Lerp(t.translation, u.translation, k), QuaternionSlerp(t.rotation, u.rotation, k),
-                    Vector3Lerp(t.scale, u.scale, k)};
-    }
-    s.bones.push_back(MatrixMultiply(m.inv_bind[(usize)b], pose_matrix(t)));
-  }
+  for (i32 b = 0; b < bones; b++)
+    s.bones.push_back(MatrixMultiply(m.inv_bind[(usize)b], pose_matrix(posed_bone(clips, pose, b))));
   return true;
 }
 
@@ -1505,7 +1710,8 @@ void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c) {
 }
 
 void record_model(const context &ctx, model_handle handle, const transform3d &transform, const model_pose *pose,
-                  rgba tint, const fx3d &fx, shader_handle shader) {
+                  rgba tint, const fx3d &fx, shader_handle shader, const model_recolor *recolors = nullptr,
+                  u32 recolor_count = 0) {
   const render3d_state &s = ctx.render3d;
   const model_slot *m = model_slot_of(ctx.model, handle);
   if (!s.active || m == nullptr)
@@ -1524,8 +1730,13 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
                .count = 0,
                .bone_first = 0,
                .bone_count = 0};
+  if (recolors != nullptr && recolor_count > 0) {
+    c.recolor_first = (u32)s.recolors.size();
+    c.recolor_count = recolor_count;
+    s.recolors.insert(s.recolors.end(), recolors, recolors + recolor_count);
+  }
   if (pose != nullptr && s.skin_ok)
-    pose_bones(s, *m, *pose, c.bone_first, c.bone_count);
+    pose_bones(s, *m, model_anim_owner(ctx.model, *m), *pose, c.bone_first, c.bone_count);
   place_model(s, *m, c);
   s.cmds.push_back(c);
 }
@@ -1629,6 +1840,7 @@ void start_pass(context &ctx, const camera3d &camera) {
   set_frustum(s);
   s.cmds.clear();
   s.bones.clear();
+  s.recolors.clear();
   s.blend_parts.clear();
   s.lights.clear();
   s.fx = fx3d{};
@@ -1734,6 +1946,7 @@ void end_3d(context &ctx) {
 
   s.cmds.clear();
   s.bones.clear();
+  s.recolors.clear();
   s.blend_parts.clear();
   s.lights.clear();
   s.active = false;
@@ -1973,13 +2186,31 @@ void draw_model_anim(const context &ctx, model_handle handle, const transform3d 
   record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active);
 }
 
-i32 model_anim_count(const context &ctx, model_handle handle) {
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint, const model_recolor &recolor) {
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active, &recolor, 1);
+}
+
+void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
+                     rgba tint, const model_recolor *recolors, u32 count) {
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active, recolors, count);
+}
+
+namespace {
+// The slot whose clips `handle` plays (model_create_skinned borrows them).
+const model_slot *clips_of(const context &ctx, model_handle handle) {
   const model_slot *m = model_slot_of(ctx.model, handle);
+  return m != nullptr ? &model_anim_owner(ctx.model, *m) : nullptr;
+}
+} // namespace
+
+i32 model_anim_count(const context &ctx, model_handle handle) {
+  const model_slot *m = clips_of(ctx, handle);
   return m != nullptr ? m->anim_kept : 0;
 }
 
 i32 model_anim_find(const context &ctx, model_handle handle, const char *name) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || name == nullptr)
     return -1;
   for (i32 i = 0; i < m->anim_kept; i++)
@@ -1989,16 +2220,55 @@ i32 model_anim_find(const context &ctx, model_handle handle, const char *name) {
 }
 
 const char *model_anim_name(const context &ctx, model_handle handle, i32 index) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || index < 0 || index >= m->anim_kept)
     return "";
   return m->anims[index].name;
 }
 
 f32 model_anim_duration(const context &ctx, model_handle handle, i32 index) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || index < 0 || index >= m->anim_kept)
     return 0.0f;
   return (f32)std::max(m->anims[index].keyframeCount - 1, 0) / anim_fps;
+}
+
+i32 model_bone_count(const context &ctx, model_handle handle) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  return m != nullptr ? m->model.skeleton.boneCount : 0;
+}
+
+const char *model_bone_name(const context &ctx, model_handle handle, i32 bone) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
+    return "";
+  return m->model.skeleton.bones[bone].name;
+}
+
+i32 model_bone_find(const context &ctx, model_handle handle, const char *name) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || name == nullptr)
+    return -1;
+  for (i32 b = 0; b < m->model.skeleton.boneCount; b++)
+    if (std::strncmp(m->model.skeleton.bones[b].name, name, sizeof(m->model.skeleton.bones[b].name)) == 0)
+      return b;
+  return -1;
+}
+
+bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model_pose &pose, i32 bone) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
+    return {};
+  const Transform t = posed_bone(model_anim_owner(ctx.model, *m), pose, bone);
+  // The model's own transform (a file's root), as the draw applies it.
+  const Matrix k = MatrixMultiply(pose_matrix(t), m->model.transform);
+  const auto axis = [](f32 x, f32 y, f32 z) {
+    const vec3 v{x, y, z};
+    return length_sq(v) > 1e-12f ? normalize(v) : v;
+  };
+  return {.position = {k.m12, k.m13, k.m14},
+          .x_axis = axis(k.m0, k.m1, k.m2),
+          .y_axis = axis(k.m4, k.m5, k.m6),
+          .z_axis = axis(k.m8, k.m9, k.m10)};
 }
 } // namespace njin

@@ -11,6 +11,10 @@
 namespace njin {
 void quit(context &ctx) { ctx.quit = true; }
 
+void window_set_close_intercept(context &ctx, bool on) { ctx.close_intercept = on; }
+
+bool window_close_requested(const context &ctx) { return ctx.close_requested; }
+
 void screenshot(context &ctx, const char *path) {
   if (path != nullptr) {
     ctx.screenshots.emplace_back(path);

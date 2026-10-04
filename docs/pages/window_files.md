@@ -26,6 +26,7 @@ Ngoài tiêu đề, kích thước, FPS và màu nền, njin::config có:
 | njin::cursor_set_visible() | Ẩn hiện con trỏ chuột |
 | njin::cursor_set_locked() | Khóa con trỏ trong cửa sổ; đọc njin::mouse_delta() |
 | njin::quit() | Thoát ở cuối frame. `phase_shutdown` vẫn chạy |
+| njin::window_set_close_intercept(), njin::window_close_requested() | Nút [x] không thoát ngay mà báo cho game; game tự dọn rồi gọi njin::quit() |
 
 **Giữ màn chơi vừa mọi kích thước cửa sổ.** Thiết kế game theo một kích thước cố định,
 rồi mỗi frame đặt zoom của camera cho vừa cửa sổ:
