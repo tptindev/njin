@@ -111,8 +111,20 @@ void draw_rect_rotated(const context &, vec2 center, vec2 size, f32 rotation,
                    color_of(color));
 }
 
-void draw_circle(const context &, vec2 center, f32 radius, rgba color) {
-  DrawCircleV(vec_of(center), radius, color_of(color));
+void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color) {
+  // As many sides as keep the outline within half a pixel of the true circle,
+  // at the size it reaches the screen (camera zoom and supersampling), up to
+  // raylib's 36: a circle a few pixels wide takes 6, not 36 (a city of trees
+  // seen from far is thousands of them).
+  const Matrix view = rlGetMatrixModelview();
+  const f32 px = radius * std::hypot(view.m0, view.m1) * (f32)std::max(ctx.view.render_scale, 1);
+  i32 sides = 36;
+  if (px < 40.0f) {
+    const f32 k = 1.0f - 0.5f / std::max(px, 0.75f);
+    const f32 step = std::acos(std::clamp(2.0f * k * k - 1.0f, -1.0f, 1.0f));
+    sides = std::clamp((i32)std::ceil(2.0f * PI / std::max(step, 1e-3f)), 6, 36);
+  }
+  DrawCircleSector(vec_of(center), radius, 0.0f, 360.0f, sides, color_of(color));
 }
 
 void draw_circle_lines(const context &, vec2 center, f32 radius,
