@@ -1,58 +1,66 @@
-# Batch instance theo vùng {#spatial_batch}
+# Chỉ vẽ phần camera thấy: instance theo ô {#spatial_batch}
 
-`njin_spatial_batch.h` tách việc chọn khoảng instance khỏi GPU và camera của game.
-Buffer được dựng theo thứ tự nhóm; `offsets[c]` là instance đầu của nhóm c,
-`offsets.back()` là điểm kết thúc. Một nhóm có thể rỗng. Cùng buffer có thể
-được vẽ từ nhiều camera với các mask và khoảng loại trừ khác nhau.
+draw_instanced3d() vẽ cả một khúc bộ đệm bằng một lệnh, nhưng card đồ họa vẫn xử lý từng instance trong khúc đó,
+kể cả những cái nằm sau lưng camera. Với một khu rừng hay một thành phố hàng chục nghìn vật mà camera chỉ thấy một
+góc, phần lớn công sức ấy bỏ phí. `njin_spatial_batch.h` giải quyết bằng cách chia mặt đất thành ô: xếp instance
+trong bộ đệm theo ô **một lần**, rồi mỗi frame chọn những ô cần vẽ và nhận lại các khúc bộ đệm tương ứng. Cũng cách
+đó chọn được mức chi tiết: ô gần vẽ hình mịn, ô xa vẽ hình ít mặt.
 
-```cpp
-#include "njin_spatial_batch.h"
+Cần biết trước: @ref graphics_3d, phần Instancing. Cách này dùng được cả với draw_instanced() của 2D, vì nó cũng nhận
+instance đầu và số instance.
 
-njin::batch_grid2d grid{{-100, -100}, {20, 20}, 10, 10};
-njin::batch_view2d view{{-40, -30}, {40, 30}, {0, 0}, 8};
-std::vector<njin::u8> wanted(grid.count());
-for (njin::i32 c = 0; c < grid.count(); ++c)
-    wanted[c] = njin::batch_cell_visible(grid, view, c) &&
-                njin::batch_cell_detailed(grid, view, c, 50);
+## Ví dụ: 40.000 cây
 
-// offsets: 101 phần tử, mô tả buffer đã xếp theo 100 ô.
-// Bỏ một đối tượng đang được vẽ riêng (ví dụ nhà cắt mở).
-const njin::instance_range excluded[] = {{15, 21}};
-const auto ranges = njin::batch_instance_ranges(offsets, wanted, excluded);
-for (const auto &[from, to] : ranges)
-    njin::draw_instanced3d(ctx, model, buffer, from, to - from);
-```
+@include spatial_batch.cpp
 
-Game sở hữu buffer, đặt instance vào nhóm bằng `grid.cell_at(center)` và giữ
-các offset tương ứng. API không tự sắp lại instance, tải model, upload buffer
-hay quyết định LOD mesh. Muốn dùng LOD khác nhau thì tính mask/ranges cho mỗi
-cấp; muốn mọi chi tiết thì chỉ kiểm tra visibility, không kiểm tra radius.
+## Ba bước
 
-`view.lo/hi` là hình chữ nhật bảo thủ dựng từ camera/frustum trên mặt phẳng
-của game. Đây là broad phase, không thay thế frustum 3D hoặc occlusion culling.
-`overhang` phải bao phần geometry nhô khỏi ô chứa tâm; quá nhỏ sẽ làm vật thể
-biến mất ở mép màn hình. Origin, cell_size, focus, bounds và radius dùng cùng
-đơn vị tùy game, không tự chuyển mét hoặc scale render.
+| Bước | Khi nào | Làm gì |
+|---|---|---|
+| 1. Lưới | Một lần | njin::batch_grid2d: góc `origin`, kích thước ô `cell_size`, số cột `cols` và hàng `rows` |
+| 2. Xếp bộ đệm | Khi nạp, hoặc khi vật thêm bớt | Mỗi instance thuộc ô chứa tâm nó (`grid.cell_at()`). Ghi bộ đệm theo ô: mọi instance của ô 0, rồi ô 1... `offsets[c]` là instance đầu của ô `c`, phần tử cuối là tổng số instance |
+| 3. Chọn ô | Mỗi frame, mỗi camera | Một mảng `wanted`, mỗi ô một số (khác 0 là vẽ), rồi batch_instance_ranges() trả về các khúc `[first, second)` cho draw_instanced3d() |
 
-Mỗi camera giữ `batch_view2d` riêng. Các hàm đọc dữ liệu const, không có camera
-hoặc cache toàn cục. Có thể gọi trên worker thread nếu dữ liệu đầu vào không
-được sửa đồng thời. Tái sử dụng mask qua frame để tránh cấp phát lại.
+Ô liền nhau được chọn thì gộp thành một khúc, nên một vùng nhìn thấy thường chỉ tốn vài lệnh vẽ. Ô rỗng không sao.
 
-Các khoảng trả về tăng dần, không chồng nhau, gộp tối đa khi liền kề. Excluded
-không cần sắp xếp; các khoảng chồng nhau được hợp trước khi trừ. Offset giảm
-hoặc mask sai kích thước trả rỗng; excluded rỗng/đảo bị bỏ. Không vượt điểm
-kết thúc offset, nhưng caller vẫn phải bảo đảm offsets khớp buffer thực.
+Kích thước ô là sự đánh đổi: ô nhỏ thì vẽ sát vùng nhìn hơn nhưng nhiều khúc hơn (nhiều lệnh vẽ); ô to thì ngược lại.
+Bắt đầu với ô cỡ vài lần vật lớn nhất, rồi đo.
 
-Sandtable sử dụng API này trong `city/render_lod.cpp`, giữ nguyên các chính
-sách camera, detail radius và kính của game. Kiểm tra không mở cửa sổ:
+## Vùng nhìn
 
-```
-cmake --build build-release --target njin_spatial_batch_check
-build-release/bin/njin_spatial_batch_check.exe
-```
+njin::batch_view2d mô tả phần mặt đất một camera thấy, trên cùng mặt phẳng với lưới: x, z của thế giới với cảnh 3D,
+x, y với cảnh 2D. Mọi số dùng chung đơn vị của game.
 
-Kiểm tra so với oracle từng instance trên 10.000 trường hợp; đối chiếu 2.000
-quyết định visibility/detail với công thức cũ của Sandtable; kiểm tra origin
-âm, biên ô, overhang, dữ liệu lỗi và camera độc lập. Việc tách API tự nó
-không chứng minh GPU nhanh hơn: giữ cùng seed/view và đo GPU timing từng pass
-khi thay chính sách culling/LOD.
+| Trường | Nghĩa |
+|---|---|
+| `lo`, `hi` | Hình chữ nhật nhìn thấy. Phải **bao trọn** những gì camera thấy: rộng quá chỉ vẽ thừa, hẹp quá thì vật ở mép màn hình biến mất |
+| `overhang` | Vật nhô khỏi ô chứa tâm nó xa nhất bao nhiêu (bán kính lớn nhất của instance) |
+| `focus` | Điểm đo khoảng cách cho mức chi tiết, thường là vị trí camera |
+
+batch_cell_visible() cho biết ô có chạm vùng nhìn không. batch_cell_detailed() cho biết ô có cách `focus` dưới một bán
+kính không, và không xét vùng nhìn: kết hợp hai hàm như ví dụ để có hai mức chi tiết, mỗi mức một mảng `wanted`.
+
+Đây là phép lọc thô theo hình chữ nhật, không phải kiểm tra frustum 3D hay che khuất: vật trong hình chữ nhật mà nằm
+ngoài khung hình vẫn được vẽ. Mỗi camera (màn hình chính, minimap, gương) giữ một vùng nhìn riêng và dùng chung bộ đệm.
+
+## Bỏ bớt một khúc
+
+Tham số thứ ba của batch_instance_ranges() là các khúc **không** vẽ, ví dụ một ngôi nhà đang được vẽ riêng ở dạng cắt
+mở:
+
+@code
+const njin::instance_range excluded[] = {{house_first, house_first + house_count}};
+for (const auto &[from, to] : njin::batch_instance_ranges(offsets, wanted, excluded))
+  njin::draw_instanced3d(ctx, house_model, buffer, from, to - from);
+@endcode
+
+Các khúc bỏ có thể chồng nhau và không cần sắp xếp.
+
+## Những gì nó không làm
+
+- Không giữ hay sửa bộ đệm: game tự xếp instance, tự gọi instance_buffer_upload() và giữ `offsets` khớp với bộ đệm.
+- Không chọn hình cho từng mức chi tiết: game quyết định vẽ gì cho mỗi mảng `wanted`.
+- Dữ liệu sai thì trả về rỗng thay vì đoán: `offsets` không có đúng `wanted.size() + 1` phần tử hay có chỗ giảm.
+
+Các hàm chỉ đọc dữ liệu vào và không giữ gì giữa các lần gọi, nên gọi được cho nhiều camera, và trên thread khác
+miễn là không ai sửa dữ liệu vào cùng lúc. Giữ mảng `wanted` qua các frame để khỏi cấp phát lại.

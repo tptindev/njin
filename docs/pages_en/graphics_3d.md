@@ -212,6 +212,9 @@ built-in one reads:
 | `instance2` (from 12 floats) | Rotation `xyz`, degrees |
 | `instance3` (16 floats) | Scale along x, y, z (0 is 1) |
 
+For tens of thousands of instances of which the camera sees only part (a forest, a city), put them in cells and draw
+only the cells the camera sees: @ref spatial_batch.
+
 ## A game's own shader
 
 shader_begin() before a 3D draw call makes that shape draw with the game's shader. The engine sets the

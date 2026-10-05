@@ -203,6 +203,9 @@ nằm trong một bộ đệm instance như draw_instanced() của 2D. Không tr
 | `instance2` (từ 12 số) | Góc xoay `xyz`, độ |
 | `instance3` (16 số) | Tỉ lệ theo x, y, z (0 là 1) |
 
+Hàng chục nghìn instance mà camera chỉ thấy một phần (rừng, thành phố) thì xếp chúng theo ô và chỉ vẽ những ô camera
+thấy: @ref spatial_batch.
+
 ## Shader của game
 
 shader_begin() trước một lệnh vẽ 3D thì hình đó vẽ bằng shader của game. Engine đặt sẵn các uniform
