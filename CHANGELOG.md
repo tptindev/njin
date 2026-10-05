@@ -8,6 +8,14 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+### Added
+
+- `lighting_desc::occluder_lod` (screen pixels, default 1): each frame the
+  shape of every occluder is simplified to within that many pixels
+  (Douglas-Peucker), and occluders smaller than it on screen are dropped, so
+  a scene seen from far out keeps room for every shadow. **Changes the
+  default:** existing games get it on; set it to 0 for the shapes as before.
+
 ### Fixed
 
 - Half-transparent shapes no longer come out darker on screen. The finished

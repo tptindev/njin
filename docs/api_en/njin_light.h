@@ -273,6 +273,14 @@ struct lighting_desc {
   /// about 40. The default 600 is a nearly infinite shadow, only suitable when occluders are sparse; in a dense
   /// forest it drowns the whole map in shadow. Applies to both polygon and per-pixel shadows.
   f32 shadow_reach = 600.0f;
+  /// Level of detail (LOD) of occluders, in screen pixels. Each frame the shape of every occluder
+  /// (light_occluder and the outline of light_occluder_sprite) is simplified so that it strays from
+  /// the real shape by no more than this, and an occluder whose radius on screen is smaller than
+  /// this is dropped. Up close the shapes stay as they are; from far out (small zoom) trees, cars and
+  /// small things keep fewer edges, so the lights have room for the shadows of everything on screen
+  /// (each strip of a directional light and each angular bin of a point light keeps at most 64
+  /// edges). 0 turns it off.
+  f32 occluder_lod = 1.0f;
 };
 
 /// Sets the lighting settings. May be changed every frame (for example ambient by time of day).

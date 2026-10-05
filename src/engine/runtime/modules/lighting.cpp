@@ -277,17 +277,28 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
       // More than fit: the ones nearest a point or spot light. A sun's strip
       // runs right across the view (or its band), and keeping those nearest the
       // middle would leave shadows only in a stripe through it; keep the longest
-      // edges instead, so what goes is the small shadows, all over.
+      // edges instead, so what goes is the small shadows, all over. The sun's
+      // lengths are rounded to whole units and ties are settled by where the
+      // edges are (not their order in the list, which shifts as occluders come
+      // into view): many edges are as long as each other (trees, cars), and a
+      // choice among them that changed from frame to frame would make their
+      // shadows flicker.
       const auto dist = [&](u32 i) {
         const occluder_edge &e = edges[i];
         if (sun) {
           const f32 ex = e.b.x - e.a.x, ey = e.b.y - e.a.y;
-          return -(ex * ex + ey * ey);
+          return -std::floor(std::sqrt(ex * ex + ey * ey));
         }
         const f32 mx = (e.a.x + e.b.x) * 0.5f - from.x, my = (e.a.y + e.b.y) * 0.5f - from.y;
         return mx * mx + my * my;
       };
-      std::nth_element(list.begin(), list.begin() + bucket_cap, list.end(), [&](u32 a, u32 b) { return dist(a) < dist(b); });
+      std::nth_element(list.begin(), list.begin() + bucket_cap, list.end(), [&](u32 a, u32 b) {
+        const f32 da = dist(a), db = dist(b);
+        if (da != db)
+          return da < db;
+        const occluder_edge &ea = edges[a], &eb = edges[b];
+        return ea.min_x != eb.min_x ? ea.min_x < eb.min_x : ea.min_y < eb.min_y;
+      });
       list.resize((usize)bucket_cap);
     }
     const i32 row = index * buckets + k;
@@ -575,7 +586,9 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       if (job.light->cast_shadows)
         sc.areas.push_back(job.area);
     }
-    gather_edges(ctx, s, edges, sc.areas);
+    // Level of detail: what lighting_desc::occluder_lod pixels of the screen are in the world.
+    const f32 units_per_pixel = steady.size.x / std::max(screen_size(ctx).x, 1.0f);
+    gather_edges(ctx, s, edges, sc.areas, std::max(d.occluder_lod, 0.0f) * units_per_pixel);
     if (!edges.empty()) {
       sc.grid.build(edges, near);
       sc.owner_stamp.assign(edges.size(), 0);
@@ -631,9 +644,9 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       fill_buckets(sc, edges, job, view, index, d.shadow_reach, {}, fullest);
       if (job.light->kind != light_directional || fullest <= (usize)bucket_cap)
         continue;
-      // Bands short enough that each strip of each holds what shadows it: as many as
-      // the overflow asks for, while a band stays longer than the shadows and passes
-      // are left for the lights after this one.
+      // Bands, so that each strip of each holds only what can shadow it: as many as
+      // there may be, while a band stays longer than the shadows and passes are left
+      // for the lights after this one.
       const f32 dx = std::cos(job.angle), dy = std::sin(job.angle);
       f32 along_lo = 1e30f, along_hi = -1e30f;
       for (const vec2 c : {view.pos, vec2{view.pos.x + view.size.x, view.pos.y}, vec2{view.pos.x, view.pos.y + view.size.y},
@@ -643,8 +656,9 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       }
       const f32 length = along_hi - along_lo;
       const usize room = max_passes - passes.size() - (lights.size() - 1 - i);
-      i32 n = (i32)std::ceil((f32)fullest / ((f32)bucket_cap * 0.6f));
-      n = std::min({n, max_bands, (i32)std::max(length / std::max(d.shadow_reach, 1.0f), 1.0f), (i32)room + 1});
+      // Always the most bands there is room for: a count that followed the overflow would
+      // move the bands, and the edges each keeps, from frame to frame.
+      const i32 n = std::min({max_bands, (i32)std::max(length / std::max(d.shadow_reach, 1.0f), 1.0f), (i32)room + 1});
       if (n < 2)
         continue;
       passes.pop_back();

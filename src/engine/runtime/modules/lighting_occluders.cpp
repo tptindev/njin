@@ -87,6 +87,55 @@ struct edge_builder {
   }
 };
 
+// Level of detail: drops the points of `p` that stray less than `tol` from the
+// line through their neighbours that stay (Douglas-Peucker). A closed loop is
+// cut at its first point and the point farthest from it, so it keeps both.
+void keep_from(const std::vector<vec2> &p, usize a, usize b, f32 tol2, std::vector<u8> &keep) {
+  const vec2 d = p[b] - p[a];
+  const f32 len2 = d.x * d.x + d.y * d.y;
+  f32 worst = 0.0f;
+  usize at = a;
+  for (usize i = a + 1; i < b; i++) {
+    const vec2 q = p[i] - p[a];
+    const f32 cross = q.x * d.y - q.y * d.x;
+    const f32 dist2 = len2 > 1e-12f ? cross * cross / len2 : q.x * q.x + q.y * q.y;
+    if (dist2 > worst)
+      worst = dist2, at = i;
+  }
+  if (worst <= tol2)
+    return;
+  keep[at] = 1;
+  keep_from(p, a, at, tol2, keep);
+  keep_from(p, at, b, tol2, keep);
+}
+
+void simplify(std::vector<vec2> &p, bool closed, f32 tol, std::vector<vec2> &scratch, std::vector<u8> &keep) {
+  const usize n = p.size();
+  if (tol <= 0.0f || n < (closed ? 4u : 3u))
+    return;
+  scratch.assign(p.begin(), p.end());
+  usize far = n - 1;
+  if (closed) {
+    f32 best = -1.0f;
+    for (usize i = 1; i < n; i++) {
+      const vec2 q = p[i] - p[0];
+      if (q.x * q.x + q.y * q.y > best)
+        best = q.x * q.x + q.y * q.y, far = i;
+    }
+    scratch.push_back(p[0]); // the loop back to the start, as a chain
+  }
+  keep.assign(scratch.size(), 0);
+  keep.front() = keep[far] = keep.back() = 1;
+  const f32 tol2 = tol * tol;
+  keep_from(scratch, 0, far, tol2, keep);
+  keep_from(scratch, far, scratch.size() - 1, tol2, keep);
+  p.clear();
+  const usize end = closed ? scratch.size() - 1 : scratch.size();
+  for (usize i = 0; i < end; i++)
+    if (keep[i] != 0)
+      p.push_back(scratch[i]);
+}
+
 // The pixels of a texture, read back from the graphics card once.
 const Image *pixels_of(lighting_state &s, const texture_slot &slot) {
   const auto it = s.images.find(slot.texture.id);
@@ -157,11 +206,14 @@ bool inside_owner(const std::vector<occluder_edge> &edges, const occluder_edge &
 
 // Every occluder near the view as edges: the shapes of light_occluder, and the
 // outlines of light_occluder_sprite frames.
-void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas) {
+void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas,
+                  f32 lod) {
   entt::registry &registry = ctx.ecs.registry;
   edge_builder builder{edges, areas, {}};
 
-  std::vector<vec2> world; // reused for every shape
+  // Reused for every shape.
+  static thread_local std::vector<vec2> world, scratch;
+  static thread_local std::vector<u8> keep;
   for (auto [entity, tr, occ] : registry.view<const transform, const light_occluder>().each()) {
     if (occ.points.size() < 2)
       continue;
@@ -175,6 +227,9 @@ void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &e
       reach = std::sqrt(reach2);
     }
     reach *= std::abs(tr.scale);
+    // Smaller on screen than the detail that may go: its shadow would be too.
+    if (reach < lod)
+      continue;
     if (!builder.relevant(tr.pos.x - reach, tr.pos.y - reach, tr.pos.x + reach, tr.pos.y + reach))
       continue;
     const placement place(tr);
@@ -182,6 +237,7 @@ void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &e
     world.clear();
     for (const vec2 &p : occ.points)
       world.push_back(place(p));
+    simplify(world, occ.closed, lod, scratch, keep);
     builder.shape(world, occ.closed, occ.hole);
     builder.end();
   }
@@ -198,6 +254,8 @@ void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &e
     const i32 x = (i32)(area.x + (whole ? 0.0f : spr.source.pos.x)), y = (i32)(area.y + (whole ? 0.0f : spr.source.pos.y));
     // Out of every light's reach: do not even trace it.
     const f32 span = (f32)std::max(w, h) * std::abs(tr.scale);
+    if (span < 2.0f * lod)
+      continue;
     if (!builder.relevant(tr.pos.x - span, tr.pos.y - span, tr.pos.x + span, tr.pos.y + span))
       continue;
     const std::vector<silhouette_loop> *loops = silhouette_of(s, *slot, x, y, w, h, occ.alpha, occ.simplify);
@@ -211,6 +269,7 @@ void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &e
         const f32 px = spr.flip_x ? (f32)w - p.x : p.x, py = spr.flip_y ? (f32)h - p.y : p.y;
         world.push_back(place({px - spr.origin.x * (f32)w, py - spr.origin.y * (f32)h}));
       }
+      simplify(world, true, lod, scratch, keep);
       builder.shape(world, true, loop.hole);
     }
     builder.end();

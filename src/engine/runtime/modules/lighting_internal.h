@@ -80,7 +80,9 @@ inline bool overlaps(const rect &a, f32 min_x, f32 min_y, f32 max_x, f32 max_y) 
 bool inside_owner(const std::vector<occluder_edge> &edges, const occluder_edge &any_edge, vec2 p);
 
 // Every occluder that touches one of `areas` (where the lights reach) as edges: the shapes of
-// light_occluder, and the outlines of light_occluder_sprite frames.
-void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas);
+// light_occluder, and the outlines of light_occluder_sprite frames. `lod` is the detail that may go
+// (world units, from lighting_desc::occluder_lod): shapes are simplified to it, and smaller ones dropped.
+void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas,
+                  f32 lod);
 } // namespace light_impl
 } // namespace njin

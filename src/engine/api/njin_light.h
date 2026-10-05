@@ -273,6 +273,14 @@ struct lighting_desc {
   /// khoảng 40. Mặc định 600 là bóng gần như vô hạn, chỉ hợp khi vật chắn thưa; ở khu
   /// rừng dày nó làm cả bản đồ chìm trong bóng. Áp dụng cho cả bóng đa giác và từng pixel.
   f32 shadow_reach = 600.0f;
+  /// Mức chi tiết (LOD) của vật chắn, pixel màn hình. Mỗi frame, hình của mọi
+  /// vật chắn (light_occluder và viền light_occluder_sprite) được giản lược sao
+  /// cho lệch khỏi hình thật không quá chừng này, và vật chắn có bán kính trên màn
+  /// hình nhỏ hơn thế thì bỏ hẳn. Nhìn gần thì giữ nguyên hình; nhìn xa (zoom nhỏ)
+  /// thì cây, xe, vật nhỏ còn ít cạnh hơn, nên đèn đủ chỗ cho bóng của mọi thứ trên
+  /// màn hình (mỗi dải của đèn hướng, mỗi ngăn góc của đèn điểm giữ tối đa 64
+  /// cạnh). 0 là tắt.
+  f32 occluder_lod = 1.0f;
 };
 
 /// Đặt cài đặt ánh sáng. Đổi mỗi frame được (ví dụ ambient theo giờ trong ngày).
