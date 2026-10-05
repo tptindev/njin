@@ -198,7 +198,7 @@ Gọi lại khi tường đổi. Hàm chỉ tính hình học, không cần cử
   không bị hình đó chặn. Vì vậy hình có thể vừa khít với hình vẽ. Một vật lõm (chữ L) vẫn che phần này của nó bằng phần kia.
 - Đường mở (`closed = false`) là tường mỏng: chắn từ cả hai phía.
 - Đa giác đóng có thể là **lỗ**: `hole = true` nghĩa là bên trong là khoảng trống. Dùng cho vòng trong của phòng có tường dày.
-- Mỗi ngăn góc của một đèn giữ tối đa 64 cạnh (nếu nhiều hơn, giữ những cạnh gần đèn nhất). `reach` của `light_occluder` cho engine loại nhanh vật chắn xa; các hàm dựng sẵn tự đặt.
+- Mỗi ngăn góc của một đèn giữ tối đa 64 cạnh (nếu nhiều hơn, giữ những cạnh gần đèn nhất). Đèn hướng (mặt trời) chia màn hình thành các dải chạy dọc theo tia; khi dải quá đầy (nhìn xa một thành phố), engine tự chia màn hình thêm thành tối đa 16 băng dọc theo tia, mỗi băng chỉ giữ cạnh nằm trong nó hoặc cách nó chưa tới `shadow_reach` về phía mặt trời, rồi vẽ từng băng. Ô nào vẫn quá 64 cạnh thì giữ những cạnh dài nhất, nên bóng của vật nhỏ (cây, xe) mất trước, bóng nhà vẫn còn. `reach` của `light_occluder` cho engine loại nhanh vật chắn xa; các hàm dựng sẵn tự đặt.
 
 ## Ánh sáng chạy thế nào
 

@@ -14,6 +14,10 @@ To release: edit that header, add a section here, commit, then
   frame (with a virtual size or `render_scale`) and the world after its post
   shader were blended by their own alpha, which such shapes leave below 1;
   they are now copied as they are.
+- Sun (`light_directional`) shadows no longer shrink to a stripe through the
+  middle of the screen when there are many occluders. A strip that holds more
+  than 64 edges keeps the longest, and a sun whose strips overflow is drawn in
+  up to 16 bands along its rays, each with buckets of its own.
 
 ## 0.2.0
 

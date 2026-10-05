@@ -17,8 +17,12 @@ using namespace light_impl;
 namespace {
 constexpr i32 buckets = 32;       // sectors (or strips) each light's edges are sorted into
 constexpr i32 bucket_cap = 64;    // edges kept per bucket: the nearest when there are more
-constexpr i32 bucket_rows = buckets * 64; // rows of the data texture: a light takes `buckets`
 constexpr usize max_lights = 64;   // drawn per frame
+// A sun whose strips overflow is drawn in bands along its rays, each with buckets of its own:
+// up to this many bands, and this many passes in all.
+constexpr i32 max_bands = 16;
+constexpr usize max_passes = max_lights + max_bands;
+constexpr i32 bucket_rows = buckets * (i32)max_passes; // rows of the data texture: a pass takes `buckets`
 
 void find_locations(lighting_state &s);
 
@@ -144,6 +148,14 @@ struct gbuffer_sprite {
   entt::entity entity;
 };
 
+// One draw of a light: all of it, or a band of a sun (see fill_buckets).
+struct light_pass {
+  u32 light = 0;            // in the frame's list of lights
+  f32 lo = 1.0f, hi = 0.0f; // the band along the rays; all of the light when lo > hi
+  bool first = true;        // the first band of its light
+  bool whole() const { return lo > hi; }
+};
+
 // Buffers reused every frame, so lighting allocates nothing once warm.
 struct frame_scratch {
   std::vector<f32> bucket_data;   // the rows of the edge texture, filled per light
@@ -151,6 +163,7 @@ struct frame_scratch {
   std::vector<u32> lists[buckets];
   std::vector<pixel_light> pixel; // per light: its row of the pixel shadow map
   std::vector<light_job> lights;
+  std::vector<light_pass> passes;
   std::vector<rect> areas;
   std::vector<occluder_edge> edges;
   edge_grid grid;
@@ -159,12 +172,20 @@ struct frame_scratch {
   std::vector<u8> owner_contains; // and whether that light was inside it
 };
 
+// A piece of the view along a sun's rays, from `lo` to `hi` (world units along the direction the
+// light travels). The whole view when `lo > hi`.
+struct band {
+  f32 lo = 1.0f, hi = 0.0f;
+  bool whole() const { return lo > hi; }
+};
+
 // Sorts the edges that can shadow a light into its buckets and writes them into
-// the rows of the light `index`. A point or spot light uses sectors of angle
-// around it; a directional light strips across its rays. Returns how many edges
-// the light has in all.
+// the rows of pass `index`. A point or spot light uses sectors of angle
+// around it; a directional light strips across its rays, and for a band of it
+// only the edges that can shadow that band. Returns how many edges the light
+// has in all; `fullest` gets the most any bucket had before it was cut down.
 usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, const light_job &job, const rect &view,
-                   i32 index, f32 shadow_reach) {
+                   i32 index, f32 shadow_reach, band part, usize &fullest) {
   const light_2d &l = *job.light;
   for (auto &list : sc.lists)
     list.clear();
@@ -187,6 +208,12 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
     const occluder_edge &e = edges[i];
     if (!overlaps(job.area, e.min_x, e.min_y, e.max_x, e.max_y))
       return;
+    // A band is shadowed only by what lies in it or less than `shadow_reach` towards the sun.
+    if (sun && !part.whole()) {
+      const f32 ea = e.a.x * dir_x + e.a.y * dir_y, eb = e.b.x * dir_x + e.b.y * dir_y;
+      if (std::max(ea, eb) < part.lo - shadow_reach || std::min(ea, eb) > part.hi)
+        return;
+    }
     // A ray is stopped only where it enters a solid, which happens only with some of the light behind the
     // edge: an edge that faces the whole of the light (its centre, and its size to either side) never counts.
     const f32 nx = e.b.y - e.a.y, ny = -(e.b.x - e.a.x);
@@ -241,12 +268,22 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
 
   const vec2 centre = job.area.pos + job.area.size * 0.5f;
   const vec2 from = sun ? centre : job.pos;
+  fullest = 0;
+  for (const auto &list : sc.lists)
+    fullest = std::max(fullest, list.size());
   for (i32 k = 0; k < buckets; k++) {
     std::vector<u32> &list = sc.lists[k];
     if ((i32)list.size() > bucket_cap) {
-      // More than fit: the ones nearest the light (or the view, for the sun).
+      // More than fit: the ones nearest a point or spot light. A sun's strip
+      // runs right across the view (or its band), and keeping those nearest the
+      // middle would leave shadows only in a stripe through it; keep the longest
+      // edges instead, so what goes is the small shadows, all over.
       const auto dist = [&](u32 i) {
         const occluder_edge &e = edges[i];
+        if (sun) {
+          const f32 ex = e.b.x - e.a.x, ey = e.b.y - e.a.y;
+          return -(ex * ex + ey * ey);
+        }
         const f32 mx = (e.a.x + e.b.x) * 0.5f - from.x, my = (e.a.y + e.b.y) * 0.5f - from.y;
         return mx * mx + my * my;
       };
@@ -575,21 +612,54 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
 
   const Shader &sh = s.light;
   u32 drawn = 0;
-  bool shadows_ok = false;
-  if (!lights.empty() && !edges.empty() && ensure_edge_texture(s)) {
+  // One pass per light, or several bands for a sun with more edges than its strips hold.
+  std::vector<light_pass> &passes = sc.passes;
+  passes.clear();
+  const bool shadows_ok = !lights.empty() && !edges.empty() && ensure_edge_texture(s);
+  if (shadows_ok) {
     // Every light's edges into the buckets, then to the graphics card in one go.
-    const usize rows = lights.size() * (usize)buckets;
-    sc.bucket_data.resize(rows * (usize)bucket_cap * 4);
-    sc.bucket_counts.assign(rows, 0);
+    const usize most_rows = (lights.size() + (usize)max_bands) * (usize)buckets;
+    sc.bucket_data.resize(most_rows * (usize)bucket_cap * 4);
+    sc.bucket_counts.assign(most_rows, 0);
     for (usize i = 0; i < lights.size(); i++) {
-      if (lights[i].light->cast_shadows)
-        fill_buckets(sc, edges, lights[i], view, (i32)i, d.shadow_reach);
+      const light_job &job = lights[i];
+      const i32 index = (i32)passes.size();
+      passes.push_back({(u32)i});
+      if (!job.light->cast_shadows)
+        continue;
+      usize fullest = 0;
+      fill_buckets(sc, edges, job, view, index, d.shadow_reach, {}, fullest);
+      if (job.light->kind != light_directional || fullest <= (usize)bucket_cap)
+        continue;
+      // Bands short enough that each strip of each holds what shadows it: as many as
+      // the overflow asks for, while a band stays longer than the shadows and passes
+      // are left for the lights after this one.
+      const f32 dx = std::cos(job.angle), dy = std::sin(job.angle);
+      f32 along_lo = 1e30f, along_hi = -1e30f;
+      for (const vec2 c : {view.pos, vec2{view.pos.x + view.size.x, view.pos.y}, vec2{view.pos.x, view.pos.y + view.size.y},
+                           view.pos + view.size}) {
+        along_lo = std::min(along_lo, c.x * dx + c.y * dy);
+        along_hi = std::max(along_hi, c.x * dx + c.y * dy);
+      }
+      const f32 length = along_hi - along_lo;
+      const usize room = max_passes - passes.size() - (lights.size() - 1 - i);
+      i32 n = (i32)std::ceil((f32)fullest / ((f32)bucket_cap * 0.6f));
+      n = std::min({n, max_bands, (i32)std::max(length / std::max(d.shadow_reach, 1.0f), 1.0f), (i32)room + 1});
+      if (n < 2)
+        continue;
+      passes.pop_back();
+      for (i32 k = 0; k < n; k++) {
+        const band part{along_lo + length * (f32)k / (f32)n, along_lo + length * (f32)(k + 1) / (f32)n};
+        fill_buckets(sc, edges, job, view, (i32)passes.size(), d.shadow_reach, part, fullest);
+        passes.push_back({(u32)i, part.lo, part.hi, k == 0});
+      }
     }
-    rlUpdateTexture(s.edge_texture.id, 0, 0, bucket_cap, (int)rows, RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32,
-                    sc.bucket_data.data());
-    shadows_ok = true;
+    rlUpdateTexture(s.edge_texture.id, 0, 0, bucket_cap, (int)(passes.size() * (usize)buckets),
+                    RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32, sc.bucket_data.data());
+  } else {
+    for (usize i = 0; i < lights.size(); i++)
+      passes.push_back({(u32)i});
   }
-  u32 light_index = 0;
   if (!lights.empty()) {
     BeginTextureMode(s.hdr);
     bind_view_target(s.hdr, screen_size(ctx));
@@ -609,8 +679,10 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       rlSetUniform(loc.pixel_shadows, &unit, RL_SHADER_UNIFORM_INT, 1);
       rlActiveTextureSlot(0);
     }
-    for (const light_job &job : lights) {
-      const u32 this_light = light_index++;
+    for (usize pass_index = 0; pass_index < passes.size(); pass_index++) {
+      const light_pass &pass = passes[pass_index];
+      const u32 this_light = pass.light;
+      const light_job &job = lights[this_light];
       const light_2d &l = *job.light;
       rgba color = l.color;
       if (l.temperature > 0.0f) {
@@ -651,8 +723,8 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       const bool shadowed = shadows_ok && l.cast_shadows;
       set_i(sh, loc.has_shadows, shadowed ? 1 : 0);
       if (shadowed) {
-        set_i(sh, loc.bucket_base, (i32)this_light * buckets);
-        SetShaderValueV(sh, loc.bucket_count, sc.bucket_counts.data() + (usize)this_light * (usize)buckets, SHADER_UNIFORM_INT,
+        set_i(sh, loc.bucket_base, (i32)pass_index * buckets);
+        SetShaderValueV(sh, loc.bucket_count, sc.bucket_counts.data() + pass_index * (usize)buckets, SHADER_UNIFORM_INT,
                         buckets);
         SetShaderValueTexture(sh, loc.edges, s.edge_texture);
       }
@@ -663,10 +735,31 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       if (use_material)
         SetShaderValueTexture(sh, loc.material, s.materials.texture);
 
-      DrawRectangleRec(Rectangle{job.area.pos.x, job.area.pos.y, job.area.size.x, job.area.size.y}, WHITE);
-      // Uniforms are read when the batch is drawn, so each light gets its own.
+      if (pass.whole()) {
+        DrawRectangleRec(Rectangle{job.area.pos.x, job.area.pos.y, job.area.size.x, job.area.size.y}, WHITE);
+      } else {
+        // The band: across the whole view, from `lo` to `hi` along the rays.
+        const vec4 bins = directional_bins(steady_view, job.angle);
+        const vec2 across{bins.x, bins.y}, along{std::cos(job.angle), std::sin(job.angle)};
+        const f32 c0 = bins.z, c1 = bins.z + (f32)buckets / bins.w;
+        const auto at = [&](f32 c, f32 a) {
+          const vec2 p = across * c + along * a;
+          return Vector2{p.x, p.y};
+        };
+        const Vector2 q0 = at(c0, pass.lo), q1 = at(c1, pass.lo), q2 = at(c1, pass.hi), q3 = at(c0, pass.hi);
+        // raylib wants the corners counter-clockwise on the screen (y down).
+        if ((q1.x - q0.x) * (q2.y - q0.y) - (q1.y - q0.y) * (q2.x - q0.x) < 0.0f) {
+          DrawTriangle(q0, q1, q2, WHITE);
+          DrawTriangle(q0, q2, q3, WHITE);
+        } else {
+          DrawTriangle(q0, q2, q1, WHITE);
+          DrawTriangle(q0, q3, q2, WHITE);
+        }
+      }
+      // Uniforms are read when the batch is drawn, so each pass gets its own.
       rlDrawRenderBatchActive();
-      drawn++;
+      if (pass.whole() || pass.first)
+        drawn++;
     }
     EndShaderMode();
     EndBlendMode();

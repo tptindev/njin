@@ -199,7 +199,7 @@ Call it again when the walls change. The function only computes geometry, so no 
   is not blocked by it. That is why a shape can fit the drawing exactly. A concave object (an L) still shades one part of itself with another part.
 - An open line (`closed = false`) is a thin wall: it blocks from both sides.
 - A closed polygon can be a **hole**: `hole = true` means the inside is empty space. Use it for the inner loop of a room with thick walls.
-- Each angular bin of a light holds at most 64 edges (if there are more, it keeps those nearest the light). The `reach` of `light_occluder` lets the engine quickly discard distant occluders; the prebuilt helpers set it themselves.
+- Each angular bin of a light holds at most 64 edges (if there are more, it keeps those nearest the light). A directional light (the sun) splits the screen into strips running along its rays; when the strips are too full (a city seen from far out), the engine also cuts the screen into up to 16 bands along the rays, each keeping only the edges in it or less than `shadow_reach` from it towards the sun, and draws the bands one by one. A cell still over 64 edges keeps the longest ones, so the shadows of small things (trees, cars) go first while buildings keep theirs. The `reach` of `light_occluder` lets the engine quickly discard distant occluders; the prebuilt helpers set it themselves.
 
 ## How lighting runs
 
