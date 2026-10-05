@@ -420,6 +420,10 @@ model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
   m.texcoords = (f32 *)MemAlloc((u32)(n * 2 * sizeof(f32))); // zeros: the shader samples a white texture
   m.colors = (u8 *)MemAlloc((u32)(n * 4));
   for (usize i = 0; i < n; i++) {
+    if (mesh.texcoords != nullptr) {
+      m.texcoords[i * 2] = mesh.texcoords[i].x;
+      m.texcoords[i * 2 + 1] = mesh.texcoords[i].y;
+    }
     m.vertices[i * 3] = mesh.positions[i].x;
     m.vertices[i * 3 + 1] = mesh.positions[i].y;
     m.vertices[i * 3 + 2] = mesh.positions[i].z;

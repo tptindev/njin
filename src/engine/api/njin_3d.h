@@ -380,6 +380,10 @@ struct mesh3d_data {
   /// trung bình các tam giác chung nó, nên mặt cong trông mịn.
   const vec3 *normals = nullptr;
   const rgba *colors = nullptr; ///< Màu từng đỉnh, nhân với màu vật liệu. nullptr là trắng.
+  /// Toạ độ ảnh (UV) từng đỉnh, cho ảnh của vật liệu (model_material_set()):
+  /// một mảnh cắt từ lưới đã có UV giữ nguyên ảnh của nó. nullptr là (0, 0)
+  /// mọi đỉnh, tức chỉ có màu.
+  const vec2 *texcoords = nullptr;
   u32 vertex_count = 0;         ///< Số đỉnh.
   /// Ba chỉ số một tam giác, ngược chiều kim đồng hồ khi nhìn từ mặt trước.
   /// nullptr thì mỗi ba đỉnh liên tiếp là một tam giác. Có chỉ số thì tối đa

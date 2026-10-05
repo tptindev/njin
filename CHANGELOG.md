@@ -15,6 +15,9 @@ To release: edit that header, add a section here, commit, then
   (Douglas-Peucker), and occluders smaller than it on screen are dropped, so
   a scene seen from far out keeps room for every shadow. **Changes the
   default:** existing games get it on; set it to 0 for the shapes as before.
+- `mesh3d_data::texcoords`: per-vertex UVs for a mesh the game builds, so a
+  piece cut from a textured mesh keeps the material's images. nullptr is
+  (0, 0) everywhere, colour only, as before.
 
 ### Fixed
 

@@ -120,7 +120,7 @@
  "src/engine/api/_tween.h": "8d8db7d1cccbbb3012609a066d3edf70641cbd31",
  "src/engine/api/_types.h": "23dbff3b017ff9829c3f0ba82583f4094b555caf",
  "src/engine/api/njin.h": "26995024051f40959e3037774a45cd52a9b25b60",
- "src/engine/api/njin_3d.h": "933c2a96aacff19c06eee8f3de8a4944fadbff83",
+ "src/engine/api/njin_3d.h": "efd4e17817a77fb9e3f3e973e52e04e4bd5507f1",
  "src/engine/api/njin_anim.h": "c0ec9d3009e4d7a49bcb12181afa7ad7552ab858",
  "src/engine/api/njin_atlas.h": "8bf370a4380c442d1c9f3d751f2a259cf4c40dda",
  "src/engine/api/njin_audio.h": "1965157f487fd095437d32ed06f41a5b67f49f87",

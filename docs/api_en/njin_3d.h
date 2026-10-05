@@ -412,6 +412,10 @@ struct mesh3d_data {
   /// surfaces look smooth.
   const vec3 *normals = nullptr;
   const rgba *colors = nullptr; ///< Per-vertex colours, multiplied by the material colour. nullptr is white.
+  /// Per-vertex texture coordinates (UV), for the material's images
+  /// (model_material_set()): a piece cut from a mesh that has UVs keeps its
+  /// images. nullptr is (0, 0) on every vertex, colour only.
+  const vec2 *texcoords = nullptr;
   u32 vertex_count = 0;         ///< Number of vertices.
   /// Three indices per triangle, counter-clockwise seen from the front.
   /// nullptr makes every three consecutive vertices a triangle. With indices,
