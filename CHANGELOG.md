@@ -30,9 +30,14 @@ To release: edit that header, add a section here, commit, then
   shader were blended by their own alpha, which such shapes leave below 1;
   they are now copied as they are.
 - Sun (`light_directional`) shadows no longer shrink to a stripe through the
-  middle of the screen when there are many occluders. A strip that holds more
-  than 64 edges keeps the longest, and a sun whose strips overflow is drawn in
-  up to 16 bands along its rays, each with buckets of its own.
+  middle of the screen when there are many occluders, and no longer flicker
+  as the camera moves. A sun strip holds 128 edges (64 for other lights) and,
+  when full, keeps the longest, choosing among equal lengths by position so
+  the same ones stay from frame to frame; a sun whose strips overflow is drawn
+  in up to 64 bands along its rays, each with buckets of its own.
+- `draw_circle()` uses as many sides as its size on screen needs (6 to 36)
+  instead of always 36, so thousands of small circles seen from far cost far
+  less.
 
 ## 0.2.0
 

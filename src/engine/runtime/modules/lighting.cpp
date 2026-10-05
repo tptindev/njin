@@ -16,27 +16,31 @@ namespace njin {
 using namespace light_impl;
 namespace {
 constexpr i32 buckets = 32;       // sectors (or strips) each light's edges are sorted into
-constexpr i32 bucket_cap = 64;    // edges kept per bucket: the nearest when there are more
+constexpr i32 bucket_cap = 64;    // edges kept per bucket of a point or spot light: the nearest when there are more
+// and per bucket of a sun (a strip of one of its bands): a city seen from far has dense blocks,
+// and a strip that overflows drops shadows, which flicker as the cut moves from frame to frame
+constexpr i32 sun_bucket_cap = 128;
+constexpr i32 row_texels = sun_bucket_cap; // width of the edge texture: one edge a texel
 constexpr usize max_lights = 64;   // drawn per frame
 // A sun whose strips overflow is drawn in bands along its rays, each with buckets of its own:
 // up to this many bands, and this many passes in all.
-constexpr i32 max_bands = 16;
+constexpr i32 max_bands = 64;
 constexpr usize max_passes = max_lights + max_bands;
 constexpr i32 bucket_rows = buckets * (i32)max_passes; // rows of the data texture: a pass takes `buckets`
 
 void find_locations(lighting_state &s);
 
 // The texture the edges of the buckets are uploaded to each frame, made once:
-// 64 texels wide (an edge each), a row per bucket, `buckets` rows per light.
+// `row_texels` wide (an edge each), a row per bucket, `buckets` rows per pass.
 bool ensure_edge_texture(lighting_state &s) {
   if (s.edge_texture.id != 0)
     return true;
-  s.edge_texture.id = rlLoadTexture(nullptr, bucket_cap, bucket_rows, RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32, 1);
+  s.edge_texture.id = rlLoadTexture(nullptr, row_texels, bucket_rows, RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32, 1);
   if (s.edge_texture.id == 0) {
     NJIN_WARN("lighting: could not make the shadow edge texture, shadows are off");
     return false;
   }
-  s.edge_texture.width = bucket_cap, s.edge_texture.height = bucket_rows, s.edge_texture.mipmaps = 1;
+  s.edge_texture.width = row_texels, s.edge_texture.height = bucket_rows, s.edge_texture.mipmaps = 1;
   s.edge_texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
   SetTextureFilter(s.edge_texture, TEXTURE_FILTER_POINT);
   return true;
@@ -273,7 +277,8 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
     fullest = std::max(fullest, list.size());
   for (i32 k = 0; k < buckets; k++) {
     std::vector<u32> &list = sc.lists[k];
-    if ((i32)list.size() > bucket_cap) {
+    const i32 cap = sun ? sun_bucket_cap : bucket_cap;
+    if ((i32)list.size() > cap) {
       // More than fit: the ones nearest a point or spot light. A sun's strip
       // runs right across the view (or its band), and keeping those nearest the
       // middle would leave shadows only in a stripe through it; keep the longest
@@ -292,18 +297,18 @@ usize fill_buckets(frame_scratch &sc, const std::vector<occluder_edge> &edges, c
         const f32 mx = (e.a.x + e.b.x) * 0.5f - from.x, my = (e.a.y + e.b.y) * 0.5f - from.y;
         return mx * mx + my * my;
       };
-      std::nth_element(list.begin(), list.begin() + bucket_cap, list.end(), [&](u32 a, u32 b) {
+      std::nth_element(list.begin(), list.begin() + cap, list.end(), [&](u32 a, u32 b) {
         const f32 da = dist(a), db = dist(b);
         if (da != db)
           return da < db;
         const occluder_edge &ea = edges[a], &eb = edges[b];
         return ea.min_x != eb.min_x ? ea.min_x < eb.min_x : ea.min_y < eb.min_y;
       });
-      list.resize((usize)bucket_cap);
+      list.resize((usize)cap);
     }
     const i32 row = index * buckets + k;
     sc.bucket_counts[(usize)row] = (i32)list.size();
-    f32 *dst = sc.bucket_data.data() + (usize)row * (usize)bucket_cap * 4;
+    f32 *dst = sc.bucket_data.data() + (usize)row * (usize)row_texels * 4;
     for (const u32 i : list) {
       const occluder_edge &e = edges[i];
       dst[0] = e.a.x, dst[1] = e.a.y, dst[2] = e.b.x, dst[3] = e.b.y;
@@ -632,7 +637,7 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
   if (shadows_ok) {
     // Every light's edges into the buckets, then to the graphics card in one go.
     const usize most_rows = (lights.size() + (usize)max_bands) * (usize)buckets;
-    sc.bucket_data.resize(most_rows * (usize)bucket_cap * 4);
+    sc.bucket_data.resize(most_rows * (usize)row_texels * 4);
     sc.bucket_counts.assign(most_rows, 0);
     for (usize i = 0; i < lights.size(); i++) {
       const light_job &job = lights[i];
@@ -642,7 +647,7 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
         continue;
       usize fullest = 0;
       fill_buckets(sc, edges, job, view, index, d.shadow_reach, {}, fullest);
-      if (job.light->kind != light_directional || fullest <= (usize)bucket_cap)
+      if (job.light->kind != light_directional || fullest <= (usize)sun_bucket_cap)
         continue;
       // Bands, so that each strip of each holds only what can shadow it: as many as
       // there may be, while a band stays longer than the shadows and passes are left
@@ -664,11 +669,22 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
       passes.pop_back();
       for (i32 k = 0; k < n; k++) {
         const band part{along_lo + length * (f32)k / (f32)n, along_lo + length * (f32)(k + 1) / (f32)n};
-        fill_buckets(sc, edges, job, view, (i32)passes.size(), d.shadow_reach, part, fullest);
+        // Only the edges near the band are looked at: its box, grown towards the sun.
+        const vec4 bins = directional_bins(view, job.angle);
+        const vec2 across{bins.x, bins.y}, along{dx, dy};
+        f32 x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+        for (const f32 c : {bins.z, bins.z + (f32)buckets / bins.w})
+          for (const f32 a : {part.lo - d.shadow_reach, part.hi}) {
+            const vec2 p = across * c + along * a;
+            x0 = std::min(x0, p.x), y0 = std::min(y0, p.y), x1 = std::max(x1, p.x), y1 = std::max(y1, p.y);
+          }
+        light_job near = job;
+        near.area = {{x0 - 1.0f, y0 - 1.0f}, {x1 - x0 + 2.0f, y1 - y0 + 2.0f}};
+        fill_buckets(sc, edges, near, view, (i32)passes.size(), d.shadow_reach, part, fullest);
         passes.push_back({(u32)i, part.lo, part.hi, k == 0});
       }
     }
-    rlUpdateTexture(s.edge_texture.id, 0, 0, bucket_cap, (int)(passes.size() * (usize)buckets),
+    rlUpdateTexture(s.edge_texture.id, 0, 0, row_texels, (int)(passes.size() * (usize)buckets),
                     RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32, sc.bucket_data.data());
   } else {
     for (usize i = 0; i < lights.size(); i++)
