@@ -137,7 +137,12 @@ void finish_world_post(context &ctx) {
     BeginShaderMode(slot->shader);
     shader_bind_textures(ctx, *slot);
   }
+  // The finished world replaces what is under it: copied, not blended by its
+  // alpha, which half-transparent shapes leave below 1 (see view_draw_end).
+  rlSetBlendFactors(RL_ONE, RL_ZERO, RL_FUNC_ADD);
+  BeginBlendMode(BLEND_CUSTOM);
   DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
+  EndBlendMode();
   if (slot != nullptr)
     EndShaderMode();
 }

@@ -8,6 +8,13 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+### Fixed
+
+- Half-transparent shapes no longer come out darker on screen. The finished
+  frame (with a virtual size or `render_scale`) and the world after its post
+  shader were blended by their own alpha, which such shapes leave below 1;
+  they are now copied as they are.
+
 ## 0.2.0
 
 - `model_create_skinned()` builds a skinned model from a game-assembled mesh

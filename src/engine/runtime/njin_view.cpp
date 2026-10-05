@@ -181,7 +181,13 @@ void view_draw_end(view_state &view) {
   const Rectangle source{0.0f, 0.0f, (f32)tex.width, -(f32)tex.height};
   const Rectangle dest{view.offset.x, view.offset.y, logical.x * view.scale,
                        logical.y * view.scale};
+  // A plain copy: the frame's own alpha is not coverage. Shapes drawn half
+  // transparent leave it below 1, and blending by it would darken them
+  // against the bars (smoke, tyre marks in phochu with render_scale 2).
+  rlSetBlendFactors(RL_ONE, RL_ZERO, RL_FUNC_ADD);
+  BeginBlendMode(BLEND_CUSTOM);
   DrawTexturePro(tex, source, dest, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
+  EndBlendMode();
 }
 
 // Public API (njin_window.h / njin_cfg.h).
