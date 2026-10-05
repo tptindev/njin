@@ -8,6 +8,12 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+## 0.3.0
+
+Compatible with 0.2.0: existing games build unchanged. One default changes:
+`lighting_desc::occluder_lod` is on (1 pixel), so far-off occluder shapes
+are simplified; set it to 0 to keep them exact.
+
 ### Added
 
 - `lighting_desc::occluder_lod` (screen pixels, default 1): each frame the
@@ -35,6 +41,9 @@ To release: edit that header, add a section here, commit, then
   when full, keeps the longest, choosing among equal lengths by position so
   the same ones stay from frame to frame; a sun whose strips overflow is drawn
   in up to 64 bands along its rays, each with buckets of its own.
+
+### Changed
+
 - `draw_circle()` uses as many sides as its size on screen needs (6 to 36)
   instead of always 36, so thousands of small circles seen from far cost far
   less.

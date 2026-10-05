@@ -156,6 +156,6 @@
  "src/engine/api/njin_timer.h": "f5d5da631499b048185cbb1dbfea3812a32fe7bd",
  "src/engine/api/njin_ui.h": "ae9e2cdbd0a1a8f9c8447b2af831b76c48430e3a",
  "src/engine/api/njin_ui_layout.h": "3a2f950c6f9346e02087abd2136fab43d59fc10f",
- "src/engine/api/njin_version.h": "52dd82364995596d362e0d042a44d4e60c73c75d",
+ "src/engine/api/njin_version.h": "170407c5694cce7e58fb94097b219df881c430ea",
  "src/engine/api/njin_window.h": "83830e1a9f92e7a923f7657018f3728875249f17"
 }
