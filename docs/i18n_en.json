@@ -144,7 +144,7 @@
  "src/engine/api/njin_log.h": "925b8bc067714620aade82e49f50889ef21a500d",
  "src/engine/api/njin_nav.h": "36a68619f90b8c2c1ebc2c7545734f380045b97e",
  "src/engine/api/njin_particles.h": "9eff9120d05b15e8de34b7fc4f409e434f7b3dba",
- "src/engine/api/njin_physics3d.h": "849ca6195ce6b0e50deb3f58b55165ca167388c1",
+ "src/engine/api/njin_physics3d.h": "90d352cf8a29fad9ca0590f64aea8c7fd245c087",
  "src/engine/api/njin_post.h": "f5791eefeeea48d8ca8953254c69541a664dfe0b",
  "src/engine/api/njin_prefab.h": "b8e0918a86686ea7cc56cf2aef132954229ec44d",
  "src/engine/api/njin_procgen.h": "9fec7e4970f2f10b1699fa425fdca8ba73cc83a5",

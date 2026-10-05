@@ -18,6 +18,10 @@ To release: edit that header, add a section here, commit, then
 - `mesh3d_data::texcoords`: per-vertex UVs for a mesh the game builds, so a
   piece cut from a textured mesh keeps the material's images. nullptr is
   (0, 0) everywhere, colour only, as before.
+- `character3d_desc::push`: two characters that both have it no longer block
+  each other; after each step overlapping pairs are moved apart on the
+  horizontal, shared by mass, so a crowd slips past itself. Walls, bodies and
+  other characters still block as before.
 
 ### Fixed
 

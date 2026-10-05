@@ -116,6 +116,12 @@ struct character3d_desc {
   f32 max_slope = 50.0f;           ///< Dốc nhất còn đứng được, độ.
   f32 step_height = 0.3f;          ///< Bậc cao nhất tự bước lên được.
   f32 mass = 70.0f;                ///< Khối lượng, kg, khi đẩy body động.
+  /// Hai nhân vật cùng bật `push` không chặn cứng nhau: sau mỗi bước, cặp nào
+  /// chồng lên nhau theo phương ngang được tách ra bằng vector tịnh tiến nhỏ
+  /// nhất, chia theo khối lượng (người nặng ủi người nhẹ sang bên), nên đám
+  /// đông lách qua nhau thay vì khựng lại. Với tường, body và nhân vật không bật
+  /// thì vẫn chặn như thường.
+  bool push = false;
 };
 
 /// Tạo một nhân vật. Game điều khiển nó bằng vận tốc: mỗi bước cố định gọi

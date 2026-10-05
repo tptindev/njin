@@ -120,6 +120,12 @@ struct character3d_desc {
   f32 max_slope = 50.0f;           ///< Steepest slope it can still stand on, degrees.
   f32 step_height = 0.3f;          ///< Highest step it walks up on its own.
   f32 mass = 70.0f;                ///< Mass, kg, when pushing dynamic bodies.
+  /// Two characters that both have `push` on do not block each other: after
+  /// each step, a pair overlapping on the horizontal is moved apart by the
+  /// minimum translation vector, shared by mass (the heavier shoves the
+  /// lighter aside), so a crowd slips past itself instead of jamming. Walls,
+  /// bodies and characters without it still block as usual.
+  bool push = false;
 };
 
 /// Creates a character. The game drives it by velocity: every fixed step,

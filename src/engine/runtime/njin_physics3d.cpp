@@ -304,9 +304,67 @@ namespace {
 class character_grid final : public JPH::CharacterVsCharacterCollision {
 public:
   std::vector<JPH::CharacterVirtual *> all;
+  // character3d_desc::push: such pairs do not block, they are parted after the
+  // step (part()); their radius and mass for it.
+  struct pusher {
+    f32 radius, mass;
+  };
+  std::unordered_map<const JPH::CharacterVirtual *, pusher> pushers;
+  bool both_push(const JPH::CharacterVirtual *a, const JPH::CharacterVirtual *b) const {
+    return pushers.count(a) != 0 && pushers.count(b) != 0;
+  }
+
+  // Parts every overlapping pair of pushers by the minimum translation on x
+  // and z, shared by mass; `passes` times, as one parting may make another.
+  void part(i32 passes) {
+    for (i32 k = 0; k < passes; k++) {
+      bool any = false;
+      for (JPH::CharacterVirtual *a : all) {
+        const auto ia = pushers.find(a);
+        if (ia == pushers.end())
+          continue;
+        const JPH::RVec3 pa = a->GetPosition();
+        near((f32)pa.GetX(), (f32)pa.GetZ(), [&](const JPH::CharacterVirtual *cb) {
+          if (cb <= a) // each pair once
+            return;
+          const auto ib = pushers.find(cb);
+          if (ib == pushers.end())
+            return;
+          JPH::CharacterVirtual *b = const_cast<JPH::CharacterVirtual *>(cb);
+          const JPH::RVec3 pb = b->GetPosition();
+          if (std::fabs((f32)(pa.GetY() - pb.GetY())) > 1.5f)
+            return; // a floor apart
+          f32 dx = (f32)(pb.GetX() - pa.GetX()), dz = (f32)(pb.GetZ() - pa.GetZ());
+          const f32 reach = ia->second.radius + ib->second.radius;
+          const f32 d2 = dx * dx + dz * dz;
+          if (d2 >= reach * reach)
+            return;
+          f32 d = std::sqrt(d2);
+          if (d < 1e-4f) { // on top of each other: apart along x
+            dx = 1.0f;
+            dz = 0.0f;
+            d = 1.0f;
+          }
+          const f32 overlap = reach - std::sqrt(d2);
+          const f32 ma = ia->second.mass, mb = ib->second.mass;
+          const f32 share_a = mb / (ma + mb), share_b = ma / (ma + mb);
+          const JPH::Vec3 n(dx / d, 0.0f, dz / d);
+          a->SetPosition(a->GetPosition() - JPH::RVec3(n * (overlap * share_a)));
+          b->SetPosition(pb + JPH::RVec3(n * (overlap * share_b)));
+          any = true;
+        });
+      }
+      if (!any)
+        break;
+    }
+  }
 
   void add(JPH::CharacterVirtual *c) { all.push_back(c); }
   void remove(const JPH::CharacterVirtual *c) { all.erase(std::remove(all.begin(), all.end(), c), all.end()); }
+  void forget(const JPH::CharacterVirtual *c) {
+    remove(c);
+    pushers.erase(c);
+  }
   // A character switched off (character3d_set_active) is out of the grid:
   // nothing collides with it.
   void set_active(JPH::CharacterVirtual *c, bool on) {
@@ -343,7 +401,7 @@ public:
     const JPH::AABox bounds1 = shape1->GetWorldSpaceBounds(transform1, JPH::Vec3::sOne());
     const JPH::RVec3 at = inCenterOfMassTransform.GetTranslation();
     near((f32)at.GetX(), (f32)at.GetZ(), [&](const JPH::CharacterVirtual *c) {
-      if (c == inCharacter || ioCollector.ShouldEarlyOut())
+      if (c == inCharacter || ioCollector.ShouldEarlyOut() || both_push(inCharacter, c))
         return;
       const JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
       settings.mMaxSeparationDistance = inCollideShapeSettings.mMaxSeparationDistance + c->GetCharacterPadding();
@@ -371,7 +429,7 @@ public:
     JPH::ShapeCastSettings cast_settings = inShapeCastSettings;
     const JPH::RVec3 at = inCenterOfMassTransform.GetTranslation();
     near((f32)at.GetX(), (f32)at.GetZ(), [&](const JPH::CharacterVirtual *c) {
-      if (c == inCharacter || ioCollector.ShouldEarlyOut())
+      if (c == inCharacter || ioCollector.ShouldEarlyOut() || both_push(inCharacter, c))
         return;
       const JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
       cast_settings.mExtraConvexRadius = inShapeCastSettings.mExtraConvexRadius + c->GetCharacterPadding();
@@ -628,6 +686,8 @@ void physics3d_step(context &ctx, f32 dt) {
     c.character->ExtendedUpdate(dt, gravity, settings, w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
                                 w->system.GetDefaultLayerFilter(layers::moving), {}, {}, w->temp);
   }
+  // Pushers parted where the step left them overlapping (character3d_desc::push).
+  w->crowd.part(2);
   w->system.Update(dt, 1, &w->temp, &w->jobs);
   for (usize i = 0; i < w->characters.size(); i++)
     if (w->characters[i].alive && w->characters[i].active)
@@ -796,6 +856,8 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
   slot.step_height = desc.step_height;
   slot.character->SetCharacterVsCharacterCollision(&w.crowd);
   w.crowd.add(slot.character.GetPtr());
+  if (desc.push)
+    w.crowd.pushers[slot.character.GetPtr()] = {r, std::max(desc.mass, 1.0f)};
   w.characters.push_back(std::move(slot));
   return character3d_handle{(u32)w.characters.size()};
 }
@@ -803,7 +865,7 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
 void character3d_destroy(context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   if (c != nullptr) {
-    ctx.physics3d.world->crowd.remove(c->character.GetPtr());
+    ctx.physics3d.world->crowd.forget(c->character.GetPtr());
     *c = character_slot{};
   }
 }
