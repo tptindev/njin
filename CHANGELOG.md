@@ -8,6 +8,25 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+### Added
+
+- Ragdolls (`njin_physics3d.h`), on Jolt's `Ragdoll`: `ragdoll3d_create()`
+  turns the chosen bones of a skinned model into dynamic capsules joined by
+  swing-twist joints or hinges (`ragdoll3d_bone::bend_min`/`bend_max`), with
+  limits counted from the rest pose. Each capsule is fitted to the skin the
+  bone moves (`radius` and `length` 0, the default), and parts of one
+  ragdoll never collide with each other.
+  `ragdoll3d_bones()` reads the pose back for drawing, `ragdoll3d_body()`
+  gives each part's body for impulses, raycasts and contacts, and
+  `ragdoll3d_destroy()` removes it.
+- `model_pose::bones`: draw a skinned model from bone frames the game sets
+  (model space, as `model_bone_pose()` returns them) instead of an
+  animation. nullptr, the default, keeps the animation as before.
+- `model_bone_parent()`: a bone's parent, to walk a skeleton's chains for IK.
+  (puzzle: a hard hit, a long fall or standing over nothing drops the player
+  into a ragdoll, who stands up where it lies; feet are set on the ground by
+  two-bone IK.)
+
 ## 0.3.0
 
 Compatible with 0.2.0: existing games build unchanged. One default changes:

@@ -175,6 +175,13 @@ struct joint3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một ragdoll, tạo bởi ragdoll3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct ragdoll3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một atlas, tạo bởi atlas_create().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.

@@ -320,6 +320,110 @@ void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed);
 /// @return The value, 0 for other joint kinds or an invalid handle.
 f32 joint3d_position(const context &ctx, joint3d_handle handle);
 
+/// One part of a ragdoll: a bone of the model as a physics capsule along the
+/// bone's y axis (the bone's direction with Blender rigs). By default the capsule
+/// wraps that part's skin in the rest pose: the vertices pulled hardest by this
+/// bone, or by a bone below it with no part of its own (fingers, collarbones).
+/// Sizes are world units. Angle limits count from the file's rest pose (T or A
+/// pose), not from the pose the ragdoll starts in.
+struct ragdoll3d_bone {
+  const char *name = nullptr; ///< Bone name (model_bone_find()).
+  /// Capsule radius. 0 measures it from the skin (wrapping 80% of the vertices);
+  /// 0.06 for a model without skin.
+  f32 radius = 0.0f;
+  /// Length from the bone's origin. 0 measures it from the skin (the capsule's
+  /// length and offset follow the skin); without skin it reaches the child bone
+  /// furthest along the bone, and a bone with no child ahead becomes a sphere.
+  f32 length = 0.0f;
+  /// Ball joint to the parent part: the largest swing of the bone's axis, degrees.
+  f32 swing = 30.0f;
+  f32 twist = 15.0f; ///< The largest twist around the bone's axis, degrees, both ways.
+  /// A hinge instead of a ball joint (knees, elbows): rotates around the bone's
+  /// x axis, the angle in `[bend_min, bend_max]`, degrees, within -180..180 and
+  /// containing 0. A positive angle turns the bone's y axis towards its z axis
+  /// (on the Quaternius mannequin, knees and elbows bend the positive way).
+  /// `bend_min >= bend_max` is a ball joint.
+  f32 bend_min = 0.0f;
+  f32 bend_max = 0.0f; ///< See `bend_min`.
+};
+
+/// Description of a ragdoll for ragdoll3d_create().
+struct ragdoll3d_desc {
+  model_handle model{};     ///< A model with bones (model_load()).
+  /// Where the model is being drawn, as draw_model_anim(). The scale must be the same on all three axes.
+  transform3d transform{};
+  model_pose pose{};        ///< The starting pose, usually the pose just drawn.
+  /// The parts, each a different bone. Each part joins the part whose bone is
+  /// nearest above it in the skeleton; exactly one part has no part above it
+  /// (the root, usually the pelvis).
+  const ragdoll3d_bone *bones = nullptr;
+  u32 bone_count = 0;       ///< Number of parts in `bones`.
+  f32 mass = 70.0f;         ///< Mass of the whole body, kg, shared among the parts by volume.
+  f32 friction = 0.6f;      ///< Friction, 0..1.
+  vec3 velocity{0.0f, 0.0f, 0.0f}; ///< Starting velocity of every part.
+  u64 user = 0;             ///< body3d_user() of every part.
+};
+
+/// Turns a model with bones into a ragdoll: each part is a dynamic body, joined
+/// to its parent part by a joint with angle limits, falling and colliding like
+/// any body. Parts of the same ragdoll never collide with each other, only
+/// with the world. Bones without a part (fingers,
+/// toes, the root) follow the nearest part above them.
+///
+/// @code
+/// // The Quaternius mannequin falls from the pose being drawn.
+/// const njin::ragdoll3d_bone parts[] = {
+///   {.name = "pelvis"},
+///   {.name = "spine_02", .swing = 20, .twist = 15},
+///   {.name = "Head", .swing = 40, .twist = 40},
+///   {.name = "upperarm_l", .swing = 70, .twist = 30},
+///   {.name = "lowerarm_l", .bend_min = 0, .bend_max = 140},
+///   {.name = "thigh_l", .swing = 50, .twist = 15},
+///   {.name = "calf_l", .bend_min = 0, .bend_max = 140},
+///   // ... the right side like the left
+/// };
+/// rag = njin::ragdoll3d_create(ctx, {.model = man, .transform = at, .pose = pose,
+///                                    .bones = parts, .bone_count = std::size(parts)});
+/// @endcode
+/// @param ctx Engine context.
+/// @param desc Ragdoll description.
+/// @return Handle, or invalid (with a warning in the log) if the model has no
+/// bones, a bone name is not found or listed twice, or the parts do not join
+/// into one tree.
+ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc);
+
+/// Destroys the ragdoll and its bodies. An invalid handle is ignored.
+/// @param ctx Engine context.
+/// @param handle Ragdoll.
+void ragdoll3d_destroy(context &ctx, ragdoll3d_handle handle);
+
+/// The body of one part, to push it (body3d_add_impulse()), read its position,
+/// or tell which part physics3d_raycast() and physics3d_contact() report. Do not
+/// destroy it with body3d_destroy(): destroy the whole ragdoll.
+/// @param ctx Engine context.
+/// @param handle Ragdoll.
+/// @param part Index in `ragdoll3d_desc::bones`.
+/// @return The body, or invalid if the handle or `part` is invalid.
+body3d_handle ragdoll3d_body(const context &ctx, ragdoll3d_handle handle, i32 part);
+
+/// The ragdoll's current pose, to draw the model with `model_pose::bones` at
+/// `transform` (usually `ragdoll3d_desc::transform`).
+///
+/// @code
+/// static njin::bone_pose3d bones[128];
+/// njin::ragdoll3d_bones(ctx, rag, at, bones, 128);
+/// njin::draw_model_anim(ctx, man, at, {.bones = bones});
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Ragdoll.
+/// @param transform Where the model will be drawn.
+/// @param out Array receiving the pose, model_bone_count() elements.
+/// @param count Number of elements in `out`.
+/// @return Number of bones written (model_bone_count()), 0 if the handle is
+/// invalid or `count` is less than the number of bones.
+i32 ragdoll3d_bones(const context &ctx, ragdoll3d_handle handle, const transform3d &transform, bone_pose3d *out,
+                    i32 count);
+
 /// Component: the entity follows a physics body. The engine reads and writes the
 /// entity's njin::transform3d around each simulation step:
 /// - dynamic body: after the step, the body's position and rotation are written to the transform;

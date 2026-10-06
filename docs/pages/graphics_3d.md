@@ -228,6 +228,7 @@ hình vẽ nó dùng chung số.
 | Sensor | `body3d_desc::sensor` | Vùng nhặt đồ, checkpoint, bẫy, đích: không va, chỉ báo chạm |
 | Sự kiện chạm | physics3d_contact_count(), physics3d_contact() | Biết cái gì bắt đầu hay thôi chạm cái gì |
 | Khớp nối | joint3d_create() | Cửa bản lề, bập bênh, dây xích, piston |
+| Ragdoll | ragdoll3d_create() | Nhân vật ngã, trúng đòn: bộ xương của model đi theo vật lý |
 | Tia | physics3d_raycast() | Đạn, tầm nhìn, camera không xuyên tường; trả về body bị trúng, đi xuyên sensor |
 
 Engine mô phỏng ở `phase_fixed_update`, **ngay sau** các system của game trong phase đó: game đặt vận tốc
@@ -324,7 +325,7 @@ các khớp của nó.
 | Loại | Làm gì | Ví dụ |
 |---|---|---|
 | `joint3d_fixed` | Hàn cứng: giữ nguyên vị trí và góc tương đối | Gắn hai mảnh thành một vật |
-| `joint3d_point` | Khớp cầu: xoay tự do quanh `anchor` | Dây xích, ragdoll |
+| `joint3d_point` | Khớp cầu: xoay tự do quanh `anchor` | Dây xích, con lắc |
 | `joint3d_hinge` | Bản lề: xoay quanh `axis` qua `anchor` | Cửa, bập bênh, bánh xe |
 | `joint3d_slider` | Trượt dọc `axis`, không xoay | Piston, ngăn kéo, cửa kéo |
 | `joint3d_distance` | Giữ khoảng cách giữa `anchor` và `anchor_b` trong `[min, max]` | Dây, thanh nối |
@@ -341,6 +342,37 @@ const njin::body3d_handle plank = njin::body3d_create(
 njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = pivot, .axis = {0, 0, 1},
                            .min = -18, .max = 18});
 @endcode
+
+### Ragdoll {#ragdoll3d}
+
+ragdoll3d_create() biến một model có xương thành ragdoll: mỗi xương được chọn là một viên nang động, nối
+với phần cha bằng khớp có giới hạn góc (Ragdoll của Jolt), rơi và va chạm như mọi body. Các phần của
+cùng một ragdoll không va vào nhau. Các xương không được chọn (ngón tay, gốc) đi theo phần gần nhất phía trên chúng.
+Giới hạn góc tính từ tư thế gốc trong file (tư thế T hay A), nên ragdoll bắt đầu được từ bất kỳ khung
+animation nào: thường là tư thế vừa vẽ, lúc nhân vật trúng đòn hay ngã.
+
+Mỗi khung, ragdoll3d_bones() đọc tư thế của ragdoll vào một mảng, và `model_pose::bones` vẽ model theo
+mảng đó thay cho animation. model_bone_pose() với tư thế ấy cũng trả về xương của ragdoll (để camera đi
+theo đầu, chẳng hạn). ragdoll3d_body() trả về body của một phần, để đẩy bằng body3d_add_impulse() hay
+nhận ra phần bị trúng trong physics3d_raycast().
+
+| Trường của njin::ragdoll3d_bone | Ý nghĩa |
+|---|---|
+| `name`, `radius`, `length` | Xương và viên nang dọc theo trục y của nó; `radius`, `length` 0 là đo từ da của model |
+| `swing`, `twist` | Khớp cầu: góc lệch và góc vặn tối đa, độ |
+| `bend_min`, `bend_max` | Bản lề quanh trục x của xương thay cho khớp cầu (gối, khuỷu tay) |
+
+@code
+// Người chơi ngã: từ tư thế đang vẽ, giữ vận tốc lúc chạy.
+rag = njin::ragdoll3d_create(ctx, {.model = man, .transform = at, .pose = pose, .bones = parts,
+                                   .bone_count = std::size(parts), .velocity = velocity});
+// Mỗi khung, trong phase_render:
+static njin::bone_pose3d bones[128];
+njin::ragdoll3d_bones(ctx, rag, at, bones, 128);
+njin::draw_model_anim(ctx, man, at, {.bones = bones});
+@endcode
+
+Ví dụ danh sách `parts` cho mannequin của Quaternius nằm ở ragdoll3d_create().
 
 ## Entity 3D {#entities_3d}
 

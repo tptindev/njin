@@ -1677,14 +1677,31 @@ Transform posed_bone(const model_slot &clips, const model_pose &pose, i32 b) {
   return t;
 }
 
+// A bone the game placed (model_pose::bones), in the space model_bone_pose()
+// returns: the model's own transform included.
+Matrix bone_matrix(const bone_pose3d &p) {
+  Matrix k = MatrixIdentity();
+  k.m0 = p.x_axis.x, k.m1 = p.x_axis.y, k.m2 = p.x_axis.z;
+  k.m4 = p.y_axis.x, k.m5 = p.y_axis.y, k.m6 = p.y_axis.z;
+  k.m8 = p.z_axis.x, k.m9 = p.z_axis.y, k.m10 = p.z_axis.z;
+  k.m12 = p.position.x, k.m13 = p.position.y, k.m14 = p.position.z;
+  return k;
+}
+
 bool pose_bones(const render3d_state &s, const model_slot &m, const model_slot &clips, const model_pose &pose,
                 u32 &first, u32 &count) {
   const bool blending = pose.blend_anim >= 0 && pose.blend > 0.0f;
-  if (!m.skinned || (pose.anim < 0 && !blending))
+  if (!m.skinned || (pose.anim < 0 && !blending && pose.bones == nullptr))
     return false;
   const i32 bones = m.model.skeleton.boneCount;
   first = (u32)s.bones.size();
   count = (u32)bones;
+  if (pose.bones != nullptr) {
+    const Matrix unroot = MatrixInvert(m.model.transform);
+    for (i32 b = 0; b < bones; b++)
+      s.bones.push_back(MatrixMultiply(m.inv_bind[(usize)b], MatrixMultiply(bone_matrix(pose.bones[b]), unroot)));
+    return true;
+  }
   for (i32 b = 0; b < bones; b++)
     s.bones.push_back(MatrixMultiply(m.inv_bind[(usize)b], pose_matrix(posed_bone(clips, pose, b))));
   return true;
@@ -2273,10 +2290,19 @@ i32 model_bone_find(const context &ctx, model_handle handle, const char *name) {
   return -1;
 }
 
+i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
+    return -1;
+  return m->model.skeleton.bones[bone].parent;
+}
+
 bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model_pose &pose, i32 bone) {
   const model_slot *m = model_slot_of(ctx.model, handle);
   if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
     return {};
+  if (pose.bones != nullptr)
+    return pose.bones[bone];
   const Transform t = posed_bone(model_anim_owner(ctx.model, *m), pose, bone);
   // The model's own transform (a file's root), as the draw applies it.
   const Matrix k = MatrixMultiply(pose_matrix(t), m->model.transform);

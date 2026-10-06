@@ -34,6 +34,7 @@
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/GroupFilterTable.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
@@ -48,7 +49,9 @@
 #include <Jolt/Physics/Constraints/HingeConstraint.h>
 #include <Jolt/Physics/Constraints/PointConstraint.h>
 #include <Jolt/Physics/Constraints/SliderConstraint.h>
+#include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Ragdoll/Ragdoll.h>
 #include <Jolt/RegisterTypes.h>
 #include <raymath.h>
 
@@ -160,6 +163,7 @@ struct body_slot {
   bool kinematic = false;
   bool dynamic = false;
   u64 user = 0;
+  bool ragdoll = false; // a part of a ragdoll: the ragdoll owns the Jolt body
   bool has_target = false;
   vec3 target_pos{};
   vec3 target_rot{};
@@ -180,6 +184,20 @@ struct joint_slot {
   joint3d_kind kind = joint3d_hinge;
   body3d_handle a{};
   body3d_handle b{};
+};
+
+// A ragdoll (ragdoll3d_create): Jolt's Ragdoll owns the bodies and their
+// constraints; each body also has a body slot so raycasts, contacts and
+// body3d_* see it. Model bones without a part follow `anchor`, the part
+// nearest above them, keeping the offset they had at the start.
+struct ragdoll_slot {
+  JPH::Ref<JPH::Ragdoll> ragdoll;
+  bool alive = false;
+  std::vector<u32> parts;      // body handle per ragdoll3d_desc::bones entry
+  std::vector<i32> part_bone;  // model bone per entry
+  std::vector<i32> anchor;     // per model bone: the entry it follows
+  std::vector<JPH::Mat44> rel; // per model bone: anchor's model frame -> the bone's
+  f32 scale = 1.0f;            // ragdoll3d_desc::transform scale
 };
 
 // Two bodies touching: how many of their sub-shape pairs do, in the order the
@@ -488,6 +506,7 @@ struct physics3d_world {
   std::vector<body_slot> bodies;         // handle id N is bodies[N - 1]
   std::vector<character_slot> characters; // handle id N is characters[N - 1]
   std::vector<joint_slot> joints;         // handle id N is joints[N - 1]
+  std::vector<ragdoll_slot> ragdolls;     // handle id N is ragdolls[N - 1]
   std::unordered_map<u32, u32> handle_by_body; // Jolt body id -> njin handle id
   std::unordered_map<u64, pair_state> touching; // pair_key -> the pair
   std::vector<contact3d> contacts; // events of the last step
@@ -508,6 +527,14 @@ struct physics3d_world {
       if (j.alive)
         system.RemoveConstraint(j.constraint);
     joints.clear();
+    // A ragdoll destroys its own bodies.
+    for (ragdoll_slot &r : ragdolls)
+      if (r.alive) {
+        r.ragdoll->RemoveFromPhysicsSystem();
+        for (u32 h : r.parts)
+          bodies[h - 1] = body_slot{};
+      }
+    ragdolls.clear();
     JPH::BodyInterface &bi = system.GetBodyInterface();
     for (body_slot &b : bodies) {
       if (b.alive) {
@@ -757,11 +784,10 @@ body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
   return body3d_handle{handle};
 }
 
-void body3d_destroy(context &ctx, body3d_handle handle) {
-  body_slot *b = body_of(ctx, handle);
-  if (b == nullptr)
-    return;
-  physics3d_world &w = *ctx.physics3d.world;
+namespace {
+// Everything that refers to body `handle` besides its Jolt body: joints,
+// contact pairs, the id map.
+void forget_body(context &ctx, physics3d_world &w, body3d_handle handle) {
   // Its joints first: a constraint must not outlive a body it holds.
   for (usize i = 0; i < w.joints.size(); i++)
     if (w.joints[i].alive && (w.joints[i].a.id == handle.id || w.joints[i].b.id == handle.id))
@@ -771,7 +797,20 @@ void body3d_destroy(context &ctx, body3d_handle handle) {
     it = it->second.a.id == handle.id || it->second.b.id == handle.id ? w.touching.erase(it) : std::next(it);
   for (character_slot &c : w.characters)
     std::erase(c.touching, handle.id);
-  w.handle_by_body.erase(b->id.GetIndexAndSequenceNumber());
+  w.handle_by_body.erase(w.bodies[handle.id - 1].id.GetIndexAndSequenceNumber());
+}
+} // namespace
+
+void body3d_destroy(context &ctx, body3d_handle handle) {
+  body_slot *b = body_of(ctx, handle);
+  if (b == nullptr)
+    return;
+  if (b->ragdoll) {
+    NJIN_WARN("physics3d: body3d_destroy on a part of a ragdoll: use ragdoll3d_destroy");
+    return;
+  }
+  physics3d_world &w = *ctx.physics3d.world;
+  forget_body(ctx, w, handle);
   JPH::BodyInterface &bi = w.system.GetBodyInterface();
   bi.RemoveBody(b->id);
   bi.DestroyBody(b->id);
@@ -1121,6 +1160,341 @@ f32 joint3d_position(const context &ctx, joint3d_handle handle) {
   if (j->kind == joint3d_slider)
     return static_cast<const JPH::SliderConstraint *>(j->constraint.GetPtr())->GetCurrentPosition();
   return 0.0f;
+}
+
+namespace {
+ragdoll_slot *ragdoll_of(const context &ctx, ragdoll3d_handle h) {
+  physics3d_world *w = ctx.physics3d.world.get();
+  if (w == nullptr || h.id == 0 || h.id > w->ragdolls.size())
+    return nullptr;
+  ragdoll_slot &r = w->ragdolls[h.id - 1];
+  return r.alive ? &r : nullptr;
+}
+
+// A bone's frame as model_bone_pose() gives it (axes as columns).
+JPH::Mat44 bone_mat(const bone_pose3d &p) {
+  return JPH::Mat44(JPH::Vec4(jv(p.x_axis), 0.0f), JPH::Vec4(jv(p.y_axis), 0.0f), JPH::Vec4(jv(p.z_axis), 0.0f),
+                    JPH::Vec4(jv(p.position), 1.0f));
+}
+
+// Where draw_model_anim() puts the model: scale, then rotation, then position.
+JPH::Mat44 draw_mat(const transform3d &t) {
+  return JPH::Mat44::sRotationTranslation(quat_of(t.rotation), jv(t.position)) * JPH::Mat44::sScale(jv(t.scale));
+}
+
+// A frame with its scale taken out: rotation and position only.
+JPH::Mat44 unscaled(JPH::Mat44Arg m) {
+  const JPH::Vec3 x = m.GetAxisX().NormalizedOr(JPH::Vec3::sAxisX());
+  const JPH::Vec3 z = x.Cross(m.GetAxisY()).NormalizedOr(JPH::Vec3::sAxisZ());
+  const JPH::Vec3 y = z.Cross(x);
+  return JPH::Mat44(JPH::Vec4(x, 0.0f), JPH::Vec4(y, 0.0f), JPH::Vec4(z, 0.0f), JPH::Vec4(m.GetTranslation(), 1.0f));
+}
+} // namespace
+
+ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc) {
+  physics3d_world &w = world_of(ctx);
+  const model_slot *m = model_slot_of(ctx.model, desc.model);
+  if (m == nullptr || m->model.skeleton.boneCount == 0) {
+    NJIN_WARN("physics3d: ragdoll3d_create needs a loaded model with bones");
+    return ragdoll3d_handle{};
+  }
+  const i32 n = (i32)desc.bone_count;
+  if (desc.bones == nullptr || n == 0) {
+    NJIN_WARN("physics3d: ragdoll3d_create needs at least one bone");
+    return ragdoll3d_handle{};
+  }
+  const i32 bones = m->model.skeleton.boneCount;
+  const BoneInfo *info = m->model.skeleton.bones;
+  std::vector<i32> bone_of((usize)n), part_at((usize)bones, -1);
+  for (i32 i = 0; i < n; i++) {
+    const char *name = desc.bones[i].name != nullptr ? desc.bones[i].name : "";
+    const i32 b = model_bone_find(ctx, desc.model, name);
+    if (b < 0 || part_at[(usize)b] >= 0) {
+      NJIN_WARN("physics3d: ragdoll3d_create: bone '%s' %s", name, b < 0 ? "not found" : "listed twice");
+      return ragdoll3d_handle{};
+    }
+    bone_of[(usize)i] = b;
+    part_at[(usize)b] = i;
+  }
+  // The entry a bone hangs from: the nearest listed bone at or above it.
+  const auto part_above = [&](i32 b) {
+    for (i32 guard = 0; b >= 0 && guard < bones; guard++, b = info[b].parent)
+      if (part_at[(usize)b] >= 0)
+        return part_at[(usize)b];
+    return -1;
+  };
+  std::vector<i32> parent((usize)n), depth((usize)n, 0);
+  i32 root = -1;
+  for (i32 i = 0; i < n; i++) {
+    const i32 up = info[bone_of[(usize)i]].parent;
+    parent[(usize)i] = up >= 0 ? part_above(up) : -1;
+    if (parent[(usize)i] >= 0)
+      continue;
+    if (root >= 0) {
+      NJIN_WARN("physics3d: ragdoll3d_create: '%s' and '%s' both have no listed bone above them",
+                info[bone_of[(usize)root]].name, info[bone_of[(usize)i]].name);
+      return ragdoll3d_handle{};
+    }
+    root = i;
+  }
+  for (i32 i = 0; i < n; i++)
+    for (i32 p = parent[(usize)i]; p >= 0; p = parent[(usize)p])
+      depth[(usize)i]++;
+  // Jolt wants parents before children.
+  std::vector<i32> order((usize)n);
+  for (i32 i = 0; i < n; i++)
+    order[(usize)i] = i;
+  std::stable_sort(order.begin(), order.end(), [&](i32 a, i32 b) { return depth[(usize)a] < depth[(usize)b]; });
+  std::vector<i32> joint_of_part((usize)n);
+  for (i32 j = 0; j < n; j++)
+    joint_of_part[(usize)order[(usize)j]] = j;
+
+  // Bone frames in model space: the file's rest pose (the zero of every
+  // limit) and the starting pose.
+  std::vector<JPH::Mat44> rest((usize)bones), start((usize)bones);
+  for (i32 b = 0; b < bones; b++) {
+    rest[(usize)b] = bone_mat(model_bone_pose(ctx, desc.model, model_pose{}, b));
+    start[(usize)b] = bone_mat(model_bone_pose(ctx, desc.model, desc.pose, b));
+  }
+  const JPH::Mat44 at = draw_mat(desc.transform);
+  const f32 scale = std::max(std::abs(desc.transform.scale.y), 1e-6f);
+
+  // The skin in the rest pose, each vertex with the part of the bone that
+  // moves it most: a part's capsule wraps its bone and the unlisted ones below.
+  struct skin_vertex {
+    JPH::Vec3 p;
+    i32 part;
+  };
+  std::vector<skin_vertex> skin;
+  for (i32 k = 0; k < m->model.meshCount; k++) {
+    const Mesh &mesh = m->model.meshes[k];
+    if (mesh.vertices == nullptr || mesh.boneIndices == nullptr || mesh.boneWeights == nullptr)
+      continue;
+    for (i32 v = 0; v < mesh.vertexCount; v++) {
+      i32 best = 0;
+      for (i32 w = 1; w < 4; w++)
+        if (mesh.boneWeights[v * 4 + w] > mesh.boneWeights[v * 4 + best])
+          best = w;
+      const i32 bone = mesh.boneIndices[v * 4 + best];
+      const i32 part = bone < bones ? part_above(bone) : -1;
+      if (part < 0)
+        continue;
+      const Vector3 q = Vector3Transform({mesh.vertices[v * 3], mesh.vertices[v * 3 + 1], mesh.vertices[v * 3 + 2]},
+                                         m->model.transform);
+      skin.push_back({at * JPH::Vec3(q.x, q.y, q.z), part});
+    }
+  }
+  const auto percentile = [](std::vector<f32> &v, f32 k) {
+    const usize i = std::min(v.size() - 1, (usize)((f32)(v.size() - 1) * k));
+    std::nth_element(v.begin(), v.begin() + (isize)i, v.end());
+    return v[i];
+  };
+
+  JPH::Ref<JPH::RagdollSettings> settings = new JPH::RagdollSettings();
+  settings->mSkeleton = new JPH::Skeleton();
+  settings->mParts.resize((usize)n);
+  std::vector<f32> volume((usize)n);
+  f32 total = 0.0f;
+  for (i32 j = 0; j < n; j++) {
+    const i32 i = order[(usize)j];
+    const ragdoll3d_bone &d = desc.bones[i];
+    const i32 b = bone_of[(usize)i];
+    settings->mSkeleton->AddJoint(info[b].name, parent[(usize)i] >= 0 ? joint_of_part[(usize)parent[(usize)i]] : -1);
+    const JPH::Mat44 frame = unscaled(at * rest[(usize)b]);
+    // The part's skin in the bone's frame: y along the bone.
+    const JPH::Mat44 to_bone = frame.InversedRotationTranslation();
+    std::vector<JPH::Vec3> local;
+    for (const skin_vertex &v : skin)
+      if (v.part == i)
+        local.push_back(to_bone * v.p);
+    const bool skinned = local.size() >= 8;
+    // The capsule spans [t0, t1] along y (caps included), its axis at (cx, cz).
+    f32 t0 = 0.0f, t1 = d.length, cx = 0.0f, cz = 0.0f;
+    if (d.length <= 0.0f && skinned) {
+      std::vector<f32> along;
+      for (const JPH::Vec3 &l : local) {
+        along.push_back(l.GetY());
+        cx += l.GetX();
+        cz += l.GetZ();
+      }
+      cx /= (f32)local.size();
+      cz /= (f32)local.size();
+      t0 = percentile(along, 0.02f);
+      t1 = percentile(along, 0.98f);
+    } else if (d.length <= 0.0f) {
+      // No skin: to the child bone furthest along this one.
+      const JPH::Vec3 dir = frame.GetAxisY();
+      for (i32 c = 0; c < bones; c++)
+        if (info[c].parent == b)
+          t1 = std::max(t1, dir.Dot((at * rest[(usize)c]).GetTranslation() - frame.GetTranslation()));
+    }
+    f32 r = d.radius;
+    if (r <= 0.0f && skinned) {
+      std::vector<f32> radial;
+      for (const JPH::Vec3 &l : local)
+        if (l.GetY() >= t0 && l.GetY() <= t1)
+          radial.push_back(std::hypot(l.GetX() - cx, l.GetZ() - cz));
+      r = radial.empty() ? 0.06f : percentile(radial, 0.8f);
+    } else if (r <= 0.0f) {
+      r = 0.06f;
+    }
+    r = std::max(r, 0.01f);
+    const f32 span = std::max(t1 - t0, 0.0f);
+    const bool capsule = span > 2.0f * r + 0.01f;
+    if (!capsule)
+      r = std::max(r, span * 0.5f);
+    JPH::ShapeSettings::ShapeResult inner =
+        capsule ? JPH::CapsuleShapeSettings(span * 0.5f - r, r).Create() : JPH::SphereShapeSettings(r).Create();
+    if (inner.HasError()) {
+      NJIN_WARN("physics3d: ragdoll3d_create: shape for '%s': %s", info[b].name, inner.GetError().c_str());
+      return ragdoll3d_handle{};
+    }
+    // The body sits on the bone: its origin is the bone's, the shape runs up y.
+    JPH::ShapeSettings::ShapeResult shape =
+        JPH::RotatedTranslatedShapeSettings(JPH::Vec3(cx, (t0 + t1) * 0.5f, cz), JPH::Quat::sIdentity(), inner.Get())
+            .Create();
+    if (shape.HasError()) {
+      NJIN_WARN("physics3d: ragdoll3d_create: shape for '%s': %s", info[b].name, shape.GetError().c_str());
+      return ragdoll3d_handle{};
+    }
+    volume[(usize)j] = (capsule ? pi * r * r * (span - 2.0f * r) : 0.0f) + 4.0f / 3.0f * pi * r * r * r;
+    total += volume[(usize)j];
+    JPH::RagdollSettings::Part &part = settings->mParts[(usize)j];
+    part.SetShape(shape.Get());
+    part.mPosition = JPH::RVec3(frame.GetTranslation());
+    part.mRotation = frame.GetQuaternion();
+    part.mMotionType = JPH::EMotionType::Dynamic;
+    part.mObjectLayer = layers::moving;
+    part.mMotionQuality = JPH::EMotionQuality::LinearCast; // thin limbs, fast falls
+    part.mFriction = desc.friction;
+    if (parent[(usize)i] < 0)
+      continue;
+    // The joint at this bone's origin, in the rest pose.
+    const JPH::RVec3 anchor(frame.GetTranslation());
+    if (d.bend_min < d.bend_max) {
+      auto *h = new JPH::HingeConstraintSettings();
+      h->mPoint1 = h->mPoint2 = anchor;
+      h->mHingeAxis1 = h->mHingeAxis2 = frame.GetAxisX();
+      h->mNormalAxis1 = h->mNormalAxis2 = frame.GetAxisY();
+      h->mLimitsMin = clamp(d.bend_min, -180.0f, 0.0f) * (pi / 180.0f);
+      h->mLimitsMax = clamp(d.bend_max, 0.0f, 180.0f) * (pi / 180.0f);
+      part.mToParent = h;
+    } else {
+      auto *st = new JPH::SwingTwistConstraintSettings();
+      st->mPosition1 = st->mPosition2 = anchor;
+      st->mTwistAxis1 = st->mTwistAxis2 = frame.GetAxisY();
+      st->mPlaneAxis1 = st->mPlaneAxis2 = frame.GetAxisX();
+      st->mNormalHalfConeAngle = st->mPlaneHalfConeAngle = clamp(d.swing, 0.0f, 180.0f) * (pi / 180.0f);
+      const f32 twist = clamp(d.twist, 0.0f, 180.0f) * (pi / 180.0f);
+      st->mTwistMinAngle = -twist;
+      st->mTwistMaxAngle = twist;
+      part.mToParent = st;
+    }
+  }
+  for (i32 j = 0; j < n; j++) {
+    JPH::RagdollSettings::Part &part = settings->mParts[(usize)j];
+    part.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+    part.mMassPropertiesOverride.mMass = std::max(desc.mass, 0.01f) * volume[(usize)j] / std::max(total, 1e-9f);
+  }
+  settings->Stabilize();
+  // Parts of one body never collide with each other, only with the world.
+  JPH::Ref<JPH::GroupFilterTable> self = new JPH::GroupFilterTable((JPH::uint)n);
+  for (i32 a = 0; a < n; a++)
+    for (i32 c = a + 1; c < n; c++)
+      self->DisableCollision((JPH::CollisionGroup::SubGroupID)a, (JPH::CollisionGroup::SubGroupID)c);
+  for (i32 j = 0; j < n; j++) {
+    settings->mParts[(usize)j].mCollisionGroup.SetGroupFilter(self);
+    settings->mParts[(usize)j].mCollisionGroup.SetSubGroupID((JPH::CollisionGroup::SubGroupID)j);
+  }
+  settings->CalculateBodyIndexToConstraintIndex();
+  settings->CalculateConstraintIndexToBodyIdxPair();
+
+  const u32 handle = (u32)w.ragdolls.size() + 1;
+  JPH::Ref<JPH::Ragdoll> ragdoll = settings->CreateRagdoll(handle, 0, &w.system);
+  if (ragdoll == nullptr) {
+    NJIN_WARN("physics3d: body limit reached");
+    return ragdoll3d_handle{};
+  }
+  // Built in the rest pose so the limits count from it; now to the start.
+  std::vector<JPH::Mat44> pose((usize)n);
+  for (i32 j = 0; j < n; j++)
+    pose[(usize)j] = unscaled(at * start[(usize)bone_of[(usize)order[(usize)j]]]);
+  ragdoll->SetPose(JPH::RVec3::sZero(), pose.data());
+  ragdoll->AddToPhysicsSystem(JPH::EActivation::Activate);
+  ragdoll->SetLinearVelocity(jv(desc.velocity));
+
+  ragdoll_slot r{.ragdoll = ragdoll,
+                 .alive = true,
+                 .parts = std::vector<u32>((usize)n),
+                 .part_bone = bone_of,
+                 .anchor = std::vector<i32>((usize)bones),
+                 .rel = std::vector<JPH::Mat44>((usize)bones),
+                 .scale = scale};
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  for (i32 j = 0; j < n; j++) {
+    const JPH::BodyID id = ragdoll->GetBodyID(j);
+    const u32 body = (u32)w.bodies.size() + 1;
+    bi.SetUserData(id, body);
+    w.handle_by_body[id.GetIndexAndSequenceNumber()] = body;
+    w.bodies.push_back(
+        body_slot{.id = id, .alive = true, .kinematic = false, .dynamic = true, .user = desc.user, .ragdoll = true});
+    r.parts[(usize)order[(usize)j]] = body;
+  }
+  // Bones without a part keep their start offset from the part above them
+  // (the root part for those above every part).
+  for (i32 b = 0; b < bones; b++) {
+    const i32 a = part_above(b);
+    const i32 entry = a >= 0 ? a : root;
+    r.anchor[(usize)b] = entry;
+    r.rel[(usize)b] = start[(usize)bone_of[(usize)entry]].Inversed() * start[(usize)b];
+  }
+  w.ragdolls.push_back(std::move(r));
+  return ragdoll3d_handle{handle};
+}
+
+void ragdoll3d_destroy(context &ctx, ragdoll3d_handle handle) {
+  ragdoll_slot *r = ragdoll_of(ctx, handle);
+  if (r == nullptr)
+    return;
+  physics3d_world &w = *ctx.physics3d.world;
+  for (u32 h : r->parts)
+    forget_body(ctx, w, body3d_handle{h});
+  r->ragdoll->RemoveFromPhysicsSystem();
+  for (u32 h : r->parts)
+    w.bodies[h - 1] = body_slot{};
+  *r = ragdoll_slot{}; // the Ragdoll destroys its bodies
+}
+
+body3d_handle ragdoll3d_body(const context &ctx, ragdoll3d_handle handle, i32 part) {
+  const ragdoll_slot *r = ragdoll_of(ctx, handle);
+  if (r == nullptr || part < 0 || part >= (i32)r->parts.size())
+    return body3d_handle{};
+  return body3d_handle{r->parts[(usize)part]};
+}
+
+i32 ragdoll3d_bones(const context &ctx, ragdoll3d_handle handle, const transform3d &transform, bone_pose3d *out,
+                    i32 count) {
+  const ragdoll_slot *r = ragdoll_of(ctx, handle);
+  const i32 bones = r != nullptr ? (i32)r->anchor.size() : 0;
+  if (r == nullptr || out == nullptr || count < bones)
+    return 0;
+  const physics3d_world &w = *ctx.physics3d.world;
+  const JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  const JPH::Mat44 from_world = draw_mat(transform).Inversed();
+  std::vector<JPH::Mat44> part(r->parts.size());
+  for (usize i = 0; i < part.size(); i++) {
+    const JPH::BodyID id = w.bodies[r->parts[i] - 1].id;
+    const JPH::Mat44 body = JPH::Mat44::sRotationTranslation(bi.GetRotation(id), JPH::Vec3(bi.GetPosition(id)));
+    part[i] = unscaled(from_world * body * JPH::Mat44::sScale(r->scale));
+  }
+  for (i32 b = 0; b < bones; b++) {
+    const JPH::Mat44 k = part[(usize)r->anchor[(usize)b]] * r->rel[(usize)b];
+    out[b] = bone_pose3d{.position = nv(k.GetTranslation()),
+                         .x_axis = nv(k.GetAxisX().NormalizedOr(JPH::Vec3::sAxisX())),
+                         .y_axis = nv(k.GetAxisY().NormalizedOr(JPH::Vec3::sAxisY())),
+                         .z_axis = nv(k.GetAxisZ().NormalizedOr(JPH::Vec3::sAxisZ()))};
+  }
+  return bones;
 }
 
 void physics3d_set_gravity(context &ctx, vec3 gravity) {

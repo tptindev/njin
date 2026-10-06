@@ -238,6 +238,7 @@ njin::shape3d, so an object and the shape that draws it share their numbers.
 | Sensor | `body3d_desc::sensor` | Pickup zones, checkpoints, traps, goals: no collision, only contact reports |
 | Contact events | physics3d_contact_count(), physics3d_contact() | Knowing what started or stopped touching what |
 | Joint | joint3d_create() | Hinged doors, seesaws, chains, pistons |
+| Ragdoll | ragdoll3d_create() | A character falling or hit: the model's skeleton follows physics |
 | Ray | physics3d_raycast() | Bullets, line of sight, a camera that does not go through walls; returns the body hit, passes through sensors |
 
 The engine simulates in `phase_fixed_update`, **right after** the game's systems in that phase: the game
@@ -337,7 +338,7 @@ created. Destroying a body also destroys its joints.
 | Kind | What it does | Example |
 |---|---|---|
 | `joint3d_fixed` | Welds: keeps the relative position and angle | Fixing two pieces into one object |
-| `joint3d_point` | Ball joint: rotates freely around `anchor` | Chains, ragdolls |
+| `joint3d_point` | Ball joint: rotates freely around `anchor` | Chains, pendulums |
 | `joint3d_hinge` | Hinge: rotates around `axis` through `anchor` | Doors, seesaws, wheels |
 | `joint3d_slider` | Slides along `axis`, no rotation | Pistons, drawers, sliding doors |
 | `joint3d_distance` | Keeps the distance between `anchor` and `anchor_b` in `[min, max]` | Ropes, rods |
@@ -354,6 +355,37 @@ const njin::body3d_handle plank = njin::body3d_create(
 njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = pivot, .axis = {0, 0, 1},
                            .min = -18, .max = 18});
 @endcode
+
+### Ragdoll {#ragdoll3d}
+
+ragdoll3d_create() turns a model with bones into a ragdoll: each chosen bone becomes a dynamic capsule,
+joined to its parent part by a joint with angle limits (Jolt's Ragdoll), falling and colliding like any
+body. Parts of the same ragdoll do not collide with each other. Bones that are not chosen (fingers, the root) follow the
+nearest part above them. The angle limits count from the file's rest pose (T or A pose), so a ragdoll can
+start from any animation frame: usually the pose just drawn, when the character is hit or falls.
+
+Each frame, ragdoll3d_bones() reads the ragdoll's pose into an array, and `model_pose::bones` draws the
+model from that array instead of an animation. model_bone_pose() with that pose also returns the
+ragdoll's bones (so the camera can follow the head, for example). ragdoll3d_body() returns the body of
+one part, to push it with body3d_add_impulse() or to tell which part physics3d_raycast() hit.
+
+| Field of njin::ragdoll3d_bone | Meaning |
+|---|---|
+| `name`, `radius`, `length` | The bone and the capsule along its y axis; `radius`, `length` 0 measure it from the model's skin |
+| `swing`, `twist` | Ball joint: the largest swing and twist angles, degrees |
+| `bend_min`, `bend_max` | A hinge around the bone's x axis instead of a ball joint (knees, elbows) |
+
+@code
+// The player falls: from the pose being drawn, keeping the running velocity.
+rag = njin::ragdoll3d_create(ctx, {.model = man, .transform = at, .pose = pose, .bones = parts,
+                                   .bone_count = std::size(parts), .velocity = velocity});
+// Each frame, in phase_render:
+static njin::bone_pose3d bones[128];
+njin::ragdoll3d_bones(ctx, rag, at, bones, 128);
+njin::draw_model_anim(ctx, man, at, {.bones = bones});
+@endcode
+
+A `parts` list for the Quaternius mannequin is in ragdoll3d_create().
 
 ## 3D entities {#entities_3d}
 

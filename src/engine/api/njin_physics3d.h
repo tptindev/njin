@@ -310,6 +310,108 @@ void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed);
 /// @return Giá trị, 0 với loại khớp khác hay handle không hợp lệ.
 f32 joint3d_position(const context &ctx, joint3d_handle handle);
 
+/// Một phần của ragdoll: một xương của model thành một viên nang vật lý dọc theo
+/// trục y của xương (hướng của xương với rig của Blender). Mặc định viên nang
+/// bọc lớp da của phần đó ở tư thế gốc: các đỉnh mà xương này, hay một xương
+/// không có phần riêng phía dưới nó (ngón tay, xương đòn), kéo mạnh nhất.
+/// Kích thước tính bằng đơn vị thế giới. Góc giới hạn tính từ tư thế gốc trong
+/// file (tư thế T hay A), không phải tư thế lúc tạo ragdoll.
+struct ragdoll3d_bone {
+  const char *name = nullptr; ///< Tên xương (model_bone_find()).
+  /// Bán kính viên nang. 0 là đo từ da (bọc 80% số đỉnh); model không có da
+  /// thì 0.06.
+  f32 radius = 0.0f;
+  /// Chiều dài từ gốc xương. 0 là đo từ da (viên nang dài và lệch tâm theo da);
+  /// model không có da thì tới xương con xa nhất, xương không có con phía trước
+  /// thì thành hình cầu.
+  f32 length = 0.0f;
+  /// Khớp cầu nối với phần cha: góc lệch tối đa của trục xương, độ.
+  f32 swing = 30.0f;
+  f32 twist = 15.0f; ///< Góc vặn tối đa quanh trục xương, độ, cả hai chiều.
+  /// Bản lề thay cho khớp cầu (gối, khuỷu tay): xoay quanh trục x của xương,
+  /// góc trong `[bend_min, bend_max]`, độ, trong -180..180 và chứa 0. Góc dương
+  /// đưa trục y của xương về phía trục z của nó (với mannequin của Quaternius,
+  /// gối và khuỷu gập về phía dương). `bend_min >= bend_max` là khớp cầu.
+  f32 bend_min = 0.0f;
+  f32 bend_max = 0.0f; ///< Xem `bend_min`.
+};
+
+/// Mô tả một ragdoll cho ragdoll3d_create().
+struct ragdoll3d_desc {
+  model_handle model{};     ///< Model có xương (model_load()).
+  /// Chỗ model đang được vẽ, như draw_model_anim(). Tỉ lệ phải đều ba trục.
+  transform3d transform{};
+  model_pose pose{};        ///< Tư thế lúc bắt đầu, thường là tư thế vừa vẽ.
+  /// Các phần, mỗi phần một xương khác nhau. Mỗi phần nối vào phần có xương gần
+  /// nhất phía trên nó trong bộ xương; đúng một phần không có phần nào phía trên
+  /// (gốc, thường là hông).
+  const ragdoll3d_bone *bones = nullptr;
+  u32 bone_count = 0;       ///< Số phần trong `bones`.
+  f32 mass = 70.0f;         ///< Khối lượng cả người, kg, chia cho các phần theo thể tích.
+  f32 friction = 0.6f;      ///< Ma sát, 0..1.
+  vec3 velocity{0.0f, 0.0f, 0.0f}; ///< Vận tốc ban đầu của mọi phần.
+  u64 user = 0;             ///< body3d_user() của mọi phần.
+};
+
+/// Biến một model có xương thành ragdoll: mỗi phần là một body động, nối với
+/// phần cha bằng khớp có giới hạn góc, rơi và va chạm như mọi body. Các phần
+/// của cùng một ragdoll không bao giờ va vào nhau, chỉ va với thế giới. Các xương không có phần (ngón tay, đầu ngón chân, gốc) đi theo
+/// phần gần nhất phía trên chúng.
+///
+/// @code
+/// // Mannequin của Quaternius ngã xuống từ tư thế đang vẽ.
+/// const njin::ragdoll3d_bone parts[] = {
+///   {.name = "pelvis"},
+///   {.name = "spine_02", .swing = 20, .twist = 15},
+///   {.name = "Head", .swing = 40, .twist = 40},
+///   {.name = "upperarm_l", .swing = 70, .twist = 30},
+///   {.name = "lowerarm_l", .bend_min = 0, .bend_max = 140},
+///   {.name = "thigh_l", .swing = 50, .twist = 15},
+///   {.name = "calf_l", .bend_min = 0, .bend_max = 140},
+///   // ... bên phải như bên trái
+/// };
+/// rag = njin::ragdoll3d_create(ctx, {.model = man, .transform = at, .pose = pose,
+///                                    .bones = parts, .bone_count = std::size(parts)});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Mô tả ragdoll.
+/// @return Handle, hoặc không hợp lệ (có cảnh báo trong log) nếu model không có
+/// xương, có tên xương không tìm thấy hay trùng nhau, hoặc các phần không nối
+/// thành một cây.
+ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc);
+
+/// Hủy ragdoll cùng các body của nó. Handle không hợp lệ bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Ragdoll.
+void ragdoll3d_destroy(context &ctx, ragdoll3d_handle handle);
+
+/// Body của một phần, để đẩy (body3d_add_impulse()), đọc vị trí, hay nhận ra
+/// phần bị trúng trong physics3d_raycast() và physics3d_contact(). Không hủy nó
+/// bằng body3d_destroy(): hủy cả ragdoll.
+/// @param ctx Context của engine.
+/// @param handle Ragdoll.
+/// @param part Chỉ số trong `ragdoll3d_desc::bones`.
+/// @return Body, hoặc không hợp lệ nếu handle hay `part` không hợp lệ.
+body3d_handle ragdoll3d_body(const context &ctx, ragdoll3d_handle handle, i32 part);
+
+/// Tư thế hiện tại của ragdoll, để vẽ model bằng `model_pose::bones` ở
+/// `transform` (thường là `ragdoll3d_desc::transform`).
+///
+/// @code
+/// static njin::bone_pose3d bones[128];
+/// njin::ragdoll3d_bones(ctx, rag, at, bones, 128);
+/// njin::draw_model_anim(ctx, man, at, {.bones = bones});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Ragdoll.
+/// @param transform Chỗ model sẽ được vẽ.
+/// @param out Mảng nhận tư thế, model_bone_count() phần tử.
+/// @param count Số phần tử của `out`.
+/// @return Số xương đã ghi (model_bone_count()), 0 nếu handle không hợp lệ hay
+/// `count` nhỏ hơn số xương.
+i32 ragdoll3d_bones(const context &ctx, ragdoll3d_handle handle, const transform3d &transform, bone_pose3d *out,
+                    i32 count);
+
 /// Component: entity đi theo một body vật lý. Engine đọc và ghi
 /// njin::transform3d của entity quanh mỗi bước mô phỏng:
 /// - body động: sau bước, vị trí và góc xoay của body ghi vào transform;

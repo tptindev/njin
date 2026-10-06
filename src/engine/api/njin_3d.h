@@ -603,8 +603,11 @@ const char *model_anim_name(const context &ctx, model_handle handle, i32 index);
 /// @return Độ dài, 0 nếu handle hay `index` không hợp lệ.
 f32 model_anim_duration(const context &ctx, model_handle handle, i32 index);
 
+struct bone_pose3d;
+
 /// Tư thế của một model có xương khi vẽ: animation nào, ở giây thứ mấy, và
 /// (tùy chọn) trộn với animation thứ hai để chuyển mượt giữa hai động tác.
+/// Hoặc game tự đặt từng xương bằng `bones` (ragdoll3d_bones()).
 struct model_pose {
   i32 anim = -1;           ///< Animation (model_anim_find()). -1 là tư thế gốc trong file.
   f32 time = 0.0f;         ///< Thời điểm trong animation, giây.
@@ -613,6 +616,11 @@ struct model_pose {
   f32 blend_time = 0.0f;   ///< Thời điểm trong animation thứ hai, giây.
   bool blend_loop = true;  ///< Lặp animation thứ hai.
   f32 blend = 0.0f;        ///< Tỉ lệ trộn: 0 chỉ có `anim`, 1 chỉ có `blend_anim`.
+  /// Tư thế do game đặt: model_bone_count() xương, trong không gian của model
+  /// như model_bone_pose() trả về (ragdoll3d_bones() điền mảng này). Khác
+  /// nullptr thì các trường animation ở trên bị bỏ qua. Engine đọc mảng ngay lúc
+  /// vẽ (draw_model_anim(), hay khi vẽ entity có njin::model3d), không giữ lại.
+  const bone_pose3d *bones = nullptr;
 };
 
 /// Vẽ model có xương ở tư thế `pose`. Như draw_model(), và bóng đổ theo đúng
@@ -698,6 +706,14 @@ const char *model_bone_name(const context &ctx, model_handle handle, i32 bone);
 /// @param name Tên xương.
 /// @return Chỉ số 0..model_bone_count() - 1, hoặc -1 nếu không có.
 i32 model_bone_find(const context &ctx, model_handle handle, const char *name);
+
+/// Xương cha của `bone` trong bộ xương, để đi lên chuỗi xương (IK: đùi, cẳng
+/// chân, bàn chân) hay biết xương nào nằm dưới xương nào.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param bone 0..model_bone_count() - 1.
+/// @return Chỉ số xương cha, hoặc -1 với xương gốc, handle hay `bone` không hợp lệ.
+i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 
 /// Một xương ở một tư thế: vị trí và ba trục của nó trong không gian của
 /// model (trước transform của lần vẽ), như draw_model_anim() đặt nó.

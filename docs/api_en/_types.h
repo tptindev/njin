@@ -175,6 +175,13 @@ struct joint3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a ragdoll, created by ragdoll3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct ragdoll3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of an atlas, created by atlas_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

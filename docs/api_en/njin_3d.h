@@ -646,8 +646,11 @@ const char *model_anim_name(const context &ctx, model_handle handle, i32 index);
 /// @return Length, 0 if the handle or `index` is invalid.
 f32 model_anim_duration(const context &ctx, model_handle handle, i32 index);
 
+struct bone_pose3d;
+
 /// Pose of a skinned model when drawn: which animation, at which second, and
 /// (optionally) blended with a second animation to move smoothly between two motions.
+/// Or the game places each bone itself with `bones` (ragdoll3d_bones()).
 struct model_pose {
   i32 anim = -1;           ///< Animation (model_anim_find()). -1 is the file's rest pose.
   f32 time = 0.0f;         ///< Time in the animation, seconds.
@@ -656,6 +659,12 @@ struct model_pose {
   f32 blend_time = 0.0f;   ///< Time in the second animation, seconds.
   bool blend_loop = true;  ///< Loop the second animation.
   f32 blend = 0.0f;        ///< Blend weight: 0 is only `anim`, 1 is only `blend_anim`.
+  /// A pose set by the game: model_bone_count() bones, in model space as
+  /// model_bone_pose() returns them (ragdoll3d_bones() fills this array). When not
+  /// nullptr the animation fields above are ignored. The engine reads the array
+  /// right when drawing (draw_model_anim(), or when an entity with njin::model3d
+  /// is drawn) and does not keep it.
+  const bone_pose3d *bones = nullptr;
 };
 
 /// Draws a skinned model in pose `pose`. Like draw_model(), and the shadow follows
@@ -741,6 +750,14 @@ const char *model_bone_name(const context &ctx, model_handle handle, i32 bone);
 /// @param name The bone's name.
 /// @return The index 0..model_bone_count() - 1, or -1 if there is none.
 i32 model_bone_find(const context &ctx, model_handle handle, const char *name);
+
+/// The parent of `bone` in the skeleton, to walk up a chain of bones (IK: thigh,
+/// calf, foot) or tell which bones hang below which.
+/// @param ctx The engine context.
+/// @param handle The model.
+/// @param bone 0..model_bone_count() - 1.
+/// @return The parent bone's index, or -1 for a root bone or an invalid handle or `bone`.
+i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 
 /// A bone in a pose: its position and three axes in the model's space (before
 /// the draw's transform), as draw_model_anim() places it.
