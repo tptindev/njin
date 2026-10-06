@@ -2297,6 +2297,49 @@ i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone) {
   return m->model.skeleton.bones[bone].parent;
 }
 
+bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  const i32 bones = m != nullptr ? m->model.skeleton.boneCount : 0;
+  if (m == nullptr || bone < 0 || bone >= bones)
+    return false;
+  const BoneInfo *info = m->model.skeleton.bones;
+  const auto counts = [&](i32 b) {
+    for (i32 guard = 0; b >= 0 && guard < bones; guard++, b = info[b].parent)
+      if (b == bone)
+        return true;
+      else if (!children)
+        return false;
+    return false;
+  };
+  const bone_pose3d f = model_bone_pose(ctx, handle, model_pose{}, bone);
+  vec3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+  bool any = false;
+  for (i32 k = 0; k < m->model.meshCount; k++) {
+    const Mesh &mesh = m->model.meshes[k];
+    if (mesh.vertices == nullptr || mesh.boneIndices == nullptr || mesh.boneWeights == nullptr)
+      continue;
+    for (i32 v = 0; v < mesh.vertexCount; v++) {
+      i32 best = 0;
+      for (i32 w = 1; w < 4; w++)
+        if (mesh.boneWeights[v * 4 + w] > mesh.boneWeights[v * 4 + best])
+          best = w;
+      if (!counts(mesh.boneIndices[v * 4 + best]))
+        continue;
+      const Vector3 q = Vector3Transform({mesh.vertices[v * 3], mesh.vertices[v * 3 + 1], mesh.vertices[v * 3 + 2]},
+                                         m->model.transform);
+      const vec3 l = vec3{q.x, q.y, q.z} - f.position;
+      lo = {std::min(lo.x, l.x), std::min(lo.y, l.y), std::min(lo.z, l.z)};
+      hi = {std::max(hi.x, l.x), std::max(hi.y, l.y), std::max(hi.z, l.z)};
+      any = true;
+    }
+  }
+  if (!any || min == nullptr || max == nullptr)
+    return any;
+  *min = lo;
+  *max = hi;
+  return true;
+}
+
 bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model_pose &pose, i32 bone) {
   const model_slot *m = model_slot_of(ctx.model, handle);
   if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)

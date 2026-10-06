@@ -8,6 +8,13 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+### Fixed
+
+- A character standing on a light dynamic body (a board lying on the floor)
+  no longer makes it shake. Its weight was put on the body as an impulse
+  straight into the body's velocity outside the solver; it is now a force
+  the solver takes in with the body's other contacts.
+
 ### Added
 
 - Ragdolls (`njin_physics3d.h`), on Jolt's `Ragdoll`: `ragdoll3d_create()`
@@ -17,12 +24,22 @@ To release: edit that header, add a section here, commit, then
   bone moves (`radius` and `length` 0, the default), and parts of one
   ragdoll never collide with each other.
   `ragdoll3d_bones()` reads the pose back for drawing, `ragdoll3d_body()`
-  gives each part's body for impulses, raycasts and contacts, and
+  gives each part's body for impulses, raycasts and contacts,
+  `ragdoll3d_shape()` its collision shape for debug drawing, and
   `ragdoll3d_destroy()` removes it.
 - `model_pose::bones`: draw a skinned model from bone frames the game sets
   (model space, as `model_bone_pose()` returns them) instead of an
   animation. nullptr, the default, keeps the animation as before.
 - `model_bone_parent()`: a bone's parent, to walk a skeleton's chains for IK.
+- `physics3d_capsule_push()`, `physics3d_box_push()`: the minimum
+  translation vector that takes a capsule or a box out of the bodies it
+  overlaps, so a character's limbs and feet can move aside from walls and
+  boards instead of passing through them.
+- `physics3d_box_cast()`: moves a box and reports the first thing it meets,
+  to drop a foot onto uneven ground and find where it rests.
+- `model_bone_bounds()`: the box around the skin a bone moves (optionally
+  with the bones below it), in the rest pose along the model's axes from the
+  bone's origin, to fit colliders to a model's real shape.
   (puzzle: a hard hit, a long fall or standing over nothing drops the player
   into a ragdoll, who stands up where it lies; feet are set on the ground by
   two-bone IK.)

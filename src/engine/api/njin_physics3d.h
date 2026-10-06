@@ -115,7 +115,9 @@ struct character3d_desc {
   f32 height = 1.8f;               ///< Chiều cao cả viên nang.
   f32 max_slope = 50.0f;           ///< Dốc nhất còn đứng được, độ.
   f32 step_height = 0.3f;          ///< Bậc cao nhất tự bước lên được.
-  f32 mass = 70.0f;                ///< Khối lượng, kg, khi đẩy body động.
+  /// Khối lượng, kg: sức nặng đè lên body động mà nhân vật đứng lên (bập bênh
+  /// nghiêng, ván nằm trên sàn vẫn yên), và khi đẩy body động.
+  f32 mass = 70.0f;
   /// Hai nhân vật cùng bật `push` không chặn cứng nhau: sau mỗi bước, cặp nào
   /// chồng lên nhau theo phương ngang được tách ra bằng vector tịnh tiến nhỏ
   /// nhất, chia theo khối lượng (người nặng ủi người nhẹ sang bên), nên đám
@@ -198,6 +200,53 @@ vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle);
 /// @param handle Nhân vật.
 /// @return Body, hoặc không hợp lệ nếu không đứng trên body nào.
 body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle);
+
+/// Vector đẩy ngắn nhất (minimum translation vector) đưa viên nang `a`–`b` bán
+/// kính `radius` ra khỏi mọi body nó đang lấn vào (không tính nhân vật, sensor và
+/// `ignore`): dời viên nang theo vector này là vừa hết chạm. Để tay, thân của một
+/// nhân vật tự né tường thay vì xuyên qua.
+///
+/// @code
+/// // Cẳng tay lấn vào tường: xoay khuỷu cho bàn tay ra theo vector đẩy.
+/// const njin::vec3 push = njin::physics3d_capsule_push(ctx, elbow, wrist, 0.045f);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param a Một đầu trục viên nang (tâm nửa cầu), thế giới.
+/// @param b Đầu kia.
+/// @param radius Bán kính.
+/// @param ignore Body không tính (vật nhân vật đang cầm). Không hợp lệ là tính hết.
+/// @return Vector đẩy, `{0, 0, 0}` nếu không lấn vào gì.
+vec3 physics3d_capsule_push(const context &ctx, vec3 a, vec3 b, f32 radius, body3d_handle ignore = {});
+
+/// Như physics3d_capsule_push() cho một hộp (bàn chân, bàn tay đo từ da bằng
+/// model_bone_bounds()).
+/// @param ctx Context của engine.
+/// @param center Tâm hộp, thế giới.
+/// @param rotation Góc xoay, độ, cùng thứ tự với njin::transform3d.
+/// @param size Kích thước theo x, y, z của hộp.
+/// @param ignore Body không tính. Không hợp lệ là tính hết.
+/// @return Vector đẩy, `{0, 0, 0}` nếu không lấn vào gì.
+vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 size, body3d_handle ignore = {});
+
+/// Đẩy một hộp đi theo `motion` và tìm thứ đầu tiên nó chạm (không tính nhân
+/// vật, sensor, `ignore` và những gì hộp đã lấn vào từ đầu). Như physics3d_raycast()
+/// nhưng cho cả một khối: thả bàn chân xuống để tìm chỗ đặt trên mặt gồ ghề.
+///
+/// @code
+/// // Bàn chân rơi xuống tối đa 1 m: chạm ở đâu thì đặt ở đó.
+/// const njin::ray3d_hit h = njin::physics3d_box_cast(ctx, foot, rot, size, {0, -1, 0});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param center Tâm hộp lúc bắt đầu, thế giới.
+/// @param rotation Góc xoay, độ, cùng thứ tự với njin::transform3d.
+/// @param size Kích thước theo x, y, z của hộp.
+/// @param motion Hướng và quãng đường đẩy.
+/// @param ignore Body không tính. Không hợp lệ là tính hết.
+/// @param body Nếu khác nullptr, nhận body bị chạm.
+/// @return `distance`: quãng hộp đi được tới lúc chạm; `point`, `normal`: chỗ chạm
+/// và pháp tuyến của mặt bị chạm.
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore = {}, body3d_handle *body = nullptr);
 
 /// Bắn một tia vào các body (không trúng nhân vật, đi xuyên sensor): đạn, tầm nhìn,
 /// chọn vật bằng chuột.
@@ -393,6 +442,16 @@ void ragdoll3d_destroy(context &ctx, ragdoll3d_handle handle);
 /// @param part Chỉ số trong `ragdoll3d_desc::bones`.
 /// @return Body, hoặc không hợp lệ nếu handle hay `part` không hợp lệ.
 body3d_handle ragdoll3d_body(const context &ctx, ragdoll3d_handle handle, i32 part);
+
+/// Hình va chạm của một phần, trong thế giới: viên nang (hoặc hình cầu) mà
+/// engine đo từ da, đặt theo body của phần đó lúc này. Để vẽ debug, ví dụ
+/// bằng gizmo hay draw_shape3d().
+/// @param ctx Context của engine.
+/// @param handle Ragdoll.
+/// @param part Chỉ số trong `ragdoll3d_desc::bones`.
+/// @return Hình (njin::shape3d_capsule hoặc njin::shape3d_sphere), hoặc
+/// `radius` 0 nếu handle hay `part` không hợp lệ.
+shape3d ragdoll3d_shape(const context &ctx, ragdoll3d_handle handle, i32 part);
 
 /// Tư thế hiện tại của ragdoll, để vẽ model bằng `model_pose::bones` ở
 /// `transform` (thường là `ragdoll3d_desc::transform`).

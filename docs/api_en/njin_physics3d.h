@@ -119,7 +119,9 @@ struct character3d_desc {
   f32 height = 1.8f;               ///< Overall capsule height.
   f32 max_slope = 50.0f;           ///< Steepest slope it can still stand on, degrees.
   f32 step_height = 0.3f;          ///< Highest step it walks up on its own.
-  f32 mass = 70.0f;                ///< Mass, kg, when pushing dynamic bodies.
+  /// Mass, kg: the weight on a dynamic body the character stands on (a seesaw
+  /// tips, a board lying on the floor stays still), and when pushing dynamic bodies.
+  f32 mass = 70.0f;
   /// Two characters that both have `push` on do not block each other: after
   /// each step, a pair overlapping on the horizontal is moved apart by the
   /// minimum translation vector, shared by mass (the heavier shoves the
@@ -208,6 +210,54 @@ vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle);
 /// @param handle Character.
 /// @return Body, or invalid if it stands on no body.
 body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle);
+
+/// The minimum translation vector that moves the capsule `a`-`b` of radius
+/// `radius` out of every body it overlaps (not counting characters, sensors and
+/// `ignore`): moving the capsule by it just ends the overlap. For a character's
+/// arms and torso to move aside from a wall instead of passing through it.
+///
+/// @code
+/// // A forearm inside a wall: turn the elbow so the hand moves out along the push.
+/// const njin::vec3 push = njin::physics3d_capsule_push(ctx, elbow, wrist, 0.045f);
+/// @endcode
+/// @param ctx Engine context.
+/// @param a One end of the capsule's axis (a cap's centre), world space.
+/// @param b The other end.
+/// @param radius The radius.
+/// @param ignore A body not counted (what the character holds). Invalid counts them all.
+/// @return The push, `{0, 0, 0}` if it overlaps nothing.
+vec3 physics3d_capsule_push(const context &ctx, vec3 a, vec3 b, f32 radius, body3d_handle ignore = {});
+
+/// Like physics3d_capsule_push() for a box (a foot or a hand measured from the
+/// skin with model_bone_bounds()).
+/// @param ctx Engine context.
+/// @param center The box's centre, world space.
+/// @param rotation Rotation, degrees, in the same order as njin::transform3d.
+/// @param size The box's size along x, y, z.
+/// @param ignore A body not counted. Invalid counts them all.
+/// @return The push, `{0, 0, 0}` if it overlaps nothing.
+vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 size, body3d_handle ignore = {});
+
+/// Moves a box along `motion` and finds the first thing it meets (not counting
+/// characters, sensors, `ignore` and what the box already overlaps at the start).
+/// Like physics3d_raycast() but for a whole solid: dropping a foot to find where it
+/// rests on uneven ground.
+///
+/// @code
+/// // A foot dropped at most 1 m: where it meets something is where it stands.
+/// const njin::ray3d_hit h = njin::physics3d_box_cast(ctx, foot, rot, size, {0, -1, 0});
+/// @endcode
+/// @param ctx Engine context.
+/// @param center The box's centre at the start, world space.
+/// @param rotation Rotation, degrees, in the same order as njin::transform3d.
+/// @param size The box's size along x, y, z.
+/// @param motion Direction and distance to move it.
+/// @param ignore A body not counted. Invalid counts them all.
+/// @param body If not nullptr, receives the body met.
+/// @return `distance`: how far the box went before meeting it; `point`, `normal`:
+/// where, and the normal of the surface met.
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore = {}, body3d_handle *body = nullptr);
 
 /// Casts a ray against the bodies (characters are not hit, sensors are passed
 /// through): bullets, line of sight, mouse picking.
@@ -405,6 +455,16 @@ void ragdoll3d_destroy(context &ctx, ragdoll3d_handle handle);
 /// @param part Index in `ragdoll3d_desc::bones`.
 /// @return The body, or invalid if the handle or `part` is invalid.
 body3d_handle ragdoll3d_body(const context &ctx, ragdoll3d_handle handle, i32 part);
+
+/// The collision shape of one part, in the world: the capsule (or sphere) the
+/// engine measured from the skin, placed by that part's body now. For debug
+/// drawing, with gizmos or draw_shape3d() for example.
+/// @param ctx Engine context.
+/// @param handle Ragdoll.
+/// @param part Index in `ragdoll3d_desc::bones`.
+/// @return The shape (njin::shape3d_capsule or njin::shape3d_sphere), or
+/// `radius` 0 if the handle or `part` is invalid.
+shape3d ragdoll3d_shape(const context &ctx, ragdoll3d_handle handle, i32 part);
 
 /// The ragdoll's current pose, to draw the model with `model_pose::bones` at
 /// `transform` (usually `ragdoll3d_desc::transform`).

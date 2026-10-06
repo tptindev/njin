@@ -175,6 +175,7 @@ struct character_slot {
   bool active = true; // character3d_set_active
   vec3 desired{};
   f32 step_height = 0.3f;
+  f32 mass = 70.0f; // character3d_desc::mass: its weight on what it stands on
   std::vector<u32> touching; // body handles it touched after the last step, sorted
 };
 
@@ -198,6 +199,7 @@ struct ragdoll_slot {
   std::vector<i32> anchor;     // per model bone: the entry it follows
   std::vector<JPH::Mat44> rel; // per model bone: anchor's model frame -> the bone's
   f32 scale = 1.0f;            // ragdoll3d_desc::transform scale
+  std::vector<shape3d> shapes; // per entry: its shape in the body's frame (ragdoll3d_shape)
 };
 
 // Two bodies touching: how many of their sub-shape pairs do, in the order the
@@ -712,6 +714,14 @@ void physics3d_step(context &ctx, f32 dt) {
     settings.mWalkStairsStepUp = JPH::Vec3(0.0f, c.step_height, 0.0f);
     c.character->ExtendedUpdate(dt, gravity, settings, w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
                                 w->system.GetDefaultLayerFilter(layers::moving), {}, {}, w->temp);
+    // Its weight on what it stands on, as a force the solver takes in with the
+    // body's other contacts (a board on the floor stays put, a seesaw tips).
+    const JPH::BodyID ground = c.character->GetGroundBodyID();
+    const f32 g = gravity.Length();
+    const f32 along = c.character->GetGroundNormal().Dot(gravity);
+    if (!ground.IsInvalid() && c.mass > 0.0f && g > 1e-6f && along < 0.0f &&
+        c.character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround)
+      bi.AddForce(ground, -(c.mass * along / g) * gravity, c.character->GetGroundPosition());
   }
   // Pushers parted where the step left them overlapping (character3d_desc::push).
   w->crowd.part(2);
@@ -885,7 +895,11 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
                          .Create()
                          .Get();
   settings->mMaxSlopeAngle = JPH::DegreesToRadians(desc.max_slope);
-  settings->mMass = desc.mass;
+  // Jolt would put the weight on the ground body as an impulse straight into its
+  // velocity, outside the solver: a light board lying on the floor then jumps
+  // on every step. The step below puts it on as a force instead (mass 0 here
+  // turns Jolt's off; pushing bodies aside goes by mMaxStrength, not mass).
+  settings->mMass = 0.0f;
   // Supported only by the lower sphere of the capsule, not its side.
   settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -r);
   character_slot slot;
@@ -893,6 +907,7 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
       settings, JPH::RVec3(desc.position.x, desc.position.y, desc.position.z), JPH::Quat::sIdentity(), &w.system);
   slot.alive = true;
   slot.step_height = desc.step_height;
+  slot.mass = std::max(desc.mass, 0.0f);
   slot.character->SetCharacterVsCharacterCollision(&w.crowd);
   w.crowd.add(slot.character.GetPtr());
   if (desc.push)
@@ -975,6 +990,110 @@ public:
   bool ShouldCollideLocked(const JPH::Body &body) const override { return !body.IsSensor(); }
 };
 } // namespace
+
+namespace {
+// Everything but sensors and one body.
+class not_sensor_or final : public JPH::BodyFilter {
+public:
+  JPH::BodyID skip;
+  bool ShouldCollideLocked(const JPH::Body &body) const override { return !body.IsSensor() && body.GetID() != skip; }
+};
+
+// The minimum translation vector taking `shape` (at `centre`, turned by `turn`)
+// out of the bodies it overlaps: out of the deepest overlap, then look again
+// from there, as a corner takes two.
+vec3 push_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg turn, vec3 centre, body3d_handle ignore) {
+  physics3d_world *w = ctx.physics3d.world.get();
+  not_sensor_or filter;
+  if (const body_slot *s = body_of(ctx, ignore))
+    filter.skip = s->id;
+  vec3 push{};
+  for (int k = 0; k < 4; k++) {
+    JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> hits;
+    const vec3 mid = centre + push;
+    const JPH::RMat44 at = JPH::RMat44::sRotationTranslation(turn, JPH::RVec3(mid.x, mid.y, mid.z));
+    w->system.GetNarrowPhaseQuery().CollideShape(shape, JPH::Vec3::sReplicate(1.0f), at, JPH::CollideShapeSettings(),
+                                                 JPH::RVec3::sZero(), hits,
+                                                 w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
+                                                 w->system.GetDefaultLayerFilter(layers::moving), filter);
+    const JPH::CollideShapeResult *deepest = nullptr;
+    for (const JPH::CollideShapeResult &hit : hits.mHits)
+      if (hit.mPenetrationDepth > 1e-4f && (deepest == nullptr || hit.mPenetrationDepth > deepest->mPenetrationDepth))
+        deepest = &hit;
+    if (deepest == nullptr || deepest->mPenetrationAxis.LengthSq() < 1e-12f)
+      break;
+    push = push + nv(-deepest->mPenetrationAxis.Normalized()) * (deepest->mPenetrationDepth + 1e-3f);
+  }
+  return push;
+}
+
+} // namespace
+
+vec3 physics3d_capsule_push(const context &ctx, vec3 a, vec3 b, f32 radius, body3d_handle ignore) {
+  if (ctx.physics3d.world == nullptr || radius <= 0.0f)
+    return {};
+  const vec3 axis = b - a;
+  const f32 len = length(axis);
+  JPH::ShapeSettings::ShapeResult made = len > 1e-4f ? JPH::CapsuleShapeSettings(len * 0.5f, radius).Create()
+                                                     : JPH::SphereShapeSettings(radius).Create();
+  if (made.HasError())
+    return {};
+  const JPH::Quat turn = len > 1e-4f ? JPH::Quat::sFromTo(JPH::Vec3::sAxisY(), jv(axis / len)) : JPH::Quat::sIdentity();
+  return push_out(ctx, made.Get().GetPtr(), turn, (a + b) * 0.5f, ignore);
+}
+
+vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 size, body3d_handle ignore) {
+  if (ctx.physics3d.world == nullptr)
+    return {};
+  const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
+  JPH::ShapeSettings::ShapeResult made =
+      JPH::BoxShapeSettings(half, std::min(JPH::cDefaultConvexRadius, half.ReduceMin() * 0.5f)).Create();
+  if (made.HasError())
+    return {};
+  return push_out(ctx, made.Get().GetPtr(), quat_of(rotation), center, ignore);
+}
+
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore, body3d_handle *body) {
+  if (body != nullptr)
+    *body = body3d_handle{};
+  physics3d_world *w = ctx.physics3d.world.get();
+  const f32 reach = length(motion);
+  if (w == nullptr || reach < 1e-6f)
+    return ray3d_hit{};
+  const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
+  JPH::ShapeSettings::ShapeResult made =
+      JPH::BoxShapeSettings(half, std::min(JPH::cDefaultConvexRadius, half.ReduceMin() * 0.5f)).Create();
+  if (made.HasError())
+    return ray3d_hit{};
+  const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
+      made.Get().GetPtr(), JPH::Vec3::sOne(),
+      JPH::RMat44::sRotationTranslation(quat_of(rotation), JPH::RVec3(center.x, center.y, center.z)), jv(motion));
+  JPH::ShapeCastSettings settings;
+  settings.mReturnDeepestPoint = false;
+  not_sensor_or filter;
+  if (const body_slot *s = body_of(ctx, ignore))
+    filter.skip = s->id;
+  JPH::AllHitCollisionCollector<JPH::CastShapeCollector> hits;
+  w->system.GetNarrowPhaseQuery().CastShape(cast, settings, JPH::RVec3::sZero(), hits,
+                                            w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
+                                            w->system.GetDefaultLayerFilter(layers::moving), filter);
+  // The first thing met on the way; what the box already overlaps at the
+  // start (fraction 0) is not in its way.
+  const JPH::ShapeCastResult *first = nullptr;
+  for (const JPH::ShapeCastResult &hit : hits.mHits)
+    if (hit.mFraction > 1e-5f && (first == nullptr || hit.mFraction < first->mFraction))
+      first = &hit;
+  if (first == nullptr)
+    return ray3d_hit{};
+  if (body != nullptr)
+    *body = handle_by_id(*w, first->mBodyID2);
+  const JPH::Vec3 axis = first->mPenetrationAxis;
+  return ray3d_hit{.hit = true,
+                   .distance = first->mFraction * reach,
+                   .point = world_vec(first->mContactPointOn2),
+                   .normal = axis.LengthSq() > 1e-12f ? nv(-axis.Normalized()) : normalize(motion * -1.0f)};
+}
 
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body) {
   if (body != nullptr)
@@ -1294,6 +1413,7 @@ ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc) {
   settings->mSkeleton = new JPH::Skeleton();
   settings->mParts.resize((usize)n);
   std::vector<f32> volume((usize)n);
+  std::vector<shape3d> shapes((usize)n);
   f32 total = 0.0f;
   for (i32 j = 0; j < n; j++) {
     const i32 i = order[(usize)j];
@@ -1343,6 +1463,10 @@ ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc) {
     const bool capsule = span > 2.0f * r + 0.01f;
     if (!capsule)
       r = std::max(r, span * 0.5f);
+    shapes[(usize)i] = shape3d{.kind = capsule ? shape3d_capsule : shape3d_sphere,
+                               .position = {cx, (t0 + t1) * 0.5f, cz},
+                               .radius = r,
+                               .height = capsule ? span : 2.0f * r};
     JPH::ShapeSettings::ShapeResult inner =
         capsule ? JPH::CapsuleShapeSettings(span * 0.5f - r, r).Create() : JPH::SphereShapeSettings(r).Create();
     if (inner.HasError()) {
@@ -1429,7 +1553,8 @@ ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc) {
                  .part_bone = bone_of,
                  .anchor = std::vector<i32>((usize)bones),
                  .rel = std::vector<JPH::Mat44>((usize)bones),
-                 .scale = scale};
+                 .scale = scale,
+                 .shapes = std::move(shapes)};
   JPH::BodyInterface &bi = w.system.GetBodyInterface();
   for (i32 j = 0; j < n; j++) {
     const JPH::BodyID id = ragdoll->GetBodyID(j);
@@ -1470,6 +1595,19 @@ body3d_handle ragdoll3d_body(const context &ctx, ragdoll3d_handle handle, i32 pa
   if (r == nullptr || part < 0 || part >= (i32)r->parts.size())
     return body3d_handle{};
   return body3d_handle{r->parts[(usize)part]};
+}
+
+shape3d ragdoll3d_shape(const context &ctx, ragdoll3d_handle handle, i32 part) {
+  const ragdoll_slot *r = ragdoll_of(ctx, handle);
+  if (r == nullptr || part < 0 || part >= (i32)r->parts.size())
+    return shape3d{.radius = 0.0f};
+  const JPH::BodyInterface &bi = ctx.physics3d.world->system.GetBodyInterface();
+  const JPH::BodyID id = ctx.physics3d.world->bodies[r->parts[(usize)part] - 1].id;
+  const JPH::Quat q = bi.GetRotation(id);
+  shape3d s = r->shapes[(usize)part];
+  s.position = world_vec(bi.GetPosition(id)) + nv(q * jv(s.position));
+  s.rotation = degrees_of(q);
+  return s;
 }
 
 i32 ragdoll3d_bones(const context &ctx, ragdoll3d_handle handle, const transform3d &transform, bone_pose3d *out,

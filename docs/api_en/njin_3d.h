@@ -759,6 +759,29 @@ i32 model_bone_find(const context &ctx, model_handle handle, const char *name);
 /// @return The parent bone's index, or -1 for a root bone or an invalid handle or `bone`.
 i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 
+/// The box around the skin that bone `bone` pulls hardest (with every bone below
+/// it if `children`), in the file's rest pose: along the model's axes, from the
+/// bone's origin. Along the model's axes the box is tight (a sole lies flat on
+/// the floor), not swollen like a box built along a bone that lies at a slant.
+/// To fit a collider to the real shape (a foot, a hand, a head): when placing
+/// it, turn the box by however much the bone has turned from the rest pose
+/// (model_bone_pose() with the rest pose).
+///
+/// @code
+/// // The foot (without the toes), around the origin of bone foot_l.
+/// njin::vec3 lo, hi;
+/// if (njin::model_bone_bounds(ctx, man, foot_l, false, &lo, &hi)) { ... }
+/// @endcode
+/// @param ctx The engine context.
+/// @param handle A model with skin (a mesh with bones).
+/// @param bone 0..model_bone_count() - 1.
+/// @param children Counts the skin of every bone below `bone` too.
+/// @param min Receives the box's smallest corner.
+/// @param max Receives the largest corner.
+/// @return `false` (min and max untouched) if no skin vertex qualifies, the model
+/// has no skin, or the handle or `bone` is invalid.
+bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max);
+
 /// A bone in a pose: its position and three axes in the model's space (before
 /// the draw's transform), as draw_model_anim() places it.
 struct bone_pose3d {
