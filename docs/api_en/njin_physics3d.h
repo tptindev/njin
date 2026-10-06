@@ -104,6 +104,20 @@ void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 /// @param impulse Impulse.
 void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse);
 
+/// For the next physics step, a dynamic body carries an extra weight of `mass`
+/// kg at `point`: a person hanging on it or climbing it (a character standing
+/// on a body is done by the engine itself), a crate that is not a body. The
+/// body is as heavy as both together, with the weight's inertia there and its
+/// pull turning the body about its centre, as for a character standing on it
+/// (character3d_desc::mass): a board leant on a wall slips out as a person
+/// climbs high on it, and a light board does not shake. Call it every fixed
+/// step for as long as it carries the weight.
+/// @param ctx Engine context.
+/// @param handle Body. Ignored if it is not dynamic.
+/// @param mass Mass, kg. Ignored unless positive.
+/// @param point Where it rests, world; kept inside the body.
+void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point);
+
 /// The game's number attached to the body on creation (njin::body3d_desc::user).
 /// @param ctx Engine context.
 /// @param handle Body.

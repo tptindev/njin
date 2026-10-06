@@ -100,6 +100,18 @@ void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 /// @param impulse Xung lực.
 void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse);
 
+/// Cho bước vật lý kế tiếp, body động mang thêm một vật nặng `mass` kg đặt tại
+/// `point`: người treo hay leo trên nó (nhân vật đứng trên body thì engine tự
+/// làm), một thùng hàng không phải body. Body nặng như cả hai cộng lại, có quán
+/// tính của vật nặng ở chỗ đó và sức nặng của nó xoay body quanh tâm, như nhân
+/// vật đứng lên (character3d_desc::mass): ván dựng vào tường trượt ra khi người
+/// leo lên cao, mà ván nhẹ không rung. Gọi mỗi bước cố định cho đến khi thôi mang.
+/// @param ctx Context của engine.
+/// @param handle Body. Không phải body động thì bỏ qua.
+/// @param mass Khối lượng, kg. Không dương thì bỏ qua.
+/// @param point Chỗ đặt, thế giới; được giữ ở trong body.
+void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point);
+
 /// Số của game gắn vào body lúc tạo (njin::body3d_desc::user).
 /// @param ctx Context của engine.
 /// @param handle Body.

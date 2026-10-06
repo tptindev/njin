@@ -26,6 +26,10 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- `body3d_carry()`: for the next step a dynamic body carries an extra weight
+  at a point (someone hanging on it or climbing it), the same way it carries
+  a character standing on it: a board leant on a wall slips as a climber goes
+  up it, and a light board does not shake.
 - Ragdolls (`njin_physics3d.h`), on Jolt's `Ragdoll`: `ragdoll3d_create()`
   turns the chosen bones of a skinned model into dynamic capsules joined by
   swing-twist joints or hinges (`ragdoll3d_bone::bend_min`/`bend_max`), with

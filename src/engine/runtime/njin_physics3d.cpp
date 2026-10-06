@@ -548,6 +548,13 @@ struct physics3d_world {
     JPH::Quat inertia_rotation;
   };
   std::vector<ridden> ridden_bodies;
+  // Loads to carry in the next step (body3d_carry()).
+  struct load {
+    JPH::BodyID id;
+    f32 mass;
+    JPH::RVec3 at;
+  };
+  std::vector<load> loads;
 
   physics3d_world() {
     system.Init(16384, 0, 16384, 8192, broad_phase, object_vs_broad, pairs);
@@ -698,6 +705,54 @@ body3d_handle handle_of(physics3d_world &w, JPH::BodyID id) {
     return body3d_handle{};
   return body3d_handle{(u32)w.system.GetBodyInterface().GetUserData(id)};
 }
+// For the next solve, dynamic body `id` carries `mass` kg at world point `at`
+// (a character standing on it, or body3d_carry()): as heavy as body and load
+// together, with the load's inertia there and the turn its weight gives about
+// the body's centre (gravity already pulls the added mass down). The solver
+// then holds a 70 kg person on a 3 kg board as the one heavy thing they are:
+// a board on the floor stays put, a seesaw tips, a board leant on a wall slips
+// out from under them. The whole weight as a force on the light board alone
+// kicked it more each step than the contacts could take back, and the board
+// shook. physics3d_step() puts the bodies' own mass back after the solve.
+void carry_load(physics3d_world &w, JPH::BodyID id, f32 mass, JPH::RVec3 at, JPH::Vec3 gravity) {
+  {
+    JPH::BodyLockWrite lock(w.system.GetBodyLockInterface(), id);
+    if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
+      return;
+    JPH::Body &body = lock.GetBody();
+    JPH::MotionProperties *mp = body.GetMotionProperties();
+    const JPH::Vec3 inv_inertia = mp->GetInverseInertiaDiagonal();
+    if (mp->GetInverseMass() <= 0.0f || inv_inertia.ReduceMin() <= 0.0f)
+      return;
+    // Where the load is, from the centre of mass in the body's axes, kept a
+    // little inside the body: a contact on a board's very edge (a capsule
+    // over a gap) can lie outside it.
+    const JPH::Vec3 com = body.GetShape()->GetCenterOfMass();
+    const JPH::AABox box = body.GetShape()->GetLocalBounds();
+    const JPH::Vec3 inset = JPH::Vec3::sMin(box.GetExtent() * 0.5f, JPH::Vec3::sReplicate(0.01f));
+    const JPH::Vec3 r =
+        JPH::Vec3::sClamp(JPH::Vec3(body.GetInverseCenterOfMassTransform() * at) + com,
+                          box.mMin + inset, box.mMax - inset) - com;
+    bool seen = false;
+    for (const physics3d_world::ridden &q : w.ridden_bodies)
+      seen = seen || q.id == id;
+    if (!seen)
+      w.ridden_bodies.push_back({id, mp->GetInverseMass(), inv_inertia, mp->GetInertiaRotation()});
+    // The load as a point mass at r: m r.r E - m r r^T on the inertia.
+    const f32 rr = r.Dot(r);
+    const JPH::Mat44 point(JPH::Vec4(rr - r.GetX() * r.GetX(), -r.GetY() * r.GetX(), -r.GetZ() * r.GetX(), 0.0f),
+                           JPH::Vec4(-r.GetX() * r.GetY(), rr - r.GetY() * r.GetY(), -r.GetZ() * r.GetY(), 0.0f),
+                           JPH::Vec4(-r.GetX() * r.GetZ(), -r.GetY() * r.GetZ(), rr - r.GetZ() * r.GetZ(), 0.0f),
+                           JPH::Vec4(0.0f, 0.0f, 0.0f, 0.0f));
+    JPH::MassProperties carried;
+    carried.mMass = 1.0f / mp->GetInverseMass() + mass;
+    carried.mInertia = mp->GetLocalSpaceInverseInertia().Inversed3x3() + point * mass;
+    mp->SetMassProperties(mp->GetAllowedDOFs(), carried);
+    body.AddTorque((body.GetRotation() * r).Cross(gravity * mass));
+  }
+  w.system.GetBodyInterface().ActivateBody(id);
+}
+
 } // namespace
 
 physics3d_state::physics3d_state() = default;
@@ -746,16 +801,9 @@ void physics3d_step(context &ctx, f32 dt) {
     settings.mWalkStairsStepUp = JPH::Vec3(0.0f, c.step_height, 0.0f);
     c.character->ExtendedUpdate(dt, gravity, settings, w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
                                 w->system.GetDefaultLayerFilter(layers::moving), {}, {}, w->temp);
-    // Its weight on what it stands on. For the solve, a dynamic body it stands
-    // on carries it: as heavy as body and rider together, with the rider's
-    // inertia where it stands and the turn its weight gives there about the
-    // body's centre (gravity already pulls the added mass down). The solver
-    // then holds a 70 kg person on a 3 kg board as the one heavy thing they
-    // are: a board on the floor stays put, a seesaw tips, a board leant on a
-    // wall slips out from under them. Its whole weight as a force on the
-    // light board alone kicked it more each step than the contacts could
-    // take back, and the board shook. Shared among every point it stands on:
-    // one foot on each of two boards presses both.
+    // Its weight on what it stands on: a dynamic body there carries it for the
+    // solve (carry_load()), shared among every point it stands on: one foot on
+    // each of two boards presses both.
     if (c.mass > 0.0f && c.character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround) {
       const JPH::CharacterVirtual *ch = c.character.GetPtr();
       i32 count = 0;
@@ -769,46 +817,15 @@ void physics3d_step(context &ctx, f32 dt) {
           if (!k.mHadCollision || k.mWasDiscarded || k.mIsSensorB || k.mBodyB.IsInvalid() ||
               !character_listener::supports(ch, k) || k.mMotionTypeB != JPH::EMotionType::Dynamic)
             continue;
-          {
-            JPH::BodyLockWrite lock(w->system.GetBodyLockInterface(), k.mBodyB);
-            if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
-              continue;
-            JPH::Body &body = lock.GetBody();
-            JPH::MotionProperties *mp = body.GetMotionProperties();
-            const JPH::Vec3 inv_inertia = mp->GetInverseInertiaDiagonal();
-            if (mp->GetInverseMass() <= 0.0f || inv_inertia.ReduceMin() <= 0.0f)
-              continue;
-            // Where it stands, from the centre of mass in the body's axes, kept a
-            // little inside the body: a contact on a board's very edge (the
-            // capsule over a gap) can lie outside it.
-            const JPH::Vec3 com = body.GetShape()->GetCenterOfMass();
-            const JPH::AABox box = body.GetShape()->GetLocalBounds();
-            const JPH::Vec3 inset = JPH::Vec3::sMin(box.GetExtent() * 0.5f, JPH::Vec3::sReplicate(0.01f));
-            const JPH::Vec3 r =
-                JPH::Vec3::sClamp(JPH::Vec3(body.GetInverseCenterOfMassTransform() * k.mPosition) + com,
-                                  box.mMin + inset, box.mMax - inset) - com;
-            bool seen = false;
-            for (const physics3d_world::ridden &q : w->ridden_bodies)
-              seen = seen || q.id == k.mBodyB;
-            if (!seen)
-              w->ridden_bodies.push_back({k.mBodyB, mp->GetInverseMass(), inv_inertia, mp->GetInertiaRotation()});
-            // The rider as a point mass at r: m r.r E - m r r^T on the inertia.
-            const f32 rr = r.Dot(r);
-            const JPH::Mat44 point(JPH::Vec4(rr - r.GetX() * r.GetX(), -r.GetY() * r.GetX(), -r.GetZ() * r.GetX(), 0.0f),
-                                   JPH::Vec4(-r.GetX() * r.GetY(), rr - r.GetY() * r.GetY(), -r.GetZ() * r.GetY(), 0.0f),
-                                   JPH::Vec4(-r.GetX() * r.GetZ(), -r.GetY() * r.GetZ(), rr - r.GetZ() * r.GetZ(), 0.0f),
-                                   JPH::Vec4(0.0f, 0.0f, 0.0f, 0.0f));
-            JPH::MassProperties carried;
-            carried.mMass = 1.0f / mp->GetInverseMass() + share;
-            carried.mInertia = mp->GetLocalSpaceInverseInertia().Inversed3x3() + point * share;
-            mp->SetMassProperties(mp->GetAllowedDOFs(), carried);
-            body.AddTorque((body.GetRotation() * r).Cross(gravity * share));
-          }
-          bi.ActivateBody(k.mBodyB);
+          carry_load(*w, k.mBodyB, share, k.mPosition, gravity);
         }
       }
     }
   }
+  // Loads the game hung on bodies for this step (body3d_carry()).
+  for (const physics3d_world::load &l : w->loads)
+    carry_load(*w, l.id, l.mass, l.at, gravity);
+  w->loads.clear();
   // Pushers parted where the step left them overlapping (character3d_desc::push).
   w->crowd.part(2);
   w->system.Update(dt, 1, &w->temp, &w->jobs);
@@ -973,6 +990,12 @@ void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr)
     ctx.physics3d.world->system.GetBodyInterface().AddImpulse(b->id, jv(impulse));
+}
+
+void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point) {
+  body_slot *b = body_of(ctx, handle);
+  if (b != nullptr && mass > 0.0f)
+    ctx.physics3d.world->loads.push_back({b->id, mass, jv(point)});
 }
 
 u64 body3d_user(const context &ctx, body3d_handle handle) {
