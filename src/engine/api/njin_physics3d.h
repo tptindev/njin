@@ -116,7 +116,8 @@ struct character3d_desc {
   f32 max_slope = 50.0f;           ///< Dốc nhất còn đứng được, độ.
   f32 step_height = 0.3f;          ///< Bậc cao nhất tự bước lên được.
   /// Khối lượng, kg: sức nặng đè lên body động mà nhân vật đứng lên (bập bênh
-  /// nghiêng, ván nằm trên sàn vẫn yên), và khi đẩy body động.
+  /// nghiêng, ván nằm trên sàn vẫn yên, ván dựng vào tường trượt ra), chia đều
+  /// cho mọi điểm đỡ, cả sức nặng dù body nhẹ đến đâu.
   f32 mass = 70.0f;
   /// Hai nhân vật cùng bật `push` không chặn cứng nhau: sau mỗi bước, cặp nào
   /// chồng lên nhau theo phương ngang được tách ra bằng vector tịnh tiến nhỏ
@@ -247,6 +248,56 @@ vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 siz
 /// và pháp tuyến của mặt bị chạm.
 ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
                              body3d_handle ignore = {}, body3d_handle *body = nullptr);
+
+/// Dựng một khối lồi từ các điểm (khối nhỏ nhất bọc hết chúng), để dò va chạm
+/// bằng đúng hình của một bộ phận: bàn chân, bàn tay lấy từ model_bone_points().
+/// Khối không phải là body: nó không va chạm, chỉ dùng cho physics3d_hull_push()
+/// và physics3d_hull_cast(). Dựng một lần, dùng mỗi khung ở vị trí và góc khác nhau.
+///
+/// @code
+/// std::vector<njin::vec3> pts(njin::model_bone_points(ctx, man, foot_l, false, nullptr, 0));
+/// njin::model_bone_points(ctx, man, foot_l, false, pts.data(), (njin::i32)pts.size());
+/// const njin::hull3d_handle sole = njin::physics3d_hull_create(ctx, pts.data(), (njin::i32)pts.size());
+/// @endcode
+/// @param ctx Context của engine.
+/// @param points Các điểm, trong hệ trục riêng của khối.
+/// @param count Số điểm (ít nhất 4, không cùng nằm trên một mặt phẳng).
+/// @return Handle, hoặc không hợp lệ nếu các điểm không dựng được khối.
+hull3d_handle physics3d_hull_create(context &ctx, const vec3 *points, i32 count);
+
+/// Hủy khối. Handle không hợp lệ bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param hull Khối.
+void physics3d_hull_destroy(context &ctx, hull3d_handle hull);
+
+/// Như physics3d_box_push() cho một khối lồi đặt ở `position`, xoay `rotation`.
+/// @param ctx Context của engine.
+/// @param hull Khối.
+/// @param position Gốc hệ trục riêng của khối, thế giới.
+/// @param rotation Góc xoay, độ, cùng thứ tự với njin::transform3d.
+/// @param ignore Body không tính. Không hợp lệ là tính hết.
+/// @return Vector đẩy, `{0, 0, 0}` nếu không lấn vào gì hay handle không hợp lệ.
+vec3 physics3d_hull_push(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, body3d_handle ignore = {});
+
+/// Như physics3d_box_cast() cho một khối lồi.
+/// @param ctx Context của engine.
+/// @param hull Khối.
+/// @param position Gốc hệ trục riêng của khối lúc bắt đầu, thế giới.
+/// @param rotation Góc xoay, độ, cùng thứ tự với njin::transform3d.
+/// @param motion Hướng và quãng đường đẩy.
+/// @param ignore Body không tính. Không hợp lệ là tính hết.
+/// @param body Nếu khác nullptr, nhận body bị chạm.
+/// @return Như physics3d_box_cast(); không chạm gì nếu handle không hợp lệ.
+ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
+                              body3d_handle ignore = {}, body3d_handle *body = nullptr);
+
+/// Các cạnh của khối, từng cặp điểm trong hệ trục riêng của nó, để vẽ debug.
+/// @param ctx Context của engine.
+/// @param hull Khối.
+/// @param out Mảng nhận điểm (cạnh thứ i là `out[2i]`, `out[2i + 1]`), hoặc nullptr để chỉ đếm.
+/// @param count Số phần tử của `out`.
+/// @return Số điểm có (gấp đôi số cạnh).
+i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 count);
 
 /// Bắn một tia vào các body (không trúng nhân vật, đi xuyên sensor): đạn, tầm nhìn,
 /// chọn vật bằng chuột.

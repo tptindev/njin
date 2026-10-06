@@ -11,9 +11,18 @@ To release: edit that header, add a section here, commit, then
 ### Fixed
 
 - A character standing on a light dynamic body (a board lying on the floor)
-  no longer makes it shake. Its weight was put on the body as an impulse
-  straight into the body's velocity outside the solver; it is now a force
-  the solver takes in with the body's other contacts.
+  no longer makes it shake, and its whole weight now counts. It was put on
+  the body as an impulse straight into the body's velocity outside the
+  solver. Now, for each step's solve, the body carries the character: it
+  is as heavy as both together, with the character's inertia where it
+  stands and the turn its weight gives there, shared among every point the
+  character stands on. A board on the floor stays put, standing across two
+  boards keeps both still, a seesaw tips, and a board leant on a wall slips
+  out from under a character (with a light board it used to hold, as the
+  weight was only a few times the board's own).
+- A character no longer shoves aside what it stands on: resting across two
+  boards' edges it wedged them apart every step and was thrown up and down.
+  What it walks into is still pushed.
 
 ### Added
 
@@ -37,6 +46,10 @@ To release: edit that header, add a section here, commit, then
   boards instead of passing through them.
 - `physics3d_box_cast()`: moves a box and reports the first thing it meets,
   to drop a foot onto uneven ground and find where it rests.
+- Convex hulls for collision queries: `physics3d_hull_create()` from points
+  (`model_bone_points()` gives a bone's skin), `physics3d_hull_push()` and
+  `physics3d_hull_cast()` like the box ones, `physics3d_hull_lines()` for
+  debug drawing; to fit a foot's or a hand's collider to its true shape.
 - `model_bone_bounds()`: the box around the skin a bone moves (optionally
   with the bones below it), in the rest pose along the model's axes from the
   bone's origin, to fit colliders to a model's real shape.

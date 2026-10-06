@@ -182,6 +182,13 @@ struct ragdoll3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một khối lồi dùng để dò va chạm, tạo bởi physics3d_hull_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct hull3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một atlas, tạo bởi atlas_create().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.

@@ -497,6 +497,27 @@ public:
 };
 } // namespace
 
+// What a character stands on is not pushed aside by it: a capsule resting on
+// two boards' edges would otherwise shove them apart every step (wedged in the
+// gap), and the character would drop and be thrown up as they moved. What it
+// walks into is still pushed, as before.
+class character_listener final : public JPH::CharacterContactListener {
+public:
+  static bool supports(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k) {
+    return k.mSurfaceNormal.Dot(c->GetUp()) > 0.0f && !c->IsSlopeTooSteep(k.mSurfaceNormal);
+  }
+  void OnContactAdded(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k,
+                      JPH::CharacterContactSettings &io) override {
+    if (supports(c, k))
+      io.mCanReceiveImpulses = false;
+  }
+  void OnContactPersisted(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k,
+                          JPH::CharacterContactSettings &io) override {
+    if (supports(c, k))
+      io.mCanReceiveImpulses = false;
+  }
+};
+
 struct physics3d_world {
   broad_phase_layers broad_phase;
   object_vs_broad_phase object_vs_broad;
@@ -505,10 +526,12 @@ struct physics3d_world {
   JPH::JobSystemSingleThreaded jobs{JPH::cMaxPhysicsJobs};
   JPH::PhysicsSystem system;
   contact_listener listener;
+  character_listener characters_listener;
   std::vector<body_slot> bodies;         // handle id N is bodies[N - 1]
   std::vector<character_slot> characters; // handle id N is characters[N - 1]
   std::vector<joint_slot> joints;         // handle id N is joints[N - 1]
   std::vector<ragdoll_slot> ragdolls;     // handle id N is ragdolls[N - 1]
+  std::vector<JPH::RefConst<JPH::Shape>> hulls; // handle id N is hulls[N - 1], null once destroyed
   std::unordered_map<u32, u32> handle_by_body; // Jolt body id -> njin handle id
   std::unordered_map<u64, pair_state> touching; // pair_key -> the pair
   std::vector<contact3d> contacts; // events of the last step
@@ -516,6 +539,15 @@ struct physics3d_world {
   // Static bodies added since the broad phase was last rebuilt: a town's
   // worth added one by one leaves it slow to query until it is.
   u32 static_added = 0;
+  // Dynamic bodies a character stands on this step, with their own mass and
+  // inertia, put back after the solve (physics3d_step).
+  struct ridden {
+    JPH::BodyID id;
+    f32 inv_mass;
+    JPH::Vec3 inv_inertia;
+    JPH::Quat inertia_rotation;
+  };
+  std::vector<ridden> ridden_bodies;
 
   physics3d_world() {
     system.Init(16384, 0, 16384, 8192, broad_phase, object_vs_broad, pairs);
@@ -714,18 +746,82 @@ void physics3d_step(context &ctx, f32 dt) {
     settings.mWalkStairsStepUp = JPH::Vec3(0.0f, c.step_height, 0.0f);
     c.character->ExtendedUpdate(dt, gravity, settings, w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
                                 w->system.GetDefaultLayerFilter(layers::moving), {}, {}, w->temp);
-    // Its weight on what it stands on, as a force the solver takes in with the
-    // body's other contacts (a board on the floor stays put, a seesaw tips).
-    const JPH::BodyID ground = c.character->GetGroundBodyID();
-    const f32 g = gravity.Length();
-    const f32 along = c.character->GetGroundNormal().Dot(gravity);
-    if (!ground.IsInvalid() && c.mass > 0.0f && g > 1e-6f && along < 0.0f &&
-        c.character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround)
-      bi.AddForce(ground, -(c.mass * along / g) * gravity, c.character->GetGroundPosition());
+    // Its weight on what it stands on. For the solve, a dynamic body it stands
+    // on carries it: as heavy as body and rider together, with the rider's
+    // inertia where it stands and the turn its weight gives there about the
+    // body's centre (gravity already pulls the added mass down). The solver
+    // then holds a 70 kg person on a 3 kg board as the one heavy thing they
+    // are: a board on the floor stays put, a seesaw tips, a board leant on a
+    // wall slips out from under them. Its whole weight as a force on the
+    // light board alone kicked it more each step than the contacts could
+    // take back, and the board shook. Shared among every point it stands on:
+    // one foot on each of two boards presses both.
+    if (c.mass > 0.0f && c.character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround) {
+      const JPH::CharacterVirtual *ch = c.character.GetPtr();
+      i32 count = 0;
+      for (const JPH::CharacterContact &k : ch->GetActiveContacts())
+        if (k.mHadCollision && !k.mWasDiscarded && !k.mIsSensorB && !k.mBodyB.IsInvalid() &&
+            character_listener::supports(ch, k))
+          count++;
+      if (count > 0) {
+        const f32 share = c.mass / (f32)count;
+        for (const JPH::CharacterContact &k : ch->GetActiveContacts()) {
+          if (!k.mHadCollision || k.mWasDiscarded || k.mIsSensorB || k.mBodyB.IsInvalid() ||
+              !character_listener::supports(ch, k) || k.mMotionTypeB != JPH::EMotionType::Dynamic)
+            continue;
+          {
+            JPH::BodyLockWrite lock(w->system.GetBodyLockInterface(), k.mBodyB);
+            if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
+              continue;
+            JPH::Body &body = lock.GetBody();
+            JPH::MotionProperties *mp = body.GetMotionProperties();
+            const JPH::Vec3 inv_inertia = mp->GetInverseInertiaDiagonal();
+            if (mp->GetInverseMass() <= 0.0f || inv_inertia.ReduceMin() <= 0.0f)
+              continue;
+            // Where it stands, from the centre of mass in the body's axes, kept a
+            // little inside the body: a contact on a board's very edge (the
+            // capsule over a gap) can lie outside it.
+            const JPH::Vec3 com = body.GetShape()->GetCenterOfMass();
+            const JPH::AABox box = body.GetShape()->GetLocalBounds();
+            const JPH::Vec3 inset = JPH::Vec3::sMin(box.GetExtent() * 0.5f, JPH::Vec3::sReplicate(0.01f));
+            const JPH::Vec3 r =
+                JPH::Vec3::sClamp(JPH::Vec3(body.GetInverseCenterOfMassTransform() * k.mPosition) + com,
+                                  box.mMin + inset, box.mMax - inset) - com;
+            bool seen = false;
+            for (const physics3d_world::ridden &q : w->ridden_bodies)
+              seen = seen || q.id == k.mBodyB;
+            if (!seen)
+              w->ridden_bodies.push_back({k.mBodyB, mp->GetInverseMass(), inv_inertia, mp->GetInertiaRotation()});
+            // The rider as a point mass at r: m r.r E - m r r^T on the inertia.
+            const f32 rr = r.Dot(r);
+            const JPH::Mat44 point(JPH::Vec4(rr - r.GetX() * r.GetX(), -r.GetY() * r.GetX(), -r.GetZ() * r.GetX(), 0.0f),
+                                   JPH::Vec4(-r.GetX() * r.GetY(), rr - r.GetY() * r.GetY(), -r.GetZ() * r.GetY(), 0.0f),
+                                   JPH::Vec4(-r.GetX() * r.GetZ(), -r.GetY() * r.GetZ(), rr - r.GetZ() * r.GetZ(), 0.0f),
+                                   JPH::Vec4(0.0f, 0.0f, 0.0f, 0.0f));
+            JPH::MassProperties carried;
+            carried.mMass = 1.0f / mp->GetInverseMass() + share;
+            carried.mInertia = mp->GetLocalSpaceInverseInertia().Inversed3x3() + point * share;
+            mp->SetMassProperties(mp->GetAllowedDOFs(), carried);
+            body.AddTorque((body.GetRotation() * r).Cross(gravity * share));
+          }
+          bi.ActivateBody(k.mBodyB);
+        }
+      }
+    }
   }
   // Pushers parted where the step left them overlapping (character3d_desc::push).
   w->crowd.part(2);
   w->system.Update(dt, 1, &w->temp, &w->jobs);
+  // Bodies ridden this step go back to their own mass and inertia.
+  for (const physics3d_world::ridden &q : w->ridden_bodies) {
+    JPH::BodyLockWrite lock(w->system.GetBodyLockInterface(), q.id);
+    if (lock.Succeeded() && lock.GetBody().IsDynamic()) {
+      JPH::MotionProperties *mp = lock.GetBody().GetMotionProperties();
+      mp->SetInverseMass(q.inv_mass);
+      mp->SetInverseInertia(q.inv_inertia, q.inertia_rotation);
+    }
+  }
+  w->ridden_bodies.clear();
   for (usize i = 0; i < w->characters.size(); i++)
     if (w->characters[i].alive && w->characters[i].active)
       character_contacts(*w, w->characters[i], (u32)(i + 1));
@@ -909,6 +1005,7 @@ character3d_handle character3d_create(context &ctx, const character3d_desc &desc
   slot.step_height = desc.step_height;
   slot.mass = std::max(desc.mass, 0.0f);
   slot.character->SetCharacterVsCharacterCollision(&w.crowd);
+  slot.character->SetListener(&w.characters_listener);
   w.crowd.add(slot.character.GetPtr());
   if (desc.push)
     w.crowd.pushers[slot.character.GetPtr()] = {r, std::max(desc.mass, 1.0f)};
@@ -1053,22 +1150,20 @@ vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 siz
   return push_out(ctx, made.Get().GetPtr(), quat_of(rotation), center, ignore);
 }
 
-ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
-                             body3d_handle ignore, body3d_handle *body) {
+namespace {
+// The first thing `shape` (at `centre`, turned by `turn`) meets moving along
+// `motion`; what it already overlaps at the start is not in its way.
+ray3d_hit cast_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg turn, vec3 centre, vec3 motion,
+                   body3d_handle ignore, body3d_handle *body) {
   if (body != nullptr)
     *body = body3d_handle{};
   physics3d_world *w = ctx.physics3d.world.get();
   const f32 reach = length(motion);
   if (w == nullptr || reach < 1e-6f)
     return ray3d_hit{};
-  const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
-  JPH::ShapeSettings::ShapeResult made =
-      JPH::BoxShapeSettings(half, std::min(JPH::cDefaultConvexRadius, half.ReduceMin() * 0.5f)).Create();
-  if (made.HasError())
-    return ray3d_hit{};
   const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
-      made.Get().GetPtr(), JPH::Vec3::sOne(),
-      JPH::RMat44::sRotationTranslation(quat_of(rotation), JPH::RVec3(center.x, center.y, center.z)), jv(motion));
+      shape, JPH::Vec3::sOne(), JPH::RMat44::sRotationTranslation(turn, JPH::RVec3(centre.x, centre.y, centre.z)),
+      jv(motion));
   JPH::ShapeCastSettings settings;
   settings.mReturnDeepestPoint = false;
   not_sensor_or filter;
@@ -1078,8 +1173,6 @@ ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec
   w->system.GetNarrowPhaseQuery().CastShape(cast, settings, JPH::RVec3::sZero(), hits,
                                             w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
                                             w->system.GetDefaultLayerFilter(layers::moving), filter);
-  // The first thing met on the way; what the box already overlaps at the
-  // start (fraction 0) is not in its way.
   const JPH::ShapeCastResult *first = nullptr;
   for (const JPH::ShapeCastResult &hit : hits.mHits)
     if (hit.mFraction > 1e-5f && (first == nullptr || hit.mFraction < first->mFraction))
@@ -1093,6 +1186,96 @@ ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec
                    .distance = first->mFraction * reach,
                    .point = world_vec(first->mContactPointOn2),
                    .normal = axis.LengthSq() > 1e-12f ? nv(-axis.Normalized()) : normalize(motion * -1.0f)};
+}
+
+const JPH::Shape *hull_of(const context &ctx, hull3d_handle h) {
+  const physics3d_world *w = ctx.physics3d.world.get();
+  if (w == nullptr || h.id == 0 || h.id > w->hulls.size())
+    return nullptr;
+  return w->hulls[h.id - 1].GetPtr();
+}
+} // namespace
+
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore, body3d_handle *body) {
+  if (body != nullptr)
+    *body = body3d_handle{};
+  if (ctx.physics3d.world == nullptr || length(motion) < 1e-6f)
+    return ray3d_hit{};
+  const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
+  JPH::ShapeSettings::ShapeResult made =
+      JPH::BoxShapeSettings(half, std::min(JPH::cDefaultConvexRadius, half.ReduceMin() * 0.5f)).Create();
+  if (made.HasError())
+    return ray3d_hit{};
+  return cast_out(ctx, made.Get().GetPtr(), quat_of(rotation), center, motion, ignore, body);
+}
+
+hull3d_handle physics3d_hull_create(context &ctx, const vec3 *points, i32 count) {
+  physics3d_world &w = world_of(ctx);
+  if (points == nullptr || count < 4) {
+    NJIN_WARN("physics3d: physics3d_hull_create needs at least 4 points");
+    return hull3d_handle{};
+  }
+  JPH::Array<JPH::Vec3> pts;
+  pts.reserve((usize)count);
+  for (i32 i = 0; i < count; i++)
+    pts.push_back(jv(points[i]));
+  // A thin rounding keeps casts and pushes steady on sharp corners.
+  JPH::ShapeSettings::ShapeResult made = JPH::ConvexHullShapeSettings(pts, 0.005f).Create();
+  if (made.HasError()) {
+    NJIN_WARN("physics3d: physics3d_hull_create: %s", made.GetError().c_str());
+    return hull3d_handle{};
+  }
+  w.hulls.push_back(made.Get());
+  return hull3d_handle{(u32)w.hulls.size()};
+}
+
+void physics3d_hull_destroy(context &ctx, hull3d_handle hull) {
+  physics3d_world *w = ctx.physics3d.world.get();
+  if (w != nullptr && hull.id > 0 && hull.id <= w->hulls.size())
+    w->hulls[hull.id - 1] = nullptr;
+}
+
+vec3 physics3d_hull_push(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, body3d_handle ignore) {
+  const JPH::Shape *shape = hull_of(ctx, hull);
+  if (shape == nullptr)
+    return {};
+  // Jolt keeps a shape about its centre of mass: place that, not the origin.
+  const JPH::Quat turn = quat_of(rotation);
+  return push_out(ctx, shape, turn, position + nv(turn * shape->GetCenterOfMass()), ignore);
+}
+
+ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
+                              body3d_handle ignore, body3d_handle *body) {
+  const JPH::Shape *shape = hull_of(ctx, hull);
+  if (shape == nullptr) {
+    if (body != nullptr)
+      *body = body3d_handle{};
+    return ray3d_hit{};
+  }
+  // A cast takes the shape's own transform (it adds the centre of mass itself).
+  return cast_out(ctx, shape, quat_of(rotation), position, motion, ignore, body);
+}
+
+i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 count) {
+  const auto *shape = static_cast<const JPH::ConvexHullShape *>(hull_of(ctx, hull));
+  if (shape == nullptr)
+    return 0;
+  const JPH::Vec3 com = shape->GetCenterOfMass();
+  i32 n = 0;
+  JPH::uint idx[256];
+  for (JPH::uint f = 0; f < shape->GetNumFaces(); f++) {
+    const JPH::uint k = std::min<JPH::uint>(shape->GetNumVerticesInFace(f), 256u);
+    shape->GetFaceVertices(f, k, idx);
+    for (JPH::uint e = 0; e < k; e++) {
+      for (JPH::uint end : {idx[e], idx[(e + 1) % k]}) {
+        if (out != nullptr && n < count)
+          out[n] = nv(shape->GetPoint(end) + com);
+        n++;
+      }
+    }
+  }
+  return n;
 }
 
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body) {

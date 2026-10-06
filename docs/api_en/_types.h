@@ -182,6 +182,13 @@ struct ragdoll3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a convex hull for collision queries, created by physics3d_hull_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct hull3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of an atlas, created by atlas_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

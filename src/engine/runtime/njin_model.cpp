@@ -5,6 +5,7 @@
 #include <raymath.h>
 #include <rlgl.h>
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <unordered_set>
@@ -29,6 +30,64 @@ bool model_loaded(const Model &model) {
       return false;
   }
   return true;
+}
+
+// A glTF's metallic-roughness and occlusion maps are never drawn (render3d.cpp
+// gives those slots to the under layer), yet raylib's loader splits a
+// metallic-roughness map pixel by pixel through GetImageColor: about two
+// seconds for a 4096 x 4096 atlas. LoadModel() reads the file through this
+// instead, which renames those keys in the JSON to ones glTF does not know,
+// of the same length, so nothing in the file moves and cgltf skips them.
+struct hidden_key {
+  const char *key, *as;
+};
+constexpr hidden_key hidden_maps[] = {{"\"metallicRoughnessTexture\"", "\"metallicRoughnessUnused_\""},
+                                      {"\"occlusionTexture\"", "\"occlusionUnused_\""}};
+static_assert(sizeof("\"metallicRoughnessTexture\"") == sizeof("\"metallicRoughnessUnused_\""));
+static_assert(sizeof("\"occlusionTexture\"") == sizeof("\"occlusionUnused_\""));
+
+unsigned char *load_gltf_without_unused_maps(const char *file_name, int *data_size) {
+  *data_size = 0;
+  FILE *f = std::fopen(file_name, "rb");
+  if (f == nullptr)
+    return nullptr;
+  std::fseek(f, 0, SEEK_END);
+  const long n = std::ftell(f);
+  std::fseek(f, 0, SEEK_SET);
+  if (n <= 0) {
+    std::fclose(f);
+    return nullptr;
+  }
+  auto *data = static_cast<unsigned char *>(MemAlloc(static_cast<u32>(n)));
+  const size_t got = std::fread(data, 1, static_cast<size_t>(n), f);
+  std::fclose(f);
+  *data_size = static_cast<int>(got);
+  // cgltf reads a .gltf's buffers and images through here too: left as they are.
+  const char *ext = GetFileExtension(file_name);
+  if (ext == nullptr || (!TextIsEqual(TextToLower(ext), ".glb") && !TextIsEqual(TextToLower(ext), ".gltf")))
+    return data;
+  // The JSON: all of a .gltf, a .glb's first chunk.
+  size_t from = 0, to = got;
+  if (got >= 20 && std::memcmp(data, "glTF", 4) == 0) {
+    u32 json_len = 0;
+    std::memcpy(&json_len, data + 12, 4);
+    from = 20;
+    to = std::min(got, from + json_len);
+  }
+  char *json = reinterpret_cast<char *>(data);
+  for (const hidden_key &h : hidden_maps) {
+    const size_t len = std::strlen(h.key);
+    for (size_t i = from; i + len <= to; i++) {
+      if (std::memcmp(json + i, h.key, len) != 0)
+        continue;
+      size_t j = i + len;
+      while (j < to && (json[j] == ' ' || json[j] == '\t' || json[j] == '\n' || json[j] == '\r'))
+        j++;
+      if (j < to && json[j] == ':')
+        std::memcpy(json + i, h.as, len);
+    }
+  }
+  return data;
 }
 
 // raylib's glTF animation loader reads the parent of the skeleton's first
@@ -307,7 +366,9 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
     NJIN_WARN("model: file not found: %s", path);
     return model_handle{};
   }
+  SetLoadFileDataCallback(load_gltf_without_unused_maps);
   Model model = LoadModel(resolved.c_str());
+  SetLoadFileDataCallback(nullptr);
   if (!model_loaded(model)) {
     NJIN_WARN("model: failed to load: %s", path);
     return model_handle{};
@@ -543,7 +604,7 @@ model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d
     m.triangleCount = (i32)((to - from) / 3);
     m.vertices = (f32 *)MemAlloc((u32)(room * 3 * sizeof(f32)));
     m.normals = (f32 *)MemAlloc((u32)(room * 3 * sizeof(f32)));
-    m.texcoords = (f32 *)MemAlloc((u32)(room * 2 * sizeof(f32))); // zeros: the shader samples a white texture
+    m.texcoords = (f32 *)MemAlloc((u32)(room * 2 * sizeof(f32))); // zeros unless given: a white texture's one texel
     m.colors = (u8 *)MemAlloc((u32)(room * 4));
     m.boneIndices = (u8 *)MemAlloc((u32)(room * 4));
     m.boneWeights = (f32 *)MemAlloc((u32)(room * 4 * sizeof(f32)));
@@ -555,6 +616,10 @@ model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d
       m.vertices[j * 3 + 2] = mesh.positions[v].z;
       for (usize c = 0; c < 3; c++)
         m.normals[j * 3 + c] = normals[v * 3 + c];
+      if (mesh.texcoords != nullptr) {
+        m.texcoords[j * 2] = mesh.texcoords[v].x;
+        m.texcoords[j * 2 + 1] = mesh.texcoords[v].y;
+      }
       for (usize c = 0; c < 4; c++) {
         m.colors[j * 4 + c] = 255;
         m.boneIndices[j * 4 + c] = mesh.joints[v * 4 + c];

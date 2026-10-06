@@ -450,6 +450,10 @@ struct skinned_mesh3d_data {
   const vec3 *positions = nullptr; ///< Positions of the `vertex_count` vertices, in the rest pose of `skeleton`.
   /// Per-vertex normals (length 1). nullptr makes the engine compute them as model_create() does.
   const vec3 *normals = nullptr;
+  /// Per-vertex texture coordinates (UV), for the material's images
+  /// (model_material_set()): a character with its own texture still shares the
+  /// clip library. nullptr is (0, 0) on every vertex, colour only.
+  const vec2 *texcoords = nullptr;
   u32 vertex_count = 0; ///< Number of vertices.
   /// Four bones per vertex: bone indices of `skeleton` (model_bone_find()), so
   /// at most 255 bones.
@@ -781,6 +785,19 @@ i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 /// @return `false` (min and max untouched) if no skin vertex qualifies, the model
 /// has no skin, or the handle or `bone` is invalid.
 bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max);
+
+/// The vertices of that skin (as model_bone_bounds()), in the same axes: along the
+/// model's axes in the rest pose, from the bone's origin. To build a convex hull
+/// that fits the real shape (physics3d_hull_create()).
+/// @param ctx The engine context.
+/// @param handle A model with skin.
+/// @param bone 0..model_bone_count() - 1.
+/// @param children Counts the skin of every bone below `bone` too.
+/// @param out Array receiving the vertices, or nullptr to only count them.
+/// @param count Number of elements in `out`.
+/// @return How many vertices there are (may be more than `count`: only the first
+/// `count` are written).
+i32 model_bone_points(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *out, i32 count);
 
 /// A bone in a pose: its position and three axes in the model's space (before
 /// the draw's transform), as draw_model_anim() places it.

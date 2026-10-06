@@ -120,7 +120,9 @@ struct character3d_desc {
   f32 max_slope = 50.0f;           ///< Steepest slope it can still stand on, degrees.
   f32 step_height = 0.3f;          ///< Highest step it walks up on its own.
   /// Mass, kg: the weight on a dynamic body the character stands on (a seesaw
-  /// tips, a board lying on the floor stays still), and when pushing dynamic bodies.
+  /// tips, a board lying on the floor stays still, a board leant on a wall slips
+  /// out), shared among every point it stands on, the whole weight however
+  /// light the body.
   f32 mass = 70.0f;
   /// Two characters that both have `push` on do not block each other: after
   /// each step, a pair overlapping on the horizontal is moved apart by the
@@ -258,6 +260,57 @@ vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 siz
 /// where, and the normal of the surface met.
 ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
                              body3d_handle ignore = {}, body3d_handle *body = nullptr);
+
+/// Builds a convex hull from points (the smallest convex solid around them), to
+/// query collisions with the true shape of a part: a foot, a hand from
+/// model_bone_points(). The hull is not a body: it collides with nothing, it is only
+/// for physics3d_hull_push() and physics3d_hull_cast(). Build it once, use it every
+/// frame at a different place and turn.
+///
+/// @code
+/// std::vector<njin::vec3> pts(njin::model_bone_points(ctx, man, foot_l, false, nullptr, 0));
+/// njin::model_bone_points(ctx, man, foot_l, false, pts.data(), (njin::i32)pts.size());
+/// const njin::hull3d_handle sole = njin::physics3d_hull_create(ctx, pts.data(), (njin::i32)pts.size());
+/// @endcode
+/// @param ctx Engine context.
+/// @param points The points, in the hull's own axes.
+/// @param count Number of points (at least 4, not all on one plane).
+/// @return Handle, or invalid if the points make no solid.
+hull3d_handle physics3d_hull_create(context &ctx, const vec3 *points, i32 count);
+
+/// Destroys the hull. An invalid handle is ignored.
+/// @param ctx Engine context.
+/// @param hull The hull.
+void physics3d_hull_destroy(context &ctx, hull3d_handle hull);
+
+/// Like physics3d_box_push() for a convex hull placed at `position`, turned by `rotation`.
+/// @param ctx Engine context.
+/// @param hull The hull.
+/// @param position The origin of the hull's own axes, world space.
+/// @param rotation Rotation, degrees, in the same order as njin::transform3d.
+/// @param ignore A body not counted. Invalid counts them all.
+/// @return The push, `{0, 0, 0}` if it overlaps nothing or the handle is invalid.
+vec3 physics3d_hull_push(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, body3d_handle ignore = {});
+
+/// Like physics3d_box_cast() for a convex hull.
+/// @param ctx Engine context.
+/// @param hull The hull.
+/// @param position The origin of the hull's own axes at the start, world space.
+/// @param rotation Rotation, degrees, in the same order as njin::transform3d.
+/// @param motion Direction and distance to move it.
+/// @param ignore A body not counted. Invalid counts them all.
+/// @param body If not nullptr, receives the body met.
+/// @return As physics3d_box_cast(); no hit if the handle is invalid.
+ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
+                              body3d_handle ignore = {}, body3d_handle *body = nullptr);
+
+/// The hull's edges, as pairs of points in its own axes, for debug drawing.
+/// @param ctx Engine context.
+/// @param hull The hull.
+/// @param out Array receiving the points (edge i is `out[2i]`, `out[2i + 1]`), or nullptr to only count.
+/// @param count Number of elements in `out`.
+/// @return How many points there are (twice the number of edges).
+i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 count);
 
 /// Casts a ray against the bodies (characters are not hit, sensors are passed
 /// through): bullets, line of sight, mouse picking.

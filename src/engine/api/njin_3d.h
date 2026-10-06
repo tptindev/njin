@@ -415,6 +415,10 @@ struct skinned_mesh3d_data {
   const vec3 *positions = nullptr; ///< Vị trí `vertex_count` đỉnh, ở tư thế gốc của `skeleton`.
   /// Pháp tuyến từng đỉnh (độ dài 1). nullptr thì engine tự tính như model_create().
   const vec3 *normals = nullptr;
+  /// Toạ độ ảnh (UV) từng đỉnh, cho ảnh của vật liệu (model_material_set()):
+  /// nhân vật có texture riêng vẫn dùng chung thư viện clip. nullptr là (0, 0)
+  /// mọi đỉnh, tức chỉ có màu.
+  const vec2 *texcoords = nullptr;
   u32 vertex_count = 0; ///< Số đỉnh.
   /// Bốn xương mỗi đỉnh: chỉ số xương của `skeleton` (model_bone_find()), nên
   /// tối đa 255 xương.
@@ -736,6 +740,18 @@ i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 /// @return `false` (min, max giữ nguyên) nếu không có đỉnh da nào, model không
 /// có da hay handle, `bone` không hợp lệ.
 bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max);
+
+/// Các đỉnh của phần da đó (như model_bone_bounds()), cùng hệ trục: theo các
+/// trục của model ở tư thế gốc, tính từ gốc của xương. Để dựng một khối lồi ôm
+/// đúng hình (physics3d_hull_create()).
+/// @param ctx Context của engine.
+/// @param handle Model có da.
+/// @param bone 0..model_bone_count() - 1.
+/// @param children Tính cả da của mọi xương nằm dưới `bone`.
+/// @param out Mảng nhận các đỉnh, hoặc nullptr để chỉ đếm.
+/// @param count Số phần tử của `out`.
+/// @return Số đỉnh có (có thể lớn hơn `count`: chỉ `count` đỉnh đầu được ghi).
+i32 model_bone_points(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *out, i32 count);
 
 /// Một xương ở một tư thế: vị trí và ba trục của nó trong không gian của
 /// model (trước transform của lần vẽ), như draw_model_anim() đặt nó.
