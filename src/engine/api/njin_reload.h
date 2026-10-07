@@ -16,14 +16,16 @@ struct asset_reloaded {
   std::string path;    ///< Đường dẫn file đã đổi.
   bool shader = false; ///< `true` là shader, `false` là texture.
   bool ok = true;      ///< `false` nếu nạp lại thất bại (ví dụ shader lỗi biên dịch) và bản cũ được giữ.
+  bool script = false; ///< `true` là script Lua (njin_script.h); khi đó `shader` là `false`.
 };
 
-/// Bật hoặc tắt hot reload: sửa file ảnh hoặc shader khi game đang chạy, lưu
-/// lại, và game dùng ngay bản mới, không cần khởi động lại.
+/// Bật hoặc tắt hot reload: sửa file ảnh, shader hoặc script Lua khi game đang
+/// chạy, lưu lại, và game dùng ngay bản mới, không cần khởi động lại.
 ///
-/// Khi bật, engine kiểm tra thời gian sửa của mọi file texture và shader đã
-/// nạp, vài lần mỗi giây. File đổi được nạp lại **vào đúng handle cũ**, nên
-/// sprite, tilemap, shader post đang dùng nó đổi theo ngay. File vừa đổi được
+/// Khi bật, engine kiểm tra thời gian sửa của mọi file texture, shader và script
+/// đã nạp, vài lần mỗi giây. File đổi được nạp lại **vào đúng handle cũ**, nên
+/// sprite, tilemap, shader post đang dùng nó đổi theo ngay. Script gắn trên entity
+/// thì được thay hàm mà giữ nguyên dữ liệu của `self` (xem script_attach()). File vừa đổi được
 /// nạp lại ở lần kiểm tra sau, khi nó đã thôi đổi, để không đọc nhầm một file
 /// editor đang ghi dở.
 ///

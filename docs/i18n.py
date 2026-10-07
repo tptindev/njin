@@ -58,14 +58,27 @@ def rel(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
 
-def strip_code(text: str) -> str:
-    """Code without comments, string contents or layout, for comparing."""
+def strip_code(text: str, lua: bool = False) -> str:
+    """Code without comments, string contents or layout, for comparing.
+
+    Lua comments are -- and --[[ ]]; in Lua // is floor division, not a comment.
+    """
     out = []
     i, n = 0, len(text)
     while i < n:
         two = text[i : i + 2]
         c = text[i]
-        if two == "//":
+        if lua and two == "--":
+            if text.startswith("[[", i + 2):
+                j = text.find("]]", i + 4)
+                i = n if j < 0 else j + 2
+            else:
+                while i < n and text[i] != "\n":
+                    i += 1
+        elif lua and two in ("//", "/*"):
+            out.append(c)
+            i += 1
+        elif two == "//":
             while i < n and text[i] != "\n":
                 i += 1
         elif two == "/*":
@@ -117,7 +130,8 @@ def check() -> int:
                 continue
             if stamps.get(rel(vi)) != digest(vi):
                 problems.append(("stale", rel(en)))
-            if kind == "code" and strip_code(read(vi)) != strip_code(read(en)):
+            lua = name.endswith(".lua")
+            if kind == "code" and strip_code(read(vi), lua) != strip_code(read(en), lua):
                 problems.append(("code", rel(en)))
             if kind == "page" and page_ids(read(vi)) != page_ids(read(en)):
                 problems.append(("links", rel(en)))

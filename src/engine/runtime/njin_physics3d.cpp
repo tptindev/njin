@@ -1869,10 +1869,12 @@ ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distan
   const JPH::RVec3 p = cast.GetPointOnRay(result.mFraction);
   vec3 normal{};
   JPH::BodyLockRead lock(w->system.GetBodyLockInterface(), result.mBodyID);
-  if (lock.Succeeded())
+  if (lock.Succeeded()) {
     normal = nv(lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, p));
-  if (body != nullptr)
-    *body = handle_of(*w, result.mBodyID);
+    // From the locked body: handle_of() would lock it a second time.
+    if (body != nullptr)
+      *body = body3d_handle{(u32)lock.GetBody().GetUserData()};
+  }
   return ray3d_hit{.hit = true,
                    .distance = result.mFraction * max_distance,
                    .point = {(f32)p.GetX(), (f32)p.GetY(), (f32)p.GetZ()},

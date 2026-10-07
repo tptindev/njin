@@ -98,6 +98,9 @@
 /// @defgroup grp_post3d 3D screen effects
 /// SSAO, on-screen reflections, decals, motion blur, light shafts, lens flare.
 
+/// @defgroup grp_script Lua scripts
+/// Running Lua scripts, calling functions both ways between C++ and Lua, scripts attached to entities, hot reload.
+
 /// @defgroup grp_light 2D lighting
 /// Point lights, spot lights, directional lights, ambient light, shadows from occluders, normal maps, physically based lights.
 

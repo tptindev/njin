@@ -98,6 +98,9 @@
 /// @defgroup grp_post3d Hiệu ứng màn hình 3D
 /// SSAO, phản chiếu trên màn hình, decal, mờ chuyển động, tia nắng, lóa ống kính.
 
+/// @defgroup grp_script Script Lua
+/// Chạy script Lua, gọi hàm qua lại giữa C++ và Lua, script gắn trên entity, hot reload.
+
 /// @defgroup grp_light Ánh sáng 2D
 /// Đèn điểm, đèn nón, đèn hướng, ánh sáng nền, bóng đổ từ vật chắn, normal map, đèn theo vật lý.
 

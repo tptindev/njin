@@ -16,14 +16,16 @@ struct asset_reloaded {
   std::string path;    ///< Path of the file that changed.
   bool shader = false; ///< `true` for a shader, `false` for a texture.
   bool ok = true;      ///< `false` if the reload failed (for example a shader failed to compile) and the old version was kept.
+  bool script = false; ///< `true` for a Lua script (njin_script.h); `shader` is then `false`.
 };
 
-/// Turns hot reload on or off: edit an image or shader file while the game is running, save
-/// it, and the game uses the new version immediately, with no restart.
+/// Turns hot reload on or off: edit an image, shader or Lua script file while the game is
+/// running, save it, and the game uses the new version immediately, with no restart.
 ///
-/// When on, the engine checks the modification time of every loaded texture and shader
-/// file a few times per second. A changed file is reloaded **into the same old handle**, so
-/// sprites, tilemaps and post shaders using it change right away. A file that just changed is
+/// When on, the engine checks the modification time of every loaded texture, shader and
+/// script file a few times per second. A changed file is reloaded **into the same old handle**, so
+/// sprites, tilemaps and post shaders using it change right away. A script attached to entities
+/// gets its functions replaced while the data in `self` stays (see script_attach()). A file that just changed is
 /// reloaded on the next check, once it has stopped changing, so a file an editor
 /// is still half-writing is not read by mistake.
 ///

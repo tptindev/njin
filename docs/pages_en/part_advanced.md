@@ -29,6 +29,12 @@ To write your own shaders, first study the three shader lessons in @ref learn (l
 |---|---|
 | @subpage procgen | Generate maps with noise, rules, corner rounding and Wave Function Collapse |
 
+## Scripts
+
+| Page | What you get |
+|---|---|
+| @subpage scripting | Write game rules and entity behaviour in Lua, edit files while the game runs, call functions both ways between C++ and Lua |
+
 ## Tools
 
 | Page | What you get |

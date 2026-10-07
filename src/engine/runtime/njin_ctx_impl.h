@@ -34,6 +34,7 @@
 #include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
+#include "njin_script_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
 #include "njin_view.h"
@@ -83,6 +84,9 @@ struct context {
   // Paths requested by screenshot() this frame, taken at its end.
   std::vector<std::string> screenshots;
   rng random;
+  // Early, so the Lua state outlives every store whose timers and tweens may
+  // hold Lua callbacks.
+  script_state script;
   config cfg;
   window_guard window;
   view_state view;

@@ -2,6 +2,8 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
+#include "njin_path.h"
+#include "njin_script_impl.h"
 
 namespace njin {
 namespace {
@@ -70,6 +72,14 @@ i32 scan(context &ctx, bool immediate) {
     dispatcher.enqueue(asset_reloaded{name, true, ok});
     reloaded += ok ? 1 : 0;
   }
+  for (const std::string &path : script_watched_files(ctx)) {
+    if (check(state, asset_path(path.c_str()), immediate) != change::settled)
+      continue;
+    const bool ok = script_reload_file(ctx, path);
+    NJIN_INFO("hot reload: script %s%s", path.c_str(), ok ? "" : " (failed, old functions kept)");
+    dispatcher.enqueue(asset_reloaded{.path = path, .ok = ok, .script = true});
+    reloaded += ok ? 1 : 0;
+  }
   return reloaded;
 }
 
@@ -108,6 +118,8 @@ void hot_reload_enable(context &ctx, bool on, f32 interval) {
       if (!slot.fs_path.empty())
         check(state, slot.fs_path, false);
     }
+    for (const std::string &path : script_watched_files(ctx))
+      check(state, asset_path(path.c_str()), false);
   }
 }
 

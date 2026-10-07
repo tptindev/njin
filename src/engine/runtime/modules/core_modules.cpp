@@ -14,6 +14,7 @@
 #include "reload.h"
 #include "ui.h"
 #include "njin_ctx.h"
+#include "njin_script_impl.h"
 #include "njin_world3d_impl.h"
 #include "sprite.h"
 #include "timer.h"
@@ -31,11 +32,12 @@ namespace njin {
 // the view it settles on. Collision comes after sprite: its detection only
 // needs the hierarchy to have run, and its debug outlines then draw over the
 // sprites. Body moves characters in fixed_update, before any game module's
-// fixed systems.
+// fixed systems. Script comes last: entity scripts update after the timers
+// and draw over sprites, before any game module's systems.
 void register_core_modules(context &ctx) {
   mod_register(ctx, {reload_module(), debug_module(), ui_module(), dialog_module(), camera_module(),
                           audio_module(), hierarchy_module(), camera_follow_module(),
                           anim_module(), particles_module(), particles3d_module(), render3d_module(), world3d_module(), sprite_module(),
-                          collision_module(), body_module(), timer_module()});
+                          collision_module(), body_module(), timer_module(), script_module()});
 }
 } // namespace njin

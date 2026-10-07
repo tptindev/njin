@@ -83,7 +83,36 @@ FetchContent_Declare(
   GIT_TAG v1.3
   SYSTEM)
 
-FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer)
+# Lua 5.4 (MIT) and sol2 (MIT) for njin_script.h, private to njin_rt like Jolt.
+# Lua ships no CMake build, so the official release tarball is fetched
+# (checksum from lua.org) and compiled below as C++: a Lua error then unwinds
+# C++ frames with an exception instead of longjmp-ing over their destructors,
+# which is what sol2 asks for (SOL_USING_CXX_LUA). sol2 is header-only; its own
+# CMake is skipped (SOURCE_SUBDIR points nowhere).
+FetchContent_Declare(
+  lua
+  URL https://www.lua.org/ftp/lua-5.4.9.tar.gz
+  URL_HASH SHA256=2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  SYSTEM)
+FetchContent_Declare(
+  sol2
+  GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+  GIT_TAG v3.5.0
+  SOURCE_SUBDIR no-cmake
+  SYSTEM)
+
+FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2)
+
+file(GLOB _njin_lua_sources "${lua_SOURCE_DIR}/src/*.c")
+list(FILTER _njin_lua_sources EXCLUDE REGEX "/(lua|luac)\\.c$")
+set_source_files_properties(${_njin_lua_sources} PROPERTIES LANGUAGE CXX)
+add_library(njin_lua STATIC ${_njin_lua_sources})
+target_include_directories(njin_lua SYSTEM PUBLIC "${lua_SOURCE_DIR}/src")
+add_library(njin_sol2 INTERFACE)
+target_include_directories(njin_sol2 SYSTEM INTERFACE "${sol2_SOURCE_DIR}/include")
+target_compile_definitions(njin_sol2 INTERFACE SOL_USING_CXX_LUA=1 SOL_ALL_SAFETIES_ON=1)
+target_link_libraries(njin_sol2 INTERFACE njin_lua)
 
 # raylib saves a screenshot on F12 by default, silently, in every game. Games
 # built on njin may want F12 for something else; njin::screenshot() is the
@@ -97,7 +126,7 @@ add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
 # Export the engine build for standalone games. Private games are never
 # discovered or added by this project.
-set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer EnTT)
+set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 EnTT)
 if(TARGET glfw)
   get_target_property(_njin_glfw_type glfw TYPE)
   if(_njin_glfw_type STREQUAL "OBJECT_LIBRARY")

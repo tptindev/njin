@@ -28,6 +28,12 @@ Muốn tự viết shader thì học trước ba bài shader trong @ref learn (b
 |---|---|
 | @subpage procgen | Tự sinh bản đồ bằng nhiễu, luật, bo góc và Wave Function Collapse |
 
+## Script
+
+| Trang | Bạn được gì |
+|---|---|
+| @subpage scripting | Viết luật chơi và hành vi của entity bằng Lua, sửa file khi game đang chạy, gọi hàm qua lại giữa C++ và Lua |
+
 ## Công cụ
 
 | Trang | Bạn được gì |

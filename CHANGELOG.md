@@ -10,6 +10,11 @@ To release: edit that header, add a section here, commit, then
 
 ### Fixed
 
+- `physics3d_raycast()` with a `body` out-parameter no longer trips Jolt's
+  lock check (two "lock of same or higher priority" asserts in Debug): it read
+  the hit body's handle through the body interface, locking the body a second
+  time while it was already locked for the surface normal. The handle is now
+  read from the locked body.
 - A character standing on a light dynamic body (a board lying on the floor)
   no longer makes it shake, and its whole weight now counts. It was put on
   the body as an impulse straight into the body's velocity outside the
@@ -44,6 +49,30 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Lua scripting (new `njin_script.h`), on Lua 5.4.9 and sol2 3.5, private to
+  the engine. `script_run_file()`, `script_run_string()`, `script_call()`,
+  `script_set_global()` and `script_get_global()` run code and call it from
+  C++; `script_register()` puts a game's C++ function under a Lua name, with
+  its parameter and return types converted (bool, numbers, strings, vec2,
+  vec3, entities). `script_attach()` gives an entity a script file returning a
+  table, whose `on_start`, `on_update(dt)`, `on_render`, `on_destroy` and
+  `on_reload` run with a per-entity `self`; `script_field()` and
+  `script_set_field()` read and write it from C++. Lua errors never stop the
+  game: they are logged with file and line, once per message. Scripts are
+  sandboxed (no `os.execute`, `io.popen`, C libraries or bytecode; no file
+  access unless `script_desc::allow_io`), and `require` finds scripts like any
+  asset. A game without scripts creates no Lua state and pays nothing.
+- The `njin` Lua module: thin bindings over the existing API for time,
+  randomness, entities, 2D and 3D transforms, keys, mouse, actions and axes,
+  timers and tweens, 2D and 3D sound, scenes, 2D drawing, `platformer_body`
+  and `topdown_body` inputs and state, `collision_move`, overlap queries and
+  2D raycasts, sprite flip, tint and animator clips, `camera_follow`, tilemap
+  cells, 2D particles, 3D raycasts, body velocity and impulses, and
+  `character3d` movement; `vec2` and `vec3` with arithmetic.
+- Hot reload covers scripts: with `hot_reload_enable()` on, a changed script
+  is run again and its functions replace the old ones for every entity using
+  it while `self` keeps its data; a broken file keeps the old functions.
+  `asset_reloaded::script` (a new field at the end) marks those events.
 - 3D screen effects (new `njin_post3d.h`), all off by default so existing
   games draw exactly as before: `post3d_set()` with `post3d::ssao`
   (ambient occlusion from the depth, half or full resolution, depth-aware
