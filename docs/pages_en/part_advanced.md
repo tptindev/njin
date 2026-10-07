@@ -16,12 +16,20 @@ lighting, instancing). @ref procgen and @ref debug are **shared** between the tw
 | @subpage graphics_3d | Perspective camera, smooth SDF primitives, glTF models, shadowed lighting, 3D particles, instancing, ray picking, gizmos |
 | @subpage world_3d | Terrain with collision, grass, rocks and trees scattered by rules, lakes and seas with waves, floating bodies, a sky by time of day, rain, snow, fog |
 | @subpage post_3d | Wall corners that darken (SSAO), polished floors that reflect, bullet holes and paint stuck to any surface (decals), motion blur, light shafts, lens flare |
+| @subpage video | Video with sound: full-screen cutscenes, a TV screen in a 3D world |
 | @subpage spatial_batch | Draw only the part of tens of thousands of instances the camera sees, fine shapes up close and low-poly ones far away |
 | @subpage lighting | Physically based (PBR) 2D lighting: point, spot and directional lights; soft shadows from occluders of any shape; normal maps, MRA materials, emission, tonemapping; per-pixel shadows after mattdesl's tutorial |
 | @subpage shader_advanced | Shaders that read extra images (palettes, noise), take uniform arrays (lights), run over the whole frame, chain several passes together |
 | @subpage post_processing | Full-screen effects: bloom, CRT, vignette, blur |
 
 To write your own shaders, first study the three shader lessons in @ref learn (lessons 10 to 12).
+
+## Movement
+
+| Page | What you get |
+|---|---|
+| @subpage nav_3d | Monsters finding their own way round walls, up ramps, across gaps in a 3D level, walking as a crowd without bumping into each other |
+| @subpage spline | A camera on a rail, moving platforms, patrol routes along smooth curves, moving evenly by distance |
 
 ## Content
 

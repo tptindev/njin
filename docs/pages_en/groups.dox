@@ -98,6 +98,15 @@
 /// @defgroup grp_post3d 3D screen effects
 /// SSAO, on-screen reflections, decals, motion blur, light shafts, lens flare.
 
+/// @defgroup grp_nav3d 3D pathfinding
+/// Navmeshes built from static geometry and terrain, path queries, shortcuts, crowds of agents steering round each other.
+
+/// @defgroup grp_spline Curves
+/// Catmull-Rom and Bezier in 2D and 3D: moving evenly by distance, nearest point, things following a curve.
+
+/// @defgroup grp_video Video
+/// Playing MPEG-1 video with sound: full-screen cutscenes, screens in a 3D world.
+
 /// @defgroup grp_script Lua scripts
 /// Running Lua scripts, calling functions both ways between C++ and Lua, scripts attached to entities, hot reload.
 

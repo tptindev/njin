@@ -49,6 +49,47 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- 3D pathfinding (new `njin_nav3d.h`), on Recast and Detour (zlib, fetched,
+  private to the engine). `navmesh3d_create()` takes the agent's radius,
+  height, climb and slope; geometry comes from `navmesh3d_add_box()`,
+  `navmesh3d_add_mesh()`, `navmesh3d_add_model()` and
+  `navmesh3d_add_terrain()` (read again at each build), with
+  `navmesh3d_add_link()` for jumps, ladders and drops. `navmesh3d_build()`
+  builds it in tiles and `navmesh3d_rebuild()` rebuilds only an area after a
+  change. Queries: `navmesh3d_path()` (corner points; stops at the nearest
+  reachable point when the target cannot be reached), `navmesh3d_nearest()`,
+  `navmesh3d_raycast()`, `navmesh3d_random_point()`,
+  `navmesh3d_random_point_near()` (sampled inside the circle among the
+  polygons reachable within it, as Detour's own only bounds the polygons it
+  visits), `navmesh3d_draw_debug()`. Crowds: `nav3d_agent_add()` agents that
+  find their path, steer round each other and keep apart
+  (`nav3d_agent_set_target()`, `_stop()`, `_teleport()`, `_position()`,
+  `_velocity()`, `_arrived()`, `_remove()`, `nav3d_agent_count()`), moved in
+  `phase_post_update`; an agent can drive a `character3d`, which then falls by
+  `physics3d_gravity()` and feeds its real position back. Lua gets
+  `njin.nav3d_path`, `nav3d_set_target`, `nav3d_stop`, `nav3d_position`,
+  `nav3d_velocity` and `nav3d_arrived` by handle id. Heights on the navmesh
+  are approximate (a few tenths of a metre on rolling hills).
+- Splines (new `njin_spline.h`), 2D and 3D with the same names: centripetal
+  Catmull-Rom (through every point, no knots) and cubic Bezier, open or
+  closed. `spline_point()`/`spline_tangent()` by parameter, and after
+  `spline_bake()` an arc-length table for `spline_point_at()`,
+  `spline_tangent_at()`, `spline_t_at()` and `spline_length()` (equal
+  distances within 1% at the default 64 samples per segment);
+  `spline_nearest()`; `spline_follow()` with a `spline_follower` that stops,
+  loops or ping-pongs at the end; `spline_draw_debug()`. Written directly: a
+  library would have been more than the hundred lines it takes.
+- Video playback (new `njin_video.h`), MPEG-1 video with MP2 sound decoded by
+  pl_mpeg (MIT, single header, fetched pinned to a commit, private to the
+  engine). `video_open()` decodes in real time in `phase_post_update` (it keeps
+  playing while the game is paused), with the sound on a raylib audio stream
+  on a chosen bus, in step with the picture. `video_play()`, `video_pause()`,
+  `video_seek()`, `video_set_loop()`, `video_set_volume()`, `video_time()`,
+  `video_duration()`, `video_finished()`, `video_playing()`, `video_size()`,
+  `video_framerate()`, `video_has_audio()`, `video_frame_count()`,
+  `video_close()`. The current frame is a texture (`video_texture()`) for 3D
+  screens, and `video_draw()`/`video_draw_fit()` draw it in 2D, fitted with
+  bars. Other formats are refused with the ffmpeg command that converts them.
 - Lua scripting (new `njin_script.h`), on Lua 5.4.9 and sol2 3.5, private to
   the engine. `script_run_file()`, `script_run_string()`, `script_call()`,
   `script_set_global()` and `script_get_global()` run code and call it from

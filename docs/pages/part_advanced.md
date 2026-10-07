@@ -15,12 +15,20 @@ hơn, nhiều nội dung hơn, hoặc muốn hiểu engine bên trong. Mỗi tra
 | @subpage graphics_3d | Camera phối cảnh, hình SDF mịn, model glTF, ánh sáng có bóng đổ, hạt 3D, instancing, chọn vật bằng tia, gizmo |
 | @subpage world_3d | Địa hình có va chạm, cỏ, đá và cây rải theo luật, hồ và biển có sóng, vật nổi, bầu trời theo giờ, mưa, tuyết, sương |
 | @subpage post_3d | Góc tường tối đi (SSAO), sàn bóng phản chiếu, vết đạn và sơn dán lên mọi bề mặt (decal), mờ chuyển động, tia nắng, lóa ống kính |
+| @subpage video | Phát video có tiếng: cutscene toàn màn hình, màn hình TV trong thế giới 3D |
 | @subpage spatial_batch | Chỉ vẽ phần camera thấy của hàng chục nghìn instance, hình mịn ở gần và hình ít mặt ở xa |
 | @subpage lighting | Ánh sáng 2D dựa trên vật lý (PBR): đèn điểm, nón, hướng; bóng đổ mềm từ vật chắn hình bất kỳ; normal map, vật liệu MRA, phát sáng, tonemap; bóng từng pixel theo bài của mattdesl |
 | @subpage shader_advanced | Shader đọc thêm ảnh (bảng màu, nhiễu), nhận mảng uniform (đèn), chạy trên cả khung hình, nhiều lượt vẽ nối nhau |
 | @subpage post_processing | Hiệu ứng toàn màn hình: bloom, CRT, vignette, blur |
 
 Muốn tự viết shader thì học trước ba bài shader trong @ref learn (bài 10 đến 12).
+
+## Di chuyển
+
+| Trang | Bạn được gì |
+|---|---|
+| @subpage nav_3d | Quái tự tìm đường quanh tường, lên dốc, qua khe trong màn 3D, đi thành đám đông không đâm vào nhau |
+| @subpage spline | Camera chạy trên ray, bục di chuyển, lối tuần tra dọc đường cong mượt, đi đều theo khoảng cách |
 
 ## Nội dung
 

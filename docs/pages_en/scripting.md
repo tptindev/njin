@@ -95,6 +95,7 @@ positions are `vec2` or `vec3` (add, subtract, multiply by a number, `:length()`
 | Tilemaps | `tile_get(map, column, row)`, `tile_set`, `tile_cell(map, vec2)`, `tile_solid(map, vec2)` |
 | 2D particles | `particles_burst(e, count)`, `particles_spawn(preset, vec2, count)` |
 | 3D physics | `raycast3d(origin, direction, max_distance)`, `body_velocity`, `body_set_velocity`, `body_impulse`, `character_move(e, vec3)`, `character_position`, `character_grounded` |
+| 3D pathfinding | `nav3d_path(navmesh, from, to)`, `nav3d_set_target(agent, target)`, `nav3d_stop`, `nav3d_position`, `nav3d_velocity`, `nav3d_arrived` (see @ref nav_3d) |
 | Log | `log`, `warn`, `error` (and `print`), with the script's file and line |
 
 Functions that return a table: `platformer(e)` has `velocity`, `grounded`, `on_slope`, `on_wall`, `facing`,

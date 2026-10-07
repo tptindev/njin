@@ -487,6 +487,21 @@ void script_bind_njin(context &ctx, script_runtime &rt) {
                       {(*b)["w"].get_or(0.0f), (*b)["h"].get_or(0.0f)}};
   };
 
+  // --- 3D navmesh (handles from C++: navmesh3d_handle::id, nav3d_agent_handle::id)
+  n["nav3d_path"] = [c](lua_Integer mesh, vec3 from, vec3 to) -> sol::optional<sol::as_table_t<std::vector<vec3>>> {
+    std::vector<vec3> out;
+    if (!navmesh3d_path(*c, navmesh3d_handle{(u32)mesh}, from, to, out))
+      return sol::nullopt;
+    return sol::as_table(std::move(out));
+  };
+  n["nav3d_set_target"] = [c](lua_Integer agent, vec3 target) {
+    return nav3d_agent_set_target(*c, nav3d_agent_handle{(u32)agent}, target);
+  };
+  n["nav3d_stop"] = [c](lua_Integer agent) { nav3d_agent_stop(*c, nav3d_agent_handle{(u32)agent}); };
+  n["nav3d_position"] = [c](lua_Integer agent) { return nav3d_agent_position(*c, nav3d_agent_handle{(u32)agent}); };
+  n["nav3d_velocity"] = [c](lua_Integer agent) { return nav3d_agent_velocity(*c, nav3d_agent_handle{(u32)agent}); };
+  n["nav3d_arrived"] = [c](lua_Integer agent) { return nav3d_agent_arrived(*c, nav3d_agent_handle{(u32)agent}); };
+
   // --- tilemaps (an entity with transform and tilemap; the transform is its origin)
   struct map_ref {
     tilemap *map = nullptr;

@@ -93,6 +93,7 @@ Mọi hàm của module chỉ gọi thẳng API C++ cùng tên, không thêm hà
 | Tilemap | `tile_get(map, cột, hàng)`, `tile_set`, `tile_cell(map, vec2)`, `tile_solid(map, vec2)` |
 | Hạt 2D | `particles_burst(e, số)`, `particles_spawn(mẫu, vec2, số)` |
 | Vật lý 3D | `raycast3d(gốc, hướng, xa_nhất)`, `body_velocity`, `body_set_velocity`, `body_impulse`, `character_move(e, vec3)`, `character_position`, `character_grounded` |
+| Tìm đường 3D | `nav3d_path(navmesh, from, to)`, `nav3d_set_target(agent, đích)`, `nav3d_stop`, `nav3d_position`, `nav3d_velocity`, `nav3d_arrived` (xem @ref nav_3d) |
 | Log | `log`, `warn`, `error` (và `print`), kèm file và dòng của script |
 
 Hàm trả về một bảng: `platformer(e)` có `velocity`, `grounded`, `on_slope`, `on_wall`, `facing`, `jumped`, `landed`;

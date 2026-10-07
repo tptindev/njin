@@ -266,6 +266,28 @@ struct voice3d_handle {
   u32 gen = 0; ///< Lần dùng thứ mấy của ô này.
 };
 
+/// Định danh của một navmesh 3D, tạo bởi navmesh3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct navmesh3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một tác tử đi trên navmesh, tạo bởi nav3d_agent_add().
+///
+/// `id == 0` là handle không hợp lệ. Tác tử đã bỏ, hay navmesh của nó đã hủy, cũng
+/// bị bỏ qua.
+struct nav3d_agent_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một video, mở bởi video_open().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã đóng cũng bị bỏ qua.
+struct video_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một atlas, tạo bởi atlas_create().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.

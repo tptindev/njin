@@ -25,7 +25,7 @@ set_target_properties(njin_rt PROPERTIES NJIN_ENGINE_INTERNAL ON)
 target_link_libraries(
   njin_rt
   PUBLIC njin::api
-  PRIVATE raylib Jolt meshoptimizer njin_sol2 njin_warnings)
+  PRIVATE raylib Jolt meshoptimizer njin_sol2 njin_recast njin_plmpeg njin_warnings)
 
 # njin_gpu_hint.cpp checks for the NVIDIA GLX library with dlopen.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

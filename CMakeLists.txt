@@ -102,7 +102,34 @@ FetchContent_Declare(
   SOURCE_SUBDIR no-cmake
   SYSTEM)
 
-FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2)
+# Recast and Detour (zlib) for njin_nav3d.h: navmesh building, path queries
+# and crowds. Only the Recast, Detour and DetourCrowd sources are compiled,
+# into one library below; their CMake (demo, tests, install rules) is skipped.
+FetchContent_Declare(
+  recastnavigation
+  GIT_REPOSITORY https://github.com/recastnavigation/recastnavigation.git
+  GIT_TAG v1.6.0
+  SOURCE_SUBDIR no-cmake
+  SYSTEM)
+
+# pl_mpeg (MIT, single header) for njin_video.h: MPEG-1 video and MP2 audio.
+# The repository has no tags, so it is pinned to a commit.
+FetchContent_Declare(
+  pl_mpeg
+  GIT_REPOSITORY https://github.com/phoboslab/pl_mpeg.git
+  GIT_TAG c871f2be022ece7ef4f64230b4fb8e1fb9eb6023
+  SOURCE_SUBDIR no-cmake
+  SYSTEM)
+
+FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg)
+
+file(GLOB _njin_recast_sources "${recastnavigation_SOURCE_DIR}/Recast/Source/*.cpp"
+     "${recastnavigation_SOURCE_DIR}/Detour/Source/*.cpp" "${recastnavigation_SOURCE_DIR}/DetourCrowd/Source/*.cpp")
+add_library(njin_recast STATIC ${_njin_recast_sources})
+target_include_directories(njin_recast SYSTEM PUBLIC "${recastnavigation_SOURCE_DIR}/Recast/Include"
+                           "${recastnavigation_SOURCE_DIR}/Detour/Include" "${recastnavigation_SOURCE_DIR}/DetourCrowd/Include")
+add_library(njin_plmpeg INTERFACE)
+target_include_directories(njin_plmpeg SYSTEM INTERFACE "${pl_mpeg_SOURCE_DIR}")
 
 file(GLOB _njin_lua_sources "${lua_SOURCE_DIR}/src/*.c")
 list(FILTER _njin_lua_sources EXCLUDE REGEX "/(lua|luac)\\.c$")
@@ -126,7 +153,7 @@ add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
 # Export the engine build for standalone games. Private games are never
 # discovered or added by this project.
-set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 EnTT)
+set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg EnTT)
 if(TARGET glfw)
   get_target_property(_njin_glfw_type glfw TYPE)
   if(_njin_glfw_type STREQUAL "OBJECT_LIBRARY")

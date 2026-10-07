@@ -266,6 +266,28 @@ struct voice3d_handle {
   u32 gen = 0; ///< Which use of this slot it is.
 };
 
+/// Identifies a 3D navmesh, created by navmesh3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is ignored too.
+struct navmesh3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifies an agent walking on a navmesh, created by nav3d_agent_add().
+///
+/// `id == 0` is an invalid handle. An agent that was removed, or whose navmesh
+/// was destroyed, is ignored too.
+struct nav3d_agent_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifies a video, opened by video_open().
+///
+/// `id == 0` is an invalid handle. A closed handle is ignored too.
+struct video_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of an atlas, created by atlas_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

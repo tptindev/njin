@@ -31,12 +31,14 @@
 #include "njin_instance.h"
 #include "njin_level_impl.h"
 #include "njin_model.h"
+#include "njin_nav3d_impl.h"
 #include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_script_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
+#include "njin_video_impl.h"
 #include "njin_view.h"
 #include "njin_world3d_impl.h"
 #include <string>
@@ -109,6 +111,9 @@ struct context {
   post3d_state post3d;
   particles3d_state particles3d;
   world3d_store world3d;
+  nav3d_store nav3d;
+  // After texture and audio: closing a video frees its stream and its texture slot.
+  video_store video;
   particle_gpu_state particles_gpu;
   render_stats stats;
   reload_state reload;

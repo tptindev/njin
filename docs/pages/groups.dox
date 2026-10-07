@@ -98,6 +98,15 @@
 /// @defgroup grp_post3d Hiệu ứng màn hình 3D
 /// SSAO, phản chiếu trên màn hình, decal, mờ chuyển động, tia nắng, lóa ống kính.
 
+/// @defgroup grp_nav3d Tìm đường 3D
+/// Navmesh dựng từ hình học tĩnh và địa hình, tìm đường, lối tắt, đám đông tác tử né nhau.
+
+/// @defgroup grp_spline Đường cong
+/// Catmull-Rom và Bezier 2D, 3D: đi đều theo khoảng cách, điểm gần nhất, vật đi dọc đường.
+
+/// @defgroup grp_video Video
+/// Phát video MPEG-1 có tiếng: cutscene toàn màn hình, màn hình trong thế giới 3D.
+
 /// @defgroup grp_script Script Lua
 /// Chạy script Lua, gọi hàm qua lại giữa C++ và Lua, script gắn trên entity, hot reload.
 
