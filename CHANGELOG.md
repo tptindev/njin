@@ -44,6 +44,44 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Outdoor world (new `njin_world3d.h`). Terrain: `terrain3d_create()` builds a
+  square height grid from an array, a height map (grey image or 16-bit
+  `.r16`/`.raw`) or noise, with up to four surface layers covering ground by
+  height and slope rules (`auto_splat`) or a splat map, tiled without visible
+  repetition and projected from three sides on cliffs. It is drawn in chunks
+  culled by view, with distance levels of detail and skirts so no cracks
+  show, lit, shadowed and fogged like other 3D shapes. `terrain3d_height()`,
+  `terrain3d_normal()` and `terrain3d_layer_weight()` answer for any point,
+  the same triangles as the drawn grid and the Jolt height field body
+  (`terrain3d_body()`) characters, vehicles and bodies stand on.
+  `terrain3d_edit()` raises, lowers, flattens or smooths a round area and
+  `terrain3d_paint()` paints a layer; the mesh, collision, automatic layers,
+  grass and scattered objects follow, and bodies resting on raised ground
+  are lifted with it.
+- Grass and scattered objects: `grass3d_create()` grows instanced blades on
+  a terrain layer near the camera only, thinning and shrinking with
+  distance, swaying in the wind (`wind3d_set()`). `scatter3d_create()`
+  places a model (rocks, trees) by density, spacing, height, slope, layer and
+  noise clusters, leaning with the ground, drawn per area with a far model
+  and a draw distance; `scatter3d_transforms()` gives the placements for
+  collision.
+- Water: `water3d_create()` makes a lake or an open sea following the camera,
+  with up to eight Gerstner waves, depth colour, clarity and shore foam from
+  an attached terrain, crest foam, ripples, sky reflection with fresnel and
+  sun glitter, in the translucent pass. `water3d_height()` and
+  `water3d_normal()` match the shader's waves; `water3d_float()` gives a
+  dynamic body buoyancy and drag each physics step (Jolt's
+  `ApplyBuoyancyImpulse`).
+- Sky and weather: `draw_sky3d()` draws a sky by time of day, latitude and
+  season behind everything (sun, halo, sunset glow, drifting clouds, stars and
+  moon) and, by default, sets the pass's light from it: sun or moon direction
+  and colour, ambient from the sky, fog colour from the horizon
+  (`sky3d_light()` to do it yourself). `weather3d` adds cloud cover, fog,
+  rain, snow, wind and wet ground; `weather3d_preset()` has clear, overcast,
+  rain, snow and fog, `weather3d_lerp()` blends them. Rain and snow fall in a
+  box round the camera computed on the GPU. On an RTX 3050 Laptop (Release,
+  960x540) a 1 km² terrain with grass, about 9000 rocks, a lake, sky and sun
+  shadows draws in about 1.7 ms a frame.
 - Morph targets (blend shapes) from glTF: model_load() reads each mesh's
   targets (positions and normals, sparse accessors included) with their
   names from `extras.targetNames`; targets of the same name in several meshes

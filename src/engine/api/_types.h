@@ -217,6 +217,34 @@ struct vehicle3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một địa hình, tạo bởi terrain3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct terrain3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một mặt nước (hồ, biển), tạo bởi water3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct water3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một thảm cỏ trên địa hình, tạo bởi grass3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct grass3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một lớp vật rải trên địa hình (đá, cây), tạo bởi scatter3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct scatter3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một tiếng đang phát trong không gian 3D, tạo bởi sound_play3d()
 /// hoặc sound_loop3d().
 ///

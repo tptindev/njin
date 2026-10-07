@@ -217,6 +217,34 @@ struct vehicle3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a terrain, created by terrain3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct terrain3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a water surface (lake, sea), created by water3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct water3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a field of grass on a terrain, created by grass3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct grass3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a layer of objects scattered over a terrain (rocks, trees), created by scatter3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct scatter3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of a sound playing in 3D space, created by sound_play3d() or
 /// sound_loop3d().
 ///

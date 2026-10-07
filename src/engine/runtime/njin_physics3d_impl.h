@@ -27,4 +27,25 @@ struct physics3d_state {
 // Called by the main loop right after each run of phase_fixed_update, so what
 // the game set in that phase moves in the same step.
 void physics3d_step(context &ctx, f32 dt);
+
+// A static height field (terrain3d): `count` x `count` world heights (row z,
+// then column x), `spacing` metres apart, the first at (origin.x, origin.z).
+// Room is kept from `lo` to `hi` (and some way past) for later edits.
+body3d_handle physics3d_heightfield_create(context &ctx, const f32 *heights, i32 count, vec3 origin, f32 spacing,
+                                           f32 lo, f32 hi, f32 friction, u64 user);
+// Copies samples [x0, x1) x [z0, z1) of `heights` (the same layout as at
+// creation) into the height field of `body`, and wakes what rests there.
+void physics3d_heightfield_set(context &ctx, body3d_handle body, const f32 *heights, i32 count, i32 x0, i32 z0,
+                               i32 x1, i32 z1);
+
+// Where the water is under `at` (its surface point and normal), or false
+// where there is none.
+using water_surface_fn = bool (*)(const context &ctx, u32 water, vec3 at, vec3 &point, vec3 &normal);
+// Each step `body` takes the buoyancy of water `water` (water3d_float). Once
+// per body and water; again replaces the settings.
+void physics3d_float(context &ctx, body3d_handle body, u32 water, f32 buoyancy, f32 linear_drag, f32 angular_drag,
+                     vec3 flow, water_surface_fn surface);
+// Stops it; `water` 0 = from every water (the water was destroyed: body 0
+// with it stops every body on it).
+void physics3d_unfloat(context &ctx, body3d_handle body, u32 water);
 } // namespace njin

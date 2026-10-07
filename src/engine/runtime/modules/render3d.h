@@ -48,8 +48,21 @@ struct render3d_locations {
   i32 bones = -1;
 };
 
-// One recorded draw: a primitive (mesh), an SDF shape or a model.
+// A draw of the outdoor world (njin_world3d.h), made by world3d_draw.cpp.
+enum world3d_kind : u8 {
+  world3d_none = 0,
+  world3d_terrain, // opaque, casts shadows
+  world3d_grass,   // opaque, casts shadows when grass3d_desc::cast_shadows
+  world3d_sky,     // behind everything: where nothing was drawn
+  world3d_water,   // see-through: in the translucent pass
+  world3d_precip,  // see-through
+};
+
+// One recorded draw: a primitive (mesh), an SDF shape, a model, or a piece of
+// the outdoor world (`world`, with its handle id in `world_id`).
 struct draw3d_cmd {
+  u8 world = world3d_none;
+  u32 world_id = 0;
   bool is_shape = false;
   shape3d shape;
   const Mesh *mesh = nullptr;
@@ -219,6 +232,26 @@ shape_frame shape3d_frame(const shape3d &shape);
 
 // Closes a 3D pass the game left open. Called at the end of the world pass.
 void render3d_close(context &ctx);
+
+// For the outdoor world (world3d_draw.cpp), which draws with the same lighting:
+// the lighting GLSL (the sun and its shadow, lamps, fog: shade()), the uniform
+// locations, the per-pass and per-draw uniforms, and recording its draws.
+const char *render3d_lighting_glsl();
+render3d_locations render3d_find_locations(Shader shader);
+void render3d_set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locations &l, bool shadows,
+                                const Matrix &light_vp, bool lamps);
+void render3d_set_draw_uniforms(Shader sh, const render3d_locations &l, const material3d &m);
+void render3d_record_world(const context &ctx, u8 kind, u32 id);
+// Whether the box [lo, hi] is at least partly inside the open pass's frustum.
+bool render3d_box_visible(const render3d_state &s, vec3 lo, vec3 hi);
+
+// world3d_draw.cpp: before the pass's draws (its shaders' pass uniforms),
+// one recorded draw (the camera pass, or a shadow pass's depth seen through
+// `view_proj`), and after them.
+void world3d_pass_uniforms(context &ctx, bool shadows, const Matrix &light_vp, bool lamps);
+void world3d_draw(context &ctx, const draw3d_cmd &c, const Matrix &view_proj);
+void world3d_draw_depth(context &ctx, const draw3d_cmd &c, const Matrix &view_proj);
+void world3d_pass_end(context &ctx);
 
 // Core module: advances the pose of every njin::model3d in phase_update.
 mod_desc render3d_module();

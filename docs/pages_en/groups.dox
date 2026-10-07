@@ -92,6 +92,9 @@
 /// @defgroup grp_physics3d 3D physics
 /// Static, kinematic and dynamic bodies; characters that walk on floors and up steps; raycasts. Built on Jolt Physics.
 
+/// @defgroup grp_world3d 3D outdoor world
+/// Terrain with collision that can be edited at run time, grass, scattered objects, water with waves and floating bodies, a sky by time of day, weather.
+
 /// @defgroup grp_light 2D lighting
 /// Point lights, spot lights, directional lights, ambient light, shadows from occluders, normal maps, physically based lights.
 

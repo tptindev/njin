@@ -36,6 +36,7 @@
 #include "njin_shader.h"
 #include "njin_texture.h"
 #include "njin_view.h"
+#include "njin_world3d_impl.h"
 #include <string>
 #include <vector>
 
@@ -101,6 +102,7 @@ struct context {
   lighting_state light;
   render3d_state render3d;
   particles3d_state particles3d;
+  world3d_store world3d;
   particle_gpu_state particles_gpu;
   render_stats stats;
   reload_state reload;

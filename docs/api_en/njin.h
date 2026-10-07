@@ -45,6 +45,7 @@
 #include "njin_ui_layout.h"
 #include "njin_version.h"
 #include "njin_window.h"
+#include "njin_world3d.h"
 
 namespace njin {
 /// Opaque engine handle. Created by create(), freed by

@@ -1102,6 +1102,10 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir) {
   for (const draw3d_cmd &c : s.cmds) {
     if (!casts(c))
       continue;
+    if (c.world != world3d_none) {
+      world3d_draw_depth(ctx, c, view_proj);
+      continue;
+    }
     if (c.is_shape) {
       if (c.material.cast_shadows && !c.material.unlit)
         draw_shape(s, c, view_proj, ortho, dir, true);
@@ -1551,6 +1555,10 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
 
 void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   const render3d_state &s = ctx.render3d;
+  if (c.world != world3d_none) {
+    world3d_draw(ctx, c, view_proj);
+    return;
+  }
   if (s.translucent_pass && (c.is_shape || (c.mesh != nullptr && c.buffer.id == 0)))
     return;
   if (c.is_shape) {
@@ -1962,6 +1970,7 @@ void end_3d(context &ctx) {
   set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);
   if (s.skin_ok)
     set_pass_uniforms(s, s.lit_skinned, s.skinned_locs, shadows, light_vp, lamps);
+  world3d_pass_uniforms(ctx, shadows, light_vp, lamps);
   const Matrix view_proj = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   if (shadows) {
     rlActiveTextureSlot(shadow_unit);
@@ -2000,6 +2009,7 @@ void end_3d(context &ctx) {
   s.blend_parts.clear();
   s.lights.clear();
   s.active = false;
+  world3d_pass_end(ctx);
   rlDrawRenderBatchActive();
   if (offscreen) {
     s.target_fbo = 0;
@@ -2083,6 +2093,41 @@ void render3d_capture_debug(context &ctx) {
 }
 
 shape_frame shape3d_frame(const shape3d &shape) { return frame_of(shape); }
+
+const char *render3d_lighting_glsl() { return lighting_glsl; }
+
+render3d_locations render3d_find_locations(Shader shader) { return find_locations(shader); }
+
+void render3d_set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locations &l, bool shadows,
+                                const Matrix &light_vp, bool lamps) {
+  set_pass_uniforms(s, sh, l, shadows, light_vp, lamps);
+}
+
+void render3d_set_draw_uniforms(Shader sh, const render3d_locations &l, const material3d &m) {
+  set_draw_uniforms(sh, l, fx3d{}, m, colors::white, false, false);
+}
+
+void render3d_record_world(const context &ctx, u8 kind, u32 id) {
+  const render3d_state &s = ctx.render3d;
+  if (!s.active)
+    return;
+  draw3d_cmd c;
+  c.world = kind;
+  c.world_id = id;
+  c.color = colors::white;
+  c.material = s.material;
+  s.cmds.push_back(c);
+}
+
+bool render3d_box_visible(const render3d_state &s, vec3 lo, vec3 hi) {
+  for (const vec4 &p : s.frustum) {
+    // The corner furthest along the plane's normal.
+    const vec3 far{p.x >= 0.0f ? hi.x : lo.x, p.y >= 0.0f ? hi.y : lo.y, p.z >= 0.0f ? hi.z : lo.z};
+    if (p.x * far.x + p.y * far.y + p.z * far.z + p.w < 0.0f)
+      return false;
+  }
+  return true;
+}
 
 void render3d_close(context &ctx) {
   if (!ctx.render3d.active)

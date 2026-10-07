@@ -92,6 +92,9 @@
 /// @defgroup grp_physics3d Vật lý 3D
 /// Body tĩnh, kinematic, động; nhân vật đi trên sàn và leo bậc; raycast. Dựng trên Jolt Physics.
 
+/// @defgroup grp_world3d Thế giới ngoài trời 3D
+/// Địa hình có va chạm và sửa được lúc chạy, cỏ, vật rải, nước có sóng và vật nổi, bầu trời theo giờ, thời tiết.
+
 /// @defgroup grp_light Ánh sáng 2D
 /// Đèn điểm, đèn nón, đèn hướng, ánh sáng nền, bóng đổ từ vật chắn, normal map, đèn theo vật lý.
 

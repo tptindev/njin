@@ -13,6 +13,7 @@ hơn, nhiều nội dung hơn, hoặc muốn hiểu engine bên trong. Mỗi tra
 |---|---|
 | @subpage rendering | Texture, atlas, shader, instancing (hàng nghìn hình bằng một lệnh vẽ), sửa ảnh và shader khi game đang chạy |
 | @subpage graphics_3d | Camera phối cảnh, hình SDF mịn, model glTF, ánh sáng có bóng đổ, hạt 3D, instancing, chọn vật bằng tia, gizmo |
+| @subpage world_3d | Địa hình có va chạm, cỏ, đá và cây rải theo luật, hồ và biển có sóng, vật nổi, bầu trời theo giờ, mưa, tuyết, sương |
 | @subpage spatial_batch | Chỉ vẽ phần camera thấy của hàng chục nghìn instance, hình mịn ở gần và hình ít mặt ở xa |
 | @subpage lighting | Ánh sáng 2D dựa trên vật lý (PBR): đèn điểm, nón, hướng; bóng đổ mềm từ vật chắn hình bất kỳ; normal map, vật liệu MRA, phát sáng, tonemap; bóng từng pixel theo bài của mattdesl |
 | @subpage shader_advanced | Shader đọc thêm ảnh (bảng màu, nhiễu), nhận mảng uniform (đèn), chạy trên cả khung hình, nhiều lượt vẽ nối nhau |

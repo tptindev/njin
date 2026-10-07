@@ -40,6 +40,7 @@
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
@@ -639,6 +640,18 @@ struct physics3d_world {
     JPH::RVec3 at;
   };
   std::vector<load> loads;
+  // Height fields (physics3d_heightfield_create), by body handle id: kept
+  // writable for edits.
+  std::unordered_map<u32, JPH::Ref<JPH::HeightFieldShape>> heightfields;
+  // Bodies floating on water (physics3d_float), and where the water is.
+  struct floater {
+    u32 body = 0;
+    u32 water = 0;
+    f32 buoyancy = 1.0f, linear_drag = 0.5f, angular_drag = 0.1f;
+    vec3 flow{};
+  };
+  std::vector<floater> floaters;
+  water_surface_fn surface = nullptr;
 
   physics3d_world() {
     system.Init(16384, 0, 16384, 8192, broad_phase, object_vs_broad, pairs);
@@ -1162,6 +1175,22 @@ void physics3d_step(context &ctx, f32 dt) {
   w->crowd.part(2);
   sync_proxies(*w, dt);
   drive_vehicles(*w);
+  // Floating bodies take the water's lift and drag for this step, from the
+  // surface under their centre of mass (Jolt finds the submerged volume).
+  if (w->surface != nullptr)
+    std::erase_if(w->floaters, [&](const physics3d_world::floater &f) {
+      const body_slot *b = body_of(ctx, body3d_handle{f.body});
+      if (b == nullptr)
+        return true;
+      if (!b->dynamic)
+        return false;
+      const JPH::RVec3 com = bi.GetCenterOfMassPosition(b->id);
+      vec3 point{}, normal{};
+      if (w->surface(ctx, f.water, world_vec(com), point, normal))
+        bi.ApplyBuoyancyImpulse(b->id, JPH::RVec3(point.x, point.y, point.z), jv(normal), f.buoyancy, f.linear_drag,
+                                f.angular_drag, jv(f.flow), gravity, dt);
+      return false;
+    });
   w->system.Update(dt, 1, &w->temp, &w->jobs);
   // Bodies ridden this step go back to their own mass and inertia.
   for (const physics3d_world::ridden &q : w->ridden_bodies) {
@@ -1275,10 +1304,175 @@ void body3d_destroy(context &ctx, body3d_handle handle) {
   }
   physics3d_world &w = *ctx.physics3d.world;
   forget_body(ctx, w, handle);
+  w.heightfields.erase(handle.id);
+  std::erase_if(w.floaters, [&](const physics3d_world::floater &f) { return f.body == handle.id; });
   JPH::BodyInterface &bi = w.system.GetBodyInterface();
   bi.RemoveBody(b->id);
   bi.DestroyBody(b->id);
   *b = body_slot{};
+}
+
+body3d_handle physics3d_heightfield_create(context &ctx, const f32 *heights, i32 count, vec3 origin, f32 spacing,
+                                           f32 lo, f32 hi, f32 friction, u64 user) {
+  if (heights == nullptr || count < 2 || !(spacing > 0.0f))
+    return body3d_handle{};
+  physics3d_world &w = world_of(ctx);
+  // A power of two samples per side, the rest with no collision: Jolt's
+  // SetHeights (terrain edits) updates the bounds of the blocks it changes
+  // with the strides of a power-of-two grid, so with any other count the
+  // bounds of edited ground go stale and boxes fall through it (rays still
+  // hit it).
+  constexpr u32 block = 2;
+  u32 n = 4;
+  while (n < (u32)count)
+    n *= 2;
+  std::vector<f32> samples((usize)n * n, JPH::HeightFieldShapeConstants::cNoCollisionValue);
+  for (i32 z = 0; z < count; z++)
+    std::copy_n(heights + (usize)z * (usize)count, count, samples.begin() + (std::ptrdiff_t)((usize)z * n));
+  JPH::HeightFieldShapeSettings hs(samples.data(), JPH::Vec3::sZero(), JPH::Vec3(spacing, 1.0f, spacing), n);
+  hs.mBlockSize = block;
+  // Heights are kept to well under a centimetre over the whole range, which
+  // is made wider than the ground so raising or digging it later still fits.
+  // Past 2048 samples a side, 8 bits a sample (still under a centimetre on
+  // a 1 m grid) keep the padded field's memory down.
+  hs.mBitsPerSample = n <= 2048 ? 16 : 8;
+  const f32 margin = std::max(64.0f, hi - lo);
+  hs.mMinHeightValue = lo - margin;
+  hs.mMaxHeightValue = hi + margin;
+  const JPH::ShapeSettings::ShapeResult made = hs.Create();
+  if (made.HasError()) {
+    NJIN_WARN("physics3d: height field not made: %s", made.GetError().c_str());
+    return body3d_handle{};
+  }
+  JPH::Ref<JPH::HeightFieldShape> shape = static_cast<JPH::HeightFieldShape *>(made.Get().GetPtr());
+  JPH::BodyCreationSettings settings(shape.GetPtr(), JPH::RVec3(origin.x, 0.0f, origin.z), JPH::Quat::sIdentity(),
+                                     JPH::EMotionType::Static, layers::still);
+  settings.mFriction = friction;
+  const u32 handle = (u32)w.bodies.size() + 1;
+  settings.mUserData = handle;
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  const JPH::BodyID id = bi.CreateAndAddBody(settings, JPH::EActivation::DontActivate);
+  if (id.IsInvalid()) {
+    NJIN_WARN("physics3d: body limit reached");
+    return body3d_handle{};
+  }
+  w.static_added++;
+  w.handle_by_body[id.GetIndexAndSequenceNumber()] = handle;
+  w.bodies.push_back(body_slot{.id = id, .alive = true, .user = user});
+  w.heightfields[handle] = shape;
+  return body3d_handle{handle};
+}
+
+void physics3d_heightfield_set(context &ctx, body3d_handle body, const f32 *heights, i32 count, i32 x0, i32 z0,
+                               i32 x1, i32 z1) {
+  body_slot *b = body_of(ctx, body);
+  if (b == nullptr || heights == nullptr)
+    return;
+  physics3d_world &w = *ctx.physics3d.world;
+  const auto it = w.heightfields.find(body.id);
+  if (it == w.heightfields.end())
+    return;
+  JPH::HeightFieldShape &hf = *it->second;
+  // SetHeights takes whole blocks.
+  const i32 n = (i32)hf.GetSampleCount();
+  const i32 block = (i32)hf.GetBlockSize();
+  x0 = std::clamp(x0, 0, n) / block * block;
+  z0 = std::clamp(z0, 0, n) / block * block;
+  x1 = std::min((std::clamp(x1, 0, n) + block - 1) / block * block, n);
+  z1 = std::min((std::clamp(z1, 0, n) + block - 1) / block * block, n);
+  if (x1 <= x0 || z1 <= z0)
+    return;
+  const i32 wide = x1 - x0;
+  std::vector<f32> part((usize)wide * (usize)(z1 - z0), JPH::HeightFieldShapeConstants::cNoCollisionValue);
+  for (i32 z = z0; z < z1; z++)
+    for (i32 x = x0; x < x1; x++)
+      if (x < count && z < count)
+        part[(usize)((z - z0) * wide + (x - x0))] = heights[(usize)z * (usize)count + (usize)x];
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  const JPH::RVec3 at = bi.GetPosition(b->id);
+  const f32 s = hf.GetPosition(1, 0).GetX() - hf.GetPosition(0, 0).GetX();
+  const JPH::AABox box(JPH::Vec3((f32)at.GetX() + (f32)x0 * s, hf.GetMinHeightValue(), (f32)at.GetZ() + (f32)z0 * s),
+                       JPH::Vec3((f32)at.GetX() + (f32)x1 * s, hf.GetMaxHeightValue(), (f32)at.GetZ() + (f32)z1 * s));
+  // The ground under each body and character there, before the change: what
+  // rests on ground that rises is lifted with it (else the new ground would
+  // swallow it and it would fall out underneath).
+  const auto surface = [&](JPH::RVec3Arg p, f32 &y) {
+    JPH::Vec3 out;
+    JPH::SubShapeID sub;
+    if (!hf.ProjectOntoSurface(JPH::Vec3(p - at), out, sub))
+      return false;
+    y = out.GetY() + (f32)at.GetY();
+    return true;
+  };
+  struct riding {
+    JPH::BodyID id;
+    character_slot *character;
+    JPH::RVec3 pos;
+    f32 ground;
+    f32 bottom; // lowest point: only what the new ground would swallow is lifted
+  };
+  std::vector<riding> riders;
+  JPH::AllHitCollisionCollector<JPH::CollideShapeBodyCollector> found;
+  w.system.GetBroadPhaseQuery().CollideAABox(box, found, w.system.GetDefaultBroadPhaseLayerFilter(layers::moving),
+                                             w.system.GetDefaultLayerFilter(layers::moving));
+  for (const JPH::BodyID id : found.mHits) {
+    if (bi.GetMotionType(id) == JPH::EMotionType::Static)
+      continue;
+    const JPH::RVec3 p = bi.GetPosition(id);
+    f32 y = 0.0f;
+    if (surface(p, y))
+      riders.push_back({id, nullptr, p, y, bi.GetTransformedShape(id).GetWorldSpaceBounds().mMin.GetY()});
+  }
+  for (character_slot &c : w.characters) {
+    f32 y = 0.0f;
+    if (c.alive && surface(c.character->GetPosition(), y))
+      riders.push_back({JPH::BodyID(), &c, c.character->GetPosition(), y, (f32)c.character->GetPosition().GetY()});
+  }
+  const JPH::Vec3 before = hf.GetCenterOfMass();
+  hf.SetHeights((u32)x0, (u32)z0, (u32)wide, (u32)(z1 - z0), part.data(), wide, w.temp);
+  bi.NotifyShapeChanged(b->id, before, false, JPH::EActivation::DontActivate);
+  // Contacts cached against the old ground would hold for another step: what
+  // stood on it would fall through the new one.
+  bi.InvalidateContactCache(b->id);
+  for (const riding &r : riders) {
+    f32 y = 0.0f;
+    if (!surface(r.pos, y) || y <= r.ground || r.bottom >= y)
+      continue;
+    const JPH::RVec3 lifted = r.pos + JPH::RVec3(0.0f, y - r.ground, 0.0f);
+    if (r.character != nullptr)
+      r.character->character->SetPosition(lifted);
+    else
+      bi.SetPosition(r.id, lifted, JPH::EActivation::Activate);
+  }
+  // What rests on ground that sank falls onto it.
+  bi.ActivateBodiesInAABox(box, w.system.GetDefaultBroadPhaseLayerFilter(layers::moving),
+                           w.system.GetDefaultLayerFilter(layers::moving));
+}
+
+void physics3d_float(context &ctx, body3d_handle body, u32 water, f32 buoyancy, f32 linear_drag, f32 angular_drag,
+                     vec3 flow, water_surface_fn surface) {
+  if (body_of(ctx, body) == nullptr)
+    return;
+  physics3d_world &w = *ctx.physics3d.world;
+  w.surface = surface;
+  for (physics3d_world::floater &f : w.floaters)
+    if (f.body == body.id && f.water == water) {
+      f.buoyancy = buoyancy;
+      f.linear_drag = linear_drag;
+      f.angular_drag = angular_drag;
+      f.flow = flow;
+      return;
+    }
+  w.floaters.push_back({body.id, water, buoyancy, linear_drag, angular_drag, flow});
+}
+
+void physics3d_unfloat(context &ctx, body3d_handle body, u32 water) {
+  physics3d_world *w = ctx.physics3d.world.get();
+  if (w == nullptr)
+    return;
+  std::erase_if(w->floaters, [&](const physics3d_world::floater &f) {
+    return (body.id == 0 || f.body == body.id) && (water == 0 || f.water == water);
+  });
 }
 
 transform3d body3d_transform(const context &ctx, body3d_handle handle) {
