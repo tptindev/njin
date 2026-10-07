@@ -5,65 +5,70 @@
   </picture>
 </p>
 
-njin là game engine mã nguồn mở viết bằng C++20, làm cả game **2D** lẫn **3D**. Engine dùng EnTT cho ECS, raylib cho cửa sổ, đồ họa, âm thanh và input, và Jolt Physics cho vật lý 3D; game chỉ cần include API của njin qua `njin.h`.
+njin is an open-source game engine written in C++20, for both **2D** and **3D**
+games. It uses EnTT for its ECS, raylib for windowing, graphics, audio and
+input, and Jolt Physics for 3D physics; a game only needs to include njin's
+API through `njin.h`.
 
-Phiên bản hiện tại: **0.1.0**. Đây là bản phát hành mở đầu từ trạng thái nguồn hiện tại. API vẫn đang phát triển và có thể thay đổi giữa các bản minor trước 1.0. Xem [CHANGELOG.md](CHANGELOG.md) để biết chi tiết.
+Current version: **0.3.0**. The API is still evolving and may change between
+minor versions before 1.0. See [CHANGELOG.md](CHANGELOG.md) for details.
 
-## Tính năng
+## Features
 
-- ECS, module và system theo phase; scene, prefab và vòng lặp game cố định.
-- Sprite, animation, tilemap vuông từ Tiled/LDtk, va chạm và camera theo nhân vật.
-- Bộ điều khiển nhân vật cho platformer và top-down, navigation A*, particle và hiệu ứng hậu kỳ.
-- UI, âm thanh, lưu cài đặt, hội thoại và bản địa hóa.
-- 3D: camera phối cảnh, hình khối và hình SDF mịn, model glTF với vật liệu, ánh sáng có bóng đổ và sương mù, hạt 3D, instancing, chọn vật bằng tia.
-- Vật lý 3D (Jolt Physics): body tĩnh, kinematic, động; nhân vật đi trên sàn, leo bậc, đứng trên bục di chuyển; raycast.
-- Gizmo để debug 2D và 3D.
-- Màn hình ảo cho pixel art, khử răng cưa bằng supersampling và công cụ `njin_inspector` để xem entity, system, log, hiệu năng, tài nguyên và cảnh 3D khi game chạy.
+- ECS, modules and phase-ordered systems; scenes, prefabs and a fixed game loop.
+- Sprites, animation, square tilemaps from Tiled/LDtk, collision and a camera that follows the player.
+- Character controllers for platformer and top-down games, A* navigation, particles and post-processing effects.
+- UI, audio, settings saves, dialogue and localization.
+- 3D: perspective camera, solid shapes and smooth SDF shapes, glTF models with materials, lights with shadows and fog, 3D particles, instancing, ray picking.
+- 3D physics (Jolt Physics): static, kinematic and dynamic bodies; a character that walks on the ground, climbs steps, stands on moving platforms; raycasts and ragdolls.
+- Gizmos for 2D and 3D debugging.
+- A virtual screen for pixel art, anti-aliasing via supersampling, and the `njin_inspector` tool to inspect entities, systems, logs, performance, resources and the 3D scene while the game runs.
 
-## Editor tạo model và khung xương
+## Model and skeleton editor
 
-Chạy `run_model_editor.bat` để mở **njin Model Editor**: tạo hình bằng khối SDF,
-ghép/cắt khối, dựng cây xương, gắn khối, chỉnh tư thế và tạo animation bằng timeline
-keyframe. Có gizmo ImGuizmo và xem trước SDF trên GPU. Công cụ lưu model/clip trong
-JSON và xuất model tĩnh OBJ. Xem [hướng dẫn Model Editor](src/tools/model_editor/README.md).
+Run `run_model_editor.bat` to open the **njin Model Editor**: build shapes from
+SDF primitives, combine/cut them, build a bone tree, attach shapes, pose the
+skeleton and author animation with a keyframe timeline. It has ImGuizmo gizmos
+and a GPU SDF preview. The tool saves models and clips as JSON and exports
+static models as OBJ. See the [Model Editor guide](src/tools/model_editor/README.md).
 
-## Game mẫu
+## Sample games
 
-| Target | Nội dung |
+| Target | Content |
 |---|---|
-| `njin_sandbox` | Mẫu tối giản để bắt đầu với engine |
-| `njin_pong` | Game Pong hoàn chỉnh với menu, âm thanh và lưu kỷ lục |
-| `njin_platformer` | Platformer có bản đồ, dốc, nhảy và hội thoại |
-| `njin_topdown` | Game top-down có tilemap, chiến đấu và quái tìm đường |
-| `njin_debug_demo` | Mẫu dùng thử `njin_inspector` |
-| `njin_render_demo` | Mẫu atlas, particle, culling và hậu kỳ |
-| `njin_tower_defense` | Game thủ thành với tháp phòng thủ và các đợt quái |
-| `njin_fps` | Bắn súng góc nhìn thứ nhất: model glTF, bóng đổ, đèn, vệt đạn phát sáng, hạt 3D |
-| `njin_sokoban` | Đẩy thùng 2.5D: instancing, nhân vật hình SDF, đèn trên ô đích |
-| `njin_platformer3d` | Platformer 3D góc nhìn thứ ba trên vật lý Jolt: nhảy đôi, bục di chuyển, thùng đẩy được |
+| `njin_sandbox` | Minimal starting point for the engine |
+| `njin_pong` | A complete Pong game with a menu, audio and high scores |
+| `njin_platformer` | A platformer with a map, slopes, jumping and dialogue |
+| `njin_topdown` | A top-down game with tilemaps, combat and enemy pathfinding |
+| `njin_debug_demo` | A sample for trying out `njin_inspector` |
+| `njin_render_demo` | A sample for atlases, particles, culling and post-processing |
+| `njin_tower_defense` | A tower defense game with defensive towers and enemy waves |
+| `njin_fps` | A first-person shooter: glTF models, shadows, lights, glowing tracers, 3D particles |
+| `njin_sokoban` | 2.5D box-pushing: instancing, an SDF-shaped character, lights on target tiles |
+| `njin_platformer3d` | A third-person 3D platformer on Jolt physics: double jump, moving platforms, pushable crates |
 
-Các demo có thể build độc lập, tái sử dụng engine đã build; xem
-[hướng dẫn game project](src/games/README.md). Dùng `-DNJIN_BUILD_EXAMPLES=OFF`
-để chỉ cấu hình engine và tools. Game nghiêm túc được quản lý bằng repository
-riêng; thư mục game mới được ignore mặc định.
+The samples can be built standalone, reusing an already-built engine; see the
+[game project guide](src/games/README.md). Use `-DNJIN_BUILD_EXAMPLES=OFF`
+to configure only the engine and tools. Serious games are managed in their own
+repository; new game folders are ignored by default.
 
-## Yêu cầu
+## Requirements
 
-- CMake **3.28 trở lên**
-- Trình biên dịch hỗ trợ **C++20**
-- Ninja và Git
-- Kết nối mạng trong lần cấu hình đầu tiên để CMake tải raylib, EnTT, Jolt Physics và (khi bật inspector) Dear ImGui cùng các thư viện liên quan
+- CMake **3.28 or later**
+- A compiler with **C++20** support
+- Ninja and Git
+- Network access on the first configure, for CMake to fetch raylib, EnTT, Jolt Physics and (when the inspector is enabled) Dear ImGui and related libraries
 
-Trên Linux, raylib cần thư viện phát triển cho X11 và OpenGL. Ví dụ Ubuntu/Debian:
+On Linux, raylib needs development libraries for X11 and OpenGL. For example, on Ubuntu/Debian:
 
 ```sh
 sudo apt install build-essential cmake ninja-build git pkg-config \
   libgl1-mesa-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev
 ```
 
-## Build và chạy
+## Build and run
 
-Clone repository rồi cấu hình và build game Pong:
+Clone the repository, then configure and build the Pong game:
 
 ```sh
 git clone https://github.com/tptindev/njin.git
@@ -72,48 +77,57 @@ cmake --preset debug
 cmake --build --preset debug --target njin_pong
 ```
 
-Chạy chương trình đã build:
+Run the built program:
 
 ```sh
-# Windows với GCC
+# Windows with GCC
 build\bin\njin_pong.exe
 
-# Windows với Visual Studio
+# Windows with Visual Studio
 build\bin\Release\njin_pong.exe
 
-# Linux hoặc macOS
+# Linux or macOS
 build/bin/njin_pong
 ```
 
-Bỏ `--target njin_pong` để build tất cả game mẫu và inspector. Có thể thay target bằng bất kỳ game nào trong bảng trên. Các game có thư mục output riêng chạy từ đó, ví dụ `build/bin/topdown/`, `build/bin/platformer/` và `build/bin/tower_defense/`.
+Drop `--target njin_pong` to build every sample game and the inspector. The
+target can be swapped for any game in the table above. Games with their own
+output folder run from there, e.g. `build/bin/topdown/`,
+`build/bin/platformer/` and `build/bin/tower_defense/`.
 
-Trên Windows, các script tiện ích có sẵn:
+On Windows, these helper scripts are available:
 
-- `build.bat` cấu hình và build Debug bằng Ninja.
-- `run.bat` build rồi chạy `njin_sandbox`.
-- `run_inspected.bat [tên_game]` build và chạy game cùng `njin_inspector` (mặc định là `debug_demo`).
+- `build.bat` configures and builds Debug with Ninja.
+- `run.bat` builds and runs `njin_sandbox`.
+- `run_inspected.bat [game_name]` builds and runs a game together with `njin_inspector` (defaults to `debug_demo`).
 
-Để tạo bản Release, dùng preset `release`; kết quả nằm trong `build-release/`:
+To make a Release build, use the `release` preset; the output lands in `build-release/`:
 
 ```sh
 cmake --preset release
 cmake --build --preset release
 ```
 
-## Tài liệu
+## Documentation
 
-Tài liệu hướng dẫn và tra cứu bằng tiếng Việt nằm trong [`docs/pages/`](docs/pages/). Bắt đầu với [cài đặt môi trường](docs/pages/setup.md), [build chương trình đầu tiên](docs/pages/getting_started.md), hoặc xem [các game mẫu](docs/pages/samples.md).
+The guide and reference documentation, in Vietnamese, lives in
+[`docs/pages/`](docs/pages/). Start with
+[environment setup](docs/pages/setup.md),
+[building your first program](docs/pages/getting_started.md), or see the
+[sample games](docs/pages/samples.md).
 
-## Cấu trúc repository
+## Repository layout
 
 ```text
-src/engine/api/       Header API công khai; game include njin.h
-src/engine/runtime/   Phần triển khai engine
-src/games/            Game mẫu và mã dùng chung
-src/tools/inspector/  Công cụ debug riêng
-docs/pages/           Tài liệu tiếng Việt
+src/engine/api/       Public API headers; games include njin.h
+src/engine/runtime/   Engine implementation
+src/games/            Sample games and shared code
+src/tools/inspector/  The debug tool
+docs/pages/           Documentation in Vietnamese
 ```
 
-## Đóng góp và báo lỗi
+## Contributing and reporting issues
 
-Mở [GitHub Issues](https://github.com/tptindev/njin/issues) để báo lỗi hoặc đề xuất cải tiến. njin làm game 2D và 3D; xem thêm [CHANGELOG.md](CHANGELOG.md) và tài liệu trong `docs/pages/` trước khi bắt đầu.
+Open a [GitHub Issue](https://github.com/tptindev/njin/issues) to report a
+bug or suggest an improvement. njin builds 2D and 3D games; see also
+[CHANGELOG.md](CHANGELOG.md) and the docs in `docs/pages/` before you start.
