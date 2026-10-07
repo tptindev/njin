@@ -1,7 +1,9 @@
 #include "njin_audio_impl.h"
+#include "_math.h"
 #include "njin_log.h"
 #include "njin_path.h"
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace njin {
@@ -98,6 +100,8 @@ bool device_ready(const char *what) {
 } // namespace
 
 audio_store::~audio_store() {
+  for (voice3d_slot &voice : voices3d) // aliases first: they read the sounds' data
+    voice3d_store_release(voice);
   for (sound_slot &slot : sounds)
     release(slot);
   for (music_slot &slot : musics)
@@ -157,8 +161,10 @@ sound_handle sound_store_load_samples(audio_store &store, const f32 *samples,
 
 void sound_store_unload(audio_store &store, sound_handle handle) {
   sound_slot *slot = sound_slot_of(store, handle);
-  if (slot != nullptr)
-    release(*slot);
+  if (slot == nullptr)
+    return;
+  voice3d_store_release_sound(store, handle);
+  release(*slot);
 }
 
 void sound_store_set_volume(audio_store &store, sound_handle handle,
@@ -235,6 +241,187 @@ void sound_store_stop(audio_store &store, sound_handle handle) {
   StopSound(slot->sound);
   for (Sound &voice : slot->voices)
     StopSound(voice);
+  voice3d_store_release_sound(store, handle);
+}
+
+f32 sound_store_effective_volume(const audio_store &store, sound_handle handle) {
+  if (handle.id == 0 || handle.id > store.sounds.size())
+    return 0.0f;
+  const sound_slot &slot = store.sounds[handle.id - 1];
+  return slot.alive ? effective_volume(store, slot) : 0.0f;
+}
+
+// 3D voices
+
+voice3d_slot *voice3d_slot_of(audio_store &store, voice3d_handle handle) {
+  if (handle.id == 0 || handle.id > store.voices3d.size())
+    return nullptr;
+  voice3d_slot &v = store.voices3d[handle.id - 1];
+  return v.alive && v.gen == handle.gen ? &v : nullptr;
+}
+
+const voice3d_slot *voice3d_slot_of(const audio_store &store, voice3d_handle handle) {
+  if (handle.id == 0 || handle.id > store.voices3d.size())
+    return nullptr;
+  const voice3d_slot &v = store.voices3d[handle.id - 1];
+  return v.alive && v.gen == handle.gen ? &v : nullptr;
+}
+
+void voice3d_store_release(voice3d_slot &voice) {
+  if (!voice.alive)
+    return;
+  if (IsSoundValid(voice.alias)) {
+    StopSound(voice.alias);
+    UnloadSoundAlias(voice.alias);
+  }
+  const u32 gen = voice.gen;
+  voice = voice3d_slot{};
+  voice.gen = gen; // the next use bumps it
+}
+
+void voice3d_store_release_sound(audio_store &store, sound_handle sound) {
+  for (voice3d_slot &voice : store.voices3d)
+    if (voice.alive && voice.sound.id == sound.id)
+      voice3d_store_release(voice);
+}
+
+voice3d_mix voice3d_compute(const audio_listener3d &listener, f32 speed_of_sound, const sound3d_desc &desc,
+                            vec3 position, vec3 velocity, f32 base_volume, f32 occlusion) {
+  voice3d_mix mix{};
+  const vec3 to_source = position - listener.position;
+  const f32 dist = length(to_source);
+  mix.distance = dist;
+  const vec3 dir = dist > 1e-5f ? to_source / dist : vec3{0.0f, 0.0f, 0.0f};
+
+  const f32 lo = std::max(desc.min_distance, 1e-3f);
+  const f32 hi = std::max(desc.max_distance, lo + 1e-3f);
+  const f32 rf = std::max(desc.rolloff_factor, 0.0f);
+  f32 att = 0.0f;
+  if (dist < hi) {
+    const f32 d = std::max(dist, lo);
+    switch (desc.rolloff) {
+    case rolloff_linear:
+      att = clamp(1.0f - rf * (d - lo) / (hi - lo), 0.0f, 1.0f);
+      break;
+    case rolloff_exponential:
+      att = std::pow(d / lo, -rf);
+      break;
+    case rolloff_inverse:
+    default:
+      att = lo / (lo + rf * (d - lo));
+      break;
+    }
+    // inverse and exponential never reach 0 on their own: fade the last tenth
+    // of the range so a sound walking out of range does not cut off.
+    const f32 edge = hi - 0.1f * (hi - lo);
+    if (desc.rolloff != rolloff_linear && d > edge)
+      att *= (hi - d) / (hi - edge);
+  }
+
+  f32 cone = 1.0f;
+  if (length_sq(desc.cone_direction) > 0.0f && dist > 1e-5f) {
+    const f32 c = clamp(dot(normalize(desc.cone_direction), dir * -1.0f), -1.0f, 1.0f);
+    const f32 angle = std::acos(c) * (180.0f / 3.14159265f);
+    const f32 inner = clamp(desc.cone_inner, 0.0f, 360.0f) * 0.5f;
+    const f32 outer = std::max(clamp(desc.cone_outer, 0.0f, 360.0f) * 0.5f, inner);
+    const f32 outside = clamp(desc.cone_outer_volume, 0.0f, 1.0f);
+    if (angle >= outer)
+      cone = outside;
+    else if (angle > inner)
+      cone = 1.0f + (outside - 1.0f) * (angle - inner) / (outer - inner);
+  }
+
+  const vec3 right = normalize(cross(listener.forward, listener.up));
+  f32 pan = dot(dir, right) * clamp(desc.spread, 0.0f, 1.0f);
+  if (dist < lo)
+    pan *= dist / lo; // right over the listener's head: centre, do not flip sides
+  mix.pan = clamp(pan, -1.0f, 1.0f);
+
+  f32 doppler = 1.0f;
+  if (desc.doppler > 0.0f && dist > 1e-5f && speed_of_sound > 0.0f) {
+    // Along the line from the listener to the source: the listener closing in
+    // is positive, the source moving away is positive.
+    const f32 c = speed_of_sound;
+    const f32 vl = clamp(dot(listener.velocity, dir) * desc.doppler, -0.9f * c, 0.9f * c);
+    const f32 vs = clamp(dot(velocity, dir) * desc.doppler, -0.9f * c, 0.9f * c);
+    doppler = clamp((c + vl) / (c + vs), 0.25f, 4.0f);
+  }
+  mix.pitch = std::max(desc.pitch, 1e-3f) * doppler;
+  mix.volume = base_volume * std::max(desc.volume, 0.0f) * att * cone * clamp(occlusion, 0.0f, 1.0f);
+  return mix;
+}
+
+void voice3d_store_apply(audio_store &store, voice3d_slot &voice) {
+  const bool occluded = voice.mix.occluded;
+  voice.mix = voice3d_compute(store.listener, store.speed_of_sound, voice.desc, voice.position, voice.velocity,
+                              sound_store_effective_volume(store, voice.sound), voice.occlusion);
+  voice.mix.occluded = occluded;
+  SetSoundVolume(voice.alias, voice.mix.volume);
+  SetSoundPan(voice.alias, voice.mix.pan);
+  SetSoundPitch(voice.alias, voice.mix.pitch);
+}
+
+voice3d_handle voice3d_store_start(audio_store &store, sound_handle sound, vec3 position, const sound3d_desc &desc,
+                                   bool looping) {
+  sound_slot *slot = sound_slot_of(store, sound);
+  if (slot == nullptr)
+    return voice3d_handle{};
+  usize alive = 0;
+  voice3d_slot *free_slot = nullptr;
+  voice3d_slot *oldest = nullptr;
+  for (voice3d_slot &v : store.voices3d) {
+    if (!v.alive) {
+      if (free_slot == nullptr)
+        free_slot = &v;
+      continue;
+    }
+    alive++;
+    if (!v.looping && (oldest == nullptr || v.serial < oldest->serial))
+      oldest = &v;
+  }
+  if (alive >= voice3d_max) {
+    if (oldest == nullptr) {
+      static bool told = false;
+      if (!told) {
+        told = true;
+        NJIN_WARN("audio: %zu 3D loops already playing, a new 3D sound is not played", voice3d_max);
+      }
+      return voice3d_handle{};
+    }
+    voice3d_store_release(*oldest);
+    free_slot = oldest;
+  }
+  // Safe only because the slot's sound passed IsSoundValid on load: see pick_voice.
+  const Sound alias = LoadSoundAlias(slot->sound);
+  if (!IsSoundValid(alias))
+    return voice3d_handle{};
+  if (free_slot == nullptr) {
+    store.voices3d.emplace_back();
+    free_slot = &store.voices3d.back();
+  }
+  voice3d_slot &v = *free_slot;
+  const u32 gen = v.gen + 1;
+  v = voice3d_slot{};
+  v.alive = true;
+  v.gen = gen;
+  v.sound = sound;
+  v.alias = alias;
+  v.looping = looping;
+  v.serial = ++store.voice3d_serial;
+  v.desc = desc;
+  v.position = position;
+  v.last_position = position;
+  v.has_last = true;
+  voice3d_store_apply(store, v);
+  PlaySound(v.alias);
+  return voice3d_handle{.id = (u32)(&v - store.voices3d.data()) + 1, .gen = gen};
+}
+
+void audio3d_note_camera(audio_store &store, vec3 position, vec3 target, vec3 up) {
+  store.camera.position = position;
+  store.camera.forward = target - position;
+  store.camera.up = up;
+  store.camera_seen = true;
 }
 
 // Music

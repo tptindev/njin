@@ -35,6 +35,9 @@
 /// @defgroup grp_music Music
 /// Music streamed from disk: background music, long ambient sounds.
 
+/// @defgroup grp_sound3d 3D sound
+/// Listener, sounds placed at positions and on entities in a 3D world: distance, panning, Doppler, cones, occlusion.
+
 /// @defgroup grp_log Log
 /// Log by level, redirect where the log goes.
 

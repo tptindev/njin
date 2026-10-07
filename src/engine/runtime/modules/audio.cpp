@@ -4,7 +4,10 @@
 
 namespace njin {
 namespace {
-void update_audio(context &ctx) { audio_store_update(ctx.audio, ctx.time.dt_real); }
+void update_audio(context &ctx) {
+  audio3d_update(ctx);
+  audio_store_update(ctx.audio, ctx.time.dt_real);
+}
 
 void setup(context &ctx) {
   ecs_register(ctx, phase_post_update, update_audio, "update_audio");

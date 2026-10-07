@@ -204,6 +204,17 @@ struct vehicle3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một tiếng đang phát trong không gian 3D, tạo bởi sound_play3d()
+/// hoặc sound_loop3d().
+///
+/// `id == 0` là handle không hợp lệ. Tiếng đã phát xong hoặc đã dừng cũng bị bỏ
+/// qua: ô của nó được dùng lại cho tiếng sau, nhưng `gen` khác nên handle cũ không
+/// bao giờ trỏ nhầm sang tiếng mới.
+struct voice3d_handle {
+  u32 id = 0;  ///< 0 nghĩa là không hợp lệ.
+  u32 gen = 0; ///< Lần dùng thứ mấy của ô này.
+};
+
 /// Định danh của một atlas, tạo bởi atlas_create().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.

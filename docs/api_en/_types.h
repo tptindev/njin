@@ -204,6 +204,17 @@ struct vehicle3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a sound playing in 3D space, created by sound_play3d() or
+/// sound_loop3d().
+///
+/// `id == 0` is an invalid handle. A sound that has finished or been stopped is
+/// ignored too: its slot is reused for a later sound, but with a different `gen`,
+/// so an old handle never points at the new sound.
+struct voice3d_handle {
+  u32 id = 0;  ///< 0 means invalid.
+  u32 gen = 0; ///< Which use of this slot it is.
+};
+
 /// Identifier of an atlas, created by atlas_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

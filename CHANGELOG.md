@@ -44,6 +44,24 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- 3D sound (`njin_audio.h`): `sound_play3d()` and `sound_loop3d()` play a
+  sound at a point or on an entity's `transform3d`, heard from a listener that
+  follows the last on-screen `begin_3d()` camera by default
+  (`audio_set_listener3d()`, `audio_listener3d_follow_camera()`,
+  `audio_listener3d_get()`). Each 3D sound has its own voice whose volume, pan
+  and pitch are recomputed every frame: distance (`min_distance`,
+  `max_distance`, inverse, linear or exponential `rolloff`), left and right
+  from the listener's facing (`spread`), Doppler from velocities the engine
+  measures or the game sets (`voice3d_set_velocity()`,
+  `audio_set_speed_of_sound()`), a speaker cone, and optional occlusion by a
+  physics ray (volume only, no muffling). The sound's own volume and its bus
+  still apply. `voice3d_set_position()`, `voice3d_attach()`,
+  `voice3d_set_desc()`, `voice3d_desc()`, `voice3d_stop()`,
+  `voice3d_playing()`, and `voice3d_state()` for what was computed. Up to 64
+  at once; `sound_stop()` also stops a sound's 3D voices. Computed by the
+  engine and applied through raylib's per-sound volume, pan and pitch, since
+  raylib mixes each sound itself and miniaudio's spatializer is not in that
+  path.
 - Soft bodies (`njin_physics3d.h`), on Jolt's soft bodies:
   `softbody3d_create()` makes a solid box lattice that keeps its volume, a
   hollow sphere, or the surface of a game mesh or a loaded model (vertices at

@@ -1,5 +1,6 @@
 #pragma once
 #include "_types.h"
+#include <entt/entity/fwd.hpp>
 
 namespace njin {
 // Opaque, see njin_ctx.h.
@@ -249,5 +250,204 @@ void music_fade_out(context &ctx, music_handle handle, f32 seconds);
 /// @param handle Music to switch to. With a handle of id 0, all music just fades out.
 /// @param seconds Switch time, in seconds (real time).
 void music_crossfade(context &ctx, music_handle handle, f32 seconds);
+/// @}
+
+/// @addtogroup grp_sound3d
+/// @{
+
+/// The ears of the 3D world: every 3D sound is heard from here.
+///
+/// By default it follows the camera of the last begin_3d() drawn to the screen
+/// (position, facing, up), and its velocity is measured from how far the camera
+/// moves each frame. Set it by hand with audio_set_listener3d() when the ears are
+/// not at the camera (a third-person view that should hear from the character).
+struct audio_listener3d {
+  vec3 position{0.0f, 0.0f, 0.0f}; ///< Position of the ears.
+  vec3 forward{0.0f, 0.0f, -1.0f}; ///< Facing. Need not be of length 1.
+  vec3 up{0.0f, 1.0f, 0.0f};       ///< Up direction. Need not be of length 1.
+  vec3 velocity{0.0f, 0.0f, 0.0f}; ///< Velocity, units per second, for the Doppler effect.
+};
+
+/// Sets the listener by hand. From now on it stops following the camera, until
+/// audio_listener3d_follow_camera() is called. Non-finite values (NaN, infinity) are ignored.
+/// @param ctx Engine context.
+/// @param listener The listener. A velocity of 0 gives no Doppler from the listener moving.
+void audio_set_listener3d(context &ctx, const audio_listener3d &listener);
+
+/// Makes the listener follow the begin_3d() camera (the default), or stop
+/// following it and stay where it is.
+/// @param ctx Engine context.
+/// @param follow `true` to follow the camera.
+void audio_listener3d_follow_camera(context &ctx, bool follow = true);
+
+/// The listener in use, also while it follows the camera.
+/// @param ctx Engine context.
+/// @return The listener.
+audio_listener3d audio_listener3d_get(const context &ctx);
+
+/// The speed of sound, world units per second, for the Doppler effect. Default 343
+/// (metres per second, when one unit is one metre). Lower makes Doppler stronger.
+/// @param ctx Engine context.
+/// @param units_per_second Speed. Ignored when not positive.
+void audio_set_speed_of_sound(context &ctx, f32 units_per_second);
+
+/// How volume falls with distance, from `min_distance` (full) to
+/// `max_distance` (silent).
+enum audio_rolloff {
+  /// Falls as 1/distance, as in real life: fast up close, slow far away. Over the
+  /// last 10% before `max_distance` it fades to 0 so it does not cut off. The default.
+  rolloff_inverse,
+  /// Falls evenly from 1 at `min_distance` to 0 at `max_distance`. Predictable, for
+  /// games that need to know exactly how far a sound is heard.
+  rolloff_linear,
+  /// Falls as a power of distance, `(d / min_distance)^-rolloff_factor`: dies off
+  /// faster than inverse. Fades out over the last 10% like inverse.
+  rolloff_exponential,
+};
+
+/// How a 3D sound is heard. Every field can be changed while the sound plays,
+/// with voice3d_set_desc().
+struct sound3d_desc {
+  f32 volume = 1.0f; ///< Multiplies the sound's volume (and its bus). Negative is 0.
+  f32 pitch = 1.0f;  ///< Pitch before Doppler. 1 is as recorded.
+  f32 min_distance = 1.0f;  ///< Closer than this is full volume.
+  f32 max_distance = 40.0f; ///< Farther than this is silent (and costs nothing to mix).
+  audio_rolloff rolloff = rolloff_inverse; ///< How it falls off with distance.
+  /// Steepness of `rolloff_inverse` and `rolloff_exponential`. 1 is real life,
+  /// 2 dies off faster, 0.5 carries farther.
+  f32 rolloff_factor = 1.0f;
+  /// How far left and right go, 0..1. 1 puts a sound on the right fully in the
+  /// right speaker; 0 keeps it centred (only volume changes). Closer than
+  /// `min_distance` it drifts back to the centre, so a sound right overhead does
+  /// not jump from one speaker to the other.
+  f32 spread = 1.0f;
+  /// Strength of the Doppler effect: higher as the source and listener close in,
+  /// lower as they move apart. 0 is off, 1 is real life.
+  f32 doppler = 1.0f;
+  /// Direction a directional speaker plays toward (a car horn, a megaphone), in
+  /// the world. `{0, 0, 0}` (the default) plays equally in every direction and the
+  /// `cone_*` fields are ignored.
+  vec3 cone_direction{0.0f, 0.0f, 0.0f};
+  f32 cone_inner = 360.0f; ///< Full angle (degrees) of the full-volume zone around `cone_direction`.
+  f32 cone_outer = 360.0f; ///< Full angle (degrees) outside of which only `cone_outer_volume` remains.
+  f32 cone_outer_volume = 0.0f; ///< Volume factor outside `cone_outer`, 0..1.
+  /// Occlusion: every frame a physics ray (physics3d_raycast()) is cast from the
+  /// listener to the source; if it hits a body before the source the sound drops
+  /// to `occlusion_volume`, easing over about 0.15 seconds. Only the volume
+  /// changes, the sound is not muffled. With no physics world nothing is ever
+  /// occluded.
+  bool occlusion = false;
+  f32 occlusion_volume = 0.35f; ///< Volume factor when occluded, 0..1.
+  /// A hit within this distance of the source does not count as occlusion: the
+  /// body of the thing making the sound (a running car's chassis) does not block
+  /// its own sound. Raise it for large things.
+  f32 occlusion_margin = 0.5f;
+};
+
+/// Plays `handle` once at `position`, heard from the 3D listener as `desc` says.
+///
+/// Each 3D sound has its own voice, so its volume, pan and pitch are recomputed
+/// every frame from its position and the listener's. The final volume also
+/// multiplies the sound's volume and its bus (sound_set_bus(),
+/// audio_set_bus_volume()). At most 64 3D sounds at once; past that the one-shot
+/// that has played longest is cut. A non-finite position (NaN, infinity) is not played.
+/// @param ctx Engine context.
+/// @param handle A loaded sound.
+/// @param position Where it plays, in the world.
+/// @param desc How it is heard.
+/// @return Handle of the sound, or a handle of id 0 if it could not be played.
+voice3d_handle sound_play3d(context &ctx, sound_handle handle, vec3 position, const sound3d_desc &desc = {});
+
+/// Like the one above, but the sound follows `entity` (the position of its
+/// njin::transform3d) until it finishes. If the entity is destroyed the sound
+/// plays out where it last was.
+/// @param ctx Engine context.
+/// @param handle A loaded sound.
+/// @param entity An entity with njin::transform3d.
+/// @param desc How it is heard.
+/// @return Handle of the sound, or a handle of id 0 if it could not be played.
+voice3d_handle sound_play3d(context &ctx, sound_handle handle, entt::entity entity, const sound3d_desc &desc = {});
+
+/// Plays `handle` in a loop at `position` until voice3d_stop() (or sound_stop()
+/// on that sound): an engine, a crackling fire, a waterfall. As with
+/// sound_play_loop(), the join has a gap of about one frame.
+/// @param ctx Engine context.
+/// @param handle A loaded sound.
+/// @param position Where it plays, in the world.
+/// @param desc How it is heard.
+/// @return Handle of the sound, or a handle of id 0 if it could not be played.
+voice3d_handle sound_loop3d(context &ctx, sound_handle handle, vec3 position, const sound3d_desc &desc = {});
+
+/// Like the one above, but the sound follows `entity`: an engine on a car. If the
+/// entity is destroyed the loop stops.
+/// @param ctx Engine context.
+/// @param handle A loaded sound.
+/// @param entity An entity with njin::transform3d.
+/// @param desc How it is heard.
+/// @return Handle of the sound, or a handle of id 0 if it could not be played.
+voice3d_handle sound_loop3d(context &ctx, sound_handle handle, entt::entity entity, const sound3d_desc &desc = {});
+
+/// Moves the sound to `position`, and stops it following an entity if it was.
+/// Ignored when not finite.
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @param position New position, in the world.
+void voice3d_set_position(context &ctx, voice3d_handle voice, vec3 position);
+
+/// Makes the sound follow `entity`, `offset` away from its position (in the
+/// world, not turned with the entity).
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @param entity An entity with njin::transform3d.
+/// @param offset Offset.
+void voice3d_attach(context &ctx, voice3d_handle voice, entt::entity entity, vec3 offset = {});
+
+/// Sets the source's velocity for Doppler. By default the engine measures it from
+/// how far the source moves each frame; after this call the engine stops measuring
+/// and uses this value (taken from body3d_velocity(), say) until the sound stops.
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @param velocity Velocity, units per second.
+void voice3d_set_velocity(context &ctx, voice3d_handle voice, vec3 velocity);
+
+/// Changes how a playing sound is heard: volume from a car's throttle, pitch from
+/// its engine speed (vehicle3d_rpm()).
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @param desc New way of hearing it.
+void voice3d_set_desc(context &ctx, voice3d_handle voice, const sound3d_desc &desc);
+
+/// How the sound is heard now. Edit a copy then voice3d_set_desc().
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @return The desc, or the default one if the handle is invalid.
+sound3d_desc voice3d_desc(const context &ctx, voice3d_handle voice);
+
+/// Stops the sound. The handle is no longer valid.
+/// @param ctx Engine context.
+/// @param voice The sound.
+void voice3d_stop(context &ctx, voice3d_handle voice);
+
+/// Whether the sound is still playing (a loop: until it is stopped).
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @return `true` if it is playing.
+bool voice3d_playing(const context &ctx, voice3d_handle voice);
+
+/// What the engine computed for a 3D sound at its last update, for debugging or
+/// to draw a sound indicator on screen.
+struct voice3d_mix {
+  f32 volume = 0.0f;   ///< Volume playing now: sound, bus, distance, cone and occlusion multiplied.
+  f32 pan = 0.0f;      ///< Left and right, -1 (left) .. 1 (right).
+  f32 pitch = 1.0f;    ///< Pitch playing now, Doppler included.
+  f32 distance = 0.0f; ///< Distance to the listener.
+  bool occluded = false; ///< Whether the ray from the listener to the source is blocked.
+};
+
+/// Volume, pan and pitch of the sound at its last update.
+/// @param ctx Engine context.
+/// @param voice The sound.
+/// @return The result, or the default one if the handle is invalid.
+voice3d_mix voice3d_state(const context &ctx, voice3d_handle voice);
 /// @}
 } // namespace njin

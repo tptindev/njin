@@ -1890,6 +1890,7 @@ void begin_3d(context &ctx, const camera3d &camera) {
     return;
   rlDrawRenderBatchActive();
   ctx.render3d.target_fbo = 0;
+  audio3d_note_camera(ctx.audio, camera.position, camera.target, camera.up); // unshaken
   start_pass(ctx, camera);
 }
 

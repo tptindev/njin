@@ -35,6 +35,9 @@
 /// @defgroup grp_music Music
 /// Nhạc stream từ đĩa: nhạc nền, âm thanh môi trường dài.
 
+/// @defgroup grp_sound3d Âm thanh 3D
+/// Tai nghe, tiếng theo vị trí và entity trong thế giới 3D: khoảng cách, trái phải, Doppler, nón, vật che.
+
 /// @defgroup grp_log Log
 /// Ghi log theo mức độ, đổi nơi nhận log.
 

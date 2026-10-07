@@ -1,5 +1,6 @@
 #pragma once
 #include "_types.h"
+#include <entt/entity/fwd.hpp>
 
 namespace njin {
 // Opaque, see njin_ctx.h.
@@ -246,5 +247,199 @@ void music_fade_out(context &ctx, music_handle handle, f32 seconds);
 /// @param handle Music cần chuyển sang. Handle id 0 thì chỉ tắt dần mọi nhạc.
 /// @param seconds Thời gian chuyển, giây (giờ thật).
 void music_crossfade(context &ctx, music_handle handle, f32 seconds);
+/// @}
+
+/// @addtogroup grp_sound3d
+/// @{
+
+/// Tai nghe của thế giới 3D: mọi tiếng 3D được nghe từ đây.
+///
+/// Mặc định nó đi theo camera của lần begin_3d() vẽ ra màn hình gần nhất (vị
+/// trí, hướng nhìn, hướng lên), và vận tốc được đo từ quãng camera đi mỗi frame.
+/// Đặt tay bằng audio_set_listener3d() khi tai không ở camera (góc nhìn thứ ba
+/// mà muốn nghe từ nhân vật).
+struct audio_listener3d {
+  vec3 position{0.0f, 0.0f, 0.0f}; ///< Vị trí tai.
+  vec3 forward{0.0f, 0.0f, -1.0f}; ///< Hướng nhìn. Không cần độ dài 1.
+  vec3 up{0.0f, 1.0f, 0.0f};       ///< Hướng lên. Không cần độ dài 1.
+  vec3 velocity{0.0f, 0.0f, 0.0f}; ///< Vận tốc, đơn vị mỗi giây, cho hiệu ứng Doppler.
+};
+
+/// Đặt tai nghe bằng tay. Từ lúc này tai thôi đi theo camera, cho đến khi gọi
+/// audio_listener3d_follow_camera(). Giá trị không hữu hạn (NaN, vô cực) bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param listener Tai nghe. Vận tốc 0 thì không có Doppler do tai di chuyển.
+void audio_set_listener3d(context &ctx, const audio_listener3d &listener);
+
+/// Cho tai nghe đi theo camera của begin_3d() (mặc định), hoặc thôi đi theo và
+/// đứng yên ở chỗ hiện tại.
+/// @param ctx Context của engine.
+/// @param follow `true` để đi theo camera.
+void audio_listener3d_follow_camera(context &ctx, bool follow = true);
+
+/// Tai nghe đang dùng, kể cả khi nó đi theo camera.
+/// @param ctx Context của engine.
+/// @return Tai nghe.
+audio_listener3d audio_listener3d_get(const context &ctx);
+
+/// Tốc độ âm thanh, đơn vị thế giới mỗi giây, cho hiệu ứng Doppler. Mặc định 343
+/// (mét mỗi giây, khi một đơn vị là một mét). Nhỏ hơn thì Doppler rõ hơn.
+/// @param ctx Context của engine.
+/// @param units_per_second Tốc độ. Không dương thì bị bỏ qua.
+void audio_set_speed_of_sound(context &ctx, f32 units_per_second);
+
+/// Cách âm lượng giảm theo khoảng cách, từ `min_distance` (đủ to) đến
+/// `max_distance` (im).
+enum audio_rolloff {
+  /// Giảm theo 1/khoảng cách, như ngoài đời: nhanh lúc gần, chậm lúc xa. Ở 10%
+  /// cuối trước `max_distance` nhỏ dần về 0 để không tắt đột ngột. Mặc định.
+  rolloff_inverse,
+  /// Giảm đều từ 1 ở `min_distance` đến 0 ở `max_distance`. Dễ đoán, hợp với game
+  /// cần biết chắc tiếng nghe được tới đâu.
+  rolloff_linear,
+  /// Giảm theo lũy thừa của khoảng cách, `(d / min_distance)^-rolloff_factor`:
+  /// tắt nhanh hơn inverse. Cùng nhỏ dần ở 10% cuối như inverse.
+  rolloff_exponential,
+};
+
+/// Cách nghe một tiếng 3D. Mọi trường sửa được lúc tiếng đang phát bằng
+/// voice3d_set_desc().
+struct sound3d_desc {
+  f32 volume = 1.0f; ///< Nhân vào âm lượng của sound (và kênh của nó). Âm thì là 0.
+  f32 pitch = 1.0f;  ///< Cao độ trước Doppler. 1 là như bản ghi.
+  f32 min_distance = 1.0f;  ///< Gần hơn thì nghe đủ to.
+  f32 max_distance = 40.0f; ///< Xa hơn thì im (và không tốn gì để trộn).
+  audio_rolloff rolloff = rolloff_inverse; ///< Cách giảm theo khoảng cách.
+  /// Độ dốc của `rolloff_inverse` và `rolloff_exponential`. 1 là như ngoài đời,
+  /// 2 là tắt nhanh hơn, 0.5 là vang xa hơn.
+  f32 rolloff_factor = 1.0f;
+  /// Độ lệch trái phải, 0..1. 1 là tiếng bên phải nghe hẳn ở loa phải; 0 là luôn
+  /// ở giữa (chỉ đổi âm lượng). Gần tai hơn `min_distance` thì tự về giữa dần, để
+  /// tiếng ngay trên đầu không nhảy từ loa này sang loa kia.
+  f32 spread = 1.0f;
+  /// Độ mạnh của Doppler: tiếng cao lên khi nguồn và tai lại gần nhau, trầm xuống
+  /// khi xa nhau. 0 là tắt, 1 là như ngoài đời.
+  f32 doppler = 1.0f;
+  /// Hướng phát của một loa có hướng (còi xe, loa phóng thanh), trong thế giới.
+  /// `{0, 0, 0}` (mặc định) là phát đều mọi hướng và các trường `cone_*` bị bỏ qua.
+  vec3 cone_direction{0.0f, 0.0f, 0.0f};
+  f32 cone_inner = 360.0f; ///< Góc toàn phần (độ) của vùng nghe đủ to, quanh `cone_direction`.
+  f32 cone_outer = 360.0f; ///< Góc toàn phần (độ) mà ngoài nó chỉ còn `cone_outer_volume`.
+  f32 cone_outer_volume = 0.0f; ///< Hệ số âm lượng ngoài `cone_outer`, 0..1.
+  /// Bị che: mỗi frame bắn một tia vật lý (physics3d_raycast()) từ tai tới nguồn;
+  /// chạm một body ở trước nguồn thì tiếng nhỏ lại còn `occlusion_volume`, chuyển
+  /// mượt trong khoảng 0,15 giây. Chỉ đổi âm lượng, không làm tiếng đục đi. Không có
+  /// thế giới vật lý thì không bao giờ bị che.
+  bool occlusion = false;
+  f32 occlusion_volume = 0.35f; ///< Hệ số âm lượng khi bị che, 0..1.
+  /// Chỗ chạm cách nguồn trong khoảng này thì không tính là che: body của chính vật
+  /// phát tiếng (thân xe đang nổ máy) không che tiếng của nó. Tăng cho vật lớn.
+  f32 occlusion_margin = 0.5f;
+};
+
+/// Phát một lần `handle` tại `position`, nghe từ tai nghe 3D theo `desc`.
+///
+/// Mỗi tiếng 3D có giọng riêng nên âm lượng, trái phải và cao độ của nó được tính
+/// lại mỗi frame từ vị trí của nó và của tai. Âm lượng cuối cùng còn nhân âm lượng
+/// của sound và kênh của nó (sound_set_bus(), audio_set_bus_volume()). Tối đa 64
+/// tiếng 3D cùng lúc; quá số đó thì tiếng phát một lần đã chạy lâu nhất bị cắt. Vị
+/// trí không hữu hạn (NaN, vô cực) thì không phát.
+/// @param ctx Context của engine.
+/// @param handle Sound đã nạp.
+/// @param position Nơi phát, trong thế giới.
+/// @param desc Cách nghe.
+/// @return Handle của tiếng, hoặc handle có id 0 nếu không phát được.
+voice3d_handle sound_play3d(context &ctx, sound_handle handle, vec3 position, const sound3d_desc &desc = {});
+
+/// Như bản trên, nhưng tiếng đi theo `entity` (vị trí njin::transform3d của nó)
+/// cho đến khi phát xong. Entity bị hủy thì tiếng phát nốt ở chỗ cuối cùng.
+/// @param ctx Context của engine.
+/// @param handle Sound đã nạp.
+/// @param entity Entity có njin::transform3d.
+/// @param desc Cách nghe.
+/// @return Handle của tiếng, hoặc handle có id 0 nếu không phát được.
+voice3d_handle sound_play3d(context &ctx, sound_handle handle, entt::entity entity, const sound3d_desc &desc = {});
+
+/// Phát lặp `handle` tại `position` cho đến khi voice3d_stop() (hoặc sound_stop()
+/// cho sound đó): tiếng máy nổ, lửa tí tách, thác nước. Như sound_play_loop(), chỗ
+/// nối có một quãng lặng cỡ một frame.
+/// @param ctx Context của engine.
+/// @param handle Sound đã nạp.
+/// @param position Nơi phát, trong thế giới.
+/// @param desc Cách nghe.
+/// @return Handle của tiếng, hoặc handle có id 0 nếu không phát được.
+voice3d_handle sound_loop3d(context &ctx, sound_handle handle, vec3 position, const sound3d_desc &desc = {});
+
+/// Như bản trên, nhưng tiếng đi theo `entity`: tiếng máy gắn vào xe. Entity bị hủy
+/// thì tiếng lặp dừng luôn.
+/// @param ctx Context của engine.
+/// @param handle Sound đã nạp.
+/// @param entity Entity có njin::transform3d.
+/// @param desc Cách nghe.
+/// @return Handle của tiếng, hoặc handle có id 0 nếu không phát được.
+voice3d_handle sound_loop3d(context &ctx, sound_handle handle, entt::entity entity, const sound3d_desc &desc = {});
+
+/// Dời tiếng tới `position`, và thôi đi theo entity nếu đang đi theo. Không hữu
+/// hạn thì bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @param position Vị trí mới, trong thế giới.
+void voice3d_set_position(context &ctx, voice3d_handle voice, vec3 position);
+
+/// Cho tiếng đi theo `entity`, lệch `offset` so với vị trí của nó (trong thế giới,
+/// không xoay theo entity).
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @param entity Entity có njin::transform3d.
+/// @param offset Độ lệch.
+void voice3d_attach(context &ctx, voice3d_handle voice, entt::entity entity, vec3 offset = {});
+
+/// Đặt vận tốc của nguồn cho Doppler. Mặc định engine đo vận tốc từ quãng nguồn
+/// đi mỗi frame; gọi hàm này thì engine thôi đo và dùng giá trị này (ví dụ lấy từ
+/// body3d_velocity()) cho đến khi tiếng dừng.
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @param velocity Vận tốc, đơn vị mỗi giây.
+void voice3d_set_velocity(context &ctx, voice3d_handle voice, vec3 velocity);
+
+/// Đổi cách nghe của tiếng đang phát: âm lượng theo ga của xe, cao độ theo vòng
+/// tua máy (vehicle3d_rpm()).
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @param desc Cách nghe mới.
+void voice3d_set_desc(context &ctx, voice3d_handle voice, const sound3d_desc &desc);
+
+/// Cách nghe đang dùng của tiếng. Sửa bản sao rồi voice3d_set_desc().
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @return Cách nghe, hoặc giá trị mặc định nếu handle không hợp lệ.
+sound3d_desc voice3d_desc(const context &ctx, voice3d_handle voice);
+
+/// Dừng tiếng. Handle không còn hợp lệ nữa.
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+void voice3d_stop(context &ctx, voice3d_handle voice);
+
+/// Tiếng còn đang phát không (tiếng lặp thì cho đến khi dừng).
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @return `true` nếu còn phát.
+bool voice3d_playing(const context &ctx, voice3d_handle voice);
+
+/// Những gì engine tính được cho một tiếng 3D ở lần cập nhật gần nhất, để debug
+/// hoặc để vẽ chỉ báo tiếng động trên màn hình.
+struct voice3d_mix {
+  f32 volume = 0.0f;   ///< Âm lượng đang phát, đã nhân sound, kênh, khoảng cách, nón và vật che.
+  f32 pan = 0.0f;      ///< Trái phải, -1 (trái) .. 1 (phải).
+  f32 pitch = 1.0f;    ///< Cao độ đang phát, đã nhân Doppler.
+  f32 distance = 0.0f; ///< Khoảng cách tới tai.
+  bool occluded = false; ///< Tia từ tai tới nguồn có bị chặn không.
+};
+
+/// Âm lượng, trái phải và cao độ của tiếng ở lần cập nhật gần nhất.
+/// @param ctx Context của engine.
+/// @param voice Tiếng.
+/// @return Kết quả, hoặc giá trị mặc định nếu handle không hợp lệ.
+voice3d_mix voice3d_state(const context &ctx, voice3d_handle voice);
 /// @}
 } // namespace njin
