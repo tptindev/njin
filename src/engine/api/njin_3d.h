@@ -180,6 +180,10 @@ struct material3d {
   texture_handle under_normal{}; ///< Normal map của lớp dưới, như `normal`.
   /// Phần lớp dưới lộ ra, 0 (không) đến 1 (toàn bộ, lớp trên bong hết).
   f32 under_amount = 0.0f;
+  /// Độ phản chiếu, 0..1, cho phản chiếu trên màn hình (`post3d::ssr`): 1 là gương ở
+  /// mọi góc nhìn, nhỏ hơn thì chỉ phản chiếu rõ khi nhìn xiên (sàn bóng, mặt nước).
+  /// Chỉ có tác dụng khi `post3d::ssr` > 0. Hình SDF (draw_shape3d()) không phản chiếu.
+  f32 reflect = 0.0f;
 };
 
 /// Đặt bề mặt cho các hình 3D vẽ sau lệnh này, đến lần gọi tiếp theo hoặc

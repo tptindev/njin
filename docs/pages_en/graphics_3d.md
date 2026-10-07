@@ -289,6 +289,9 @@ njin::fx3d_set(ctx, {});
 3D particles face the camera, stop during hitstop, and `particles3d_desc::scale` converts an emitter
 preset's pixel units to 3D world units.
 
+Effects worked out on the 3D image from its depth (wall corners that darken, polished floors that reflect,
+bullet holes stuck to surfaces, motion blur, light shafts, lens flare) have a page of their own: @ref post_3d.
+
 ## Instancing
 
 draw_instanced3d() draws `count` copies of a built-in shape or a model with one draw call, each

@@ -44,6 +44,30 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- 3D screen effects (new `njin_post3d.h`), all off by default so existing
+  games draw exactly as before: `post3d_set()` with `post3d::ssao`
+  (ambient occlusion from the depth, half or full resolution, depth-aware
+  blur, multiplied into the image), `post3d::ssr` (screen-space reflections
+  marched over the depth, on surfaces with the new `material3d::reflect`,
+  fading to the fog colour where the ray leaves the screen),
+  `post3d::motion_blur` (camera motion blur from the depth and the last
+  pass's view-projection; a still camera leaves the image untouched),
+  `post3d::shafts` (light shafts: the sky near the sun blurred towards it, so
+  objects in front of the sun cut rays) and `post3d::flare` (lens flare
+  ghosts, halo and glow, faded by how much of the sun's disc shows). They
+  run in end_3d() on passes into the world, not into render textures. No
+  TAA: it would need every projection jittered, the 2D drawn into the world
+  image included, and per-object velocities. On an RTX 3050 Laptop (Release,
+  1280x720) each costs 0.15 to 0.4 ms (full-resolution SSAO 0.54 ms), all
+  of them with 50 decals about 1 ms.
+- Decals: `decal3d_add()` projects an image (or a soft round spot) from a box
+  onto every opaque surface inside it, walls, models and terrain alike, by
+  the depth; `decal3d_multiply` darkens and keeps the surface's light and
+  shadows, `decal3d_paint` lays lit colour over. A lifetime in game time
+  with a fade, a fade on surfaces slanting from the projection axis, and a
+  pool of 256 by default where the oldest is replaced (`decal3d_set_max()`).
+  `decal3d_rotation()` turns a decal onto a hit's normal, `decal3d_remove()`,
+  `decal3d_clear()`, `decal3d_count()`.
 - Outdoor world (new `njin_world3d.h`). Terrain: `terrain3d_create()` builds a
   square height grid from an array, a height map (grey image or 16-bit
   `.r16`/`.raw`) or noise, with up to four surface layers covering ground by

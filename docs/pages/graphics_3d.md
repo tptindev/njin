@@ -278,6 +278,9 @@ njin::fx3d_set(ctx, {});
 Hạt 3D quay mặt về camera, dừng trong hitstop, và `particles3d_desc::scale` đổi đơn vị pixel của các
 mẫu njin::fx sang đơn vị thế giới 3D.
 
+Hiệu ứng tính trên ảnh 3D theo độ sâu (góc tường tối đi, sàn bóng phản chiếu, vết đạn dán lên bề mặt, mờ
+chuyển động, tia nắng, lóa ống kính) ở trang riêng: @ref post_3d.
+
 ## Instancing
 
 draw_instanced3d() vẽ `count` bản của một hình có sẵn hay một model bằng một lệnh vẽ, dữ liệu mỗi bản

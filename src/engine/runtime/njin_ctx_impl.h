@@ -13,6 +13,7 @@
 #include "modules/particles_gpu.h"
 #include "modules/particles3d.h"
 #include "modules/post_fx.h"
+#include "modules/post3d.h"
 #include "modules/render3d.h"
 #include "modules/reload.h"
 #include "modules/render_stats.h"
@@ -101,6 +102,7 @@ struct context {
   post_chain postfx;
   lighting_state light;
   render3d_state render3d;
+  post3d_state post3d;
   particles3d_state particles3d;
   world3d_store world3d;
   particle_gpu_state particles_gpu;

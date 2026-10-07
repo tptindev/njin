@@ -245,6 +245,16 @@ struct scatter3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a decal, created by decal3d_add().
+///
+/// `id == 0` is an invalid handle. A decal that is gone or was replaced is ignored
+/// too: its slot is reused for a later decal, but with a different `gen`, so an old
+/// handle never points at the new decal.
+struct decal3d_handle {
+  u32 id = 0;  ///< 0 means invalid.
+  u32 gen = 0; ///< Which use of this slot it is.
+};
+
 /// Identifier of a sound playing in 3D space, created by sound_play3d() or
 /// sound_loop3d().
 ///

@@ -4,6 +4,7 @@
 #include "gizmo.h"
 #include "lighting.h"
 #include "post_fx.h"
+#include "post3d.h"
 #include "render3d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
@@ -77,7 +78,8 @@ bool ensure_post_target(const context &ctx, camera_post &post) {
 void begin_world_space(context &ctx) {
   camera_post &post = ctx.post;
   const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
-                      post_chain_active(ctx.postfx) || lighting_active(ctx.light);
+                      post_chain_active(ctx.postfx) || lighting_active(ctx.light) ||
+                      post3d_wanted(ctx);
   post.drawing = wanted && ensure_post_target(ctx, post);
   if (post.drawing) {
     bind_view_target(post.target, screen_size(ctx));

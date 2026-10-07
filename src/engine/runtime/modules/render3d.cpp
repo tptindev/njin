@@ -12,6 +12,7 @@
 #include "njin_shader.h"
 #include "njin_texture.h"
 #include "particles3d.h"
+#include "post3d.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -672,6 +673,31 @@ const char *const depth_fs = R"(#version 330
 out vec4 finalColor;
 void main() { finalColor = vec4(1.0); }
 )";
+
+// The reflecting surfaces for post3d's SSR: `maskValue` where this fragment is
+// the nearest surface of the pass (its depth copy), nothing behind it.
+const char *const mask_fs = R"(#version 330
+uniform sampler2D sceneDepth;
+uniform vec2 sceneSize;
+uniform vec2 planes;
+uniform float maskValue;
+out vec4 finalColor;
+float linear_depth(float d) {
+  float z = d * 2.0 - 1.0;
+  return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
+}
+void main() {
+  float scene = texture(sceneDepth, gl_FragCoord.xy / sceneSize).r;
+  float a = linear_depth(gl_FragCoord.z);
+  float b = linear_depth(scene);
+  if (a > b * 1.002 + 0.02)
+    discard;
+  finalColor = vec4(maskValue, 0.0, 0.0, 1.0);
+}
+)";
+// The unit the mask programs read the depth copy from: free while they draw
+// (DrawMesh binds only the material's maps, from unit 0).
+constexpr i32 mask_depth_unit = 9;
 
 Vector3 rl3(vec3 v) {
   Vector3 out{};
@@ -1488,6 +1514,13 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     rlEnableShader(shader.id);
     rlSetUniformMatrix(rlGetLocationUniform(shader.id, "mvp"), mvp);
     rlSetUniform(rlGetLocationUniform(shader.id, "instanceFloats"), &floats, RL_SHADER_UNIFORM_INT, 1);
+    if (depth_only) {
+      // Only the reflector mask (render3d_draw_reflectors) has it.
+      const i32 mask_loc = rlGetLocationUniform(shader.id, "maskValue");
+      const f32 reflect = clamp(p.surface->reflect, 0.0f, 1.0f);
+      if (mask_loc >= 0)
+        rlSetUniform(mask_loc, &reflect, RL_SHADER_UNIFORM_FLOAT, 1);
+    }
     if (!depth_only) {
       const vec4 color = v4(p.color);
       rlSetUniform(rlGetLocationUniform(shader.id, "colDiffuse"), &color, RL_SHADER_UNIFORM_VEC4, 1);
@@ -1843,7 +1876,10 @@ void advance_models(context &ctx) {
   }
 }
 
-void setup(context &ctx) { ecs_register(ctx, phase_update, advance_models, "model3d_anim"); }
+void setup(context &ctx) {
+  ecs_register(ctx, phase_update, advance_models, "model3d_anim");
+  ecs_register(ctx, phase_update, post3d_update, "decal3d_age");
+}
 } // namespace
 
 mod_desc render3d_module() { return mod_desc{.name = "njin.render3d", .setup = setup}; }
@@ -1851,6 +1887,9 @@ mod_desc render3d_module() { return mod_desc{.name = "njin.render3d", .setup = s
 render3d_state::~render3d_state() {
   free_shadow(shadow);
   free_shadow(lamp);
+  for (Shader *sh : {&mask, &mask_instanced, &mask_skinned})
+    if (IsShaderValid(*sh))
+      UnloadShader(*sh);
   if (!ready)
     return;
   if (IsShaderValid(lit_skinned))
@@ -1983,6 +2022,23 @@ void end_3d(context &ctx) {
   rlActiveTextureSlot(0);
   for (const draw3d_cmd &c : s.cmds)
     draw_main(ctx, c, view_proj);
+  // Decals, SSAO and SSR work on the opaque image, before glass and water.
+  const bool post3d = !offscreen && post3d_wanted(ctx);
+  if (post3d) {
+    post3d_after_opaque(ctx);
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+    if (shadows) {
+      rlActiveTextureSlot(shadow_unit);
+      rlEnableTexture(s.shadow.depth);
+    }
+    if (lamps) {
+      rlActiveTextureSlot(lamp_unit);
+      rlEnableTexture(s.lamp.depth);
+    }
+    rlActiveTextureSlot(0);
+  }
   // Glass after everything it shows, tested against the depth but not
   // writing it, so panes behind panes still show.
   s.translucent_pass = true;
@@ -1999,6 +2055,12 @@ void end_3d(context &ctx) {
   }
   rlActiveTextureSlot(0);
   particles3d_draw(ctx, s.camera);
+  if (post3d) {
+    post3d_after_pass(ctx);
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+  }
   if (!offscreen)
     gizmo_draw_3d(ctx, s.camera);
 
@@ -2126,6 +2188,108 @@ bool render3d_box_visible(const render3d_state &s, vec3 lo, vec3 hi) {
     if (p.x * far.x + p.y * far.y + p.z * far.z + p.w < 0.0f)
       return false;
   }
+  return true;
+}
+
+namespace {
+bool ensure_mask(render3d_state &s) {
+  if (s.mask_ready || s.mask_failed)
+    return s.mask_ready;
+  const std::string head = "#version 330\n";
+  const std::string instanced_vs = head + instanced_glsl + depth_instanced_vs_main;
+  s.mask = LoadShaderFromMemory(depth_vs, mask_fs);
+  s.mask_instanced = LoadShaderFromMemory(instanced_vs.c_str(), mask_fs);
+  if (!IsShaderValid(s.mask) || !IsShaderValid(s.mask_instanced)) {
+    NJIN_WARN("3d: the reflection mask shaders failed to compile, post3d::ssr is off");
+    s.mask_failed = true;
+    return false;
+  }
+  if (s.skin_ok) {
+    const std::string skinned_vs = head + skin_glsl + depth_skinned_vs_main;
+    s.mask_skinned = LoadShaderFromMemory(skinned_vs.c_str(), mask_fs);
+    if (IsShaderValid(s.mask_skinned))
+      s.mask_skinned_bones = GetShaderLocation(s.mask_skinned, "boneMatrices");
+  }
+  s.mask_ready = true;
+  return true;
+}
+
+void set_mask_uniforms(Shader sh, vec2 size, vec2 planes) {
+  if (!IsShaderValid(sh))
+    return;
+  set_i32(sh, GetShaderLocation(sh, "sceneDepth"), mask_depth_unit);
+  set_vec2(sh, GetShaderLocation(sh, "sceneSize"), size);
+  set_vec2(sh, GetShaderLocation(sh, "planes"), planes);
+}
+
+void set_mask_value(Shader sh, f32 v) { set_f32(sh, GetShaderLocation(sh, "maskValue"), clamp(v, 0.0f, 1.0f)); }
+
+bool model_reflects(const context &ctx, model_handle handle) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr)
+    return false;
+  for (const model_material &mm : m->materials)
+    if (mm.surface.reflect > 0.0f)
+      return true;
+  return false;
+}
+} // namespace
+
+bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
+  render3d_state &s = ctx.render3d;
+  if (!ensure_mask(s))
+    return false;
+  for (Shader sh : {s.mask, s.mask_instanced, s.mask_skinned})
+    set_mask_uniforms(sh, size, planes);
+  rlActiveTextureSlot(mask_depth_unit);
+  rlEnableTexture(depth);
+  rlActiveTextureSlot(0);
+  // draw_instanced_cmd's depth pass draws through depth_instanced.
+  const Shader depth_instanced = s.depth_instanced;
+  s.depth_instanced = s.mask_instanced;
+  map_set maps = s.maps;
+  Material mesh_mat{};
+  mesh_mat.shader = s.mask;
+  mesh_mat.maps = maps.data();
+  Material skinned_mat = mesh_mat;
+  skinned_mat.shader = s.mask_skinned;
+  const bool skinned_ok = IsShaderValid(s.mask_skinned);
+  for (const draw3d_cmd &c : s.cmds) {
+    if (c.world != world3d_none || c.is_shape || c.color.a < 1.0f || c.fx.dissolve > 0.0f)
+      continue;
+    if (c.buffer.id != 0) {
+      if (c.mesh != nullptr ? c.material.reflect > 0.0f : model_reflects(ctx, c.model))
+        draw_instanced_cmd(ctx, c, true);
+      continue;
+    }
+    if (c.mesh != nullptr) {
+      if (c.material.reflect > 0.0f) {
+        set_mask_value(s.mask, c.material.reflect);
+        DrawMesh(*c.mesh, mesh_mat, c.transform);
+      }
+      continue;
+    }
+    if (c.culled || !model_reflects(ctx, c.model))
+      continue;
+    bool bones_set = false;
+    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &transform,
+                                    bool posed) {
+      const bool skin = posed && skinned_ok;
+      const Shader sh = skin ? s.mask_skinned : s.mask;
+      if (skin && !bones_set) {
+        set_bones(s, sh, s.mask_skinned_bones, c);
+        bones_set = true;
+      }
+      // Every part is drawn, so a part that does not reflect clears what is behind it.
+      set_mask_value(sh, mm.surface.reflect);
+      DrawMesh(mesh, skin ? skinned_mat : mesh_mat, transform);
+    });
+  }
+  rlDrawRenderBatchActive();
+  s.depth_instanced = depth_instanced;
+  rlActiveTextureSlot(mask_depth_unit);
+  rlDisableTexture();
+  rlActiveTextureSlot(0);
   return true;
 }
 

@@ -213,6 +213,13 @@ struct render3d_state {
   f32 depth_near = 0.05f, depth_far = 1000.0f;
   Matrix depth_inv_view_proj{}; // window depth back to world positions
   bool depth_drawn = false;
+  // The reflecting surfaces of post3d::ssr (render3d_draw_reflectors), made on
+  // first use: the depth programs with a fragment shader that writes the
+  // surface's material3d::reflect where it is the nearest surface.
+  Shader mask{}, mask_instanced{}, mask_skinned{};
+  i32 mask_skinned_bones = -1;
+  bool mask_ready = false;
+  bool mask_failed = false;
 
   render3d_state() = default;
   ~render3d_state();
@@ -244,6 +251,15 @@ void render3d_set_draw_uniforms(Shader sh, const render3d_locations &l, const ma
 void render3d_record_world(const context &ctx, u8 kind, u32 id);
 // Whether the box [lo, hi] is at least partly inside the open pass's frustum.
 bool render3d_box_visible(const render3d_state &s, vec3 lo, vec3 hi);
+
+// post3d (SSR): draws the open pass's opaque draws whose surface reflects
+// (material3d::reflect > 0) into the bound target through the current
+// matrices, each pixel getting its reflect in red, kept only where it is the
+// nearest surface of `depth` (a copy of the pass's depth, `size` pixels; the
+// pass's near and far planes in `planes`). Primitives, models (posed too) and
+// draw_instanced3d; not SDF shapes, the outdoor world, translucent or
+// dissolving draws. False when the programs cannot be made.
+bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes);
 
 // world3d_draw.cpp: before the pass's draws (its shaders' pass uniforms),
 // one recorded draw (the camera pass, or a shadow pass's depth seen through

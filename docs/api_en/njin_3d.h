@@ -193,6 +193,11 @@ struct material3d {
   texture_handle under_normal{}; ///< Normal map of the under layer, as `normal`.
   /// How much of the under layer shows, 0 (none) to 1 (all of it, the top layer gone).
   f32 under_amount = 0.0f;
+  /// Reflectivity, 0..1, for on-screen reflections (`post3d::ssr`): 1 is a mirror
+  /// at every viewing angle, less reflects clearly only when seen at a slant
+  /// (polished floors, water). Only takes effect when `post3d::ssr` > 0. SDF shapes
+  /// (draw_shape3d()) do not reflect.
+  f32 reflect = 0.0f;
 };
 
 /// Sets the surface for 3D shapes drawn after this call, until the next call

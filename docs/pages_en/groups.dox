@@ -95,6 +95,9 @@
 /// @defgroup grp_world3d 3D outdoor world
 /// Terrain with collision that can be edited at run time, grass, scattered objects, water with waves and floating bodies, a sky by time of day, weather.
 
+/// @defgroup grp_post3d 3D screen effects
+/// SSAO, on-screen reflections, decals, motion blur, light shafts, lens flare.
+
 /// @defgroup grp_light 2D lighting
 /// Point lights, spot lights, directional lights, ambient light, shadows from occluders, normal maps, physically based lights.
 

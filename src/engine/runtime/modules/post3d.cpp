@@ -1,0 +1,1045 @@
+#include "post3d.h"
+#include "render3d.h"
+#include "njin_ctx.h"
+#include "njin_ctx_impl.h"
+#include "njin_log.h"
+#include "njin_texture.h"
+#include <algorithm>
+#include <cmath>
+#include <raymath.h>
+#include <rlgl.h>
+#include <string>
+
+namespace njin {
+namespace {
+// glBlitFramebuffer's buffer bits.
+constexpr i32 color_bit = 0x00004000;
+constexpr i32 depth_bit = 0x00000100;
+// The unit decals read the depth copy from (DrawMesh binds the decal's image
+// on unit 0 and nothing above it).
+constexpr i32 decal_depth_unit = 9;
+
+// What the full-screen passes share: the depth copy turned back into world
+// positions, linear depth, and the surface normal from the depth.
+constexpr const char *common_glsl = R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D depthTex;
+uniform mat4 invViewProj;
+uniform mat4 viewProj;
+uniform vec2 planes;
+uniform vec2 texel;
+uniform vec3 eyePos;
+vec3 world_at(vec2 uv, float d) {
+  vec4 w = invViewProj * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+  return w.xyz / w.w;
+}
+float linear_depth(float d) {
+  float z = d * 2.0 - 1.0;
+  return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
+}
+vec3 world_of(vec2 uv) { return world_at(uv, texture(depthTex, uv).r); }
+// On each axis the neighbour nearer to this point, so an edge does not bend
+// the normal of the surface it borders.
+vec3 normal_at(vec2 uv, vec3 p) {
+  vec3 r = world_of(uv + vec2(texel.x, 0.0)), l = world_of(uv - vec2(texel.x, 0.0));
+  vec3 u = world_of(uv + vec2(0.0, texel.y)), d = world_of(uv - vec2(0.0, texel.y));
+  vec3 dx = dot(r - p, r - p) < dot(p - l, p - l) ? r - p : p - l;
+  vec3 dy = dot(u - p, u - p) < dot(p - d, p - d) ? u - p : p - d;
+  vec3 n = normalize(cross(dx, dy));
+  return dot(n, eyePos - p) < 0.0 ? -n : n;
+}
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+)";
+
+// Hemisphere samples round each point along its normal, projected back onto
+// the depth: a sample behind a nearer surface (within the radius) occludes.
+constexpr const char *ssao_main = R"(
+uniform float radius;
+uniform int samples;
+void main() {
+  // At half size a pixel centre falls between two depth texels: take one.
+  vec2 uv = (floor(fragTexCoord / texel) + 0.5) * texel;
+  float d = texture(depthTex, uv).r;
+  if (d >= 1.0) {
+    finalColor = vec4(1.0);
+    return;
+  }
+  vec3 p = world_at(uv, d);
+  vec3 n = normal_at(uv, p);
+  vec3 t = normalize(abs(n.y) < 0.99 ? cross(n, vec3(0.0, 1.0, 0.0)) : cross(n, vec3(1.0, 0.0, 0.0)));
+  vec3 b = cross(n, t);
+  // A 4x4 pattern of turns, which the blur averages away.
+  vec2 cell = mod(floor(gl_FragCoord.xy), 4.0);
+  float spin = (cell.x * 4.0 + cell.y + 0.5) / 16.0 * 6.2831853;
+  float here = linear_depth(d);
+  float occlusion = 0.0;
+  for (int i = 0; i < 32; i++) {
+    if (i >= samples)
+      break;
+    float f = (float(i) + 0.5) / float(samples);
+    float a = spin + float(i) * 2.3999632;
+    float z = sqrt(1.0 - f);
+    float side = sqrt(f);
+    vec3 dir = t * (cos(a) * side) + b * (sin(a) * side) + n * z;
+    float scale = mix(0.15, 1.0, f * f);
+    vec3 s = p + n * (0.02 * radius) + dir * (radius * scale);
+    vec4 c = viewProj * vec4(s, 1.0);
+    if (c.w <= 0.0)
+      continue;
+    vec2 su = c.xy / c.w * 0.5 + 0.5;
+    if (su.x < 0.0 || su.y < 0.0 || su.x > 1.0 || su.y > 1.0)
+      continue;
+    float sd = texture(depthTex, su).r;
+    if (sd >= 1.0)
+      continue;
+    float surface = linear_depth(sd);
+    float sample_depth = linear_depth(c.z / c.w * 0.5 + 0.5);
+    float range = smoothstep(0.0, 1.0, radius / max(abs(here - surface), 1e-4));
+    occlusion += surface < sample_depth - 0.01 * radius ? range : 0.0;
+  }
+  float ao = 1.0 - occlusion / float(samples);
+  finalColor = vec4(ao, ao, ao, 1.0);
+}
+)";
+
+// One direction of a blur that keeps to the surface: taps far from this
+// pixel's depth count less.
+constexpr const char *ssao_blur_main = R"(
+uniform sampler2D texture0;
+uniform vec2 direction;
+void main() {
+  vec2 uv = fragTexCoord;
+  float center = linear_depth(texture(depthTex, uv).r);
+  float sum = 0.0;
+  float weight = 0.0;
+  for (int i = -4; i <= 4; i++) {
+    vec2 o = uv + direction * float(i);
+    float z = linear_depth(texture(depthTex, o).r);
+    float w = exp(-float(i * i) / 8.0) * max(0.0, 1.0 - abs(z - center) / (0.03 * center + 0.05));
+    sum += texture(texture0, o).r * w;
+    weight += w;
+  }
+  float ao = weight > 0.0 ? sum / weight : texture(texture0, uv).r;
+  finalColor = vec4(ao, ao, ao, 1.0);
+}
+)";
+
+// The occlusion multiplied into the image. From half size, four taps weighed
+// by how near their depth is to this pixel's, so edges stay sharp.
+constexpr const char *ssao_apply_main = R"(
+uniform sampler2D texture0;
+uniform vec2 aoTexel;
+uniform float strength;
+void main() {
+  vec2 uv = fragTexCoord;
+  float d = texture(depthTex, uv).r;
+  if (d >= 1.0) {
+    finalColor = vec4(1.0);
+    return;
+  }
+  float center = linear_depth(d);
+  float sum = 0.0;
+  float weight = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec2 o = uv + aoTexel * vec2(i == 1 || i == 3 ? 0.5 : -0.5, i >= 2 ? 0.5 : -0.5);
+    float z = linear_depth(texture(depthTex, o).r);
+    float w = 1.0 / (1e-3 + abs(z - center));
+    sum += texture(texture0, o).r * w;
+    weight += w;
+  }
+  float ao = sum / weight;
+  finalColor = vec4(vec3(mix(1.0, ao, strength)), 1.0);
+}
+)";
+
+// Each reflecting pixel marches its reflected ray in world steps over the
+// depth; the first step that goes behind a surface (by less than the
+// thickness) is refined and takes the image's colour there.
+constexpr const char *ssr_main = R"(
+uniform sampler2D texture0;
+uniform sampler2D maskTex;
+uniform float strength;
+uniform float maxDistance;
+uniform int steps;
+uniform float thickness;
+uniform vec4 skyColor;
+vec2 screen_of(vec3 s, out float depth, out bool ok) {
+  vec4 c = viewProj * vec4(s, 1.0);
+  ok = c.w > 0.0;
+  depth = linear_depth(c.z / c.w * 0.5 + 0.5);
+  return c.xy / c.w * 0.5 + 0.5;
+}
+void main() {
+  vec2 uv = fragTexCoord;
+  float m = texture(maskTex, uv).r;
+  float d = texture(depthTex, uv).r;
+  if (m <= 0.0 || d >= 1.0)
+    discard;
+  vec3 p = world_at(uv, d);
+  vec3 n = normal_at(uv, p);
+  vec3 v = normalize(p - eyePos);
+  vec3 r = reflect(v, n);
+  float facing = max(dot(n, -v), 0.0);
+  float fresnel = m + (1.0 - m) * pow(1.0 - facing, 5.0);
+  // Steps grow along the ray (fine near the surface, where contact matters,
+  // coarse far away); a surface counts as hit when the ray went behind it by
+  // less than the thickness or than the last step.
+  float jitter = hash(gl_FragCoord.xy);
+  float prev_t = 0.0;
+  float t = 0.0;
+  bool hit = false;
+  vec2 hit_uv = uv;
+  for (int i = 0; i < 128; i++) {
+    if (i >= steps)
+      break;
+    float f = (float(i) + jitter) / float(steps);
+    t = maxDistance * max(f * f, 0.002);
+    float ray_depth;
+    bool ok;
+    vec2 su = screen_of(p + r * t, ray_depth, ok);
+    if (!ok || su.x < 0.0 || su.y < 0.0 || su.x > 1.0 || su.y > 1.0)
+      break;
+    float sd = texture(depthTex, su).r;
+    float surface = linear_depth(sd);
+    if (sd < 1.0 && ray_depth > surface && ray_depth - surface < max(thickness, t - prev_t)) {
+      float a = prev_t;
+      float b = t;
+      for (int k = 0; k < 6; k++) {
+        float mid = (a + b) * 0.5;
+        float md;
+        bool mok;
+        vec2 mu = screen_of(p + r * mid, md, mok);
+        if (md > linear_depth(texture(depthTex, mu).r))
+          b = mid;
+        else
+          a = mid;
+      }
+      float bd;
+      bool bok;
+      hit_uv = screen_of(p + r * b, bd, bok);
+      hit = true;
+      break;
+    }
+    prev_t = t;
+  }
+  float found = 0.0;
+  vec3 color = skyColor.rgb;
+  if (hit) {
+    vec2 e = smoothstep(vec2(0.0), vec2(0.08), hit_uv) * (1.0 - smoothstep(vec2(0.92), vec2(1.0), hit_uv));
+    found = e.x * e.y * (1.0 - smoothstep(0.75 * maxDistance, maxDistance, t));
+    color = mix(skyColor.rgb, texture(texture0, hit_uv).rgb, found);
+  }
+  float alpha = strength * fresnel * mix(skyColor.a, 1.0, found);
+  finalColor = vec4(color, clamp(alpha, 0.0, 1.0));
+}
+)";
+
+// The sky near the sun: where nothing was drawn, brighter towards the sun.
+constexpr const char *shafts_sky_main = R"(
+uniform vec2 sun;
+uniform float aspect;
+void main() {
+  vec2 uv = fragTexCoord;
+  float sky = texture(depthTex, uv).r >= 1.0 ? 1.0 : 0.0;
+  float dist = length((uv - sun) * vec2(aspect, 1.0));
+  float glow = exp(-dist * 6.0);
+  finalColor = vec4(vec3(sky * glow), 1.0);
+}
+)";
+
+// Radial blur towards the sun: each pixel gathers the sky between it and the
+// sun, fading with distance.
+constexpr const char *shafts_blur_main = R"(
+uniform sampler2D texture0;
+uniform vec2 sun;
+uniform float length;
+void main() {
+  vec2 uv = fragTexCoord;
+  const int taps = 48;
+  vec2 delta = (uv - sun) * length / float(taps);
+  vec2 c = uv;
+  float fade = 1.0;
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < taps; i++) {
+    sum += texture(texture0, c).rgb * fade;
+    fade *= 0.965;
+    c -= delta;
+  }
+  finalColor = vec4(sum * (1.2 / float(taps)), 1.0);
+}
+)";
+
+constexpr const char *add_fs = R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec4 tint;
+out vec4 finalColor;
+void main() { finalColor = vec4(texture(texture0, fragTexCoord).rgb * tint.rgb, 1.0); }
+)";
+
+// How much of the sun's disc shows: a ring of taps round it on the depth.
+constexpr const char *flare_vis_main = R"(
+uniform vec2 sun;
+uniform float aspect;
+uniform float onScreen;
+void main() {
+  float sky = 0.0;
+  const int taps = 25;
+  for (int i = 0; i < taps; i++) {
+    float r = 0.012 * sqrt((float(i) + 0.5) / float(taps));
+    float a = float(i) * 2.3999632;
+    vec2 o = sun + vec2(cos(a) / aspect, sin(a)) * r;
+    sky += o.x >= 0.0 && o.y >= 0.0 && o.x <= 1.0 && o.y <= 1.0 && texture(depthTex, o).r >= 1.0 ? 1.0 : 0.0;
+  }
+  float v = sky / float(taps) * onScreen;
+  finalColor = vec4(v, v, v, 1.0);
+}
+)";
+
+// Ghosts along the line from the sun through the centre, a halo ring on the
+// sun's side, and a glow round the sun; as bright as the sun shows.
+constexpr const char *flare_fs = R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D visTex;
+uniform vec2 sun;
+uniform float aspect;
+uniform float strength;
+uniform float halo;
+uniform vec3 sunColor;
+out vec4 finalColor;
+void main() {
+  float vis = texture(visTex, vec2(0.5)).r;
+  vec2 uv = fragTexCoord;
+  vec2 k = vec2(aspect, 1.0);
+  vec2 to_center = vec2(0.5) - sun;
+  const float at[5] = float[](0.45, 0.8, 1.25, 1.6, 2.1);
+  const float size[5] = float[](0.06, 0.03, 0.09, 0.045, 0.12);
+  const vec3 tint[5] = vec3[](vec3(1.0, 0.6, 0.3), vec3(0.5, 0.9, 0.6), vec3(0.4, 0.6, 1.0), vec3(1.0, 0.8, 0.5),
+                              vec3(0.6, 0.5, 1.0));
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 5; i++) {
+    float dist = length((uv - (sun + to_center * at[i])) * k);
+    col += tint[i] * (1.0 - smoothstep(size[i] * 0.6, size[i], dist)) * 0.2;
+  }
+  vec2 from_center = (uv - vec2(0.5)) * k;
+  float ring = exp(-pow((length(from_center) - 0.42) / 0.025, 2.0));
+  float side = max(dot(normalize(from_center + 1e-5), normalize((sun - vec2(0.5)) * k + 1e-5)), 0.0);
+  col += vec3(1.0, 0.85, 0.7) * ring * side * 0.25 * halo;
+  col += vec3(1.0, 0.9, 0.75) * exp(-length((uv - sun) * k) * 14.0) * 0.5;
+  finalColor = vec4(col * sunColor * strength * vis, 1.0);
+}
+)";
+
+// Camera motion blur: each pixel's world position (from the opaque depth)
+// seen through last pass's view-projection gives how far it slid on screen;
+// the image is averaged along that.
+constexpr const char *blur_main = R"(
+uniform sampler2D texture0;
+uniform mat4 prevViewProj;
+uniform float strength;
+uniform int samples;
+uniform float maxLength;
+void main() {
+  vec2 uv = fragTexCoord;
+  vec3 p = world_of(uv);
+  vec4 c = prevViewProj * vec4(p, 1.0);
+  vec2 prev = c.w > 0.0 ? c.xy / c.w * 0.5 + 0.5 : uv;
+  vec2 vel = (uv - prev) * strength;
+  float len = length(vel * vec2(1.0, texel.x / texel.y));
+  if (len > maxLength)
+    vel *= maxLength / len;
+  vec4 center = texture(texture0, uv);
+  // Under half a pixel of motion (a still camera, up to rounding): untouched.
+  if (length(vel / texel) < 0.5) {
+    finalColor = center;
+    return;
+  }
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < 32; i++) {
+    if (i >= samples)
+      break;
+    float t = float(i) / float(samples - 1) - 0.5;
+    sum += texture(texture0, uv + vel * t).rgb;
+  }
+  finalColor = vec4(sum / float(samples), center.a);
+}
+)";
+
+// A decal: a box drawn by its back faces over the image. Each pixel's world
+// position from the depth copy, brought into the box; outside it, nothing.
+constexpr const char *decal_vs = R"(#version 330
+in vec3 vertexPosition;
+uniform mat4 mvp;
+void main() { gl_Position = mvp * vec4(vertexPosition, 1.0); }
+)";
+
+constexpr const char *decal_fs = R"(#version 330
+uniform sampler2D texture0;
+uniform sampler2D depthTex;
+uniform mat4 invViewProj;
+uniform mat4 toLocal;
+uniform vec2 targetSize;
+uniform vec4 color;
+uniform vec4 source;
+uniform int hasTexture;
+uniform int mode;
+uniform float fade;
+uniform float angleFade;
+uniform vec3 axis;
+uniform vec3 eyePos;
+uniform vec3 sunDir;
+uniform vec3 sunColor;
+uniform vec3 ambient;
+out vec4 finalColor;
+void main() {
+  vec2 uv = gl_FragCoord.xy / targetSize;
+  float d = texture(depthTex, uv).r;
+  if (d >= 1.0)
+    discard;
+  vec4 w = invViewProj * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+  vec3 p = w.xyz / w.w;
+  vec3 l = (toLocal * vec4(p, 1.0)).xyz;
+  if (any(greaterThan(abs(l), vec3(0.5))))
+    discard;
+  vec3 n = normalize(cross(dFdx(p), dFdy(p)));
+  if (dot(n, eyePos - p) < 0.0)
+    n = -n;
+  float k = smoothstep(angleFade, angleFade + 0.2, dot(n, axis));
+  k *= 1.0 - smoothstep(0.35, 0.5, abs(l.y));
+  vec2 tuv = l.xz + 0.5;
+  vec4 c = color;
+  if (hasTexture == 1)
+    c *= texture(texture0, source.xy + tuv * source.zw);
+  else
+    c.a *= 1.0 - smoothstep(0.3, 0.5, length(tuv - 0.5));
+  float a = clamp(c.a * k * fade, 0.0, 1.0);
+  if (a <= 0.002)
+    discard;
+  if (mode == 0) {
+    finalColor = vec4(mix(vec3(1.0), c.rgb, a), 1.0);
+  } else {
+    vec3 light = ambient + sunColor * max(dot(n, -normalize(sunDir)), 0.0);
+    finalColor = vec4(c.rgb * light, a);
+  }
+}
+)";
+
+Shader load_fullscreen(const char *main) {
+  const std::string fs = std::string(common_glsl) + main;
+  return LoadShaderFromMemory(nullptr, fs.c_str());
+}
+
+bool load(post3d_state &st) {
+  if (st.loaded || st.failed)
+    return st.loaded;
+  st.ssao = load_fullscreen(ssao_main);
+  st.ssao_blur = load_fullscreen(ssao_blur_main);
+  st.ssao_apply = load_fullscreen(ssao_apply_main);
+  st.ssr = load_fullscreen(ssr_main);
+  st.shafts_sky = load_fullscreen(shafts_sky_main);
+  st.shafts_blur = load_fullscreen(shafts_blur_main);
+  st.flare_vis = load_fullscreen(flare_vis_main);
+  st.blur = load_fullscreen(blur_main);
+  st.add = LoadShaderFromMemory(nullptr, add_fs);
+  st.flare = LoadShaderFromMemory(nullptr, flare_fs);
+  st.decal = LoadShaderFromMemory(decal_vs, decal_fs);
+  for (const Shader *s : {&st.ssao, &st.ssao_blur, &st.ssao_apply, &st.ssr, &st.shafts_sky, &st.shafts_blur,
+                          &st.flare_vis, &st.blur, &st.add, &st.flare, &st.decal})
+    if (!IsShaderValid(*s)) {
+      NJIN_WARN("post3d: built-in shaders failed to compile; 3D screen effects and decals are off");
+      st.failed = true;
+      return false;
+    }
+  st.loaded = true;
+  return true;
+}
+
+void free_copy(post3d_state &st) {
+  if (st.copy_fbo != 0)
+    rlUnloadFramebuffer(st.copy_fbo);
+  if (st.copy_color != 0)
+    rlUnloadTexture(st.copy_color);
+  if (st.copy_depth != 0)
+    rlUnloadTexture(st.copy_depth);
+  st.copy_fbo = st.copy_color = st.copy_depth = 0;
+  st.w = st.h = 0;
+}
+
+// The copy of the world target: colour (filtered, for reflections) and a
+// depth texture of the same format as the target's, so a blit can fill it.
+bool ensure_copy(post3d_state &st, i32 w, i32 h) {
+  if (st.copy_fbo != 0 && st.w == w && st.h == h)
+    return true;
+  free_copy(st);
+  st.copy_fbo = rlLoadFramebuffer();
+  st.copy_color = rlLoadTexture(nullptr, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+  st.copy_depth = rlLoadTextureDepth(w, h, false);
+  rlTextureParameters(st.copy_color, RL_TEXTURE_MIN_FILTER, RL_TEXTURE_FILTER_LINEAR);
+  rlTextureParameters(st.copy_color, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_LINEAR);
+  for (const u32 t : {st.copy_color, st.copy_depth}) {
+    rlTextureParameters(t, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
+    rlTextureParameters(t, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
+  }
+  rlFramebufferAttach(st.copy_fbo, st.copy_color, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+  rlFramebufferAttach(st.copy_fbo, st.copy_depth, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+  if (!rlFramebufferComplete(st.copy_fbo)) {
+    NJIN_WARN("post3d: copy framebuffer incomplete; 3D screen effects and decals are off");
+    free_copy(st);
+    st.failed = true;
+    return false;
+  }
+  st.w = w;
+  st.h = h;
+  return true;
+}
+
+bool ensure_target(RenderTexture2D &t, i32 w, i32 h) {
+  if (IsRenderTextureValid(t) && t.texture.width == w && t.texture.height == h)
+    return true;
+  if (IsRenderTextureValid(t))
+    UnloadRenderTexture(t);
+  t = LoadRenderTexture(w, h);
+  if (!IsRenderTextureValid(t))
+    return false;
+  SetTextureFilter(t.texture, TEXTURE_FILTER_BILINEAR);
+  SetTextureWrap(t.texture, TEXTURE_WRAP_CLAMP);
+  return true;
+}
+
+void blit(u32 from, u32 to, i32 w, i32 h, i32 bits) {
+  rlDrawRenderBatchActive();
+  rlBindFramebuffer(RL_READ_FRAMEBUFFER, from);
+  rlBindFramebuffer(RL_DRAW_FRAMEBUFFER, to);
+  rlBlitFramebuffer(0, 0, w, h, 0, 0, w, h, bits);
+  rlDisableFramebuffer();
+}
+
+// Binds `fbo` (w x h) for full-screen drawing: pixel projection, no depth test.
+void bind_2d(u32 fbo, i32 w, i32 h) {
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(fbo);
+  rlViewport(0, 0, w, h);
+  rlSetFramebufferWidth(w);
+  rlSetFramebufferHeight(h);
+  rlMatrixMode(RL_PROJECTION);
+  rlLoadIdentity();
+  rlOrtho(0, w, h, 0, 0.0, 1.0);
+  rlMatrixMode(RL_MODELVIEW);
+  rlLoadIdentity();
+  rlDisableDepthTest();
+}
+
+Texture2D texture_of(u32 id, i32 w, i32 h) {
+  return Texture2D{.id = id, .width = w, .height = h, .mipmaps = 1, .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+}
+
+// One quad over the bound target (`w` x `h`) through `sh`, with `tex` as
+// texture0; extra textures bound after the shader, as the batch wants them.
+template <typename Fn> void quad(Shader sh, const Texture2D &tex, i32 w, i32 h, Fn &&samplers) {
+  BeginShaderMode(sh);
+  samplers();
+  DrawTexturePro(tex, Rectangle{0.0f, 0.0f, (f32)tex.width, -(f32)tex.height}, Rectangle{0.0f, 0.0f, (f32)w, (f32)h},
+                 Vector2{0.0f, 0.0f}, 0.0f, WHITE);
+  EndShaderMode();
+  rlDrawRenderBatchActive();
+}
+
+void set_f(Shader s, const char *name, f32 v) {
+  SetShaderValue(s, GetShaderLocation(s, name), &v, SHADER_UNIFORM_FLOAT);
+}
+void set_i(Shader s, const char *name, i32 v) { SetShaderValue(s, GetShaderLocation(s, name), &v, SHADER_UNIFORM_INT); }
+void set_v2(Shader s, const char *name, vec2 v) {
+  SetShaderValue(s, GetShaderLocation(s, name), &v, SHADER_UNIFORM_VEC2);
+}
+void set_v3(Shader s, const char *name, vec3 v) {
+  SetShaderValue(s, GetShaderLocation(s, name), &v, SHADER_UNIFORM_VEC3);
+}
+void set_v4(Shader s, const char *name, vec4 v) {
+  SetShaderValue(s, GetShaderLocation(s, name), &v, SHADER_UNIFORM_VEC4);
+}
+void set_m(Shader s, const char *name, const Matrix &m) { SetShaderValueMatrix(s, GetShaderLocation(s, name), m); }
+// rlSetUniformSampler writes to the bound program; inside BeginShaderMode the
+// batch has not bound ours yet.
+void sampler(Shader s, const char *name, u32 id) {
+  rlEnableShader(s.id);
+  rlSetUniformSampler(GetShaderLocation(s, name), id);
+}
+
+// The pass's view: what the full-screen passes need to go from the depth to
+// the world and back.
+struct pass_view {
+  Matrix view{}, proj{}, view_proj{}, inv{};
+  vec2 planes{};
+  vec3 eye{};
+  i32 w = 0, h = 0;
+  u32 target = 0;
+};
+
+void set_view(Shader s, const pass_view &v) {
+  set_m(s, "invViewProj", v.inv);
+  set_m(s, "viewProj", v.view_proj);
+  set_v2(s, "planes", v.planes);
+  set_v2(s, "texel", {1.0f / (f32)v.w, 1.0f / (f32)v.h});
+  set_v3(s, "eyePos", v.eye);
+}
+
+// Binds the world target with the pass's camera, for drawing in 3D.
+void bind_3d(const pass_view &v) {
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(v.target);
+  rlViewport(0, 0, v.w, v.h);
+  rlSetFramebufferWidth(v.w);
+  rlSetFramebufferHeight(v.h);
+  rlMatrixMode(RL_PROJECTION);
+  rlLoadIdentity();
+  rlMultMatrixf(MatrixToFloat(v.proj));
+  rlMatrixMode(RL_MODELVIEW);
+  rlLoadIdentity();
+  rlMultMatrixf(MatrixToFloat(v.view));
+}
+
+pass_view current_view(context &ctx) {
+  const render3d_state &s = ctx.render3d;
+  pass_view v;
+  v.view = rlGetMatrixModelview();
+  v.proj = rlGetMatrixProjection();
+  v.view_proj = MatrixMultiply(v.view, v.proj);
+  v.inv = MatrixInvert(v.view_proj);
+  v.planes = {s.camera.near_plane, s.camera.far_plane};
+  v.eye = s.camera.position;
+  v.target = ctx.post.target.id;
+  v.w = ctx.post.target.texture.width;
+  v.h = ctx.post.target.texture.height;
+  return v;
+}
+
+Matrix decal_matrix(const decal3d_desc &d) {
+  const vec3 r = d.rotation * (PI / 180.0f);
+  Matrix m = MatrixScale(d.size.x, d.size.y, d.size.z);
+  m = MatrixMultiply(m, MatrixRotateZ(r.z));
+  m = MatrixMultiply(m, MatrixRotateX(r.x));
+  m = MatrixMultiply(m, MatrixRotateY(r.y));
+  return MatrixMultiply(m, MatrixTranslate(d.position.x, d.position.y, d.position.z));
+}
+
+f32 decal_fade(const post3d_decal &d) {
+  if (d.desc.lifetime <= 0.0f)
+    return 1.0f;
+  const f32 left = d.desc.lifetime - d.age;
+  return d.desc.fade > 0.0f ? clamp(left / d.desc.fade, 0.0f, 1.0f) : (left > 0.0f ? 1.0f : 0.0f);
+}
+
+void draw_decals(context &ctx, post3d_state &st, const pass_view &v) {
+  if (st.live == 0)
+    return;
+  const render3d_state &s = ctx.render3d;
+  bind_3d(v);
+  rlDisableDepthTest();
+  rlDisableDepthMask();
+  rlEnableBackfaceCulling();
+  rlSetCullFace(RL_CULL_FACE_FRONT);
+  Shader sh = st.decal;
+  set_m(sh, "invViewProj", v.inv);
+  set_v2(sh, "targetSize", {(f32)v.w, (f32)v.h});
+  set_v3(sh, "eyePos", v.eye);
+  set_v3(sh, "sunDir", s.light.direction);
+  set_v3(sh, "sunColor", {s.light.color.r, s.light.color.g, s.light.color.b});
+  set_v3(sh, "ambient", {s.light.ambient.r, s.light.ambient.g, s.light.ambient.b});
+  set_i(sh, "depthTex", decal_depth_unit);
+  rlActiveTextureSlot(decal_depth_unit);
+  rlEnableTexture(st.copy_depth);
+  rlActiveTextureSlot(0);
+  std::array<MaterialMap, 12> maps{};
+  Material material{};
+  material.shader = sh;
+  material.maps = maps.data();
+  // Oldest first, so a newer decal lies on top.
+  std::vector<const post3d_decal *> order;
+  for (const post3d_decal &d : st.decals)
+    if (d.alive)
+      order.push_back(&d);
+  std::sort(order.begin(), order.end(), [](const post3d_decal *a, const post3d_decal *b) { return a->order < b->order; });
+  i32 mode = -1;
+  for (const post3d_decal *d : order) {
+    const f32 fade = decal_fade(*d);
+    if (fade <= 0.0f)
+      continue;
+    const decal3d_desc &desc = d->desc;
+    Texture2D image{.id = rlGetTextureIdDefault(), .width = 1, .height = 1, .mipmaps = 1,
+                    .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    bool has_image = false;
+    const texture_slot *slot = texture_slot_of(ctx.texture, desc.texture);
+    if (slot != nullptr && !slot->packed && slot->texture.id != 0) {
+      image = slot->texture;
+      has_image = true;
+    }
+    vec4 source{0.0f, 0.0f, 1.0f, 1.0f};
+    if (has_image && desc.source.size.x > 0.0f && desc.source.size.y > 0.0f)
+      source = {desc.source.pos.x / (f32)image.width, desc.source.pos.y / (f32)image.height,
+                desc.source.size.x / (f32)image.width, desc.source.size.y / (f32)image.height};
+    maps[MATERIAL_MAP_DIFFUSE].texture = image;
+    maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+    const Matrix model = decal_matrix(desc);
+    const vec3 axis = normalize(vec3{model.m4, model.m5, model.m6});
+    if (mode != (i32)desc.blend) {
+      rlDrawRenderBatchActive();
+      if (desc.blend == decal3d_multiply) {
+        BeginBlendMode(BLEND_MULTIPLIED);
+      } else {
+        BeginBlendMode(BLEND_ALPHA);
+      }
+      mode = (i32)desc.blend;
+    }
+    set_m(sh, "toLocal", d->to_local);
+    set_v4(sh, "color", {desc.color.r, desc.color.g, desc.color.b, desc.color.a});
+    set_v4(sh, "source", source);
+    set_i(sh, "hasTexture", has_image ? 1 : 0);
+    set_i(sh, "mode", desc.blend == decal3d_multiply ? 0 : 1);
+    set_f(sh, "fade", fade);
+    set_f(sh, "angleFade", clamp(desc.angle_fade, 0.0f, 1.0f));
+    set_v3(sh, "axis", axis);
+    DrawMesh(s.cube, material, model);
+  }
+  EndBlendMode();
+  rlSetCullFace(RL_CULL_FACE_BACK);
+  rlEnableDepthMask();
+  rlActiveTextureSlot(decal_depth_unit);
+  rlDisableTexture();
+  rlActiveTextureSlot(0);
+  ctx.stats.post_passes += 1;
+}
+
+void run_ssao(context &ctx, post3d_state &st, const pass_view &v) {
+  const post3d &p = st.settings;
+  const i32 aw = p.ssao_half ? std::max(v.w / 2, 1) : v.w;
+  const i32 ah = p.ssao_half ? std::max(v.h / 2, 1) : v.h;
+  if (!ensure_target(st.ao_a, aw, ah) || !ensure_target(st.ao_b, aw, ah))
+    return;
+  const Texture2D depth = texture_of(st.copy_depth, v.w, v.h);
+  // Occlusion.
+  Shader sh = st.ssao;
+  set_view(sh, v);
+  set_f(sh, "radius", std::max(p.ssao_radius, 0.01f));
+  set_i(sh, "samples", std::clamp(p.ssao_samples, 4, 32));
+  bind_2d(st.ao_a.id, aw, ah);
+  quad(sh, depth, aw, ah, [&] { sampler(sh, "depthTex", st.copy_depth); });
+  // Blur across, then down.
+  Shader b = st.ssao_blur;
+  set_view(b, v);
+  set_v2(b, "direction", {1.0f / (f32)aw, 0.0f});
+  bind_2d(st.ao_b.id, aw, ah);
+  quad(b, st.ao_a.texture, aw, ah, [&] { sampler(b, "depthTex", st.copy_depth); });
+  set_v2(b, "direction", {0.0f, 1.0f / (f32)ah});
+  bind_2d(st.ao_a.id, aw, ah);
+  quad(b, st.ao_b.texture, aw, ah, [&] { sampler(b, "depthTex", st.copy_depth); });
+  // Multiplied into the image.
+  Shader a = st.ssao_apply;
+  set_view(a, v);
+  set_v2(a, "aoTexel", {1.0f / (f32)aw, 1.0f / (f32)ah});
+  set_f(a, "strength", clamp(p.ssao, 0.0f, 1.0f));
+  bind_2d(v.target, v.w, v.h);
+  BeginBlendMode(BLEND_MULTIPLIED);
+  quad(a, st.ao_a.texture, v.w, v.h, [&] { sampler(a, "depthTex", st.copy_depth); });
+  EndBlendMode();
+  ctx.stats.post_passes += 4;
+}
+
+void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
+  const post3d &p = st.settings;
+  if (!ensure_target(st.mask, v.w, v.h))
+    return;
+  // Which pixels reflect, and how much.
+  bind_3d(v);
+  rlEnableFramebuffer(st.mask.id);
+  rlClearColor(0, 0, 0, 0);
+  rlClearScreenBuffers();
+  rlDisableDepthTest();
+  if (!render3d_draw_reflectors(ctx, st.copy_depth, {(f32)v.w, (f32)v.h}, v.planes))
+    return;
+  // The image as it is now (with decals and occlusion), to reflect.
+  blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
+  const light3d &light = ctx.render3d.light;
+  Shader sh = st.ssr;
+  set_view(sh, v);
+  set_f(sh, "strength", clamp(p.ssr, 0.0f, 1.0f));
+  set_f(sh, "maxDistance", std::max(p.ssr_distance, 0.1f));
+  set_i(sh, "steps", std::clamp(p.ssr_steps, 8, 128));
+  set_f(sh, "thickness", std::max(p.ssr_thickness, 0.01f));
+  set_v4(sh, "skyColor", {light.fog_color.r, light.fog_color.g, light.fog_color.b, clamp(p.ssr_sky, 0.0f, 1.0f)});
+  bind_2d(v.target, v.w, v.h);
+  BeginBlendMode(BLEND_ALPHA);
+  quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] {
+    sampler(sh, "depthTex", st.copy_depth);
+    sampler(sh, "maskTex", st.mask.texture.id);
+  });
+  EndBlendMode();
+  ctx.stats.post_passes += 2;
+}
+
+// Where the sun is on screen (0..1, y up as the textures), and how much it is
+// in view: 1 inside the frame, fading to 0 a quarter screen outside. False
+// when it is behind the camera or below the horizon.
+bool sun_on_screen(const context &ctx, const pass_view &v, vec2 &uv, f32 &on_screen) {
+  const vec3 dir = normalize(ctx.render3d.light.direction);
+  const vec3 to_sun = dir * -1.0f;
+  if (to_sun.y < -0.05f)
+    return false;
+  const Matrix &m = v.view_proj;
+  const f32 cx = m.m0 * to_sun.x + m.m4 * to_sun.y + m.m8 * to_sun.z;
+  const f32 cy = m.m1 * to_sun.x + m.m5 * to_sun.y + m.m9 * to_sun.z;
+  const f32 cw = m.m3 * to_sun.x + m.m7 * to_sun.y + m.m11 * to_sun.z;
+  if (cw <= 1e-4f)
+    return false;
+  uv = {cx / cw * 0.5f + 0.5f, cy / cw * 0.5f + 0.5f};
+  const f32 out = std::max({-uv.x, uv.x - 1.0f, -uv.y, uv.y - 1.0f, 0.0f});
+  on_screen = 1.0f - std::clamp(out / 0.25f, 0.0f, 1.0f);
+  on_screen = on_screen * on_screen * (3.0f - 2.0f * on_screen);
+  return on_screen > 0.0f;
+}
+
+void run_shafts(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32 on_screen) {
+  const post3d &p = st.settings;
+  const i32 hw = std::max(v.w / 2, 1);
+  const i32 hh = std::max(v.h / 2, 1);
+  if (!ensure_target(st.shafts_a, hw, hh) || !ensure_target(st.shafts_b, hw, hh))
+    return;
+  const f32 aspect = (f32)v.w / (f32)v.h;
+  Shader sky = st.shafts_sky;
+  set_view(sky, v);
+  set_v2(sky, "sun", sun);
+  set_f(sky, "aspect", aspect);
+  bind_2d(st.shafts_a.id, hw, hh);
+  quad(sky, texture_of(st.copy_depth, v.w, v.h), hw, hh, [&] { sampler(sky, "depthTex", st.copy_depth); });
+  Shader blur = st.shafts_blur;
+  set_v2(blur, "sun", sun);
+  set_f(blur, "length", clamp(p.shafts_length, 0.0f, 1.0f));
+  bind_2d(st.shafts_b.id, hw, hh);
+  quad(blur, st.shafts_a.texture, hw, hh, [] {});
+  const light3d &light = ctx.render3d.light;
+  const f32 k = std::max(p.shafts, 0.0f) * on_screen;
+  set_v4(st.add, "tint", {p.shafts_color.r * light.color.r * k, p.shafts_color.g * light.color.g * k,
+                          p.shafts_color.b * light.color.b * k, 1.0f});
+  bind_2d(v.target, v.w, v.h);
+  BeginBlendMode(BLEND_ADDITIVE);
+  quad(st.add, st.shafts_b.texture, v.w, v.h, [] {});
+  EndBlendMode();
+  ctx.stats.post_passes += 3;
+}
+
+void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32 on_screen) {
+  const post3d &p = st.settings;
+  if (!ensure_target(st.visible, 1, 1))
+    return;
+  const f32 aspect = (f32)v.w / (f32)v.h;
+  Shader vis = st.flare_vis;
+  set_view(vis, v);
+  set_v2(vis, "sun", sun);
+  set_f(vis, "aspect", aspect);
+  set_f(vis, "onScreen", on_screen);
+  bind_2d(st.visible.id, 1, 1);
+  quad(vis, texture_of(st.copy_depth, v.w, v.h), 1, 1, [&] { sampler(vis, "depthTex", st.copy_depth); });
+  Shader sh = st.flare;
+  const light3d &light = ctx.render3d.light;
+  set_v2(sh, "sun", sun);
+  set_f(sh, "aspect", aspect);
+  set_f(sh, "strength", std::max(p.flare, 0.0f));
+  set_f(sh, "halo", std::max(p.flare_halo, 0.0f));
+  set_v3(sh, "sunColor", {light.color.r, light.color.g, light.color.b});
+  bind_2d(v.target, v.w, v.h);
+  BeginBlendMode(BLEND_ADDITIVE);
+  quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] { sampler(sh, "visTex", st.visible.texture.id); });
+  EndBlendMode();
+  ctx.stats.post_passes += 2;
+}
+
+void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v) {
+  const post3d &p = st.settings;
+  blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
+  Shader sh = st.blur;
+  set_view(sh, v);
+  set_m(sh, "prevViewProj", st.prev_view_proj);
+  set_f(sh, "strength", clamp(p.motion_blur, 0.0f, 1.0f));
+  set_i(sh, "samples", std::clamp(p.motion_blur_samples, 2, 32));
+  set_f(sh, "maxLength", 0.06f);
+  bind_2d(v.target, v.w, v.h);
+  // Replaces the image, alpha included.
+  rlSetBlendFactors(RL_ONE, RL_ZERO, RL_FUNC_ADD);
+  BeginBlendMode(BLEND_CUSTOM);
+  quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] { sampler(sh, "depthTex", st.copy_depth); });
+  EndBlendMode();
+  ctx.stats.post_passes += 1;
+}
+
+bool effects_on(const post3d &p) { return p.ssao > 0.0f || p.ssr > 0.0f || p.motion_blur > 0.0f || p.shafts > 0.0f || p.flare > 0.0f; }
+
+bool usable(const context &ctx) {
+  return ctx.post.drawing && ctx.post.target.depth.id != 0 && ctx.post.target.texture.width > 0;
+}
+
+void kill(post3d_state &st, post3d_decal &d) {
+  if (!d.alive)
+    return;
+  d.alive = false;
+  st.live--;
+}
+
+post3d_decal *decal_of(post3d_state &st, decal3d_handle h) {
+  if (h.id == 0 || h.id > st.decals.size())
+    return nullptr;
+  post3d_decal &d = st.decals[h.id - 1];
+  return d.alive && d.gen == h.gen ? &d : nullptr;
+}
+
+void remove_oldest(post3d_state &st) {
+  post3d_decal *oldest = nullptr;
+  for (post3d_decal &d : st.decals)
+    if (d.alive && (oldest == nullptr || d.order < oldest->order))
+      oldest = &d;
+  if (oldest != nullptr)
+    kill(st, *oldest);
+}
+
+bool finite3(vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); }
+} // namespace
+
+post3d_state::~post3d_state() {
+  free_copy(*this);
+  for (RenderTexture2D *t : {&ao_a, &ao_b, &mask, &shafts_a, &shafts_b, &visible})
+    if (IsRenderTextureValid(*t))
+      UnloadRenderTexture(*t);
+  if (loaded)
+    for (Shader *s : {&ssao, &ssao_blur, &ssao_apply, &ssr, &decal, &shafts_sky, &shafts_blur, &add, &flare_vis, &flare,
+                      &blur})
+      UnloadShader(*s);
+}
+
+bool post3d_wanted(const context &ctx) {
+  const post3d_state &st = ctx.post3d;
+  return !st.failed && (effects_on(st.settings) || st.live > 0);
+}
+
+void post3d_after_opaque(context &ctx) {
+  post3d_state &st = ctx.post3d;
+  if (!usable(ctx) || !load(st))
+    return;
+  const pass_view v = current_view(ctx);
+  if (!ensure_copy(st, v.w, v.h))
+    return;
+  blit(v.target, st.copy_fbo, v.w, v.h, color_bit | depth_bit);
+  draw_decals(ctx, st, v);
+  if (st.settings.ssao > 0.0f)
+    run_ssao(ctx, st, v);
+  if (st.settings.ssr > 0.0f)
+    run_ssr(ctx, st, v);
+}
+
+void post3d_after_pass(context &ctx) {
+  post3d_state &st = ctx.post3d;
+  if (!usable(ctx) || !st.loaded || st.copy_fbo == 0)
+    return;
+  const pass_view v = current_view(ctx);
+  if (v.w != st.w || v.h != st.h)
+    return;
+  const post3d &p = st.settings;
+  vec2 sun{};
+  f32 on_screen = 0.0f;
+  const bool sun_shows = (p.shafts > 0.0f || p.flare > 0.0f) && sun_on_screen(ctx, v, sun, on_screen);
+  if (sun_shows && p.shafts > 0.0f)
+    run_shafts(ctx, st, v, sun, on_screen);
+  if (sun_shows && p.flare > 0.0f)
+    run_flare(ctx, st, v, sun, on_screen);
+  // Last pass's view, if it was a moment ago (not a pass from before a pause
+  // of the effect or a stall).
+  const bool recent = st.has_prev && ctx.time.elapsed - st.prev_time < 0.25f;
+  if (p.motion_blur > 0.0f && recent)
+    run_motion_blur(ctx, st, v);
+  st.prev_view_proj = v.view_proj;
+  st.prev_time = ctx.time.elapsed;
+  st.has_prev = true;
+}
+
+void post3d_update(context &ctx) {
+  post3d_state &st = ctx.post3d;
+  if (st.live == 0)
+    return;
+  const f32 dt = ctx.time.dt;
+  for (post3d_decal &d : st.decals) {
+    if (!d.alive)
+      continue;
+    d.age += dt;
+    if (d.desc.lifetime > 0.0f && d.age >= d.desc.lifetime)
+      kill(st, d);
+  }
+}
+
+void post3d_set(context &ctx, const post3d &fx) { ctx.post3d.settings = fx; }
+
+post3d post3d_get(const context &ctx) { return ctx.post3d.settings; }
+
+// The box turns z, then x, then y (decal_matrix): x by acos(n.y) takes its y
+// axis to (0, n.y, sin), and y by atan2(n.x, n.z) swings that onto n.
+vec3 decal3d_rotation(vec3 normal) {
+  const f32 len = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+  if (!(len > 1e-6f) || !std::isfinite(len))
+    return {};
+  const vec3 n{normal.x / len, normal.y / len, normal.z / len};
+  const f32 a = std::acos(std::clamp(n.y, -1.0f, 1.0f));
+  const f32 b = std::sqrt(n.x * n.x + n.z * n.z) > 1e-5f ? std::atan2(n.x, n.z) : 0.0f;
+  return {a * RAD2DEG, b * RAD2DEG, 0.0f};
+}
+
+decal3d_handle decal3d_add(context &ctx, const decal3d_desc &desc) {
+  if (!finite3(desc.position) || !finite3(desc.rotation) || !finite3(desc.size)) {
+    NJIN_WARN("decal3d_add: position, rotation or size is not finite, ignored");
+    return {};
+  }
+  post3d_state &st = ctx.post3d;
+  if (st.live >= st.max_decals)
+    remove_oldest(st);
+  usize slot = st.decals.size();
+  for (usize i = 0; i < st.decals.size(); i++)
+    if (!st.decals[i].alive) {
+      slot = i;
+      break;
+    }
+  if (slot == st.decals.size())
+    st.decals.emplace_back();
+  post3d_decal &d = st.decals[slot];
+  d.desc = desc;
+  // A flat box would have no inside to find a surface in.
+  d.desc.size = {std::max(std::fabs(desc.size.x), 1e-3f), std::max(std::fabs(desc.size.y), 1e-3f),
+                 std::max(std::fabs(desc.size.z), 1e-3f)};
+  d.to_local = MatrixInvert(decal_matrix(d.desc));
+  d.age = 0.0f;
+  d.gen++;
+  d.order = st.next_order++;
+  d.alive = true;
+  st.live++;
+  return decal3d_handle{(u32)slot + 1, d.gen};
+}
+
+void decal3d_remove(context &ctx, decal3d_handle handle) {
+  post3d_state &st = ctx.post3d;
+  if (post3d_decal *d = decal_of(st, handle))
+    kill(st, *d);
+}
+
+void decal3d_clear(context &ctx) {
+  post3d_state &st = ctx.post3d;
+  for (post3d_decal &d : st.decals)
+    kill(st, d);
+}
+
+i32 decal3d_count(const context &ctx) { return ctx.post3d.live; }
+
+void decal3d_set_max(context &ctx, i32 max) {
+  post3d_state &st = ctx.post3d;
+  st.max_decals = std::clamp(max, 1, 4096);
+  while (st.live > st.max_decals)
+    remove_oldest(st);
+}
+} // namespace njin

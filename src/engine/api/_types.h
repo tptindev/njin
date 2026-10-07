@@ -245,6 +245,16 @@ struct scatter3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một decal, tạo bởi decal3d_add().
+///
+/// `id == 0` là handle không hợp lệ. Decal đã hết hay đã bị thay chỗ cũng bị bỏ
+/// qua: ô của nó được dùng lại cho decal sau, nhưng `gen` khác nên handle cũ không
+/// bao giờ trỏ nhầm sang decal mới.
+struct decal3d_handle {
+  u32 id = 0;  ///< 0 nghĩa là không hợp lệ.
+  u32 gen = 0; ///< Lần dùng thứ mấy của ô này.
+};
+
 /// Định danh của một tiếng đang phát trong không gian 3D, tạo bởi sound_play3d()
 /// hoặc sound_loop3d().
 ///

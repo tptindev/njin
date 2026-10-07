@@ -32,6 +32,7 @@
 #include "njin_particles.h"
 #include "njin_physics3d.h"
 #include "njin_post.h"
+#include "njin_post3d.h"
 #include "njin_prefab.h"
 #include "njin_procgen.h"
 #include "njin_render.h"
