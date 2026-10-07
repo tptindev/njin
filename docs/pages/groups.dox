@@ -86,6 +86,9 @@
 /// @defgroup grp_3d Đồ họa 3D
 /// Camera phối cảnh, hình khối SDF, model glTF, instancing, ánh sáng có bóng đổ, hạt, chọn vật bằng tia.
 
+/// @defgroup grp_anim3d Animation 3D
+/// Xương lò xo (tóc, đuôi, áo choàng) và chép animation sang bộ xương khác (retarget).
+
 /// @defgroup grp_physics3d Vật lý 3D
 /// Body tĩnh, kinematic, động; nhân vật đi trên sàn và leo bậc; raycast. Dựng trên Jolt Physics.
 

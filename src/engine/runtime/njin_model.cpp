@@ -5,6 +5,7 @@
 #include <raymath.h>
 #include <rlgl.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -135,8 +136,9 @@ void upload_skin(model_slot &slot) {
 }
 
 // The file's animation clips that match the model's skeleton, and the bone
-// buffers of every skinned mesh on the GPU for the skinning shader.
-void load_skin(model_slot &slot, const std::string &path, const char *name) {
+// buffers of every skinned mesh on the GPU for the skinning shader. `source`
+// gets the file's index of each clip kept.
+void load_skin(model_slot &slot, const std::string &path, const char *name, std::vector<i32> &source) {
   const Model &model = slot.model;
   if (model.skeleton.boneCount <= 0)
     return;
@@ -151,9 +153,10 @@ void load_skin(model_slot &slot, const std::string &path, const char *name) {
     // Keep only the clips made for this skeleton, in file order.
     i32 kept = 0;
     for (i32 i = 0; i < count; i++) {
-      if (IsModelAnimationValid(model, anims[i]) && anims[i].keyframeCount > 0)
+      if (IsModelAnimationValid(model, anims[i]) && anims[i].keyframeCount > 0) {
+        source.push_back(i);
         std::swap(anims[kept++], anims[i]);
-      else
+      } else
         NJIN_WARN("model: %s: animation '%s' does not match the skeleton, skipped", name, anims[i].name);
     }
     // raylib samples a glTF clip at 60 frames a second, but at the clip's
@@ -290,8 +293,10 @@ void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<
 }
 
 // Leaves out the meshes of the nodes `desc` filters out, and merges the rest
-// by material when it asks. False when nothing is left.
-bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &desc, const char *path) {
+// by material when it asks. False when nothing is left. `kept` gets the old
+// index of each mesh left when they are filtered without merging.
+bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &desc, const char *path,
+                  std::vector<i32> &kept) {
   const bool filtering = desc.skip_count > 0 || desc.only_count > 0;
   if (!filtering && !desc.merge)
     return true;
@@ -316,6 +321,7 @@ bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &d
   if (desc.merge) {
     merge_meshes(model, keep, meshes, materials);
   } else {
+    kept = keep;
     for (const i32 k : keep) {
       meshes.push_back(model.meshes[k]);
       materials.push_back(model.meshMaterial[k]);
@@ -376,6 +382,235 @@ void apply_transmission(model_slot &slot, const cgltf_data *data) {
     mm.surface.shininess = 90.0f;
   }
 }
+
+std::vector<f32> unpack(const cgltf_accessor *a) {
+  std::vector<f32> out;
+  if (a == nullptr)
+    return out;
+  out.resize(cgltf_accessor_unpack_floats(a, nullptr, 0));
+  cgltf_accessor_unpack_floats(a, out.data(), out.size());
+  return out;
+}
+
+cgltf_size target_count(const cgltf_mesh &gm) {
+  cgltf_size n = 0;
+  for (cgltf_size p = 0; p < gm.primitives_count; p++)
+    n = std::max(n, gm.primitives[p].targets_count);
+  return n;
+}
+
+// The model morph of each target of glTF mesh `gm`, by name, so a target of
+// the same name in several meshes (a blink on the face and on the lashes) is
+// one morph. An unnamed target is "<mesh>.<n>".
+std::vector<i32> morph_slots(model_slot &slot, const cgltf_data *data, const cgltf_mesh &gm) {
+  std::vector<i32> out;
+  const cgltf_size n = target_count(gm);
+  const std::string mesh = gm.name != nullptr ? gm.name : "mesh" + std::to_string(&gm - data->meshes);
+  for (cgltf_size t = 0; t < n; t++) {
+    const std::string name = t < gm.target_names_count && gm.target_names[t] != nullptr
+                                 ? std::string(gm.target_names[t])
+                                 : mesh + "." + std::to_string(t);
+    const auto at = std::find(slot.morph_names.begin(), slot.morph_names.end(), name);
+    if (at != slot.morph_names.end()) {
+      out.push_back((i32)(at - slot.morph_names.begin()));
+      continue;
+    }
+    out.push_back((i32)slot.morph_names.size());
+    slot.morph_names.push_back(name);
+    slot.morph_defaults.push_back(t < gm.weights_count ? gm.weights[t] : 0.0f);
+  }
+  return out;
+}
+
+// The offsets of `src`, through the linear part of `m` (raylib's matrix layout).
+void transform_offsets(std::vector<f32> &v, const Matrix &m) {
+  for (usize i = 0; i + 2 < v.size(); i += 3) {
+    const f32 x = v[i], y = v[i + 1], z = v[i + 2];
+    v[i] = m.m0 * x + m.m4 * y + m.m8 * z;
+    v[i + 1] = m.m1 * x + m.m5 * y + m.m9 * z;
+    v[i + 2] = m.m2 * x + m.m6 * y + m.m10 * z;
+  }
+}
+
+// The morph targets of every raylib mesh (one per triangle primitive, nodes
+// in file order, as LoadGLTF makes them), and per glTF mesh its targets'
+// model morphs. Needs the file's buffers loaded.
+void load_morphs(model_slot &slot, const cgltf_data *data, const char *path,
+                 std::vector<std::pair<const cgltf_mesh *, std::vector<i32>>> &mesh_slots) {
+  const Model &model = slot.model;
+  std::vector<mesh_morph> morphs((usize)model.meshCount);
+  bool any = false;
+  i32 k = 0;
+  for (cgltf_size i = 0; i < data->nodes_count; i++) {
+    const cgltf_node &node = data->nodes[i];
+    if (node.mesh == nullptr)
+      continue;
+    const cgltf_mesh &gm = *node.mesh;
+    std::vector<i32> slots;
+    bool known = false;
+    for (const auto &[mesh, s] : mesh_slots)
+      if (mesh == &gm) {
+        slots = s;
+        known = true;
+      }
+    if (!known && target_count(gm) > 0) {
+      slots = morph_slots(slot, data, gm);
+      mesh_slots.push_back({&gm, slots});
+    }
+    f32 w[16];
+    cgltf_node_transform_world(&node, w);
+    const Matrix world = {w[0], w[4], w[8], w[12], w[1], w[5], w[9], w[13],
+                          w[2], w[6], w[10], w[14], w[3], w[7], w[11], w[15]};
+    const Matrix normals = MatrixTranspose(MatrixInvert(world));
+    for (cgltf_size p = 0; p < gm.primitives_count; p++) {
+      const cgltf_primitive &prim = gm.primitives[p];
+      if (prim.type != cgltf_primitive_type_triangles)
+        continue;
+      if (k >= model.meshCount)
+        return; // the meshes do not follow the nodes: no morphs
+      const Mesh &mesh = model.meshes[k];
+      mesh_morph &mm = morphs[(usize)k++];
+      if (prim.targets_count == 0 || mesh.vertices == nullptr)
+        continue;
+      const usize floats = (usize)mesh.vertexCount * 3;
+      mm.base_pos.assign(mesh.vertices, mesh.vertices + floats);
+      if (mesh.normals != nullptr)
+        mm.base_nrm.assign(mesh.normals, mesh.normals + floats);
+      bool ok = true;
+      for (cgltf_size t = 0; t < prim.targets_count && t < slots.size(); t++) {
+        std::vector<f32> dp, dn;
+        for (cgltf_size a = 0; a < prim.targets[t].attributes_count; a++) {
+          const cgltf_attribute &attr = prim.targets[t].attributes[a];
+          if (attr.type == cgltf_attribute_type_position)
+            dp = unpack(attr.data);
+          else if (attr.type == cgltf_attribute_type_normal && !mm.base_nrm.empty())
+            dn = unpack(attr.data);
+        }
+        if (dp.empty())
+          dp.assign(floats, 0.0f);
+        if (dp.size() != floats || (!dn.empty() && dn.size() != floats)) {
+          ok = false;
+          break;
+        }
+        transform_offsets(dp, world);
+        transform_offsets(dn, normals);
+        mm.dpos.push_back(std::move(dp));
+        mm.dnrm.push_back(std::move(dn));
+        mm.slot.push_back(slots[t]);
+      }
+      if (!ok) {
+        NJIN_WARN("model: %s: a morph target of mesh '%s' does not match its vertices: its morphs are skipped", path,
+                  gm.name != nullptr ? gm.name : "");
+        mm = mesh_morph{};
+        continue;
+      }
+      mm.held.assign(mm.slot.size(), 0.0f); // the buffers hold the file's shape
+      any = true;
+    }
+  }
+  if (any && k == model.meshCount)
+    slot.morphs = std::move(morphs);
+}
+
+// Each glTF animation's weight curves, in file order.
+std::vector<morph_clip> load_morph_clips(const cgltf_data *data,
+                                         const std::vector<std::pair<const cgltf_mesh *, std::vector<i32>>> &mesh_slots) {
+  std::vector<morph_clip> clips;
+  for (cgltf_size a = 0; a < data->animations_count; a++) {
+    const cgltf_animation &anim = data->animations[a];
+    morph_clip clip;
+    clip.name = anim.name != nullptr ? anim.name : "";
+    for (cgltf_size c = 0; c < anim.channels_count; c++) {
+      const cgltf_animation_channel &ch = anim.channels[c];
+      if (ch.sampler == nullptr || ch.sampler->input == nullptr)
+        continue;
+      const cgltf_accessor &input = *ch.sampler->input;
+      if (input.has_max)
+        clip.duration = std::max(clip.duration, input.max[0]);
+      if (ch.target_path != cgltf_animation_path_type_weights || ch.target_node == nullptr ||
+          ch.target_node->mesh == nullptr)
+        continue;
+      const std::vector<i32> *slots = nullptr;
+      for (const auto &[mesh, s] : mesh_slots)
+        if (mesh == ch.target_node->mesh)
+          slots = &s;
+      if (slots == nullptr || slots->empty())
+        continue;
+      morph_channel mc;
+      mc.times = unpack(&input);
+      const std::vector<f32> out = unpack(ch.sampler->output);
+      const usize n = slots->size(), keys = mc.times.size();
+      const bool cubic = ch.sampler->interpolation == cgltf_interpolation_type_cubic_spline;
+      if (keys == 0 || out.size() != keys * n * (cubic ? 3 : 1))
+        continue;
+      if (!input.has_max)
+        clip.duration = std::max(clip.duration, mc.times.back());
+      mc.values.resize(keys * n);
+      for (usize key = 0; key < keys; key++)
+        for (usize t = 0; t < n; t++)
+          mc.values[key * n + t] = cubic ? out[(key * 3 + 1) * n + t] : out[key * n + t];
+      mc.step = ch.sampler->interpolation == cgltf_interpolation_type_step;
+      mc.slot = *slots;
+      clip.channels.push_back(std::move(mc));
+    }
+    clips.push_back(std::move(clip));
+  }
+  return clips;
+}
+
+// Morphs the slot keeps through filter_model: none when merged, the kept ones
+// when filtered.
+void filter_morphs(model_slot &slot, const model_load_desc &desc, const std::vector<i32> &kept, const char *path) {
+  if (slot.morphs.empty())
+    return;
+  if (desc.merge) {
+    NJIN_WARN("model: %s: merged meshes keep no morph targets", path);
+    slot.morphs.clear();
+    return;
+  }
+  if (kept.empty())
+    return;
+  std::vector<mesh_morph> left;
+  for (const i32 k : kept)
+    left.push_back(std::move(slot.morphs[(usize)k]));
+  slot.morphs = std::move(left);
+}
+
+// Value of `ch`'s curve for target `t` at `time` seconds.
+f32 sample_channel(const morph_channel &ch, f32 time, usize t) {
+  const usize n = ch.slot.size(), keys = ch.times.size();
+  if (time <= ch.times[0])
+    return ch.values[t];
+  if (time >= ch.times[keys - 1])
+    return ch.values[(keys - 1) * n + t];
+  const usize i1 = (usize)(std::upper_bound(ch.times.begin(), ch.times.end(), time) - ch.times.begin());
+  const usize i0 = i1 - 1;
+  const f32 a = ch.values[i0 * n + t], b = ch.values[i1 * n + t];
+  if (ch.step)
+    return a;
+  const f32 span = ch.times[i1] - ch.times[i0];
+  return span > 0.0f ? a + (b - a) * (time - ch.times[i0]) / span : a;
+}
+
+// Clip `clip`'s curves at `time` over `out` (the weights it does not move stay).
+void sample_morph_clip(const model_slot &m, i32 clip, f32 time, bool loop, std::vector<f32> &out) {
+  if (clip < 0 || clip >= (i32)m.morph_clips.size())
+    return;
+  const morph_clip &c = m.morph_clips[(usize)clip];
+  if (c.duration > 0.0f) {
+    if (loop) {
+      time = std::fmod(time, c.duration);
+      if (time < 0.0f)
+        time += c.duration;
+    } else {
+      time = std::clamp(time, 0.0f, c.duration);
+    }
+  }
+  for (const morph_channel &ch : c.channels)
+    for (usize t = 0; t < ch.slot.size(); t++)
+      if (ch.slot[t] >= 0 && (usize)ch.slot[t] < out.size())
+        out[(usize)ch.slot[t]] = sample_channel(ch, time, t);
+}
 } // namespace
 
 model_handle model_store_load(model_store &store, const model_load_desc &desc) {
@@ -405,15 +640,31 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
     if (cgltf_parse_file(&options, resolved.c_str(), &gltf) != cgltf_result_success)
       gltf = nullptr;
   }
+  model_slot slot;
+  // Morph targets need the file's buffers; read before the node filter moves meshes.
+  std::vector<std::pair<const cgltf_mesh *, std::vector<i32>>> mesh_slots;
+  std::vector<morph_clip> morph_clips;
+  if (gltf != nullptr) {
+    bool targets = false;
+    for (cgltf_size i = 0; i < gltf->meshes_count; i++)
+      targets |= target_count(gltf->meshes[i]) > 0;
+    cgltf_options options{};
+    if (targets && cgltf_load_buffers(&options, gltf, resolved.c_str()) == cgltf_result_success) {
+      slot.model = model;
+      load_morphs(slot, gltf, path, mesh_slots);
+      morph_clips = load_morph_clips(gltf, mesh_slots);
+    }
+  }
   if (gltf != nullptr)
     apply_texcoord_sets(model, gltf);
-  if (gltf != nullptr && !filter_model(model, gltf, desc, path)) {
+  std::vector<i32> kept;
+  if (gltf != nullptr && !filter_model(model, gltf, desc, path, kept)) {
     NJIN_WARN("model: %s: the node filter leaves no mesh", path);
     cgltf_free(gltf);
     UnloadModel(model);
     return model_handle{};
   }
-  model_slot slot;
+  filter_morphs(slot, desc, kept, path);
   slot.model = model;
   slot.alive = true;
   slot.bounds = GetModelBoundingBox(model);
@@ -437,10 +688,92 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
       }
     cgltf_free(gltf);
   }
+  std::vector<i32> source;
   if (!desc.merge)
-    load_skin(slot, resolved, path);
+    load_skin(slot, resolved, path, source);
+  if (slot.morphs.empty()) {
+    slot.morph_names.clear();
+    slot.morph_defaults.clear();
+  } else if (slot.anim_kept > 0) {
+    // The skin's clips, each with its own weight curves.
+    for (const i32 i : source)
+      slot.morph_clips.push_back((usize)i < morph_clips.size() ? morph_clips[(usize)i] : morph_clip{});
+    for (i32 k = 0; k < slot.anim_kept; k++)
+      slot.morph_clips[(usize)k].duration = (f32)std::max(slot.anims[k].keyframeCount - 1, 0) / 60.0f;
+  } else {
+    // No skin: the clips that move weights are the model's clips.
+    for (morph_clip &c : morph_clips)
+      if (!c.channels.empty())
+        slot.morph_clips.push_back(std::move(c));
+  }
   store.slots.push_back(std::move(slot));
   return model_handle{.id = (u32)store.slots.size()};
+}
+
+void model_morph_eval(const model_store &store, const model_slot &m, const model_pose *pose, std::vector<f32> &out) {
+  out.assign(m.morph_defaults.begin(), m.morph_defaults.end());
+  if (out.empty() || pose == nullptr)
+    return;
+  if (&model_anim_owner(store, m) == &m) {
+    sample_morph_clip(m, pose->anim, pose->time, pose->loop, out);
+    const f32 k = std::clamp(pose->blend, 0.0f, 1.0f);
+    if (pose->blend_anim >= 0 && k > 0.0f) {
+      std::vector<f32> b(m.morph_defaults.begin(), m.morph_defaults.end());
+      sample_morph_clip(m, pose->blend_anim, pose->blend_time, pose->blend_loop, b);
+      for (usize i = 0; i < out.size(); i++)
+        out[i] += (b[i] - out[i]) * k;
+    }
+  }
+  if (pose->morph_weights != nullptr)
+    for (i32 i = 0; i < pose->morph_count && (usize)i < out.size(); i++)
+      if (std::isfinite(pose->morph_weights[i]))
+        out[(usize)i] += pose->morph_weights[i];
+}
+
+void model_morph_upload(const model_slot &m, i32 mesh, const f32 *w) {
+  if (mesh < 0 || (usize)mesh >= m.morphs.size())
+    return;
+  const mesh_morph &mm = m.morphs[(usize)mesh];
+  const usize n = mm.slot.size();
+  if (n == 0)
+    return;
+  thread_local std::vector<f32> weights, pos, nrm;
+  weights.resize(n);
+  bool same = mm.held.size() == n;
+  for (usize t = 0; t < n; t++) {
+    weights[t] = w != nullptr ? w[mm.slot[t]] : 0.0f;
+    same = same && weights[t] == mm.held[t];
+  }
+  if (same)
+    return;
+  const Mesh &me = m.model.meshes[mesh];
+  pos = mm.base_pos;
+  bool bends = false; // some target moves the normals
+  for (usize t = 0; t < n; t++) {
+    bends |= !mm.dnrm[t].empty();
+    if (weights[t] == 0.0f)
+      continue;
+    const f32 k = weights[t];
+    const std::vector<f32> &d = mm.dpos[t];
+    for (usize i = 0; i < pos.size(); i++)
+      pos[i] += k * d[i];
+  }
+  const i32 bytes = (i32)(pos.size() * sizeof(f32));
+  UpdateMeshBuffer(me, RL_DEFAULT_SHADER_ATTRIB_LOCATION_POSITION, pos.data(), bytes, 0);
+  if (bends && !mm.base_nrm.empty() && me.vboId[RL_DEFAULT_SHADER_ATTRIB_LOCATION_NORMAL] != 0) {
+    nrm = mm.base_nrm;
+    for (usize t = 0; t < n; t++)
+      if (weights[t] != 0.0f && !mm.dnrm[t].empty())
+        for (usize i = 0; i < nrm.size(); i++)
+          nrm[i] += weights[t] * mm.dnrm[t][i];
+    for (usize i = 0; i + 2 < nrm.size(); i += 3) {
+      const f32 l = std::sqrt(nrm[i] * nrm[i] + nrm[i + 1] * nrm[i + 1] + nrm[i + 2] * nrm[i + 2]);
+      if (l > 1e-12f)
+        nrm[i] /= l, nrm[i + 1] /= l, nrm[i + 2] /= l;
+    }
+    UpdateMeshBuffer(me, RL_DEFAULT_SHADER_ATTRIB_LOCATION_NORMAL, nrm.data(), bytes, 0);
+  }
+  mm.held = weights;
 }
 
 namespace {

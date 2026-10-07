@@ -141,6 +141,93 @@ njin::draw_model_anim(ctx, body, at, {.anim = njin::model_anim_find(ctx, body, "
 | Nhiều vật liệu đổi màu trong một lần vẽ | draw_model_anim() với một mảng njin::model_recolor |
 | Giải phóng thư viện clip trước | Model ghép chỉ còn tư thế gốc |
 
+### Morph target {#model_morph}
+
+Morph target (blend shape, shape key trong Blender) là các hình khác của cùng một lưới: mặt cười, mắt
+nhắm, cơ phồng. model_load() nạp chúng cùng model, theo tên trong `extras.targetNames` của glTF (Blender
+ghi tên shape key vào đó). Target cùng tên ở nhiều mesh, như cái nháy mắt ở mặt và ở mi, là **một** morph.
+
+Trọng số của mỗi lần vẽ được tính theo ba lớp:
+
+1. Trọng số mặc định trong file (`mesh.weights`).
+2. Animation của njin::model_pose (`anim`, trộn với `blend_anim`) đặt lại những morph mà clip có đường
+   cong (kênh `weights` của glTF). Model không có xương mà có những clip như vậy thì đó là các animation
+   của nó (model_anim_count()).
+3. Cộng thêm `model_pose::morph_weights`, mảng theo chỉ số model_morph_find(): game nháy mắt hay nói
+   trong khi clip cử động phần còn lại.
+
+@code
+const njin::i32 blink = njin::model_morph_find(ctx, hero, "Blink");
+njin::f32 morphs[16] = {};
+morphs[blink] = blinking ? 1.0f : 0.0f;
+njin::draw_model_anim(ctx, hero, at, {.anim = talk, .time = t, .morph_weights = morphs, .morph_count = 16});
+@endcode
+
+| Điều | Chi tiết |
+|---|---|
+| Trộn ở đâu | Trên CPU, vào bộ đệm đỉnh của mesh, ngay trước mỗi lần vẽ có trọng số khác lần trước, rồi xương uốn nó trên GPU. Nên chạy với mọi shader, kể cả shader của game, và bóng đổ theo đúng hình |
+| Vì sao không trên GPU | Chỉ còn ba chỗ cho thuộc tính đỉnh (một mặt có hàng chục morph), và sẽ phải sửa mọi shader dựng sẵn lẫn shader của game |
+| Chi phí | Mỗi mesh có morph tốn một lần chép đỉnh lên GPU cho mỗi lượt vẽ (cả lượt bóng) khi trọng số đổi; vẽ lại cùng trọng số thì không tốn gì |
+| Đọc trọng số | model_morph_weights() trả về đúng trọng số lần vẽ sẽ dùng |
+| Dùng hình gốc | draw_instanced3d() (hình mặc định của file), ray3d_model() |
+| Mức chi tiết | Mesh có morph luôn vẽ ở mức đầy đủ |
+| Không giữ morph | Model nạp với `model_load_desc::merge` |
+
+### Xương lò xo {#spring3d}
+
+Tóc, đuôi, râu, vạt áo choàng: những xương không có trong animation nhưng phải trễ theo quán tính khi
+nhân vật chạy, đung đưa, rồi trở về. spring3d_create() nhận các chuỗi (njin::spring3d_chain: một xương
+và mọi xương dưới nó) và các collider (njin::spring3d_collider: hình cầu hay viên nang gắn vào một
+xương, như đầu và thân) mà xương lò xo không xuyên qua. Tham số giống spring bone của VRM.
+
+Mỗi frame, spring3d_update() lấy tư thế của animation (hay xương game đặt), chạy lò xo trong thế giới theo
+transform của lần vẽ, và ghi tư thế cuối vào một mảng để vẽ bằng `model_pose::bones`:
+
+@code
+njin::bone_pose3d bones[128];
+const njin::model_pose run{.anim = run_clip, .time = t};
+njin::spring3d_update(ctx, hair, run, at, njin::delta(ctx), bones, 128);
+njin::draw_model_anim(ctx, hero, at, {.anim = run_clip, .time = t, .bones = bones});
+@endcode
+
+| Trường của njin::spring3d_chain | Ý nghĩa |
+|---|---|
+| `stiffness` | Lực kéo về tư thế của animation; lớn là cứng |
+| `drag` | 0..1, cản: 0 đung đưa mãi, 1 chỉ trễ rồi về |
+| `gravity`, `gravity_dir` | Trọng lực kéo đầu xương, trong thế giới |
+| `radius` | Bán kính va chạm của đầu mỗi xương |
+
+Mỗi nhân vật cần một bộ lò xo riêng, vì nó nhớ đầu các xương đang ở đâu. Lò xo chạy theo bước 1/60
+giây; `dt` 0 (game tạm dừng) giữ nguyên. Khi dịch chuyển tức thời nhân vật, gọi spring3d_reset() để
+tóc không bay theo cả quãng đường.
+
+### Chép animation sang bộ xương khác {#retarget3d}
+
+Một bộ clip (chẳng hạn từ Mixamo) cho nhiều nhân vật có bộ xương khác tên, khác tỉ lệ:
+retarget3d_create() ghép xương của model đích với xương của model nguồn, và retarget3d_pose() cho tư thế
+của model đích để vẽ bằng `model_pose::bones`.
+
+- **Ghép xương:** các cặp tên game đưa (`retarget3d_desc::pairs`) trước, rồi theo tên chuẩn của
+  bone_humanoid_name(), hiểu cách đặt tên của Mixamo (`mixamorig:LeftForeArm`), Unreal
+  (`lowerarm_l`, `spine_02`), Unity và VRM (`LeftLowerArm`) và Blender (`forearm.L`), rồi theo đúng tên.
+  retarget3d_source_bone() cho biết một xương đã được ghép với xương nào.
+- **Góc xoay:** xương đích xoay đúng góc mà xương nguồn xoay khỏi tư thế gốc của nó. Hai model cần cùng
+  trục và tư thế gốc giống nhau (cùng chữ T hay cùng chữ A). Xương không được ghép (đuôi ngựa, vũ khí)
+  đi theo xương cha như ở tư thế gốc.
+- **Hông:** dời theo hông của nguồn, nhân với tỉ lệ độ cao hông của hai model, nên người chân ngắn bước
+  ngắn hơn và chân không trượt.
+
+@code
+const njin::retarget3d_handle to_dwarf = njin::retarget3d_create(ctx, {.source = hero, .target = dwarf});
+njin::bone_pose3d bones[128];
+njin::retarget3d_pose(ctx, to_dwarf, {.anim = run_clip, .time = t}, bones, 128);
+njin::draw_model_anim(ctx, dwarf, at, {.bones = bones});
+@endcode
+
+Ví dụ đầy đủ: tóc lò xo, nháy mắt bằng morph, và người lùn chạy bằng clip của người hùng.
+
+@include anim3d.cpp
+
 ## Ánh sáng
 
 | Phần | Đặt bằng | Ghi chú |

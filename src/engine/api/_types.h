@@ -197,6 +197,19 @@ struct softbody3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một bộ xương lò xo (tóc, đuôi, áo choàng), tạo bởi
+/// spring3d_create(). `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct spring3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một cách chép animation từ bộ xương này sang bộ xương khác,
+/// tạo bởi retarget3d_create(). `id == 0` là handle không hợp lệ. Handle đã hủy
+/// cũng bị bỏ qua.
+struct retarget3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một xe có bánh, tạo bởi vehicle3d_create().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.

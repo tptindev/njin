@@ -580,7 +580,8 @@ void draw_model(const context &ctx, model_handle handle, const transform3d &tran
                 rgba tint = colors::white);
 
 /// Số animation xương trong file của model (glTF có skin). model_load() nạp chúng
-/// cùng model.
+/// cùng model. Model không có skin nhưng có morph target thì animation của nó là
+/// các clip có đường cong trọng số (model_morph_count()).
 /// @param ctx Context của engine.
 /// @param handle Model.
 /// @return Số animation, 0 nếu model không có hay handle không hợp lệ.
@@ -622,9 +623,17 @@ struct model_pose {
   f32 blend = 0.0f;        ///< Tỉ lệ trộn: 0 chỉ có `anim`, 1 chỉ có `blend_anim`.
   /// Tư thế do game đặt: model_bone_count() xương, trong không gian của model
   /// như model_bone_pose() trả về (ragdoll3d_bones() điền mảng này). Khác
-  /// nullptr thì các trường animation ở trên bị bỏ qua. Engine đọc mảng ngay lúc
+  /// nullptr thì các trường animation ở trên bị bỏ qua khi đặt xương (chúng vẫn
+  /// điều khiển trọng số morph, xem `morph_weights`). Engine đọc mảng ngay lúc
   /// vẽ (draw_model_anim(), hay khi vẽ entity có njin::model3d), không giữ lại.
   const bone_pose3d *bones = nullptr;
+  /// Trọng số morph target (blend shape) do game đặt, theo chỉ số
+  /// model_morph_find(): **cộng thêm** vào trọng số mặc định của file và của
+  /// animation đang chạy (`anim`, `blend_anim`), nên game nháy mắt trong khi
+  /// animation cử động miệng. nullptr là không thêm gì. Engine đọc mảng ngay lúc
+  /// vẽ, không giữ lại.
+  const f32 *morph_weights = nullptr;
+  i32 morph_count = 0; ///< Số phần tử của `morph_weights`.
 };
 
 /// Vẽ model có xương ở tư thế `pose`. Như draw_model(), và bóng đổ theo đúng
@@ -761,6 +770,50 @@ struct bone_pose3d {
   vec3 y_axis{0.0f, 1.0f, 0.0f};   ///< Trục y (dọc theo xương với rig của Blender), độ dài 1.
   vec3 z_axis{0.0f, 0.0f, 1.0f};   ///< Trục z, độ dài 1.
 };
+
+/// Số morph target (blend shape) của model: các target của glTF (biểu cảm mặt,
+/// cơ phồng, cửa mở), theo tên. Target cùng tên ở nhiều mesh (cái nháy mắt ở
+/// mặt và ở mi) là một morph. model_load() nạp chúng cùng model, cùng các
+/// đường cong trọng số (kênh `weights`) của animation trong file.
+///
+/// Trọng số khi vẽ (draw_model(), draw_model_anim(), njin::model3d) là: mặc
+/// định của file (`mesh.weights`), rồi animation của `model_pose` đặt lại các
+/// morph nó có đường cong, rồi cộng `model_pose::morph_weights`. Morph được trộn
+/// trên CPU vào bộ đệm đỉnh của mesh, trước khi xương (nếu có) uốn nó, nên chạy
+/// với mọi shader, cả shader của game và bóng đổ. Mesh có morph luôn vẽ ở mức
+/// chi tiết đầy đủ (model_lod_build() không áp cho nó). draw_instanced3d() và
+/// ray3d_model() dùng hình gốc. Model nạp với `model_load_desc::merge` không
+/// giữ morph.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @return Số morph, 0 nếu model không có hay handle không hợp lệ.
+i32 model_morph_count(const context &ctx, model_handle handle);
+
+/// Tên của morph thứ `morph`: tên trong `extras.targetNames` của file, hoặc
+/// `"<tên mesh>.<số>"` khi file không đặt tên.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param morph 0..model_morph_count() - 1.
+/// @return Tên, hoặc chuỗi rỗng nếu handle hay `morph` không hợp lệ.
+const char *model_morph_name(const context &ctx, model_handle handle, i32 morph);
+
+/// Tìm morph theo tên (so đúng cả chuỗi).
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param name Tên morph.
+/// @return Chỉ số 0..model_morph_count() - 1, hoặc -1 nếu không có.
+i32 model_morph_find(const context &ctx, model_handle handle, const char *name);
+
+/// Trọng số của mọi morph ở tư thế `pose`, đúng như lần vẽ sẽ dùng (mặc định,
+/// animation, rồi `pose.morph_weights`). Để đọc độ mở miệng của một đoạn nói,
+/// hay kiểm tra animation.
+/// @param ctx Context của engine.
+/// @param handle Model.
+/// @param pose Tư thế.
+/// @param out Mảng nhận trọng số, hoặc nullptr để chỉ đếm.
+/// @param count Số phần tử của `out`.
+/// @return model_morph_count() (chỉ `count` trọng số đầu được ghi).
+i32 model_morph_weights(const context &ctx, model_handle handle, const model_pose &pose, f32 *out, i32 count);
 
 /// Xương `bone` ở tư thế `pose` (cùng cách tính với draw_model_anim(), kể cả
 /// khi trộn hai animation), để gắn đồ vào tay, đặt vùng trúng đòn theo xương,

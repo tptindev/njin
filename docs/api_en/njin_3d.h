@@ -623,7 +623,8 @@ void draw_model(const context &ctx, model_handle handle, const transform3d &tran
                 rgba tint = colors::white);
 
 /// Number of skeletal animations in the model's file (glTF with a skin). model_load()
-/// loads them together with the model.
+/// loads them together with the model. For a model without a skin but with morph
+/// targets, its animations are the clips with weight curves (model_morph_count()).
 /// @param ctx Engine context.
 /// @param handle Model.
 /// @return Animation count, 0 if the model has none or the handle is invalid.
@@ -665,10 +666,18 @@ struct model_pose {
   f32 blend = 0.0f;        ///< Blend weight: 0 is only `anim`, 1 is only `blend_anim`.
   /// A pose set by the game: model_bone_count() bones, in model space as
   /// model_bone_pose() returns them (ragdoll3d_bones() fills this array). When not
-  /// nullptr the animation fields above are ignored. The engine reads the array
-  /// right when drawing (draw_model_anim(), or when an entity with njin::model3d
-  /// is drawn) and does not keep it.
+  /// nullptr the animation fields above are ignored for placing the bones (they
+  /// still drive the morph weights, see `morph_weights`). The engine reads the
+  /// array right when drawing (draw_model_anim(), or when an entity with
+  /// njin::model3d is drawn) and does not keep it.
   const bone_pose3d *bones = nullptr;
+  /// Morph target (blend shape) weights set by the game, indexed by
+  /// model_morph_find(): **added** to the file's default weights and the playing
+  /// animation's (`anim`, `blend_anim`), so the game blinks while the animation
+  /// moves the mouth. nullptr adds nothing. The engine reads the array right when
+  /// drawing and does not keep it.
+  const f32 *morph_weights = nullptr;
+  i32 morph_count = 0; ///< Number of elements in `morph_weights`.
 };
 
 /// Draws a skinned model in pose `pose`. Like draw_model(), and the shadow follows
@@ -807,6 +816,51 @@ struct bone_pose3d {
   vec3 y_axis{0.0f, 1.0f, 0.0f};   ///< The y axis (along the bone with Blender's rigs), length 1.
   vec3 z_axis{0.0f, 0.0f, 1.0f};   ///< The z axis, length 1.
 };
+
+/// Number of morph targets (blend shapes) of the model: the glTF's targets (facial
+/// expressions, bulging muscles, an opening door), by name. Targets of the same
+/// name in several meshes (a blink on the face and on the lashes) are one morph.
+/// model_load() loads them with the model, along with the weight curves (the
+/// `weights` channel) of the file's animations.
+///
+/// The weights of a draw (draw_model(), draw_model_anim(), njin::model3d) are: the
+/// file's defaults (`mesh.weights`), then the `model_pose`'s animation sets the
+/// morphs it has curves for, then `model_pose::morph_weights` is added. Morphs are
+/// blended on the CPU into the mesh's vertex buffer, before the bones (if any)
+/// bend it, so they work with every shader, the game's own and shadows included.
+/// A mesh with morphs is always drawn at full detail (model_lod_build() does not
+/// apply to it). draw_instanced3d() and ray3d_model() use the original shape. A
+/// model loaded with `model_load_desc::merge` keeps no morphs.
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @return Morph count, 0 if the model has none or the handle is invalid.
+i32 model_morph_count(const context &ctx, model_handle handle);
+
+/// Name of morph number `morph`: the name in the file's `extras.targetNames`, or
+/// `"<mesh name>.<number>"` when the file gives none.
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @param morph 0..model_morph_count() - 1.
+/// @return The name, or an empty string if the handle or `morph` is invalid.
+const char *model_morph_name(const context &ctx, model_handle handle, i32 morph);
+
+/// Finds a morph by name (whole-string match).
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @param name Morph name.
+/// @return Index 0..model_morph_count() - 1, or -1 if there is none.
+i32 model_morph_find(const context &ctx, model_handle handle, const char *name);
+
+/// The weight of every morph in pose `pose`, exactly as a draw will use them
+/// (defaults, animation, then `pose.morph_weights`). To read how open the mouth is
+/// in a line of speech, or to check an animation.
+/// @param ctx Engine context.
+/// @param handle Model.
+/// @param pose Pose.
+/// @param out Array receiving the weights, or nullptr to only count them.
+/// @param count Number of elements in `out`.
+/// @return model_morph_count() (only the first `count` weights are written).
+i32 model_morph_weights(const context &ctx, model_handle handle, const model_pose &pose, f32 *out, i32 count);
 
 /// Bone `bone` in pose `pose` (worked out as draw_model_anim() does, blending
 /// two animations too), to put an object in a hand, hit zones on bones, or

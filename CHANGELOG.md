@@ -44,6 +44,34 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Morph targets (blend shapes) from glTF: model_load() reads each mesh's
+  targets (positions and normals, sparse accessors included) with their
+  names from `extras.targetNames`; targets of the same name in several meshes
+  are one morph. `model_morph_count()`, `model_morph_name()`,
+  `model_morph_find()`, and `model_morph_weights()` for the weights a draw
+  will use. A draw's weights are the file's defaults, then the playing clip's
+  weight curves (the glTF `weights` channel, linear, step or cubic spline,
+  blended with `blend_anim`), then `model_pose::morph_weights` added on top.
+  They are blended on the CPU into the mesh's vertex buffers right before a
+  draw whose weights differ from what the buffers hold, then skinned on the
+  GPU as before, so morphs work with every shader, shadows included. A model
+  without a skin whose clips only move weights gets those clips as its
+  animations (`model_anim_count()` and the other clip functions). The new
+  fields are at the end of `model_pose`, so existing games build unchanged.
+- Spring bones (`njin_anim3d.h`): `spring3d_create()` takes chains (a bone
+  and every bone below it, with VRM's stiffness, drag, gravity and radius)
+  and sphere or capsule colliders on bones; `spring3d_update()` runs them in
+  the world from the draw's transform, on top of an animation or bones the
+  game set, and writes a pose for `model_pose::bones`. `spring3d_reset()`
+  after a teleport, `spring3d_destroy()`.
+- Retargeting: `retarget3d_create()` matches a target skeleton's bones with a
+  source skeleton's, by name pairs the game gives, then by standard humanoid
+  names, then by the same name; `retarget3d_pose()` turns each matched bone
+  by the angle its source bone turned from its rest pose, lets unmatched
+  bones follow their parent, and moves the hips scaled by the ratio of hip
+  heights. `retarget3d_source_bone()`, `retarget3d_destroy()`.
+  `bone_humanoid_name()` reads Mixamo, Unreal, Unity/VRM and Blender bone
+  names.
 - 3D sound (`njin_audio.h`): `sound_play3d()` and `sound_loop3d()` play a
   sound at a point or on an entity's `transform3d`, heard from a listener that
   follows the last on-screen `begin_3d()` camera by default

@@ -81,6 +81,10 @@ struct draw3d_cmd {
   // with model_recolor), in render3d_state::recolors. count 0 = none.
   u32 recolor_first = 0;
   u32 recolor_count = 0;
+  // Models with morph targets: the weight of each morph in
+  // render3d_state::morphs (count 0 = the model has none).
+  u32 morph_first = 0;
+  u32 morph_count = 0;
 };
 
 // Depth seen from the sun. A colour attachment is kept too, so the
@@ -179,6 +183,7 @@ struct render3d_state {
   mutable std::vector<draw3d_cmd> cmds;
   mutable std::vector<Matrix> bones; // bone matrices of the posed draws
   mutable std::vector<model_recolor> recolors; // materials recoloured by the draws
+  mutable std::vector<f32> morphs;             // morph weights of the draws
   mutable std::vector<sdf_part> blend_parts; // parts of the blended SDF shapes
   std::vector<light3d_source> lights;
   bool entities = true; // camera3d::entities of the open pass

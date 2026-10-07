@@ -19,6 +19,7 @@
 #include "modules/ui.h"
 #include "modules/sprite.h"
 #include "modules/timer.h"
+#include "njin_anim3d_impl.h"
 #include "njin_anim_impl.h"
 #include "njin_audio_impl.h"
 #include "njin_cfg.h"
@@ -113,6 +114,7 @@ struct context {
   scene_store scene;
   prefab_store prefab;
   anim_store anim;
+  anim3d_store anim3d;
   level_store level;
   ecs_store ecs;
 };

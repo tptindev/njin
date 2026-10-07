@@ -197,6 +197,19 @@ struct softbody3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a set of spring bones (hair, a tail, a cape), created by
+/// spring3d_create(). `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct spring3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a way of playing animation from one skeleton on another, created
+/// by retarget3d_create(). `id == 0` is an invalid handle. A destroyed handle is
+/// also ignored.
+struct retarget3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of a wheeled vehicle, created by vehicle3d_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

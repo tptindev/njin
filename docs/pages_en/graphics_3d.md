@@ -147,6 +147,96 @@ njin::draw_model_anim(ctx, body, at, {.anim = njin::model_anim_find(ctx, body, "
 | Several recoloured materials in one draw | draw_model_anim() with an array of njin::model_recolor |
 | The clip library freed first | The assembled model keeps only its rest pose |
 
+### Morph targets {#model_morph}
+
+Morph targets (blend shapes, shape keys in Blender) are other shapes of the same mesh: a smile, closed
+eyes, a bulging muscle. model_load() loads them with the model, by the names in the glTF's
+`extras.targetNames` (Blender writes the shape key names there). Targets of the same name in several
+meshes, such as a blink on the face and on the lashes, are **one** morph.
+
+The weights of each draw are worked out in three layers:
+
+1. The default weights in the file (`mesh.weights`).
+2. The njin::model_pose's animation (`anim`, blended with `blend_anim`) sets the morphs its clip has
+   curves for (the glTF `weights` channel). A model without bones that has such clips gets them as its
+   animations (model_anim_count()).
+3. `model_pose::morph_weights` is added on top, an array indexed by model_morph_find(): the game blinks
+   or talks while the clip moves the rest.
+
+@code
+const njin::i32 blink = njin::model_morph_find(ctx, hero, "Blink");
+njin::f32 morphs[16] = {};
+morphs[blink] = blinking ? 1.0f : 0.0f;
+njin::draw_model_anim(ctx, hero, at, {.anim = talk, .time = t, .morph_weights = morphs, .morph_count = 16});
+@endcode
+
+| Point | Detail |
+|---|---|
+| Where it is blended | On the CPU, into the mesh's vertex buffers, right before each draw whose weights differ from the last, then the bones bend it on the GPU. So it works with every shader, the game's own included, and shadows follow the shape |
+| Why not on the GPU | Only three vertex attribute slots are left (a face has dozens of morphs), and every built-in shader and the game's own would need changing |
+| Cost | Each mesh with morphs copies its vertices to the GPU once per pass (shadow passes included) when the weights change; drawing again with the same weights costs nothing |
+| Reading the weights | model_morph_weights() returns exactly the weights a draw will use |
+| Drawn in the file's shape | draw_instanced3d() (the file's default shape), ray3d_model() |
+| Level of detail | A mesh with morphs is always drawn at full detail |
+| Morphs not kept | A model loaded with `model_load_desc::merge` |
+
+### Spring bones {#spring3d}
+
+Hair, tails, whiskers, the flaps of a cape: bones the animation does not move, but which must lag behind
+with inertia as the character runs, swing, then come back. spring3d_create() takes the chains
+(njin::spring3d_chain: a bone and every bone below it) and the colliders (njin::spring3d_collider: a
+sphere or capsule on a bone, such as the head and body) the springs do not pass through. The parameters
+are those of VRM spring bones.
+
+Each frame, spring3d_update() takes the animation's pose (or the bones the game set), runs the springs in
+the world following the draw's transform, and writes the final pose into an array to draw with
+`model_pose::bones`:
+
+@code
+njin::bone_pose3d bones[128];
+const njin::model_pose run{.anim = run_clip, .time = t};
+njin::spring3d_update(ctx, hair, run, at, njin::delta(ctx), bones, 128);
+njin::draw_model_anim(ctx, hero, at, {.anim = run_clip, .time = t, .bones = bones});
+@endcode
+
+| Field of njin::spring3d_chain | Meaning |
+|---|---|
+| `stiffness` | Pull back to the animation's pose; larger is stiffer |
+| `drag` | 0..1, damping: 0 swings forever, 1 only lags then returns |
+| `gravity`, `gravity_dir` | Gravity pulling the bone tips, in the world |
+| `radius` | Collision radius of each bone's tip |
+
+Each character needs its own springs, since they remember where the bone tips are. The springs run in
+steps of 1/60 s; a `dt` of 0 (game paused) holds them. When teleporting a character, call
+spring3d_reset() so the hair does not fly along the whole way.
+
+### Playing animation on another skeleton {#retarget3d}
+
+One set of clips (from Mixamo, say) for many characters whose skeletons have other names and
+proportions: retarget3d_create() matches the target model's bones with the source model's, and
+retarget3d_pose() gives the target model's pose to draw with `model_pose::bones`.
+
+- **Matching bones:** the name pairs the game gives (`retarget3d_desc::pairs`) first, then by the standard
+  names of bone_humanoid_name(), which understands the naming of Mixamo (`mixamorig:LeftForeArm`), Unreal
+  (`lowerarm_l`, `spine_02`), Unity and VRM (`LeftLowerArm`) and Blender (`forearm.L`), then by the same
+  name. retarget3d_source_bone() tells which bone a bone was matched with.
+- **Rotations:** a target bone turns by exactly the angle its source bone turned away from its own rest
+  pose. The two models need the same axes and similar rest poses (both a T or both an A). Bones left
+  unmatched (a ponytail, a weapon) follow their parent as at rest.
+- **Hips:** moved with the source's hips, times the ratio of the two models' hip heights, so a
+  short-legged character takes shorter steps and the feet do not slide.
+
+@code
+const njin::retarget3d_handle to_dwarf = njin::retarget3d_create(ctx, {.source = hero, .target = dwarf});
+njin::bone_pose3d bones[128];
+njin::retarget3d_pose(ctx, to_dwarf, {.anim = run_clip, .time = t}, bones, 128);
+njin::draw_model_anim(ctx, dwarf, at, {.bones = bones});
+@endcode
+
+A complete example: springy hair, a blink by morph, and a dwarf running with the hero's clip.
+
+@include anim3d.cpp
+
 ## Lighting
 
 | Part | Set with | Notes |

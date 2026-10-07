@@ -1061,7 +1061,11 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     }
     const rgba color{own.r * c.color.r, own.g * c.color.g, own.b * c.color.b, own.a * c.color.a};
     to_raylib(color, maps[MATERIAL_MAP_DIFFUSE].color);
-    const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
+    // A mesh with morphs gets the draw's weights, at full detail.
+    const bool morphed = (usize)i < slot->morphs.size() && !slot->morphs[(usize)i].slot.empty();
+    if (morphed)
+      model_morph_upload(*slot, i, c.morph_count > 0 ? &ctx.render3d.morphs[c.morph_first] : nullptr);
+    const model_lod_mesh *lod = morphed ? nullptr : model_lod_of(*slot, c.lod, i);
     const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok &&
                        (lod != nullptr ? lod->bone_vbo != 0
                                        : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
@@ -1451,6 +1455,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
+      model_morph_upload(*m, i, m->morph_defaults.data()); // instances share the file's shape
       parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
       parts.back().shader = mm.shader;
       mesh_texture(ctx, mm.normal, parts.back().normal);
@@ -1772,6 +1777,13 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
   }
   if (pose != nullptr && s.skin_ok)
     pose_bones(s, *m, model_anim_owner(ctx.model, *m), *pose, c.bone_first, c.bone_count);
+  if (!m->morphs.empty()) {
+    thread_local std::vector<f32> weights;
+    model_morph_eval(ctx.model, *m, pose, weights);
+    c.morph_first = (u32)s.morphs.size();
+    c.morph_count = (u32)weights.size();
+    s.morphs.insert(s.morphs.end(), weights.begin(), weights.end());
+  }
   place_model(s, *m, c);
   s.cmds.push_back(c);
 }
@@ -1876,6 +1888,7 @@ void start_pass(context &ctx, const camera3d &camera) {
   s.cmds.clear();
   s.bones.clear();
   s.recolors.clear();
+  s.morphs.clear();
   s.blend_parts.clear();
   s.lights.clear();
   s.fx = fx3d{};
@@ -1983,6 +1996,7 @@ void end_3d(context &ctx) {
   s.cmds.clear();
   s.bones.clear();
   s.recolors.clear();
+  s.morphs.clear();
   s.blend_parts.clear();
   s.lights.clear();
   s.active = false;
@@ -2242,31 +2256,72 @@ const model_slot *clips_of(const context &ctx, model_handle handle) {
 
 i32 model_anim_count(const context &ctx, model_handle handle) {
   const model_slot *m = clips_of(ctx, handle);
-  return m != nullptr ? m->anim_kept : 0;
+  return m != nullptr ? model_clip_count(*m) : 0;
+}
+
+const char *model_anim_name(const context &ctx, model_handle handle, i32 index) {
+  const model_slot *m = clips_of(ctx, handle);
+  if (m == nullptr || index < 0 || index >= model_clip_count(*m))
+    return "";
+  return m->anim_kept > 0 ? m->anims[index].name : m->morph_clips[(usize)index].name.c_str();
 }
 
 i32 model_anim_find(const context &ctx, model_handle handle, const char *name) {
   const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || name == nullptr)
     return -1;
+  if (m->anim_kept == 0) {
+    for (usize i = 0; i < m->morph_clips.size(); i++)
+      if (m->morph_clips[i].name == name)
+        return (i32)i;
+    return -1;
+  }
   for (i32 i = 0; i < m->anim_kept; i++)
     if (std::strncmp(m->anims[i].name, name, sizeof(m->anims[i].name)) == 0)
       return i;
   return -1;
 }
 
-const char *model_anim_name(const context &ctx, model_handle handle, i32 index) {
-  const model_slot *m = clips_of(ctx, handle);
-  if (m == nullptr || index < 0 || index >= m->anim_kept)
-    return "";
-  return m->anims[index].name;
-}
-
 f32 model_anim_duration(const context &ctx, model_handle handle, i32 index) {
   const model_slot *m = clips_of(ctx, handle);
-  if (m == nullptr || index < 0 || index >= m->anim_kept)
+  if (m == nullptr || index < 0 || index >= model_clip_count(*m))
     return 0.0f;
+  if (m->anim_kept == 0)
+    return m->morph_clips[(usize)index].duration;
   return (f32)std::max(m->anims[index].keyframeCount - 1, 0) / anim_fps;
+}
+
+i32 model_morph_count(const context &ctx, model_handle handle) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  return m != nullptr ? (i32)m->morph_names.size() : 0;
+}
+
+const char *model_morph_name(const context &ctx, model_handle handle, i32 morph) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || morph < 0 || morph >= (i32)m->morph_names.size())
+    return "";
+  return m->morph_names[(usize)morph].c_str();
+}
+
+i32 model_morph_find(const context &ctx, model_handle handle, const char *name) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr || name == nullptr)
+    return -1;
+  for (usize i = 0; i < m->morph_names.size(); i++)
+    if (m->morph_names[i] == name)
+      return (i32)i;
+  return -1;
+}
+
+i32 model_morph_weights(const context &ctx, model_handle handle, const model_pose &pose, f32 *out, i32 count) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr)
+    return 0;
+  std::vector<f32> weights;
+  model_morph_eval(ctx.model, *m, &pose, weights);
+  if (out != nullptr)
+    std::copy_n(weights.begin(), std::min<usize>(weights.size(), (usize)std::max(count, 0)), out);
+  return (i32)weights.size();
 }
 
 i32 model_bone_count(const context &ctx, model_handle handle) {

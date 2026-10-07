@@ -86,6 +86,9 @@
 /// @defgroup grp_3d 3D graphics
 /// Perspective camera, SDF primitives, glTF models, instancing, shadowed lighting, particles, ray picking.
 
+/// @defgroup grp_anim3d 3D animation
+/// Spring bones (hair, tails, capes) and playing animation on another skeleton (retargeting).
+
 /// @defgroup grp_physics3d 3D physics
 /// Static, kinematic and dynamic bodies; characters that walk on floors and up steps; raycasts. Built on Jolt Physics.
 
