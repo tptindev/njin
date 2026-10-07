@@ -229,6 +229,9 @@ hình vẽ nó dùng chung số.
 | Sự kiện chạm | physics3d_contact_count(), physics3d_contact() | Biết cái gì bắt đầu hay thôi chạm cái gì |
 | Khớp nối | joint3d_create() | Cửa bản lề, bập bênh, dây xích, piston |
 | Ragdoll | ragdoll3d_create() | Nhân vật ngã, trúng đòn: bộ xương của model đi theo vật lý |
+| Vật mềm | softbody3d_create() | Bóng cao su, nệm, khối thạch: biến dạng khi va chạm, giữ phồng bằng áp suất |
+| Vải | cloth3d_create() | Lá cờ, rèm, áo choàng: ghim vào một chỗ, bay theo gió |
+| Xe có bánh | vehicle3d_create() | Ô tô: động cơ, hộp số tự động, lái, phanh, giảm xóc |
 | Tia | physics3d_raycast() | Đạn, tầm nhìn, camera không xuyên tường; trả về body bị trúng, đi xuyên sensor |
 
 Engine mô phỏng ở `phase_fixed_update`, **ngay sau** các system của game trong phase đó: game đặt vận tốc
@@ -373,6 +376,73 @@ njin::draw_model_anim(ctx, man, at, {.bones = bones});
 @endcode
 
 Ví dụ danh sách `parts` cho mannequin của Quaternius nằm ở ragdoll3d_create().
+
+### Vật mềm và vải {#softbody3d}
+
+Vật mềm là một đám điểm (đỉnh) nối bằng lò xo, mỗi bước vật lý biến dạng theo trọng lực, va chạm và áp
+suất bên trong (soft body của Jolt). softbody3d_create() dựng nó từ một hình có sẵn hoặc từ lưới của game;
+cloth3d_create() dựng một tấm vải chữ nhật. Cả hai trả về njin::softbody3d_handle và dùng chung các hàm
+`softbody3d_*`.
+
+| Hình (njin::softbody3d_kind) | Dựng thế nào | Ví dụ |
+|---|---|---|
+| `softbody3d_box` | Lưới điểm đặc bên trong hộp `size`, giữ thể tích | Nệm, khối thạch, khối cao su |
+| `softbody3d_sphere` | Mặt cầu rỗng bán kính `radius`; đặt `pressure` để phồng | Quả bóng, bong bóng |
+| `softbody3d_mesh` | Mặt của `mesh` hoặc mọi lưới của `model` (đỉnh trùng vị trí được gộp) | Gối, đồ chơi bơm hơi |
+
+`stiffness` (0..1) là độ cứng của các cạnh: 1 là không dãn. `bend` là độ cứng khi gập. `pressure` là áp suất
+bên trong khi vật đúng hình lúc tạo, Pa: bóp nhỏ thì áp suất tăng như bóng bay. Quả bóng 1 kg bán kính 0.5
+cần khoảng 50 (mềm, lún khi chạm đất) đến 300 (căng); lớn hơn nữa thì vật phồng to hơn lúc tạo.
+
+Vật mềm va chạm với mọi body nhưng không va với nhau. Nhân vật **đẩy** vật mềm sang bên khi đi qua chứ không
+đứng lên nó, nên một tấm rèm không chặn đường. physics3d_raycast() và các hàm `physics3d_*_push`, `_cast` đi
+xuyên qua vật mềm.
+
+Vẽ vật mềm bằng softbody3d_model(): một model luôn có hình hiện tại của vật, trong thế giới, engine cập nhật
+sau mỗi bước vật lý. Vẽ nó bằng draw_model() với transform mặc định, đổi màu và ảnh bằng
+model_material_set(); model thuộc về vật mềm, softbody3d_destroy() hủy nó. Muốn tự vẽ thì đọc
+softbody3d_vertices(), softbody3d_normals() và softbody3d_indices().
+
+Đỉnh của tấm vải ở hàng `r`, cột `c` có chỉ số `r * (columns + 1) + c`; hàng 0 là cạnh trên. Vải nằm trong mặt
+phẳng x–y của nó (đứng thẳng như lá cờ), `rotation.x = 90` cho vải nằm ngang. Ghim các cạnh bằng `pin_edges`,
+các đỉnh khác bằng `pinned` hay softbody3d_pin(); softbody3d_nearest() tìm đỉnh gần một điểm.
+
+| Hàm | Làm gì |
+|---|---|
+| softbody3d_pin() | Ghim hay bỏ ghim một đỉnh: đỉnh bị ghim đứng yên |
+| softbody3d_move_pinned() | Dời một đỉnh bị ghim tới chỗ mới sau bước tới, kéo phần còn lại theo (áo choàng ghim vào vai) |
+| softbody3d_set_wind() | Gió thổi qua: mặt nào chắn gió thì bị đẩy theo `drag` và diện tích |
+| softbody3d_add_impulse() | Đẩy cả vật một cú, chia đều cho các đỉnh: đá quả bóng |
+| softbody3d_position() | Tâm của vật, để camera đi theo |
+
+@code
+// Áo choàng: tấm vải ghim cạnh trên, mỗi bước cố định kéo hai góc trên theo hai vai.
+cape = njin::cloth3d_create(ctx, {.position = back, .size = {0.6f, 1.0f}, .columns = 8, .rows = 12,
+                                  .pin_edges = njin::cloth3d_top});
+// Mỗi bước cố định:
+njin::softbody3d_move_pinned(ctx, cape, 0, shoulder_left);
+njin::softbody3d_move_pinned(ctx, cape, 8, shoulder_right);
+@endcode
+
+### Xe có bánh {#vehicle3d}
+
+vehicle3d_create() tạo một ô tô trên bộ điều khiển xe của Jolt: thân xe là một body động hình hộp `size` (hay
+bao lồi của `model`), mỗi bánh là một giảm xóc dò mặt đất, có động cơ, hộp số tự động, vi sai, phanh và phanh
+tay. Đầu xe hướng +z: xe có `rotation` 0 chạy theo trục z. Mặc định có bốn bánh ở bốn góc dưới của thân: hai
+bánh trước lái, cả bốn bánh kéo, hai bánh sau có phanh tay; `wheels` cho bánh của game (xe ba bánh, xe tải
+sáu bánh).
+
+Lái bằng vehicle3d_set_input() mỗi bước cố định: ga (-1 lùi .. 1 tiến), lái (-1 trái .. 1 phải), phanh và phanh
+tay. Đang chạy tới mà ga âm thì xe phanh trước, dừng hẳn rồi mới lùi, như người lái thật. vehicle3d_body() là
+thân xe (body3d_transform() để vẽ, body3d_velocity() cho đồng hồ tốc độ), vehicle3d_wheel_transform() là chỗ
+và góc của từng bánh lúc này: trục y của nó là trục bánh, nên vẽ bánh bằng một hình trụ.
+vehicle3d_rpm() và vehicle3d_gear() cho tiếng máy và đồng hồ.
+
+`engine_torque` mạnh quá sức bám của lốp thì bánh quay trượt, và hộp số không lên số khi bánh đang trượt.
+
+Cảnh dưới đây có một lá cờ bay trong gió, một quả bóng và một chiếc xe lái bằng phím mũi tên:
+
+@include physics3d_soft.cpp
 
 ## Entity 3D {#entities_3d}
 

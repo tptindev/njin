@@ -107,6 +107,11 @@ inline const model_slot &model_anim_owner(const model_store &store, const model_
 
 model_handle model_store_load(model_store &store, const model_load_desc &desc);
 model_handle model_store_create(model_store &store, const mesh3d_data &mesh);
+// New positions and normals for the single mesh of a model made by
+// model_store_create, `count` of them (its vertex count), uploaded in place;
+// its bounds follow.
+void model_store_update_vertices(model_store &store, model_handle handle, const vec3 *positions, const vec3 *normals,
+                                 u32 count);
 model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d_data &mesh);
 void model_store_unload(model_store &store, model_handle handle);
 } // namespace njin

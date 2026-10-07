@@ -335,6 +335,30 @@ bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &d
   return model.meshCount > 0;
 }
 
+// A material whose base colour reads its second UV set (texCoord 1, as a
+// texture baked onto a fresh unwrap while the source UVs are kept): raylib
+// samples every map with the first set only. The mesh's two sets are swapped,
+// on the CPU and in its buffers, so the shader's set is the one meant.
+void apply_texcoord_sets(Model &model, const cgltf_data *data) {
+  if ((usize)model.materialCount != data->materials_count + 1)
+    return;
+  for (i32 k = 0; k < model.meshCount; k++) {
+    Mesh &m = model.meshes[k];
+    const i32 mat = model.meshMaterial[k] - 1; // raylib's default material is first
+    if (mat < 0 || (cgltf_size)mat >= data->materials_count || m.texcoords == nullptr || m.texcoords2 == nullptr)
+      continue;
+    const cgltf_material &gm = data->materials[mat];
+    if (!gm.has_pbr_metallic_roughness || gm.pbr_metallic_roughness.base_color_texture.texture == nullptr ||
+        gm.pbr_metallic_roughness.base_color_texture.texcoord != 1)
+      continue;
+    std::swap(m.texcoords, m.texcoords2);
+    const i32 bytes = m.vertexCount * 2 * (i32)sizeof(f32);
+    for (const i32 at : {RL_DEFAULT_SHADER_ATTRIB_LOCATION_TEXCOORD, RL_DEFAULT_SHADER_ATTRIB_LOCATION_TEXCOORD2})
+      if (m.vboId != nullptr && m.vboId[at] != 0)
+        UpdateMeshBuffer(m, at, at == RL_DEFAULT_SHADER_ATTRIB_LOCATION_TEXCOORD ? m.texcoords : m.texcoords2, bytes, 0);
+  }
+}
+
 // KHR_materials_transmission: raylib reads no such thing, so a pane of clear
 // glass would be an opaque sheet of its base colour. Drawn see-through
 // instead (render3d's translucent pass), lit like glass, casting no shadow.
@@ -381,6 +405,8 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
     if (cgltf_parse_file(&options, resolved.c_str(), &gltf) != cgltf_result_success)
       gltf = nullptr;
   }
+  if (gltf != nullptr)
+    apply_texcoord_sets(model, gltf);
   if (gltf != nullptr && !filter_model(model, gltf, desc, path)) {
     NJIN_WARN("model: %s: the node filter leaves no mesh", path);
     cgltf_free(gltf);
@@ -522,6 +548,32 @@ model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
   slot.materials.push_back(model_material{});
   store.slots.push_back(std::move(slot));
   return model_handle{.id = (u32)store.slots.size()};
+}
+
+void model_store_update_vertices(model_store &store, model_handle handle, const vec3 *positions, const vec3 *normals,
+                                 u32 count) {
+  model_slot *slot = model_slot_of(store, handle);
+  if (slot == nullptr || slot->model.meshCount != 1)
+    return;
+  Mesh &m = slot->model.meshes[0];
+  if ((u32)m.vertexCount != count || m.vertices == nullptr || m.normals == nullptr)
+    return;
+  Vector3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+  for (u32 i = 0; i < count; i++) {
+    const vec3 p = positions[i];
+    m.vertices[i * 3] = p.x;
+    m.vertices[i * 3 + 1] = p.y;
+    m.vertices[i * 3 + 2] = p.z;
+    m.normals[i * 3] = normals[i].x;
+    m.normals[i * 3 + 1] = normals[i].y;
+    m.normals[i * 3 + 2] = normals[i].z;
+    lo = Vector3Min(lo, {p.x, p.y, p.z});
+    hi = Vector3Max(hi, {p.x, p.y, p.z});
+  }
+  const i32 bytes = (i32)(count * 3 * sizeof(f32));
+  UpdateMeshBuffer(m, RL_DEFAULT_SHADER_ATTRIB_LOCATION_POSITION, m.vertices, bytes, 0);
+  UpdateMeshBuffer(m, RL_DEFAULT_SHADER_ATTRIB_LOCATION_NORMAL, m.normals, bytes, 0);
+  slot->bounds = BoundingBox{lo, hi};
 }
 
 model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d_data &mesh) {

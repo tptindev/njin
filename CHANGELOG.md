@@ -23,9 +23,61 @@ To release: edit that header, add a section here, commit, then
 - A character no longer shoves aside what it stands on: resting across two
   boards' edges it wedged them apart every step and was thrown up and down.
   What it walks into is still pushed.
+- A kinematic body moved with `body3d_move_kinematic()` no longer keeps
+  drifting once the game stops giving it a new target each step.
+  `MoveKinematic` sets a velocity for that one step and Jolt kept it running;
+  a door opened once would fly on for ever and eventually land outside the
+  broadphase's range, crashing far from the cause. It now stops exactly where
+  it got to.
+- `physics3d` no longer crashes on a NaN or infinite position, rotation, size
+  or velocity (`body3d_create`, `body3d_set_position`,
+  `body3d_move_kinematic`, `body3d_set_velocity`, `body3d_add_impulse`,
+  `character3d_create`, `character3d_set_velocity`,
+  `character3d_set_position`): Jolt's broadphase would read past its bounds a
+  step later, far from the bad value. The call is now refused, with a warning
+  once per call site, instead.
+- A glTF material whose base colour reads the model's second UV set
+  (texCoord 1, a texture baked onto a fresh unwrap while the source UVs stay)
+  now samples the right UVs: raylib samples every map with a material's first
+  UV set only, so the mesh's two sets are swapped to match what the shader
+  expects.
 
 ### Added
 
+- Soft bodies (`njin_physics3d.h`), on Jolt's soft bodies:
+  `softbody3d_create()` makes a solid box lattice that keeps its volume, a
+  hollow sphere, or the surface of a game mesh or a loaded model (vertices at
+  the same place merged), with `stiffness`, `bend`, `pressure` (Pa at the
+  starting shape, so a ball stays round and squashes when it lands), friction,
+  damping and pinned vertices. They collide with every body, not with each
+  other. Characters push them aside through a kinematic capsule that only soft
+  bodies meet, so a curtain parts instead of blocking the way; raycasts and the
+  `physics3d_*_push`/`_cast` queries pass through them.
+- Cloth: `cloth3d_create()` makes a rectangular sheet (a flag, a curtain, a
+  cape, a tablecloth) as a soft body, with edges pinned by `pin_edges`
+  (`cloth3d_top`, ...) or single vertices by `pinned`, long-range attachments to
+  the pins so it does not stretch, and a `thickness` that keeps it off surfaces.
+- For every soft body: `softbody3d_model()`, a model of its current shape
+  updated after each physics step (cloth gets back faces), for draw_model();
+  `softbody3d_vertices()`, `softbody3d_normals()` and `softbody3d_indices()` to
+  draw it yourself; `softbody3d_pin()`, `softbody3d_move_pinned()` (a cape
+  pinned to moving shoulders), `softbody3d_nearest()`;
+  `softbody3d_set_wind()`, air pushing on each face by its area and
+  `drag`; `softbody3d_add_impulse()`, `softbody3d_position()`,
+  `softbody3d_user()`, `softbody3d_destroy()`.
+- Wheeled vehicles: `vehicle3d_create()` makes a car on Jolt's
+  `WheeledVehicleController`, a dynamic chassis (a box, or a model's convex
+  hull, with a lowered centre of mass) on suspended wheels, with an engine, an
+  automatic gearbox, differentials per axle, anti-roll bars, brakes and a
+  handbrake. Four wheels by default (front steering, four-wheel drive, rear
+  handbrake), or the game's own `vehicle3d_wheel` list. `vehicle3d_set_input()`
+  takes throttle, steering, brake and handbrake; a reversed throttle brakes to
+  a stop before reversing. `vehicle3d_body()`, `vehicle3d_wheel_transform()`
+  (its y axis is the axle, to draw a cylinder), `vehicle3d_wheel_grounded()`,
+  `vehicle3d_rpm()`, `vehicle3d_gear()`, `vehicle3d_destroy()`. The tyres use
+  the same longitudinal grip as Jolt's own vehicle sample; with Jolt's plain
+  limit the wheels slipped every other step and the gearbox never left first
+  gear.
 - `body3d_carry()`: for the next step a dynamic body carries an extra weight
   at a point (someone hanging on it or climbing it), the same way it carries
   a character standing on it: a board leant on a wall slips as a climber goes

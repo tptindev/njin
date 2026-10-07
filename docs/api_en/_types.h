@@ -189,6 +189,21 @@ struct hull3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a soft body (cloth, ball, rubber block), created by softbody3d_create()
+/// or cloth3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct softbody3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
+/// Identifier of a wheeled vehicle, created by vehicle3d_create().
+///
+/// `id == 0` is an invalid handle. A destroyed handle is also ignored.
+struct vehicle3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of an atlas, created by atlas_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

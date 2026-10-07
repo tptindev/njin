@@ -534,6 +534,347 @@ shape3d ragdoll3d_shape(const context &ctx, ragdoll3d_handle handle, i32 part);
 i32 ragdoll3d_bones(const context &ctx, ragdoll3d_handle handle, const transform3d &transform, bone_pose3d *out,
                     i32 count);
 
+/// Hình dựng sẵn của một vật mềm (njin::softbody3d_desc::kind).
+enum softbody3d_kind {
+  /// Khối hộp đặc `size`: một lưới điểm đều bên trong hộp, giữ thể tích. Nệm,
+  /// khối thạch, khối cao su.
+  softbody3d_box,
+  /// Mặt cầu bán kính `radius`, rỗng: thêm `pressure` để thành quả bóng.
+  softbody3d_sphere,
+  /// Mặt của một lưới tam giác (`mesh`, hoặc mọi lưới của `model`), rỗng như
+  /// mặt cầu: lưới kín và đặt `pressure` để giữ phồng. Các đỉnh trùng vị trí
+  /// (đường nối UV của file) được gộp làm một.
+  softbody3d_mesh,
+};
+
+/// Mô tả một vật mềm cho softbody3d_create(). Vật mềm là một đám điểm nối bằng
+/// lò xo, mỗi bước vật lý biến dạng theo trọng lực, va chạm và áp suất bên trong.
+///
+/// Đỉnh của vật mềm đánh số theo thứ tự engine dựng: với `softbody3d_mesh` là
+/// thứ tự đỉnh của lưới (lưới không có đỉnh trùng vị trí thì giữ nguyên chỉ số),
+/// còn với hộp và cầu thì tìm bằng softbody3d_nearest().
+struct softbody3d_desc {
+  softbody3d_kind kind = softbody3d_sphere; ///< Hình.
+  vec3 position{0.0f, 0.0f, 0.0f};  ///< Tâm.
+  vec3 rotation{0.0f, 0.0f, 0.0f};  ///< Góc xoay, độ, cùng thứ tự với njin::transform3d.
+  vec3 size{1.0f, 1.0f, 1.0f};      ///< Kích thước của hộp theo x, y, z.
+  f32 radius = 0.5f;                ///< Bán kính của mặt cầu.
+  /// Độ mịn. Hộp: số điểm trên cạnh dài nhất (2..16), các cạnh khác theo cùng
+  /// khoảng cách. Cầu: số lần chia nhỏ khối 20 mặt (1..4: 42, 162, 642, 2562
+  /// đỉnh). 0 là mặc định: hộp 5 điểm, cầu chia 2 lần.
+  i32 detail = 0;
+  /// Lưới cho `softbody3d_mesh`, trong hệ trục riêng của vật (đặt ở `position`,
+  /// xoay `rotation`). Tam giác ngược chiều kim đồng hồ nhìn từ ngoài vào.
+  mesh3d_data mesh{};
+  /// Lấy lưới từ model này (model_load()) cho `softbody3d_mesh`, thay cho `mesh`,
+  /// đặt như draw_model() vẽ nó với cùng `position`, `rotation` và `scale`.
+  model_handle model{};
+  vec3 scale{1.0f, 1.0f, 1.0f};     ///< Tỉ lệ của `model`.
+  f32 mass = 1.0f;                  ///< Khối lượng cả vật, kg, chia đều cho các đỉnh.
+  /// Độ cứng của các cạnh, 0 (dãn như cao su non) .. 1 (không dãn).
+  f32 stiffness = 0.9f;
+  /// Độ cứng khi uốn, 0 (gập tự do) .. 1 (giữ dáng cong lúc tạo). Hộp không dùng.
+  f32 bend = 0.5f;
+  /// Áp suất bên trong khi vật ở đúng hình lúc tạo, Pa (N/m²). Bóp nhỏ lại
+  /// thì áp suất tăng, như bóng bay. 0 là không có (vật rỗng xẹp dần). Quả bóng
+  /// 1 kg bán kính 0.5: khoảng 50 (mềm, lún khi chạm đất) đến 300 (căng); lớn
+  /// hơn nữa thì các cạnh dãn ra và vật phồng to hơn lúc tạo. Cần một mặt kín.
+  f32 pressure = 0.0f;
+  f32 friction = 0.5f;              ///< Ma sát, 0..1.
+  f32 restitution = 0.0f;           ///< Độ nảy, 0..1.
+  f32 damping = 0.1f;               ///< Cản chuyển động: vận tốc giảm theo tỉ lệ này mỗi giây.
+  /// Hệ số cản của không khí trên mặt của vật (gió, softbody3d_set_wind()).
+  /// 0 là không khí không tác động.
+  f32 drag = 1.0f;
+  /// Các đỉnh bị ghim: đứng yên, hoặc theo softbody3d_move_pinned(). Ghim và bỏ
+  /// ghim lúc chạy bằng softbody3d_pin().
+  const u32 *pinned = nullptr;
+  u32 pinned_count = 0;             ///< Số phần tử của `pinned`.
+  u64 user = 0;                     ///< Số của game, đọc lại bằng softbody3d_user().
+};
+
+/// Tạo một vật mềm. Vật mềm va chạm với mọi body (rơi lên sàn, quấn quanh
+/// thùng), không va với nhau. Nhân vật (character3d_create()) đẩy các đỉnh của
+/// nó sang bên khi đi qua chứ không đứng lên nó, nên một tấm rèm không chặn
+/// đường. physics3d_raycast() và các hàm dò `physics3d_*_push`, `_cast` đi
+/// xuyên qua vật mềm.
+///
+/// @code
+/// // Quả bóng nảy: mặt cầu có áp suất, rơi từ độ cao 3 m.
+/// const njin::softbody3d_handle ball = njin::softbody3d_create(
+///     ctx, {.kind = njin::softbody3d_sphere, .position = {0, 3, 0}, .radius = 0.5f, .pressure = 200});
+/// // Mỗi khung, giữa begin_3d() và end_3d():
+/// njin::draw_model(ctx, njin::softbody3d_model(ctx, ball), {});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Mô tả vật mềm.
+/// @return Handle, hoặc không hợp lệ (có cảnh báo trong log) nếu lưới không dùng được.
+softbody3d_handle softbody3d_create(context &ctx, const softbody3d_desc &desc);
+
+/// Các cạnh của tấm vải, cộng lại được: `cloth3d_top | cloth3d_left`.
+enum cloth3d_edge : u8 {
+  cloth3d_top = 1,    ///< Hàng đầu (hàng 0).
+  cloth3d_bottom = 2, ///< Hàng cuối.
+  cloth3d_left = 4,   ///< Cột đầu (cột 0).
+  cloth3d_right = 8,  ///< Cột cuối.
+};
+
+/// Mô tả một tấm vải cho cloth3d_create(): một lưới chữ nhật `columns` x `rows`
+/// ô, nằm trong mặt phẳng x–y của nó (đứng thẳng như lá cờ, rèm cửa), tâm ở
+/// `position`. Đỉnh ở hàng `r`, cột `c` có chỉ số `r * (columns + 1) + c`; hàng 0
+/// là cạnh trên, cột 0 là cạnh trái (phía -x). Xoay `rotation.x = 90` để vải nằm
+/// ngang (khăn trải bàn).
+struct cloth3d_desc {
+  vec3 position{0.0f, 0.0f, 0.0f}; ///< Tâm tấm vải.
+  vec3 rotation{0.0f, 0.0f, 0.0f}; ///< Góc xoay, độ, cùng thứ tự với njin::transform3d.
+  vec2 size{2.0f, 2.0f};           ///< Chiều rộng (x) và chiều cao (y).
+  i32 columns = 20;                ///< Số ô theo chiều rộng, 1..180.
+  i32 rows = 20;                   ///< Số ô theo chiều cao, 1..180.
+  f32 mass = 0.5f;                 ///< Khối lượng cả tấm, kg.
+  f32 stiffness = 1.0f;            ///< Độ cứng của sợi vải, 0 (dãn) .. 1 (không dãn).
+  f32 bend = 0.05f;                ///< Độ cứng khi gập, 0 (lụa) .. 1 (bìa cứng).
+  f32 damping = 0.1f;              ///< Cản chuyển động: vận tốc giảm theo tỉ lệ này mỗi giây.
+  f32 friction = 0.5f;             ///< Ma sát, 0..1.
+  f32 drag = 1.0f;                 ///< Hệ số cản của không khí, như njin::softbody3d_desc::drag.
+  /// Độ dày, đơn vị thế giới: các đỉnh giữ cách mặt vật khác chừng này, để vải
+  /// không chìm vào bàn khi vẽ.
+  f32 thickness = 0.02f;
+  u8 pin_edges = 0;                ///< Các cạnh bị ghim (bit njin::cloth3d_edge).
+  const u32 *pinned = nullptr;     ///< Các đỉnh bị ghim thêm (góc trên của lá cờ...).
+  u32 pinned_count = 0;            ///< Số phần tử của `pinned`.
+  u64 user = 0;                    ///< Số của game, đọc lại bằng softbody3d_user().
+};
+
+/// Tạo một tấm vải: lá cờ, rèm, áo choàng, khăn trải bàn. Là một vật mềm như
+/// softbody3d_create() tạo ra, dùng chung các hàm `softbody3d_*`. Vẽ được từ cả
+/// hai mặt.
+///
+/// @code
+/// // Lá cờ ghim cạnh trái vào cột, bay theo gió.
+/// const njin::softbody3d_handle flag = njin::cloth3d_create(
+///     ctx, {.position = {1, 4, 0}, .size = {2, 1.2f}, .columns = 20, .rows = 12, .pin_edges = njin::cloth3d_left});
+/// njin::softbody3d_set_wind(ctx, flag, {6, 0, 1});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Mô tả tấm vải.
+/// @return Handle, hoặc không hợp lệ nếu `columns` hay `rows` ngoài khoảng.
+softbody3d_handle cloth3d_create(context &ctx, const cloth3d_desc &desc);
+
+/// Hủy vật mềm cùng model của nó (softbody3d_model()). Handle không hợp lệ bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+void softbody3d_destroy(context &ctx, softbody3d_handle handle);
+
+/// Số đỉnh của vật mềm.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @return Số đỉnh, 0 nếu handle không hợp lệ.
+i32 softbody3d_vertex_count(const context &ctx, softbody3d_handle handle);
+
+/// Vị trí hiện tại của các đỉnh, trong thế giới.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param out Mảng nhận vị trí, hoặc nullptr để chỉ đếm.
+/// @param count Số phần tử của `out`.
+/// @return Số đỉnh (softbody3d_vertex_count()); chỉ `count` đỉnh đầu được ghi.
+i32 softbody3d_vertices(const context &ctx, softbody3d_handle handle, vec3 *out, i32 count);
+
+/// Pháp tuyến hiện tại của các đỉnh (độ dài 1, trung bình các tam giác chung
+/// đỉnh, hướng ra ngoài hay về phía trước của vải), để tự vẽ vật mềm.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param out Mảng nhận pháp tuyến, hoặc nullptr để chỉ đếm.
+/// @param count Số phần tử của `out`.
+/// @return Số đỉnh; chỉ `count` đỉnh đầu được ghi.
+i32 softbody3d_normals(const context &ctx, softbody3d_handle handle, vec3 *out, i32 count);
+
+/// Các tam giác của mặt vật mềm, ba chỉ số đỉnh mỗi tam giác, ngược chiều kim
+/// đồng hồ nhìn từ ngoài (từ phía trước của vải, phía +z lúc tạo).
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param out Mảng nhận chỉ số, hoặc nullptr để chỉ đếm.
+/// @param count Số phần tử của `out`.
+/// @return Số chỉ số (gấp ba số tam giác); chỉ `count` số đầu được ghi.
+i32 softbody3d_indices(const context &ctx, softbody3d_handle handle, u32 *out, i32 count);
+
+/// Một model luôn có hình hiện tại của vật mềm, trong thế giới: engine cập nhật
+/// nó sau mỗi bước vật lý. Vẽ bằng draw_model() với transform mặc định, đổi
+/// màu và ảnh bằng model_material_set(). Model thuộc về vật mềm: không
+/// model_unload() nó, softbody3d_destroy() làm việc đó. Vải có cả mặt sau.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @return Model, hoặc không hợp lệ nếu handle không hợp lệ hay vật quá nhiều
+/// đỉnh cho một model (65535, vải tính gấp đôi).
+model_handle softbody3d_model(context &ctx, softbody3d_handle handle);
+
+/// Đỉnh gần `point` nhất, để ghim hay kéo một chỗ của vật mềm.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param point Điểm, thế giới.
+/// @return Chỉ số đỉnh, -1 nếu handle không hợp lệ.
+i32 softbody3d_nearest(const context &ctx, softbody3d_handle handle, vec3 point);
+
+/// Ghim hay bỏ ghim một đỉnh. Đỉnh bị ghim đứng yên (trọng lực, va chạm, lò xo
+/// không dời được nó) cho đến khi softbody3d_move_pinned() dời nó.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param vertex Chỉ số đỉnh.
+/// @param pinned `true` là ghim.
+void softbody3d_pin(context &ctx, softbody3d_handle handle, i32 vertex, bool pinned);
+
+/// Cho một đỉnh bị ghim tới `position` sau bước vật lý tới, kéo phần còn lại
+/// theo: áo choàng ghim vào vai đang chạy, rèm kéo trên thanh treo. Gọi mỗi bước
+/// cố định với vị trí mới; không gọi nữa thì đỉnh đứng lại ở đó.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param vertex Chỉ số một đỉnh bị ghim; đỉnh không bị ghim thì bỏ qua.
+/// @param position Vị trí muốn tới, thế giới.
+void softbody3d_move_pinned(context &ctx, softbody3d_handle handle, i32 vertex, vec3 position);
+
+/// Đặt gió thổi qua vật mềm, vận tốc của không khí (đơn vị mỗi giây). Mặt nào
+/// chắn gió thì bị đẩy theo `drag` và diện tích của nó, nên vải bay phần phật
+/// còn bóng chỉ trôi nhẹ. Mặc định không có gió (không khí đứng yên vẫn cản vật
+/// mềm đang chuyển động).
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param wind Vận tốc gió.
+void softbody3d_set_wind(context &ctx, softbody3d_handle handle, vec3 wind);
+
+/// Đẩy cả vật mềm một cú (xung lực, kg * đơn vị mỗi giây), chia đều cho các
+/// đỉnh không bị ghim: cú đá vào quả bóng.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param impulse Xung lực.
+void softbody3d_add_impulse(context &ctx, softbody3d_handle handle, vec3 impulse);
+
+/// Tâm của vật mềm (trung bình các đỉnh), để camera đi theo hay đặt âm thanh.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @return Tâm, thế giới; 0 nếu handle không hợp lệ.
+vec3 softbody3d_position(const context &ctx, softbody3d_handle handle);
+
+/// Số của game gắn vào vật mềm lúc tạo.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @return Số đó, hoặc 0 nếu handle không hợp lệ.
+u64 softbody3d_user(const context &ctx, softbody3d_handle handle);
+
+/// Một bánh xe của njin::vehicle3d_desc.
+struct vehicle3d_wheel {
+  /// Tâm bánh khi giảm xóc duỗi hết (xe nhấc khỏi mặt đất), trong hệ trục của
+  /// thân xe: x sang trái, y lên trên, z về phía trước.
+  vec3 position{0.0f, 0.0f, 0.0f};
+  f32 radius = 0.35f;     ///< Bán kính bánh.
+  f32 width = 0.25f;      ///< Bề rộng bánh.
+  bool steer = false;     ///< Bánh lái (bánh trước).
+  bool drive = true;      ///< Động cơ kéo bánh này.
+  bool handbrake = false; ///< Phanh tay khóa bánh này (bánh sau).
+};
+
+/// Mô tả một xe có bánh cho vehicle3d_create(). Thân xe là một body động hình
+/// hộp `size` (hoặc bao lồi của `model`), đầu xe hướng +z: xe có `rotation` 0
+/// chạy theo trục z, như nhân vật quay mặt theo `atan2(x, z)`.
+struct vehicle3d_desc {
+  vec3 position{0.0f, 0.0f, 0.0f};    ///< Tâm thân xe.
+  vec3 rotation{0.0f, 0.0f, 0.0f};    ///< Góc xoay, độ, cùng thứ tự với njin::transform3d.
+  vec3 size{1.8f, 0.6f, 4.0f};        ///< Hộp của thân xe: rộng (x), cao (y), dài (z).
+  model_handle model{};               ///< Lấy thân xe từ bao lồi của model này thay cho `size`.
+  vec3 scale{1.0f, 1.0f, 1.0f};       ///< Tỉ lệ của `model`.
+  f32 mass = 1200.0f;                 ///< Khối lượng, kg.
+  /// Trọng tâm so với tâm thân xe. Thấp hơn tâm hộp thì xe khó lật khi cua gấp.
+  vec3 center_of_mass{0.0f, -0.3f, 0.0f};
+  /// Các bánh xe. nullptr là bốn bánh ở bốn góc dưới của `size`: hai bánh trước
+  /// lái, cả bốn bánh kéo (dẫn động bốn bánh), hai bánh sau có phanh tay.
+  const vehicle3d_wheel *wheels = nullptr;
+  u32 wheel_count = 0;                ///< Số phần tử của `wheels`.
+  f32 wheel_radius = 0.35f;           ///< Bán kính của bốn bánh mặc định.
+  f32 wheel_width = 0.25f;            ///< Bề rộng của bốn bánh mặc định.
+  f32 suspension = 0.3f;              ///< Hành trình giảm xóc, đơn vị thế giới.
+  f32 suspension_frequency = 1.5f;    ///< Độ cứng của giảm xóc, dao động mỗi giây: 1 êm, 3 thể thao.
+  f32 suspension_damping = 0.5f;      ///< Giảm chấn, 0 (nảy mãi) .. 1 (không nảy).
+  f32 max_steer = 30.0f;              ///< Góc lái tối đa của bánh lái, độ.
+  /// Mô-men xoắn lớn nhất của động cơ, N·m. Mạnh quá sức bám của lốp thì bánh
+  /// quay trượt, và hộp số không lên số khi bánh đang trượt.
+  f32 engine_torque = 300.0f;
+  f32 max_rpm = 6000.0f;              ///< Vòng tua lớn nhất. Hộp số tự động.
+  f32 brake_torque = 1500.0f;         ///< Lực phanh mỗi bánh, N·m.
+  f32 handbrake_torque = 4000.0f;     ///< Lực phanh tay mỗi bánh, N·m.
+  f32 friction = 0.5f;                ///< Ma sát của thân xe (khi lật, khi quệt tường), 0..1.
+  u64 user = 0;                       ///< body3d_user() của thân xe.
+};
+
+/// Tạo một xe có bánh: thân xe là body động, mỗi bánh là một giảm xóc dò mặt đất
+/// (không phải body), có động cơ, hộp số tự động, vi sai, phanh và phanh tay.
+/// Lái bằng vehicle3d_set_input() mỗi bước cố định.
+///
+/// @code
+/// car = njin::vehicle3d_create(ctx, {.position = {0, 1, 0}});
+/// // Mỗi bước cố định:
+/// njin::vehicle3d_set_input(ctx, car, njin::axis_value(ctx, gas), njin::axis_value(ctx, steer), 0.0f,
+///                           njin::action_held(ctx, handbrake) ? 1.0f : 0.0f);
+/// // Vẽ thân xe theo body3d_transform(ctx, njin::vehicle3d_body(ctx, car)), mỗi bánh theo
+/// // vehicle3d_wheel_transform().
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Mô tả xe.
+/// @return Handle, hoặc không hợp lệ nếu thân xe không dựng được hay không có bánh.
+vehicle3d_handle vehicle3d_create(context &ctx, const vehicle3d_desc &desc);
+
+/// Hủy xe cùng thân xe. Handle không hợp lệ bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+void vehicle3d_destroy(context &ctx, vehicle3d_handle handle);
+
+/// Đặt cách lái cho bước vật lý tới. Giữ nguyên cho tới lần gọi sau.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @param throttle Ga, -1 (lùi) .. 1 (tiến). Đang chạy tới mà ga âm thì xe phanh trước, dừng hẳn rồi mới lùi.
+/// @param steer Lái, -1 (trái) .. 1 (phải).
+/// @param brake Phanh, 0..1.
+/// @param handbrake Phanh tay, 0..1.
+void vehicle3d_set_input(context &ctx, vehicle3d_handle handle, f32 throttle, f32 steer, f32 brake, f32 handbrake);
+
+/// Thân xe, để đọc vị trí (body3d_transform()), vận tốc, hay đẩy nó. Không hủy
+/// nó bằng body3d_destroy(): hủy cả xe.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @return Body, hoặc không hợp lệ nếu handle không hợp lệ.
+body3d_handle vehicle3d_body(const context &ctx, vehicle3d_handle handle);
+
+/// Số bánh của xe.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @return Số bánh, 0 nếu handle không hợp lệ.
+i32 vehicle3d_wheel_count(const context &ctx, vehicle3d_handle handle);
+
+/// Chỗ và góc của một bánh lúc này (đã tính giảm xóc, góc lái và bánh quay),
+/// trong thế giới. Trục y của transform là trục bánh, nên vẽ được bằng một hình
+/// trụ (njin::shape3d_cylinder, `radius` là bán kính bánh, `height` là bề rộng).
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @param wheel Chỉ số bánh.
+/// @return Vị trí và góc xoay, độ; mặc định nếu handle hay `wheel` không hợp lệ.
+transform3d vehicle3d_wheel_transform(const context &ctx, vehicle3d_handle handle, i32 wheel);
+
+/// Bánh có đang chạm đất không.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @param wheel Chỉ số bánh.
+/// @return `true` nếu chạm.
+bool vehicle3d_wheel_grounded(const context &ctx, vehicle3d_handle handle, i32 wheel);
+
+/// Vòng tua động cơ lúc này, cho tiếng máy và đồng hồ.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @return Vòng mỗi phút, 0 nếu handle không hợp lệ.
+f32 vehicle3d_rpm(const context &ctx, vehicle3d_handle handle);
+
+/// Số đang vào: -1 số lùi, 0 số không, 1 trở lên là số tiến.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @return Số, 0 nếu handle không hợp lệ.
+i32 vehicle3d_gear(const context &ctx, vehicle3d_handle handle);
+
 /// Component: entity đi theo một body vật lý. Engine đọc và ghi
 /// njin::transform3d của entity quanh mỗi bước mô phỏng:
 /// - body động: sau bước, vị trí và góc xoay của body ghi vào transform;

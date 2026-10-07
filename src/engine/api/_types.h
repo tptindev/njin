@@ -189,6 +189,21 @@ struct hull3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một vật mềm (vải, bóng, khối cao su), tạo bởi softbody3d_create()
+/// hoặc cloth3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct softbody3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
+/// Định danh của một xe có bánh, tạo bởi vehicle3d_create().
+///
+/// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.
+struct vehicle3d_handle {
+  u32 id = 0; ///< 0 nghĩa là không hợp lệ.
+};
+
 /// Định danh của một atlas, tạo bởi atlas_create().
 ///
 /// `id == 0` là handle không hợp lệ. Handle đã hủy cũng bị bỏ qua.

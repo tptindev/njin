@@ -239,6 +239,9 @@ njin::shape3d, so an object and the shape that draws it share their numbers.
 | Contact events | physics3d_contact_count(), physics3d_contact() | Knowing what started or stopped touching what |
 | Joint | joint3d_create() | Hinged doors, seesaws, chains, pistons |
 | Ragdoll | ragdoll3d_create() | A character falling or hit: the model's skeleton follows physics |
+| Soft body | softbody3d_create() | Rubber ball, mattress, jelly block: deforms on impact, held round by pressure |
+| Cloth | cloth3d_create() | Flag, curtain, cape: pinned in place, blown by the wind |
+| Wheeled vehicle | vehicle3d_create() | Car: engine, automatic gearbox, steering, brakes, suspension |
 | Ray | physics3d_raycast() | Bullets, line of sight, a camera that does not go through walls; returns the body hit, passes through sensors |
 
 The engine simulates in `phase_fixed_update`, **right after** the game's systems in that phase: the game
@@ -386,6 +389,77 @@ njin::draw_model_anim(ctx, man, at, {.bones = bones});
 @endcode
 
 A `parts` list for the Quaternius mannequin is in ragdoll3d_create().
+
+### Soft bodies and cloth {#softbody3d}
+
+A soft body is a cloud of points (vertices) joined by springs that deforms each physics step under gravity,
+collisions and the pressure inside it (Jolt's soft body). softbody3d_create() builds one from a ready-made
+shape or from the game's mesh; cloth3d_create() builds a rectangular sheet of cloth. Both return a
+njin::softbody3d_handle and share the `softbody3d_*` functions.
+
+| Shape (njin::softbody3d_kind) | Built as | Example |
+|---|---|---|
+| `softbody3d_box` | A solid lattice of points inside the box `size`, keeping its volume | Mattress, jelly block, rubber block |
+| `softbody3d_sphere` | A hollow sphere of radius `radius`; set `pressure` to inflate it | Ball, bubble |
+| `softbody3d_mesh` | The surface of `mesh` or of every mesh of `model` (vertices at the same place are merged) | Pillow, inflatable toy |
+
+`stiffness` (0..1) is how stiff the edges are: 1 does not stretch. `bend` is how stiff it is to fold.
+`pressure` is the pressure inside while the body has its starting shape, in Pa: squeeze it and the pressure
+rises, like a balloon. A 1 kg ball of radius 0.5 needs about 50 (soft, sinks in when it lands) to 300 (taut);
+more than that and the body swells beyond its starting size.
+
+Soft bodies collide with every body but not with each other. Characters **push** soft bodies aside as they
+walk through rather than standing on them, so a curtain does not block the way. physics3d_raycast() and the
+`physics3d_*_push`, `_cast` functions pass through soft bodies.
+
+Draw a soft body with softbody3d_model(): a model that always has the body's current shape, in world space,
+updated by the engine after each physics step. Draw it with draw_model() and the default transform, change its
+colour and textures with model_material_set(); the model belongs to the soft body and softbody3d_destroy()
+destroys it. To draw it yourself, read softbody3d_vertices(), softbody3d_normals() and softbody3d_indices().
+
+The cloth vertex at row `r`, column `c` has index `r * (columns + 1) + c`; row 0 is the top edge. Cloth lies
+in its own x–y plane (upright like a flag); `rotation.x = 90` lays it flat. Pin edges with `pin_edges`, other
+vertices with `pinned` or softbody3d_pin(); softbody3d_nearest() finds the vertex nearest a point.
+
+| Function | What it does |
+|---|---|
+| softbody3d_pin() | Pins or unpins a vertex: a pinned vertex stays put |
+| softbody3d_move_pinned() | Moves a pinned vertex to a new place after the next step, pulling the rest along (a cape pinned to the shoulders) |
+| softbody3d_set_wind() | Wind blowing through: each face across it is pushed by `drag` and its area |
+| softbody3d_add_impulse() | Pushes the whole body at once, shared among its vertices: kicking a ball |
+| softbody3d_position() | The body's centre, for a camera to follow |
+
+@code
+// A cape: cloth pinned along its top edge, its two top corners pulled to the shoulders every fixed step.
+cape = njin::cloth3d_create(ctx, {.position = back, .size = {0.6f, 1.0f}, .columns = 8, .rows = 12,
+                                  .pin_edges = njin::cloth3d_top});
+// Every fixed step:
+njin::softbody3d_move_pinned(ctx, cape, 0, shoulder_left);
+njin::softbody3d_move_pinned(ctx, cape, 8, shoulder_right);
+@endcode
+
+### Wheeled vehicles {#vehicle3d}
+
+vehicle3d_create() makes a car on Jolt's vehicle controller: the chassis is a dynamic body shaped as the box
+`size` (or the convex hull of `model`), each wheel is a suspension that probes the ground, with an engine, an
+automatic gearbox, differentials, brakes and a handbrake. The car's nose points +z: a car with `rotation` 0
+drives along the z axis. By default it has four wheels at the bottom corners of the chassis: the two front
+wheels steer, all four are driven, the two rear ones have the handbrake; `wheels` gives the game's own wheels
+(a three-wheeler, a six-wheeled truck).
+
+Drive it with vehicle3d_set_input() every fixed step: throttle (-1 reverse .. 1 forward), steering (-1 left
+.. 1 right), brake and handbrake. A negative throttle while rolling forward brakes first, and reverses only
+once the car has stopped, as a driver would. vehicle3d_body() is the chassis (body3d_transform() to draw it,
+body3d_velocity() for the speedometer), vehicle3d_wheel_transform() is where each wheel is and how it is turned
+right now: its y axis is the axle, so a wheel draws as a cylinder. vehicle3d_rpm() and vehicle3d_gear() are for
+the engine sound and the gauges.
+
+An `engine_torque` beyond what the tyres can grip spins the wheels, and the gearbox does not shift up while
+they spin.
+
+The scene below has a flag blowing in the wind, a ball, and a car driven with the arrow keys:
+
+@include physics3d_soft.cpp
 
 ## 3D entities {#entities_3d}
 
