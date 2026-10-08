@@ -319,10 +319,12 @@ hình vẽ nó dùng chung số.
 | Sự kiện chạm | physics3d_contact_count(), physics3d_contact() | Biết cái gì bắt đầu hay thôi chạm cái gì |
 | Khớp nối | joint3d_create() | Cửa bản lề, bập bênh, dây xích, piston |
 | Ragdoll | ragdoll3d_create() | Nhân vật ngã, trúng đòn: bộ xương của model đi theo vật lý |
-| Vật mềm | softbody3d_create() | Bóng cao su, nệm, khối thạch: biến dạng khi va chạm, giữ phồng bằng áp suất |
+| Vật mềm | softbody3d_create() | Bóng cao su, nệm, khối thạch: biến dạng khi va chạm, giữ phồng bằng áp suất; va chạm với nhau, nhân vật đứng lên được |
 | Vải | cloth3d_create() | Lá cờ, rèm, áo choàng: ghim vào một chỗ, bay theo gió |
 | Xe có bánh | vehicle3d_create() | Ô tô: động cơ, hộp số tự động, lái, phanh, giảm xóc |
-| Tia | physics3d_raycast() | Đạn, tầm nhìn, camera không xuyên tường; trả về body bị trúng, đi xuyên sensor |
+| Xe máy | motorcycle3d_create() | Xe hai bánh: tự giữ thăng bằng, nghiêng vào cua |
+| Xe bánh xích | tracked3d_create() | Xe tăng, máy xúc: rẽ bằng hai dải xích, quay tại chỗ |
+| Tia | physics3d_raycast() | Đạn, tầm nhìn, camera không xuyên tường; trả về body bị trúng, đi xuyên sensor; bản có njin::soft3d_hit trúng cả vật mềm |
 
 Engine mô phỏng ở `phase_fixed_update`, **ngay sau** các system của game trong phase đó: game đặt vận tốc
 hay vị trí đích, rồi vật lý chạy luôn trong cùng bước. Nhân vật được điều khiển bằng vận tốc, và **game tự
@@ -484,14 +486,37 @@ cloth3d_create() dựng một tấm vải chữ nhật. Cả hai trả về njin
 bên trong khi vật đúng hình lúc tạo, Pa: bóp nhỏ thì áp suất tăng như bóng bay. Quả bóng 1 kg bán kính 0.5
 cần khoảng 50 (mềm, lún khi chạm đất) đến 300 (căng); lớn hơn nữa thì vật phồng to hơn lúc tạo.
 
-Vật mềm va chạm với mọi body nhưng không va với nhau. Nhân vật **đẩy** vật mềm sang bên khi đi qua chứ không
-đứng lên nó, nên một tấm rèm không chặn đường. physics3d_raycast() và các hàm `physics3d_*_push`, `_cast` đi
-xuyên qua vật mềm.
+Vật mềm va chạm với mọi body, và với các vật mềm khác cũng bật `collide_soft` (mặc định bật): hai tấm vải
+chồng lên nhau, tấm vải rơi lên võng, quả bóng rơi lên nệm. Mỗi đỉnh giữ cách mặt của vật kia một khoảng bằng
+độ dày của hai vật (`thickness` của vải). Jolt không tính va chạm giữa hai vật mềm, nên engine tự tính trước mỗi
+bước vật lý: đỉnh nào sắp lấn vào mặt của vật kia thì bị hãm lại bằng vận tốc, phần đà của nó truyền sang mặt bị
+chạm (võng trũng xuống dưới tấm vải). Hai vật ở xa nhau chỉ tốn một phép so khung bao; tắt `collide_soft` cho vật
+mềm không bao giờ gặp vật mềm khác.
+
+Nhân vật **đứng được** trên mặt trên của vật mềm bật `walkable` (mặc định bật): nệm lún xuống theo sức nặng của
+nhân vật (njin::character3d_desc::mass), bạt nhún võng xuống. Mặt dựng đứng (tấm rèm) thì nhân vật vẫn đi
+xuyên, đẩy các đỉnh sang bên, nên rèm không chặn đường. character3d_ground_soft() cho biết nhân vật đang đứng
+trên vật mềm nào (character3d_ground_body() khi đó không hợp lệ), còn character3d_ground_velocity() là vận tốc
+của mặt vật mềm dưới chân: cộng vào cú nhảy để bật cao hơn khi bạt đang nảy lên.
+
+physics3d_raycast() và các hàm `physics3d_*_push`, `_cast` đi xuyên qua vật mềm. Các bản physics3d_raycast(),
+physics3d_box_cast() và physics3d_hull_cast() có thêm tham số njin::soft3d_hit thì trúng cả vật mềm: bắn vào
+tấm rèm thì trúng rèm, và biết vật mềm, tam giác và đỉnh gần chỗ trúng nhất.
+
+@code
+// Bắn vào rèm: chỗ bị trúng bị đẩy theo hướng đạn.
+njin::soft3d_hit soft;
+const njin::ray3d_hit hit = njin::physics3d_raycast(ctx, shot, 100.0f, nullptr, &soft);
+if (hit.hit && soft.soft.id != 0)
+  njin::softbody3d_add_impulse(ctx, soft.soft, shot.direction * 0.5f);
+@endcode
 
 Vẽ vật mềm bằng softbody3d_model(): một model luôn có hình hiện tại của vật, trong thế giới, engine cập nhật
 sau mỗi bước vật lý. Vẽ nó bằng draw_model() với transform mặc định, đổi màu và ảnh bằng
-model_material_set(); model thuộc về vật mềm, softbody3d_destroy() hủy nó. Muốn tự vẽ thì đọc
-softbody3d_vertices(), softbody3d_normals() và softbody3d_indices().
+model_material_set(); model thuộc về vật mềm, softbody3d_destroy() hủy nó. Vật nhiều đỉnh (quá 65535, vải tính
+gấp đôi vì có mặt sau) được chia thành nhiều lưới trong cùng một model. Muốn tự vẽ thì đọc
+softbody3d_vertices(), softbody3d_normals() và softbody3d_indices(); softbody3d_draw_debug() vẽ các cạnh và đỉnh
+bị ghim bằng gizmo.
 
 Đỉnh của tấm vải ở hàng `r`, cột `c` có chỉ số `r * (columns + 1) + c`; hàng 0 là cạnh trên. Vải nằm trong mặt
 phẳng x–y của nó (đứng thẳng như lá cờ), `rotation.x = 90` cho vải nằm ngang. Ghim các cạnh bằng `pin_edges`,
@@ -533,6 +558,24 @@ vehicle3d_rpm() và vehicle3d_gear() cho tiếng máy và đồng hồ.
 Cảnh dưới đây có một lá cờ bay trong gió, một quả bóng và một chiếc xe lái bằng phím mũi tên:
 
 @include physics3d_soft.cpp
+
+### Xe máy và xe bánh xích {#vehicle3d_kinds}
+
+motorcycle3d_create() tạo một xe máy trên bộ điều khiển xe máy của Jolt: một bánh trước lái trên phuộc nghiêng,
+một bánh sau kéo, và một lò xo giữ xe đứng thẳng, nghiêng xe vào cua theo tốc độ và góc lái. Xe đứng yên không
+đổ, chạy nhanh thì góc lái được engine giảm bớt để xe không văng (cua rộng hơn); `max_lean` là góc nghiêng lớn
+nhất khi vào cua. Số mặc định là một xe 240 kg kể cả người lái, chạy ổn không cần chỉnh.
+
+tracked3d_create() tạo một xe bánh xích (xe tăng, máy xúc): mỗi bên một dải xích chạy trên `wheels_per_side`
+bánh, rẽ bằng cách cho hai dải chạy khác tốc độ. vehicle3d_set_input() lái nó như ô tô; khi xe gần đứng yên mà
+chỉ lái không ga, hai dải chạy ngược chiều và xe quay tại chỗ. vehicle3d_set_tracks() điều khiển thẳng từng dải
+(-1 lùi .. 1 tiến), vehicle3d_track_speed() cho tốc độ của dải xích để cuộn ảnh của nó.
+
+Cả hai trả về njin::vehicle3d_handle, nên mọi hàm `vehicle3d_*` dùng được: vehicle3d_body() cho thân xe,
+vehicle3d_wheel_transform() cho từng bánh, vehicle3d_rpm(), vehicle3d_gear(). vehicle3d_draw_debug() vẽ thân,
+bánh, giảm xóc và điểm bánh chạm đất bằng gizmo, cho mọi loại xe.
+
+@include physics3d_vehicles.cpp
 
 ## Entity 3D {#entities_3d}
 

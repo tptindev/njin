@@ -56,12 +56,17 @@
 #include <Jolt/Physics/Ragdoll/Ragdoll.h>
 #include <Jolt/Physics/SoftBody/SoftBodyCreationSettings.h>
 #include <Jolt/Physics/SoftBody/SoftBodyMotionProperties.h>
+#include <Jolt/Physics/SoftBody/SoftBodyShape.h>
 #include <Jolt/Physics/SoftBody/SoftBodySharedSettings.h>
+#include <Jolt/Physics/Vehicle/MotorcycleController.h>
+#include <Jolt/Physics/Vehicle/TrackedVehicleController.h>
 #include <Jolt/Physics/Vehicle/VehicleCollisionTester.h>
 #include <Jolt/Physics/Vehicle/VehicleConstraint.h>
 #include <Jolt/Physics/Vehicle/WheeledVehicleController.h>
 #include <Jolt/RegisterTypes.h>
 #include <raymath.h>
+
+#include "njin_gizmo.h"
 
 #include <algorithm>
 #include <array>
@@ -219,6 +224,8 @@ struct character_slot {
   JPH::BodyID proxy; // its capsule against soft bodies, while there are any (sync_proxies())
   f32 mass = 70.0f; // character3d_desc::mass: its weight on what it stands on
   std::vector<u32> touching; // body handles it touched after the last step, sorted
+  u32 ground_soft = 0;          // soft body handle it stood on after the last step (character3d_ground_soft)
+  vec3 ground_soft_velocity{};  // that surface's velocity under its feet
 };
 
 struct joint_slot {
@@ -265,17 +272,30 @@ struct soft_slot {
   std::vector<u32> moving;   // pinned vertices given a velocity last step
   model_handle model{};      // softbody3d_model, made on first ask
   bool awake = true;         // was active at the last model refresh
+  bool collide_soft = true;  // softbody3d_desc::collide_soft
+  bool walkable = true;      // softbody3d_desc::walkable
+  f32 radius = 0.01f;        // Jolt's vertex radius: its thickness against other soft bodies
+  f32 friction = 0.5f;
+  std::vector<JPH::Vec3> prev; // world positions after the last soft-soft pass (collide_soft_bodies())
+  u64 prev_step = 0;           // the step `prev` is from
 };
 
-// A wheeled vehicle (vehicle3d_create): a body slot for the chassis and Jolt's
-// VehicleConstraint, a step listener of the physics system.
+// A vehicle (vehicle3d_create, motorcycle3d_create, tracked3d_create): a body
+// slot for the chassis and Jolt's VehicleConstraint, a step listener of the
+// physics system, with the controller of its kind.
+enum class vehicle_kind { car, motorcycle, tracked };
+
 struct vehicle_slot {
   JPH::Ref<JPH::VehicleConstraint> constraint;
   JPH::Ref<JPH::VehicleCollisionTester> tester;
   bool alive = false;
+  vehicle_kind kind = vehicle_kind::car;
   body3d_handle body{};
   f32 throttle = 0.0f, steer = 0.0f, brake = 0.0f, handbrake = 0.0f;
   f32 direction = 0.0f; // the way it last accepted to drive: a reversed throttle brakes first
+  bool tracks = false;  // vehicle3d_set_tracks: the tracks are driven directly
+  f32 left = 0.0f, right = 0.0f;
+  f32 steer_now = 0.0f; // a motorcycle's steering, eased towards `steer`
 };
 
 // Two bodies touching: how many of their sub-shape pairs do, in the order the
@@ -577,28 +597,54 @@ public:
 // two boards' edges would otherwise shove them apart every step (wedged in the
 // gap), and the character would drop and be thrown up as they moved. What it
 // walks into is still pushed, as before.
+//
+// A walkable soft body (softbody3d_desc::walkable) holds a character up only
+// where its surface faces up gently enough to stand on: the contact is taken
+// then, and refused on a steep face, so a mattress carries the character while
+// a curtain still lets it through (its proxy parts the cloth, sync_proxies()).
+// The character never pushes a soft body by impulse: its weight presses the
+// vertices under its feet instead (press_soft()).
 class character_listener final : public JPH::CharacterContactListener {
 public:
+  const std::unordered_map<u32, u32> *soft_by_body = nullptr; // Jolt body id -> soft handle id
   static bool supports(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k) {
     return k.mSurfaceNormal.Dot(c->GetUp()) > 0.0f && !c->IsSlopeTooSteep(k.mSurfaceNormal);
   }
+  // A cloth is double-sided: the contact normal (out of the surface towards
+  // the character) says which side it is on, not the face's winding.
+  static bool stands_on(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k) {
+    return k.mContactNormal.Dot(c->GetUp()) > 0.0f && !c->IsSlopeTooSteep(k.mContactNormal);
+  }
+  bool soft(const JPH::BodyID &id) const {
+    return soft_by_body != nullptr && soft_by_body->count(id.GetIndexAndSequenceNumber()) > 0;
+  }
+  bool OnContactValidate(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k) override {
+    return !soft(k.mBodyB) || stands_on(c, k);
+  }
   void OnContactAdded(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k,
                       JPH::CharacterContactSettings &io) override {
-    if (supports(c, k))
+    if (supports(c, k) || soft(k.mBodyB))
       io.mCanReceiveImpulses = false;
   }
   void OnContactPersisted(const JPH::CharacterVirtual *c, const JPH::CharacterContact &k,
                           JPH::CharacterContactSettings &io) override {
-    if (supports(c, k))
+    if (supports(c, k) || soft(k.mBodyB))
       io.mCanReceiveImpulses = false;
   }
 };
 
-// Characters do not stand on or stop at soft bodies: a curtain would be a
-// wall. Their proxy pushes the vertices aside instead (sync_proxies()).
+// Characters meet rigid bodies, and soft bodies only when walkable (the
+// listener above then keeps the faces they can stand on).
 class rigid_only final : public JPH::BodyFilter {
 public:
-  bool ShouldCollideLocked(const JPH::Body &body) const override { return !body.IsSoftBody(); }
+  const std::vector<soft_slot> *softs = nullptr;
+  const std::unordered_map<u32, u32> *soft_by_body = nullptr;
+  bool ShouldCollideLocked(const JPH::Body &body) const override {
+    if (!body.IsSoftBody())
+      return true;
+    const auto it = soft_by_body->find(body.GetID().GetIndexAndSequenceNumber());
+    return it != soft_by_body->end() && (*softs)[it->second - 1].walkable;
+  }
 };
 
 struct physics3d_world {
@@ -618,6 +664,8 @@ struct physics3d_world {
   std::vector<soft_slot> softs;           // handle id N is softs[N - 1]
   std::vector<vehicle_slot> vehicles;     // handle id N is vehicles[N - 1]
   std::unordered_map<u32, u32> handle_by_body; // Jolt body id -> njin handle id
+  std::unordered_map<u32, u32> soft_by_body;   // Jolt body id -> soft body handle id
+  u64 steps = 0;                               // physics3d_step() calls so far
   std::unordered_map<u64, pair_state> touching; // pair_key -> the pair
   std::vector<contact3d> contacts; // events of the last step
   character_grid crowd;            // characters against each other
@@ -657,6 +705,7 @@ struct physics3d_world {
     system.Init(16384, 0, 16384, 8192, broad_phase, object_vs_broad, pairs);
     listener.world = this;
     system.SetContactListener(&listener);
+    characters_listener.soft_by_body = &soft_by_body;
   }
   ~physics3d_world() {
     crowd.all.clear();
@@ -1008,17 +1057,20 @@ void sync_proxies(physics3d_world &w, f32 dt) {
   }
 }
 
-// The driver's input for this step. A throttle against the way the car rolls
-// brakes it to a stop first, then drives that way.
-void drive_vehicles(physics3d_world &w) {
+// The driver's input for this step. A throttle against the way the vehicle
+// rolls brakes it to a stop first, then drives that way. A motorcycle eases
+// its steering in and brakes less the more it leans (else it slides out), as
+// Jolt's sample rides it; a tracked vehicle steers by slowing a track, or
+// turns on the spot when about stopped with no throttle.
+void drive_vehicles(physics3d_world &w, f32 dt) {
   JPH::BodyInterface &bi = w.system.GetBodyInterface();
   for (vehicle_slot &v : w.vehicles) {
     if (!v.alive)
       continue;
     const JPH::BodyID id = w.bodies[v.body.id - 1].id;
+    const f32 speed = (bi.GetRotation(id).Conjugated() * bi.GetLinearVelocity(id)).GetZ();
     f32 forward = v.throttle, brake = v.brake;
     if (forward != 0.0f && v.direction * forward < 0.0f) {
-      const f32 speed = (bi.GetRotation(id).Conjugated() * bi.GetLinearVelocity(id)).GetZ();
       if ((forward > 0.0f && speed < -0.1f) || (forward < 0.0f && speed > 0.1f)) {
         forward = 0.0f;
         brake = 1.0f;
@@ -1028,9 +1080,63 @@ void drive_vehicles(physics3d_world &w) {
     } else if (forward != 0.0f) {
       v.direction = forward;
     }
-    static_cast<JPH::WheeledVehicleController *>(v.constraint->GetController())
-        ->SetDriverInput(forward, v.steer, brake, v.handbrake);
-    if (forward != 0.0f || v.steer != 0.0f || brake != 0.0f || v.handbrake != 0.0f)
+    bool busy = forward != 0.0f || v.steer != 0.0f || brake != 0.0f || v.handbrake != 0.0f;
+    switch (v.kind) {
+    case vehicle_kind::car:
+      static_cast<JPH::WheeledVehicleController *>(v.constraint->GetController())
+          ->SetDriverInput(forward, v.steer, brake, v.handbrake);
+      break;
+    case vehicle_kind::motorcycle: {
+      constexpr f32 steer_speed = 4.0f;
+      v.steer_now = v.steer > v.steer_now ? std::min(v.steer_now + steer_speed * dt, v.steer)
+                                          : std::max(v.steer_now - steer_speed * dt, v.steer);
+      if (brake > 0.0f) {
+        const JPH::Vec3 up = bi.GetRotation(id) * v.constraint->GetLocalUp();
+        const JPH::Vec3 fwd = bi.GetRotation(id) * v.constraint->GetLocalForward();
+        const JPH::Vec3 world_up = -w.system.GetGravity().NormalizedOr(JPH::Vec3(0, -1, 0));
+        const f32 sin_lean = std::fabs(world_up.Cross(up).Dot(fwd));
+        brake *= (1.0f - sin_lean) * (1.0f - sin_lean);
+      }
+      busy = busy || v.steer_now != 0.0f;
+      static_cast<JPH::MotorcycleController *>(v.constraint->GetController())
+          ->SetDriverInput(forward, v.steer_now, brake, v.handbrake);
+      break;
+    }
+    case vehicle_kind::tracked: {
+      f32 left = 1.0f, right = 1.0f;
+      if (v.tracks) {
+        forward = std::max(std::fabs(v.left), std::fabs(v.right));
+        brake = v.brake;
+        if (forward > 1e-3f) {
+          left = v.left / forward;
+          right = v.right / forward;
+        } else {
+          forward = 0.0f;
+        }
+        busy = forward != 0.0f || brake != 0.0f;
+      } else {
+        brake = std::max(brake, v.handbrake);
+        const f32 s = v.steer;
+        if (s != 0.0f) {
+          if (forward == 0.0f && brake == 0.0f && std::fabs(speed) < 1.0f) {
+            forward = std::fabs(s);
+            (s < 0.0f ? left : right) = -1.0f;
+          } else {
+            (s < 0.0f ? left : right) = 1.0f - 0.4f * std::fabs(s);
+          }
+        }
+      }
+      // Jolt asserts on a ratio of exactly 0: a stopped track creeps instead.
+      if (std::fabs(left) < 1e-3f)
+        left = 1e-3f;
+      if (std::fabs(right) < 1e-3f)
+        right = 1e-3f;
+      static_cast<JPH::TrackedVehicleController *>(v.constraint->GetController())
+          ->SetDriverInput(forward, left, right, brake);
+      break;
+    }
+    }
+    if (busy)
       bi.ActivateBody(id);
   }
 }
@@ -1085,6 +1191,465 @@ void refresh_soft_models(context &ctx, physics3d_world &w) {
   }
 }
 
+// Closest point of triangle abc to p (Ericson, Real-Time Collision Detection
+// 5.1.5), with its barycentric weights; `inside` when it lies in the face
+// rather than on an edge or a corner.
+JPH::Vec3 closest_on_triangle(JPH::Vec3Arg p, JPH::Vec3Arg a, JPH::Vec3Arg b, JPH::Vec3Arg c, f32 &u, f32 &v, f32 &w,
+                              bool &inside) {
+  inside = false;
+  const JPH::Vec3 ab = b - a, ac = c - a, ap = p - a;
+  const f32 d1 = ab.Dot(ap), d2 = ac.Dot(ap);
+  if (d1 <= 0.0f && d2 <= 0.0f) {
+    u = 1.0f, v = 0.0f, w = 0.0f;
+    return a;
+  }
+  const JPH::Vec3 bp = p - b;
+  const f32 d3 = ab.Dot(bp), d4 = ac.Dot(bp);
+  if (d3 >= 0.0f && d4 <= d3) {
+    u = 0.0f, v = 1.0f, w = 0.0f;
+    return b;
+  }
+  const f32 vc = d1 * d4 - d3 * d2;
+  if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f) {
+    const f32 t = d1 / (d1 - d3);
+    u = 1.0f - t, v = t, w = 0.0f;
+    return a + ab * t;
+  }
+  const JPH::Vec3 cp = p - c;
+  const f32 d5 = ab.Dot(cp), d6 = ac.Dot(cp);
+  if (d6 >= 0.0f && d5 <= d6) {
+    u = 0.0f, v = 0.0f, w = 1.0f;
+    return c;
+  }
+  const f32 vb = d5 * d2 - d1 * d6;
+  if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f) {
+    const f32 t = d2 / (d2 - d6);
+    u = 1.0f - t, v = 0.0f, w = t;
+    return a + ac * t;
+  }
+  const f32 va = d3 * d6 - d5 * d4;
+  if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f) {
+    const f32 t = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+    u = 0.0f, v = 1.0f - t, w = t;
+    return b + (c - b) * t;
+  }
+  const f32 denom = 1.0f / (va + vb + vc);
+  v = vb * denom;
+  w = vc * denom;
+  u = 1.0f - v - w;
+  inside = true;
+  return a + ab * v + ac * w;
+}
+
+// A soft body's vertices in world space for the soft-soft pass.
+struct soft_view {
+  soft_slot *slot = nullptr;
+  JPH::Body *body = nullptr;
+  JPH::RMat44 xf;                         // local -> world
+  std::vector<JPH::Vec3> pos, vel, prev;  // world
+  std::vector<f32> inv_mass;
+  std::vector<u8> through; // went through a face of the other body: keep its last good side
+  bool moved = false;
+  // Its faces in a dense uniform grid over its box (build_grid()), once per
+  // step: cell c holds faces[start[c] .. start[c + 1]), each face in every
+  // cell its grown box touches; and a sphere round each face for a quick miss.
+  std::vector<u32> start, faces;
+  JPH::Vec3 origin = JPH::Vec3::sZero();
+  i32 dims[3] = {0, 0, 0};
+  std::vector<JPH::Vec3> centre;
+  std::vector<f32> radius; // round the face and how far it moves this step
+  // Per face, the same for every vertex tested against it: its unit normal
+  // (zero if degenerate), its normal a step ago (unscaled), its two edges from
+  // its first vertex and the terms of its plane weights.
+  struct face_frame {
+    JPH::Vec3 n, n_then, e1, e2;
+    f32 d11, d12, d22, inv_det;
+    f32 altitude; // its shortest height: a point at plane weight -w is at least w * this off the face
+  };
+  std::vector<face_frame> frames;
+  f32 inv_cell = 1.0f, grid_gap = -1.0f;
+  JPH::AABox reach; // every face's grown box
+};
+
+void load_view(physics3d_world &w, soft_view &v) {
+  const soft_vertices &verts = vertices_of(*v.body);
+  v.xf = v.body->GetCenterOfMassTransform();
+  const usize n = verts.size();
+  v.pos.resize(n);
+  v.vel.resize(n);
+  v.inv_mass.resize(n);
+  for (usize i = 0; i < n; i++) {
+    v.pos[i] = JPH::Vec3(v.xf * verts[i].mPosition);
+    v.vel[i] = v.xf.Multiply3x3(verts[i].mVelocity);
+    v.inv_mass[i] = verts[i].mInvMass;
+  }
+  // Last step's positions say which side of a face each vertex came from; a
+  // body that was not in a pair then has none, and starts from where it is.
+  const bool fresh = v.slot->prev_step + 1 == w.steps && v.slot->prev.size() == n;
+  v.prev = fresh ? v.slot->prev : v.pos;
+  v.through.assign(n, 0);
+}
+
+void store_view(physics3d_world &w, soft_view &v) {
+  if (v.moved) {
+    soft_vertices &verts = vertices_of(*v.body);
+    const JPH::RMat44 inv = v.xf.InversedRotationTranslation();
+    for (usize i = 0; i < verts.size() && i < v.pos.size(); i++) {
+      verts[i].mPosition = JPH::Vec3(inv * v.pos[i]);
+      verts[i].mVelocity = v.xf.Multiply3x3Transposed(v.vel[i]);
+    }
+    w.system.GetBodyInterfaceNoLock().ActivateBody(v.body->GetID());
+  }
+  // A vertex still through a face keeps the position that says which side it
+  // belongs on, until it is eased back out; any other takes where it is now.
+  for (usize i = 0; i < v.pos.size(); i++)
+    if (!v.through[i])
+      v.prev[i] = v.pos[i];
+  v.slot->prev = v.prev;
+  v.slot->prev_step = w.steps;
+}
+
+// The faces of `b` in its grid (soft_view::grid), once per step: each face's
+// box grown by the gap and by twice the furthest its own vertices move in the
+// step (the passes change velocities, not positions, so that covers them),
+// cells about two faces wide; a fast vertex only widens its own faces' boxes.
+// Rebuilt only for a wider gap.
+void build_grid(soft_view &b, f32 gap, f32 dt) {
+  if (b.grid_gap >= gap)
+    return;
+  const std::vector<u32> &tris = b.slot->indices;
+  const usize faces = tris.size() / 3;
+  b.start.clear();
+  b.faces.clear();
+  b.reach = JPH::AABox();
+  b.grid_gap = gap;
+  b.dims[0] = b.dims[1] = b.dims[2] = 0;
+  if (faces == 0)
+    return;
+  b.centre.resize(faces);
+  b.radius.resize(faces);
+  b.frames.resize(faces);
+  std::vector<JPH::AABox> box(faces);
+  f32 edge = 0.0f;
+  for (usize f = 0; f < faces; f++) {
+    const u32 k0 = tris[f * 3], k1 = tris[f * 3 + 1], k2 = tris[f * 3 + 2];
+    const JPH::Vec3 p0 = b.pos[k0], p1 = b.pos[k1], p2 = b.pos[k2];
+    soft_view::face_frame &fr = b.frames[f];
+    fr.e1 = p1 - p0;
+    fr.e2 = p2 - p0;
+    edge += fr.e1.Length();
+    const JPH::Vec3 n_raw = fr.e1.Cross(fr.e2);
+    const f32 n_len = n_raw.Length();
+    fr.n = n_len > 1e-12f ? n_raw / n_len : JPH::Vec3::sZero();
+    fr.n_then = (b.prev[k1] - b.prev[k0]).Cross(b.prev[k2] - b.prev[k0]);
+    fr.d11 = fr.e1.Dot(fr.e1);
+    fr.d12 = fr.e1.Dot(fr.e2);
+    fr.d22 = fr.e2.Dot(fr.e2);
+    const f32 det = fr.d11 * fr.d22 - fr.d12 * fr.d12;
+    fr.inv_det = det > 1e-20f ? 1.0f / det : 0.0f;
+    const f32 longest = std::sqrt(std::max({fr.d11, fr.d22, (p2 - p1).LengthSq()}));
+    fr.altitude = longest > 1e-12f ? n_len / longest : 0.0f;
+    const f32 motion =
+        2.0f * dt * std::sqrt(std::max({b.vel[k0].LengthSq(), b.vel[k1].LengthSq(), b.vel[k2].LengthSq()}));
+    const JPH::Vec3 c = (p0 + p1 + p2) / 3.0f;
+    b.centre[f] = c;
+    b.radius[f] = std::sqrt(std::max({(p0 - c).LengthSq(), (p1 - c).LengthSq(), (p2 - c).LengthSq()})) + motion;
+    const JPH::Vec3 grow = JPH::Vec3::sReplicate(gap + motion);
+    box[f] = JPH::AABox(JPH::Vec3::sMin(p0, JPH::Vec3::sMin(p1, p2)) - grow,
+                        JPH::Vec3::sMax(p0, JPH::Vec3::sMax(p1, p2)) + grow);
+    b.reach.Encapsulate(box[f]);
+  }
+  // Cells about two faces wide over the body's box, made bigger if the body
+  // is spread so wide that the grid would pass a million cells.
+  f32 cell = std::max(edge / (f32)faces * 2.0f, gap * 2.0f);
+  const JPH::Vec3 extent = b.reach.mMax - b.reach.mMin;
+  for (;;) {
+    const f64 count = std::floor(extent.GetX() / cell + 1.0) * std::floor(extent.GetY() / cell + 1.0) *
+                      std::floor(extent.GetZ() / cell + 1.0);
+    if (count <= 1.0e6)
+      break;
+    cell *= 1.5f;
+  }
+  b.inv_cell = 1.0f / cell;
+  b.origin = b.reach.mMin;
+  for (int k = 0; k < 3; k++)
+    b.dims[k] = (i32)std::floor(extent[k] * b.inv_cell) + 1;
+  const usize cells = (usize)b.dims[0] * (usize)b.dims[1] * (usize)b.dims[2];
+  auto cell_of = [&](f32 v, int k) {
+    return std::clamp((i32)std::floor((v - b.origin[k]) * b.inv_cell), 0, b.dims[k] - 1);
+  };
+  // Counting sort: how many faces each cell gets, where each cell's run
+  // starts, then the faces into their runs.
+  b.start.assign(cells + 1, 0);
+  for (usize f = 0; f < faces; f++)
+    for (i32 x = cell_of(box[f].mMin.GetX(), 0); x <= cell_of(box[f].mMax.GetX(), 0); x++)
+      for (i32 y = cell_of(box[f].mMin.GetY(), 1); y <= cell_of(box[f].mMax.GetY(), 1); y++)
+        for (i32 z = cell_of(box[f].mMin.GetZ(), 2); z <= cell_of(box[f].mMax.GetZ(), 2); z++)
+          b.start[((usize)x * (usize)b.dims[1] + (usize)y) * (usize)b.dims[2] + (usize)z + 1]++;
+  for (usize c = 0; c < cells; c++)
+    b.start[c + 1] += b.start[c];
+  b.faces.resize(b.start[cells]);
+  std::vector<u32> fill(b.start.begin(), b.start.end() - 1);
+  for (usize f = 0; f < faces; f++)
+    for (i32 x = cell_of(box[f].mMin.GetX(), 0); x <= cell_of(box[f].mMax.GetX(), 0); x++)
+      for (i32 y = cell_of(box[f].mMin.GetY(), 1); y <= cell_of(box[f].mMax.GetY(), 1); y++)
+        for (i32 z = cell_of(box[f].mMin.GetZ(), 2); z <= cell_of(box[f].mMax.GetZ(), 2); z++)
+          b.faces[fill[((usize)x * (usize)b.dims[1] + (usize)y) * (usize)b.dims[2] + (usize)z]++] = (u32)f;
+}
+
+// Keeps every vertex of `a` the thickness `gap` off the faces of `b`, before
+// the step and by velocity only (as Bridson's cloth collisions do): Jolt's
+// step derives each vertex's velocity from where it starts and where its
+// constraints leave it, so any vertex moved here by position would spring
+// back as speed (a hammock throwing a cloth higher than it fell from). A
+// vertex coming at a face may close in only down to the thickness within the
+// step; one already closer is eased back out a quarter of the way per step.
+void separate(soft_view &a, soft_view &b, f32 gap, f32 friction, f32 dt) {
+  const std::vector<u32> &tris = b.slot->indices;
+  const usize faces = tris.size() / 3;
+  if (faces == 0 || a.pos.empty())
+    return;
+  build_grid(b, gap, dt);
+  if (b.faces.empty())
+    return;
+  auto cell_of = [&](f32 v, int k) {
+    return std::clamp((i32)std::floor((v - b.origin[k]) * b.inv_cell), 0, b.dims[k] - 1);
+  };
+  std::vector<u32> seen(faces, ~0u);
+  for (usize i = 0; i < a.pos.size(); i++) {
+    const f32 wa = a.inv_mass[i];
+    const JPH::Vec3 p = a.pos[i];
+    const JPH::Vec3 to = p + a.vel[i] * dt;
+    const JPH::Vec3 lo = JPH::Vec3::sMin(p, to), hi = JPH::Vec3::sMax(p, to);
+    if (!b.reach.Overlaps(JPH::AABox(lo, hi)))
+      continue;
+    // A face further than its sphere and this cannot come within the gap this step.
+    const f32 near = gap + (to - p).Length();
+    for (i32 x = cell_of(lo.GetX(), 0); x <= cell_of(hi.GetX(), 0); x++)
+      for (i32 y = cell_of(lo.GetY(), 1); y <= cell_of(hi.GetY(), 1); y++)
+        for (i32 z = cell_of(lo.GetZ(), 2); z <= cell_of(hi.GetZ(), 2); z++) {
+          const usize c = ((usize)x * (usize)b.dims[1] + (usize)y) * (usize)b.dims[2] + (usize)z;
+          for (u32 slot = b.start[c]; slot < b.start[c + 1]; slot++) {
+            const u32 f = b.faces[slot];
+            if (seen[f] == (u32)i)
+              continue;
+            seen[f] = (u32)i;
+            const f32 r = b.radius[f] + near;
+            if ((p - b.centre[f]).LengthSq() > r * r)
+              continue;
+            const u32 k0 = tris[f * 3], k1 = tris[f * 3 + 1], k2 = tris[f * 3 + 2];
+            const soft_view::face_frame &fr = b.frames[f];
+            if (fr.inv_det == 0.0f || fr.n.IsNearZero())
+              continue;
+            const JPH::Vec3 n = fr.n;
+            const JPH::Vec3 ep = p - b.pos[k0];
+            const f32 side_now = ep.Dot(n);
+            // The side it belongs on: where it was a step ago, if known, so a
+            // vertex the solver still pushed through comes back out.
+            const f32 side_then = fr.n_then.LengthSq() > 1e-24f ? (a.prev[i] - b.prev[k0]).Dot(fr.n_then) : side_now;
+            const f32 side = side_then != 0.0f ? (side_then > 0.0f ? 1.0f : -1.0f) : (side_now >= 0.0f ? 1.0f : -1.0f);
+            // Where it falls on the face's plane, in the face's weights: a little
+            // past an edge still counts, so a vertex between two faces is caught
+            // by one of them.
+            const f32 dp1 = ep.Dot(fr.e1), dp2 = ep.Dot(fr.e2);
+            const f32 bv = (fr.d22 * dp1 - fr.d12 * dp2) * fr.inv_det, bt = (fr.d11 * dp2 - fr.d12 * dp1) * fr.inv_det,
+                      bu = 1.0f - bv - bt;
+            constexpr f32 margin = -0.05f;
+            f32 u, v, t;
+            JPH::Vec3 dir;
+            f32 height; // how far over the face, on its own side; < 0: it went through
+            if (bu >= margin && bv >= margin && bt >= margin) {
+              dir = n * side;
+              height = side_now * side;
+              if (height < 0.0f)
+                a.through[i] = 1;
+              u = std::max(bu, 0.0f), v = std::max(bv, 0.0f), t = std::max(bt, 0.0f);
+              const f32 sum = u + v + t;
+              u /= sum, v /= sum, t /= sum;
+            } else {
+              // Off the face: its nearest edge or corner, from the vertex's own side.
+              // A point at plane weight -w is at least w times the face's smallest
+              // height away from it: most of these are too far to look closer.
+              if (side_now * side < 0.0f || -std::min({bu, bv, bt}) * fr.altitude >= gap)
+                continue;
+              bool inside;
+              const JPH::Vec3 q = closest_on_triangle(p, b.pos[k0], b.pos[k1], b.pos[k2], u, v, t, inside);
+              height = (p - q).Length();
+              if (height < 1e-7f)
+                continue;
+              dir = (p - q) / height;
+            }
+            const f32 bw[3] = {u, v, t};
+            const u32 bk[3] = {k0, k1, k2};
+            JPH::Vec3 vb = JPH::Vec3::sZero();
+            for (u32 k = 0; k < 3; k++)
+              vb += b.vel[bk[k]] * bw[k];
+            // A face moving away is not counted on: the step's own constraints may
+            // stop it (a taut cloth gives little), and the vertex would go through.
+            const JPH::Vec3 rel = a.vel[i] - vb;
+            const f32 vn = a.vel[i].Dot(dir) - std::max(vb.Dot(dir), 0.0f);
+            // Clear now and still clear at the end of the step: nothing to do.
+            if (height >= gap && height + vn * dt >= gap)
+              continue;
+            // Closing in only down to the gap within the step; already inside,
+            // easing out a quarter of the way per step.
+            const f32 want = height >= gap ? (gap - height) / dt : std::min(0.25f * (gap - height) / dt, 1.0f);
+            if (vn >= want)
+              continue;
+            // The change along the normal, and friction along the face as much as
+            // that change allows (Coulomb).
+            const f32 dvn = want - vn;
+            JPH::Vec3 dv = dir * dvn;
+            const JPH::Vec3 vt = rel - dir * rel.Dot(dir);
+            const f32 vt_len = vt.Length();
+            if (vt_len > 1e-6f)
+              dv -= vt * std::min(1.0f, friction * dvn / vt_len);
+            // The vertex takes the whole change, as against a fixed face, and the
+            // face the opposite momentum: shared by inverse mass instead, a light
+            // cloth stretched between pins would take most of it, and its stiff
+            // constraints would pull it back up through the vertex within the step.
+            // A face vertex lighter than the vertex takes no more speed than the
+            // vertex does: its constraints make it heavier than its own mass, and
+            // a hammock's light vertices kicked hard sprang back as a launch.
+            if (wa > 0.0f) {
+              a.vel[i] += dv;
+              for (u32 k = 0; k < 3; k++)
+                b.vel[bk[k]] -= dv * (bw[k] * std::min(b.inv_mass[bk[k]] / wa, 1.0f));
+            } else {
+              // A pinned vertex cannot move: the face moves away from it.
+              f32 face = 0.0f;
+              for (u32 k = 0; k < 3; k++)
+                face += bw[k] * bw[k] * b.inv_mass[bk[k]];
+              if (face <= 0.0f)
+                continue;
+              for (u32 k = 0; k < 3; k++)
+                b.vel[bk[k]] -= dv * (bw[k] * b.inv_mass[bk[k]] / face);
+            }
+            a.moved = b.moved = true;
+          }
+        }
+  }
+}
+
+// Soft bodies against each other (softbody3d_desc::collide_soft), which Jolt
+// does not do: its soft body solver meets rigid bodies only. Before each step,
+// every vertex of one is kept both thicknesses off the other's faces by
+// separate(), both ways, the change shared with the face's vertices by inverse
+// mass. Pairs whose bounds are apart cost a box test.
+void collide_soft_bodies(physics3d_world &w, f32 dt) {
+  std::vector<soft_slot *> list;
+  for (soft_slot &s : w.softs)
+    if (s.alive && s.collide_soft)
+      list.push_back(&s);
+  if (list.size() < 2)
+    return;
+  const JPH::BodyLockInterfaceNoLock &locks = w.system.GetBodyLockInterfaceNoLock();
+  std::vector<JPH::Body *> bodies(list.size(), nullptr);
+  std::vector<JPH::AABox> bounds(list.size());
+  for (usize i = 0; i < list.size(); i++) {
+    bodies[i] = locks.TryGetBody(list[i]->id);
+    if (bodies[i] != nullptr)
+      bounds[i] = bodies[i]->GetWorldSpaceBounds();
+  }
+  std::vector<std::unique_ptr<soft_view>> views(list.size());
+  auto view = [&](usize i) -> soft_view & {
+    if (!views[i]) {
+      views[i] = std::make_unique<soft_view>();
+      views[i]->slot = list[i];
+      views[i]->body = bodies[i];
+      load_view(w, *views[i]);
+    }
+    return *views[i];
+  };
+  for (usize i = 0; i < list.size(); i++)
+    for (usize j = i + 1; j < list.size(); j++) {
+      if (bodies[i] == nullptr || bodies[j] == nullptr || (!bodies[i]->IsActive() && !bodies[j]->IsActive()))
+        continue;
+      const f32 gap = std::max(list[i]->radius, 0.005f) + std::max(list[j]->radius, 0.005f);
+      JPH::AABox a = bounds[i];
+      a.ExpandBy(JPH::Vec3::sReplicate(gap + 0.25f));
+      if (!a.Overlaps(bounds[j]))
+        continue;
+      soft_view &va = view(i);
+      soft_view &vb = view(j);
+      const f32 friction = std::sqrt(std::max(list[i]->friction, 0.0f) * std::max(list[j]->friction, 0.0f));
+      // The one coming at the other goes first, so its own vertices are the
+      // ones stopped: a cloth landing on a hammock stops on it, rather than
+      // first shoving the hammock's vertices away in front of it.
+      const JPH::Vec3 towards = (bounds[j].GetCenter() - bounds[i].GetCenter()).NormalizedOr(JPH::Vec3::sAxisY());
+      auto mean = [](const soft_view &s) {
+        JPH::Vec3 sum = JPH::Vec3::sZero();
+        for (const JPH::Vec3 &x : s.vel)
+          sum += x;
+        return s.vel.empty() ? sum : sum / (f32)s.vel.size();
+      };
+      const bool b_first = -mean(vb).Dot(towards) > mean(va).Dot(towards);
+      soft_view &first = b_first ? vb : va, &second = b_first ? va : vb;
+      separate(first, second, gap, friction, dt);
+      separate(second, first, gap, friction, dt);
+    }
+  for (std::unique_ptr<soft_view> &v : views)
+    if (v)
+      store_view(w, *v);
+}
+
+// A character's weight on the soft body it stands on, for one step: its share
+// of mass * g as an impulse on the vertices under its feet (within its radius
+// of the contact, nearer ones more), so a mattress dents where it stands and a
+// trampoline sinks before it throws back. Returns the surface's velocity there.
+vec3 press_soft(physics3d_world &w, soft_slot &s, JPH::RVec3Arg at, f32 impulse, f32 radius, JPH::Vec3Arg down) {
+  JPH::Body *body = w.system.GetBodyLockInterfaceNoLock().TryGetBody(s.id);
+  if (body == nullptr)
+    return vec3{};
+  soft_vertices &verts = vertices_of(*body);
+  const JPH::RMat44 xf = body->GetCenterOfMassTransform();
+  const JPH::Vec3 local(xf.InversedRotationTranslation() * at);
+  const JPH::Vec3 local_down = xf.Multiply3x3Transposed(down);
+  const f32 reach = std::max(radius, 0.05f) * 1.25f;
+  f32 total = 0.0f;
+  i32 nearest = -1;
+  f32 nearest_d = FLT_MAX;
+  for (usize i = 0; i < verts.size(); i++) {
+    const f32 d = (verts[i].mPosition - local).Length();
+    if (d < nearest_d && verts[i].mInvMass > 0.0f) {
+      nearest_d = d;
+      nearest = (i32)i;
+    }
+    if (d < reach && verts[i].mInvMass > 0.0f)
+      total += 1.0f - d / reach;
+  }
+  if (nearest < 0)
+    return vec3{};
+  JPH::Vec3 surface = JPH::Vec3::sZero();
+  f32 weight = 0.0f;
+  if (total <= 0.0f) {
+    soft_vertex &v = verts[(usize)nearest];
+    v.mVelocity += local_down * (impulse * v.mInvMass);
+    surface = v.mVelocity;
+    weight = 1.0f;
+  } else {
+    for (soft_vertex &v : verts) {
+      const f32 d = (v.mPosition - local).Length();
+      if (d >= reach || v.mInvMass <= 0.0f)
+        continue;
+      const f32 share = (1.0f - d / reach) / total;
+      v.mVelocity += local_down * (impulse * share * v.mInvMass);
+      surface += v.mVelocity * share;
+      weight += share;
+    }
+  }
+  w.system.GetBodyInterfaceNoLock().ActivateBody(s.id);
+  return weight > 0.0f ? nv(xf.Multiply3x3(surface / weight)) : vec3{};
+}
+
+soft_slot *soft_by_id(physics3d_world &w, JPH::BodyID id) {
+  const auto it = w.soft_by_body.find(id.GetIndexAndSequenceNumber());
+  if (it == w.soft_by_body.end())
+    return nullptr;
+  soft_slot &s = w.softs[it->second - 1];
+  return s.alive ? &s : nullptr;
+}
+
 } // namespace
 
 physics3d_state::physics3d_state() = default;
@@ -1101,6 +1666,7 @@ void physics3d_step(context &ctx, f32 dt) {
   if (w == nullptr || dt <= 0.0f)
     return;
   w->contacts.clear();
+  w->steps++;
   JPH::BodyInterface &bi = w->system.GetBodyInterface();
   entt::registry &reg = world(ctx);
   // Kinematic components go where their entity is.
@@ -1136,7 +1702,9 @@ void physics3d_step(context &ctx, f32 dt) {
   const JPH::Vec3 gravity = jv(ctx.physics3d.gravity);
   steer_soft_bodies(*w, dt);
   w->crowd.rebuild(dt);
-  const rigid_only rigid;
+  rigid_only rigid;
+  rigid.softs = &w->softs;
+  rigid.soft_by_body = &w->soft_by_body;
   for (character_slot &c : w->characters) {
     if (!c.alive || !c.active)
       continue;
@@ -1146,23 +1714,38 @@ void physics3d_step(context &ctx, f32 dt) {
     settings.mWalkStairsStepUp = JPH::Vec3(0.0f, c.step_height, 0.0f);
     c.character->ExtendedUpdate(dt, gravity, settings, w->system.GetDefaultBroadPhaseLayerFilter(layers::moving),
                                 w->system.GetDefaultLayerFilter(layers::moving), rigid, {}, w->temp);
+    c.ground_soft = 0;
+    c.ground_soft_velocity = vec3{};
     // Its weight on what it stands on: a dynamic body there carries it for the
     // solve (carry_load()), shared among every point it stands on: one foot on
-    // each of two boards presses both.
+    // each of two boards presses both. A soft body's vertices under it take
+    // their share as an impulse (press_soft()).
     if (c.mass > 0.0f && c.character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround) {
       const JPH::CharacterVirtual *ch = c.character.GetPtr();
+      auto holds = [&](const JPH::CharacterContact &k) {
+        if (!k.mHadCollision || k.mWasDiscarded || k.mIsSensorB || k.mBodyB.IsInvalid())
+          return false;
+        return soft_by_id(*w, k.mBodyB) != nullptr ? character_listener::stands_on(ch, k)
+                                                   : character_listener::supports(ch, k);
+      };
       i32 count = 0;
       for (const JPH::CharacterContact &k : ch->GetActiveContacts())
-        if (k.mHadCollision && !k.mWasDiscarded && !k.mIsSensorB && !k.mBodyB.IsInvalid() &&
-            character_listener::supports(ch, k))
+        if (holds(k))
           count++;
       if (count > 0) {
         const f32 share = c.mass / (f32)count;
         for (const JPH::CharacterContact &k : ch->GetActiveContacts()) {
-          if (!k.mHadCollision || k.mWasDiscarded || k.mIsSensorB || k.mBodyB.IsInvalid() ||
-              !character_listener::supports(ch, k) || k.mMotionTypeB != JPH::EMotionType::Dynamic)
+          if (!holds(k))
             continue;
-          carry_load(*w, k.mBodyB, share, k.mPosition, gravity);
+          if (soft_slot *s = soft_by_id(*w, k.mBodyB)) {
+            const f32 g = gravity.Length();
+            const vec3 surface =
+                press_soft(*w, *s, k.mPosition, share * g * dt, c.radius, g > 0.0f ? gravity / g : JPH::Vec3(0, -1, 0));
+            c.ground_soft = (u32)(s - w->softs.data()) + 1;
+            c.ground_soft_velocity = surface;
+          } else if (k.mMotionTypeB == JPH::EMotionType::Dynamic) {
+            carry_load(*w, k.mBodyB, share, k.mPosition, gravity);
+          }
         }
       }
     }
@@ -1174,7 +1757,7 @@ void physics3d_step(context &ctx, f32 dt) {
   // Pushers parted where the step left them overlapping (character3d_desc::push).
   w->crowd.part(2);
   sync_proxies(*w, dt);
-  drive_vehicles(*w);
+  drive_vehicles(*w, dt);
   // Floating bodies take the water's lift and drag for this step, from the
   // surface under their centre of mass (Jolt finds the submerged volume).
   if (w->surface != nullptr)
@@ -1191,6 +1774,7 @@ void physics3d_step(context &ctx, f32 dt) {
                                 f.angular_drag, jv(f.flow), gravity, dt);
       return false;
     });
+  collide_soft_bodies(*w, dt);
   w->system.Update(dt, 1, &w->temp, &w->jobs);
   // Bodies ridden this step go back to their own mass and inertia.
   for (const physics3d_world::ridden &q : w->ridden_bodies) {
@@ -1641,6 +2225,8 @@ vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle) 
   character_slot *c = character_of(ctx, handle);
   if (c == nullptr || c->character->GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
     return vec3{};
+  if (c->ground_soft != 0)
+    return c->ground_soft_velocity;
   return nv(c->character->GetGroundVelocity());
 }
 
@@ -1649,6 +2235,13 @@ body3d_handle character3d_ground_body(const context &ctx, character3d_handle han
   if (c == nullptr || c->character->GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
     return body3d_handle{};
   return handle_of(*ctx.physics3d.world, c->character->GetGroundBodyID());
+}
+
+softbody3d_handle character3d_ground_soft(const context &ctx, character3d_handle handle) {
+  character_slot *c = character_of(ctx, handle);
+  if (c == nullptr || c->character->GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
+    return softbody3d_handle{};
+  return softbody3d_handle{c->ground_soft};
 }
 
 namespace {
@@ -1663,14 +2256,41 @@ public:
 } // namespace
 
 namespace {
-// Everything but sensors, soft bodies and one body.
+// Everything but sensors, soft bodies (unless `soft`) and one body.
 class not_sensor_or final : public JPH::BodyFilter {
 public:
   JPH::BodyID skip;
+  bool soft = false;
   bool ShouldCollideLocked(const JPH::Body &body) const override {
-    return !body.IsSensor() && !body.IsSoftBody() && body.GetObjectLayer() != layers::proxy && body.GetID() != skip;
+    return !body.IsSensor() && (soft || !body.IsSoftBody()) && body.GetObjectLayer() != layers::proxy &&
+           body.GetID() != skip;
   }
 };
+
+// Which soft body, face and vertex a ray or a cast met on `body`.
+soft3d_hit soft_hit_of(const physics3d_world &w, const JPH::Body &body, const JPH::SubShapeID &sub, JPH::RVec3Arg point) {
+  soft3d_hit out;
+  const auto it = w.soft_by_body.find(body.GetID().GetIndexAndSequenceNumber());
+  if (it == w.soft_by_body.end())
+    return out;
+  out.soft = softbody3d_handle{it->second};
+  const auto *shape = static_cast<const JPH::SoftBodyShape *>(body.GetShape());
+  const auto *mp = static_cast<const JPH::SoftBodyMotionProperties *>(body.GetMotionProperties());
+  const u32 face = shape->GetFaceIndex(sub);
+  if (face >= mp->GetFaces().size())
+    return out;
+  out.face = (i32)face;
+  const JPH::Vec3 local(body.GetCenterOfMassTransform().InversedRotationTranslation() * point);
+  f32 best = FLT_MAX;
+  for (const u32 v : mp->GetFaces()[face].mVertex) {
+    const f32 d = (mp->GetVertices()[v].mPosition - local).LengthSq();
+    if (d < best) {
+      best = d;
+      out.vertex = (i32)v;
+    }
+  }
+  return out;
+}
 
 // The minimum translation vector taking `shape` (at `centre`, turned by `turn`)
 // out of the bodies it overlaps: out of the deepest overlap, then look again
@@ -1730,9 +2350,11 @@ namespace {
 // The first thing `shape` (at `centre`, turned by `turn`) meets moving along
 // `motion`; what it already overlaps at the start is not in its way.
 ray3d_hit cast_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg turn, vec3 centre, vec3 motion,
-                   body3d_handle ignore, body3d_handle *body) {
+                   body3d_handle ignore, body3d_handle *body, soft3d_hit *soft = nullptr) {
   if (body != nullptr)
     *body = body3d_handle{};
+  if (soft != nullptr)
+    *soft = soft3d_hit{};
   physics3d_world *w = ctx.physics3d.world.get();
   const f32 reach = length(motion);
   if (w == nullptr || reach < 1e-6f)
@@ -1743,6 +2365,7 @@ ray3d_hit cast_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg tur
   JPH::ShapeCastSettings settings;
   settings.mReturnDeepestPoint = false;
   not_sensor_or filter;
+  filter.soft = soft != nullptr;
   if (const body_slot *s = body_of(ctx, ignore))
     filter.skip = s->id;
   JPH::AllHitCollisionCollector<JPH::CastShapeCollector> hits;
@@ -1755,8 +2378,13 @@ ray3d_hit cast_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg tur
       first = &hit;
   if (first == nullptr)
     return ray3d_hit{};
-  if (body != nullptr)
+  if (soft != nullptr && w->soft_by_body.count(first->mBodyID2.GetIndexAndSequenceNumber()) > 0) {
+    JPH::BodyLockRead lock(w->system.GetBodyLockInterface(), first->mBodyID2);
+    if (lock.Succeeded())
+      *soft = soft_hit_of(*w, lock.GetBody(), first->mSubShapeID2, first->mContactPointOn2);
+  } else if (body != nullptr) {
     *body = handle_by_id(*w, first->mBodyID2);
+  }
   const JPH::Vec3 axis = first->mPenetrationAxis;
   return ray3d_hit{.hit = true,
                    .distance = first->mFraction * reach,
@@ -1784,6 +2412,23 @@ ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec
   if (made.HasError())
     return ray3d_hit{};
   return cast_out(ctx, made.Get().GetPtr(), quat_of(rotation), center, motion, ignore, body);
+}
+
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore, body3d_handle *body, soft3d_hit *soft) {
+  if (soft == nullptr)
+    return physics3d_box_cast(ctx, center, rotation, size, motion, ignore, body);
+  *soft = soft3d_hit{};
+  if (body != nullptr)
+    *body = body3d_handle{};
+  if (ctx.physics3d.world == nullptr || length(motion) < 1e-6f)
+    return ray3d_hit{};
+  const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
+  JPH::ShapeSettings::ShapeResult made =
+      JPH::BoxShapeSettings(half, std::min(JPH::cDefaultConvexRadius, half.ReduceMin() * 0.5f)).Create();
+  if (made.HasError())
+    return ray3d_hit{};
+  return cast_out(ctx, made.Get().GetPtr(), quat_of(rotation), center, motion, ignore, body, soft);
 }
 
 hull3d_handle physics3d_hull_create(context &ctx, const vec3 *points, i32 count) {
@@ -1833,6 +2478,20 @@ ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 posit
   return cast_out(ctx, shape, quat_of(rotation), position, motion, ignore, body);
 }
 
+ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
+                              body3d_handle ignore, body3d_handle *body, soft3d_hit *soft) {
+  if (soft == nullptr)
+    return physics3d_hull_cast(ctx, hull, position, rotation, motion, ignore, body);
+  const JPH::Shape *shape = hull_of(ctx, hull);
+  if (shape == nullptr) {
+    *soft = soft3d_hit{};
+    if (body != nullptr)
+      *body = body3d_handle{};
+    return ray3d_hit{};
+  }
+  return cast_out(ctx, shape, quat_of(rotation), position, motion, ignore, body, soft);
+}
+
 i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 count) {
   const auto *shape = static_cast<const JPH::ConvexHullShape *>(hull_of(ctx, hull));
   if (shape == nullptr)
@@ -1874,6 +2533,45 @@ ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distan
     // From the locked body: handle_of() would lock it a second time.
     if (body != nullptr)
       *body = body3d_handle{(u32)lock.GetBody().GetUserData()};
+  }
+  return ray3d_hit{.hit = true,
+                   .distance = result.mFraction * max_distance,
+                   .point = {(f32)p.GetX(), (f32)p.GetY(), (f32)p.GetZ()},
+                   .normal = normal};
+}
+
+ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body,
+                            soft3d_hit *soft) {
+  if (soft == nullptr)
+    return physics3d_raycast(ctx, ray, max_distance, body);
+  *soft = soft3d_hit{};
+  if (body != nullptr)
+    *body = body3d_handle{};
+  physics3d_world *w = ctx.physics3d.world.get();
+  if (w == nullptr || max_distance <= 0.0f)
+    return ray3d_hit{};
+  const vec3 dir = normalize(ray.direction);
+  const JPH::RRayCast cast{JPH::RVec3(ray.origin.x, ray.origin.y, ray.origin.z), jv(dir * max_distance)};
+  JPH::RayCastResult result;
+  not_sensor_or filter;
+  filter.soft = true;
+  if (!w->system.GetNarrowPhaseQuery().CastRay(cast, result, {}, {}, filter))
+    return ray3d_hit{};
+  const JPH::RVec3 p = cast.GetPointOnRay(result.mFraction);
+  vec3 normal{};
+  JPH::BodyLockRead lock(w->system.GetBodyLockInterface(), result.mBodyID);
+  if (lock.Succeeded()) {
+    const JPH::Body &hit = lock.GetBody();
+    JPH::Vec3 n = hit.GetWorldSpaceSurfaceNormal(result.mSubShapeID2, p);
+    if (hit.IsSoftBody()) {
+      *soft = soft_hit_of(*w, hit, result.mSubShapeID2, p);
+      // A cloth has two sides: the normal faces the ray.
+      if (n.Dot(jv(dir)) > 0.0f)
+        n = -n;
+    } else if (body != nullptr) {
+      *body = body3d_handle{(u32)hit.GetUserData()};
+    }
+    normal = nv(n);
   }
   return ray3d_hit{.hit = true,
                    .distance = result.mFraction * max_distance,
@@ -2567,6 +3265,7 @@ struct soft_params {
   bool cloth;
   u64 user;
   std::vector<u32> pinned; // indices into build.verts
+  bool collide_soft = true, walkable = true;
 };
 
 softbody3d_handle add_soft_body(physics3d_world &w, soft_build &b, JPH::Ref<JPH::SoftBodySharedSettings> shared,
@@ -2599,7 +3298,13 @@ softbody3d_handle add_soft_body(physics3d_world &w, soft_build &b, JPH::Ref<JPH:
         edge, edge, bend,
         p.cloth && anchored ? JPH::SoftBodySharedSettings::ELRAType::GeodesicDistance
                             : JPH::SoftBodySharedSettings::ELRAType::None);
-    shared->CreateConstraints(&attributes, 1, JPH::SoftBodySharedSettings::EBendType::Dihedral);
+    // Bending by distance across each shared edge: Jolt's dihedral bend blew a
+    // 60 x 60 cloth over 3 m apart where it landed, folded flat on the floor.
+    // No bend constraints at all without bending: dihedral ones with an endless
+    // compliance still read a collapsed face's angle.
+    shared->CreateConstraints(&attributes, 1,
+                              p.bend > 0.0f ? JPH::SoftBodySharedSettings::EBendType::Distance
+                                            : JPH::SoftBodySharedSettings::EBendType::None);
   }
   shared->Optimize();
   JPH::SoftBodyCreationSettings settings(shared, JPH::RVec3(p.position.x, p.position.y, p.position.z),
@@ -2624,10 +3329,15 @@ softbody3d_handle add_soft_body(physics3d_world &w, soft_build &b, JPH::Ref<JPH:
   s.user = p.user;
   s.drag = std::max(p.drag, 0.0f);
   s.vertex_inv_mass = inv_mass;
+  s.collide_soft = p.collide_soft;
+  s.walkable = p.walkable;
+  s.radius = settings.mVertexRadius;
+  s.friction = settings.mFriction;
   // Jolt's faces, which Optimize() may have reordered, give the surface.
   for (const JPH::SoftBodySharedSettings::Face &f : shared->mFaces)
     s.indices.insert(s.indices.end(), {f.mVertex[0], f.mVertex[1], f.mVertex[2]});
   w.softs.push_back(std::move(s));
+  w.soft_by_body[id.GetIndexAndSequenceNumber()] = (u32)w.softs.size();
   return softbody3d_handle{(u32)w.softs.size()};
 }
 } // namespace
@@ -2653,7 +3363,9 @@ softbody3d_handle softbody3d_create(context &ctx, const softbody3d_desc &desc) {
                 .radius = 0.01f,
                 .cloth = false,
                 .user = desc.user,
-                .pinned = {}};
+                .pinned = {},
+                .collide_soft = desc.collide_soft,
+                .walkable = desc.walkable};
   std::vector<u32> map;
   switch (desc.kind) {
   case softbody3d_box: {
@@ -2729,8 +3441,8 @@ softbody3d_handle cloth3d_create(context &ctx, const cloth3d_desc &desc) {
                  std::isfinite(desc.size.y) && std::isfinite(desc.mass),
              "cloth3d_create"))
     return softbody3d_handle{};
-  if (desc.columns < 1 || desc.rows < 1 || desc.columns > 180 || desc.rows > 180) {
-    NJIN_WARN("physics3d: cloth3d_create: columns and rows must be 1..180 (%d x %d)", desc.columns, desc.rows);
+  if (desc.columns < 1 || desc.rows < 1 || desc.columns > 512 || desc.rows > 512) {
+    NJIN_WARN("physics3d: cloth3d_create: columns and rows must be 1..512 (%d x %d)", desc.columns, desc.rows);
     return softbody3d_handle{};
   }
   physics3d_world &w = world_of(ctx);
@@ -2762,7 +3474,9 @@ softbody3d_handle cloth3d_create(context &ctx, const cloth3d_desc &desc) {
                 .radius = desc.thickness,
                 .cloth = true,
                 .user = desc.user,
-                .pinned = {}};
+                .pinned = {},
+                .collide_soft = desc.collide_soft,
+                .walkable = desc.walkable};
   for (i32 r = 0; r < rows; r++)
     for (i32 c = 0; c < cols; c++)
       if (((desc.pin_edges & cloth3d_top) && r == 0) || ((desc.pin_edges & cloth3d_bottom) && r == rows - 1) ||
@@ -2777,7 +3491,12 @@ void softbody3d_destroy(context &ctx, softbody3d_handle handle) {
   soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr)
     return;
-  JPH::BodyInterface &bi = ctx.physics3d.world->system.GetBodyInterface();
+  physics3d_world &w = *ctx.physics3d.world;
+  w.soft_by_body.erase(s->id.GetIndexAndSequenceNumber());
+  for (character_slot &c : w.characters)
+    if (c.ground_soft == handle.id)
+      c.ground_soft = 0;
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
   bi.RemoveBody(s->id);
   bi.DestroyBody(s->id);
   if (s->model.id != 0)
@@ -2840,21 +3559,22 @@ model_handle softbody3d_model(context &ctx, softbody3d_handle handle) {
   soft_frame(*ctx.physics3d.world, *s, pos, nrm, s->cloth);
   if (pos.empty())
     return model_handle{};
-  if (pos.size() > 65535) {
-    NJIN_WARN("physics3d: softbody3d_model: %u vertices, at most 65535 in a model", (u32)pos.size());
-    return model_handle{};
-  }
   std::vector<u32> indices = s->indices;
   if (s->cloth) {
     const u32 n = (u32)(pos.size() / 2);
     for (usize f = 0; f + 2 < s->indices.size(); f += 3)
       indices.insert(indices.end(), {s->indices[f] + n, s->indices[f + 2] + n, s->indices[f + 1] + n});
   }
-  s->model = model_create(ctx, mesh3d_data{.positions = pos.data(),
-                                           .normals = nrm.data(),
-                                           .vertex_count = (u32)pos.size(),
-                                           .indices = indices.data(),
-                                           .index_count = (u32)indices.size()});
+  // raylib's indices are 16 bits: a bigger surface is several meshes of one model.
+  if (pos.size() > 65535)
+    s->model = model_store_create_split(ctx.model, pos.data(), nrm.data(), (u32)pos.size(), indices.data(),
+                                        (u32)indices.size());
+  else
+    s->model = model_create(ctx, mesh3d_data{.positions = pos.data(),
+                                             .normals = nrm.data(),
+                                             .vertex_count = (u32)pos.size(),
+                                             .indices = indices.data(),
+                                             .index_count = (u32)indices.size()});
   return s->model;
 }
 
@@ -2960,22 +3680,108 @@ u64 softbody3d_user(const context &ctx, softbody3d_handle handle) {
   return s != nullptr ? s->user : 0;
 }
 
+void softbody3d_draw_debug(context &ctx, softbody3d_handle handle, rgba color) {
+  const soft_slot *s = soft_of(ctx, handle);
+  if (s == nullptr)
+    return;
+  std::vector<vec3> pos;
+  std::vector<bool> pinned;
+  {
+    JPH::BodyLockRead lock(ctx.physics3d.world->system.GetBodyLockInterface(), s->id);
+    if (!lock.Succeeded())
+      return;
+    const JPH::RMat44 xf = lock.GetBody().GetCenterOfMassTransform();
+    const soft_vertices &verts = vertices_of(lock.GetBody());
+    pos.resize(verts.size());
+    pinned.resize(verts.size());
+    for (usize i = 0; i < verts.size(); i++) {
+      pos[i] = world_vec(xf * verts[i].mPosition);
+      pinned[i] = verts[i].mInvMass <= 0.0f;
+    }
+  }
+  // Each edge once: two faces share most of them.
+  std::vector<u64> edges;
+  edges.reserve(s->indices.size());
+  for (usize f = 0; f + 2 < s->indices.size(); f += 3)
+    for (u32 k = 0; k < 3; k++) {
+      u32 a = s->indices[f + k], b = s->indices[f + (k + 1) % 3];
+      if (a > b)
+        std::swap(a, b);
+      edges.push_back(((u64)a << 32) | b);
+    }
+  std::sort(edges.begin(), edges.end());
+  edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+  for (const u64 e : edges)
+    gizmo_line3d(ctx, pos[(usize)(e >> 32)], pos[(usize)(e & 0xffffffffu)], color);
+  for (usize i = 0; i < pos.size(); i++)
+    if (pinned[i])
+      gizmo_point3d(ctx, pos[i], colors::red);
+}
+
+namespace {
+// What every kind of vehicle's chassis is made of.
+struct chassis_desc {
+  vec3 position, rotation, size;
+  model_handle model;
+  vec3 scale, center_of_mass;
+  f32 mass, friction;
+  u64 user;
+};
+
+JPH::RefConst<JPH::Shape> chassis_shape(context &ctx, const chassis_desc &d, const char *what) {
+  body3d_desc chassis{.shape = shape3d_box, .size = d.size, .motion = body3d_dynamic, .model = d.model, .scale = d.scale};
+  JPH::RefConst<JPH::Shape> shape = d.model.id != 0 ? make_model_shape(ctx, chassis) : make_shape(chassis);
+  if (shape == nullptr)
+    return nullptr;
+  JPH::ShapeSettings::ShapeResult offset = JPH::OffsetCenterOfMassShapeSettings(jv(d.center_of_mass), shape).Create();
+  if (offset.HasError()) {
+    NJIN_WARN("physics3d: %s: %s", what, offset.GetError().c_str());
+    return nullptr;
+  }
+  return offset.Get();
+}
+
+// The chassis as a dynamic body in a body slot flagged as the vehicle's.
+JPH::Body *add_chassis(physics3d_world &w, JPH::RefConst<JPH::Shape> shape, const chassis_desc &d, u32 &handle) {
+  JPH::BodyCreationSettings bs(shape, JPH::RVec3(d.position.x, d.position.y, d.position.z), quat_of(d.rotation),
+                               JPH::EMotionType::Dynamic, layers::moving);
+  bs.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+  bs.mMassPropertiesOverride.mMass = std::max(d.mass, 1.0f);
+  bs.mFriction = d.friction;
+  handle = (u32)w.bodies.size() + 1;
+  bs.mUserData = handle;
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  JPH::Body *body = bi.CreateBody(bs);
+  if (body == nullptr) {
+    NJIN_WARN("physics3d: body limit reached");
+    return nullptr;
+  }
+  bi.AddBody(body->GetID(), JPH::EActivation::Activate);
+  w.handle_by_body[body->GetID().GetIndexAndSequenceNumber()] = handle;
+  w.bodies.push_back(body_slot{.id = body->GetID(), .alive = true, .dynamic = true, .user = d.user, .vehicle = true});
+  return body;
+}
+
+vehicle3d_handle add_vehicle(physics3d_world &w, vehicle_slot v) {
+  v.constraint->SetVehicleCollisionTester(v.tester);
+  w.system.AddConstraint(v.constraint);
+  w.system.AddStepListener(v.constraint);
+  w.vehicles.push_back(std::move(v));
+  return vehicle3d_handle{(u32)w.vehicles.size()};
+}
+} // namespace
+
 vehicle3d_handle vehicle3d_create(context &ctx, const vehicle3d_desc &desc) {
   if (refuse(finite3(desc.position) && finite3(desc.rotation) && finite3(desc.size) && finite3(desc.scale) &&
                  finite3(desc.center_of_mass) && std::isfinite(desc.mass),
              "vehicle3d_create"))
     return vehicle3d_handle{};
   physics3d_world &w = world_of(ctx);
-  body3d_desc chassis{.shape = shape3d_box, .size = desc.size, .motion = body3d_dynamic, .model = desc.model,
-                      .scale = desc.scale};
-  JPH::RefConst<JPH::Shape> shape = desc.model.id != 0 ? make_model_shape(ctx, chassis) : make_shape(chassis);
+  const chassis_desc cd{desc.position, desc.rotation, desc.size, desc.model, desc.scale, desc.center_of_mass,
+                        desc.mass,     desc.friction, desc.user};
+  JPH::RefConst<JPH::Shape> shape = chassis_shape(ctx, cd, "vehicle3d_create");
   if (shape == nullptr)
     return vehicle3d_handle{};
-  JPH::ShapeSettings::ShapeResult offset = JPH::OffsetCenterOfMassShapeSettings(jv(desc.center_of_mass), shape).Create();
-  if (offset.HasError()) {
-    NJIN_WARN("physics3d: vehicle3d_create: %s", offset.GetError().c_str());
-    return vehicle3d_handle{};
-  }
   // The wheels: the game's, or four at the bottom corners of the box.
   std::vector<vehicle3d_wheel> wheels;
   if (desc.wheels != nullptr) {
@@ -2997,22 +3803,10 @@ vehicle3d_handle vehicle3d_create(context &ctx, const vehicle3d_desc &desc) {
     NJIN_WARN("physics3d: vehicle3d_create: a vehicle needs at least one wheel");
     return vehicle3d_handle{};
   }
-  JPH::BodyCreationSettings bs(offset.Get(), JPH::RVec3(desc.position.x, desc.position.y, desc.position.z),
-                               quat_of(desc.rotation), JPH::EMotionType::Dynamic, layers::moving);
-  bs.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
-  bs.mMassPropertiesOverride.mMass = std::max(desc.mass, 1.0f);
-  bs.mFriction = desc.friction;
-  const u32 handle = (u32)w.bodies.size() + 1;
-  bs.mUserData = handle;
-  JPH::BodyInterface &bi = w.system.GetBodyInterface();
-  JPH::Body *body = bi.CreateBody(bs);
-  if (body == nullptr) {
-    NJIN_WARN("physics3d: body limit reached");
+  u32 handle = 0;
+  JPH::Body *body = add_chassis(w, shape, cd, handle);
+  if (body == nullptr)
     return vehicle3d_handle{};
-  }
-  bi.AddBody(body->GetID(), JPH::EActivation::Activate);
-  w.handle_by_body[body->GetID().GetIndexAndSequenceNumber()] = handle;
-  w.bodies.push_back(body_slot{.id = body->GetID(), .alive = true, .dynamic = true, .user = desc.user, .vehicle = true});
 
   JPH::VehicleConstraintSettings vs;
   const f32 travel = std::max(desc.suspension, 0.01f);
@@ -3086,11 +3880,132 @@ vehicle3d_handle vehicle3d_create(context &ctx, const vehicle3d_desc &desc) {
         lateral = lateral_friction * suspension_impulse;
       });
   v.tester = new JPH::VehicleCollisionTesterCastCylinder(layers::moving);
-  v.constraint->SetVehicleCollisionTester(v.tester);
-  w.system.AddConstraint(v.constraint);
-  w.system.AddStepListener(v.constraint);
-  w.vehicles.push_back(std::move(v));
-  return vehicle3d_handle{(u32)w.vehicles.size()};
+  return add_vehicle(w, std::move(v));
+}
+
+// After Jolt's motorcycle sample (a 240 kg bike, loosely a Yamaha XJ 900):
+// its lean controller holds the bike up and leans it into turns.
+vehicle3d_handle motorcycle3d_create(context &ctx, const motorcycle3d_desc &desc) {
+  if (refuse(finite3(desc.position) && finite3(desc.rotation) && finite3(desc.size) && finite3(desc.scale) &&
+                 finite3(desc.center_of_mass) && std::isfinite(desc.mass) && std::isfinite(desc.wheelbase) &&
+                 std::isfinite(desc.wheel_radius) && std::isfinite(desc.suspension) && std::isfinite(desc.caster),
+             "motorcycle3d_create"))
+    return vehicle3d_handle{};
+  physics3d_world &w = world_of(ctx);
+  const chassis_desc cd{desc.position, desc.rotation, desc.size, desc.model, desc.scale, desc.center_of_mass,
+                        desc.mass,     desc.friction, desc.user};
+  JPH::RefConst<JPH::Shape> shape = chassis_shape(ctx, cd, "motorcycle3d_create");
+  if (shape == nullptr)
+    return vehicle3d_handle{};
+  u32 handle = 0;
+  JPH::Body *body = add_chassis(w, shape, cd, handle);
+  if (body == nullptr)
+    return vehicle3d_handle{};
+  JPH::VehicleConstraintSettings vs;
+  vs.mMaxPitchRollAngle = JPH::DegreesToRadians(60.0f);
+  const f32 attach_y = -0.9f * desc.size.y * 0.5f;
+  const f32 half_base = std::max(desc.wheelbase * 0.5f, 0.1f);
+  const f32 travel = std::max(desc.suspension, 0.01f);
+  const f32 caster = JPH::DegreesToRadians(clamp(desc.caster, 0.0f, 60.0f));
+  for (int k = 0; k < 2; k++) {
+    const bool front = k == 0;
+    JPH::Ref<JPH::WheelSettingsWV> ws = new JPH::WheelSettingsWV;
+    ws->mPosition = JPH::Vec3(0.0f, attach_y, front ? half_base : -half_base);
+    // Only the front wheel steers: Jolt's wheels steer 70 degrees unless told not to.
+    ws->mMaxSteerAngle = 0.0f;
+    if (front) {
+      ws->mSuspensionDirection = JPH::Vec3(0.0f, -1.0f, std::tan(caster)).Normalized();
+      ws->mSteeringAxis = -ws->mSuspensionDirection;
+      ws->mMaxSteerAngle = JPH::DegreesToRadians(clamp(desc.max_steer, 0.0f, 89.0f));
+    }
+    ws->mRadius = std::max(desc.wheel_radius, 0.05f);
+    ws->mWidth = std::max(desc.wheel_width, 0.02f);
+    ws->mSuspensionMinLength = 0.3f;
+    ws->mSuspensionMaxLength = 0.3f + travel;
+    ws->mSuspensionSpring.mFrequency = front ? 1.5f : 2.0f;
+    ws->mMaxBrakeTorque = std::max(desc.brake_torque, 0.0f) * (front ? 1.0f : 0.5f);
+    ws->mMaxHandBrakeTorque = front ? 0.0f : std::max(desc.brake_torque, 0.0f);
+    vs.mWheels.push_back(JPH::Ref<JPH::WheelSettings>(ws.GetPtr()));
+  }
+  JPH::Ref<JPH::MotorcycleControllerSettings> cs = new JPH::MotorcycleControllerSettings;
+  cs->mMaxLeanAngle = JPH::DegreesToRadians(clamp(desc.max_lean, 0.0f, 80.0f));
+  cs->mEngine.mMaxTorque = std::max(desc.engine_torque, 0.0f);
+  cs->mEngine.mMinRPM = 1000.0f;
+  cs->mEngine.mMaxRPM = std::max(desc.max_rpm, 2000.0f);
+  cs->mTransmission.mShiftDownRPM = 0.2f * cs->mEngine.mMaxRPM;
+  cs->mTransmission.mShiftUpRPM = 0.8f * cs->mEngine.mMaxRPM;
+  cs->mTransmission.mGearRatios = {2.27f, 1.63f, 1.3f, 1.09f, 0.96f, 0.88f};
+  cs->mTransmission.mReverseGearRatios = {-4.0f};
+  cs->mTransmission.mClutchStrength = 2.0f;
+  // One differential drives the back wheel (Jolt needs one even for a single wheel).
+  cs->mDifferentials.resize(1);
+  cs->mDifferentials[0].mLeftWheel = -1;
+  cs->mDifferentials[0].mRightWheel = 1;
+  cs->mDifferentials[0].mDifferentialRatio = 1.93f * 40.0f / 16.0f;
+  vs.mController = cs;
+  vehicle_slot v;
+  v.alive = true;
+  v.kind = vehicle_kind::motorcycle;
+  v.body = body3d_handle{handle};
+  v.constraint = new JPH::VehicleConstraint(*body, vs);
+  v.tester = new JPH::VehicleCollisionTesterCastCylinder(layers::moving, 1.0f);
+  return add_vehicle(w, std::move(v));
+}
+
+// After Jolt's tank sample (4 t): two tracks, each on its road wheels, the
+// last one driven; the end wheels sit higher and do not spring.
+vehicle3d_handle tracked3d_create(context &ctx, const tracked3d_desc &desc) {
+  if (refuse(finite3(desc.position) && finite3(desc.rotation) && finite3(desc.size) && finite3(desc.scale) &&
+                 finite3(desc.center_of_mass) && std::isfinite(desc.mass) && std::isfinite(desc.wheel_radius) &&
+                 std::isfinite(desc.suspension),
+             "tracked3d_create"))
+    return vehicle3d_handle{};
+  physics3d_world &w = world_of(ctx);
+  const chassis_desc cd{desc.position, desc.rotation, desc.size, desc.model, desc.scale, desc.center_of_mass,
+                        desc.mass,     desc.friction, desc.user};
+  JPH::RefConst<JPH::Shape> shape = chassis_shape(ctx, cd, "tracked3d_create");
+  if (shape == nullptr)
+    return vehicle3d_handle{};
+  u32 handle = 0;
+  JPH::Body *body = add_chassis(w, shape, cd, handle);
+  if (body == nullptr)
+    return vehicle3d_handle{};
+  JPH::VehicleConstraintSettings vs;
+  vs.mMaxPitchRollAngle = JPH::DegreesToRadians(60.0f);
+  JPH::Ref<JPH::TrackedVehicleControllerSettings> cs = new JPH::TrackedVehicleControllerSettings;
+  cs->mEngine.mMaxTorque = std::max(desc.engine_torque, 0.0f);
+  cs->mEngine.mMaxRPM = std::max(desc.max_rpm, cs->mEngine.mMinRPM + 100.0f);
+  const i32 n = std::clamp(desc.wheels_per_side, 3, 16);
+  const f32 radius = std::max(desc.wheel_radius, 0.05f);
+  const f32 half_w = desc.size.x * 0.5f, half_h = desc.size.y * 0.5f;
+  const f32 end_z = std::max(desc.size.z * 0.5f - radius * 0.85f, 0.1f);
+  const f32 travel = std::max(desc.suspension, 0.01f);
+  for (int t = 0; t < 2; t++) {
+    JPH::VehicleTrackSettings &track = cs->mTracks[t];
+    track.mMaxBrakeTorque = std::max(desc.brake_torque, 0.0f);
+    for (i32 i = 0; i < n; i++) {
+      const bool end = i == 0 || i == n - 1;
+      JPH::Ref<JPH::WheelSettingsTV> ws = new JPH::WheelSettingsTV;
+      ws->mPosition = JPH::Vec3(t == 0 ? half_w : -half_w, end ? -half_h + 0.5f : -half_h + 0.2f,
+                                end_z - 2.0f * end_z * (f32)i / (f32)(n - 1));
+      ws->mRadius = radius;
+      ws->mWidth = std::max(desc.wheel_width, 0.02f);
+      ws->mSuspensionMinLength = 0.3f;
+      ws->mSuspensionMaxLength = end ? 0.3f : 0.3f + travel;
+      ws->mSuspensionSpring.mFrequency = 1.0f;
+      track.mWheels.push_back((JPH::uint)vs.mWheels.size());
+      vs.mWheels.push_back(JPH::Ref<JPH::WheelSettings>(ws.GetPtr()));
+    }
+    track.mDrivenWheel = track.mWheels.back();
+  }
+  vs.mController = cs;
+  vehicle_slot v;
+  v.alive = true;
+  v.kind = vehicle_kind::tracked;
+  v.body = body3d_handle{handle};
+  v.constraint = new JPH::VehicleConstraint(*body, vs);
+  v.tester = new JPH::VehicleCollisionTesterRay(layers::moving);
+  return add_vehicle(w, std::move(v));
 }
 
 void vehicle3d_destroy(context &ctx, vehicle3d_handle handle) {
@@ -3117,6 +4032,28 @@ void vehicle3d_set_input(context &ctx, vehicle3d_handle handle, f32 throttle, f3
   v->steer = clamp(steer, -1.0f, 1.0f);
   v->brake = clamp(brake, 0.0f, 1.0f);
   v->handbrake = clamp(handbrake, 0.0f, 1.0f);
+  v->tracks = false;
+}
+
+void vehicle3d_set_tracks(context &ctx, vehicle3d_handle handle, f32 left, f32 right, f32 brake) {
+  vehicle_slot *v = vehicle_of(ctx, handle);
+  if (v == nullptr || v->kind != vehicle_kind::tracked ||
+      refuse(std::isfinite(left) && std::isfinite(right) && std::isfinite(brake), "vehicle3d_set_tracks"))
+    return;
+  v->left = clamp(left, -1.0f, 1.0f);
+  v->right = clamp(right, -1.0f, 1.0f);
+  v->brake = clamp(brake, 0.0f, 1.0f);
+  v->tracks = true;
+}
+
+f32 vehicle3d_track_speed(const context &ctx, vehicle3d_handle handle, i32 side) {
+  const vehicle_slot *v = vehicle_of(ctx, handle);
+  if (v == nullptr || v->kind != vehicle_kind::tracked || side < 0 || side > 1)
+    return 0.0f;
+  const JPH::VehicleTrack &track =
+      static_cast<const JPH::TrackedVehicleController *>(v->constraint->GetController())->GetTracks()[side];
+  const f32 radius = v->constraint->GetWheel(track.mDrivenWheel)->GetSettings()->mRadius;
+  return track.mAngularVelocity * radius;
 }
 
 body3d_handle vehicle3d_body(const context &ctx, vehicle3d_handle handle) {
@@ -3144,20 +4081,76 @@ bool vehicle3d_wheel_grounded(const context &ctx, vehicle3d_handle handle, i32 w
          v->constraint->GetWheel((JPH::uint)wheel)->HasContact();
 }
 
+namespace {
+// A motorcycle's controller is a wheeled one; a tracked vehicle's is its own.
+const JPH::VehicleEngine &engine_of(const vehicle_slot &v) {
+  if (v.kind == vehicle_kind::tracked)
+    return static_cast<const JPH::TrackedVehicleController *>(v.constraint->GetController())->GetEngine();
+  return static_cast<const JPH::WheeledVehicleController *>(v.constraint->GetController())->GetEngine();
+}
+
+const JPH::VehicleTransmission &transmission_of(const vehicle_slot &v) {
+  if (v.kind == vehicle_kind::tracked)
+    return static_cast<const JPH::TrackedVehicleController *>(v.constraint->GetController())->GetTransmission();
+  return static_cast<const JPH::WheeledVehicleController *>(v.constraint->GetController())->GetTransmission();
+}
+} // namespace
+
 f32 vehicle3d_rpm(const context &ctx, vehicle3d_handle handle) {
   const vehicle_slot *v = vehicle_of(ctx, handle);
-  if (v == nullptr)
-    return 0.0f;
-  return static_cast<const JPH::WheeledVehicleController *>(v->constraint->GetController())->GetEngine().GetCurrentRPM();
+  return v != nullptr ? engine_of(*v).GetCurrentRPM() : 0.0f;
 }
 
 i32 vehicle3d_gear(const context &ctx, vehicle3d_handle handle) {
   const vehicle_slot *v = vehicle_of(ctx, handle);
+  return v != nullptr ? transmission_of(*v).GetCurrentGear() : 0;
+}
+
+void vehicle3d_draw_debug(context &ctx, vehicle3d_handle handle, rgba color) {
+  const vehicle_slot *v = vehicle_of(ctx, handle);
   if (v == nullptr)
-    return 0;
-  return static_cast<const JPH::WheeledVehicleController *>(v->constraint->GetController())
-      ->GetTransmission()
-      .GetCurrentGear();
+    return;
+  physics3d_world &w = *ctx.physics3d.world;
+  JPH::RMat44 body_xf, com_xf;
+  JPH::AABox box;
+  {
+    JPH::BodyLockRead lock(w.system.GetBodyLockInterface(), w.bodies[v->body.id - 1].id);
+    if (!lock.Succeeded())
+      return;
+    body_xf = lock.GetBody().GetWorldTransform();
+    com_xf = lock.GetBody().GetCenterOfMassTransform();
+    box = lock.GetBody().GetShape()->GetLocalBounds();
+  }
+  // The chassis box: its shape's bounds, round its centre of mass.
+  vec3 corner[8];
+  for (u32 i = 0; i < 8; i++) {
+    const JPH::Vec3 local((i & 1) ? box.mMax.GetX() : box.mMin.GetX(), (i & 2) ? box.mMax.GetY() : box.mMin.GetY(),
+                          (i & 4) ? box.mMax.GetZ() : box.mMin.GetZ());
+    corner[i] = world_vec(com_xf * local);
+  }
+  for (u32 i = 0; i < 8; i++)
+    for (u32 bit : {1u, 2u, 4u})
+      if ((i & bit) == 0)
+        gizmo_line3d(ctx, corner[i], corner[i | bit], color);
+  for (JPH::uint i = 0; i < (JPH::uint)v->constraint->GetWheels().size(); i++) {
+    const JPH::Wheel *wheel = v->constraint->GetWheel(i);
+    const JPH::WheelSettings *ws = wheel->GetSettings();
+    // Axle on y, up on x (as vehicle3d_wheel_transform); the rim round the axle.
+    const JPH::RMat44 m = v->constraint->GetWheelWorldTransform(i, JPH::Vec3::sAxisY(), JPH::Vec3::sAxisX());
+    const vec3 centre = world_vec(m.GetTranslation());
+    const vec3 axle = nv(m.GetAxisY()), a = nv(m.GetAxisX()), b = nv(m.GetAxisZ());
+    constexpr int segments = 16;
+    for (int k = 0; k < segments; k++) {
+      const f32 t0 = 2.0f * pi * (f32)k / segments, t1 = 2.0f * pi * (f32)(k + 1) / segments;
+      gizmo_line3d(ctx, centre + (a * std::cos(t0) + b * std::sin(t0)) * ws->mRadius,
+                   centre + (a * std::cos(t1) + b * std::sin(t1)) * ws->mRadius, color);
+    }
+    gizmo_line3d(ctx, centre - axle * (ws->mWidth * 0.5f), centre + axle * (ws->mWidth * 0.5f), color);
+    // The suspension, from where it is fixed on the body to the wheel's centre.
+    gizmo_line3d(ctx, world_vec(body_xf * ws->mPosition), centre, colors::white);
+    if (wheel->HasContact())
+      gizmo_point3d(ctx, world_vec(wheel->GetContactPosition()), colors::yellow);
+  }
 }
 
 void physics3d_set_gravity(context &ctx, vec3 gravity) {

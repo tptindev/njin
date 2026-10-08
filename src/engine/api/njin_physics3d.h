@@ -214,6 +214,15 @@ vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle);
 /// @return Body, hoặc không hợp lệ nếu không đứng trên body nào.
 body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle);
 
+/// Vật mềm mà nhân vật đang đứng lên (nệm, bạt nhún, softbody3d_desc::walkable).
+/// Khi đó character3d_ground_body() không hợp lệ, còn character3d_ground_velocity()
+/// là vận tốc của mặt vật mềm dưới chân: cộng vào cú nhảy để bật cao hơn khi
+/// bạt đang nảy lên.
+/// @param ctx Context của engine.
+/// @param handle Nhân vật.
+/// @return Vật mềm, hoặc không hợp lệ nếu không đứng trên vật mềm nào.
+softbody3d_handle character3d_ground_soft(const context &ctx, character3d_handle handle);
+
 /// Vector đẩy ngắn nhất (minimum translation vector) đưa viên nang `a`–`b` bán
 /// kính `radius` ra khỏi mọi body nó đang lấn vào (không tính nhân vật, sensor và
 /// `ignore`): dời viên nang theo vector này là vừa hết chạm. Để tay, thân của một
@@ -261,6 +270,29 @@ vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 siz
 ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
                              body3d_handle ignore = {}, body3d_handle *body = nullptr);
 
+/// Chỗ một tia hay một khối đẩy trúng vật mềm, cho các bản physics3d_raycast(),
+/// physics3d_box_cast() và physics3d_hull_cast() có tham số `soft`.
+struct soft3d_hit {
+  softbody3d_handle soft{}; ///< Vật mềm bị trúng; không hợp lệ nếu trúng body hay không trúng gì.
+  i32 face = -1;            ///< Tam giác bị trúng: tam giác thứ `face` của softbody3d_indices() (chỉ số `3 * face`).
+  i32 vertex = -1;          ///< Đỉnh của tam giác đó gần chỗ trúng nhất: để ghim, kéo, hay đẩy chỗ bị bắn.
+};
+
+/// Như physics3d_box_cast(), nhưng hộp chạm cả vật mềm (rèm, vải, bóng), không
+/// chỉ body. Chạm vật mềm trước thì `*body` không hợp lệ và `*soft` cho biết vật mềm
+/// nào, tam giác nào; chạm body trước thì `soft->soft` không hợp lệ.
+/// @param ctx Context của engine.
+/// @param center Tâm hộp lúc bắt đầu, thế giới.
+/// @param rotation Góc xoay, độ, cùng thứ tự với njin::transform3d.
+/// @param size Kích thước theo x, y, z của hộp.
+/// @param motion Hướng và quãng đường đẩy.
+/// @param ignore Body không tính. Không hợp lệ là tính hết.
+/// @param body Nếu khác nullptr, nhận body bị chạm.
+/// @param soft Nhận vật mềm bị chạm; nullptr thì bỏ qua vật mềm, như bản không có tham số này.
+/// @return Như physics3d_box_cast().
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore, body3d_handle *body, soft3d_hit *soft);
+
 /// Dựng một khối lồi từ các điểm (khối nhỏ nhất bọc hết chúng), để dò va chạm
 /// bằng đúng hình của một bộ phận: bàn chân, bàn tay lấy từ model_bone_points().
 /// Khối không phải là body: nó không va chạm, chỉ dùng cho physics3d_hull_push()
@@ -303,6 +335,19 @@ vec3 physics3d_hull_push(const context &ctx, hull3d_handle hull, vec3 position, 
 ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
                               body3d_handle ignore = {}, body3d_handle *body = nullptr);
 
+/// Như physics3d_hull_cast(), chạm cả vật mềm như bản physics3d_box_cast() có `soft`.
+/// @param ctx Context của engine.
+/// @param hull Khối.
+/// @param position Gốc hệ trục riêng của khối lúc bắt đầu, thế giới.
+/// @param rotation Góc xoay, độ, cùng thứ tự với njin::transform3d.
+/// @param motion Hướng và quãng đường đẩy.
+/// @param ignore Body không tính. Không hợp lệ là tính hết.
+/// @param body Nếu khác nullptr, nhận body bị chạm.
+/// @param soft Nhận vật mềm bị chạm; nullptr thì bỏ qua vật mềm.
+/// @return Như physics3d_box_cast(); không chạm gì nếu handle không hợp lệ.
+ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
+                              body3d_handle ignore, body3d_handle *body, soft3d_hit *soft);
+
 /// Các cạnh của khối, từng cặp điểm trong hệ trục riêng của nó, để vẽ debug.
 /// @param ctx Context của engine.
 /// @param hull Khối.
@@ -320,6 +365,27 @@ i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 
 /// @return Điểm chạm gần nhất, nếu có.
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance,
                             body3d_handle *body = nullptr);
+
+/// Như physics3d_raycast(), nhưng tia trúng cả vật mềm: bắn vào tấm rèm thì trúng
+/// rèm, không đi xuyên qua. Trúng vật mềm trước thì `*body` không hợp lệ và `*soft`
+/// cho biết vật mềm, tam giác và đỉnh gần nhất (để đẩy chỗ bị bắn bằng
+/// softbody3d_add_impulse() hay ghim nó); trúng body trước thì `soft->soft` không hợp lệ.
+///
+/// @code
+/// njin::body3d_handle body;
+/// njin::soft3d_hit soft;
+/// const njin::ray3d_hit hit = njin::physics3d_raycast(ctx, shot, 100.0f, &body, &soft);
+/// if (hit.hit && soft.soft.id != 0)
+///   njin::softbody3d_add_impulse(ctx, soft.soft, shot.direction * 2.0f);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param ray Tia (hướng độ dài 1).
+/// @param max_distance Xa nhất còn tính, đơn vị thế giới.
+/// @param body Nếu khác nullptr, nhận body bị trúng (không hợp lệ nếu trượt hay trúng vật mềm).
+/// @param soft Nhận vật mềm bị trúng; nullptr thì bỏ qua vật mềm, như bản không có tham số này.
+/// @return Điểm chạm gần nhất, nếu có.
+ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body,
+                            soft3d_hit *soft);
 
 /// Một sự kiện chạm của bước mô phỏng vừa rồi: hai body, hoặc một body và một
 /// nhân vật, bắt đầu hay thôi chạm nhau.
@@ -591,13 +657,24 @@ struct softbody3d_desc {
   const u32 *pinned = nullptr;
   u32 pinned_count = 0;             ///< Số phần tử của `pinned`.
   u64 user = 0;                     ///< Số của game, đọc lại bằng softbody3d_user().
+  /// Va chạm với các vật mềm khác cũng bật cờ này: hai tấm vải chồng lên nhau,
+  /// bóng rơi lên nệm. Mỗi đỉnh giữ cách mặt của vật kia một khoảng bằng độ dày
+  /// của hai vật. `false` là đi xuyên qua vật mềm khác (rẻ hơn, khi chúng không
+  /// bao giờ gặp nhau).
+  bool collide_soft = true;
+  /// Nhân vật đứng được trên mặt trên của nó (nệm, bạt nhún, khối thạch), lún
+  /// xuống theo sức nặng của nhân vật (njin::character3d_desc::mass). Mặt dựng
+  /// đứng (rèm) thì nhân vật vẫn đi xuyên, đẩy các đỉnh sang bên. `false` là nhân
+  /// vật không bao giờ đứng lên nó.
+  bool walkable = true;
 };
 
 /// Tạo một vật mềm. Vật mềm va chạm với mọi body (rơi lên sàn, quấn quanh
-/// thùng), không va với nhau. Nhân vật (character3d_create()) đẩy các đỉnh của
-/// nó sang bên khi đi qua chứ không đứng lên nó, nên một tấm rèm không chặn
-/// đường. physics3d_raycast() và các hàm dò `physics3d_*_push`, `_cast` đi
-/// xuyên qua vật mềm.
+/// thùng) và với nhau (njin::softbody3d_desc::collide_soft). Nhân vật
+/// (character3d_create()) đứng được trên mặt trên của nó, còn mặt đứng thì nhân
+/// vật đẩy các đỉnh sang bên khi đi qua, nên một tấm rèm không chặn đường.
+/// physics3d_raycast() và các hàm dò `physics3d_*_push`, `_cast` đi xuyên qua vật
+/// mềm; các bản có tham số njin::soft3d_hit thì trúng nó.
 ///
 /// @code
 /// // Quả bóng nảy: mặt cầu có áp suất, rơi từ độ cao 3 m.
@@ -628,8 +705,8 @@ struct cloth3d_desc {
   vec3 position{0.0f, 0.0f, 0.0f}; ///< Tâm tấm vải.
   vec3 rotation{0.0f, 0.0f, 0.0f}; ///< Góc xoay, độ, cùng thứ tự với njin::transform3d.
   vec2 size{2.0f, 2.0f};           ///< Chiều rộng (x) và chiều cao (y).
-  i32 columns = 20;                ///< Số ô theo chiều rộng, 1..180.
-  i32 rows = 20;                   ///< Số ô theo chiều cao, 1..180.
+  i32 columns = 20;                ///< Số ô theo chiều rộng, 1..512.
+  i32 rows = 20;                   ///< Số ô theo chiều cao, 1..512.
   f32 mass = 0.5f;                 ///< Khối lượng cả tấm, kg.
   f32 stiffness = 1.0f;            ///< Độ cứng của sợi vải, 0 (dãn) .. 1 (không dãn).
   f32 bend = 0.05f;                ///< Độ cứng khi gập, 0 (lụa) .. 1 (bìa cứng).
@@ -643,6 +720,8 @@ struct cloth3d_desc {
   const u32 *pinned = nullptr;     ///< Các đỉnh bị ghim thêm (góc trên của lá cờ...).
   u32 pinned_count = 0;            ///< Số phần tử của `pinned`.
   u64 user = 0;                    ///< Số của game, đọc lại bằng softbody3d_user().
+  bool collide_soft = true;        ///< Như njin::softbody3d_desc::collide_soft: hai tấm vải không xuyên qua nhau.
+  bool walkable = true;            ///< Như njin::softbody3d_desc::walkable: đứng được trên tấm vải nằm ngang.
 };
 
 /// Tạo một tấm vải: lá cờ, rèm, áo choàng, khăn trải bàn. Là một vật mềm như
@@ -703,8 +782,8 @@ i32 softbody3d_indices(const context &ctx, softbody3d_handle handle, u32 *out, i
 /// model_unload() nó, softbody3d_destroy() làm việc đó. Vải có cả mặt sau.
 /// @param ctx Context của engine.
 /// @param handle Vật mềm.
-/// @return Model, hoặc không hợp lệ nếu handle không hợp lệ hay vật quá nhiều
-/// đỉnh cho một model (65535, vải tính gấp đôi).
+/// @return Model, hoặc không hợp lệ nếu handle không hợp lệ. Vật nhiều đỉnh (quá
+/// 65535, vải tính gấp đôi) được chia thành nhiều lưới trong cùng một model.
 model_handle softbody3d_model(context &ctx, softbody3d_handle handle);
 
 /// Đỉnh gần `point` nhất, để ghim hay kéo một chỗ của vật mềm.
@@ -758,6 +837,13 @@ vec3 softbody3d_position(const context &ctx, softbody3d_handle handle);
 /// @param handle Vật mềm.
 /// @return Số đó, hoặc 0 nếu handle không hợp lệ.
 u64 softbody3d_user(const context &ctx, softbody3d_handle handle);
+
+/// Vẽ vật mềm bằng gizmo (njin_gizmo.h) cho frame này: các cạnh của mặt, và đỉnh
+/// bị ghim là chấm đỏ. Gọi mỗi frame, ở phase nào cũng được.
+/// @param ctx Context của engine.
+/// @param handle Vật mềm.
+/// @param color Màu các cạnh.
+void softbody3d_draw_debug(context &ctx, softbody3d_handle handle, rgba color = {0.3f, 0.9f, 1.0f, 1.0f});
 
 /// Một bánh xe của njin::vehicle3d_desc.
 struct vehicle3d_wheel {
@@ -825,7 +911,10 @@ vehicle3d_handle vehicle3d_create(context &ctx, const vehicle3d_desc &desc);
 /// @param handle Xe.
 void vehicle3d_destroy(context &ctx, vehicle3d_handle handle);
 
-/// Đặt cách lái cho bước vật lý tới. Giữ nguyên cho tới lần gọi sau.
+/// Đặt cách lái cho bước vật lý tới. Giữ nguyên cho tới lần gọi sau. Dùng cho mọi
+/// loại xe: xe máy (motorcycle3d_create()) nghiêng vào cua theo `steer`; xe bánh
+/// xích (tracked3d_create()) rẽ bằng hai dải xích, quay tại chỗ khi gần đứng yên mà
+/// chỉ lái không ga, và `handbrake` là phanh.
 /// @param ctx Context của engine.
 /// @param handle Xe.
 /// @param throttle Ga, -1 (lùi) .. 1 (tiến). Đang chạy tới mà ga âm thì xe phanh trước, dừng hẳn rồi mới lùi.
@@ -874,6 +963,106 @@ f32 vehicle3d_rpm(const context &ctx, vehicle3d_handle handle);
 /// @param handle Xe.
 /// @return Số, 0 nếu handle không hợp lệ.
 i32 vehicle3d_gear(const context &ctx, vehicle3d_handle handle);
+
+/// Mô tả một xe máy cho motorcycle3d_create(): thân là một body động hình hộp
+/// `size` (hoặc bao lồi của `model`), một bánh trước lái trên phuộc nghiêng, một
+/// bánh sau kéo. Đầu xe hướng +z như njin::vehicle3d_desc. Số mặc định là một xe
+/// máy 240 kg (theo mẫu xe máy của Jolt), chạy ổn không cần chỉnh.
+struct motorcycle3d_desc {
+  vec3 position{0.0f, 0.0f, 0.0f};    ///< Tâm thân xe.
+  vec3 rotation{0.0f, 0.0f, 0.0f};    ///< Góc xoay, độ, cùng thứ tự với njin::transform3d.
+  vec3 size{0.4f, 0.6f, 0.8f};        ///< Hộp của thân xe: rộng (x), cao (y), dài (z).
+  model_handle model{};               ///< Lấy thân xe từ bao lồi của model này thay cho `size`.
+  vec3 scale{1.0f, 1.0f, 1.0f};       ///< Tỉ lệ của `model`.
+  f32 mass = 240.0f;                  ///< Khối lượng cả xe và người lái, kg.
+  vec3 center_of_mass{0.0f, -0.3f, 0.0f}; ///< Trọng tâm so với tâm thân xe.
+  f32 wheelbase = 1.5f;               ///< Khoảng cách giữa hai bánh, đơn vị thế giới.
+  f32 wheel_radius = 0.31f;           ///< Bán kính bánh.
+  f32 wheel_width = 0.05f;            ///< Bề rộng bánh.
+  f32 suspension = 0.2f;              ///< Hành trình giảm xóc.
+  f32 caster = 30.0f;                 ///< Góc nghiêng của phuộc trước, độ.
+  f32 max_steer = 30.0f;              ///< Góc lái tối đa, độ. Engine tự giảm khi xe chạy nhanh để xe không đổ.
+  f32 max_lean = 45.0f;               ///< Góc nghiêng tối đa khi vào cua, độ.
+  f32 engine_torque = 150.0f;         ///< Mô-men xoắn lớn nhất của động cơ, N·m.
+  f32 max_rpm = 10000.0f;             ///< Vòng tua lớn nhất. Hộp số tự động, sáu số.
+  f32 brake_torque = 500.0f;          ///< Lực phanh bánh trước, N·m; bánh sau một nửa.
+  f32 friction = 0.5f;                ///< Ma sát của thân xe (khi đổ, khi quệt tường), 0..1.
+  u64 user = 0;                       ///< body3d_user() của thân xe.
+};
+
+/// Tạo một xe máy (bộ điều khiển xe máy của Jolt): một lò xo giữ xe đứng thẳng
+/// và nghiêng vào cua theo tốc độ và góc lái, nên xe không đổ khi đứng yên hay
+/// chạy chậm. Là một njin::vehicle3d_handle: lái bằng vehicle3d_set_input() (phanh
+/// tay khóa bánh sau), vẽ bằng vehicle3d_body() và vehicle3d_wheel_transform(),
+/// mọi hàm `vehicle3d_*` dùng được.
+///
+/// @code
+/// bike = njin::motorcycle3d_create(ctx, {.position = {0, 1, 0}});
+/// // Mỗi bước cố định: ga, lái, phanh.
+/// njin::vehicle3d_set_input(ctx, bike, gas, steer, brake, 0.0f);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Mô tả xe.
+/// @return Handle, hoặc không hợp lệ nếu thân xe không dựng được.
+vehicle3d_handle motorcycle3d_create(context &ctx, const motorcycle3d_desc &desc);
+
+/// Mô tả một xe bánh xích (xe tăng, máy xúc) cho tracked3d_create(): thân là một
+/// body động hình hộp `size` (hoặc bao lồi của `model`), mỗi bên một dải xích chạy
+/// trên `wheels_per_side` bánh, bánh cuối mỗi bên là bánh kéo. Số mặc định là một
+/// xe tăng 4 tấn (theo mẫu xe tăng của Jolt).
+struct tracked3d_desc {
+  vec3 position{0.0f, 0.0f, 0.0f};    ///< Tâm thân xe.
+  vec3 rotation{0.0f, 0.0f, 0.0f};    ///< Góc xoay, độ, cùng thứ tự với njin::transform3d.
+  vec3 size{3.4f, 1.0f, 6.4f};        ///< Hộp của thân xe: rộng (x), cao (y), dài (z).
+  model_handle model{};               ///< Lấy thân xe từ bao lồi của model này thay cho `size`.
+  vec3 scale{1.0f, 1.0f, 1.0f};       ///< Tỉ lệ của `model`.
+  f32 mass = 4000.0f;                 ///< Khối lượng, kg.
+  vec3 center_of_mass{0.0f, -0.5f, 0.0f}; ///< Trọng tâm so với tâm thân xe.
+  i32 wheels_per_side = 9;            ///< Số bánh mỗi bên, 3..16: hai bánh đầu cuối nâng cao, các bánh giữa đỡ xe.
+  f32 wheel_radius = 0.3f;            ///< Bán kính bánh.
+  f32 wheel_width = 0.1f;             ///< Bề rộng bánh (dải xích).
+  f32 suspension = 0.2f;              ///< Hành trình giảm xóc của các bánh giữa.
+  f32 engine_torque = 500.0f;         ///< Mô-men xoắn lớn nhất của động cơ, N·m.
+  f32 max_rpm = 6000.0f;              ///< Vòng tua lớn nhất. Hộp số tự động.
+  f32 brake_torque = 15000.0f;        ///< Lực phanh mỗi dải xích, N·m.
+  f32 friction = 0.5f;                ///< Ma sát của thân xe, 0..1.
+  u64 user = 0;                       ///< body3d_user() của thân xe.
+};
+
+/// Tạo một xe bánh xích (bộ điều khiển xe xích của Jolt): rẽ bằng cách cho hai
+/// dải xích chạy khác tốc độ, quay tại chỗ khi chúng chạy ngược chiều nhau. Là
+/// một njin::vehicle3d_handle: vehicle3d_set_input() lái như ô tô (đứng yên mà chỉ
+/// lái thì xe quay tại chỗ), vehicle3d_set_tracks() điều khiển từng dải xích,
+/// vehicle3d_track_speed() cho tốc độ xích để cuộn ảnh của nó.
+/// @param ctx Context của engine.
+/// @param desc Mô tả xe.
+/// @return Handle, hoặc không hợp lệ nếu thân xe không dựng được.
+vehicle3d_handle tracked3d_create(context &ctx, const tracked3d_desc &desc);
+
+/// Điều khiển thẳng hai dải xích của xe bánh xích cho bước vật lý tới, giữ nguyên
+/// tới lần gọi sau: mỗi bên -1 (lùi hết cỡ) .. 1 (tiến hết cỡ). `left = 1, right =
+/// -1` là quay tại chỗ sang phải. Xe không phải bánh xích thì bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Xe bánh xích (tracked3d_create()).
+/// @param left Dải xích trái (phía +x).
+/// @param right Dải xích phải (phía -x).
+/// @param brake Phanh, 0..1.
+void vehicle3d_set_tracks(context &ctx, vehicle3d_handle handle, f32 left, f32 right, f32 brake);
+
+/// Tốc độ của một dải xích, để cuộn ảnh xích theo đúng tốc độ xe chạy.
+/// @param ctx Context của engine.
+/// @param handle Xe bánh xích.
+/// @param side 0 là dải trái (+x), 1 là dải phải (-x).
+/// @return Đơn vị thế giới mỗi giây, âm khi xích chạy lùi; 0 nếu không phải xe bánh xích.
+f32 vehicle3d_track_speed(const context &ctx, vehicle3d_handle handle, i32 side);
+
+/// Vẽ xe bằng gizmo (njin_gizmo.h) cho frame này: hộp thân xe, mỗi bánh là một
+/// vòng tròn với trục, giảm xóc từ chỗ gắn tới tâm bánh, và điểm bánh chạm đất
+/// (vàng). Gọi mỗi frame, ở phase nào cũng được.
+/// @param ctx Context của engine.
+/// @param handle Xe.
+/// @param color Màu thân và bánh.
+void vehicle3d_draw_debug(context &ctx, vehicle3d_handle handle, rgba color = {1.0f, 0.6f, 0.2f, 1.0f});
 
 /// Component: entity đi theo một body vật lý. Engine đọc và ghi
 /// njin::transform3d của entity quanh mỗi bước mô phỏng:

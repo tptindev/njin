@@ -227,16 +227,29 @@ To release: edit that header, add a section here, commit, then
   hollow sphere, or the surface of a game mesh or a loaded model (vertices at
   the same place merged), with `stiffness`, `bend`, `pressure` (Pa at the
   starting shape, so a ball stays round and squashes when it lands), friction,
-  damping and pinned vertices. They collide with every body, not with each
-  other. Characters push them aside through a kinematic capsule that only soft
-  bodies meet, so a curtain parts instead of blocking the way; raycasts and the
-  `physics3d_*_push`/`_cast` queries pass through them.
+  damping and pinned vertices. They collide with every body, and with each
+  other (`softbody3d_desc::collide_soft`, `cloth3d_desc::collide_soft`, on by
+  default): Jolt has no soft-soft collisions, so before each step the engine
+  keeps every vertex both thicknesses off the other body's faces, by velocity
+  (a cloth dropped on a hammock stays on it; two 40 x 40 cloths lying on each
+  other cost about 4 to 5 ms a step on an RTX 3050 Laptop's CPU, Release).
+  Characters stand on their upper side (`walkable`, on by default), pressing
+  the vertices under their feet with their weight, and still walk through an
+  upright face (a curtain parts, through a kinematic capsule that only soft
+  bodies meet); `character3d_ground_soft()` gives the soft body stood on and
+  `character3d_ground_velocity()` its surface's velocity. Raycasts and the
+  `physics3d_*_push`/`_cast` queries pass through them; new overloads of
+  `physics3d_raycast()`, `physics3d_box_cast()` and `physics3d_hull_cast()`
+  taking a `soft3d_hit` hit them and report the soft body, face and nearest
+  vertex.
 - Cloth: `cloth3d_create()` makes a rectangular sheet (a flag, a curtain, a
   cape, a tablecloth) as a soft body, with edges pinned by `pin_edges`
   (`cloth3d_top`, ...) or single vertices by `pinned`, long-range attachments to
   the pins so it does not stretch, and a `thickness` that keeps it off surfaces.
 - For every soft body: `softbody3d_model()`, a model of its current shape
-  updated after each physics step (cloth gets back faces), for draw_model();
+  updated after each physics step (cloth gets back faces; past 65535
+  vertices it is split into several meshes of one model), for draw_model();
+  `softbody3d_draw_debug()` draws its edges and pins with gizmos;
   `softbody3d_vertices()`, `softbody3d_normals()` and `softbody3d_indices()` to
   draw it yourself; `softbody3d_pin()`, `softbody3d_move_pinned()` (a cape
   pinned to moving shoulders), `softbody3d_nearest()`;
@@ -256,6 +269,16 @@ To release: edit that header, add a section here, commit, then
   the same longitudinal grip as Jolt's own vehicle sample; with Jolt's plain
   limit the wheels slipped every other step and the gearbox never left first
   gear.
+- Motorcycles and tracked vehicles: `motorcycle3d_create()` on Jolt's
+  `MotorcycleController` (a raked steering front wheel, a driven rear one, a
+  lean spring that holds the bike up and leans it into turns; defaults after
+  Jolt's 240 kg sample) and `tracked3d_create()` on its
+  `TrackedVehicleController` (two tracks over `wheels_per_side` wheels; steering
+  alone while about stopped turns it on the spot). Both are `vehicle3d_handle`s
+  driven by `vehicle3d_set_input()`; `vehicle3d_set_tracks()` drives each track,
+  `vehicle3d_track_speed()` gives its speed. `vehicle3d_draw_debug()` draws any
+  vehicle's chassis, wheels, suspension and ground contacts with gizmos.
+- Cloth takes up to 512 x 512 cells (was 180).
 - `body3d_carry()`: for the next step a dynamic body carries an extra weight
   at a point (someone hanging on it or climbing it), the same way it carries
   a character standing on it: a board leant on a wall slips as a climber goes

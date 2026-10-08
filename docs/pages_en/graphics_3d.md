@@ -332,10 +332,12 @@ njin::shape3d, so an object and the shape that draws it share their numbers.
 | Contact events | physics3d_contact_count(), physics3d_contact() | Knowing what started or stopped touching what |
 | Joint | joint3d_create() | Hinged doors, seesaws, chains, pistons |
 | Ragdoll | ragdoll3d_create() | A character falling or hit: the model's skeleton follows physics |
-| Soft body | softbody3d_create() | Rubber ball, mattress, jelly block: deforms on impact, held round by pressure |
+| Soft body | softbody3d_create() | Rubber ball, mattress, jelly block: deforms on impact, held round by pressure; soft bodies collide with each other, characters can stand on them |
 | Cloth | cloth3d_create() | Flag, curtain, cape: pinned in place, blown by the wind |
 | Wheeled vehicle | vehicle3d_create() | Car: engine, automatic gearbox, steering, brakes, suspension |
-| Ray | physics3d_raycast() | Bullets, line of sight, a camera that does not go through walls; returns the body hit, passes through sensors |
+| Motorcycle | motorcycle3d_create() | Two-wheeler: keeps its balance, leans into turns |
+| Tracked vehicle | tracked3d_create() | Tank, excavator: steers with its two tracks, turns on the spot |
+| Ray | physics3d_raycast() | Bullets, line of sight, a camera that does not go through walls; returns the body hit, passes through sensors; the version with njin::soft3d_hit hits soft bodies too |
 
 The engine simulates in `phase_fixed_update`, **right after** the game's systems in that phase: the game
 sets a velocity or a target position, then physics runs in the same step. A character is driven by
@@ -501,14 +503,40 @@ njin::softbody3d_handle and share the `softbody3d_*` functions.
 rises, like a balloon. A 1 kg ball of radius 0.5 needs about 50 (soft, sinks in when it lands) to 300 (taut);
 more than that and the body swells beyond its starting size.
 
-Soft bodies collide with every body but not with each other. Characters **push** soft bodies aside as they
-walk through rather than standing on them, so a curtain does not block the way. physics3d_raycast() and the
-`physics3d_*_push`, `_cast` functions pass through soft bodies.
+Soft bodies collide with every body, and with the other soft bodies that have `collide_soft` on too (it is on
+by default): two cloths lying on each other, a cloth dropped on a hammock, a ball dropped on a mattress. Every
+vertex keeps the thickness of both bodies (a cloth's `thickness`) off the other's faces. Jolt has no collisions
+between two soft bodies, so the engine works them out itself before each physics step: a vertex about to go into
+the other body's face is held back by its velocity, and its momentum goes into the face it meets (a hammock sags
+under the cloth on it). Two bodies far apart cost one bounding-box test; turn `collide_soft` off for soft bodies
+that never meet another.
+
+Characters **stand** on the upper side of a soft body that has `walkable` on (it is on by default): a mattress
+sinks in under the character's weight (njin::character3d_desc::mass), a trampoline sags. On an upright face (a
+curtain) the character still walks through, pushing the vertices aside, so a curtain does not block the way.
+character3d_ground_soft() says which soft body the character stands on (character3d_ground_body() is invalid
+then), and character3d_ground_velocity() is the velocity of the soft surface under its feet: add it to a jump to
+bounce higher while the trampoline throws up.
+
+physics3d_raycast() and the `physics3d_*_push`, `_cast` functions pass through soft bodies. The versions of
+physics3d_raycast(), physics3d_box_cast() and physics3d_hull_cast() that take a njin::soft3d_hit hit soft bodies
+too: a shot at a curtain hits the curtain, and tells which soft body, which triangle and the vertex nearest the
+hit.
+
+@code
+// A shot at a curtain: the spot hit is pushed along the shot.
+njin::soft3d_hit soft;
+const njin::ray3d_hit hit = njin::physics3d_raycast(ctx, shot, 100.0f, nullptr, &soft);
+if (hit.hit && soft.soft.id != 0)
+  njin::softbody3d_add_impulse(ctx, soft.soft, shot.direction * 0.5f);
+@endcode
 
 Draw a soft body with softbody3d_model(): a model that always has the body's current shape, in world space,
 updated by the engine after each physics step. Draw it with draw_model() and the default transform, change its
 colour and textures with model_material_set(); the model belongs to the soft body and softbody3d_destroy()
-destroys it. To draw it yourself, read softbody3d_vertices(), softbody3d_normals() and softbody3d_indices().
+destroys it. A body with many vertices (over 65535, cloth counting twice for its back faces) is split into
+several meshes of the same model. To draw it yourself, read softbody3d_vertices(), softbody3d_normals() and
+softbody3d_indices(); softbody3d_draw_debug() draws the edges and the pinned vertices with gizmos.
 
 The cloth vertex at row `r`, column `c` has index `r * (columns + 1) + c`; row 0 is the top edge. Cloth lies
 in its own x–y plane (upright like a flag); `rotation.x = 90` lays it flat. Pin edges with `pin_edges`, other
@@ -553,6 +581,26 @@ they spin.
 The scene below has a flag blowing in the wind, a ball, and a car driven with the arrow keys:
 
 @include physics3d_soft.cpp
+
+### Motorcycles and tracked vehicles {#vehicle3d_kinds}
+
+motorcycle3d_create() makes a motorcycle on Jolt's motorcycle controller: one front wheel steering on a raked
+fork, one driven rear wheel, and a spring that holds the bike upright and leans it into turns from the speed and
+the steering. Standing still it does not fall; at speed the engine lowers the steering angle so the bike does not
+slide out (the turn gets wider); `max_lean` is the largest lean into a turn. The defaults are a 240 kg bike with
+its rider, which rides well untouched.
+
+tracked3d_create() makes a tracked vehicle (a tank, an excavator): on each side a track runs over
+`wheels_per_side` wheels, and it turns by running the two tracks at different speeds. vehicle3d_set_input()
+drives it like a car; when it is about stopped and only steers with no throttle, the two tracks run opposite ways
+and it turns on the spot. vehicle3d_set_tracks() drives each track directly (-1 reverse .. 1 forward),
+vehicle3d_track_speed() gives a track's speed to scroll its texture.
+
+Both return a njin::vehicle3d_handle, so every `vehicle3d_*` function works: vehicle3d_body() for the chassis,
+vehicle3d_wheel_transform() for each wheel, vehicle3d_rpm(), vehicle3d_gear(). vehicle3d_draw_debug() draws the
+chassis, the wheels, the suspension and where the wheels touch the ground with gizmos, for every kind of vehicle.
+
+@include physics3d_vehicles.cpp
 
 ## 3D entities {#entities_3d}
 

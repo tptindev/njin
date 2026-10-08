@@ -88,6 +88,10 @@ struct model_slot {
   std::vector<std::string> morph_names;
   std::vector<f32> morph_defaults;
   std::vector<morph_clip> morph_clips;
+  // model_store_create_split: per mesh, the source vertex of each of its
+  // vertices, and how many source vertices there are. Empty otherwise.
+  std::vector<std::vector<u32>> split_source;
+  u32 split_count = 0;
 };
 
 // Clips the game sees (model_anim_count): the skin's, or the weight-only
@@ -148,9 +152,15 @@ inline const model_slot &model_anim_owner(const model_store &store, const model_
 
 model_handle model_store_load(model_store &store, const model_load_desc &desc);
 model_handle model_store_create(model_store &store, const mesh3d_data &mesh);
-// New positions and normals for the single mesh of a model made by
-// model_store_create, `count` of them (its vertex count), uploaded in place;
-// its bounds follow.
+// One material, as many meshes as it takes to keep each under raylib's 16-bit
+// indices: triangles go in order into a mesh until it would pass 65535
+// vertices, vertices shared across a cut are copied. For a surface too big
+// for model_store_create (a large soft body).
+model_handle model_store_create_split(model_store &store, const vec3 *positions, const vec3 *normals, u32 count,
+                                      const u32 *indices, u32 index_count);
+// New positions and normals for a model made by model_store_create (its single
+// mesh) or model_store_create_split, `count` of them (the vertex count it was
+// made with), uploaded in place; its bounds follow.
 void model_store_update_vertices(model_store &store, model_handle handle, const vec3 *positions, const vec3 *normals,
                                  u32 count);
 model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d_data &mesh);

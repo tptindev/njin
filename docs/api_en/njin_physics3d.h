@@ -227,6 +227,15 @@ vec3 character3d_ground_velocity(const context &ctx, character3d_handle handle);
 /// @return Body, or invalid if it stands on no body.
 body3d_handle character3d_ground_body(const context &ctx, character3d_handle handle);
 
+/// The soft body the character stands on (a mattress, a trampoline,
+/// softbody3d_desc::walkable). character3d_ground_body() is invalid then, and
+/// character3d_ground_velocity() is the velocity of the soft surface under its
+/// feet: add it to a jump to bounce higher while the trampoline throws up.
+/// @param ctx Engine context.
+/// @param handle Character.
+/// @return Soft body, or invalid if it does not stand on one.
+softbody3d_handle character3d_ground_soft(const context &ctx, character3d_handle handle);
+
 /// The minimum translation vector that moves the capsule `a`-`b` of radius
 /// `radius` out of every body it overlaps (not counting characters, sensors and
 /// `ignore`): moving the capsule by it just ends the overlap. For a character's
@@ -275,6 +284,30 @@ vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 siz
 ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
                              body3d_handle ignore = {}, body3d_handle *body = nullptr);
 
+/// Where a ray or a moving shape hit a soft body, for the versions of
+/// physics3d_raycast(), physics3d_box_cast() and physics3d_hull_cast() that take `soft`.
+struct soft3d_hit {
+  softbody3d_handle soft{}; ///< Soft body hit; invalid if a body was hit or nothing was.
+  i32 face = -1;            ///< Triangle hit: triangle `face` of softbody3d_indices() (index `3 * face`).
+  i32 vertex = -1;          ///< The vertex of that triangle nearest the hit: to pin, pull or push the spot hit.
+};
+
+/// As physics3d_box_cast(), but the box meets soft bodies too (curtains, cloth,
+/// balls), not only bodies. When a soft body comes first `*body` is invalid and
+/// `*soft` says which soft body and triangle; when a body comes first
+/// `soft->soft` is invalid.
+/// @param ctx Engine context.
+/// @param center Centre of the box at the start, world space.
+/// @param rotation Rotation, degrees, in the same order as njin::transform3d.
+/// @param size Size of the box along x, y, z.
+/// @param motion Direction and distance to move.
+/// @param ignore Body not counted. Invalid counts them all.
+/// @param body If not nullptr, receives the body hit.
+/// @param soft Receives the soft body hit; nullptr skips soft bodies, like the version without it.
+/// @return As physics3d_box_cast().
+ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec3 size, vec3 motion,
+                             body3d_handle ignore, body3d_handle *body, soft3d_hit *soft);
+
 /// Builds a convex hull from points (the smallest convex solid around them), to
 /// query collisions with the true shape of a part: a foot, a hand from
 /// model_bone_points(). The hull is not a body: it collides with nothing, it is only
@@ -318,6 +351,20 @@ vec3 physics3d_hull_push(const context &ctx, hull3d_handle hull, vec3 position, 
 ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
                               body3d_handle ignore = {}, body3d_handle *body = nullptr);
 
+/// As physics3d_hull_cast(), meeting soft bodies too, like the version of
+/// physics3d_box_cast() with `soft`.
+/// @param ctx Engine context.
+/// @param hull Hull.
+/// @param position Origin of the hull's own axes at the start, world space.
+/// @param rotation Rotation, degrees, in the same order as njin::transform3d.
+/// @param motion Direction and distance to move.
+/// @param ignore Body not counted. Invalid counts them all.
+/// @param body If not nullptr, receives the body hit.
+/// @param soft Receives the soft body hit; nullptr skips soft bodies.
+/// @return As physics3d_box_cast(); nothing hit if the handle is invalid.
+ray3d_hit physics3d_hull_cast(const context &ctx, hull3d_handle hull, vec3 position, vec3 rotation, vec3 motion,
+                              body3d_handle ignore, body3d_handle *body, soft3d_hit *soft);
+
 /// The hull's edges, as pairs of points in its own axes, for debug drawing.
 /// @param ctx Engine context.
 /// @param hull The hull.
@@ -335,6 +382,28 @@ i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 
 /// @return The nearest hit, if any.
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance,
                             body3d_handle *body = nullptr);
+
+/// As physics3d_raycast(), but the ray hits soft bodies too: a shot at a curtain
+/// hits the curtain instead of passing through. When a soft body comes first
+/// `*body` is invalid and `*soft` gives the soft body, the triangle and the
+/// nearest vertex (to push the spot with softbody3d_add_impulse() or pin it);
+/// when a body comes first `soft->soft` is invalid.
+///
+/// @code
+/// njin::body3d_handle body;
+/// njin::soft3d_hit soft;
+/// const njin::ray3d_hit hit = njin::physics3d_raycast(ctx, shot, 100.0f, &body, &soft);
+/// if (hit.hit && soft.soft.id != 0)
+///   njin::softbody3d_add_impulse(ctx, soft.soft, shot.direction * 2.0f);
+/// @endcode
+/// @param ctx Engine context.
+/// @param ray Ray (direction of length 1).
+/// @param max_distance Farthest distance still counted, world units.
+/// @param body If not nullptr, receives the body hit (invalid on a miss or a soft body hit).
+/// @param soft Receives the soft body hit; nullptr skips soft bodies, like the version without it.
+/// @return The nearest hit, if any.
+ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body,
+                            soft3d_hit *soft);
 
 /// A contact event from the last simulation step: two bodies, or a body and a
 /// character, started or stopped touching.
@@ -615,13 +684,24 @@ struct softbody3d_desc {
   const u32 *pinned = nullptr;
   u32 pinned_count = 0;             ///< Number of elements in `pinned`.
   u64 user = 0;                     ///< The game's number, read back with softbody3d_user().
+  /// Collides with the other soft bodies that have this on too: two cloths
+  /// lying on each other, a ball dropped on a mattress. Every vertex keeps the
+  /// thickness of both off the other's faces. `false` passes through other soft
+  /// bodies (cheaper, when they never meet).
+  bool collide_soft = true;
+  /// Characters can stand on its upper side (a mattress, a trampoline, a block
+  /// of jelly), sinking in under the character's weight
+  /// (njin::character3d_desc::mass). On an upright face (a curtain) they still
+  /// walk through, pushing the vertices aside. `false`: characters never stand on it.
+  bool walkable = true;
 };
 
 /// Creates a soft body. Soft bodies collide with every body (fall on the floor,
-/// drape over a crate) but not with each other. Characters
-/// (character3d_create()) push its vertices aside as they walk through rather
-/// than standing on it, so a curtain does not block the way. physics3d_raycast()
-/// and the `physics3d_*_push`, `_cast` queries pass through soft bodies.
+/// drape over a crate) and with each other (njin::softbody3d_desc::collide_soft).
+/// Characters (character3d_create()) stand on its upper side, and walk through
+/// an upright face pushing its vertices aside, so a curtain does not block the
+/// way. physics3d_raycast() and the `physics3d_*_push`, `_cast` queries pass
+/// through soft bodies; the versions that take a njin::soft3d_hit hit them.
 ///
 /// @code
 /// // A bouncy ball: a sphere with pressure, dropped from 3 m.
@@ -652,8 +732,8 @@ struct cloth3d_desc {
   vec3 position{0.0f, 0.0f, 0.0f}; ///< Centre of the sheet.
   vec3 rotation{0.0f, 0.0f, 0.0f}; ///< Rotation, degrees, in the same order as njin::transform3d.
   vec2 size{2.0f, 2.0f};           ///< Width (x) and height (y).
-  i32 columns = 20;                ///< Cells across, 1..180.
-  i32 rows = 20;                   ///< Cells down, 1..180.
+  i32 columns = 20;                ///< Cells across, 1..512.
+  i32 rows = 20;                   ///< Cells down, 1..512.
   f32 mass = 0.5f;                 ///< Mass of the whole sheet, kg.
   f32 stiffness = 1.0f;            ///< Stiffness of the threads, 0 (stretchy) .. 1 (does not stretch).
   f32 bend = 0.05f;                ///< Stiffness against folding, 0 (silk) .. 1 (cardboard).
@@ -667,6 +747,8 @@ struct cloth3d_desc {
   const u32 *pinned = nullptr;     ///< More pinned vertices (a flag's top corner...).
   u32 pinned_count = 0;            ///< Number of elements in `pinned`.
   u64 user = 0;                    ///< The game's number, read back with softbody3d_user().
+  bool collide_soft = true;        ///< As njin::softbody3d_desc::collide_soft: two cloths do not pass through each other.
+  bool walkable = true;            ///< As njin::softbody3d_desc::walkable: characters can stand on a cloth lying flat.
 };
 
 /// Creates a sheet of cloth: a flag, a curtain, a cape, a tablecloth. It is a
@@ -730,8 +812,8 @@ i32 softbody3d_indices(const context &ctx, softbody3d_handle handle, u32 *out, i
 /// softbody3d_destroy() does. Cloth gets back faces too.
 /// @param ctx Engine context.
 /// @param handle Soft body.
-/// @return Model, or invalid if the handle is invalid or the body has too many
-/// vertices for one model (65535, cloth counts twice).
+/// @return Model, or invalid if the handle is invalid. A body with many vertices
+/// (over 65535, cloth counts twice) is split into several meshes of the same model.
 model_handle softbody3d_model(context &ctx, softbody3d_handle handle);
 
 /// The vertex nearest `point`, to pin or pull one spot of the soft body.
@@ -787,6 +869,13 @@ vec3 softbody3d_position(const context &ctx, softbody3d_handle handle);
 /// @param handle Soft body.
 /// @return That number, or 0 if the handle is invalid.
 u64 softbody3d_user(const context &ctx, softbody3d_handle handle);
+
+/// Draws the soft body with gizmos (njin_gizmo.h) for this frame: the edges of
+/// its faces, and pinned vertices as red dots. Call every frame, in any phase.
+/// @param ctx Engine context.
+/// @param handle Soft body.
+/// @param color Colour of the edges.
+void softbody3d_draw_debug(context &ctx, softbody3d_handle handle, rgba color = {0.3f, 0.9f, 1.0f, 1.0f});
 
 /// One wheel of a njin::vehicle3d_desc.
 struct vehicle3d_wheel {
@@ -858,7 +947,11 @@ vehicle3d_handle vehicle3d_create(context &ctx, const vehicle3d_desc &desc);
 /// @param handle Vehicle.
 void vehicle3d_destroy(context &ctx, vehicle3d_handle handle);
 
-/// Sets how the vehicle is driven for the next physics step. Kept until the next call.
+/// Sets how the vehicle is driven for the next physics step. Kept until the next
+/// call. For every kind of vehicle: a motorcycle (motorcycle3d_create()) leans
+/// into turns from `steer`; a tracked vehicle (tracked3d_create()) steers with
+/// its two tracks, turns on the spot when about stopped and only steering with
+/// no throttle, and `handbrake` brakes.
 /// @param ctx Engine context.
 /// @param handle Vehicle.
 /// @param throttle Throttle, -1 (reverse) .. 1 (forward). A negative throttle while rolling forward brakes first, and reverses once stopped.
@@ -908,6 +1001,111 @@ f32 vehicle3d_rpm(const context &ctx, vehicle3d_handle handle);
 /// @param handle Vehicle.
 /// @return Gear, 0 if the handle is invalid.
 i32 vehicle3d_gear(const context &ctx, vehicle3d_handle handle);
+
+/// Description of a motorcycle for motorcycle3d_create(): the chassis is a
+/// dynamic box `size` (or the convex hull of `model`), one front wheel steering
+/// on a raked fork, one driven rear wheel. The front faces +z, as
+/// njin::vehicle3d_desc. The defaults are a 240 kg motorcycle (after Jolt's
+/// motorcycle sample) that rides well untouched.
+struct motorcycle3d_desc {
+  vec3 position{0.0f, 0.0f, 0.0f};    ///< Centre of the chassis.
+  vec3 rotation{0.0f, 0.0f, 0.0f};    ///< Rotation, degrees, in the same order as njin::transform3d.
+  vec3 size{0.4f, 0.6f, 0.8f};        ///< Box of the chassis: width (x), height (y), length (z).
+  model_handle model{};               ///< Take the chassis from this model's convex hull instead of `size`.
+  vec3 scale{1.0f, 1.0f, 1.0f};       ///< Scale of `model`.
+  f32 mass = 240.0f;                  ///< Mass of bike and rider, kg.
+  vec3 center_of_mass{0.0f, -0.3f, 0.0f}; ///< Centre of mass from the centre of the chassis.
+  f32 wheelbase = 1.5f;               ///< Distance between the two wheels, world units.
+  f32 wheel_radius = 0.31f;           ///< Wheel radius.
+  f32 wheel_width = 0.05f;            ///< Wheel width.
+  f32 suspension = 0.2f;              ///< Suspension travel.
+  f32 caster = 30.0f;                 ///< Rake of the front fork, degrees.
+  f32 max_steer = 30.0f;              ///< Largest steering angle, degrees. The engine lowers it at speed so the bike does not fall.
+  f32 max_lean = 45.0f;               ///< Largest lean into a turn, degrees.
+  f32 engine_torque = 150.0f;         ///< Largest engine torque, N·m.
+  f32 max_rpm = 10000.0f;             ///< Largest rpm. Automatic gearbox, six gears.
+  f32 brake_torque = 500.0f;          ///< Front brake torque, N·m; the rear one half of it.
+  f32 friction = 0.5f;                ///< Friction of the chassis (when it falls, when it scrapes a wall), 0..1.
+  u64 user = 0;                       ///< body3d_user() of the chassis.
+};
+
+/// Creates a motorcycle (Jolt's motorcycle controller): a spring holds the bike
+/// upright and leans it into turns from the speed and the steering, so it does
+/// not fall standing still or riding slowly. It is a njin::vehicle3d_handle:
+/// ride it with vehicle3d_set_input() (the handbrake locks the rear wheel), draw
+/// it with vehicle3d_body() and vehicle3d_wheel_transform(), and every
+/// `vehicle3d_*` function works on it.
+///
+/// @code
+/// bike = njin::motorcycle3d_create(ctx, {.position = {0, 1, 0}});
+/// // Every fixed step: throttle, steering, brake.
+/// njin::vehicle3d_set_input(ctx, bike, gas, steer, brake, 0.0f);
+/// @endcode
+/// @param ctx Engine context.
+/// @param desc Description of the motorcycle.
+/// @return Handle, or invalid if the chassis could not be made.
+vehicle3d_handle motorcycle3d_create(context &ctx, const motorcycle3d_desc &desc);
+
+/// Description of a tracked vehicle (a tank, an excavator) for
+/// tracked3d_create(): the chassis is a dynamic box `size` (or the convex hull
+/// of `model`), with on each side a track running over `wheels_per_side`
+/// wheels, the last one of each side driving it. The defaults are a 4 t tank
+/// (after Jolt's tank sample).
+struct tracked3d_desc {
+  vec3 position{0.0f, 0.0f, 0.0f};    ///< Centre of the chassis.
+  vec3 rotation{0.0f, 0.0f, 0.0f};    ///< Rotation, degrees, in the same order as njin::transform3d.
+  vec3 size{3.4f, 1.0f, 6.4f};        ///< Box of the chassis: width (x), height (y), length (z).
+  model_handle model{};               ///< Take the chassis from this model's convex hull instead of `size`.
+  vec3 scale{1.0f, 1.0f, 1.0f};       ///< Scale of `model`.
+  f32 mass = 4000.0f;                 ///< Mass, kg.
+  vec3 center_of_mass{0.0f, -0.5f, 0.0f}; ///< Centre of mass from the centre of the chassis.
+  i32 wheels_per_side = 9;            ///< Wheels on each side, 3..16: the two end ones ride higher, the middle ones carry the vehicle.
+  f32 wheel_radius = 0.3f;            ///< Wheel radius.
+  f32 wheel_width = 0.1f;             ///< Wheel width (the track).
+  f32 suspension = 0.2f;              ///< Suspension travel of the middle wheels.
+  f32 engine_torque = 500.0f;         ///< Largest engine torque, N·m.
+  f32 max_rpm = 6000.0f;              ///< Largest rpm. Automatic gearbox.
+  f32 brake_torque = 15000.0f;        ///< Brake torque of each track, N·m.
+  f32 friction = 0.5f;                ///< Friction of the chassis, 0..1.
+  u64 user = 0;                       ///< body3d_user() of the chassis.
+};
+
+/// Creates a tracked vehicle (Jolt's tracked controller): it turns by running
+/// its two tracks at different speeds, and on the spot when they run opposite
+/// ways. It is a njin::vehicle3d_handle: vehicle3d_set_input() drives it like a
+/// car (steering alone while stopped turns it on the spot),
+/// vehicle3d_set_tracks() drives each track, vehicle3d_track_speed() gives the
+/// track speed to scroll its texture.
+/// @param ctx Engine context.
+/// @param desc Description of the vehicle.
+/// @return Handle, or invalid if the chassis could not be made.
+vehicle3d_handle tracked3d_create(context &ctx, const tracked3d_desc &desc);
+
+/// Drives the two tracks of a tracked vehicle directly for the next physics
+/// step, kept until the next call: each -1 (full reverse) .. 1 (full forward).
+/// `left = 1, right = -1` turns right on the spot. Ignored for a vehicle without tracks.
+/// @param ctx Engine context.
+/// @param handle Tracked vehicle (tracked3d_create()).
+/// @param left Left track (the +x side).
+/// @param right Right track (the -x side).
+/// @param brake Brake, 0..1.
+void vehicle3d_set_tracks(context &ctx, vehicle3d_handle handle, f32 left, f32 right, f32 brake);
+
+/// Speed of one track, to scroll the track's texture as fast as the vehicle moves.
+/// @param ctx Engine context.
+/// @param handle Tracked vehicle.
+/// @param side 0 is the left track (+x), 1 the right one (-x).
+/// @return World units per second, negative when the track runs backwards; 0 if not a tracked vehicle.
+f32 vehicle3d_track_speed(const context &ctx, vehicle3d_handle handle, i32 side);
+
+/// Draws the vehicle with gizmos (njin_gizmo.h) for this frame: the chassis box,
+/// each wheel as a circle with its axle, the suspension from where it is fixed
+/// to the wheel's centre, and where wheels touch the ground (yellow). Call every
+/// frame, in any phase.
+/// @param ctx Engine context.
+/// @param handle Vehicle.
+/// @param color Colour of the chassis and wheels.
+void vehicle3d_draw_debug(context &ctx, vehicle3d_handle handle, rgba color = {1.0f, 0.6f, 0.2f, 1.0f});
 
 /// Component: the entity follows a physics body. The engine reads and writes the
 /// entity's njin::transform3d around each simulation step:

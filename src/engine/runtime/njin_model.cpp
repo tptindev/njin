@@ -883,10 +883,123 @@ model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
   return model_handle{.id = (u32)store.slots.size()};
 }
 
+model_handle model_store_create_split(model_store &store, const vec3 *positions, const vec3 *normals, u32 count,
+                                      const u32 *indices, u32 index_count) {
+  if (positions == nullptr || normals == nullptr || count == 0 || indices == nullptr || index_count < 3) {
+    NJIN_WARN("model_create_split: no triangles");
+    return model_handle{};
+  }
+  constexpr u32 max_vertices = 65535;
+  std::vector<std::vector<u32>> source;   // per mesh: source vertex of each local one
+  std::vector<std::vector<u16>> local_ix; // per mesh: its triangles
+  std::vector<i32> local(count, -1);      // source -> local of the mesh being filled
+  for (u32 t = 0; t + 2 < index_count; t += 3) {
+    u32 fresh = 0;
+    for (u32 k = 0; k < 3; k++) {
+      if (indices[t + k] >= count) {
+        NJIN_WARN("model_create_split: index %u is %u, past the %u vertices", t + k, indices[t + k], count);
+        return model_handle{};
+      }
+      if (source.empty() || local[indices[t + k]] < 0)
+        fresh++;
+    }
+    if (source.empty() || source.back().size() + fresh > max_vertices) {
+      if (!source.empty())
+        for (u32 s : source.back())
+          local[s] = -1;
+      source.emplace_back();
+      local_ix.emplace_back();
+    }
+    for (u32 k = 0; k < 3; k++) {
+      const u32 s = indices[t + k];
+      if (local[s] < 0) {
+        local[s] = (i32)source.back().size();
+        source.back().push_back(s);
+      }
+      local_ix.back().push_back((u16)local[s]);
+    }
+  }
+  const i32 mesh_count = (i32)source.size();
+  Model model{};
+  model.transform = MatrixIdentity();
+  model.meshCount = mesh_count;
+  model.meshes = (Mesh *)MemAlloc((u32)(mesh_count * sizeof(Mesh)));
+  model.materialCount = 1;
+  model.materials = (Material *)MemAlloc((u32)sizeof(Material));
+  model.materials[0] = LoadMaterialDefault();
+  model.meshMaterial = (i32 *)MemAlloc((u32)(mesh_count * sizeof(i32)));
+  for (i32 k = 0; k < mesh_count; k++) {
+    const std::vector<u32> &src = source[(usize)k];
+    const usize n = src.size();
+    Mesh &m = model.meshes[k];
+    m = Mesh{};
+    m.vertexCount = (i32)n;
+    m.triangleCount = (i32)(local_ix[(usize)k].size() / 3);
+    m.vertices = (f32 *)MemAlloc((u32)(n * 3 * sizeof(f32)));
+    m.normals = (f32 *)MemAlloc((u32)(n * 3 * sizeof(f32)));
+    m.texcoords = (f32 *)MemAlloc((u32)(n * 2 * sizeof(f32)));
+    m.colors = (u8 *)MemAlloc((u32)(n * 4));
+    for (usize i = 0; i < n; i++) {
+      const vec3 p = positions[src[i]], q = normals[src[i]];
+      m.vertices[i * 3] = p.x;
+      m.vertices[i * 3 + 1] = p.y;
+      m.vertices[i * 3 + 2] = p.z;
+      m.normals[i * 3] = q.x;
+      m.normals[i * 3 + 1] = q.y;
+      m.normals[i * 3 + 2] = q.z;
+      std::memset(m.colors + i * 4, 255, 4);
+    }
+    m.indices = (unsigned short *)MemAlloc((u32)(local_ix[(usize)k].size() * sizeof(unsigned short)));
+    std::memcpy(m.indices, local_ix[(usize)k].data(), local_ix[(usize)k].size() * sizeof(unsigned short));
+    UploadMesh(&m, true);
+  }
+  if (!model_loaded(model)) {
+    NJIN_WARN("model_create_split: the meshes could not be uploaded");
+    UnloadModel(model);
+    return model_handle{};
+  }
+  model_slot slot;
+  slot.model = model;
+  slot.alive = true;
+  slot.bounds = GetModelBoundingBox(model);
+  slot.materials.push_back(model_material{});
+  slot.split_source = std::move(source);
+  slot.split_count = count;
+  store.slots.push_back(std::move(slot));
+  return model_handle{.id = (u32)store.slots.size()};
+}
+
 void model_store_update_vertices(model_store &store, model_handle handle, const vec3 *positions, const vec3 *normals,
                                  u32 count) {
   model_slot *slot = model_slot_of(store, handle);
-  if (slot == nullptr || slot->model.meshCount != 1)
+  if (slot == nullptr)
+    return;
+  if (!slot->split_source.empty()) {
+    if (count != slot->split_count)
+      return;
+    Vector3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+    for (i32 k = 0; k < slot->model.meshCount; k++) {
+      Mesh &m = slot->model.meshes[k];
+      const std::vector<u32> &src = slot->split_source[(usize)k];
+      for (usize i = 0; i < src.size(); i++) {
+        const vec3 p = positions[src[i]], q = normals[src[i]];
+        m.vertices[i * 3] = p.x;
+        m.vertices[i * 3 + 1] = p.y;
+        m.vertices[i * 3 + 2] = p.z;
+        m.normals[i * 3] = q.x;
+        m.normals[i * 3 + 1] = q.y;
+        m.normals[i * 3 + 2] = q.z;
+        lo = Vector3Min(lo, {p.x, p.y, p.z});
+        hi = Vector3Max(hi, {p.x, p.y, p.z});
+      }
+      const i32 bytes = (i32)(src.size() * 3 * sizeof(f32));
+      UpdateMeshBuffer(m, RL_DEFAULT_SHADER_ATTRIB_LOCATION_POSITION, m.vertices, bytes, 0);
+      UpdateMeshBuffer(m, RL_DEFAULT_SHADER_ATTRIB_LOCATION_NORMAL, m.normals, bytes, 0);
+    }
+    slot->bounds = BoundingBox{lo, hi};
+    return;
+  }
+  if (slot->model.meshCount != 1)
     return;
   Mesh &m = slot->model.meshes[0];
   if ((u32)m.vertexCount != count || m.vertices == nullptr || m.normals == nullptr)
