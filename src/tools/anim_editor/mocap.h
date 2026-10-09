@@ -23,6 +23,20 @@ bool parse_mocap_packet(const void *data, size_t size, MocapFrame &out);
 // Swaps the person's left and right and the x axis: the character moves like a mirror image.
 void mirror_frame(MocapFrame &f);
 
+// The camera image from pose_stream.py --view (the skeleton drawn on it), as
+// a JPEG pointing into the packet.
+struct MocapView {
+  uint32_t number = 0;
+  int width = 0, height = 0;
+  bool tracking = false;
+  const unsigned char *jpeg = nullptr;
+  size_t jpeg_size = 0;
+};
+constexpr size_t mocap_view_max = 60000; // VIEW_MAX in pose_stream.py
+bool parse_view_packet(const void *data, size_t size, MocapView &out);
+// RGB8 pixels of a JPEG (stb_image, JPEG only). False if it is not one.
+bool decode_jpeg(const unsigned char *data, size_t size, std::vector<unsigned char> &rgb, int &width, int &height);
+
 // One Euro filter (Casiez et al. 2012): smooth when still, quick when moving.
 struct OneEuro {
   float min_cutoff = 1.5f, beta = 0.3f, d_cutoff = 1.0f;

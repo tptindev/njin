@@ -195,6 +195,25 @@ bool parse_mocap_packet(const void *data, size_t size, MocapFrame &out) {
   return true;
 }
 
+bool parse_view_packet(const void *data, size_t size, MocapView &out) {
+  const auto *p = static_cast<const unsigned char *>(data);
+  constexpr size_t head = 4 + 2 + 2 + 4 + 2 + 2 + 4;
+  if (size <= head || size > mocap_view_max || std::memcmp(p, "NJMV", 4) != 0)
+    return false;
+  uint16_t version = 0, flags = 0, w = 0, h = 0;
+  uint32_t number = 0, bytes = 0;
+  std::memcpy(&version, p + 4, 2);
+  std::memcpy(&flags, p + 6, 2);
+  std::memcpy(&number, p + 8, 4);
+  std::memcpy(&w, p + 12, 2);
+  std::memcpy(&h, p + 14, 2);
+  std::memcpy(&bytes, p + 16, 4);
+  if (version != 1 || w == 0 || h == 0 || w > 4096 || h > 4096 || bytes != size - head)
+    return false;
+  out = {number, w, h, (flags & 1) != 0, p + head, bytes};
+  return true;
+}
+
 void mirror_frame(MocapFrame &f) {
   for (auto &p : f.points)
     p.x = -p.x;
@@ -591,6 +610,37 @@ int mocap_unit_test() {
     check(!parse_mocap_packet(b.data(), b.size() - 1, f), "short packet refused");
     b[0] = 'X';
     check(!parse_mocap_packet(b.data(), b.size(), f), "bad magic refused");
+
+    // View packet: header then the JPEG bytes (not decoded here).
+    auto view = [](uint16_t w, uint16_t h, size_t jpeg, uint32_t claim) {
+      std::vector<unsigned char> v(20 + jpeg, 0xAB);
+      const uint16_t ver = 1, fl = 1;
+      const uint32_t num = 42;
+      std::memcpy(&v[0], "NJMV", 4);
+      std::memcpy(&v[4], &ver, 2);
+      std::memcpy(&v[6], &fl, 2);
+      std::memcpy(&v[8], &num, 4);
+      std::memcpy(&v[12], &w, 2);
+      std::memcpy(&v[14], &h, 2);
+      std::memcpy(&v[16], &claim, 4);
+      return v;
+    };
+    MocapView mv;
+    auto good = view(320, 180, 1000, 1000);
+    check(parse_view_packet(good.data(), good.size(), mv) && mv.number == 42 && mv.width == 320 && mv.height == 180 &&
+              mv.tracking && mv.jpeg_size == 1000 && mv.jpeg == good.data() + 20,
+          "view packet parses");
+    check(!parse_view_packet(good.data(), good.size() - 1, mv), "truncated view packet refused");
+    check(!parse_view_packet(good.data(), 19, mv), "view header alone refused");
+    auto big = view(320, 180, mocap_view_max, (uint32_t)mocap_view_max);
+    check(!parse_view_packet(big.data(), big.size(), mv), "oversized view packet refused");
+    auto liar = view(320, 180, 1000, 999);
+    check(!parse_view_packet(liar.data(), liar.size(), mv), "view packet with a wrong size refused");
+    auto zero = view(0, 180, 1000, 1000);
+    check(!parse_view_packet(zero.data(), zero.size(), mv), "view packet without width refused");
+    std::vector<unsigned char> rgb;
+    int dw = 0, dh = 0;
+    check(!decode_jpeg(good.data() + 20, 1000, rgb, dw, dh), "non-JPEG bytes are not decoded");
     MocapFrame g;
     g.points[11] = {1, 2, 3};
     g.points[12] = {-4, 5, 6};

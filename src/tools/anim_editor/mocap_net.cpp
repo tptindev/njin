@@ -68,12 +68,12 @@ void MocapLink::receive(std::vector<std::vector<unsigned char>> &out) {
   out.clear();
   if (!open())
     return;
-  char buffer[4096];
+  static std::vector<char> buffer(1 << 16); // a whole datagram: view packets reach 60 KB
   for (;;) {
-    const int n = ::recv((SOCKET)socket_, buffer, sizeof(buffer), 0);
+    const int n = ::recv((SOCKET)socket_, buffer.data(), (int)buffer.size(), 0);
     if (n <= 0)
       break;
-    out.emplace_back(buffer, buffer + n);
+    out.emplace_back(buffer.data(), buffer.data() + n);
   }
 }
 

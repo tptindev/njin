@@ -839,7 +839,14 @@ struct Mocap {
   MocapFrame latest{};
   bool have = false, fresh = false;
   int camera = 0, port = 47800, preset = mask_whole, countdown = 3;
-  bool hands = false, preview = true, mirror = false, drive = true, reduce = true, launched = false;
+  bool hands = false, mirror = false, drive = true, reduce = true, launched = false;
+  bool view = true, cv_window = false; // Camera window in the editor / pose_stream.py's OpenCV window
+  MocapLink view_link;
+  Texture2D view_texture{};
+  std::vector<unsigned char> view_rgb;
+  int view_frames = 0;
+  bool view_tracking = false, view_size_ok = false;
+  double view_at = 0;
   float min_cutoff = 1.5f, beta = 0.3f, tolerance = 0.5f;
   int packets = 0;
   double rate_from = 0;
@@ -864,14 +871,20 @@ struct Mocap {
       return;
     }
     launched = false;
+    view_frames = 0;
+    if (view && !view_link.listen(port + 1, error))
+      status = "No camera image: " + error;
     if (spawn) {
       std::vector<std::string> args{"--camera", std::to_string(camera), "--port", std::to_string(port)};
       if (hands)
         args.push_back("--hands");
-      if (preview)
+      if (view_link.open())
+        args.insert(args.end(), {"--view", "--view-port", std::to_string(port + 1)});
+      if (cv_window)
         args.push_back("--preview");
       if (!sidecar.start(python(), folder + "/pose_stream.py", args, folder + "/last_run.log", error)) {
         link.close();
+        view_link.close();
         status = error;
         return;
       }
@@ -890,9 +903,40 @@ struct Mocap {
     sidecar.stop();
     launched = false;
     link.close();
+    view_link.close();
+    if (view_texture.id)
+      UnloadTexture(view_texture);
+    view_texture = {};
+    view_frames = 0;
     a.live = false;
     have = false;
     status = "Stopped.";
+  }
+  // The newest camera image waiting, into view_texture.
+  void receive_view() {
+    std::vector<std::vector<unsigned char>> in;
+    view_link.receive(in);
+    for (auto it = in.rbegin(); it != in.rend(); ++it) {
+      MocapView v;
+      int w = 0, h = 0;
+      if (!parse_view_packet(it->data(), it->size(), v) || !decode_jpeg(v.jpeg, v.jpeg_size, view_rgb, w, h))
+        continue;
+      Image image{view_rgb.data(), w, h, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8};
+      if (view_texture.id && (view_texture.width != w || view_texture.height != h)) {
+        UnloadTexture(view_texture);
+        view_texture = {};
+      }
+      if (!view_texture.id) {
+        view_texture = LoadTextureFromImage(image);
+        SetTextureFilter(view_texture, TEXTURE_FILTER_BILINEAR);
+      } else
+        UpdateTexture(view_texture, view_rgb.data());
+      ++view_frames;
+      view_size_ok = w == v.width && h == v.height && view_texture.width == w && view_texture.height == h;
+      view_tracking = v.tracking;
+      view_at = clock_seconds();
+      break;
+    }
   }
   std::vector<char> mask(const App &a) const {
     return mocap_mask(a.rig, rig_map, (MaskPreset)preset, a.selected_bone);
@@ -917,6 +961,7 @@ struct Mocap {
     if (launched && !sidecar.running()) {
       launched = false;
       link.close();
+      view_link.close();
       a.live = false;
       state = idle;
       status = "The capture process ended (code " + std::to_string(sidecar.exit_code()) + "): see " + folder +
@@ -924,6 +969,8 @@ struct Mocap {
     }
     if (!running())
       return;
+    if (view_link.open())
+      receive_view();
     std::vector<std::vector<unsigned char>> in;
     link.receive(in);
     fresh = false;
@@ -1012,8 +1059,11 @@ void mocap_window(App &a, Mocap &m) {
   ImGui::InputInt("Port", &m.port, 0);
   m.port = std::clamp(m.port, 1024, 65535);
   ImGui::Checkbox("Hands (fingers)", &m.hands);
+  ImGui::Checkbox("Camera view in editor", &m.view);
   ImGui::SameLine();
-  ImGui::Checkbox("Camera preview window", &m.preview);
+  ImGui::Checkbox("OpenCV window", &m.cv_window);
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("A separate window from pose_stream.py, as before the Camera view existed.");
   ImGui::EndDisabled();
   if (!m.running()) {
     ImGui::BeginDisabled(!m.ready() || !a.has_rig);
@@ -1085,6 +1135,34 @@ void mocap_window(App &a, Mocap &m) {
   ImGui::End();
 }
 
+// The camera image with MediaPipe's skeleton, fitted to the window. Flipped
+// with Mirror, so it moves the same way as the character.
+void camera_window(const Mocap &m) {
+  ImGui::Begin("Camera");
+  const char *state = !m.running()                       ? "Start the camera in Mocap."
+                      : !m.view_link.open()              ? "Camera view in editor is off."
+                      : !m.view_texture.id               ? "Waiting for the camera..."
+                      : clock_seconds() - m.view_at > 1  ? "No image for a second."
+                      : m.view_tracking                  ? "Tracking"
+                                                         : "No body in view";
+  if (m.running() && m.view_texture.id) {
+    const ImVec2 room = ImGui::GetContentRegionAvail();
+    const float text = ImGui::GetTextLineHeightWithSpacing();
+    const float aspect = (float)m.view_texture.width / (float)m.view_texture.height;
+    float w = room.x, h = room.x / aspect;
+    if (h > room.y - text) {
+      h = std::max(1.0f, room.y - text);
+      w = h * aspect;
+    }
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0f, (room.x - w) * 0.5f));
+    const ImVec2 uv0 = m.mirror ? ImVec2{1, 0} : ImVec2{0, 0}, uv1 = m.mirror ? ImVec2{0, 1} : ImVec2{1, 1};
+    ImGui::Image((ImTextureID)(uintptr_t)m.view_texture.id, {w, h}, uv0, uv1);
+  }
+  const bool good = m.view_texture.id && m.view_tracking && clock_seconds() - m.view_at <= 1;
+  ImGui::TextColored(good ? ImVec4{0.5f, 1, 0.6f, 1} : ImVec4{1, 0.7f, 0.4f, 1}, "%s", state);
+  ImGui::End();
+}
+
 void dock_layout(App &a) {
   ImGuiID dock = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
   if (ImGui::DockBuilderGetNode(dock)->ChildNodes[0] && !a.reset_layout)
@@ -1093,11 +1171,14 @@ void dock_layout(App &a) {
   ImGui::DockBuilderRemoveNode(dock);
   ImGui::DockBuilderAddNode(dock, ImGuiDockNodeFlags_DockSpace);
   ImGui::DockBuilderSetNodeSize(dock, ImGui::GetMainViewport()->WorkSize);
-  ImGuiID center = dock, left, right, bottom, project;
+  ImGuiID center = dock, left, right, bottom, project, camera;
   ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.20f, &left, &center);
   ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.28f, &right, &center);
   ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.38f, &bottom, &center);
   ImGui::DockBuilderSplitNode(right, ImGuiDir_Down, 0.50f, &project, &right);
+  // The camera image under the skeleton tree, beside the viewport.
+  ImGui::DockBuilderSplitNode(left, ImGuiDir_Down, 0.40f, &camera, &left);
+  ImGui::DockBuilderDockWindow("Camera", camera);
   ImGui::DockBuilderDockWindow("Skeleton", left);
   ImGui::DockBuilderDockWindow("Properties", right);
   ImGui::DockBuilderDockWindow("Viewport", center);
@@ -1221,7 +1302,8 @@ int main(int argc, char **argv) {
     mocap.start(false);
     std::string error;
     mocap.launched = mocap.sidecar.start(mocap.python(), mocap.folder + "/pose_stream.py",
-                                         {"--frames", argv[3], "--fps", "30", "--port", std::to_string(mocap.port)},
+                                         {"--frames", argv[3], "--fps", "30", "--port", std::to_string(mocap.port),
+                                          "--view", "--view-port", std::to_string(mocap.port + 1)},
                                          mocap.folder + "/last_run.log", error);
     if (!mocap.launched) {
       std::fprintf(stderr, "Mocap smoke: %s\n", error.c_str());
@@ -1269,6 +1351,7 @@ int main(int argc, char **argv) {
     project(app);
     viewport(app);
     mocap_window(app, mocap);
+    camera_window(mocap);
     if (!io.WantTextInput && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)) {
       if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
         app.save();
@@ -1316,12 +1399,15 @@ int main(int argc, char **argv) {
         const bool undone = app.doc.clips[app.active_clip].keys.empty();
         app.history(true);
         const bool redone = app.doc.clips[app.active_clip].keys.size() == keys;
-        smoke_ok = keys > 0 && one_step && undone && redone;
+        const bool view_ok = mocap.view_frames > 0 && mocap.view_size_ok;
+        smoke_ok = keys > 0 && one_step && undone && redone && view_ok;
         std::printf("%s: mocap smoke: live after %.1f s at %.0f fps, recorded %d keys over %.2f s (%s), "
-                    "one undo step %s, undo/redo %s; screenshot build/anim_editor_mocap.png\n",
+                    "one undo step %s, undo/redo %s, camera view %d frames %dx%d %s; "
+                    "screenshot build/anim_editor_mocap.png\n",
                     smoke_ok ? "PASS" : "FAIL", live_at - started, mocap.fps, (int)keys,
                     app.doc.clips[app.active_clip].duration, mocap.status.c_str(), one_step ? "yes" : "no",
-                    undone && redone ? "ok" : "broken");
+                    undone && redone ? "ok" : "broken", mocap.view_frames, mocap.view_texture.width,
+                    mocap.view_texture.height, view_ok ? "ok" : "MISSING");
         app.exit = true;
       }
       if (phase == 0 && now - started > 30) {

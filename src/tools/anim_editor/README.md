@@ -97,9 +97,13 @@ git).
 1. Mở một model có rig người (tên xương kiểu Mixamo, Unreal, Unity/VRM, Blender đều nhận) và chọn
    hoặc tạo một clip. Mocap ghi dòng "N humanoid bones matched".
 2. Trong **Mocap**: chọn **Camera** (0 là webcam mặc định), bật **Hands** nếu cần ngón tay, bấm
-   **Start camera**. Cửa sổ xem trước của camera hiện khung xương MediaPipe vẽ đè (Esc để tắt), mặc
-   định bằng nửa mỗi chiều của ảnh, tức 1/4 diện tích; MediaPipe vẫn nhận ảnh đủ độ phân giải. Đứng
-   lùi để camera thấy cả người; ánh sáng đều, phông nền gọn giúp bắt chính xác hơn.
+   **Start camera**. Hình camera hiện ngay trong editor, ở cửa sổ **Camera** (mặc định nằm dưới
+   Skeleton), có khung xương MediaPipe vẽ đè và dòng trạng thái (Tracking / No body in view); bật
+   **Mirror** thì hình cũng lật như gương để khớp với nhân vật. Hình rộng 320 điểm ảnh, tối đa 15
+   khung/giây, chỉ để xem: MediaPipe vẫn nhận ảnh đủ độ phân giải. Tắt **Camera view in editor** nếu
+   không cần; bật **OpenCV window** nếu muốn cửa sổ riêng như trước (Esc để tắt, mặc định 1/4 diện
+   tích ảnh). Đứng lùi để camera thấy cả người; ánh sáng đều, phông nền gọn giúp bắt chính xác hơn.
+   Bố cục cũ (file `njin_anim_editor.ini`) chưa có cửa sổ Camera: chọn **Window > Reset layout**.
 3. **Drive bones** + danh sách chọn xương: cả người, nửa trên, tay trái, tay phải, đầu và cổ, cột
    sống, chân, bàn tay, hoặc **xương đang chọn và các xương dưới nó**. Các xương đó đi theo camera
    ngay trong viewport, các xương khác giữ tư thế của clip.
@@ -111,9 +115,10 @@ git).
    các key mà nội suy giữa hai key bên cạnh đã cho đúng trong **Tolerance** độ. Cả lần ghi là một
    bước Undo.
 6. **Stop** tắt camera. **Listen only** chỉ nghe cổng UDP, khi bạn tự chạy
-   `mocap\.venv\Scripts\python.exe mocap\pose_stream.py --preview` (xem `--help`: `--camera`,
-   `--hands`, `--mirror`, `--preview-scale 0.5` (cỡ cửa sổ xem trước mỗi chiều), `--video file.mp4`,
-   `--frames thư_mục`).
+   `mocap\.venv\Scripts\python.exe mocap\pose_stream.py --view` (xem `--help`: `--camera`,
+   `--hands`, `--mirror`, `--view` gửi hình vào cửa sổ Camera trên cổng kế tiếp (`--view-port`,
+   `--view-width 320`, `--view-fps 15`), `--preview` mở cửa sổ OpenCV, `--preview-scale 0.5`,
+   `--video file.mp4`, `--frames thư_mục`).
 
 **Cách tính:** MediaPipe cho 33 khớp cơ thể theo mét, gốc ở giữa hai hông (trục x sang phải ảnh, y
 xuống, z ra xa camera); editor đổi sang trục glTF `(x, -y, -z)` (+Y lên, +Z về phía camera). Hông,
@@ -121,7 +126,10 @@ cột sống, cổ và đầu lấy cả hướng: hướng lên (hông → vai,
 vai, hai tai), so với cùng các đường đó ở tư thế nghỉ của rig. Tay, chân, bàn chân và từng đốt ngón
 quay theo góc ngắn nhất để trỏ theo đoạn khớp tương ứng (vai → khuỷu, khuỷu → cổ tay, hông → gối...);
 bàn tay lấy cả hướng khi có dữ liệu bàn tay. Khớp có độ tin cậy dưới 0,5 bị bỏ qua (xương giữ tư thế
-clip). Gói UDP được mô tả ở đầu `pose_stream.py`.
+clip). Gói UDP được mô tả ở đầu `pose_stream.py`. Hình cho cửa sổ Camera là gói thứ hai trên cổng
+kế tiếp: ảnh JPEG nhỏ (thường 5–9 KB, tối đa 60 KB một gói), editor giải bằng một bản `stb_image`
+chỉ đọc JPEG của riêng nó (bản raylib dựng trong njin tắt JPEG). Mã hóa tốn khoảng 1–2 ms mỗi hình,
+tức chừng 2–3% một nhân CPU ở 15 khung/giây.
 
 **Giới hạn:** một webcam chỉ ước lượng được độ sâu: tay đưa thẳng về phía camera, tay bắt chéo hay
 bị che dễ sai (thử với hình dựng từ clip có sẵn: lệch trung vị khoảng 9–13°, p90 khoảng 25°). Không
@@ -143,7 +151,7 @@ trỏ đúng như clip (lệch dưới 0,05°); kiểm tra thêm việc chỉ c�
 `dump.bin` (`pose_stream.py --frames thư_mục --dump dump.bin` trên các khung hình dựng từ clip đó,
 nhìn từ phía trước) nó in độ lệch của MediaPipe và của xương giải ra so với clip. Mocap smoke mở
 editor, chạy `pose_stream.py` trên thư mục ảnh, cho model đi theo, ghi khoảng một giây, kiểm tra cả
-lần ghi là một bước Undo và lưu `build/anim_editor_mocap.png`. Hai lệnh cuối cần `mocap\setup.bat`.
+lần ghi là một bước Undo, hình đã tới cửa sổ Camera đúng cỡ, và lưu `build/anim_editor_mocap.png`. Hai lệnh cuối cần `mocap\setup.bat`.
 
 Self-test tự sinh một model glTF có rig nhỏ rồi kiểm tra: nạp rig và clip, lấy mẫu, key, JSON dự
 án, xuất `.glb` rồi nạp lại, giữ mesh/skin/vật liệu và kênh không sửa; cùng undo/redo, lưu, mở

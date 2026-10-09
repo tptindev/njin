@@ -5,9 +5,14 @@ and sends the 3D world landmarks to the editor as one UDP packet per frame on
 127.0.0.1. The editor starts this script itself (Mocap > Start); it can also be
 run by hand, then the editor only listens.
 
-  pose_stream.py [--camera 0] [--port 47800] [--hands] [--mirror] [--preview] [--preview-scale 0.5]
+  pose_stream.py [--camera 0] [--port 47800] [--hands] [--mirror] [--view] [--preview] [--preview-scale 0.5]
   pose_stream.py --video clip.mp4 [--dump out.bin]      # tests: a file instead
   pose_stream.py --frames folder [--fps 30] [--dump out.bin]
+
+--view sends the camera image, with the tracked skeleton drawn on it, to the
+editor's Camera window: JPEG, --view-width pixels wide (320), at most
+--view-fps frames a second (15), on --view-port (the landmark port + 1).
+--preview opens an OpenCV window instead (or as well), --preview-scale per side.
 
 Packet (little-endian, version 1):
   char[4]  magic "NJMC"
@@ -20,6 +25,14 @@ Packet (little-endian, version 1):
            and visibility (0..1)
   f32[21*3] left hand world landmarks (only when bit1), the person's left
   f32[21*3] right hand world landmarks (only when bit2)
+
+View packet (little-endian, version 1), one UDP datagram per frame, at most VIEW_MAX bytes:
+  char[4]  magic "NJMV"
+  u16      version (1)
+  u16      flags: bit0 pose found
+  u32      frame number (the landmark packet's)
+  u16      width, u16 height of the JPEG
+  u32      JPEG size in bytes, then the JPEG
 
 Hands are given as the person's left/right, matched to the pose wrists in the
 image, not MediaPipe's handedness label (which assumes a mirrored selfie image).
@@ -43,6 +56,8 @@ from mediapipe.tasks.python import BaseOptions, vision
 HERE = os.path.dirname(os.path.abspath(__file__))
 MAGIC = b"NJMC"
 VERSION = 1
+VIEW_MAGIC = b"NJMV"
+VIEW_MAX = 60000  # bytes in one datagram, header included
 POSE_EDGES = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16), (11, 23), (12, 24), (23, 24), (23, 25), (25, 27),
               (24, 26), (26, 28), (27, 31), (28, 32), (0, 7), (0, 8)]
 
@@ -62,6 +77,33 @@ def packet(frame_no, t, pose_world, vis, left, right, mirrored):
             for x, y, z in hand:
                 out += struct.pack("<3f", x, y, z)
     return bytes(out)
+
+
+def view_packet(img, img_pts, frame_no, tracking, width):
+    """The image scaled to `width` with the skeleton on it, as JPEG in one datagram; None if it cannot fit."""
+    h, w = img.shape[:2]
+    for scale in (1.0, 0.75, 0.5):
+        vw = max(16, int(width * scale))
+        vh = max(16, int(h * vw / w))
+        small = cv2.resize(img, (vw, vh), interpolation=cv2.INTER_AREA)
+        if img_pts is not None:
+            draw_skeleton(small, img_pts)  # after scaling, so the lines stay 2 px wide
+        for quality in (70, 55, 40):
+            ok, jpeg = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            if not ok:
+                return None
+            head = VIEW_MAGIC + struct.pack("<HHIHHI", VERSION, 1 if tracking else 0, frame_no, vw, vh, len(jpeg))
+            if len(head) + len(jpeg) <= VIEW_MAX:
+                return head + jpeg.tobytes()
+    return None
+
+
+def draw_skeleton(img, img_pts):
+    h, w = img.shape[:2]
+    thick = max(2, w // 400)
+    for a, b in POSE_EDGES:
+        cv2.line(img, (int(img_pts[a][0] * w), int(img_pts[a][1] * h)),
+                 (int(img_pts[b][0] * w), int(img_pts[b][1] * h)), (80, 220, 255), thick)
 
 
 def frames_from(args):
@@ -103,7 +145,11 @@ def main():
     ap.add_argument("--port", type=int, default=47800)
     ap.add_argument("--hands", action="store_true")
     ap.add_argument("--mirror", action="store_true")
-    ap.add_argument("--preview", action="store_true")
+    ap.add_argument("--view", action="store_true", help="send the camera image to the editor's Camera window")
+    ap.add_argument("--view-port", type=int, help="port for --view (default: --port + 1)")
+    ap.add_argument("--view-width", type=int, default=320)
+    ap.add_argument("--view-fps", type=float, default=15.0)
+    ap.add_argument("--preview", action="store_true", help="also show an OpenCV window")
     ap.add_argument("--preview-scale", type=float, default=0.5,
                     help="size of the preview window per side (0.5 = a quarter of the image area)")
     ap.add_argument("--dump", help="also append every packet to this file (tests)")
@@ -130,6 +176,8 @@ def main():
     dump = open(args.dump, "wb") if args.dump else None
     last_ms = -1
     frame_no = 0
+    view_port = args.view_port if args.view_port else args.port + 1
+    view_at = 0.0
     shown = time.monotonic()
     t0 = None
     for img, t in frames_from(args):
@@ -166,13 +214,15 @@ def main():
         sock.sendto(data, ("127.0.0.1", args.port))
         if dump:
             dump.write(struct.pack("<I", len(data)) + data)
+        if args.view and time.monotonic() - view_at >= 1.0 / max(args.view_fps, 1.0):
+            view_at = time.monotonic()
+            data = view_packet(img, img_pts, frame_no, world is not None, args.view_width)
+            if data:
+                sock.sendto(data, ("127.0.0.1", view_port))
         frame_no += 1
         if args.preview:
             if img_pts is not None:
-                h, w = img.shape[:2]
-                for a, b in POSE_EDGES:
-                    cv2.line(img, (int(img_pts[a][0] * w), int(img_pts[a][1] * h)),
-                             (int(img_pts[b][0] * w), int(img_pts[b][1] * h)), (80, 220, 255), 2)
+                draw_skeleton(img, img_pts)
             now = time.monotonic()
             cv2.putText(img, "%.0f fps  %s" % (1.0 / max(now - shown, 1e-3), "tracking" if world else "no body"),
                         (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)

@@ -474,6 +474,15 @@ To release: edit that header, add a section here, commit, then
   records keys at the clip's rate from the playhead after a countdown, with
   optional key reduction; a recording is one undo step. `--mocap-test` and
   `--mocap-smoke` check the solver and the live path without a camera.
+- The animation editor shows the webcam image itself, in a dockable
+  **Camera** window (under Skeleton by default; Window > Reset layout for an
+  older layout), with MediaPipe's skeleton drawn on it, the tracking state,
+  and the image mirrored with **Mirror**. `pose_stream.py --view` sends it as
+  a small JPEG (320 px wide, at most 15 frames a second, one datagram on the
+  landmark port + 1), decoded by a private JPEG-only stb_image in the tool
+  since njin's raylib is built without JPEG; about 1-2 ms of encoding per
+  image. The separate OpenCV window is now an option (**OpenCV window**,
+  off by default).
 
 ### Removed
 
