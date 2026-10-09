@@ -1,132 +1,322 @@
 #include "document.h"
+#include "roundtrip.h"
+#include "cgltf.h"
 #include "raymath.h"
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <stdexcept>
 
-namespace model_editor {
-int self_test() {
-  int checks=0;
-  auto check=[&](bool condition,const char *message) {
-    ++checks; if (!condition) throw std::runtime_error(message);
+namespace anim_editor {
+namespace {
+using J = njin::json_value;
+std::string base64(const std::vector<uint8_t> &in) {
+  static const char *abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  for (size_t i = 0; i < in.size(); i += 3) {
+    uint32_t v = (uint32_t)in[i] << 16 | (i + 1 < in.size() ? (uint32_t)in[i + 1] << 8 : 0) |
+                 (i + 2 < in.size() ? (uint32_t)in[i + 2] : 0);
+    out += abc[v >> 18 & 63];
+    out += abc[v >> 12 & 63];
+    out += i + 1 < in.size() ? abc[v >> 6 & 63] : '=';
+    out += i + 2 < in.size() ? abc[v & 63] : '=';
+  }
+  return out;
+}
+float dot4(Quaternion a, Quaternion b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+J numbers(std::initializer_list<double> values) {
+  auto a = J::make_array();
+  for (double v : values)
+    a.push(v);
+  return a;
+}
+} // namespace
+
+// A column of four rings on three chained joints (Hip > Spine > Head) under a
+// non-joint "Armature" node, with a "Bend" clip: Spine turns 45 degrees about
+// z, Head scales up (a channel the editor does not edit, kept on export).
+std::string write_test_model(const std::string &folder) {
+  std::vector<uint8_t> bin;
+  auto put = [&](const void *p, size_t n) {
+    while (bin.size() % 4)
+      bin.push_back(0);
+    size_t at = bin.size();
+    bin.insert(bin.end(), (const uint8_t *)p, (const uint8_t *)p + n);
+    return at;
   };
+  std::vector<float> pos, weights;
+  std::vector<uint8_t> joints;
+  for (int ring = 0; ring < 4; ++ring)
+    for (int c = 0; c < 4; ++c) {
+      pos.insert(pos.end(), {0.5f + ((c == 1 || c == 2) ? 0.2f : -0.2f), (float)ring, (c >= 2) ? 0.2f : -0.2f});
+      joints.insert(joints.end(), {(uint8_t)std::min(ring, 2), 0, 0, 0});
+      weights.insert(weights.end(), {1, 0, 0, 0});
+    }
+  std::vector<uint16_t> idx;
+  for (int ring = 0; ring < 3; ++ring)
+    for (int c = 0; c < 4; ++c) {
+      uint16_t a = (uint16_t)(ring * 4 + c), b = (uint16_t)(ring * 4 + (c + 1) % 4);
+      idx.insert(idx.end(), {a, b, (uint16_t)(b + 4), a, (uint16_t)(b + 4), (uint16_t)(a + 4)});
+    }
+  std::vector<float> ibm;
+  for (int j = 0; j < 3; ++j)
+    ibm.insert(ibm.end(), {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -0.5f, -(float)j, 0, 1});
+  const float s = std::sin(22.5f * DEG2RAD), co = std::cos(22.5f * DEG2RAD);
+  std::vector<float> times{0, 1}, rot{0, 0, 0, 1, 0, 0, s, co}, scale{1, 1, 1, 1.5f, 1.5f, 1.5f};
+  struct View {
+    size_t offset, size;
+  };
+  std::vector<View> v{{put(pos.data(), pos.size() * 4), pos.size() * 4},
+                      {put(joints.data(), joints.size()), joints.size()},
+                      {put(weights.data(), weights.size() * 4), weights.size() * 4},
+                      {put(idx.data(), idx.size() * 2), idx.size() * 2},
+                      {put(ibm.data(), ibm.size() * 4), ibm.size() * 4},
+                      {put(times.data(), 8), 8},
+                      {put(rot.data(), 32), 32},
+                      {put(scale.data(), 24), 24}};
+  while (bin.size() % 4)
+    bin.push_back(0);
+  auto views = J::make_array(), accessors = J::make_array();
+  for (const auto &w : v) {
+    auto o = J::make_object();
+    views.push(o.set("buffer", 0).set("byteOffset", (double)w.offset).set("byteLength", (double)w.size));
+  }
+  auto accessor = [&](int view, int component, const char *type, int count) {
+    auto o = J::make_object();
+    o.set("bufferView", view).set("componentType", component).set("type", type).set("count", count);
+    return o;
+  };
+  accessors.push(accessor(0, 5126, "VEC3", 16).set("min", numbers({0.3, 0, -0.2})).set("max", numbers({0.7, 3, 0.2})))
+      .push(accessor(1, 5121, "VEC4", 16))
+      .push(accessor(2, 5126, "VEC4", 16))
+      .push(accessor(3, 5123, "SCALAR", (int)idx.size()))
+      .push(accessor(4, 5126, "MAT4", 3))
+      .push(accessor(5, 5126, "SCALAR", 2).set("min", numbers({0})).set("max", numbers({1})))
+      .push(accessor(6, 5126, "VEC4", 2))
+      .push(accessor(7, 5126, "VEC3", 2));
+  auto node = [](const char *name) {
+    auto o = J::make_object();
+    o.set("name", name);
+    return o;
+  };
+  auto nodes = J::make_array();
+  nodes.push(node("Armature").set("translation", numbers({0.5, 0, 0})).set("children", numbers({1})))
+      .push(node("Hip").set("children", numbers({2})))
+      .push(node("Spine").set("translation", numbers({0, 1, 0})).set("children", numbers({3})))
+      .push(node("Head").set("translation", numbers({0, 1, 0})))
+      .push(node("Body").set("mesh", 0).set("skin", 0));
+  auto attributes = J::make_object();
+  attributes.set("POSITION", 0).set("JOINTS_0", 1).set("WEIGHTS_0", 2);
+  auto prim = J::make_object(), mesh = J::make_object(), skin = J::make_object(), material = J::make_object(),
+       pbr = J::make_object();
+  prim.set("attributes", attributes).set("indices", 3).set("material", 0);
+  mesh.set("name", "Body").set("primitives", J::make_array().push(prim));
+  skin.set("joints", numbers({1, 2, 3})).set("inverseBindMatrices", 4).set("skeleton", 1);
+  pbr.set("baseColorFactor", numbers({0.8, 0.5, 0.3, 1}));
+  material.set("pbrMetallicRoughness", pbr);
+  auto sampler = [](int in, int out) {
+    auto o = J::make_object();
+    o.set("input", in).set("output", out).set("interpolation", "LINEAR");
+    return o;
+  };
+  auto channel = [](int sampler, int node, const char *path) {
+    auto o = J::make_object(), target = J::make_object();
+    target.set("node", node).set("path", path);
+    return o.set("sampler", sampler).set("target", target);
+  };
+  auto anim = J::make_object();
+  anim.set("name", "Bend")
+      .set("samplers", J::make_array().push(sampler(5, 6)).push(sampler(5, 7)))
+      .set("channels", J::make_array().push(channel(0, 2, "rotation")).push(channel(1, 3, "scale")));
+  auto buffer = J::make_object(), asset = J::make_object(), scene = J::make_object(), root = J::make_object();
+  buffer.set("byteLength", (double)bin.size()).set("uri", "data:application/octet-stream;base64," + base64(bin));
+  asset.set("version", "2.0");
+  scene.set("nodes", numbers({0, 4}));
+  root.set("asset", asset)
+      .set("scene", 0)
+      .set("scenes", J::make_array().push(scene))
+      .set("nodes", nodes)
+      .set("meshes", J::make_array().push(mesh))
+      .set("skins", J::make_array().push(skin))
+      .set("materials", J::make_array().push(material))
+      .set("accessors", accessors)
+      .set("bufferViews", views)
+      .set("buffers", J::make_array().push(buffer))
+      .set("animations", J::make_array().push(anim));
+  const std::string path = (std::filesystem::path(folder) / "column.gltf").string();
+  if (!njin::json_save(path.c_str(), root))
+    throw std::runtime_error("cannot write the test model");
+  return path;
+}
+
+// A "Wave" clip on the test model: the hip rises, the head turns and back.
+AnimationClip wave_clip() {
+  AnimationClip c;
+  c.name = "Wave";
+  c.duration = 1;
+  set_key(c, {0, 0, {}, {}});
+  set_key(c, {0, 1, {0, 0.5f, 0}, {}});
+  set_key(c, {2, 0, {}, {}});
+  set_key(c, {2, 0.5f, {}, {30, 0, 80}});
+  set_key(c, {2, 1, {}, {0, 0, 0}});
+  return c;
+}
+
+std::string temp_folder(const char *tag) {
+  auto folder = std::filesystem::temp_directory_path() /
+                (std::string("njin-anim-editor-") + tag + "-" +
+                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(folder);
+  return folder.string();
+}
+
+int self_test() {
+  int checks = 0;
+  auto check = [&](bool condition, const char *message) {
+    ++checks;
+    if (!condition)
+      throw std::runtime_error(message);
+  };
+  auto near = [](Vector3 a, Vector3 b, float e = 1e-4f) { return Vector3Distance(a, b) < e; };
+  const std::string folder = temp_folder("self");
   try {
-    Document d=humanoid(),loaded; std::string error;
-    auto original=njin::json_dump(serialize(d)); njin::json_value json;
-    check(njin::json_parse(original,json),"parse project JSON");
-    check(deserialize(json,loaded,error),"load project JSON");
-    check(original==njin::json_dump(serialize(loaded)),"round trip preserves model/rig/pose");
-    check(!can_parent(d,0,4),"reject descendant parent");
-    check(can_parent(d,4,5),"allow valid reparent");
-    auto cyclic=serialize(d);
-    cyclic.find("bones")->items[0].set("parent",4);
-    check(!deserialize(cyclic,loaded,error),"reject cyclic JSON");
-    check(original==njin::json_dump(serialize(loaded)),"failed load preserves existing document");
-    auto invalid=serialize(d); invalid.find("shapes")->items[0].set("bone",999);
-    check(!deserialize(invalid,loaded,error),"reject bad bone reference");
-    invalid=serialize(d); invalid.find("shapes")->items[0].set("kind",0.5);
-    check(!deserialize(invalid,loaded,error),"reject fractional enum");
-    invalid=serialize(d); invalid.find("bones")->items[0].set("length",-1);
-    check(!deserialize(invalid,loaded,error),"reject negative dimensions");
-    auto rest=bone_matrices(d,false); d.bones[3].pose.z=50;
-    auto pose=bone_matrices(d,true);
-    check(Vector3Distance(Vector3Transform({},rest[4]),Vector3Transform({},pose[4]))>0.2f,"child follows parent pose");
-    check(Vector3Distance(Vector3Transform({},rest[5]),Vector3Transform({},pose[5]))<0.0001f,"other branch unaffected");
-    // Binding and deleting must preserve both translation and arbitrary rotation.
-    d.shapes[4].rotation={23,37,-54};
-    Matrix before=shape_matrix(d.shapes[4],bone_matrices(d,false));
-    bind_shape(d,4,5);
-    Matrix after=shape_matrix(d.shapes[4],bone_matrices(d,false));
-    for (Vector3 p : {Vector3{},Vector3{1,0,0},Vector3{0,1,0},Vector3{0,0,1}})
-      check(Vector3Distance(Vector3Transform(p,before),Vector3Transform(p,after))<0.0001f,"rebind preserves rest transform");
-    remove_bone(d,5);
-    after=shape_matrix(d.shapes[4],bone_matrices(d,false));
-    check(d.bones.size()==9 && d.shapes[4].bone==-1,"delete subtree detaches shapes");
-    check(Vector3Distance(Vector3Transform({1,2,3},before),Vector3Transform({1,2,3},after))<0.0001f,"delete preserves world transform");
-    check(deserialize(serialize(d),loaded,error),"remapped rig remains valid");
-    Document sphere; Shape s; s.radius=1; sphere.shapes.push_back(s);
-    Field f(sphere,false);
-    check(std::abs(f.distance({}))<1.001f && f.distance({})<-0.999f,"sphere interior");
-    check(std::abs(f.distance({2,0,0})-1)<0.0001f,"sphere exterior");
-    Shape cut=s; cut.radius=0.5f; cut.operation=2; sphere.shapes.push_back(cut);
-    check(Field(sphere,false).distance({})>0.49f,"subtraction opens cavity");
-    sphere.shapes.back().operation=3;
-    check(Field(sphere,false).distance({0.75f,0,0})>0,"intersection clips surface");
-    sphere.shapes.back().operation=1; sphere.shapes.back().radius=1;
-    check(Field(sphere,false).distance({1,0,0})<0,"smooth union blends surface");
-    auto mesh=triangulate(f,24);
-    check(!mesh.vertices.empty() && mesh.vertices.size()%3==0,"generate triangles");
-    check(mesh.vertices.size()==mesh.normals.size(),"one normal per vertex");
-    float signed_volume=0;
-    for (size_t i=0;i<mesh.vertices.size();i+=3) {
-      auto a=mesh.vertices[i],b=mesh.vertices[i+1],c=mesh.vertices[i+2];
-      check(std::abs(Vector3Length(a)-1)<0.02f,"sphere surface accuracy");
-      check(Vector3DotProduct(Vector3CrossProduct(Vector3Subtract(b,a),Vector3Subtract(c,a)),a)>0,"outward winding");
-      signed_volume+=Vector3DotProduct(a,Vector3CrossProduct(b,c))/6;
-    }
-    check(std::abs(signed_volume-4*PI/3)<0.08f,"closed sphere volume");
-    auto path=std::filesystem::temp_directory_path()/"njin-model-editor-test.obj";
-    check(export_obj(path.string(),mesh),"write OBJ");
-    std::ifstream file(path); std::string line; size_t vertices=0,faces=0,normals=0;
-    while (std::getline(file,line)) { vertices+=line.starts_with("v "); normals+=line.starts_with("vn "); faces+=line.starts_with("f "); }
-    file.close(); std::filesystem::remove(path);
-    check(vertices==mesh.vertices.size() && normals==vertices && faces*3==vertices,"OBJ geometry counts");
-    check(triangulate(Field(Document{},false),24).vertices.empty(),"empty document");
-    for (int kind=1;kind<=4;++kind) {
-      Document primitive; Shape shape; shape.kind=kind; primitive.shapes.push_back(shape);
-      check(!triangulate(Field(primitive,false),24).vertices.empty(),"primitive produces mesh");
-    }
-    Document animated=humanoid(); add_demo_animation(animated);
-    auto &clip=animated.clips[0];
-    check(clip.keys.size()==25,"demo has rest tracks and wave keys");
-    auto middle=sample_animation(animated,clip,0.25f);
-    auto rotation=matrix_euler(QuaternionToMatrix(middle[6].rotation));
-    check(std::abs(rotation.z-47.5f)<0.01f,"quaternion interpolation between keys");
-    auto matrices=bone_matrices(animated,true,&middle);
-    auto initial=bone_matrices(animated,false);
-    check(Vector3Distance(Vector3Transform({0,0.5f,0},matrices[6]),Vector3Transform({0,0.5f,0},initial[6]))>0.1f,"animated mesh attachment moves");
-    AnimationClip turn; turn.duration=2;
-    set_key(turn,{0,0,{0,0,0},{0,170,0}});
-    set_key(turn,{0,2,{2,0,0},{0,-170,0}});
-    auto halfway=sample_animation(animated,turn,1);
-    check(std::abs(halfway[0].translation.x-1)<0.0001f,"linear translation interpolation");
-    auto facing=Vector3RotateByQuaternion({0,0,1},halfway[0].rotation);
-    check(facing.z<-0.99f,"shortest quaternion path across 180 degrees");
-    check(sample_animation(animated,turn,-1)[0].translation.x==0,"sample before first key clamps");
-    check(sample_animation(animated,turn,3)[0].translation.x==2,"sample at end does not wrap");
-    bool playing=true;
-    check(std::abs(advance_animation(1.9f,0.3f,turn,playing)-0.2f)<0.0001f && playing,"loop wraps time");
-    turn.loop=false; playing=true;
-    check(advance_animation(1.9f,0.3f,turn,playing)==2 && !playing,"non-loop stops at final key");
-    check(advance_animation(0.5f,1,turn,playing)==0.5f,"paused playhead unchanged");
-    auto count=turn.keys.size(); set_key(turn,{0,2,{3,0,0},{}});
-    check(turn.keys.size()==count && turn.keys.back().translation.x==3,"key replacement has no duplicate");
-    check(remove_key(turn,0,2) && !remove_key(turn,0,2),"key deletion");
-    animated.bones[3].offset={0.1f,0.2f,0.3f};
-    auto with_clips=serialize(animated);
-    check(deserialize(with_clips,loaded,error),"animation project loads");
-    check(njin::json_dump(with_clips)==njin::json_dump(serialize(loaded)),"animation JSON round trip");
-    auto legacy=serialize(humanoid()); legacy.set("version",1);
-    check(deserialize(legacy,loaded,error) && loaded.clips.empty(),"legacy version 1 loads without animation");
-    auto bad=with_clips;
-    bad.find("clips")->items[0].find("keys")->items[0].set("bone",128);
-    check(!deserialize(bad,loaded,error),"reject invalid animation bone");
-    bad=with_clips; bad.find("clips")->items[0].find("keys")->items[0].set("time",9);
-    check(!deserialize(bad,loaded,error),"reject key beyond clip duration");
-    bad=with_clips; bad.find("clips")->items[0].set("duration",0);
-    check(!deserialize(bad,loaded,error),"reject zero animation duration");
-    bad=with_clips; bad.find("clips")->items[0].find("keys")->items.push_back(bad["clips"][0]["keys"][0]);
-    check(!deserialize(bad,loaded,error),"reject duplicate key time");
-    remove_bone(animated,3);
-    check(deserialize(serialize(animated),loaded,error),"deleting bone remaps animation tracks");
-    bool wave_survived=false;
-    for (const auto &key:animated.clips[0].keys)
-      if (key.time==0.5f && animated.bones[key.bone].name=="Forearm.R") wave_survived=true;
-    check(wave_survived,"unrelated bone animation survives subtree deletion");
-    std::printf("PASS: %d checks (JSON, rig transforms, CSG, meshing, OBJ, animation)\n",checks);
-    return 0;
-  } catch (const std::exception &e) { std::fprintf(stderr,"FAIL after %d checks: %s\n",checks,e.what()); return 1; }
+    const std::string model = write_test_model(folder);
+    Rig rig;
+    std::vector<AnimationClip> clips;
+    std::string error;
+    check(load_rig(model, rig, clips, error), "load the skinned test model");
+    check(rig.bones.size() == 3 && rig.bones[0].name == "Hip" && rig.bones[2].name == "Head", "joints in skin order");
+    check(rig.bones[0].parent == -1 && rig.bones[1].parent == 0 && rig.bones[2].parent == 1, "joint parents");
+    auto rest = bone_world(rig, nullptr);
+    check(near({rest[2].m12, rest[2].m13, rest[2].m14}, {0.5f, 2, 0}), "rest world includes the Armature node");
+    check(clips.size() == 1 && clips[0].name == "Bend", "import the file's clip");
+    check(clips[0].keys.size() == 2 && clips[0].keys[1].bone == 1, "linear channel keeps its two keys");
+    check(near(clips[0].keys[1].rotation, {0, 0, 45}, 1e-3f), "imported rotation as pose degrees");
+    auto half = sample_animation(3, clips[0], 0.5f);
+    Vector3 axis{};
+    float angle = 0;
+    QuaternionToAxisAngle(half[1].rotation, &axis, &angle);
+    check(std::abs(angle - 22.5f * DEG2RAD) < 1e-4f, "slerp between keys");
+    auto posed = bone_world(rig, &half);
+    check(near({posed[2].m12, posed[2].m13, posed[2].m14},
+               {0.5f - std::sin(22.5f * DEG2RAD), 1 + std::cos(22.5f * DEG2RAD), 0}),
+          "child follows posed parent");
+    // A gizmo edit becomes the key that reproduces it.
+    Matrix local = MatrixMultiply(QuaternionToMatrix(euler_quaternion({10, 20, 30})), MatrixTranslate(0.1f, 1.2f, 0));
+    Keyframe k = key_from_local(rig, 1, 0.25f, local);
+    AnimationClip edit;
+    edit.duration = 1;
+    check(set_key(edit, k), "set key");
+    auto back = sample_animation(3, edit, 0.25f);
+    check(near(back[1].translation, {0.1f, 0.2f, 0}) &&
+              std::abs(dot4(back[1].rotation, euler_quaternion({10, 20, 30}))) > 0.99999f,
+          "key from a local matrix round trips");
+    check(remove_key(edit, 1, 0.25f) && edit.keys.empty(), "remove key");
+
+    Document doc{model, {clips[0], wave_clip()}};
+    std::string text = njin::json_dump(serialize(doc, rig), false);
+    njin::json_value json;
+    Document loaded;
+    check(njin::json_parse(text, json) && deserialize(json, rig, loaded, error), "project JSON loads");
+    check(text == njin::json_dump(serialize(loaded, rig), false), "project round trip");
+    auto wrong = serialize(doc, rig);
+    wrong.find("clips")->items[1].find("keys")->items[0].set("bone", "Tail");
+    check(!deserialize(wrong, rig, loaded, error) && error.find("Tail") != std::string::npos, "unknown bone refused");
+    auto old = J::make_object();
+    old.set("format", "njin.sdf-model");
+    check(!deserialize(old, rig, loaded, error) && error.find(".model.json") != std::string::npos,
+          "old SDF project refused with a reason");
+
+    const std::string out = (std::filesystem::path(folder) / "column.glb").string();
+    check(export_glb(model, rig, doc.clips, out, error), "export .glb");
+    Rig again;
+    std::vector<AnimationClip> again_clips;
+    check(load_rig(out, again, again_clips, error), "exported file loads");
+    check(again.bones.size() == 3 && again_clips.size() == 2 && again_clips[1].name == "Wave", "clips exported");
+    float worst = 0;
+    for (float t : {0.0f, 0.2f, 0.5f, 0.8f, 1.0f})
+      for (int c = 0; c < 2; ++c) {
+        auto a = sample_animation(3, doc.clips[c], t), b = sample_animation(3, again_clips[c], t);
+        auto wa = bone_world(rig, &a), wb = bone_world(again, &b);
+        for (int i = 0; i < 3; ++i)
+          for (int e = 0; e < 16; ++e)
+            worst = std::max(worst, std::abs(MatrixToFloatV(wa[i]).v[e] - MatrixToFloatV(wb[i]).v[e]));
+      }
+    check(worst < 1e-4f, "re-imported clips pose the same");
+    cgltf_options options{};
+    cgltf_data *data = nullptr;
+    check(cgltf_parse_file(&options, out.c_str(), &data) == cgltf_result_success, "parse exported .glb");
+    bool scale_kept = false;
+    for (cgltf_size a = 0; a < data->animations_count; ++a)
+      for (cgltf_size c = 0; c < data->animations[a].channels_count; ++c)
+        scale_kept |= std::strcmp(data->animations[a].name, "Bend") == 0 &&
+                      data->animations[a].channels[c].target_path == cgltf_animation_path_type_scale;
+    const bool kept = data->file_type == cgltf_file_type_glb && data->meshes_count == 1 && data->skins_count == 1 &&
+                      data->skins[0].joints_count == 3 && data->materials_count == 1 && data->buffers_count == 1;
+    cgltf_free(data);
+    check(kept, "mesh, skin and material kept in one GLB buffer");
+    check(scale_kept, "channels the editor does not edit are kept");
+    std::printf("PASS: %d checks (rig load, sampling, keys, project JSON, glTF export and re-import; worst %.2g)\n",
+                checks, worst);
+  } catch (const std::exception &e) {
+    std::fprintf(stderr, "FAIL after %d checks: %s\n", checks, e.what());
+    return 1;
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(folder, ec);
+  return 0;
 }
+
+int roundtrip_test(const char *source) {
+  // The generated column with a new "Wave" clip, or a given model exported
+  // with its own clips unchanged and checked on its first clip.
+  const std::string folder = temp_folder("roundtrip");
+  const std::string model = source ? std::string(source) : write_test_model(folder);
+  const std::string out = (std::filesystem::path(folder) / "export.glb").string();
+  Rig rig;
+  std::vector<AnimationClip> clips;
+  std::string error;
+  bool ok = load_rig(model, rig, clips, error);
+  if (ok && !source)
+    clips.push_back(wave_clip());
+  if (ok && clips.empty()) {
+    error = "the model has no clip to compare";
+    ok = false;
+  }
+  if (!ok || !export_glb(model, rig, clips, out, error)) {
+    std::fprintf(stderr, "FAIL: %s\n", error.c_str());
+    return 1;
+  }
+  const AnimationClip &checked = source ? clips.front() : clips.back();
+  std::vector<RoundtripSample> samples;
+  // Inside the clip: at its very end njin plays the frame 1/60 s before.
+  for (float k : {0.0f, 0.25f, 0.4f, 0.5f, 0.75f, 0.95f}) {
+    const float t = k * checked.duration;
+    auto pose = sample_animation((int)rig.bones.size(), checked, t);
+    auto world = bone_world(rig, &pose);
+    for (size_t b = 0; b < rig.bones.size(); ++b) {
+      const Matrix &m = world[b];
+      RoundtripSample s;
+      s.bone = rig.bones[b].name;
+      s.time = t;
+      const Vector3 axes[3]{Vector3Normalize({m.m0, m.m1, m.m2}), Vector3Normalize({m.m4, m.m5, m.m6}),
+                            Vector3Normalize({m.m8, m.m9, m.m10})};
+      for (int a = 0; a < 3; ++a)
+        s.axes[a * 3] = axes[a].x, s.axes[a * 3 + 1] = axes[a].y, s.axes[a * 3 + 2] = axes[a].z;
+      s.position[0] = m.m12, s.position[1] = m.m13, s.position[2] = m.m14;
+      samples.push_back(s);
+    }
+  }
+  const RoundtripResult r = njin_roundtrip(out, checked.name, samples);
+  ok = r.loaded && r.bones == (int)rig.bones.size() && r.clips == (int)clips.size() && r.max_angle < 0.5 &&
+       r.max_offset < 1e-3;
+  std::printf("%s: njin model_load() of the export: %d bones, %d clips, %zu samples, worst %.4f deg, %.6f units%s%s\n",
+              ok ? "PASS" : "FAIL", r.bones, r.clips, samples.size(), r.max_angle, r.max_offset,
+              r.error.empty() ? "" : ", ", r.error.c_str());
+  std::error_code ec;
+  std::filesystem::remove_all(folder, ec);
+  return ok ? 0 : 1;
 }
+} // namespace anim_editor

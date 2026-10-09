@@ -24,13 +24,15 @@ minor versions before 1.0. See [CHANGELOG.md](CHANGELOG.md) for details.
 - Gizmos for 2D and 3D debugging.
 - A virtual screen for pixel art, anti-aliasing via supersampling, and the `njin_inspector` tool to inspect entities, systems, logs, performance, resources and the 3D scene while the game runs.
 
-## Model and skeleton editor
+## Animation editor
 
-Run `run_model_editor.bat` to open the **njin Model Editor**: build shapes from
-SDF primitives, combine/cut them, build a bone tree, attach shapes, pose the
-skeleton and author animation with a keyframe timeline. It has ImGuizmo gizmos
-and a GPU SDF preview. The tool saves models and clips as JSON and exports
-static models as OBJ. See the [Model Editor guide](src/tools/model_editor/README.md).
+Run `run_anim_editor.bat` to open the **njin Animation Editor**: open a rigged
+(skinned) `.glb`/`.gltf` model, pose its skeleton with ImGuizmo gizmos and
+author clips on a keyframe timeline. The model's own clips open for editing.
+Projects are saved as `.anim.json` (the model path plus the clips), and
+**Export glTF** writes a `.glb` with the model and every clip, which
+`model_load()` plays directly. See the
+[Animation Editor guide](src/tools/anim_editor/README.md).
 
 ## Sample games
 

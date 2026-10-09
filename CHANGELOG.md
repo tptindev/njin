@@ -387,6 +387,27 @@ To release: edit that header, add a section here, commit, then
   into a ragdoll, who stands up where it lies; feet are set on the ground by
   two-bone IK.)
 
+### Changed
+
+- The model editor tool is replaced by an animation editor:
+  `src/tools/model_editor` is now `src/tools/anim_editor` (target
+  `njin_anim_editor`, `run_anim_editor.bat`, CMake option
+  `NJIN_BUILD_ANIM_EDITOR`). It opens a skinned `.glb`/`.gltf` and animates
+  its skeleton: the file's own clips open for editing, bones are posed with
+  ImGuizmo on a keyframe timeline, projects are saved as `.anim.json` (the
+  model path and the clips, keys naming bones), and **Export glTF** writes a
+  `.glb` with the model, its skin, materials, textures and every clip as glTF
+  animations that `model_load()` plays as they were authored. Channels a clip
+  does not edit (scale, morph weights, nodes outside the skin) are kept from
+  the source animation of the same name. Writing uses cgltf_write (MIT),
+  vendored at the cgltf commit whose parser raylib 6.0 bundles.
+
+### Removed
+
+- The SDF modelling part of the model editor: shapes, CSG, the live SDF
+  preview, OBJ export and the shape-built humanoid. Old `.model.json` projects
+  are refused with a message, as they have no glTF rig.
+
 ## 0.3.0
 
 Compatible with 0.2.0: existing games build unchanged. One default changes:
