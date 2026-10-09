@@ -5,7 +5,7 @@ and sends the 3D world landmarks to the editor as one UDP packet per frame on
 127.0.0.1. The editor starts this script itself (Mocap > Start); it can also be
 run by hand, then the editor only listens.
 
-  pose_stream.py [--camera 0] [--port 47800] [--hands] [--mirror] [--preview]
+  pose_stream.py [--camera 0] [--port 47800] [--hands] [--mirror] [--preview] [--preview-scale 0.5]
   pose_stream.py --video clip.mp4 [--dump out.bin]      # tests: a file instead
   pose_stream.py --frames folder [--fps 30] [--dump out.bin]
 
@@ -104,6 +104,8 @@ def main():
     ap.add_argument("--hands", action="store_true")
     ap.add_argument("--mirror", action="store_true")
     ap.add_argument("--preview", action="store_true")
+    ap.add_argument("--preview-scale", type=float, default=0.5,
+                    help="size of the preview window per side (0.5 = a quarter of the image area)")
     ap.add_argument("--dump", help="also append every packet to this file (tests)")
     ap.add_argument("--model", default=os.path.join(HERE, "pose_landmarker_full.task"))
     args = ap.parse_args()
@@ -175,6 +177,9 @@ def main():
             cv2.putText(img, "%.0f fps  %s" % (1.0 / max(now - shown, 1e-3), "tracking" if world else "no body"),
                         (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             shown = now
+            if args.preview_scale != 1.0:
+                img = cv2.resize(img, None, fx=args.preview_scale, fy=args.preview_scale,
+                                 interpolation=cv2.INTER_AREA)
             cv2.imshow("njin mocap (Esc to stop)", img)
             key = cv2.waitKey(1) & 0xFF
             if key == 27 or cv2.getWindowProperty("njin mocap (Esc to stop)", cv2.WND_PROP_VISIBLE) < 1:

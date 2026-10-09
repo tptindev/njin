@@ -97,7 +97,8 @@ git).
 1. Mở một model có rig người (tên xương kiểu Mixamo, Unreal, Unity/VRM, Blender đều nhận) và chọn
    hoặc tạo một clip. Mocap ghi dòng "N humanoid bones matched".
 2. Trong **Mocap**: chọn **Camera** (0 là webcam mặc định), bật **Hands** nếu cần ngón tay, bấm
-   **Start camera**. Cửa sổ xem trước của camera hiện khung xương MediaPipe vẽ đè (Esc để tắt). Đứng
+   **Start camera**. Cửa sổ xem trước của camera hiện khung xương MediaPipe vẽ đè (Esc để tắt), mặc
+   định bằng nửa mỗi chiều của ảnh, tức 1/4 diện tích; MediaPipe vẫn nhận ảnh đủ độ phân giải. Đứng
    lùi để camera thấy cả người; ánh sáng đều, phông nền gọn giúp bắt chính xác hơn.
 3. **Drive bones** + danh sách chọn xương: cả người, nửa trên, tay trái, tay phải, đầu và cổ, cột
    sống, chân, bàn tay, hoặc **xương đang chọn và các xương dưới nó**. Các xương đó đi theo camera
@@ -111,7 +112,8 @@ git).
    bước Undo.
 6. **Stop** tắt camera. **Listen only** chỉ nghe cổng UDP, khi bạn tự chạy
    `mocap\.venv\Scripts\python.exe mocap\pose_stream.py --preview` (xem `--help`: `--camera`,
-   `--hands`, `--mirror`, `--video file.mp4`, `--frames thư_mục`).
+   `--hands`, `--mirror`, `--preview-scale 0.5` (cỡ cửa sổ xem trước mỗi chiều), `--video file.mp4`,
+   `--frames thư_mục`).
 
 **Cách tính:** MediaPipe cho 33 khớp cơ thể theo mét, gốc ở giữa hai hông (trục x sang phải ảnh, y
 xuống, z ra xa camera); editor đổi sang trục glTF `(x, -y, -z)` (+Y lên, +Z về phía camera). Hông,
