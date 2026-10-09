@@ -54,7 +54,8 @@ riêng, nhận làm tham số đầu của mọi hàm:
 | `on_start(self)` | Một lần, ở lần cập nhật đầu tiên sau khi gắn |
 | `on_fixed_update(self, dt)` | Theo nhịp cố định, trong `phase_fixed_update` (dt là bước cố định), ngay trước bước vật lý 3D |
 | `on_update(self, dt)` | Mỗi frame, trong `phase_update`, trước system của game |
-| `on_render(self)` | Mỗi frame, trong `phase_render`, để vẽ bằng `njin.draw_*` |
+| `on_render(self)` | Mỗi frame, trong `phase_render`, để vẽ bằng `njin.draw_*` (cả 3D, giữa `njin.begin_3d` và `njin.end_3d`) |
+| `on_ui(self)` | Mỗi frame, trong `phase_post_render` (không gian màn hình), để dựng giao diện bằng `njin.ui_*` |
 | `on_destroy(self)` | Khi entity bị hủy hay script bị gỡ (script_detach()) |
 | `on_reload(self)` | Sau khi file được nạp lại (hot reload) |
 | `on_load(self)` | Sau khi script_load_state() đổ dữ liệu đã lưu vào `self` (@ref script_save) |
@@ -96,6 +97,14 @@ Mọi hàm của module chỉ gọi thẳng API C++ cùng tên, không thêm hà
 | Hạt 2D | `particles_burst(e, số)`, `particles_spawn(mẫu, vec2, số)` |
 | Vật lý 3D | `raycast3d(gốc, hướng, xa_nhất)`, `body_velocity`, `body_set_velocity`, `body_impulse`, `character_move(e, vec3)`, `character_position`, `character_grounded` |
 | Tìm đường 3D | `nav3d_path(navmesh, from, to)`, `nav3d_set_target(agent, đích)`, `nav3d_stop`, `nav3d_position`, `nav3d_velocity`, `nav3d_arrived` (xem @ref nav_3d) |
+| Vẽ 3D | `begin_3d({position, target, up, fovy, near, far})`, `end_3d`, `draw_cube3d(tâm, cỡ, màu)`, `draw_sphere3d(tâm, bán_kính, màu)`, `draw_cylinder3d(từ, đến, bán_kính, màu)`, `draw_capsule3d`, `draw_plane3d(tâm, vec2, màu)`, `draw_shape3d({kind, position, rotation, size, radius, height, thickness, rounding}, màu)`, `material3d_set({specular, shininess, emission, rim, unlit, cast_shadows, reflect, world_uv})` |
+| Model 3D | `model_load(đường_dẫn)`, `model_valid`, `draw_model(m, transform, {anim, time, loop, blend_anim, blend_time, blend, morphs = {tên = trọng_số}, tint})`, `model_anim_count`, `model_anim_find`, `model_anim_name`, `model_anim_duration(m, tên hay chỉ_số)`, `model_morph_count`, `model_bone_count`, `model_bone_find`, `model_bone_position(m, xương, transform, tư_thế)`, `model3d_set(e, {model, anim, time, loop, speed, tint, visible})`, `model3d(e)` |
+| Ánh sáng 3D, trời | `light3d_set({direction, color, ambient, shadows, shadow_range, shadow_softness, fog_color, fog_density})`, `light3d_get`, `light3d_add({kind = "point"/"spot", position, direction, color, intensity, radius, cone, softness, shadows})`, `draw_sky3d({hour, latitude, season, north, weather, ...})`, `sky3d_sun_direction`, `weather3d_preset("clear"/"overcast"/"rain"/"snow"/"fog")` |
+| Ánh sáng 2D | `lighting_set({enabled, ambient, exposure})`, `light2d_set(e, {kind, color, temperature, intensity, radius, size, angle, cone, softness, height, elevation, cast_shadows, enabled})` |
+| Giao diện | `ui_begin({id, title, anchor, pivot, offset, width, background, navigable})`, `ui_end`, `ui_row(số_cột)`, `ui_label`, `ui_space`, `ui_button(nhãn, bật)`, `ui_toggle(nhãn, giá_trị)`, `ui_slider(nhãn, giá_trị, min, max, bước, phần_trăm)`, `ui_choice(nhãn, chỉ_số, {lựa_chọn...})`, `ui_progress`, `ui_back`, `ui_active`, `ui_mouse_over`, `ui_last_rect`, `ui_toast(chữ, giây)` |
+| Chữ | `font_load(đường_dẫn, cỡ)`, `draw_text_font(chữ, vec2, cỡ, font, màu)`, `text_measure(chữ, cỡ, font)`, `tr(khóa)`, `trf(khóa, ...)` |
+| Spline | `spline_create({điểm...}, {kind = "catmull_rom"/"bezier", closed, alpha, steps, owner})`, `spline_set_points`, `spline_destroy`, `spline_valid`, `spline_length`, `spline_point(id, t)`, `spline_point_at(id, khoảng_cách)`, `spline_tangent_at`, `spline_nearest(id, điểm)`, `spline_follow(id, {distance, speed, end}, dt)`, `spline_draw_debug` |
+| Hiệu ứng 3D | `post3d_set({ssao, ssao_radius, ssao_half, ssr, motion_blur, shafts, flare, taa, taa_sharpen})`, `post3d_off`, `decal3d_add({position, normal hay rotation, size, color, lifetime, fade, paint})`, `decal3d_remove`, `decal3d_clear` |
 | Log | `log`, `warn`, `error` (và `print`), kèm file và dòng của script |
 
 Hàm trả về một bảng: `platformer(e)` có `velocity`, `grounded`, `on_slope`, `on_wall`, `facing`, `jumped`, `landed`;
@@ -105,6 +114,29 @@ nil nếu không trúng. Entity không có component cần thiết thì hàm kh�
 
 `platformer_input` và `topdown_input` ghi vào `input` của thân như phía C++: lần bấm nhảy hay lướt được giữ đến
 nhịp vật lý kế tiếp, nên gọi mỗi frame là đủ.
+
+## Cảnh 3D, ánh sáng và giao diện từ Lua {#script_3d_ui}
+
+Một script dựng được cả một cảnh 3D: nạp model, vẽ nó có ánh sáng và bóng đổ dưới bầu trời theo giờ, thêm đèn, cho
+một quả bóng chạy theo spline, và dựng menu. Vẽ 3D nằm trong `on_render`, giữa `njin.begin_3d` và `njin.end_3d` như
+phía C++; giao diện nằm trong `on_ui`, vì các hàm `ui_*` của engine chỉ chạy trong `phase_post_render`.
+
+@include script_scene3d.lua
+
+Vài quy ước của nhóm hàm này:
+
+- Vị trí và màu nhận cả kiểu sẵn có lẫn bảng: `njin.vec3(1, 2, 3)` hay `{1, 2, 3}` hay `{x = 1, y = 2, z = 3}`; màu là
+  bảng `{r, g, b, a}` hay `{1, 0, 0, 1}`. Transform là bảng `{position, rotation, scale}` (scale là một số hay một
+  `vec3`), hoặc chỉ một `vec3` vị trí.
+- Animation gọi theo tên clip hay chỉ số (từ 0, như phía C++). Trọng số morph đặt theo tên trong `morphs`.
+- `model_load` nhớ model theo đường dẫn: gọi lại với cùng file trả về cùng số, không nạp lần hai.
+- Hàm trả về hai giá trị theo kiểu Lua: `changed, value = njin.ui_slider("Âm lượng", value, 0, 1)`. `ui_choice` đếm
+  từ 1 như bảng Lua.
+- Spline là một số do `spline_create` trả về, sống đến `spline_destroy`, hay đến khi entity `owner` bị hủy. Một
+  spline của bảng hai số là 2D (trả về `vec2`), ba số là 3D. Trạng thái đi dọc đường (`distance`, `speed`, `end`,
+  `finished`) nằm trong một bảng của script, `spline_follow` sửa nó tại chỗ.
+- Số không hợp lệ (model chưa nạp, spline đã hủy, entity không còn, kiểu thời tiết lạ) là lỗi Lua có file và dòng của
+  script, ví dụ `scripts/scene.lua:21: njin.draw_model: 424242 is not a loaded model`; game vẫn chạy tiếp.
 
 ## Lưu và nạp game {#script_save}
 
@@ -159,8 +191,8 @@ mở `io` bằng `script_init(ctx, {.allow_io = true})`, gọi trước mọi h�
 khoảng 0,3 ms. Hàm của module `njin` chỉ là một lệnh gọi C++, nhưng mỗi lần qua lại giữa Lua và C++ vẫn tốn hơn một lệnh
 gọi C++ thường: vòng lặp nóng trên hàng nghìn vật (hạt, đạn) nên để ở C++.
 
-- Module chỉ có phần gameplay chung; các phần khác của engine (model 3D, UI, ánh sáng) chưa có hàm Lua. Game cần thì
-  tự thêm bằng script_register().
+- Module có phần gameplay chung, vẽ 3D, ánh sáng, giao diện, spline và hiệu ứng 3D; các phần khác (địa hình, nước,
+  vật lý mềm, video, âm thanh 3D theo voice) chưa có hàm Lua. Game cần thì tự thêm bằng script_register().
 - Chuyển động và vật lý cần chạy như nhau ở mọi FPS thì đặt trong `on_fixed_update`: nó chạy đúng số bước cố định
   của engine (mặc định 60 lần mỗi giây, config::fixed_hz), trước bước vật lý 3D, nên `njin.body_set_velocity` đặt ở
   đó có hiệu lực ngay trong bước. Không script nào có hàm này thì engine không đi qua các entity ở nhịp cố định.

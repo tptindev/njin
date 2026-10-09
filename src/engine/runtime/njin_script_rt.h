@@ -2,6 +2,7 @@
 #include "njin_internal_only.h"
 
 #include "njin_script_impl.h"
+#include "njin_spline.h"
 #include <entt/entity/entity.hpp>
 #include <sol/sol.hpp>
 #include <string>
@@ -13,7 +14,16 @@ namespace njin {
 struct script_class {
   sol::table module;
   sol::table meta;
-  sol::protected_function on_start, on_update, on_fixed_update, on_render, on_destroy, on_reload, on_load;
+  sol::protected_function on_start, on_update, on_fixed_update, on_render, on_destroy, on_reload, on_load, on_ui;
+};
+
+// A spline made by njin.spline_create(), alive until njin.spline_destroy() or
+// until its owner entity (if one was given) is gone.
+struct script_spline {
+  bool is3d = true;
+  spline3d s3;
+  spline2d s2;
+  entt::entity owner = entt::null;
 };
 
 struct script_instance {
@@ -30,7 +40,13 @@ struct script_runtime {
   std::unordered_map<std::string, script_class> classes;
   std::unordered_map<u32, script_instance> instances;
   std::vector<std::string> run_files; // script_run_file() paths, run again on change
+  std::unordered_map<std::string, u32> models; // njin.model_load() path -> handle id
+  std::unordered_map<u32, script_spline> splines;
+  u32 next_spline = 1;
 };
+
+// The njin module's 3D, lighting, UI, spline and screen-effect functions.
+void script_bind_njin_more(context &ctx, script_runtime &rt, sol::table n);
 
 // The runtime, created with default options if no script_init() came first.
 script_runtime &script_rt(context &ctx);

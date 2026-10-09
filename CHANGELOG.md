@@ -63,6 +63,24 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- The `njin` Lua module reaches 3D, lighting, the interface and splines,
+  as thin bindings over the C++ API. 3D drawing in `on_render`:
+  `begin_3d`/`end_3d` with a camera table, cubes, spheres, cylinders,
+  capsules, planes, `draw_shape3d`, `material3d_set`; models: `model_load`
+  (cached by path), `draw_model` with clip by name or index, blending,
+  morph weights by name and tint, the `model_anim_*`/`model_bone_*`
+  queries, `model_bone_position` (a bone's world point, to attach things)
+  and the `model3d` component. Lighting: `light3d_set`/`light3d_get`,
+  point and spot lights (`light3d_add`), `draw_sky3d` with weather presets,
+  2D `lighting_set` and `light2d_set`. A new entity callback
+  `on_ui(self)` runs in `phase_post_render`, where the immediate UI works:
+  `ui_begin`/`ui_end`, rows, labels, buttons, toggles, sliders, choices,
+  progress, toasts, `ui_last_rect`; plus fonts, `text_measure`, `tr` and
+  `trf`. Splines live behind an id (`spline_create` with an optional owner
+  entity they die with, `spline_point_at`, `spline_nearest`,
+  `spline_follow` updating a follower table in place). Also `post3d_set`
+  and decals. Bad ids (a model not loaded, a destroyed spline, an unknown
+  weather) are Lua errors with the script's file and line.
 - Lua state in save games: `script_save_state()` returns a `json_value` with
   the `self` of every entity script that has a save name
   (`script_set_save_id()`, or `self.save_id` from Lua), keyed by that name

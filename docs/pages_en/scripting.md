@@ -55,7 +55,8 @@ script_attach() attaches a file to an entity. The file returns a table, like a c
 | `on_start(self)` | Once, at the first update after attaching |
 | `on_fixed_update(self, dt)` | At the fixed rate, in `phase_fixed_update` (dt is the fixed step), right before the 3D physics step |
 | `on_update(self, dt)` | Every frame, in `phase_update`, before the game's systems |
-| `on_render(self)` | Every frame, in `phase_render`, to draw with `njin.draw_*` |
+| `on_render(self)` | Every frame, in `phase_render`, to draw with `njin.draw_*` (3D too, between `njin.begin_3d` and `njin.end_3d`) |
+| `on_ui(self)` | Every frame, in `phase_post_render` (screen space), to build the interface with `njin.ui_*` |
 | `on_destroy(self)` | When the entity is destroyed or the script detached (script_detach()) |
 | `on_reload(self)` | After the file was loaded again (hot reload) |
 | `on_load(self)` | After script_load_state() put saved data into `self` (@ref script_save) |
@@ -98,6 +99,14 @@ positions are `vec2` or `vec3` (add, subtract, multiply by a number, `:length()`
 | 2D particles | `particles_burst(e, count)`, `particles_spawn(preset, vec2, count)` |
 | 3D physics | `raycast3d(origin, direction, max_distance)`, `body_velocity`, `body_set_velocity`, `body_impulse`, `character_move(e, vec3)`, `character_position`, `character_grounded` |
 | 3D pathfinding | `nav3d_path(navmesh, from, to)`, `nav3d_set_target(agent, target)`, `nav3d_stop`, `nav3d_position`, `nav3d_velocity`, `nav3d_arrived` (see @ref nav_3d) |
+| 3D drawing | `begin_3d({position, target, up, fovy, near, far})`, `end_3d`, `draw_cube3d(center, size, color)`, `draw_sphere3d(center, radius, color)`, `draw_cylinder3d(from, to, radius, color)`, `draw_capsule3d`, `draw_plane3d(center, vec2, color)`, `draw_shape3d({kind, position, rotation, size, radius, height, thickness, rounding}, color)`, `material3d_set({specular, shininess, emission, rim, unlit, cast_shadows, reflect, world_uv})` |
+| 3D models | `model_load(path)`, `model_valid`, `draw_model(m, transform, {anim, time, loop, blend_anim, blend_time, blend, morphs = {name = weight}, tint})`, `model_anim_count`, `model_anim_find`, `model_anim_name`, `model_anim_duration(m, name or index)`, `model_morph_count`, `model_bone_count`, `model_bone_find`, `model_bone_position(m, bone, transform, pose)`, `model3d_set(e, {model, anim, time, loop, speed, tint, visible})`, `model3d(e)` |
+| 3D lighting, sky | `light3d_set({direction, color, ambient, shadows, shadow_range, shadow_softness, fog_color, fog_density})`, `light3d_get`, `light3d_add({kind = "point"/"spot", position, direction, color, intensity, radius, cone, softness, shadows})`, `draw_sky3d({hour, latitude, season, north, weather, ...})`, `sky3d_sun_direction`, `weather3d_preset("clear"/"overcast"/"rain"/"snow"/"fog")` |
+| 2D lighting | `lighting_set({enabled, ambient, exposure})`, `light2d_set(e, {kind, color, temperature, intensity, radius, size, angle, cone, softness, height, elevation, cast_shadows, enabled})` |
+| Interface | `ui_begin({id, title, anchor, pivot, offset, width, background, navigable})`, `ui_end`, `ui_row(columns)`, `ui_label`, `ui_space`, `ui_button(label, enabled)`, `ui_toggle(label, value)`, `ui_slider(label, value, min, max, step, percent)`, `ui_choice(label, index, {options...})`, `ui_progress`, `ui_back`, `ui_active`, `ui_mouse_over`, `ui_last_rect`, `ui_toast(text, seconds)` |
+| Text | `font_load(path, size)`, `draw_text_font(text, vec2, size, font, color)`, `text_measure(text, size, font)`, `tr(key)`, `trf(key, ...)` |
+| Splines | `spline_create({points...}, {kind = "catmull_rom"/"bezier", closed, alpha, steps, owner})`, `spline_set_points`, `spline_destroy`, `spline_valid`, `spline_length`, `spline_point(id, t)`, `spline_point_at(id, distance)`, `spline_tangent_at`, `spline_nearest(id, point)`, `spline_follow(id, {distance, speed, end}, dt)`, `spline_draw_debug` |
+| 3D screen effects | `post3d_set({ssao, ssao_radius, ssao_half, ssr, motion_blur, shafts, flare, taa, taa_sharpen})`, `post3d_off`, `decal3d_add({position, normal or rotation, size, color, lifetime, fade, paint})`, `decal3d_remove`, `decal3d_clear` |
 | Log | `log`, `warn`, `error` (and `print`), with the script's file and line |
 
 Functions that return a table: `platformer(e)` has `velocity`, `grounded`, `on_slope`, `on_wall`, `facing`,
@@ -108,6 +117,33 @@ alone (or gives nil).
 
 `platformer_input` and `topdown_input` write to the body's `input` the same way C++ does: a jump or dash press is
 kept until the next physics step, so calling them every frame is enough.
+
+## A 3D scene, lights and an interface from Lua {#script_3d_ui}
+
+A script can build a whole 3D scene: load a model, draw it lit and shadowed under a sky set by the hour, add lights,
+send a ball along a spline, and build a menu. 3D drawing goes in `on_render`, between `njin.begin_3d` and
+`njin.end_3d` as in C++; the interface goes in `on_ui`, because the engine's `ui_*` functions only work in
+`phase_post_render`.
+
+@include script_scene3d.lua
+
+A few conventions of these functions:
+
+- Positions and colours take the built-in types or tables: `njin.vec3(1, 2, 3)`, `{1, 2, 3}` or `{x = 1, y = 2, z = 3}`;
+  a colour is a table `{r, g, b, a}` or `{1, 0, 0, 1}`. A transform is a table `{position, rotation, scale}` (scale
+  is a number or a `vec3`), or just a position `vec3`.
+- Animations are named by clip name or index (from 0, as in C++). Morph weights go by name in `morphs`.
+- `model_load` remembers models by path: calling it again with the same file returns the same number and does not
+  load it twice.
+- Functions return two values the Lua way: `changed, value = njin.ui_slider("Volume", value, 0, 1)`. `ui_choice`
+  counts from 1 like Lua tables.
+- A spline is a number returned by `spline_create`, alive until `spline_destroy`, or until its `owner` entity is
+  destroyed. A spline of two-number tables is 2D (it returns `vec2`), three numbers make it 3D. The state of moving
+  along it (`distance`, `speed`, `end`, `finished`) lives in a table of the script, which `spline_follow` updates in
+  place.
+- An invalid number (a model not loaded, a destroyed spline, an entity that is gone, an unknown weather) is a Lua
+  error with the script's file and line, for example
+  `scripts/scene.lua:21: njin.draw_model: 424242 is not a loaded model`; the game keeps running.
 
 ## Saving and loading the game {#script_save}
 
@@ -165,8 +201,9 @@ the Release engine about 0.3 ms. A function of the `njin` module is a single C++
 between Lua and C++ still costs more than a plain C++ call: hot loops over thousands of things (particles,
 bullets) belong in C++.
 
-- The module only covers common gameplay; the rest of the engine (3D models, UI, lighting) has no Lua functions
-  yet. A game that needs them adds them itself with script_register().
+- The module covers common gameplay, 3D drawing, lighting, the interface, splines and 3D screen effects; the rest
+  (terrain, water, soft bodies, video, per-voice 3D sound) has no Lua functions yet. A game that needs them adds
+  them itself with script_register().
 - Movement and physics that must run the same at any frame rate go in `on_fixed_update`: it runs exactly the
   engine's fixed steps (60 a second by default, config::fixed_hz), before the 3D physics step, so a
   `njin.body_set_velocity` set there takes effect in that step. While no script has this function the engine walks no

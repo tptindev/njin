@@ -119,6 +119,7 @@ std::unique_ptr<script_runtime> make_runtime(context &ctx, const script_desc &de
   open_sandbox(*rt);
   script_bind_njin(ctx, *rt);
   sol::table njin = rt->lua["njin"];
+  script_bind_njin_more(ctx, *rt, njin);
   njin["log"] = &lua_print;
   njin["warn"] = &lua_warn;
   njin["error"] = &lua_error_log;
@@ -177,6 +178,7 @@ void set_handlers(script_runtime &rt, script_class &c) {
   c.on_destroy = get("on_destroy");
   c.on_reload = get("on_reload");
   c.on_load = get("on_load");
+  c.on_ui = get("on_ui");
 }
 
 // Runs a class file; it must return a table.
@@ -307,10 +309,34 @@ void render(context &ctx) {
   }
 }
 
+// on_ui(self) in phase_post_render, screen space: where njin's immediate UI
+// (ui_begin()...) has to be called.
+void ui(context &ctx) {
+  script_runtime *rt = ctx.script.rt.get();
+  if (rt == nullptr || rt->instances.empty())
+    return;
+  bool any = false;
+  for (const auto &[path, c] : rt->classes)
+    any = any || c.on_ui.valid();
+  if (!any)
+    return;
+  for (const u32 id : instance_ids(*rt)) {
+    const auto it = rt->instances.find(id);
+    if (it == rt->instances.end() || !it->second.started)
+      continue;
+    const script_class *c = class_of(*rt, it->second.path);
+    if (c == nullptr || !c->on_ui.valid())
+      continue;
+    const sol::table self = it->second.self;
+    script_pcall(c->on_ui, "on_ui", self);
+  }
+}
+
 void setup(context &ctx) {
   ecs_register(ctx, phase_fixed_update, fixed_update, "fixed_update");
   ecs_register(ctx, phase_update, update, "update");
   ecs_register(ctx, phase_render, render, "render");
+  ecs_register(ctx, phase_post_render, ui, "ui");
 }
 
 // Walks "a.b.c": the table holding the last name (created when `create`), and
