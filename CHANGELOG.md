@@ -10,6 +10,20 @@ To release: edit that header, add a section here, commit, then
 
 ### Fixed
 
+- Rain no longer collapses into a flat sheet every few seconds: each drop's
+  start height and its fall speed came from the same random number, so every
+  ~4.9 s (when the spread of speeds had added up to the 22 m box) all drops
+  lined up at one height, and for a while rain showed only high above the
+  camera. Snow had the same fault every ~44 s. The speed now has its own
+  random number.
+- Navmesh paths and crowd agents sit on the ground over hilly terrain. Points
+  took Detour's detail height, which samples the ground only every few cells
+  (path corners up to 0.54 m off), and straight segments between corners cut
+  through hills (up to 2.4 m under a hilltop). Over terrain added with
+  `navmesh3d_add_terrain()`, `navmesh3d_path()` points and
+  `nav3d_agent_position()` now take `terrain3d_height()`, and a segment that
+  would leave the ground by more than 5 cm gets points in between: on the
+  batch-7 hills, corners are exact and segments within 5.3 cm.
 - `physics3d_raycast()` with a `body` out-parameter no longer trips Jolt's
   lock check (two "lock of same or higher priority" asserts in Debug): it read
   the hit body's handle through the body interface, locking the body a second
@@ -49,6 +63,18 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Rain and snow stay out from under roofs (`weather3d::cover_auto`, on by
+  default): while it rains or snows the engine draws the depth of every
+  opaque shadow caster straight down over 36 m round the camera, refreshed
+  every 8 frames or after 2 m of camera movement, and hides drops under a
+  surface; the terrain under it is not darkened by `wetness`. No measurable
+  frame cost on an RTX 3050 Laptop (within 0.1 ms). `weather3d_cover_set()`
+  adds up to 16 covered boxes of the game's own (porches that cast no shadow,
+  or with `cover_auto` off), `weather3d_cover_count()`.
+- Lua `on_fixed_update(self, dt)`: entity scripts run at the engine's fixed
+  step, in `phase_fixed_update` right before the 3D physics step (a velocity
+  set there moves the body in that step), with `dt` the fixed step. Nothing
+  runs at the fixed rate while no loaded script has the function.
 - 3D pathfinding (new `njin_nav3d.h`), on Recast and Detour (zlib, fetched,
   private to the engine). `navmesh3d_create()` takes the agent's radius,
   height, climb and slope; geometry comes from `navmesh3d_add_box()`,
@@ -68,8 +94,7 @@ To release: edit that header, add a section here, commit, then
   `phase_post_update`; an agent can drive a `character3d`, which then falls by
   `physics3d_gravity()` and feeds its real position back. Lua gets
   `njin.nav3d_path`, `nav3d_set_target`, `nav3d_stop`, `nav3d_position`,
-  `nav3d_velocity` and `nav3d_arrived` by handle id. Heights on the navmesh
-  are approximate (a few tenths of a metre on rolling hills).
+  `nav3d_velocity` and `nav3d_arrived` by handle id.
 - Splines (new `njin_spline.h`), 2D and 3D with the same names: centripetal
   Catmull-Rom (through every point, no knots) and cubic Bezier, open or
   closed. `spline_point()`/`spline_tangent()` by parameter, and after

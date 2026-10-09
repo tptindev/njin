@@ -13,7 +13,7 @@ namespace njin {
 struct script_class {
   sol::table module;
   sol::table meta;
-  sol::protected_function on_start, on_update, on_render, on_destroy, on_reload;
+  sol::protected_function on_start, on_update, on_fixed_update, on_render, on_destroy, on_reload;
 };
 
 struct script_instance {

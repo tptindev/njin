@@ -1112,12 +1112,12 @@ void set_bones(const render3d_state &s, Shader shader, i32 loc, const draw3d_cmd
 void draw_shape(const render3d_state &s, const draw3d_cmd &c, const Matrix &view_proj, bool ortho, vec3 ray_dir,
                 bool depth_only);
 void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only);
-void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir);
+void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover = false);
 
 // Depth of every opaque shadow caster into the bound target, seen through the
 // current matrices (`view_proj`): along `dir` for the sun (orthographic), from
 // the SDF shader's viewPos for a lamp.
-void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir) {
+void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover) {
   const render3d_state &s = ctx.render3d;
   map_set maps = s.maps;
   Material depth{};
@@ -1129,7 +1129,9 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir) {
     if (!casts(c))
       continue;
     if (c.world != world3d_none) {
-      world3d_draw_depth(ctx, c, view_proj);
+      // Grass blades would leave the ground under them dry in patches.
+      if (!(cover && c.world == world3d_grass))
+        world3d_draw_depth(ctx, c, view_proj);
       continue;
     }
     if (c.is_shape) {
@@ -1198,6 +1200,44 @@ Matrix render_shadow(context &ctx) {
   draw_casters(ctx, light_vp, true, dir);
   rlDisableFramebuffer();
   return light_vp;
+}
+
+constexpr i32 cover_size = 256;
+constexpr f32 cover_half = 18.0f; // metres each side of the camera: the rain box and a little more
+
+// Rain and snow fall only where the sky shows: with weather3d::cover_auto,
+// the depth of every opaque caster seen straight down, round the camera, so
+// drops under a roof are hidden and the ground under it stays dry.
+bool cover_wanted(const context &ctx) {
+  const world3d_store &w = ctx.world3d;
+  return w.sky_drawn && w.cover_auto && (w.sky.rain > 0.0f || w.sky.snow > 0.0f);
+}
+
+Matrix render_cover(context &ctx) {
+  render3d_state &s = ctx.render3d;
+  const f32 texel = 2.0f * cover_half / (f32)cover_size;
+  // Snapped to whole texels, so roof edges do not shimmer as the camera moves.
+  const f32 cx = std::floor(s.camera.position.x / texel) * texel;
+  const f32 cz = std::floor(s.camera.position.z / texel) * texel;
+  const f32 top = s.camera.position.y + 200.0f;
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(s.cover.fbo);
+  rlViewport(0, 0, cover_size, cover_size);
+  rlSetFramebufferWidth(cover_size);
+  rlSetFramebufferHeight(cover_size);
+  rlClearColor(255, 255, 255, 255);
+  rlClearScreenBuffers();
+  rlMatrixMode(RL_PROJECTION);
+  rlLoadIdentity();
+  rlOrtho(-cover_half, cover_half, -cover_half, cover_half, 0.1, 600.0);
+  rlMatrixMode(RL_MODELVIEW);
+  rlLoadIdentity();
+  rlMultMatrixf(MatrixToFloat(MatrixLookAt({cx, top, cz}, {cx, top - 1.0f, cz}, {0.0f, 0.0f, -1.0f})));
+  const Matrix vp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+  rlEnableDepthTest();
+  draw_casters(ctx, vp, true, {0.0f, -1.0f, 0.0f}, true);
+  rlDisableFramebuffer();
+  return vp;
 }
 
 // Depth of the point and spot lights with `shadows` into the lamp atlas: a
@@ -1887,6 +1927,7 @@ mod_desc render3d_module() { return mod_desc{.name = "njin.render3d", .setup = s
 render3d_state::~render3d_state() {
   free_shadow(shadow);
   free_shadow(lamp);
+  free_shadow(cover);
   for (Shader *sh : {&mask, &mask_instanced, &mask_skinned})
     if (IsShaderValid(*sh))
       UnloadShader(*sh);
@@ -1991,7 +2032,27 @@ void end_3d(context &ctx) {
     shadows = true;
   }
   const bool lamps = render_lamp_shadows(ctx);
-  if (shadows || lamps) {
+  // The cover map is drawn again every few passes (things move under it) or
+  // when the camera has gone 2 m from where it was drawn; the rain box reaches
+  // 16 m round the camera and the map 18 m, so in between it still covers it.
+  bool cover_now = false;
+  s.cover_drawn = false;
+  if (!offscreen && cover_wanted(ctx) && ensure_shadow(s.cover, cover_size, cover_size)) {
+    const vec2 at{s.camera.position.x, s.camera.position.z};
+    const vec2 moved{at.x - s.cover_at.x, at.y - s.cover_at.y};
+    if (s.cover_age < 0 || s.cover_age >= 8 || moved.x * moved.x + moved.y * moved.y > 4.0f) {
+      s.cover_vp = render_cover(ctx);
+      s.cover_at = at;
+      s.cover_age = 0;
+      cover_now = true;
+    } else {
+      s.cover_age++;
+    }
+    s.cover_drawn = true;
+  } else if (!offscreen) {
+    s.cover_age = -1;
+  }
+  if (shadows || lamps || cover_now) {
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
   }

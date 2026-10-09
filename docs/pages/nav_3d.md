@@ -68,9 +68,10 @@ if (njin::navmesh3d_path(ctx, nav, guard_pos, player_pos, path))
     njin::gizmo_line3d(ctx, path[i], path[i + 1], njin::colors::yellow);
 ```
 
-Độ cao của các điểm trên navmesh là gần đúng: trên sàn phẳng sai vài cm, trên đồi lượn sai đến vài chục cm. Để
-đặt hình đúng mặt đất, lấy độ cao từ terrain3d_height() hay một tia xuống, hoặc cho tác tử lái một nhân vật vật
-lý (phần dưới).
+Điểm của đường đi và vị trí tác tử nằm trên mặt đất. Trên địa hình đã thêm bằng navmesh3d_add_terrain(), độ cao
+lấy đúng theo terrain3d_height(), và đoạn nào cắt qua đồi thì có thêm điểm giữa để đường bám mặt đất (cách không quá
+5 cm). Trên hình học khác (model, hộp nghiêng) độ cao theo lưới chi tiết của navmesh, có thể sai vài cm; muốn chính
+xác thì lấy độ cao bằng một tia xuống, hoặc cho tác tử lái một nhân vật vật lý (phần dưới).
 
 ## Đám đông
 

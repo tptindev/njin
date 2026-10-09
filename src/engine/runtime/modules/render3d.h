@@ -185,6 +185,14 @@ struct render3d_state {
   shadow_target shadow;
   shadow_target lamp;    // atlas of the point/spot light shadows
   lamp_shadows lamps;
+  // Rain and snow cover: the depth of what stands above the ground, seen
+  // straight down round the camera (weather3d::cover_auto). world3d_draw.cpp
+  // hides drops under it and keeps the ground under it dry.
+  shadow_target cover;
+  Matrix cover_vp{};
+  bool cover_drawn = false; // the map holds the casters round this pass's camera
+  vec2 cover_at{};          // camera xz the map was drawn round
+  i32 cover_age = -1;       // passes since it was drawn; -1 none yet
 
   // The open pass. Draw calls take a const ctx, so the list is mutable.
   camera3d camera; // shake included

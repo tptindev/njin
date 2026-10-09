@@ -1190,6 +1190,7 @@ void draw_sky3d(context &ctx, const sky3d &sky) {
   w.sky_drawn = true;
   w.wind = std::isfinite(sky.weather.wind.x) && std::isfinite(sky.weather.wind.y) ? sky.weather.wind : vec2{};
   w.wetness = clamp(sky.weather.wetness, 0.0f, 1.0f);
+  w.cover_auto = sky.weather.cover_auto;
   if (sky.drive_light)
     light3d_set(ctx, sky3d_light(sky, light3d_get(ctx)));
   render3d_record_world(ctx, world3d_sky, 0);
@@ -1211,4 +1212,22 @@ void setup(context &ctx) { ecs_register(ctx, phase_update, advance, "clock"); }
 } // namespace
 
 mod_desc world3d_module() { return mod_desc{.name = "njin.world3d", .setup = setup}; }
+void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count) {
+  std::vector<weather3d_cover> &out = ctx.world3d.covers;
+  out.clear();
+  for (i32 i = 0; covers != nullptr && i < count && out.size() < 16; i++) {
+    const weather3d_cover &c = covers[i];
+    const bool finite = std::isfinite(c.center.x) && std::isfinite(c.center.y) && std::isfinite(c.center.z) &&
+                        std::isfinite(c.size.x) && std::isfinite(c.size.y) && std::isfinite(c.size.z);
+    if (!finite) {
+      NJIN_WARN("weather3d_cover_set: a box with a position or size that is not finite: dropped");
+      continue;
+    }
+    out.push_back({c.center, {std::fabs(c.size.x), std::fabs(c.size.y), std::fabs(c.size.z)}});
+  }
+  if (count > 16)
+    NJIN_WARN("weather3d_cover_set: %d boxes, only the first 16 are kept", count);
+}
+
+i32 weather3d_cover_count(const context &ctx) { return (i32)ctx.world3d.covers.size(); }
 } // namespace njin

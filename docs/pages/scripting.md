@@ -52,6 +52,7 @@ riêng, nhận làm tham số đầu của mọi hàm:
 | Hàm | Khi nào |
 |---|---|
 | `on_start(self)` | Một lần, ở lần cập nhật đầu tiên sau khi gắn |
+| `on_fixed_update(self, dt)` | Theo nhịp cố định, trong `phase_fixed_update` (dt là bước cố định), ngay trước bước vật lý 3D |
 | `on_update(self, dt)` | Mỗi frame, trong `phase_update`, trước system của game |
 | `on_render(self)` | Mỗi frame, trong `phase_render`, để vẽ bằng `njin.draw_*` |
 | `on_destroy(self)` | Khi entity bị hủy hay script bị gỡ (script_detach()) |
@@ -130,6 +131,7 @@ gọi C++ thường: vòng lặp nóng trên hàng nghìn vật (hạt, đạn) 
 
 - Module chỉ có phần gameplay chung; các phần khác của engine (model 3D, UI, ánh sáng) chưa có hàm Lua. Game cần thì
   tự thêm bằng script_register().
-- `on_update` chạy trong `phase_update`; script không có `fixed_update` riêng: điều khiển thân vật lý qua
-  `platformer_input`, `topdown_input`, `character_move` như phía C++.
+- Chuyển động và vật lý cần chạy như nhau ở mọi FPS thì đặt trong `on_fixed_update`: nó chạy đúng số bước cố định
+  của engine (mặc định 60 lần mỗi giây, config::fixed_hz), trước bước vật lý 3D, nên `njin.body_set_velocity` đặt ở
+  đó có hiệu lực ngay trong bước. Không script nào có hàm này thì engine không đi qua các entity ở nhịp cố định.
 - Dữ liệu `self` giữ qua hot reload nhưng không được lưu vào file save; save game vẫn do C++ (@ref window_files).

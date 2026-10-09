@@ -210,7 +210,13 @@ script_value script_get_global(context &ctx, const char *name);
 /// each entity gets its own `self` table, which the table's functions take as
 /// their first parameter:
 ///
-/// - `on_start(self)`: once, at the first update after attaching.
+/// - `on_start(self)`: once, at the first update after attaching (before
+///   `on_fixed_update` or `on_update`, whichever runs first).
+/// - `on_fixed_update(self, dt)`: at the fixed rate, in `phase_fixed_update`,
+///   0 or more times a frame (dt is the fixed step, as config::fixed_hz sets).
+///   It runs right before the 3D physics step: a velocity set here takes effect
+///   in the same step. For movement and physics that must run the same at any
+///   frame rate. Costs nothing while no script has this function.
 /// - `on_update(self, dt)`: every frame, in `phase_update` (dt is delta()).
 /// - `on_render(self)`: every frame, in `phase_render`, to draw (njin.draw_*).
 /// - `on_destroy(self)`: when the entity is destroyed or the script detached.

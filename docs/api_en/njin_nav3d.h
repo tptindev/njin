@@ -18,11 +18,10 @@ struct context;
 /// so one area can be rebuilt (navmesh3d_rebuild()) without rebuilding the whole
 /// map.
 ///
-/// Heights of points on the navmesh (paths, agent positions) are approximate: a
-/// few cm off on a flat floor, up to a few tenths of a metre on rolling hills. To
-/// put shapes exactly on the ground, take the height from terrain3d_height() or a
-/// ray downwards (physics3d_raycast()), or let the agent drive a physics
-/// character (nav3d_agent_desc::character).
+/// Path points and agent positions sit on the ground: their height follows the
+/// navmesh's detail mesh, and over terrain added with navmesh3d_add_terrain()
+/// exactly terrain3d_height(). Over other geometry (models, slanted boxes) they can
+/// be a few cm off.
 struct navmesh3d_desc {
   f32 agent_radius = 0.4f;  ///< Agent radius, metres: walkable area stays this far from walls.
   f32 agent_height = 1.8f;  ///< Agent height: only fits under ceilings higher than this.
@@ -132,7 +131,8 @@ i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max)
 /// Finds a path from `from` to `to`: the corner points, the first the point on
 /// the navmesh nearest `from`, the last the point nearest `to`. If `to` cannot be
 /// reached the path stops at the reachable point nearest it (compare the last
-/// point with `to` to know).
+/// point with `to` to know). Over terrain, a segment that would cut through a hill
+/// gets points in between so the path follows the ground (within 5 cm).
 /// @param ctx The engine context.
 /// @param handle Navmesh.
 /// @param from Start.

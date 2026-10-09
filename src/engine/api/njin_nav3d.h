@@ -17,10 +17,9 @@ struct context;
 /// thành các ô vuông cạnh `tile_size` mét, nên dựng lại được một vùng
 /// (navmesh3d_rebuild()) mà không phải dựng lại cả bản đồ.
 ///
-/// Độ cao của các điểm trên navmesh (đường đi, vị trí tác tử) là gần đúng: trên sàn
-/// phẳng sai vài cm, trên đồi lượn sai đến vài chục cm. Muốn đặt hình đúng mặt đất
-/// thì lấy độ cao từ terrain3d_height() hay một tia xuống (physics3d_raycast()), hoặc
-/// cho tác tử lái một nhân vật vật lý (nav3d_agent_desc::character).
+/// Điểm của đường đi và vị trí tác tử nằm trên mặt đất: độ cao lấy theo lưới chi tiết
+/// của navmesh, và trên địa hình đã thêm bằng navmesh3d_add_terrain() thì theo đúng
+/// terrain3d_height(). Trên hình học khác (model, hộp nghiêng) có thể sai vài cm.
 struct navmesh3d_desc {
   f32 agent_radius = 0.4f;  ///< Bán kính tác tử, mét: chỗ đi được cách tường bấy nhiêu.
   f32 agent_height = 1.8f;  ///< Chiều cao tác tử: chui được qua chỗ trần cao hơn số này.
@@ -127,7 +126,8 @@ i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max)
 
 /// Tìm đường từ `from` đến `to`: các điểm gấp khúc, đầu là điểm gần `from` nhất
 /// trên navmesh, cuối là điểm gần `to` nhất. Không đến được `to` thì đường dừng ở
-/// chỗ gần nó nhất mà đến được (so điểm cuối với `to` để biết).
+/// chỗ gần nó nhất mà đến được (so điểm cuối với `to` để biết). Trên địa hình, đoạn
+/// nào cắt qua đồi thì có thêm điểm giữa để đường bám mặt đất (cách không quá 5 cm).
 /// @param ctx Context của engine.
 /// @param handle Navmesh.
 /// @param from Điểm đi.

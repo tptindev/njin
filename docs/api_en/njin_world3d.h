@@ -460,7 +460,36 @@ struct weather3d {
   f32 snow = 0.0f;           ///< Falling snow, 0..1.
   vec2 wind{2.0f, 0.6f};     ///< Wind on the xz plane, metres per second: clouds drift, grass leans, rain slants.
   f32 wetness = 0.0f;        ///< Wet ground (darker and shinier), 0..1.
+  /// Rain and snow do not fall under roofs: each frame with rain or snow the engine
+  /// draws the depth of every opaque shadow-casting shape seen straight down round
+  /// the camera (36 m a side, 14 cm cells), hides the drops under a surface and keeps
+  /// the ground under it dry. Shapes that cast no shadow (`material3d::cast_shadows`
+  /// off) give no cover. Turn it off to mark covered places yourself with
+  /// weather3d_cover_set(), or when nothing needs covering (it saves a depth pass).
+  bool cover_auto = true;
 };
+
+/// A covered place, for weather3d_cover_set(): an axis-aligned box. Rain and snow do
+/// not fall in the part of the box below its top face (the space under the box
+/// included), fading over 25 cm round the edges; the ground in it stays dry.
+struct weather3d_cover {
+  vec3 center{0.0f, 0.0f, 0.0f}; ///< Centre of the box.
+  vec3 size{1.0f, 1.0f, 1.0f};   ///< Size of the box, metres.
+};
+
+/// Sets the covered places (replacing the old list), on top of what
+/// weather3d::cover_auto covers: houses that cast no shadow, porches, or when
+/// `cover_auto` is off. At most 16 boxes; a box whose position or size is not a
+/// finite number is dropped.
+/// @param ctx The engine context.
+/// @param covers The boxes, or nullptr when `count` is 0 (clears them all).
+/// @param count Number of boxes.
+void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count);
+
+/// Number of covered places set with weather3d_cover_set().
+/// @param ctx The engine context.
+/// @return Number of boxes, 0..16.
+i32 weather3d_cover_count(const context &ctx);
 
 /// Ready-made kinds of weather for weather3d_preset().
 enum weather3d_kind {

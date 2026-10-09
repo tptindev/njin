@@ -204,7 +204,13 @@ script_value script_get_global(context &ctx, const char *name);
 /// Gắn một script vào entity. File phải trả về một bảng (như một lớp); mỗi entity
 /// có một bảng `self` riêng mà các hàm của bảng đó nhận làm tham số đầu:
 ///
-/// - `on_start(self)`: một lần, ở lần cập nhật đầu tiên sau khi gắn.
+/// - `on_start(self)`: một lần, ở lần cập nhật đầu tiên sau khi gắn (trước
+///   `on_fixed_update` hay `on_update`, cái nào chạy trước).
+/// - `on_fixed_update(self, dt)`: theo nhịp cố định, trong `phase_fixed_update`,
+///   0 hoặc nhiều lần mỗi frame (dt là bước cố định, như config::fixed_hz đặt).
+///   Chạy ngay trước bước vật lý 3D: vận tốc đặt ở đây có hiệu lực trong cùng
+///   bước. Dùng cho chuyển động và vật lý cần chạy như nhau ở mọi FPS. Không có
+///   script nào có hàm này thì không tốn gì.
 /// - `on_update(self, dt)`: mỗi frame, trong `phase_update` (dt là delta()).
 /// - `on_render(self)`: mỗi frame, trong `phase_render`, để vẽ (njin.draw_*).
 /// - `on_destroy(self)`: khi entity bị hủy hay script bị gỡ. Đừng hủy entity khác

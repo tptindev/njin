@@ -131,6 +131,19 @@ njin::draw_sky3d(ctx, sky);
 
 @image html world_3d_rain.png "Rain: an overcast sky, wet ground darker and shinier, raindrops slanted by the wind"
 
+**Cover.** Rain and snow do not fall under roofs, and the ground under a roof stays dry. By default
+(`weather3d::cover_auto`) the engine finds the roofs itself: while it rains or snows it draws the depth of every
+opaque shadow-casting shape seen straight down, over a 36 m square round the camera (14 cm cells), and hides any drop
+under a surface. That map is drawn again every 8 frames or when the camera has moved 2 m, so it costs next to nothing
+(measured on an RTX 3050 Laptop: no difference from turning it off, within 0.1 ms of noise). Shapes that cast no
+shadow give no cover. To mark covered places yourself (a porch that casts no shadow, or with `cover_auto` off to save
+that pass), set boxes with weather3d_cover_set(): rain does not fall in the part of a box below its top face.
+
+```cpp
+const njin::weather3d_cover porch{.center = {4.0f, 1.5f, -2.0f}, .size = {3.0f, 3.0f, 2.0f}};
+njin::weather3d_cover_set(ctx, &porch, 1);
+```
+
 ## Full example
 
 Hills with grass, rocks and snow; a lake; a floating wooden crate; a day passing in two minutes; the R key turns
@@ -145,7 +158,9 @@ with grass, about 9000 rocks, a lake, the sky and the sun's shadows draws in abo
 terrain takes about 0.4 seconds (generating the noise, the automatic layers, the collision body), so make it while
 loading a level, not mid-game.
 
-- Rain and snow fall indoors too: nothing but the depth of the scene hides them.
+- Cover (`cover_auto`) only knows shapes within the 36 m square round the camera that cast shadows; slanted rain
+  still blows in under the edge of a roof. Wet ground's shine applies to the dry ground under a roof as well (only the
+  darkening follows the roof).
 - Water does not reflect objects on the shore, only the sky. The shore and depth only follow the attached terrain,
   not other models under the water.
 - Scattered objects are placed once at creation; editing the terrain only changes their height.

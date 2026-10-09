@@ -122,6 +122,18 @@ njin::draw_sky3d(ctx, sky);
 
 @image html world_3d_rain.png "Mưa: trời u ám, mặt đất ướt tối và bóng hơn, hạt mưa xiên theo gió"
 
+**Mái che.** Mưa và tuyết không rơi dưới mái, và đất dưới mái không ướt. Mặc định (`weather3d::cover_auto`) engine
+tự biết chỗ nào có mái: khi có mưa hay tuyết, nó vẽ độ sâu của mọi hình đục đổ bóng nhìn thẳng từ trên xuống, trong
+một ô vuông 36 m quanh camera (ô 14 cm), rồi giấu giọt nào nằm dưới một bề mặt. Bản đồ này được vẽ lại mỗi 8 frame
+hay khi camera đi quá 2 m, nên gần như không tốn gì (đo trên RTX 3050 Laptop: không thấy khác biệt so với tắt, trong
+sai số 0,1 ms). Hình không đổ bóng thì không che. Muốn tự đánh dấu (mái hiên không đổ bóng, hay tắt `cover_auto`
+để bỏ lượt vẽ đó), đặt các hộp bằng weather3d_cover_set(): mưa không rơi trong phần hộp nằm dưới mặt trên của nó.
+
+```cpp
+const njin::weather3d_cover porch{.center = {4.0f, 1.5f, -2.0f}, .size = {3.0f, 3.0f, 2.0f}};
+njin::weather3d_cover_set(ctx, &porch, 1);
+```
+
 ## Ví dụ đầy đủ
 
 Đồi có cỏ, đá và tuyết; một hồ; thùng gỗ nổi; ngày trôi qua trong hai phút; phím R chuyển mưa; chuột trái
@@ -135,7 +147,8 @@ njin::draw_sky3d(ctx, sky);
 9000 viên đá, hồ, trời và bóng đổ của mặt trời vẽ trong khoảng 1,7 ms mỗi frame. Tạo địa hình đó mất khoảng
 0,4 giây (sinh nhiễu, lớp tự phủ, body va chạm), nên tạo lúc nạp màn, không giữa trận.
 
-- Mưa và tuyết rơi cả trong nhà: không có gì che chúng ngoài độ sâu của cảnh.
+- Mái che (`cover_auto`) chỉ biết hình nằm trong ô 36 m quanh camera và đổ bóng; mưa xiên vẫn lọt vào dưới mép
+  mái. Độ bóng của mặt đất ướt áp cả cho chỗ khô dưới mái (chỉ màu tối đi là theo mái).
 - Nước không phản chiếu vật trên bờ, chỉ phản chiếu bầu trời. Bờ và độ sâu chỉ tính theo địa hình gắn vào, không
   theo các model khác dưới nước.
 - Vật rải được đặt một lần khi tạo; sửa địa hình chỉ đổi độ cao của chúng.

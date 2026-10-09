@@ -171,6 +171,7 @@ void set_handlers(script_runtime &rt, script_class &c) {
   };
   c.on_start = get("on_start");
   c.on_update = get("on_update");
+  c.on_fixed_update = get("on_fixed_update");
   c.on_render = get("on_render");
   c.on_destroy = get("on_destroy");
   c.on_reload = get("on_reload");
@@ -234,6 +235,18 @@ std::vector<u32> instance_ids(const script_runtime &rt) {
   return ids;
 }
 
+// Runs on_start the first time an entity's script is reached, in whichever of
+// fixed_update and update comes first. False when on_start detached it.
+bool start_once(script_runtime &rt, u32 id, script_class &c) {
+  auto it = rt.instances.find(id);
+  if (it->second.started)
+    return true;
+  it->second.started = true;
+  const sol::table self = it->second.self;
+  script_pcall(c.on_start, "on_start", self);
+  return rt.instances.find(id) != rt.instances.end();
+}
+
 void update(context &ctx) {
   script_runtime *rt = ctx.script.rt.get();
   if (rt == nullptr || rt->instances.empty())
@@ -244,18 +257,35 @@ void update(context &ctx) {
     if (it == rt->instances.end())
       continue;
     script_class *c = class_of(*rt, it->second.path);
-    if (c == nullptr)
+    if (c == nullptr || !start_once(*rt, id, *c))
       continue;
-    if (!it->second.started) {
-      it->second.started = true;
-      const sol::table self = it->second.self;
-      script_pcall(c->on_start, "on_start", self);
-      it = rt->instances.find(id); // on_start may have detached it
-      if (it == rt->instances.end())
-        continue;
-    }
-    const sol::table self = it->second.self;
+    const sol::table self = rt->instances.find(id)->second.self;
     script_pcall(c->on_update, "on_update", self, dt);
+  }
+}
+
+// on_fixed_update(self, dt) at the fixed step, before the 3D physics step, so
+// velocities set here move bodies in the same step. Nothing runs (no entity
+// walk) while no loaded script has the function.
+void fixed_update(context &ctx) {
+  script_runtime *rt = ctx.script.rt.get();
+  if (rt == nullptr || rt->instances.empty())
+    return;
+  bool any = false;
+  for (const auto &[path, c] : rt->classes)
+    any = any || c.on_fixed_update.valid();
+  if (!any)
+    return;
+  const f32 dt = delta(ctx);
+  for (const u32 id : instance_ids(*rt)) {
+    const auto it = rt->instances.find(id);
+    if (it == rt->instances.end())
+      continue;
+    script_class *c = class_of(*rt, it->second.path);
+    if (c == nullptr || !c->on_fixed_update.valid() || !start_once(*rt, id, *c))
+      continue;
+    const sol::table self = rt->instances.find(id)->second.self;
+    script_pcall(c->on_fixed_update, "on_fixed_update", self, dt);
   }
 }
 
@@ -276,6 +306,7 @@ void render(context &ctx) {
 }
 
 void setup(context &ctx) {
+  ecs_register(ctx, phase_fixed_update, fixed_update, "fixed_update");
   ecs_register(ctx, phase_update, update, "update");
   ecs_register(ctx, phase_render, render, "render");
 }

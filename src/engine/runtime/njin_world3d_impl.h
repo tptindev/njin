@@ -111,6 +111,8 @@ struct world3d_store {
   f32 time = 0.0f;           // the waves' clock (water3d_time)
   vec2 wind{2.0f, 0.6f};     // wind3d_set
   f32 wetness = 0.0f;        // weather3d::wetness of the last sky drawn
+  bool cover_auto = true;    // weather3d::cover_auto of the last sky drawn
+  std::vector<weather3d_cover> covers; // weather3d_cover_set, at most 16
   u32 frame = 0;
   // draw_sky3d in the open pass: its sky for the water's reflection. Reset at end_3d.
   bool sky_drawn = false;

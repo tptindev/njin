@@ -26,6 +26,7 @@ constexpr i32 unit_layer_normal = 4; // 4..7 their normal maps
 constexpr i32 unit_height = 8;
 constexpr i32 unit_normal = 9;
 constexpr i32 unit_splat = 10;
+constexpr i32 unit_cover = 12;   // render3d's top-down cover depth (rain and snow)
 
 constexpr i32 rain_drops = 9000;
 constexpr i32 snow_flakes = 7000;
@@ -122,8 +123,8 @@ void main() {
     nd += (layerHasNormal.w == 1 ? layer_normal(layerNormal3, fragPos, n, layerTile.w) : n) * w.w;
   }
   n = length(nd) > 1e-4 ? normalize(nd) : n;
-  // Wet ground is darker, most on the flat where water stands.
-  albedo *= mix(1.0, 0.6, wetness * smoothstep(0.6, 0.95, n.y));
+  // Wet ground is darker, most on the flat where water stands; dry under cover.
+  albedo *= mix(1.0, 0.6, wetness * smoothstep(0.6, 0.95, n.y) * (1.0 - covered(fragPos)));
   finalColor = vec4(shade(albedo, n, fragPos, 1.0, vec3(0.0)), 1.0);
 }
 )";
@@ -482,9 +483,40 @@ void main() {
 }
 )";
 
+// Where the sky is covered, for rain and snow and for wet ground: render3d's
+// top-down depth of the casters round the camera (weather3d::cover_auto) and
+// the boxes of weather3d_cover_set().
+const char *const cover_glsl = R"(
+uniform sampler2D coverMap;
+uniform mat4 coverVP;
+uniform int coverOn;       // 1 when the top-down map was drawn this pass
+uniform float coverBias;   // in the map's depth units
+uniform vec4 coverBox[32]; // per box: centre, then half size
+uniform int coverCount;
+// 1 where something stands above `p`, 0 under the open sky.
+float covered(vec3 p) {
+  float c = 0.0;
+  if (coverOn == 1) {
+    vec4 q = coverVP * vec4(p, 1.0);
+    vec3 n = q.xyz / q.w * 0.5 + 0.5;
+    if (n.x > 0.0 && n.y > 0.0 && n.x < 1.0 && n.y < 1.0 && n.z > textureLod(coverMap, n.xy, 0.0).r + coverBias)
+      c = 1.0;
+  }
+  for (int i = 0; i < coverCount; i++) {
+    vec3 ctr = coverBox[i * 2].xyz;
+    vec3 h = coverBox[i * 2 + 1].xyz;
+    if (p.y < ctr.y + h.y) {
+      vec2 d = abs(p.xz - ctr.xz) - h.xz;
+      c = max(c, 1.0 - smoothstep(-0.25, 0.0, max(d.x, d.y)));
+    }
+  }
+  return c;
+}
+)";
+
 // Rain streaks or snowflakes in a box that wraps round the camera: each one
 // keeps its place in the world as the camera moves, and no CPU time is spent.
-const char *const precip_vs = R"(#version 330
+const char *const precip_vs_head = R"(#version 330
 in vec3 vertexPosition; // x, y: corner of the quad (0..1); z: which drop
 uniform mat4 mvp;
 uniform vec3 eyePos;
@@ -503,11 +535,18 @@ uint pcg(uint v) {
 vec3 hash3(uint n) {
   return vec3(pcg(n), pcg(n + 7919u), pcg(n + 104729u)) * (1.0 / 4294967295.0);
 }
+)";
+const char *const precip_vs_main = R"(
 void main() {
-  vec3 r = hash3(uint(vertexPosition.z + 0.5));
+  uint id = uint(vertexPosition.z + 0.5);
+  vec3 r = hash3(id);
   vec3 box = vec3(precip.x, precip.y, precip.x);
   bool snow = precip.w > 0.5;
-  vec3 vel = vec3(wind.x, -precip.z * (0.75 + 0.5 * r.y), wind.y) * (snow ? 0.6 : 1.0);
+  // The speed has its own random number: tied to the start height (r.y), the
+  // spread of speeds lined every drop up at one height whenever it had added up
+  // to the box's height, and the rain fell as a flat sheet every few seconds.
+  float speed = 0.75 + 0.5 * hash3(id + 15485863u).x;
+  vec3 vel = vec3(wind.x, -precip.z * speed, wind.y) * (snow ? 0.6 : 1.0);
   // Most of the box above the eye: what falls below the ground is wasted.
   vec3 corner = eyePos - box * vec3(0.5, 0.25, 0.5);
   vec3 p = corner + mod(r * box + vel * time - corner, box);
@@ -526,6 +565,7 @@ void main() {
   }
   float d = distance(eyePos, p);
   fragFade = smoothstep(0.4, 1.6, d) * (1.0 - smoothstep(box.x * 0.38, box.x * 0.5, length(p.xz - eyePos.xz)));
+  fragFade *= 1.0 - covered(p);
   fragUv = vertexPosition.xy;
   gl_Position = mvp * vec4(pos, 1.0);
 }
@@ -754,7 +794,8 @@ bool ensure_ready(world3d_gpu &g) {
     return false;
   const std::string head = "#version 330\n";
   const std::string lighting = render3d_lighting_glsl();
-  const std::string terrain_fs = head + lighting + terrain_fs_main;
+  const std::string terrain_fs = head + lighting + cover_glsl + terrain_fs_main;
+  const std::string precip_vs = std::string(precip_vs_head) + cover_glsl + precip_vs_main;
   const std::string grass_vs = head + grass_vs_common + grass_vs_main;
   const std::string grass_depth_vs = head + grass_vs_common + grass_depth_vs_main;
   const std::string grass_fs = head + lighting + grass_fs_main;
@@ -767,7 +808,7 @@ bool ensure_ready(world3d_gpu &g) {
   g.grass_depth = LoadShaderFromMemory(grass_depth_vs.c_str(), depth_fs);
   g.sky = LoadShaderFromMemory(sky_vs, sky_fs.c_str());
   g.water = LoadShaderFromMemory(water_vs.c_str(), water_fs.c_str());
-  g.precip = LoadShaderFromMemory(precip_vs, precip_fs);
+  g.precip = LoadShaderFromMemory(precip_vs.c_str(), precip_fs);
   for (const Shader *s : {&g.terrain, &g.terrain_depth, &g.grass, &g.grass_depth, &g.sky, &g.water, &g.precip})
     if (!IsShaderValid(*s)) {
       NJIN_WARN("world3d: a shader failed to compile, the outdoor world is not drawn");
@@ -852,6 +893,29 @@ void unbind_units(i32 first, i32 last) {
     rlDisableTexture();
   }
   rlActiveTextureSlot(0);
+}
+
+// cover_glsl's uniforms: the top-down map when render3d drew it this pass, and
+// the game's cover boxes. Unbind unit_cover after the draw.
+void set_cover(const context &ctx, u32 program) {
+  const render3d_state &s = ctx.render3d;
+  const bool on = s.cover_drawn && s.cover.depth != 0;
+  set_i(program, "coverOn", on ? 1 : 0);
+  bind(program, "coverMap", unit_cover, on ? s.cover.depth : 0);
+  if (on) {
+    set_m(program, "coverVP", s.cover_vp);
+    set_f(program, "coverBias", 0.15f / 600.0f);
+  }
+  vec4 boxes[32]{};
+  const std::vector<weather3d_cover> &covers = ctx.world3d.covers;
+  for (usize i = 0; i < covers.size() && i < 16; i++) {
+    boxes[i * 2] = {covers[i].center.x, covers[i].center.y, covers[i].center.z, 0.0f};
+    boxes[i * 2 + 1] = {covers[i].size.x * 0.5f, covers[i].size.y * 0.5f, covers[i].size.z * 0.5f, 0.0f};
+  }
+  const i32 loc = rlGetLocationUniform(program, "coverBox");
+  if (loc >= 0 && !covers.empty())
+    rlSetUniform(loc, boxes, RL_SHADER_UNIFORM_VEC4, (i32)std::min<usize>(covers.size(), 16) * 2);
+  set_i(program, "coverCount", (i32)std::min<usize>(covers.size(), 16));
 }
 
 // Planes of a view-projection (render3d's convention: inward normal, offset).
@@ -997,6 +1061,7 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
     set_i(p, "layerCount", t.desc.layer_count);
     set_v2(p, "gridSize", {(f32)t.res, (f32)t.res});
     set_f(p, "wetness", w.wetness);
+    set_cover(ctx, p);
     material3d m{};
     m.specular = t.desc.specular + w.wetness * 0.6f;
     m.shininess = lerp(t.desc.shininess, 90.0f, w.wetness);
@@ -1024,6 +1089,8 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
       draw_mesh(grid_of(g, t.chunk, step));
     }
   unbind_units(0, unit_splat);
+  if (!depth)
+    unbind_units(unit_cover, unit_cover);
   rlDisableShader();
 }
 
@@ -1279,6 +1346,7 @@ void draw_precip(context &ctx, const Matrix &view_proj) {
   set_v2(p, "wind", w.sky.wind);
   set_v3(p, "ambient", {s.light.ambient.r, s.light.ambient.g, s.light.ambient.b});
   set_v3(p, "lightColor", {s.light.color.r, s.light.color.g, s.light.color.b});
+  set_cover(ctx, p);
   rlDisableBackfaceCulling();
   if (rlEnableVertexArray(g.precip_mesh.vao)) {
     if (w.sky.rain > 0.0f) {
@@ -1294,6 +1362,7 @@ void draw_precip(context &ctx, const Matrix &view_proj) {
     rlDisableVertexArray();
   }
   rlEnableBackfaceCulling();
+  unbind_units(unit_cover, unit_cover);
   rlDisableShader();
 }
 

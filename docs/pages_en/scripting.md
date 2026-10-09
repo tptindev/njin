@@ -53,6 +53,7 @@ script_attach() attaches a file to an entity. The file returns a table, like a c
 | Function | When |
 |---|---|
 | `on_start(self)` | Once, at the first update after attaching |
+| `on_fixed_update(self, dt)` | At the fixed rate, in `phase_fixed_update` (dt is the fixed step), right before the 3D physics step |
 | `on_update(self, dt)` | Every frame, in `phase_update`, before the game's systems |
 | `on_render(self)` | Every frame, in `phase_render`, to draw with `njin.draw_*` |
 | `on_destroy(self)` | When the entity is destroyed or the script detached (script_detach()) |
@@ -135,7 +136,9 @@ bullets) belong in C++.
 
 - The module only covers common gameplay; the rest of the engine (3D models, UI, lighting) has no Lua functions
   yet. A game that needs them adds them itself with script_register().
-- `on_update` runs in `phase_update`; scripts have no `fixed_update` of their own: drive physics bodies through
-  `platformer_input`, `topdown_input` and `character_move`, as C++ does.
+- Movement and physics that must run the same at any frame rate go in `on_fixed_update`: it runs exactly the
+  engine's fixed steps (60 a second by default, config::fixed_hz), before the 3D physics step, so a
+  `njin.body_set_velocity` set there takes effect in that step. While no script has this function the engine walks no
+  entities at the fixed rate.
 - Data in `self` is kept across hot reloads but not written to save files; saving the game is still done in C++
   (@ref window_files).

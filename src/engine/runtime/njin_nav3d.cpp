@@ -377,6 +377,66 @@ bool nearest_ref(const nav3d_mesh_slot &s, vec3 p, vec3 extents, dtPolyRef &ref,
   out = vf(q);
   return true;
 }
+
+// The real ground under a point of the navmesh: Detour's detail height on its
+// polygon, then, over a terrain the navmesh was built from, the terrain's own
+// height. The detail mesh samples the ground only every few cells, so on
+// rolling hills it is a few tenths of a metre off. A terrain far above or below
+// the point (a bridge over it) is left alone.
+vec3 on_ground(const context &ctx, const nav3d_mesh_slot &s, vec3 p, dtPolyRef ref) {
+  f32 h = 0.0f;
+  if (ref != 0 && dtStatusSucceed(s.query->getPolyHeight(ref, fv(p), &h)))
+    p.y = h;
+  for (terrain3d_handle th : s.terrains) {
+    const terrain3d_slot *t = terrain_of(ctx, th);
+    if (t == nullptr)
+      continue;
+    const vec3 o = t->desc.origin;
+    const f32 size = t->spacing * (f32)(t->res - 1);
+    if (p.x < o.x || p.z < o.z || p.x > o.x + size || p.z > o.z + size)
+      continue;
+    const f32 g = terrain_height_at(*t, p.x, p.z);
+    if (std::fabs(g - p.y) <= 1.0f) {
+      p.y = g;
+      break;
+    }
+  }
+  return p;
+}
+
+// Points between a and b (both already on the ground) where a straight line
+// would leave the ground by more than 5 cm: the segment is sampled every half
+// metre and split at its worst sample until it follows the hills.
+vec3 ground_under(const context &ctx, const nav3d_mesh_slot &s, vec3 p, bool &ok) {
+  // The navmesh's own surface first: a straight line over a hill can pass
+  // metres below its top, too far to trust the terrain alone.
+  dtPolyRef ref = 0;
+  vec3 on_mesh;
+  ok = nearest_ref(s, p, {0.05f, 8.0f, 0.05f}, ref, on_mesh);
+  return ok ? on_ground(ctx, s, {p.x, on_mesh.y, p.z}, ref) : p;
+}
+
+void follow_ground(const context &ctx, const nav3d_mesh_slot &s, vec3 a, vec3 b, i32 depth, std::vector<vec3> &out) {
+  if (depth <= 0 || s.terrains.empty())
+    return;
+  const i32 n = (i32)(distance(a, b) / 0.5f);
+  f32 worst = 0.05f;
+  vec3 split{};
+  for (i32 k = 1; k <= n; k++) {
+    const vec3 p = a + (b - a) * ((f32)k / (f32)(n + 1));
+    bool ok = false;
+    const vec3 g = ground_under(ctx, s, p, ok);
+    if (ok && std::fabs(g.y - p.y) > worst) {
+      worst = std::fabs(g.y - p.y);
+      split = g;
+    }
+  }
+  if (worst <= 0.05f)
+    return;
+  follow_ground(ctx, s, a, split, depth - 1, out);
+  out.push_back(split);
+  follow_ground(ctx, s, split, b, depth - 1, out);
+}
 } // namespace
 
 nav3d_store::~nav3d_store() {
@@ -598,10 +658,15 @@ bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3
     ep = vf(q);
   }
   f32 straight[max_path_polys * 3];
+  dtPolyRef refs[max_path_polys];
   i32 nstraight = 0;
-  s->query->findStraightPath(fv(sp), fv(ep), polys, npolys, straight, nullptr, nullptr, &nstraight, max_path_polys);
-  for (i32 i = 0; i < nstraight; i++)
-    out.push_back(vf(&straight[i * 3]));
+  s->query->findStraightPath(fv(sp), fv(ep), polys, npolys, straight, nullptr, refs, &nstraight, max_path_polys);
+  for (i32 i = 0; i < nstraight; i++) {
+    const vec3 p = on_ground(ctx, *s, vf(&straight[i * 3]), refs[i]);
+    if (!out.empty())
+      follow_ground(ctx, *s, out.back(), p, 12, out);
+    out.push_back(p);
+  }
   return !out.empty();
 }
 
@@ -826,7 +891,9 @@ vec3 nav3d_agent_position(const context &ctx, nav3d_agent_handle agent) {
   const nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
   if (a == nullptr)
     return {};
-  return vf(mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh})->crowd->getAgent(a->index)->npos);
+  const nav3d_mesh_slot &s = *mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh});
+  const dtCrowdAgent *ag = s.crowd->getAgent(a->index);
+  return on_ground(ctx, s, vf(ag->npos), ag->corridor.getFirstPoly());
 }
 
 vec3 nav3d_agent_velocity(const context &ctx, nav3d_agent_handle agent) {
@@ -840,7 +907,7 @@ bool nav3d_agent_arrived(const context &ctx, nav3d_agent_handle agent) {
   const nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
   if (a == nullptr || !a->has_target)
     return false;
-  const vec3 p = vf(mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh})->crowd->getAgent(a->index)->npos);
+  const vec3 p = nav3d_agent_position(ctx, agent);
   const vec3 d = p - a->target;
   return d.x * d.x + d.z * d.z <= a->arrive * a->arrive && std::fabs(d.y) <= 2.0f;
 }

@@ -70,9 +70,10 @@ if (njin::navmesh3d_path(ctx, nav, guard_pos, player_pos, path))
     njin::gizmo_line3d(ctx, path[i], path[i + 1], njin::colors::yellow);
 ```
 
-Heights of points on the navmesh are approximate: a few cm off on a flat floor, up to a few tenths of a metre on
-rolling hills. To put shapes exactly on the ground, take the height from terrain3d_height() or a ray downwards,
-or let the agent drive a physics character (below).
+Path points and agent positions sit on the ground. Over terrain added with navmesh3d_add_terrain(), the height is
+exactly terrain3d_height(), and a segment that would cut through a hill gets points in between so the path follows
+the ground (within 5 cm). Over other geometry (models, slanted boxes) the height follows the navmesh's detail mesh and
+can be a few cm off; for an exact height cast a ray downwards, or let the agent drive a physics character (below).
 
 ## Crowds
 

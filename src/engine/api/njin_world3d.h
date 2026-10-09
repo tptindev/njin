@@ -452,7 +452,34 @@ struct weather3d {
   f32 snow = 0.0f;           ///< Tuyết rơi, 0..1.
   vec2 wind{2.0f, 0.6f};     ///< Gió trên mặt xz, mét mỗi giây: mây trôi, cỏ nghiêng, mưa xiên.
   f32 wetness = 0.0f;        ///< Mặt đất ướt (tối và bóng hơn), 0..1.
+  /// Mưa và tuyết không rơi dưới mái: mỗi frame có mưa hay tuyết, engine vẽ độ sâu của
+  /// mọi hình đục đổ bóng nhìn thẳng từ trên xuống quanh camera (36 m mỗi cạnh, ô 14 cm),
+  /// rồi giấu giọt nằm dưới một bề mặt và giữ đất dưới đó khô. Hình không đổ bóng
+  /// (`material3d::cast_shadows` tắt) không che. Tắt để tự đánh dấu chỗ có mái bằng
+  /// weather3d_cover_set(), hay khi không có gì để che (tiết kiệm một lượt vẽ độ sâu).
+  bool cover_auto = true;
 };
+
+/// Một chỗ có mái, cho weather3d_cover_set(): hình hộp thẳng trục. Mưa và tuyết không
+/// rơi trong phần của hộp nằm dưới mặt trên của nó (cả phía dưới đáy hộp), mờ dần
+/// trong 25 cm quanh mép; đất trong đó không ướt.
+struct weather3d_cover {
+  vec3 center{0.0f, 0.0f, 0.0f}; ///< Tâm hộp.
+  vec3 size{1.0f, 1.0f, 1.0f};   ///< Cỡ hộp, mét.
+};
+
+/// Đặt các chỗ có mái (thay danh sách cũ), thêm vào phần weather3d::cover_auto che:
+/// nhà không đổ bóng, mái hiên, hay cả khi tắt `cover_auto`. Tối đa 16 hộp; hộp có
+/// vị trí hay cỡ không phải số hữu hạn bị bỏ.
+/// @param ctx Context của engine.
+/// @param covers Các hộp, hoặc nullptr khi `count` là 0 (xóa hết).
+/// @param count Số hộp.
+void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count);
+
+/// Số chỗ có mái đang đặt bằng weather3d_cover_set().
+/// @param ctx Context của engine.
+/// @return Số hộp, 0..16.
+i32 weather3d_cover_count(const context &ctx);
 
 /// Các kiểu thời tiết có sẵn cho weather3d_preset().
 enum weather3d_kind {
