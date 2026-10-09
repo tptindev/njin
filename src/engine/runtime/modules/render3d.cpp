@@ -15,6 +15,7 @@
 #include "post3d.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <iterator>
 #include <raymath.h>
@@ -699,6 +700,97 @@ void main() {
 // (DrawMesh binds only the material's maps, from unit 0).
 constexpr i32 mask_depth_unit = 9;
 
+// Motion vectors for post3d (render3d_draw_velocity): each vertex now (curVP,
+// matModel, the pose's bones) and in the last motion pass (prevVP, prevModel,
+// the bones then); `mvp` (jittered, as the pass drew) only places the fragment.
+const char *const velocity_vs = R"(#version 330
+in vec3 vertexPosition;
+uniform mat4 mvp;
+uniform mat4 matModel;
+uniform mat4 prevModel;
+uniform mat4 curVP;
+uniform mat4 prevVP;
+out vec4 curClip;
+out vec4 prevClip;
+void main() {
+  vec4 p = vec4(vertexPosition, 1.0);
+  curClip = curVP * (matModel * p);
+  prevClip = prevVP * (prevModel * p);
+  gl_Position = mvp * p;
+}
+)";
+
+// The bones of the last motion pass come from a texture (four texels per
+// matrix): a second array of 128 matrices would pass the uniform limit.
+const char *const velocity_skinned_vs_main = R"(
+in vec3 vertexPosition;
+uniform mat4 mvp;
+uniform mat4 matModel;
+uniform mat4 prevModel;
+uniform mat4 curVP;
+uniform mat4 prevVP;
+uniform sampler2D prevBones;
+uniform int prevBoneCount;
+out vec4 curClip;
+out vec4 prevClip;
+mat4 prev_bone(float i) {
+  int b = int(i) * 4;
+  return mat4(texelFetch(prevBones, ivec2(b, 0), 0), texelFetch(prevBones, ivec2(b + 1, 0), 0),
+              texelFetch(prevBones, ivec2(b + 2, 0), 0), texelFetch(prevBones, ivec2(b + 3, 0), 0));
+}
+mat4 prev_skin(mat4 now) {
+  vec4 w = vertexBoneWeights;
+  float sum = w.x + w.y + w.z + w.w;
+  if (prevBoneCount == 0 || sum < 1e-4)
+    return now;
+  return (w.x * prev_bone(vertexBoneIds.x) + w.y * prev_bone(vertexBoneIds.y) + w.z * prev_bone(vertexBoneIds.z) +
+          w.w * prev_bone(vertexBoneIds.w)) / sum;
+}
+void main() {
+  vec4 p = vec4(vertexPosition, 1.0);
+  mat4 k = skin_matrix();
+  vec4 now = k * p;
+  curClip = curVP * (matModel * now);
+  prevClip = prevVP * (prevModel * (prev_skin(k) * p));
+  gl_Position = mvp * now;
+}
+)";
+
+// Where this fragment is the nearest surface of the pass: its screen motion
+// (uv), its distance from the eye in the last pass and 1. A jump of more than a quarter of the
+// screen (a teleport) and points behind either eye give 0: the camera's motion
+// is used there.
+const char *const velocity_fs = R"(#version 330
+in vec4 curClip;
+in vec4 prevClip;
+uniform sampler2D sceneDepth;
+uniform vec2 sceneSize;
+uniform vec2 planes;
+out vec4 finalColor;
+float linear_depth(float d) {
+  float z = d * 2.0 - 1.0;
+  return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
+}
+void main() {
+  float scene = texture(sceneDepth, gl_FragCoord.xy / sceneSize).r;
+  if (linear_depth(gl_FragCoord.z) > linear_depth(scene) * 1.002 + 0.02)
+    discard;
+  if (curClip.w <= 0.0 || prevClip.w <= 0.0) {
+    finalColor = vec4(0.0);
+    return;
+  }
+  vec2 v = (curClip.xy / curClip.w - prevClip.xy / prevClip.w) * 0.5;
+  if (dot(v, v) > 0.0625) {
+    finalColor = vec4(0.0);
+    return;
+  }
+  // The distance from the eye then (clip w), not the window depth: half float
+  // keeps a distance to 1/2048, but not depths crowded just below 1.
+  finalColor = vec4(v, prevClip.w, 1.0);
+}
+)";
+constexpr i32 prev_bones_unit = 10;
+
 Vector3 rl3(vec3 v) {
   Vector3 out{};
   to_raylib(v, out);
@@ -944,8 +1036,32 @@ const render3d_state *open_pass(const context &ctx) {
   return s.active ? &s : nullptr;
 }
 
+// Mixes two numbers into a draw's motion key (splitmix64); never 0, which is "no key".
+u64 mix_key(u64 a, u64 b) {
+  u64 x = a * 0x9E3779B97F4A7C15ull ^ (b + 0x632BE59BD9B4E019ull + (a << 6) + (a >> 2));
+  x ^= x >> 31;
+  x *= 0xBF58476D1CE4E5B9ull;
+  x ^= x >> 27;
+  x *= 0x94D049BB133111EBull;
+  x ^= x >> 31;
+  return x | 1u;
+}
+
+// The motion key of the draw being recorded: the game's draw3d_motion_id(),
+// else `base` (the mesh or model) and how many draws of it came before it in
+// the pass, so a scene drawn in the same order each frame matches itself.
+u64 next_motion_key(const render3d_state &s, u64 base) {
+  if (s.next_motion_id != 0) {
+    const u64 id = s.next_motion_id;
+    s.next_motion_id = 0;
+    return mix_key(1, id);
+  }
+  return mix_key(base, s.motion_seen[base]++);
+}
+
 void record(const context &ctx, const Mesh *mesh, model_handle model, const Matrix &transform, rgba color) {
   const render3d_state &s = ctx.render3d;
+  const u64 key = next_motion_key(s, mix_key(3, (u64)(uintptr_t)mesh));
   s.cmds.push_back(draw3d_cmd{.is_shape = false,
                               .shape = {},
                               .mesh = mesh,
@@ -960,6 +1076,7 @@ void record(const context &ctx, const Mesh *mesh, model_handle model, const Matr
                               .count = 0,
                               .bone_first = 0,
                               .bone_count = 0});
+  s.cmds.back().motion_key = key;
 }
 
 // The +y unit cylinder stretched from `from` to `to`.
@@ -1845,11 +1962,12 @@ void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c) {
 
 void record_model(const context &ctx, model_handle handle, const transform3d &transform, const model_pose *pose,
                   rgba tint, const fx3d &fx, shader_handle shader, const model_recolor *recolors = nullptr,
-                  u32 recolor_count = 0) {
+                  u32 recolor_count = 0, u64 entity = 0) {
   const render3d_state &s = ctx.render3d;
   const model_slot *m = model_slot_of(ctx.model, handle);
   if (!s.active || m == nullptr)
     return;
+  const u64 key = entity != 0 ? mix_key(2, entity) : next_motion_key(s, mix_key(4, handle.id));
   draw3d_cmd c{.is_shape = false,
                .shape = {},
                .mesh = nullptr,
@@ -1878,6 +1996,7 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
     c.morph_count = (u32)weights.size();
     s.morphs.insert(s.morphs.end(), weights.begin(), weights.end());
   }
+  c.motion_key = key;
   place_model(s, *m, c);
   s.cmds.push_back(c);
 }
@@ -1889,7 +2008,7 @@ void record_entities(context &ctx) {
   entt::registry &reg = world(ctx);
   for (auto [e, t, m] : reg.view<const transform3d, const model3d>().each())
     if (m.visible)
-      record_model(ctx, m.model, t, &m.pose, m.tint, m.fx, {});
+      record_model(ctx, m.model, t, &m.pose, m.tint, m.fx, {}, nullptr, 0, (u64)entt::to_integral(e) + 1u);
   for (auto [e, t, r] : reg.view<const transform3d, const shape3d_render>().each()) {
     if (!r.visible)
       continue;
@@ -1941,9 +2060,11 @@ render3d_state::~render3d_state() {
   free_shadow(shadow);
   free_shadow(lamp);
   free_shadow(cover);
-  for (Shader *sh : {&mask, &mask_instanced, &mask_skinned})
+  for (Shader *sh : {&mask, &mask_instanced, &mask_skinned, &velocity, &velocity_skinned})
     if (IsShaderValid(*sh))
       UnloadShader(*sh);
+  if (prev_bones_tex != 0)
+    rlUnloadTexture(prev_bones_tex);
   if (!ready)
     return;
   if (IsShaderValid(lit_skinned))
@@ -1995,6 +2116,8 @@ void start_pass(context &ctx, const camera3d &camera) {
   s.lights.clear();
   s.fx = fx3d{};
   s.material = material3d{};
+  s.motion_seen.clear();
+  s.next_motion_id = 0;
   s.entities = camera.entities;
   s.active = true;
 }
@@ -2257,6 +2380,7 @@ void render3d_record_world(const context &ctx, u8 kind, u32 id) {
   c.color = colors::white;
   c.material = s.material;
   s.cmds.push_back(c);
+  s.next_motion_id = 0;
 }
 
 bool render3d_box_visible(const render3d_state &s, vec3 lo, vec3 hi) {
@@ -2371,6 +2495,144 @@ bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
   return true;
 }
 
+namespace {
+bool ensure_velocity(render3d_state &s) {
+  if (s.velocity_ready || s.velocity_failed)
+    return s.velocity_ready;
+  s.velocity = LoadShaderFromMemory(velocity_vs, velocity_fs);
+  if (!IsShaderValid(s.velocity)) {
+    NJIN_WARN("3d: the motion vector shaders failed to compile; TAA and motion blur follow the camera only");
+    s.velocity_failed = true;
+    return false;
+  }
+  if (s.skin_ok) {
+    const std::string vs = std::string("#version 330\n") + skin_glsl + velocity_skinned_vs_main;
+    s.velocity_skinned = LoadShaderFromMemory(vs.c_str(), velocity_fs);
+    if (IsShaderValid(s.velocity_skinned)) {
+      s.prev_bones_tex = rlLoadTexture(nullptr, skin_max_bones * 4, 1, RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32, 1);
+      rlTextureParameters(s.prev_bones_tex, RL_TEXTURE_MIN_FILTER, RL_TEXTURE_FILTER_NEAREST);
+      rlTextureParameters(s.prev_bones_tex, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_NEAREST);
+    }
+  }
+  s.velocity_ready = true;
+  return true;
+}
+
+// The bone matrices of a draw's last motion pass into prevBones; false when it
+// had none or another number of bones.
+bool upload_prev_bones(const render3d_state &s, const motion_prev *last, u32 count) {
+  if (last == nullptr || s.prev_bones_tex == 0 || last->bone_count != count || count == 0 ||
+      count > (u32)skin_max_bones)
+    return false;
+  thread_local std::vector<f32> texels;
+  texels.resize((usize)count * 16);
+  for (u32 b = 0; b < count; b++) {
+    const float16 m = MatrixToFloatV(s.motion_bones[last->bone_first + b]);
+    std::copy(m.v, m.v + 16, texels.begin() + (std::ptrdiff_t)b * 16);
+  }
+  rlUpdateTexture(s.prev_bones_tex, 0, 0, (i32)count * 4, 1, RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32, texels.data());
+  return true;
+}
+
+// Draws that get motion vectors: opaque meshes and models, one transform each.
+bool has_motion(const draw3d_cmd &c) {
+  return c.motion_key != 0 && c.world == world3d_none && !c.is_shape && c.buffer.id == 0 && c.color.a >= 1.0f &&
+         c.fx.dissolve <= 0.0f;
+}
+} // namespace
+
+bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, const Matrix &cur_vp,
+                            const Matrix &prev_vp, bool has_last) {
+  render3d_state &s = ctx.render3d;
+  if (!ensure_velocity(s))
+    return false;
+  const bool skinned_ok = IsShaderValid(s.velocity_skinned);
+  for (Shader sh : {s.velocity, s.velocity_skinned}) {
+    if (!IsShaderValid(sh))
+      continue;
+    set_mask_uniforms(sh, size, planes);
+    SetShaderValueMatrix(sh, GetShaderLocation(sh, "curVP"), cur_vp);
+    SetShaderValueMatrix(sh, GetShaderLocation(sh, "prevVP"), prev_vp);
+  }
+  const i32 mesh_prev = GetShaderLocation(s.velocity, "prevModel");
+  const i32 skin_prev = skinned_ok ? GetShaderLocation(s.velocity_skinned, "prevModel") : -1;
+  const i32 skin_count = skinned_ok ? GetShaderLocation(s.velocity_skinned, "prevBoneCount") : -1;
+  const i32 skin_bones = skinned_ok ? GetShaderLocation(s.velocity_skinned, "boneMatrices") : -1;
+  if (skinned_ok)
+    set_i32(s.velocity_skinned, GetShaderLocation(s.velocity_skinned, "prevBones"), prev_bones_unit);
+  rlActiveTextureSlot(mask_depth_unit);
+  rlEnableTexture(depth);
+  rlActiveTextureSlot(prev_bones_unit);
+  rlEnableTexture(s.prev_bones_tex);
+  rlActiveTextureSlot(0);
+  map_set maps = s.maps;
+  Material mesh_mat{};
+  mesh_mat.shader = s.velocity;
+  mesh_mat.maps = maps.data();
+  Material skinned_mat = mesh_mat;
+  skinned_mat.shader = s.velocity_skinned;
+  for (const draw3d_cmd &c : s.cmds) {
+    if (!has_motion(c))
+      continue;
+    const motion_prev *last = nullptr;
+    if (has_last) {
+      const auto it = s.motion_last.find(c.motion_key);
+      if (it != s.motion_last.end())
+        last = &it->second;
+    }
+    const Matrix prev_transform = last != nullptr ? last->transform : c.transform;
+    if (c.mesh != nullptr) {
+      SetShaderValueMatrix(s.velocity, mesh_prev, prev_transform);
+      DrawMesh(*c.mesh, mesh_mat, c.transform);
+      continue;
+    }
+    const model_slot *slot = model_slot_of(ctx.model, c.model);
+    if (c.culled || slot == nullptr)
+      continue;
+    const Matrix prev_mesh = MatrixMultiply(slot->model.transform, prev_transform);
+    bool bones_set = false;
+    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &, const model_material &, const Matrix &transform,
+                                    bool posed) {
+      const bool skin = posed && skinned_ok;
+      if (skin && !bones_set) {
+        set_bones(s, s.velocity_skinned, skin_bones, c);
+        set_i32(s.velocity_skinned, skin_count, upload_prev_bones(s, last, c.bone_count) ? (i32)c.bone_count : 0);
+        bones_set = true;
+      }
+      const Shader sh = skin ? s.velocity_skinned : s.velocity;
+      SetShaderValueMatrix(sh, skin ? skin_prev : mesh_prev, prev_mesh);
+      DrawMesh(mesh, skin ? skinned_mat : mesh_mat, transform);
+    });
+  }
+  rlDrawRenderBatchActive();
+  rlActiveTextureSlot(prev_bones_unit);
+  rlDisableTexture();
+  rlActiveTextureSlot(mask_depth_unit);
+  rlDisableTexture();
+  rlActiveTextureSlot(0);
+  return true;
+}
+
+void render3d_motion_commit(context &ctx) {
+  render3d_state &s = ctx.render3d;
+  s.motion_last.clear();
+  s.motion_bones.clear();
+  for (const draw3d_cmd &c : s.cmds) {
+    if (!has_motion(c))
+      continue;
+    motion_prev p{.transform = c.transform, .bone_first = (u32)s.motion_bones.size(), .bone_count = c.bone_count};
+    s.motion_bones.insert(s.motion_bones.end(), s.bones.begin() + c.bone_first,
+                          s.bones.begin() + c.bone_first + c.bone_count);
+    s.motion_last[c.motion_key] = p;
+  }
+}
+
+void draw3d_motion_id(const context &ctx, u64 id) {
+  const render3d_state *s = open_pass(ctx);
+  if (s != nullptr)
+    s->next_motion_id = id;
+}
+
 void render3d_close(context &ctx) {
   if (!ctx.render3d.active)
     return;
@@ -2445,6 +2707,7 @@ void record_instanced(const context &ctx, const Mesh *mesh, model_handle model, 
                               .count = count,
                               .bone_first = 0,
                               .bone_count = 0});
+  s.next_motion_id = 0; // instances get no motion of their own
 }
 } // namespace
 
@@ -2509,6 +2772,7 @@ void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 bl
                                .blend_first = first,
                                .blend_count = count,
                                .blend_k = std::max(blend, 0.0f)});
+  s->next_motion_id = 0; // SDF shapes get no motion of their own
 }
 
 void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
@@ -2529,6 +2793,7 @@ void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
                                .count = 0,
                                .bone_first = 0,
                                .bone_count = 0});
+  s->next_motion_id = 0;
 }
 
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform, rgba tint) {

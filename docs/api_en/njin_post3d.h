@@ -45,9 +45,11 @@ struct post3d {
   /// @}
 
   /// @name Motion blur
-  /// When the camera moves or turns, the image smears along the way each pixel
-  /// slides on screen between two frames. A still camera does not blur (neither
-  /// does a moving object: only the camera's motion counts).
+  /// The image smears along the way each pixel slides on screen between two frames:
+  /// when the camera moves or turns, and when an object moves on its own (meshes and
+  /// models drawn by the 3D calls, following the pose too when they have bones; see
+  /// draw3d_motion_id()). A moving object's smear spreads over the background at its
+  /// edge. A still camera and still objects do not blur.
   /// @{
   f32 motion_blur = 0.0f;       ///< Share of one frame's motion that is blurred, 0..1 (0.5 like a film camera). 0 is off.
   i32 motion_blur_samples = 8;  ///< Samples along the smear, 2..32.
@@ -76,9 +78,11 @@ struct post3d {
   /// Each frame the 3D projection is moved by a small fraction of a pixel (to a different place each frame), then
   /// the image is blended with the images of the frames before, moved back into place by the depth and the camera's
   /// motion: slanted edges lose their jaggies, thin edges stop flickering. Only the first 3D pass into the world of
-  /// each frame is smoothed; 2D drawn after end_3d() is not touched. Moving objects have no velocity of their own:
-  /// wherever the old image no longer matches (a very different depth, a colour outside the colours around it) the
-  /// old image is dropped, so it leaves no trail, but the edges of moving objects stay jagged.
+  /// each frame is smoothed; 2D drawn after end_3d() is not touched. Meshes and models (following the pose too
+  /// when they have bones) have a velocity of their own, so the edges of moving objects are smoothed as well (see
+  /// draw3d_motion_id()). SDF shapes, draw_instanced3d() and the terrain, grass and water follow the camera's motion
+  /// only: wherever the old image no longer matches (a very different depth, a colour outside the colours around
+  /// it) the old image is dropped, so it leaves no trail, but their edges stay jagged while they move on their own.
   /// @{
   bool taa = false;           ///< Turns TAA on.
   f32 taa_sharpen = 0.25f;    ///< Sharpens the image back after blending, 0..1. 0 is no sharpening.
@@ -95,6 +99,21 @@ void post3d_set(context &ctx, const post3d &fx);
 /// @param ctx The engine context.
 /// @return The value set by post3d_set(), or the default.
 post3d post3d_get(const context &ctx);
+
+/// Names the next 3D draw, so TAA and motion blur know where it was last frame.
+///
+/// Usually not needed. The velocity of each mesh and model comes from where that
+/// same draw was last frame: an entity with njin::model3d is recognised by its
+/// entity; other draws by their model (or shape: box, sphere...) and their order in
+/// the pass, so a scene drawn in the same order every frame matches itself. Call this
+/// when the order changes between frames (a list of enemies thinned out, sorted by
+/// distance): a number of its own for each object that does not change from frame to
+/// frame, for example its id. Applies only to the very next draw in the open pass.
+/// An object that jumps more than a quarter of the screen in one frame (a teleport)
+/// is treated as having no velocity of its own.
+/// @param ctx The engine context.
+/// @param id A non-zero number, one per object.
+void draw3d_motion_id(const context &ctx, u64 id);
 
 /// How a decal covers the surface.
 enum decal3d_blend {

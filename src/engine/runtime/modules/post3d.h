@@ -23,16 +23,21 @@ struct context;
 //        colour copied again, then each masked pixel marches its reflected ray
 //        over the depth and takes the colour where it hits.
 //   post3d_after_pass (after particles, before gizmos):
+//     4b. motion vectors (first world pass of the frame, while TAA or motion
+//        blur is on): the opaque meshes and models drawn again into a half
+//        float target with their motion since the last frame (render3d),
 //     5. TAA (first world pass of the frame only, its projection jittered by
 //        render3d): the colour copied, blended with the history reprojected
-//        by depth, clipped to the colour round each pixel, history rejected
-//        where the depth there does not match; the result sharpened back,
+//        by the motion vectors (by depth and the camera where there are none),
+//        clipped to the colour round each pixel, history rejected where the
+//        depth there does not match; the result sharpened back,
 //     6. light shafts: the sky near the sun, blurred towards the sun at half
 //        size, added,
 //     7. lens flare: how much of the sun shows (1x1 pass over the depth),
 //        then ghosts and a halo added,
 //     8. motion blur: the colour copied again, smeared along the screen motion
-//        of each pixel since the last pass's view-projection.
+//        of each pixel (the motion vectors, the longest round it so a moving
+//        object smears over its background; the camera's elsewhere).
 // end_3d binds the world target and the 3D camera again after each.
 struct post3d_decal {
   decal3d_desc desc{};
@@ -80,6 +85,15 @@ struct post3d_state {
   u32 taa_index = 0;         // Halton sample
   bool taa_claimed = false;  // a world pass of this frame is resolved
   bool taa_pass = false;     // the open pass is that one
+
+  // Motion vectors (TAA, motion blur), for the first world pass of a frame:
+  // per pixel (uv motion since the last motion pass, the depth there then,
+  // 1 where a mesh or model is the nearest surface; 0 elsewhere).
+  u32 vel_fbo = 0, vel_tex = 0;
+  i32 vel_w = 0, vel_h = 0;
+  bool vel_claimed = false; // this frame's motion pass was drawn
+  bool vel_failed = false;
+  f32 motion_time = -1.0f;  // ctx.time.elapsed of the last motion pass; -1 none
 
   post3d_state() = default;
   ~post3d_state();

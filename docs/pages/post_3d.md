@@ -30,7 +30,7 @@ njin::post3d_set(ctx, fx);
 | Che khuất môi trường (SSAO) | `ssao`, `ssao_radius` | Mọi hình đục |
 | Phản chiếu (SSR) | `ssr`, cùng `material3d::reflect` của bề mặt | Bề mặt có `reflect` > 0 |
 | Decal | decal3d_add() | Mọi hình đục trong hộp của decal |
-| Mờ chuyển động | `motion_blur` | Cả ảnh 3D, khi camera di chuyển hay quay |
+| Mờ chuyển động | `motion_blur` | Cả ảnh 3D, khi camera di chuyển hay quay; mesh và model đang chạy |
 | Tia nắng | `shafts` | Trời quanh mặt trời, qua khe giữa các vật |
 | Lóa ống kính | `flare` | Cả ảnh, khi mặt trời trong khung hình và không bị che |
 | Khử răng cưa theo thời gian (TAA) | `taa`, `taa_sharpen` | Lần vẽ 3D đầu tiên vào thế giới của mỗi frame |
@@ -96,10 +96,11 @@ mờ đi (`angle_fade`), nên vết không bị kéo dài trên mặt bên của
 
 ## Mờ chuyển động {#post3d_motion_blur}
 
-Khi camera di chuyển hay quay, mỗi pixel trượt trên màn hình giữa hai frame; `motion_blur` nhòe ảnh theo
-hướng đó, 1 là cả quãng trượt của một frame, 0.5 như màn trập máy quay phim. Camera đứng yên thì ảnh giữ nguyên
-từng pixel. Chỉ có chuyển động của camera: một vật đang chạy trước camera đứng yên không nhòe. Vệt nhòe dài
-nhất là 6% chiều rộng màn hình, nên camera nhảy chỗ (đổi cảnh) không làm ảnh nhòe nát.
+Khi camera di chuyển hay quay, hay một vật tự chạy, mỗi pixel trượt trên màn hình giữa hai frame; `motion_blur`
+nhòe ảnh theo hướng đó, 1 là cả quãng trượt của một frame, 0.5 như màn trập máy quay phim. Vật đang chạy trước
+camera đứng yên cũng nhòe, và vệt nhòe lan ra nền sát mép nó, như ảnh chụp thật (xem @ref post3d_motion_vectors).
+Camera đứng yên và vật đứng yên thì ảnh giữ nguyên từng pixel. Vệt nhòe dài nhất là 6% chiều rộng màn hình, nên
+camera nhảy chỗ (đổi cảnh) không làm ảnh nhòe nát.
 
 ## Tia nắng và lóa ống kính {#post3d_sun}
 
@@ -137,12 +138,41 @@ njin::post3d_set(ctx, fx);
   lại, thì ảnh cũ bị bỏ hẳn: frame đầu sau đó là ảnh mới chưa khử.
 
 Chỉ lần vẽ 3D đầu tiên vào thế giới của mỗi frame được khử; 2D vẽ sau end_3d() vẽ lên ảnh đã khử nên không rung.
-Vật đang chạy không có vận tốc riêng: ảnh cũ ở mép vật chạy bị bỏ, nên mép đó còn răng cưa nhưng không để lại vệt.
+Vật đang tự chạy (mesh và model, xem mục dưới) được đưa về chỗ cũ theo chuyển động của chính nó, nên mép của nó
+cũng được khử; ảnh cũ ở chỗ vừa lộ ra sau vật bị bỏ, nên không để lại vệt.
+
+## Vận tốc của từng vật {#post3d_motion_vectors}
+
+Khi TAA hay mờ chuyển động bật, end_3d() vẽ lại các mesh và model đục một lần nữa (chỉ ghi chuyển động, không
+tô màu) để biết mỗi pixel đã ở đâu frame trước: theo transform của lần vẽ đó frame trước và bây giờ, model có xương
+thì theo cả tư thế frame trước. Lần vẽ này chỉ chạy một lần mỗi frame, cho lần vẽ 3D đầu tiên vào thế giới.
+
+Engine tự nhận ra lần vẽ nào frame này là lần vẽ nào frame trước:
+
+- Entity có njin::model3d: theo entity.
+- Các lần vẽ khác (draw_model(), draw_model_anim(), draw_cube3d()...): theo model hay hình, và thứ tự trong pass.
+  Cảnh vẽ theo cùng thứ tự mỗi frame thì tự khớp.
+- Thứ tự đổi giữa các frame (danh sách quái bị xóa bớt, sắp lại theo khoảng cách): gọi draw3d_motion_id() ngay
+  trước lần vẽ, với một số riêng không đổi của vật, ví dụ số hiệu của nó.
+
+```cpp
+for (const enemy &e : enemies) {
+  njin::draw3d_motion_id(ctx, e.id); // khác 0, không đổi theo frame
+  njin::draw_model_anim(ctx, enemy_model, e.at, e.pose);
+}
+```
+
+Không có tên thì hai vật cùng model đổi chỗ trong danh sách sẽ bị coi như nhảy sang chỗ của nhau: TAA bỏ ảnh cũ ở
+đó, mờ chuyển động nhòe chúng dù đứng yên. Một vật nhảy xa hơn một phần tư màn hình trong một frame (dịch chuyển tức
+thời, vật mới xuất hiện ở chỗ của vật cũ) được coi như chỉ có chuyển động của camera.
+
+Hình SDF (draw_shape3d()), draw_instanced3d(), địa hình, cỏ, nước, kính và hạt 3D không có chuyển động riêng: chúng
+theo chuyển động của camera, như trước.
 
 ## Ví dụ đầy đủ
 
-Một góc phòng có sàn bóng; phím 1, 2, 3, 4 bật tắt SSAO, phản chiếu, mờ chuyển động và TAA; chuột trái để lại vết đạn
-trên sàn hay tường, mờ dần sau 10 giây.
+Một góc phòng có sàn bóng và một hộp chạy vòng quanh quả cầu; phím 1, 2, 3, 4 bật tắt SSAO, phản chiếu, mờ chuyển
+động và TAA; chuột trái để lại vết đạn trên sàn hay tường, mờ dần sau 10 giây.
 
 @include post3d.cpp
 
@@ -151,7 +181,8 @@ trên sàn hay tường, mờ dần sau 10 giây.
 Đo trên RTX 3050 Laptop, bản Release, 1280 x 720, cảnh của ảnh trên (trung bình ba lần đo): không hiệu ứng
 0,64 ms mỗi frame; SSAO nửa độ phân giải thêm khoảng 0,24 ms (đầy đủ 0,54 ms), phản chiếu 0,41 ms, 50 decal
 0,28 ms, mờ chuyển động 0,15 ms, tia nắng 0,25 ms, lóa ống kính 0,14 ms; tất cả cùng 50 decal thêm khoảng 1 ms. TAA thêm khoảng 0,3 đến 0,4 ms (kể cả việc vẽ
-thế giới vào ảnh riêng). Bật bất kỳ hiệu ứng nào
+thế giới vào ảnh riêng và vận tốc của từng vật). Với bốn vật đang chạy và một nhân vật có xương, TAA thêm khoảng
+0,35 ms và mờ chuyển động khoảng 0,25 ms. Bật bất kỳ hiệu ứng nào
 (hay có một decal) thì thế giới được vẽ vào ảnh riêng có độ sâu rồi chép ra màn hình, như khi bật post_fx_set().
 
 - Chỉ có những gì trên màn hình: phản chiếu không thấy thứ ngoài khung hình hay bị che, SSAO không biết thứ sau
@@ -161,9 +192,11 @@ thế giới vào ảnh riêng). Bật bất kỳ hiệu ứng nào
 - Kính, nước và hạt 3D vẽ sau decal, SSAO và phản chiếu nên không có chúng; mờ chuyển động của chúng theo độ sâu
   của hình đục phía sau.
 - Pháp tuyến tính từ độ sâu, nên đúng đường giao giữa hai mặt (sàn gặp tường) phản chiếu có thể lóe một pixel.
-- Mờ chuyển động chỉ theo camera, không theo vật.
-- TAA không có vận tốc riêng của từng vật: mép vật đang chạy còn răng cưa (không để lại vệt). Chỉ lần vẽ 3D đầu
-  tiên vào thế giới của mỗi frame được khử; 2D vẽ vào ảnh thế giới trước begin_3d() được trộn cùng ảnh 3D, không
-  rung nhưng có thể hơi mềm khi camera quay.
+- Hình SDF, draw_instanced3d(), địa hình, cỏ và nước không có chuyển động riêng (chỉ theo camera): khi chúng tự
+  chạy, mép của chúng còn răng cưa dưới TAA và không nhòe. Bóng của vật đang chạy nằm trên sàn đứng yên, nên mép
+  bóng dưới TAA hơi mềm. Hình dạng thay đổi do morph cũng không có chuyển động riêng.
+- Dưới TAA, mép vật đang chạy nhanh hơi mềm hơn ảnh không khử (ảnh mới được trộn nhiều hơn để không nhòe theo).
+- Chỉ lần vẽ 3D đầu tiên vào thế giới của mỗi frame được khử; 2D vẽ vào ảnh thế giới trước begin_3d() được trộn
+  cùng ảnh 3D, không rung nhưng có thể hơi mềm khi camera quay.
 - Mỗi lần vẽ 3D vào thế giới đều có hiệu ứng: game vẽ thế giới bằng hai begin_3d() trong một frame thì decal
   được vẽ ở cả hai lần.

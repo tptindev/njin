@@ -42,9 +42,10 @@ struct post3d {
   /// @}
 
   /// @name Mờ chuyển động
-  /// Khi camera di chuyển hay quay, ảnh nhòe theo hướng mỗi pixel trượt trên màn
-  /// hình giữa hai frame. Camera đứng yên thì không nhòe (vật đang chạy cũng không:
-  /// chỉ có chuyển động của camera).
+  /// Ảnh nhòe theo hướng mỗi pixel trượt trên màn hình giữa hai frame: khi camera
+  /// di chuyển hay quay, và khi một vật tự chạy (mesh và model vẽ bằng các hàm 3D,
+  /// có xương thì theo cả tư thế; xem draw3d_motion_id()). Vật nhòe lan ra cả nền
+  /// sát mép nó. Camera đứng yên và vật đứng yên thì không nhòe.
   /// @{
   f32 motion_blur = 0.0f;       ///< Phần chuyển động của một frame được nhòe, 0..1 (0.5 như máy quay phim). 0 là tắt.
   i32 motion_blur_samples = 8;  ///< Số mẫu dọc vệt nhòe, 2..32.
@@ -73,9 +74,11 @@ struct post3d {
   /// khác), rồi ảnh được trộn với ảnh của các frame trước, đưa về đúng chỗ theo độ
   /// sâu và chuyển động của camera: cạnh xiên hết răng cưa, cạnh mảnh hết nhấp nháy.
   /// Chỉ lần vẽ 3D đầu tiên vào thế giới của mỗi frame được khử; 2D vẽ sau end_3d()
-  /// không bị đụng tới. Vật đang chạy không có vận tốc riêng: chỗ nào ảnh cũ không
-  /// còn khớp (độ sâu khác hẳn, màu nằm ngoài màu xung quanh) thì ảnh cũ bị bỏ, nên
-  /// không để lại vệt, nhưng mép vật đang chạy còn răng cưa.
+  /// không bị đụng tới. Mesh và model (có xương thì theo cả tư thế) có vận tốc riêng,
+  /// nên mép của vật đang chạy cũng được khử (xem draw3d_motion_id()). Hình SDF,
+  /// draw_instanced3d() và địa hình, cỏ, nước chỉ theo chuyển động của camera: chỗ
+  /// ảnh cũ không còn khớp (độ sâu khác hẳn, màu nằm ngoài màu xung quanh) thì ảnh cũ
+  /// bị bỏ, nên không để lại vệt, nhưng mép của chúng khi tự chạy còn răng cưa.
   /// @{
   bool taa = false;           ///< Bật TAA.
   f32 taa_sharpen = 0.25f;    ///< Làm nét lại ảnh sau khi trộn, 0..1. 0 là không làm nét.
@@ -91,6 +94,20 @@ void post3d_set(context &ctx, const post3d &fx);
 /// @param ctx Context của engine.
 /// @return Giá trị đặt bởi post3d_set(), hoặc mặc định.
 post3d post3d_get(const context &ctx);
+
+/// Đặt tên cho lần vẽ 3D kế tiếp, để TAA và mờ chuyển động biết nó ở đâu frame trước.
+///
+/// Thường không cần gọi. Vận tốc của mỗi mesh và model được tính từ chỗ của chính
+/// lần vẽ đó ở frame trước: entity có njin::model3d được nhận ra theo entity; các
+/// lần vẽ khác theo model (hay hình: hộp, cầu...) và thứ tự trong pass, nên một cảnh
+/// vẽ theo cùng thứ tự mỗi frame tự khớp. Gọi hàm này khi thứ tự đổi giữa các frame
+/// (danh sách quái bị xóa bớt, sắp lại theo khoảng cách): mỗi vật một số riêng, không
+/// đổi theo frame, ví dụ số hiệu của nó. Chỉ áp cho lần vẽ ngay sau trong pass đang mở.
+/// Một vật nhảy xa hơn một phần tư màn hình trong một frame (dịch chuyển tức thời)
+/// được coi như không có vận tốc riêng.
+/// @param ctx Context của engine.
+/// @param id Số khác 0, riêng cho mỗi vật.
+void draw3d_motion_id(const context &ctx, u64 id);
 
 /// Cách một decal phủ lên bề mặt.
 enum decal3d_blend {

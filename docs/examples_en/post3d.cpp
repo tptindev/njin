@@ -1,4 +1,5 @@
 #include <njin.h>
+#include <cmath>
 
 namespace {
 using namespace njin;
@@ -17,7 +18,7 @@ void load(context &ctx) {
   // Turn each effect on; each is off at 0.
   fx.ssao = 0.8f;       // wall corners and the feet of objects darken
   fx.ssr = 1.0f;        // the polished floor (material3d::reflect below) reflects
-  fx.motion_blur = 0.5f; // smears when the camera turns
+  fx.motion_blur = 0.5f; // smears when the camera turns or an object moves
   post3d_set(ctx, fx);
 }
 
@@ -64,6 +65,12 @@ void render(context &ctx) {
   for (const box &w : walls)
     draw_cube3d(ctx, w.center, w.size, {0.85f, 0.8f, 0.7f, 1.0f});
   draw_sphere3d(ctx, {1.0f, 1.0f, 0.0f}, 1.0f, {0.85f, 0.2f, 0.15f, 1.0f});
+  // A box running round the sphere: motion blur smears it, TAA smooths its edges too.
+  // A name of its own (draw3d_motion_id) keeps it matched with itself last frame, even if the draw order changes.
+  const f32 t = elapsed(ctx);
+  draw3d_motion_id(ctx, 1);
+  draw_cube3d(ctx, {1.0f + 2.0f * std::cos(t), 0.3f, 2.0f * std::sin(t)}, {0.5f, 0.5f, 0.5f},
+              {0.2f, 0.6f, 0.9f, 1.0f});
   end_3d(ctx);
 }
 

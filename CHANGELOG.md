@@ -83,15 +83,32 @@ To release: edit that header, add a section here, commit, then
   `retarget3d_pose()` and `spring3d_update()`. `foot3d_hip_offset()`,
   `foot3d_reset()`, `foot3d_destroy()`. On a 0.2 m step, a step's edge and
   20 degree slopes the ankles stay within 6 mm of their flat-floor height.
+- Per-object motion for TAA and motion blur: while either is on, end_3d()
+  draws the opaque meshes and models once more into a half-float target with
+  each pixel's screen motion since last frame, from the draw's transform then
+  and now and, for a skinned model, its bone matrices then and now (kept in a
+  small float texture). Draws are matched across frames by entity for
+  njin::model3d, else by model or mesh and their order in the pass;
+  `draw3d_motion_id()` names the next draw when that order changes. TAA
+  reprojects moving objects by their own motion and clips them more loosely,
+  and judges a pixel's history by its own surface, so background uncovered
+  beside a moving object takes no history from it; motion blur now smears
+  moving objects with a still camera, spreading over the background at their
+  edges. SDF shapes, instanced draws and the outdoor world keep the camera's
+  motion. With both effects off nothing changes, pixel for pixel. On moving
+  objects, edge error against a 2x2 supersampled reference drops from 57.0 to
+  33.3 and stair-step pixels from 2957 to 1629 (still-camera and orbit
+  numbers unchanged); TAA costs the same 0.3 to 0.4 ms as before at 1280x720
+  on an RTX 3050 Laptop.
 - Temporal anti-aliasing: `post3d::taa` (off by default, so existing games
   draw exactly as before) jitters the projection of the frame's first 3D
   pass into the world by a Halton (2, 3) sub-pixel offset and blends it with
   a half-float history reprojected by the depth and the camera's motion
   (Catmull-Rom history fetch, YCoCg variance clipping, faster blending while
   the camera moves), then sharpens it back (`post3d::taa_sharpen`, 0.25).
-  There is no per-object velocity buffer: the history is dropped where the
-  depth it was drawn with does not hold the point, so a moving object leaves
-  no trail but its edges stay aliased. Camera cuts, a new size, or TAA
+  Meshes and models are reprojected by their own motion (see below); where
+  there is none the history is dropped where the depth it was drawn with
+  does not hold the point, so nothing leaves a trail. Camera cuts, a new size, or TAA
   turned off and on start the history over. It runs in end_3d() after
   glass, water and particles and before light shafts, lens flare and motion
   blur; 2D drawn after end_3d() goes over the resolved image. Against a 2x2

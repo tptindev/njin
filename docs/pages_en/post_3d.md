@@ -30,7 +30,7 @@ njin::post3d_set(ctx, fx);
 | Ambient occlusion (SSAO) | `ssao`, `ssao_radius` | Every opaque shape |
 | Reflections (SSR) | `ssr`, with the surface's `material3d::reflect` | Surfaces with `reflect` > 0 |
 | Decals | decal3d_add() | Every opaque shape in the decal's box |
-| Motion blur | `motion_blur` | The whole 3D image, while the camera moves or turns |
+| Motion blur | `motion_blur` | The whole 3D image, while the camera moves or turns; moving meshes and models |
 | Light shafts | `shafts` | The sky round the sun, through gaps between objects |
 | Lens flare | `flare` | The whole image, while the sun is in the frame and not hidden |
 | Temporal anti-aliasing (TAA) | `taa`, `taa_sharpen` | The first 3D pass into the world of each frame |
@@ -103,11 +103,12 @@ the sides of objects.
 
 ## Motion blur {#post3d_motion_blur}
 
-When the camera moves or turns, each pixel slides across the screen between two frames; `motion_blur` smears the
-image along that, 1 being a whole frame's slide and 0.5 like a film camera's shutter. With a still camera the image
-stays the same, pixel for pixel. Only the camera's motion counts: an object running in front of a still camera
-does not blur. The longest smear is 6% of the screen's width, so a camera that jumps (a cut) does not smear the
-image to pieces.
+When the camera moves or turns, or an object moves on its own, each pixel slides across the screen between two
+frames; `motion_blur` smears the image along that, 1 being a whole frame's slide and 0.5 like a film camera's
+shutter. An object running in front of a still camera blurs too, and its smear spreads over the background at its
+edge, as in a real photo (see @ref post3d_motion_vectors). With a still camera and still objects the image stays the
+same, pixel for pixel. The longest smear is 6% of the screen's width, so a camera that jumps (a cut) does not smear
+the image to pieces.
 
 ## Light shafts and lens flare {#post3d_sun}
 
@@ -149,13 +150,44 @@ The old image is only used while it still matches, so it leaves no ghosts:
   image, not yet smoothed.
 
 Only the first 3D pass into the world of each frame is smoothed; 2D drawn after end_3d() goes over the smoothed
-image, so it does not shake. Moving objects have no velocity of their own: the old image at a moving object's edge
-is dropped, so that edge stays jagged but leaves no trail.
+image, so it does not shake. An object moving on its own (meshes and models, see the next section) is brought back
+to where it was by its own motion, so its edges are smoothed too; the old image where the background was just
+uncovered behind it is dropped, so it leaves no trail.
+
+## Per-object motion {#post3d_motion_vectors}
+
+While TAA or motion blur is on, end_3d() draws the opaque meshes and models once more (writing their motion only,
+no colour) to know where each pixel was last frame: from that draw's transform last frame and now, and for a model
+with bones from its pose last frame too. This draw runs once a frame, for the first 3D pass into the world.
+
+The engine works out which draw this frame is which draw last frame:
+
+- An entity with njin::model3d: by its entity.
+- Other draws (draw_model(), draw_model_anim(), draw_cube3d()...): by their model or shape, and their order in the
+  pass. A scene drawn in the same order every frame matches itself.
+- When the order changes between frames (a list of enemies thinned out, sorted by distance): call
+  draw3d_motion_id() just before the draw, with a number of the object's own that does not change, for example
+  its id.
+
+```cpp
+for (const enemy &e : enemies) {
+  njin::draw3d_motion_id(ctx, e.id); // non-zero, the same every frame
+  njin::draw_model_anim(ctx, enemy_model, e.at, e.pose);
+}
+```
+
+Without names, two objects of the same model that swap places in the list are taken as jumping onto each other:
+TAA drops the old image there, and motion blur smears them even though they stand still. An object that jumps
+more than a quarter of the screen in one frame (a teleport, a new object appearing where an old one was) is treated
+as having only the camera's motion.
+
+SDF shapes (draw_shape3d()), draw_instanced3d(), terrain, grass, water, glass and 3D particles have no motion of their
+own: they follow the camera's motion, as before.
 
 ## Full example
 
-A corner of a room with a polished floor; keys 1, 2, 3, 4 toggle SSAO, reflections, motion blur and TAA; the left mouse
-button leaves a bullet hole on the floor or a wall, fading after 10 seconds.
+A corner of a room with a polished floor and a box running round the sphere; keys 1, 2, 3, 4 toggle SSAO, reflections,
+motion blur and TAA; the left mouse button leaves a bullet hole on the floor or a wall, fading after 10 seconds.
 
 @include post3d.cpp
 
@@ -164,7 +196,9 @@ button leaves a bullet hole on the floor or a wall, fading after 10 seconds.
 Measured on an RTX 3050 Laptop, Release build, 1280 x 720, the scene of the image above (mean of three runs):
 no effects 0.64 ms a frame; half-resolution SSAO adds about 0.24 ms (full resolution 0.54 ms), reflections
 0.41 ms, 50 decals 0.28 ms, motion blur 0.15 ms, light shafts 0.25 ms, lens flare 0.14 ms; all of them with 50
-decals add about 1 ms. TAA adds about 0.3 to 0.4 ms (drawing the world into an image of its own included). Turning
+decals add about 1 ms. TAA adds about 0.3 to 0.4 ms (drawing the world into an image of its own and the per-object
+motion included). With four moving objects and a character with bones, TAA adds about 0.35 ms and motion blur about
+0.25 ms. Turning
 any effect on (or having a decal) draws the world into an image of its own with a depth, then copies it to the
 screen, as post_fx_set() does.
 
@@ -176,9 +210,13 @@ screen, as post_fx_set() does.
   motion blur follows the depth of the opaque shapes behind them.
 - Normals come from the depth, so right where two faces meet (floor meeting wall) a reflection can flash for one
   pixel.
-- Motion blur follows only the camera, not objects.
-- TAA has no per-object velocity: the edges of moving objects stay jagged (they leave no trail). Only the first 3D
-  pass into the world of each frame is smoothed; 2D drawn into the world image before begin_3d() is blended with
-  the 3D image, does not shake, but can soften a little while the camera turns.
+- SDF shapes, draw_instanced3d(), terrain, grass and water have no motion of their own (the camera's only): while
+  they move on their own, their edges stay jagged under TAA and they do not blur. The shadow of a moving object
+  lies on a still floor, so under TAA the shadow's edge softens a little. Shape changes from morphs have no motion
+  of their own either.
+- Under TAA, the edges of fast-moving objects are a little softer than without anti-aliasing (the new image is
+  blended in more so they do not smear behind).
+- Only the first 3D pass into the world of each frame is smoothed; 2D drawn into the world image before begin_3d()
+  is blended with the 3D image, does not shake, but can soften a little while the camera turns.
 - Every 3D pass into the world gets the effects: a game that draws the world with two begin_3d() in one frame gets
   its decals drawn in both.

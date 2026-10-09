@@ -334,11 +334,15 @@ void main() {
 }
 )";
 
-// Camera motion blur: each pixel's world position (from the opaque depth)
-// seen through last pass's view-projection gives how far it slid on screen;
-// the image is averaged along that.
+// Motion blur: how far each pixel slid on screen since the last pass (its
+// motion vector where a mesh or model is; else its world position, from the
+// opaque depth, seen through the last pass's view-projection); the image is
+// averaged along that. The longest object motion a few pixels round is taken
+// when it is longer, so a moving object smears over the background at its edge.
 constexpr const char *blur_main = R"(
 uniform sampler2D texture0;
+uniform sampler2D velTex;
+uniform float hasVel;
 uniform mat4 prevViewProj;
 uniform float strength;
 uniform int samples;
@@ -348,7 +352,24 @@ void main() {
   vec3 p = world_of(uv);
   vec4 c = prevViewProj * vec4(p, 1.0);
   vec2 prev = c.w > 0.0 ? c.xy / c.w * 0.5 + 0.5 : uv;
-  vec2 vel = (uv - prev) * strength;
+  vec2 m = uv - prev;
+  if (hasVel > 0.5) {
+    vec4 own = texture(velTex, uv);
+    if (own.a > 0.5)
+      m = own.xy;
+    float best = length(m / texel);
+    for (int ring = 1; ring <= 2; ring++)
+      for (int i = 0; i < 8; i++) {
+        float a = float(i) * 0.785398 + float(ring) * 0.39;
+        vec4 o = texture(velTex, uv + vec2(cos(a), sin(a)) * float(ring * ring) * 5.0 * texel);
+        float l = length(o.xy / texel);
+        if (o.a > 0.5 && l > best + 1.0) {
+          best = l;
+          m = o.xy;
+        }
+      }
+  }
+  vec2 vel = m * strength;
   float len = length(vel * vec2(1.0, texel.x / texel.y));
   if (len > maxLength)
     vel *= maxLength / len;
@@ -369,15 +390,19 @@ void main() {
 }
 )";
 
-// TAA resolve, into the next history. The front-most depth of the 3x3 round
-// the pixel finds where it was last frame (unjittered matrices on both sides,
-// so a still camera reads the history right here); the history there is
-// clipped to the colour spread of the 3x3 now (YCoCg, mean +- gamma sigma) and
-// dropped where the depth it was drawn with does not hold this point.
+// TAA resolve, into the next history. The front-most pixel of the 3x3 round
+// this one finds where it was last frame: by its motion vector where a mesh or
+// model is, else by its depth through both frames' unjittered matrices (a
+// still camera reads the history right here). The history there is clipped to
+// the colour spread of the 3x3 now (YCoCg, mean +- gamma sigma), more loosely
+// where the motion vector is known, and dropped where the depth it was drawn
+// with does not hold this point.
 constexpr const char *taa_main = R"(
 uniform sampler2D texture0;
 uniform sampler2D historyTex;
 uniform sampler2D prevDepthTex;
+uniform sampler2D velTex;
+uniform float hasVel;
 uniform mat4 viewProjUnj;
 uniform mat4 prevViewProj;
 uniform float reset;
@@ -445,15 +470,28 @@ void main() {
   vec3 p = world_at(near_uv, near_d);
   vec4 cu = viewProjUnj * vec4(p, 1.0);
   vec4 cp = prevViewProj * vec4(p, 1.0);
-  vec2 vel = cp.w > 0.0 ? (cu.xy / cu.w - cp.xy / cp.w) * 0.5 : vec2(0.0);
+  vec2 cam = cp.w > 0.0 ? (cu.xy / cu.w - cp.xy / cp.w) * 0.5 : vec2(0.0);
+  // Moving on its own: a mesh or model whose motion is not the camera's.
+  vec4 ov = hasVel > 0.5 ? texture(velTex, near_uv) : vec4(0.0);
+  bool own = ov.a > 0.5 && length((ov.xy - cam) / texel) > 0.5;
+  vec2 vel = own ? ov.xy : cam;
   vec2 huv = uv - vel;
   float speed = length(vel / texel);
-  float alpha = mix(1.0 - feedback, 0.25, clamp(speed / 3.0, 0.0, 1.0));
-  if (any(lessThan(huv, vec2(0.0))) || any(greaterThan(huv, vec2(1.0))) || cp.w <= 0.0)
+  float alpha = own ? mix(1.0 - feedback, 0.3, clamp(speed / 6.0, 0.0, 1.0))
+                    : mix(1.0 - feedback, 0.25, clamp(speed / 3.0, 0.0, 1.0));
+  if (any(lessThan(huv, vec2(0.0))) || any(greaterThan(huv, vec2(1.0))) || (!own && cp.w <= 0.0))
     alpha = 1.0;
   // The depth the history was drawn with, round where it is read: this point
   // must lie within it (with some slack), or the history shows something else.
   float expect = linear_depth(cp.z / cp.w * 0.5 + 0.5);
+  if (own) {
+    // This pixel's own surface then: background just uncovered beside a moving
+    // object takes the object's motion (the front-most round it) but must not
+    // take its history.
+    vec4 sv = texture(velTex, uv);
+    vec4 c0 = prevViewProj * vec4(world_at(uv, texture(depthTex, uv).r), 1.0);
+    expect = sv.a > 0.5 ? sv.z : (c0.w > 0.0 ? c0.w : expect);
+  }
   float lo_d = 1e30, hi_d = 0.0;
   for (int y = -1; y <= 1; y++)
     for (int x = -1; x <= 1; x++) {
@@ -464,7 +502,7 @@ void main() {
   if (near_d < 1.0 && (expect < lo_d * 0.97 - 0.05 || expect > hi_d * 1.03 + 0.05))
     alpha = 1.0;
   vec3 sigma = sqrt(max(m2 - m1 * m1, vec3(0.0)));
-  float gamma = mix(1.25, 0.75, clamp(speed / 4.0, 0.0, 1.0));
+  float gamma = own ? mix(1.25, 1.0, clamp(speed / 4.0, 0.0, 1.0)) : mix(1.25, 0.75, clamp(speed / 4.0, 0.0, 1.0));
   vec3 hist = to_ycocg(speed < 0.01 ? texture(historyTex, huv).rgb : history_at(huv));
   hist = clip_box(m1 - gamma * sigma, m1 + gamma * sigma, hist);
   vec3 res = mix(from_ycocg(hist), cur, alpha);
@@ -980,7 +1018,7 @@ void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32
   ctx.stats.post_passes += 2;
 }
 
-void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v) {
+void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   const post3d &p = st.settings;
   blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
   Shader sh = st.blur;
@@ -989,13 +1027,69 @@ void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v) {
   set_f(sh, "strength", clamp(p.motion_blur, 0.0f, 1.0f));
   set_i(sh, "samples", std::clamp(p.motion_blur_samples, 2, 32));
   set_f(sh, "maxLength", 0.06f);
+  set_f(sh, "hasVel", vel ? 1.0f : 0.0f);
   bind_2d(v.target, v.w, v.h);
   // Replaces the image, alpha included.
   rlSetBlendFactors(RL_ONE, RL_ZERO, RL_FUNC_ADD);
   BeginBlendMode(BLEND_CUSTOM);
-  quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] { sampler(sh, "depthTex", st.copy_depth); });
+  quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] {
+    sampler(sh, "depthTex", st.copy_depth);
+    sampler(sh, "velTex", vel ? st.vel_tex : st.copy_depth);
+  });
   EndBlendMode();
   ctx.stats.post_passes += 1;
+}
+
+void free_velocity(post3d_state &st) {
+  if (st.vel_fbo != 0)
+    rlUnloadFramebuffer(st.vel_fbo);
+  if (st.vel_tex != 0)
+    rlUnloadTexture(st.vel_tex);
+  st.vel_fbo = st.vel_tex = 0;
+  st.vel_w = st.vel_h = 0;
+}
+
+// The motion vectors' target (half float, read unfiltered), the image's size.
+bool ensure_velocity_target(post3d_state &st, i32 w, i32 h) {
+  if (st.vel_fbo != 0 && st.vel_w == w && st.vel_h == h)
+    return true;
+  free_velocity(st);
+  st.vel_fbo = rlLoadFramebuffer();
+  st.vel_tex = rlLoadTexture(nullptr, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16, 1);
+  rlTextureParameters(st.vel_tex, RL_TEXTURE_MIN_FILTER, RL_TEXTURE_FILTER_NEAREST);
+  rlTextureParameters(st.vel_tex, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_NEAREST);
+  rlTextureParameters(st.vel_tex, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
+  rlTextureParameters(st.vel_tex, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
+  rlFramebufferAttach(st.vel_fbo, st.vel_tex, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+  if (!rlFramebufferComplete(st.vel_fbo)) {
+    NJIN_WARN("post3d: motion vector framebuffer incomplete; TAA and motion blur follow the camera only");
+    free_velocity(st);
+    st.vel_failed = true;
+    return false;
+  }
+  st.vel_w = w;
+  st.vel_h = h;
+  return true;
+}
+
+Matrix unjittered(const pass_view &v);
+
+// The motion vectors of the pass's meshes and models since the last motion
+// pass (`prev_vp` its view-projection, unjittered). False when they could not
+// be drawn: TAA and motion blur then use the camera's motion everywhere.
+bool run_velocity(context &ctx, post3d_state &st, const pass_view &v, const Matrix &prev_vp) {
+  if (st.vel_failed || !ensure_velocity_target(st, v.w, v.h))
+    return false;
+  const bool has_last = st.motion_time >= 0.0f && ctx.time.elapsed - st.motion_time < 0.25f;
+  bind_3d(v);
+  rlEnableFramebuffer(st.vel_fbo);
+  rlClearColor(0, 0, 0, 0);
+  rlClearScreenBuffers();
+  rlDisableDepthTest();
+  const bool ok = render3d_draw_velocity(ctx, st.copy_depth, {(f32)v.w, (f32)v.h}, v.planes, unjittered(v), prev_vp,
+                                         has_last);
+  ctx.stats.post_passes += 1;
+  return ok;
 }
 
 void free_history(post3d_state &st) {
@@ -1061,7 +1155,7 @@ Matrix unjittered(const pass_view &v) {
   return MatrixMultiply(v.view, proj);
 }
 
-void run_taa(context &ctx, post3d_state &st, const pass_view &v) {
+void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   const post3d &p = st.settings;
   if (!ensure_history(st, v.w, v.h))
     return;
@@ -1083,6 +1177,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v) {
   set_m(sh, "prevViewProj", st.hist_view_proj);
   set_f(sh, "reset", cut ? 1.0f : 0.0f);
   set_f(sh, "feedback", 0.9f);
+  set_f(sh, "hasVel", vel ? 1.0f : 0.0f);
   bind_2d(st.hist_fbo[next], v.w, v.h);
   rlSetBlendFactors(RL_ONE, RL_ZERO, RL_FUNC_ADD);
   BeginBlendMode(BLEND_CUSTOM);
@@ -1090,6 +1185,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v) {
     sampler(sh, "depthTex", st.copy_depth);
     sampler(sh, "historyTex", st.hist_tex[st.hist_cur]);
     sampler(sh, "prevDepthTex", st.hdepth_tex);
+    sampler(sh, "velTex", vel ? st.vel_tex : st.hdepth_tex);
   });
   // Back into the world image, sharpened, its alpha kept.
   Shader out = st.taa_out;
@@ -1146,6 +1242,7 @@ bool finite3(vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::i
 post3d_state::~post3d_state() {
   free_copy(*this);
   free_history(*this);
+  free_velocity(*this);
   for (RenderTexture2D *t : {&ao_a, &ao_b, &mask, &shafts_a, &shafts_b, &visible})
     if (IsRenderTextureValid(*t))
       UnloadRenderTexture(*t);
@@ -1155,7 +1252,10 @@ post3d_state::~post3d_state() {
       UnloadShader(*s);
 }
 
-void post3d_frame_begin(context &ctx) { ctx.post3d.taa_claimed = false; }
+void post3d_frame_begin(context &ctx) {
+  ctx.post3d.taa_claimed = false;
+  ctx.post3d.vel_claimed = false;
+}
 
 vec2 post3d_taa_jitter(context &ctx) {
   post3d_state &st = ctx.post3d;
@@ -1212,8 +1312,20 @@ void post3d_after_pass(context &ctx) {
   if (v.w != st.w || v.h != st.h)
     return;
   const post3d &p = st.settings;
+  // Last pass's view, if it was a moment ago (not a pass from before a pause
+  // of the effect or a stall).
+  const bool recent = st.has_prev && ctx.time.elapsed - st.prev_time < 0.25f;
+  const bool blur = p.motion_blur > 0.0f && recent;
+  // Motion vectors once a frame, for the pass TAA resolves or else the first
+  // one motion blur smears; kept to compare with next frame's.
+  bool vel = false;
+  const bool motion = (taa || blur) && !st.vel_claimed;
+  if (motion) {
+    st.vel_claimed = true;
+    vel = run_velocity(ctx, st, v, taa ? st.hist_view_proj : st.prev_view_proj);
+  }
   if (taa)
-    run_taa(ctx, st, v);
+    run_taa(ctx, st, v, vel);
   vec2 sun{};
   f32 on_screen = 0.0f;
   const bool sun_shows = (p.shafts > 0.0f || p.flare > 0.0f) && sun_on_screen(ctx, v, sun, on_screen);
@@ -1221,11 +1333,12 @@ void post3d_after_pass(context &ctx) {
     run_shafts(ctx, st, v, sun, on_screen);
   if (sun_shows && p.flare > 0.0f)
     run_flare(ctx, st, v, sun, on_screen);
-  // Last pass's view, if it was a moment ago (not a pass from before a pause
-  // of the effect or a stall).
-  const bool recent = st.has_prev && ctx.time.elapsed - st.prev_time < 0.25f;
-  if (p.motion_blur > 0.0f && recent)
-    run_motion_blur(ctx, st, v);
+  if (blur)
+    run_motion_blur(ctx, st, v, vel);
+  if (motion) {
+    render3d_motion_commit(ctx);
+    st.motion_time = ctx.time.elapsed;
+  }
   st.prev_view_proj = unjittered(v);
   st.prev_time = ctx.time.elapsed;
   st.has_prev = true;

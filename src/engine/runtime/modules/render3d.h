@@ -4,6 +4,7 @@
 #include "njin_3d.h"
 #include <raylib.h>
 #include <array>
+#include <unordered_map>
 #include <vector>
 
 namespace njin {
@@ -98,6 +99,18 @@ struct draw3d_cmd {
   // render3d_state::morphs (count 0 = the model has none).
   u32 morph_first = 0;
   u32 morph_count = 0;
+  // Which draw of the last frame this one is, for post3d's motion vectors (0 =
+  // none): the entity, the game's draw3d_motion_id(), or the mesh or model and
+  // how many draws of it came before in the pass.
+  u64 motion_key = 0;
+};
+
+// A draw of the last frame's motion pass (render3d_motion_commit): where it was,
+// and its bone matrices in render3d_state::motion_bones.
+struct motion_prev {
+  Matrix transform{};
+  u32 bone_first = 0;
+  u32 bone_count = 0;
 };
 
 // Depth seen from the sun. A colour attachment is kept too, so the
@@ -231,6 +244,17 @@ struct render3d_state {
   i32 mask_skinned_bones = -1;
   bool mask_ready = false;
   bool mask_failed = false;
+  // Motion vectors for post3d's TAA and motion blur (render3d_draw_velocity):
+  // the next draw's draw3d_motion_id(), the draws seen so far this pass per
+  // mesh or model, and where each keyed draw was in the last motion pass.
+  mutable u64 next_motion_id = 0;
+  mutable std::unordered_map<u64, u32> motion_seen;
+  std::unordered_map<u64, motion_prev> motion_last;
+  std::vector<Matrix> motion_bones;
+  Shader velocity{}, velocity_skinned{};
+  u32 prev_bones_tex = 0; // last frame's bone matrices of one draw, 4 texels each
+  bool velocity_ready = false;
+  bool velocity_failed = false;
 
   render3d_state() = default;
   ~render3d_state();
@@ -271,6 +295,19 @@ bool render3d_box_visible(const render3d_state &s, vec3 lo, vec3 hi);
 // draw_instanced3d; not SDF shapes, the outdoor world, translucent or
 // dissolving draws. False when the programs cannot be made.
 bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes);
+
+// post3d (TAA, motion blur): draws the open pass's opaque meshes and models
+// into the bound target through the current matrices, each pixel where it is
+// the nearest surface of `depth` getting (screen motion since the last motion
+// pass in uv, that point's depth then, 1): from `prev_vp` and the draw's last
+// transform and bones to `cur_vp` and its transform now. With `has_last` false,
+// or for a draw not in the last pass, only the camera moved. Other pixels keep
+// the clear. Not SDF shapes, draw_instanced3d, the outdoor world, translucent
+// or dissolving draws. False when the programs cannot be made.
+bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, const Matrix &cur_vp,
+                            const Matrix &prev_vp, bool has_last);
+// Keeps where each keyed draw of the open pass is, for the next motion pass.
+void render3d_motion_commit(context &ctx);
 
 // world3d_draw.cpp: before the pass's draws (its shaders' pass uniforms),
 // one recorded draw (the camera pass, or a shadow pass's depth seen through
