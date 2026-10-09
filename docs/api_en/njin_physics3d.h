@@ -104,6 +104,45 @@ void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 /// @param impulse Impulse.
 void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse);
 
+/// Pushes a dynamic body with a force (N, kg * units per second²) at its centre
+/// of mass, during the next physics step: a jet, wind, a magnet. Unlike
+/// body3d_add_impulse(), a force lasts one step only, so call it every fixed
+/// step while it pushes. Forces in one step add up.
+/// @param ctx Engine context.
+/// @param handle Body. Ignored if it is not dynamic.
+/// @param force Force.
+void body3d_add_force(context &ctx, body3d_handle handle, vec3 force);
+
+/// Like body3d_add_force(context &, body3d_handle, vec3) but applies the force
+/// at `point` (world): an off-centre force both pushes and turns the body. A
+/// propeller pushing a frame at its hub, a jet at the edge of a plank.
+///
+/// @code
+/// // Propeller: thrust along the axis, growing with the square of the hinge's spin.
+/// const f32 w = njin::joint3d_speed(ctx, rotor_hinge) / 360.0f; // turns per second
+/// njin::body3d_add_force(ctx, frame, axis * (k * w * std::fabs(w)), hub);
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Body. Ignored if it is not dynamic.
+/// @param force Force.
+/// @param point Where the force acts, world.
+void body3d_add_force(context &ctx, body3d_handle handle, vec3 force, vec3 point);
+
+/// Turns a dynamic body with a torque (N·m) about its centre of mass, during the
+/// next physics step. It turns by the right-hand rule about `torque`. Call it
+/// every fixed step while it turns.
+/// @param ctx Engine context.
+/// @param handle Body. Ignored if it is not dynamic.
+/// @param torque Torque.
+void body3d_add_torque(context &ctx, body3d_handle handle, vec3 torque);
+
+/// Angular velocity of the body: the vector's direction is the axis it spins
+/// about, its length the degrees per second (right-hand rule).
+/// @param ctx Engine context.
+/// @param handle Body.
+/// @return Angular velocity, degrees per second, or 0 if the handle is invalid.
+vec3 body3d_angular_velocity(const context &ctx, body3d_handle handle);
+
 /// For the next physics step, a dynamic body carries an extra weight of `mass`
 /// kg at `point`: a person hanging on it or climbing it (a character standing
 /// on a body is done by the engine itself), a crate that is not a body. The
@@ -450,6 +489,16 @@ enum joint3d_kind {
   joint3d_hinge,    ///< Hinge: rotates around `axis` through `anchor` (doors, seesaws, wheels).
   joint3d_slider,   ///< Slides along `axis`, no rotation (pistons, drawers, sliding doors).
   joint3d_distance, ///< Keeps the distance between `anchor` and `anchor_b` in `[min, max]` (ropes, rods).
+  /// Gear: makes two hinges `joint_a`, `joint_b` turn at the ratio `ratio` (meshing
+  /// gears, chains, belts). The wheels are body `a` of each hinge.
+  joint3d_gear,
+  /// Rack: makes hinge `joint_a` (the pinion) and slider `joint_b` (the rack) move
+  /// together: the rack slides `ratio` units per turn of the pinion.
+  joint3d_rack,
+  /// Pulley: a rope from `anchor` on `a` over the fixed point `pulley_a`, across to
+  /// `pulley_b` and down to `anchor_b` on `b`. The rope does not stretch: pull one
+  /// side up and the other comes down.
+  joint3d_pulley,
 };
 
 /// Describes a joint for joint3d_create(). Points and axes are in world
@@ -466,11 +515,38 @@ struct joint3d_desc {
   /// (slider); distance (njin::joint3d_distance, both 0 keeps the distance at creation).
   /// Hinges and sliders need `min <= 0 <= max` (hinge angles within -180..180): values
   /// outside are clamped. `min >= max` means no limit, except for njin::joint3d_distance.
+  /// njin::joint3d_pulley: total rope length, the `a` side plus `ratio` times the `b`
+  /// side (both 0 is from 0 to the length at creation: the rope can go slack but not
+  /// stretch).
   f32 min = 0.0f;
   f32 max = 0.0f; ///< See `min`.
   /// Motor of hinges and sliders: maximum force (hinge: torque, N·m) used to hold the
   /// speed set with joint3d_set_motor(). 0 is no motor.
   f32 motor_force = 0.0f;
+  /// Spring of hinges, sliders and njin::joint3d_distance: oscillation frequency, Hz
+  /// (stiffness that does not depend on mass: 1..5 soft, 10..20 stiff). The limits
+  /// `[min, max]` become a spring: going past them pulls back. Without limits the
+  /// spring holds the joint at its position at creation (angle, travel, distance).
+  /// 0 is hard limits.
+  f32 spring = 0.0f;
+  /// Damping of the spring, 0 (bounces forever) .. 1 (returns without bouncing).
+  f32 damping = 0.0f;
+  /// First hinge of njin::joint3d_gear and njin::joint3d_rack (its body `a` is the
+  /// gear). These two joints do not use `a` and `b`.
+  joint3d_handle joint_a{};
+  /// Second hinge (njin::joint3d_gear) or the rack's slider (njin::joint3d_rack);
+  /// its body `a` is the wheel or the rack.
+  joint3d_handle joint_b{};
+  /// Ratio. njin::joint3d_gear: turns of gear `joint_a` while gear `joint_b` turns
+  /// once (teeth of b / teeth of a); positive turns the other way (meshing gears),
+  /// negative the same way (chain, belt), when both axes point the same way.
+  /// njin::joint3d_rack: rack travel per turn of the pinion, units (2π × pinion
+  /// radius); negative slides the other way. njin::joint3d_pulley: the `b` side
+  /// counts `ratio` times (block and tackle: 2 pulls with half the force over twice
+  /// the length).
+  f32 ratio = 1.0f;
+  vec3 pulley_a{0.0f, 0.0f, 0.0f}; ///< Fixed point the rope on the `a` side runs over (njin::joint3d_pulley).
+  vec3 pulley_b{0.0f, 0.0f, 0.0f}; ///< Fixed point the rope on the `b` side runs over (njin::joint3d_pulley).
 };
 
 /// Connects two bodies (or a body and the world) with a joint.
@@ -505,6 +581,52 @@ void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed);
 /// @param handle Joint.
 /// @return The value, 0 for other joint kinds or an invalid handle.
 f32 joint3d_position(const context &ctx, joint3d_handle handle);
+
+/// Changes the maximum motor force (`joint3d_desc::motor_force`) while running:
+/// a throttle, a rubber-band motor weakening as the band unwinds. Above 0 turns
+/// the motor on (it holds the speed of joint3d_set_motor(), by default 0, holding
+/// still), 0 turns it off: the joint turns or slides freely.
+///
+/// @code
+/// // Rubber-band motor: wind the axle `turns` turns the positive way; let go and the
+/// // band turns it back with a torque that drops with the turns left.
+/// turns += njin::joint3d_speed(ctx, axle) / 360.0f * dt;
+/// njin::joint3d_set_motor(ctx, axle, turns > 0 ? -3600.0f : 0.0f);
+/// njin::joint3d_set_motor_force(ctx, axle, std::max(turns, 0.0f) * 2.0f); // 2 N·m per turn
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Hinge or slider; other kinds are ignored.
+/// @param force Maximum force (hinge: torque, N·m), not negative.
+void joint3d_set_motor_force(context &ctx, joint3d_handle handle, f32 force);
+
+/// Current speed of a hinge (degrees per second, the same way as
+/// joint3d_position()) or of a slider (units per second): counting turns, the
+/// thrust of a propeller.
+/// @param ctx Engine context.
+/// @param handle Joint.
+/// @return Speed, 0 for other joint kinds or an invalid handle.
+f32 joint3d_speed(const context &ctx, joint3d_handle handle);
+
+/// Force the joint is bearing to hold the two bodies to its rule (holding the
+/// attachment point, limits, motor, rope tension), in the last physics step, N.
+/// Compare it with a threshold to break the machine: too much and
+/// joint3d_destroy() (a tooth snaps, a chain slips off, a weld breaks).
+/// @param ctx Engine context.
+/// @param handle Joint.
+/// @return Force, 0 for joints that only hold an angle (njin::joint3d_gear) or an invalid handle.
+f32 joint3d_force(const context &ctx, joint3d_handle handle);
+
+/// Torque the joint is bearing to hold the angle between the two bodies (a hinge
+/// holding its axis, angle limits, motor, a gear passing torque on), in the last
+/// physics step, N·m. Taken about the point the joint holds: a hinge's `anchor`,
+/// but the centre of body `a` for njin::joint3d_fixed. So a plank welded to a wall
+/// and weighed down reports only a force (joint3d_force()), no torque at its foot;
+/// to measure the bending torque at the foot, attach it with a hinge with narrow
+/// limits (`min = -0.5`, `max = 0.5`) whose `anchor` is there.
+/// @param ctx Engine context.
+/// @param handle Joint.
+/// @return Torque, 0 for joints that hold no angle (ball, distance, pulley) or an invalid handle.
+f32 joint3d_torque(const context &ctx, joint3d_handle handle);
 
 /// One part of a ragdoll: a bone of the model as a physics capsule along the
 /// bone's y axis (the bone's direction with Blender rigs). By default the capsule

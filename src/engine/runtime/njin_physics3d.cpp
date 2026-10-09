@@ -50,6 +50,8 @@
 #include <Jolt/Physics/Constraints/FixedConstraint.h>
 #include <Jolt/Physics/Constraints/HingeConstraint.h>
 #include <Jolt/Physics/Constraints/PointConstraint.h>
+#include <Jolt/Physics/Constraints/PulleyConstraint.h>
+#include <Jolt/Physics/Constraints/RackAndPinionConstraint.h>
 #include <Jolt/Physics/Constraints/SliderConstraint.h>
 #include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -234,6 +236,8 @@ struct joint_slot {
   joint3d_kind kind = joint3d_hinge;
   body3d_handle a{};
   body3d_handle b{};
+  joint3d_handle on_a{}, on_b{}; // a gear or rack: the joints it holds pointers to, it goes with them
+  JPH::Vec3 slide_axis{};        // a slider: its axis in body a's frame (joint3d_speed)
 };
 
 // A ragdoll (ragdoll3d_create): Jolt's Ragdoll owns the bodies and their
@@ -659,6 +663,7 @@ struct physics3d_world {
   std::vector<body_slot> bodies;         // handle id N is bodies[N - 1]
   std::vector<character_slot> characters; // handle id N is characters[N - 1]
   std::vector<joint_slot> joints;         // handle id N is joints[N - 1]
+  f32 last_dt = 0.0f;                     // length of the last step, for joint3d_force
   std::vector<ragdoll_slot> ragdolls;     // handle id N is ragdolls[N - 1]
   std::vector<JPH::RefConst<JPH::Shape>> hulls; // handle id N is hulls[N - 1], null once destroyed
   std::vector<soft_slot> softs;           // handle id N is softs[N - 1]
@@ -1776,6 +1781,7 @@ void physics3d_step(context &ctx, f32 dt) {
     });
   collide_soft_bodies(*w, dt);
   w->system.Update(dt, 1, &w->temp, &w->jobs);
+  w->last_dt = dt;
   // Bodies ridden this step go back to their own mass and inertia.
   for (const physics3d_world::ridden &q : w->ridden_bodies) {
     JPH::BodyLockWrite lock(w->system.GetBodyLockInterface(), q.id);
@@ -2111,6 +2117,33 @@ void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && !refuse(finite3(impulse), "body3d_add_impulse"))
     ctx.physics3d.world->system.GetBodyInterface().AddImpulse(b->id, jv(impulse));
+}
+
+// Jolt keeps a force or torque until the end of the next step, then clears it.
+void body3d_add_force(context &ctx, body3d_handle handle, vec3 force) {
+  body_slot *b = body_of(ctx, handle);
+  if (b != nullptr && b->dynamic && !refuse(finite3(force), "body3d_add_force"))
+    ctx.physics3d.world->system.GetBodyInterface().AddForce(b->id, jv(force));
+}
+
+void body3d_add_force(context &ctx, body3d_handle handle, vec3 force, vec3 point) {
+  body_slot *b = body_of(ctx, handle);
+  if (b != nullptr && b->dynamic && !refuse(finite3(force) && finite3(point), "body3d_add_force"))
+    ctx.physics3d.world->system.GetBodyInterface().AddForce(b->id, jv(force),
+                                                            JPH::RVec3(point.x, point.y, point.z));
+}
+
+void body3d_add_torque(context &ctx, body3d_handle handle, vec3 torque) {
+  body_slot *b = body_of(ctx, handle);
+  if (b != nullptr && b->dynamic && !refuse(finite3(torque), "body3d_add_torque"))
+    ctx.physics3d.world->system.GetBodyInterface().AddTorque(b->id, jv(torque));
+}
+
+vec3 body3d_angular_velocity(const context &ctx, body3d_handle handle) {
+  body_slot *b = body_of(ctx, handle);
+  if (b == nullptr)
+    return vec3{};
+  return nv(ctx.physics3d.world->system.GetBodyInterface().GetAngularVelocity(b->id)) * (180.0f / pi);
 }
 
 void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point) {
@@ -2610,9 +2643,200 @@ bool limits(const joint3d_desc &d, f32 scale, f32 bound, f32 &lo, f32 &hi) {
   hi = clamp(d.max * scale, 0.0f, bound);
   return lo < hi;
 }
+
+// joint3d_desc::spring makes the limits of a hinge, slider or distance joint soft.
+JPH::SpringSettings spring_of(const joint3d_desc &d) {
+  return JPH::SpringSettings(JPH::ESpringMode::FrequencyAndDamping, d.spring, clamp(d.damping, 0.0f, 1.0f));
+}
+
+JPH::BodyID body_of_id(const physics3d_world &w, body3d_handle h) { return w.bodies[h.id - 1].id; }
+
+// The world axis a hinge turns its body a about.
+JPH::Vec3 hinge_axis(const physics3d_world &w, const joint_slot &j) {
+  const auto *h = static_cast<const JPH::HingeConstraint *>(j.constraint.GetPtr());
+  return w.system.GetBodyInterface().GetRotation(body_of_id(w, j.a)) * h->GetLocalSpaceHingeAxis1();
+}
+
+// A gear between the bodies two hinges turn (body 1 of each hinge, turning
+// against its body 2, the frame): phi1 + ratio * phi2 stays as it was made,
+// phi being a gear's turn about its hinge axis against its frame. Jolt's own
+// GearConstraint (v5.6) gives body 2 the impulse without the ratio, so any
+// ratio but 1 passes the wrong torque and a negative one blows up; this one
+// applies J^T lambda with J = [a, ratio * b].
+class gear_constraint;
+
+class gear_settings final : public JPH::TwoBodyConstraintSettings {
+public:
+  JPH::Ref<JPH::HingeConstraint> hinge1, hinge2;
+  float ratio = 1.0f;
+  JPH::TwoBodyConstraint *Create(JPH::Body &body1, JPH::Body &body2) const override;
+};
+
+class gear_constraint final : public JPH::TwoBodyConstraint {
+public:
+  gear_constraint(JPH::Body &body1, JPH::Body &body2, const gear_settings &s)
+      : JPH::TwoBodyConstraint(body1, body2, s), hinge1_(s.hinge1), hinge2_(s.hinge2), ratio_(s.ratio) {
+    angle1_ = -hinge1_->GetCurrentAngle();
+    angle2_ = -hinge2_->GetCurrentAngle();
+    rest_ = angle1_ + ratio_ * angle2_;
+  }
+
+  JPH::EConstraintSubType GetSubType() const override { return JPH::EConstraintSubType::User1; }
+  void NotifyShapeChanged(const JPH::BodyID &, JPH::Vec3Arg) override {}
+  void ResetWarmStart() override { lambda_ = 0.0f; }
+
+  void SetupVelocityConstraint(float) override {
+    // The turns so far, unwrapped: a hinge's angle wraps at +-180 degrees.
+    angle1_ = turned(angle1_, -hinge1_->GetCurrentAngle());
+    angle2_ = turned(angle2_, -hinge2_->GetCurrentAngle());
+    // The frames' spin about the axes, as at the start of the step.
+    frame_ = axis1().Dot(hinge1_->GetBody2()->GetAngularVelocity()) +
+             ratio_ * axis2().Dot(hinge2_->GetBody2()->GetAngularVelocity());
+    properties();
+  }
+
+  void WarmStartVelocityConstraint(float ratio) override {
+    lambda_ *= ratio;
+    apply(lambda_);
+  }
+
+  bool SolveVelocityConstraint(float) override {
+    if (mass_ == 0.0f)
+      return false;
+    const float jv = axis1().Dot(mBody1->GetAngularVelocity()) + ratio_ * axis2().Dot(mBody2->GetAngularVelocity());
+    const float lambda = -mass_ * (jv - frame_);
+    lambda_ += lambda;
+    return apply(lambda);
+  }
+
+  bool SolvePositionConstraint(float, float baumgarte) override {
+    const float a1 = turned(angle1_, -hinge1_->GetCurrentAngle());
+    const float a2 = turned(angle2_, -hinge2_->GetCurrentAngle());
+    const float error = a1 + ratio_ * a2 - rest_;
+    if (error == 0.0f)
+      return false;
+    properties();
+    if (mass_ == 0.0f)
+      return false;
+    const float lambda = -mass_ * baumgarte * error;
+    if (mBody1->IsDynamic())
+      mBody1->AddRotationStep(lambda * inv_i1_a_);
+    if (mBody2->IsDynamic())
+      mBody2->AddRotationStep((lambda * ratio_) * inv_i2_b_);
+    return true;
+  }
+
+#ifdef JPH_DEBUG_RENDERER
+  void DrawConstraint(JPH::DebugRenderer *) const override {}
+#endif
+
+  JPH::Ref<JPH::ConstraintSettings> GetConstraintSettings() const override {
+    auto *s = new gear_settings();
+    ToConstraintSettings(*s);
+    s->hinge1 = hinge1_;
+    s->hinge2 = hinge2_;
+    s->ratio = ratio_;
+    return s;
+  }
+  JPH::Mat44 GetConstraintToBody1Matrix() const override { return JPH::Mat44::sIdentity(); }
+  JPH::Mat44 GetConstraintToBody2Matrix() const override { return JPH::Mat44::sIdentity(); }
+  float total_lambda() const { return lambda_; }
+
+private:
+  JPH::Vec3 axis1() const { return mBody1->GetRotation() * hinge1_->GetLocalSpaceHingeAxis1(); }
+  JPH::Vec3 axis2() const { return mBody2->GetRotation() * hinge2_->GetLocalSpaceHingeAxis1(); }
+
+  // `before` moved on by the turn from its wrapped value to `now` (radians).
+  static float turned(float before, float now) {
+    return before + JPH::CenterAngleAroundZero(now - JPH::CenterAngleAroundZero(before));
+  }
+
+  void properties() {
+    const JPH::Vec3 a = axis1(), b = axis2();
+    inv_i1_a_ = mBody1->IsDynamic()
+                    ? mBody1->GetMotionProperties()->MultiplyWorldSpaceInverseInertiaByVector(mBody1->GetRotation(), a)
+                    : JPH::Vec3::sZero();
+    inv_i2_b_ = mBody2->IsDynamic()
+                    ? mBody2->GetMotionProperties()->MultiplyWorldSpaceInverseInertiaByVector(mBody2->GetRotation(), b)
+                    : JPH::Vec3::sZero();
+    const float k = a.Dot(inv_i1_a_) + ratio_ * ratio_ * b.Dot(inv_i2_b_);
+    mass_ = k > 0.0f ? 1.0f / k : 0.0f;
+  }
+
+  bool apply(float lambda) {
+    if (lambda == 0.0f)
+      return false;
+    if (mBody1->IsDynamic())
+      mBody1->GetMotionProperties()->AddAngularVelocityStep(lambda * inv_i1_a_);
+    if (mBody2->IsDynamic())
+      mBody2->GetMotionProperties()->AddAngularVelocityStep((lambda * ratio_) * inv_i2_b_);
+    return true;
+  }
+
+  JPH::Ref<JPH::HingeConstraint> hinge1_, hinge2_;
+  float ratio_;
+  float angle1_ = 0.0f, angle2_ = 0.0f, rest_ = 0.0f;
+  float frame_ = 0.0f;
+  float mass_ = 0.0f, lambda_ = 0.0f;
+  JPH::Vec3 inv_i1_a_ = JPH::Vec3::sZero(), inv_i2_b_ = JPH::Vec3::sZero();
+};
+
+JPH::TwoBodyConstraint *gear_settings::Create(JPH::Body &body1, JPH::Body &body2) const {
+  return new gear_constraint(body1, body2, *this);
+}
+
+// A gear (two hinges, gear_constraint) or a rack (a hinge and a slider, Jolt's
+// RackAndPinionConstraint) ties the bodies they move, body a of each. The hinge
+// and slider measure body b against body a, so a turns by minus their angle:
+// the axes given to Jolt are flipped, so that its drift correction, which reads
+// those angles, agrees.
+joint3d_handle gear_create(context &ctx, const joint3d_desc &desc) {
+  physics3d_world &w = *ctx.physics3d.world;
+  const bool rack = desc.kind == joint3d_rack;
+  const joint_slot *ja = joint_of(ctx, desc.joint_a);
+  const joint_slot *jb = joint_of(ctx, desc.joint_b);
+  if (ja == nullptr || jb == nullptr || ja->kind != joint3d_hinge ||
+      jb->kind != (rack ? joint3d_slider : joint3d_hinge) || ja->a.id == jb->a.id || !std::isfinite(desc.ratio) ||
+      desc.ratio == 0.0f) {
+    NJIN_WARN(rack ? "physics3d: joint3d_rack needs a hinge joint_a and a slider joint_b on other bodies, and a ratio"
+                   : "physics3d: joint3d_gear needs two hinges joint_a, joint_b on other bodies, and a ratio");
+    return joint3d_handle{};
+  }
+  const JPH::Ref<JPH::TwoBodyConstraint> ca = ja->constraint, cb = jb->constraint;
+  const body3d_handle ba = ja->a, bb = jb->a;
+  JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  JPH::Ref<JPH::TwoBodyConstraintSettings> settings;
+  if (rack) {
+    auto *r = new JPH::RackAndPinionConstraintSettings();
+    r->mHingeAxis = -hinge_axis(w, *ja);
+    r->mSliderAxis = -(bi.GetRotation(body_of_id(w, bb)) * jb->slide_axis);
+    r->mRatio = 2.0f * pi / desc.ratio;
+    settings = r;
+  } else {
+    auto *g = new gear_settings();
+    g->hinge1 = static_cast<JPH::HingeConstraint *>(ca.GetPtr());
+    g->hinge2 = static_cast<JPH::HingeConstraint *>(cb.GetPtr());
+    g->ratio = desc.ratio;
+    settings = g;
+  }
+  JPH::TwoBodyConstraint *constraint = bi.CreateConstraint(settings, body_of_id(w, ba), body_of_id(w, bb));
+  if (constraint == nullptr) {
+    NJIN_WARN("physics3d: joint could not be created");
+    return joint3d_handle{};
+  }
+  if (rack)
+    static_cast<JPH::RackAndPinionConstraint *>(constraint)->SetConstraints(ca, cb);
+  w.system.AddConstraint(constraint);
+  bi.ActivateConstraint(constraint);
+  w.joints.push_back(joint_slot{
+      .constraint = constraint, .alive = true, .kind = desc.kind, .a = ba, .b = bb, .on_a = desc.joint_a, .on_b = desc.joint_b});
+  return joint3d_handle{(u32)w.joints.size()};
+}
 } // namespace
 
 joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
+  if (desc.kind == joint3d_gear || desc.kind == joint3d_rack)
+    return ctx.physics3d.world != nullptr ? gear_create(ctx, desc) : joint3d_handle{};
   body_slot *a = body_of(ctx, desc.a);
   if (a == nullptr) {
     NJIN_WARN("physics3d: joint3d_create needs a valid body a");
@@ -2640,10 +2864,12 @@ joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
     sl->mAutoDetectPoint = true;
     sl->SetSliderAxis(axis);
     f32 lo = 0.0f, hi = 0.0f;
-    if (limits(desc, 1.0f, 1e6f, lo, hi)) {
+    if (limits(desc, 1.0f, 1e6f, lo, hi) || desc.spring > 0.0f) {
       sl->mLimitsMin = lo;
       sl->mLimitsMax = hi;
     }
+    if (desc.spring > 0.0f)
+      sl->mLimitsSpringSettings = spring_of(desc);
     if (desc.motor_force > 0.0f)
       sl->mMotorSettings.SetForceLimit(desc.motor_force);
     settings = sl;
@@ -2657,7 +2883,23 @@ joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
       d->mMinDistance = std::max(desc.min, 0.0f);
       d->mMaxDistance = std::max(desc.max, d->mMinDistance);
     }
+    if (desc.spring > 0.0f)
+      d->mLimitsSpringSettings = spring_of(desc);
     settings = d;
+    break;
+  }
+  case joint3d_pulley: {
+    auto *p = new JPH::PulleyConstraintSettings();
+    p->mBodyPoint1 = rv(desc.anchor);
+    p->mBodyPoint2 = rv(desc.anchor_b);
+    p->mFixedPoint1 = rv(desc.pulley_a);
+    p->mFixedPoint2 = rv(desc.pulley_b);
+    p->mRatio = std::isfinite(desc.ratio) && desc.ratio > 0.0f ? desc.ratio : 1.0f;
+    if (desc.min > 0.0f || desc.max > 0.0f) {
+      p->mMinLength = std::max(desc.min, 0.0f);
+      p->mMaxLength = std::max(desc.max, p->mMinLength);
+    }
+    settings = p;
     break;
   }
   case joint3d_hinge:
@@ -2667,10 +2909,12 @@ joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
     h->mHingeAxis1 = h->mHingeAxis2 = axis;
     h->mNormalAxis1 = h->mNormalAxis2 = axis.GetNormalizedPerpendicular();
     f32 lo = 0.0f, hi = 0.0f;
-    if (limits(desc, pi / 180.0f, pi, lo, hi)) {
+    if (limits(desc, pi / 180.0f, pi, lo, hi) || desc.spring > 0.0f) {
       h->mLimitsMin = lo;
       h->mLimitsMax = hi;
     }
+    if (desc.spring > 0.0f)
+      h->mLimitsSpringSettings = spring_of(desc);
     if (desc.motor_force > 0.0f)
       h->mMotorSettings.SetTorqueLimit(desc.motor_force);
     settings = h;
@@ -2695,7 +2939,8 @@ joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
                                 .alive = true,
                                 .kind = desc.kind,
                                 .a = desc.a,
-                                .b = b != nullptr ? desc.b : body3d_handle{}});
+                                .b = b != nullptr ? desc.b : body3d_handle{},
+                                .slide_axis = bi.GetRotation(a->id).Conjugated() * axis});
   return joint3d_handle{(u32)w.joints.size()};
 }
 
@@ -2704,6 +2949,10 @@ void joint3d_destroy(context &ctx, joint3d_handle handle) {
   if (j == nullptr)
     return;
   physics3d_world &w = *ctx.physics3d.world;
+  // A gear or rack on this joint holds a pointer to it: it goes first.
+  for (usize i = 0; i < w.joints.size(); i++)
+    if (w.joints[i].alive && (w.joints[i].on_a.id == handle.id || w.joints[i].on_b.id == handle.id))
+      joint3d_destroy(ctx, joint3d_handle{(u32)(i + 1)});
   w.system.GetBodyInterface().ActivateConstraint(j->constraint);
   w.system.RemoveConstraint(j->constraint);
   *j = joint_slot{};
@@ -2738,6 +2987,111 @@ f32 joint3d_position(const context &ctx, joint3d_handle handle) {
   if (j->kind == joint3d_slider)
     return static_cast<const JPH::SliderConstraint *>(j->constraint.GetPtr())->GetCurrentPosition();
   return 0.0f;
+}
+
+void joint3d_set_motor_force(context &ctx, joint3d_handle handle, f32 force) {
+  joint_slot *j = joint_of(ctx, handle);
+  if (j == nullptr || refuse(std::isfinite(force), "joint3d_set_motor_force"))
+    return;
+  force = std::max(force, 0.0f);
+  const JPH::EMotorState state = force > 0.0f ? JPH::EMotorState::Velocity : JPH::EMotorState::Off;
+  if (j->kind == joint3d_hinge) {
+    auto *h = static_cast<JPH::HingeConstraint *>(j->constraint.GetPtr());
+    h->GetMotorSettings().SetTorqueLimit(force);
+    h->SetMotorState(state);
+  } else if (j->kind == joint3d_slider) {
+    auto *sl = static_cast<JPH::SliderConstraint *>(j->constraint.GetPtr());
+    sl->GetMotorSettings().SetForceLimit(force);
+    sl->SetMotorState(state);
+  } else {
+    return;
+  }
+  ctx.physics3d.world->system.GetBodyInterface().ActivateConstraint(j->constraint);
+}
+
+f32 joint3d_speed(const context &ctx, joint3d_handle handle) {
+  const joint_slot *j = joint_of(ctx, handle);
+  if (j == nullptr || (j->kind != joint3d_hinge && j->kind != joint3d_slider))
+    return 0.0f;
+  const physics3d_world &w = *ctx.physics3d.world;
+  const JPH::BodyInterface &bi = w.system.GetBodyInterface();
+  const JPH::BodyID a = body_of_id(w, j->a);
+  const bool has_b = j->b.id != 0;
+  // Body b against body a, as the joint measures its angle or slide.
+  if (j->kind == joint3d_hinge) {
+    const JPH::Vec3 wb = has_b ? bi.GetAngularVelocity(body_of_id(w, j->b)) : JPH::Vec3::sZero();
+    return (wb - bi.GetAngularVelocity(a)).Dot(hinge_axis(w, *j)) * (180.0f / pi);
+  }
+  const JPH::Vec3 vb = has_b ? bi.GetLinearVelocity(body_of_id(w, j->b)) : JPH::Vec3::sZero();
+  return (vb - bi.GetLinearVelocity(a)).Dot(bi.GetRotation(a) * j->slide_axis);
+}
+
+namespace {
+// The impulses a joint gave in the last step, split into a linear part (N·s)
+// and an angular part (N·m·s).
+void joint_impulses(const joint_slot &j, f32 &linear, f32 &angular) {
+  const JPH::Constraint *c = j.constraint.GetPtr();
+  linear = angular = 0.0f;
+  switch (j.kind) {
+  case joint3d_fixed: {
+    const auto *f = static_cast<const JPH::FixedConstraint *>(c);
+    linear = f->GetTotalLambdaPosition().Length();
+    angular = f->GetTotalLambdaRotation().Length();
+    break;
+  }
+  case joint3d_point:
+    linear = static_cast<const JPH::PointConstraint *>(c)->GetTotalLambdaPosition().Length();
+    break;
+  case joint3d_hinge: {
+    const auto *h = static_cast<const JPH::HingeConstraint *>(c);
+    const JPH::Vector<2> r = h->GetTotalLambdaRotation();
+    const f32 along = h->GetTotalLambdaRotationLimits() + h->GetTotalLambdaMotor();
+    linear = h->GetTotalLambdaPosition().Length();
+    angular = std::sqrt(r[0] * r[0] + r[1] * r[1] + along * along);
+    break;
+  }
+  case joint3d_slider: {
+    const auto *sl = static_cast<const JPH::SliderConstraint *>(c);
+    const JPH::Vector<2> p = sl->GetTotalLambdaPosition();
+    const f32 along = sl->GetTotalLambdaPositionLimits() + sl->GetTotalLambdaMotor();
+    linear = std::sqrt(p[0] * p[0] + p[1] * p[1] + along * along);
+    angular = sl->GetTotalLambdaRotation().Length();
+    break;
+  }
+  case joint3d_distance:
+    linear = std::fabs(static_cast<const JPH::DistanceConstraint *>(c)->GetTotalLambdaPosition());
+    break;
+  case joint3d_gear:
+    angular = std::fabs(static_cast<const gear_constraint *>(c)->total_lambda());
+    break;
+  case joint3d_rack:
+    angular = std::fabs(static_cast<const JPH::RackAndPinionConstraint *>(c)->GetTotalLambda());
+    break;
+  case joint3d_pulley:
+    linear = std::fabs(static_cast<const JPH::PulleyConstraint *>(c)->GetTotalLambdaPosition());
+    break;
+  }
+}
+} // namespace
+
+f32 joint3d_force(const context &ctx, joint3d_handle handle) {
+  const joint_slot *j = joint_of(ctx, handle);
+  const f32 dt = j != nullptr ? ctx.physics3d.world->last_dt : 0.0f;
+  if (dt <= 0.0f)
+    return 0.0f;
+  f32 linear = 0.0f, angular = 0.0f;
+  joint_impulses(*j, linear, angular);
+  return linear / dt;
+}
+
+f32 joint3d_torque(const context &ctx, joint3d_handle handle) {
+  const joint_slot *j = joint_of(ctx, handle);
+  const f32 dt = j != nullptr ? ctx.physics3d.world->last_dt : 0.0f;
+  if (dt <= 0.0f)
+    return 0.0f;
+  f32 linear = 0.0f, angular = 0.0f;
+  joint_impulses(*j, linear, angular);
+  return angular / dt;
 }
 
 namespace {

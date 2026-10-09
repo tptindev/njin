@@ -100,6 +100,45 @@ void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 /// @param impulse Xung lực.
 void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse);
 
+/// Đẩy một body động bằng một lực (N, kg * đơn vị mỗi giây²) tại trọng tâm, trong
+/// bước vật lý tới: động cơ phản lực, gió, nam châm. Khác body3d_add_impulse(), lực
+/// chỉ tác dụng một bước, nên gọi mỗi bước cố định khi còn đẩy. Các lực trong một
+/// bước cộng lại.
+/// @param ctx Context của engine.
+/// @param handle Body. Không phải body động thì bỏ qua.
+/// @param force Lực.
+void body3d_add_force(context &ctx, body3d_handle handle, vec3 force);
+
+/// Như body3d_add_force(context &, body3d_handle, vec3) nhưng đặt lực tại `point`
+/// (thế giới): lực lệch tâm vừa đẩy vừa xoay body. Cánh quạt đẩy một khung tại
+/// trục của nó, ống phụt khí ở mép một tấm ván.
+///
+/// @code
+/// // Cánh quạt: lực đẩy dọc trục, tỉ lệ với bình phương tốc độ quay của bản lề.
+/// const f32 w = njin::joint3d_speed(ctx, rotor_hinge) / 360.0f; // vòng mỗi giây
+/// njin::body3d_add_force(ctx, frame, axis * (k * w * std::fabs(w)), hub);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Body. Không phải body động thì bỏ qua.
+/// @param force Lực.
+/// @param point Điểm đặt lực, thế giới.
+void body3d_add_force(context &ctx, body3d_handle handle, vec3 force, vec3 point);
+
+/// Xoay một body động bằng một mô-men (N·m) quanh trọng tâm, trong bước vật lý tới.
+/// Chiều xoay theo quy tắc bàn tay phải quanh `torque`. Gọi mỗi bước cố định khi
+/// còn xoay.
+/// @param ctx Context của engine.
+/// @param handle Body. Không phải body động thì bỏ qua.
+/// @param torque Mô-men.
+void body3d_add_torque(context &ctx, body3d_handle handle, vec3 torque);
+
+/// Vận tốc góc của body: trục quay là hướng của vector, độ mỗi giây là độ dài
+/// của nó (quy tắc bàn tay phải).
+/// @param ctx Context của engine.
+/// @param handle Body.
+/// @return Vận tốc góc, độ mỗi giây, hoặc 0 nếu handle không hợp lệ.
+vec3 body3d_angular_velocity(const context &ctx, body3d_handle handle);
+
 /// Cho bước vật lý kế tiếp, body động mang thêm một vật nặng `mass` kg đặt tại
 /// `point`: người treo hay leo trên nó (nhân vật đứng trên body thì engine tự
 /// làm), một thùng hàng không phải body. Body nặng như cả hai cộng lại, có quán
@@ -432,6 +471,16 @@ enum joint3d_kind {
   joint3d_hinge,    ///< Bản lề: xoay quanh `axis` qua `anchor` (cửa, bập bênh, bánh xe).
   joint3d_slider,   ///< Trượt dọc `axis`, không xoay (piston, ngăn kéo, cửa kéo).
   joint3d_distance, ///< Giữ khoảng cách giữa `anchor` và `anchor_b` trong `[min, max]` (dây, thanh nối).
+  /// Bánh răng: buộc hai bản lề `joint_a`, `joint_b` quay theo tỉ số `ratio` (bánh
+  /// răng ăn khớp, xích, dây curoa). Bánh là body `a` của mỗi bản lề.
+  joint3d_gear,
+  /// Thanh răng: buộc bản lề `joint_a` (bánh) và khớp trượt `joint_b` (thanh) đi
+  /// cùng nhau: thanh trượt `ratio` đơn vị mỗi vòng bánh.
+  joint3d_rack,
+  /// Ròng rọc: dây từ `anchor` trên `a` vắt qua điểm cố định `pulley_a`, sang
+  /// `pulley_b` rồi xuống `anchor_b` trên `b`. Dây không giãn: kéo bên này lên
+  /// thì bên kia xuống.
+  joint3d_pulley,
 };
 
 /// Mô tả một khớp nối cho joint3d_create(). Các điểm và trục tính trong tọa độ
@@ -448,12 +497,36 @@ struct joint3d_desc {
   /// (khớp trượt); khoảng cách (njin::joint3d_distance, cả hai bằng 0 là giữ
   /// khoảng cách lúc tạo). Bản lề và khớp trượt cần `min <= 0 <= max` (góc của bản
   /// lề trong -180..180): giá trị ngoài khoảng bị kẹp lại. `min >= max` là không
-  /// giới hạn, trừ njin::joint3d_distance.
+  /// giới hạn, trừ njin::joint3d_distance. njin::joint3d_pulley: tổng chiều dài
+  /// dây, bên `a` cộng `ratio` lần bên `b` (cả hai bằng 0 là từ 0 tới chiều dài lúc
+  /// tạo: dây chùng được nhưng không giãn).
   f32 min = 0.0f;
   f32 max = 0.0f; ///< Xem `min`.
   /// Mô-tơ của bản lề và khớp trượt: lực tối đa (bản lề: mô-men, N·m) để giữ tốc
   /// độ đặt bằng joint3d_set_motor(). 0 là không có mô-tơ.
   f32 motor_force = 0.0f;
+  /// Lò xo của bản lề, khớp trượt và njin::joint3d_distance: tần số dao động, Hz
+  /// (độ cứng không phụ thuộc khối lượng: 1..5 mềm, 10..20 cứng). Giới hạn `[min,
+  /// max]` thành lò xo: ra ngoài thì bị kéo về. Không có giới hạn thì lò xo giữ
+  /// khớp ở vị trí lúc tạo (góc, quãng trượt, khoảng cách). 0 là giới hạn cứng.
+  f32 spring = 0.0f;
+  /// Giảm chấn của lò xo, 0 (nảy mãi) .. 1 (về chỗ không nảy).
+  f32 damping = 0.0f;
+  /// Bản lề thứ nhất của njin::joint3d_gear và njin::joint3d_rack (body `a` của
+  /// nó là bánh răng). Hai khớp này không dùng `a` và `b`.
+  joint3d_handle joint_a{};
+  /// Bản lề thứ hai (njin::joint3d_gear) hoặc khớp trượt của thanh răng
+  /// (njin::joint3d_rack); body `a` của nó là bánh hay thanh.
+  joint3d_handle joint_b{};
+  /// Tỉ số. njin::joint3d_gear: số vòng bánh `joint_a` quay khi bánh `joint_b`
+  /// quay một vòng (số răng của b / số răng của a); dương là ngược chiều (bánh
+  /// răng ăn khớp), âm là cùng chiều (xích, dây curoa), khi hai trục cùng hướng.
+  /// njin::joint3d_rack: quãng thanh trượt mỗi vòng bánh, đơn vị (2π × bán kính
+  /// bánh); âm là trượt theo chiều ngược lại. njin::joint3d_pulley: bên `b` tính
+  /// gấp `ratio` lần (palăng: 2 là kéo nhẹ một nửa, đi dài gấp đôi).
+  f32 ratio = 1.0f;
+  vec3 pulley_a{0.0f, 0.0f, 0.0f}; ///< Điểm cố định dây bên `a` vắt qua (njin::joint3d_pulley).
+  vec3 pulley_b{0.0f, 0.0f, 0.0f}; ///< Điểm cố định dây bên `b` vắt qua (njin::joint3d_pulley).
 };
 
 /// Nối hai body (hoặc một body với thế giới) bằng một khớp.
@@ -487,6 +560,49 @@ void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed);
 /// @param handle Khớp.
 /// @return Giá trị, 0 với loại khớp khác hay handle không hợp lệ.
 f32 joint3d_position(const context &ctx, joint3d_handle handle);
+
+/// Đổi lực tối đa của mô-tơ (`joint3d_desc::motor_force`) lúc đang chạy: chân ga,
+/// động cơ dây chun yếu dần khi dây nhả ra. Lớn hơn 0 là bật mô-tơ (tốc độ giữ
+/// theo joint3d_set_motor(), mặc định 0 là giữ yên), 0 là tắt hẳn: khớp quay hay
+/// trượt tự do.
+///
+/// @code
+/// // Động cơ dây chun: vặn trục theo chiều dương `turns` vòng; nhả ra, dây kéo trục
+/// // quay ngược lại với mô-men giảm dần theo số vòng còn lại.
+/// turns += njin::joint3d_speed(ctx, axle) / 360.0f * dt;
+/// njin::joint3d_set_motor(ctx, axle, turns > 0 ? -3600.0f : 0.0f);
+/// njin::joint3d_set_motor_force(ctx, axle, std::max(turns, 0.0f) * 2.0f); // 2 N·m mỗi vòng
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Bản lề hoặc khớp trượt; loại khác bị bỏ qua.
+/// @param force Lực tối đa (bản lề: mô-men, N·m), không âm.
+void joint3d_set_motor_force(context &ctx, joint3d_handle handle, f32 force);
+
+/// Tốc độ hiện tại của bản lề (độ mỗi giây, cùng chiều với joint3d_position()) hoặc
+/// của khớp trượt (đơn vị mỗi giây): đếm số vòng đã quay, lực đẩy cánh quạt.
+/// @param ctx Context của engine.
+/// @param handle Khớp.
+/// @return Tốc độ, 0 với loại khớp khác hay handle không hợp lệ.
+f32 joint3d_speed(const context &ctx, joint3d_handle handle);
+
+/// Lực khớp đang chịu để giữ hai body theo luật của nó (giữ điểm nối, giới hạn,
+/// mô-tơ, căng dây), ở bước vật lý vừa rồi, N. So với một ngưỡng để làm máy hỏng:
+/// lớn quá thì joint3d_destroy() (răng gãy, xích tuột, mối hàn bung).
+/// @param ctx Context của engine.
+/// @param handle Khớp.
+/// @return Lực, 0 với khớp chỉ giữ góc (njin::joint3d_gear) hay handle không hợp lệ.
+f32 joint3d_force(const context &ctx, joint3d_handle handle);
+
+/// Mô-men khớp đang chịu để giữ góc giữa hai body (bản lề giữ trục, giới hạn góc,
+/// mô-tơ, bánh răng truyền lực), ở bước vật lý vừa rồi, N·m. Tính quanh điểm khớp
+/// giữ: `anchor` của bản lề, nhưng tâm body `a` với njin::joint3d_fixed. Vì vậy
+/// tấm ván hàn vào tường mà bị đè chỉ báo lực (joint3d_force()), không báo mô-men
+/// ở chân; muốn đo mô-men bẻ gãy ở chân thì gắn bằng bản lề có giới hạn hẹp
+/// (`min = -0.5`, `max = 0.5`) đặt `anchor` tại đó.
+/// @param ctx Context của engine.
+/// @param handle Khớp.
+/// @return Mô-men, 0 với khớp không giữ góc (khớp cầu, khoảng cách, ròng rọc) hay handle không hợp lệ.
+f32 joint3d_torque(const context &ctx, joint3d_handle handle);
 
 /// Một phần của ragdoll: một xương của model thành một viên nang vật lý dọc theo
 /// trục y của xương (hướng của xương với rig của Blender). Mặc định viên nang

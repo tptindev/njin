@@ -353,12 +353,12 @@ hình vẽ nó dùng chung số.
 |---|---|---|
 | Body tĩnh | body3d_create() với `body3d_static` | Sàn, tường, bục cố định |
 | Body kinematic | `body3d_kinematic`, rồi body3d_move_kinematic() mỗi bước | Bục di chuyển, thang máy, cửa: chở và đẩy vật khác |
-| Body động | `body3d_dynamic` | Thùng, bóng, mảnh vỡ: rơi, va, lăn, bị đẩy; body3d_add_impulse() cho cú nổ |
+| Body động | `body3d_dynamic` | Thùng, bóng, mảnh vỡ: rơi, va, lăn, bị đẩy; body3d_add_impulse() cho cú nổ, body3d_add_force() và body3d_add_torque() cho lực đẩy liên tục |
 | Nhân vật | character3d_create() | Người chơi, quái: viên nang đi trên sàn, leo bậc, trượt dọc tường, đẩy body động |
 | Body từ model | `body3d_desc::model` và `scale` | Sàn, dốc, hang làm trong Blender (tĩnh, kinematic); vật lồi (động) |
 | Sensor | `body3d_desc::sensor` | Vùng nhặt đồ, checkpoint, bẫy, đích: không va, chỉ báo chạm |
 | Sự kiện chạm | physics3d_contact_count(), physics3d_contact() | Biết cái gì bắt đầu hay thôi chạm cái gì |
-| Khớp nối | joint3d_create() | Cửa bản lề, bập bênh, dây xích, piston |
+| Khớp nối | joint3d_create() | Cửa bản lề, bập bênh, dây xích, piston, lò xo, bánh răng, ròng rọc |
 | Ragdoll | ragdoll3d_create() | Nhân vật ngã, trúng đòn: bộ xương của model đi theo vật lý |
 | Vật mềm | softbody3d_create() | Bóng cao su, nệm, khối thạch: biến dạng khi va chạm, giữ phồng bằng áp suất; va chạm với nhau, nhân vật đứng lên được |
 | Vải | cloth3d_create() | Lá cờ, rèm, áo choàng: ghim vào một chỗ, bay theo gió |
@@ -477,6 +477,41 @@ const njin::body3d_handle plank = njin::body3d_create(
     ctx, {.position = pivot, .size = {4, 0.2f, 1}, .motion = njin::body3d_dynamic, .mass = 25});
 njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = pivot, .axis = {0, 0, 1},
                            .min = -18, .max = 18});
+@endcode
+
+### Lò xo, truyền động và lực
+
+Các khớp và hàm dưới đây đủ để lắp một cỗ máy từ linh kiện: động cơ, pít-tông, lò xo, dây chun,
+bánh răng, xích, thanh răng, ròng rọc, cánh quạt.
+
+| Linh kiện | Làm bằng |
+|---|---|
+| Lò xo, giảm xóc | `spring` (tần số, Hz) và `damping` trên bản lề, khớp trượt, njin::joint3d_distance: giới hạn `[min, max]` thành lò xo; không có giới hạn thì lò xo giữ khớp ở vị trí lúc tạo |
+| Dây chun | njin::joint3d_distance với `min = 0`, `max` là chiều dài lúc chùng và `spring`: chỉ kéo khi bị căng |
+| Động cơ dây chun, chân ga | joint3d_set_motor_force() đổi lực mô-tơ lúc chạy (0 là tắt, khớp quay tự do); joint3d_speed() đếm số vòng đã vặn |
+| Bánh răng, xích, dây curoa | njin::joint3d_gear nối hai bản lề `joint_a`, `joint_b` với tỉ số `ratio`: dương là ngược chiều (bánh răng ăn khớp), âm là cùng chiều (xích, curoa) |
+| Thanh răng | njin::joint3d_rack nối bản lề `joint_a` (bánh) và khớp trượt `joint_b` (thanh): thanh trượt `ratio` đơn vị mỗi vòng bánh |
+| Ròng rọc, palăng | njin::joint3d_pulley: dây từ `a` vắt qua `pulley_a`, `pulley_b` xuống `b`; `ratio` 2 là palăng |
+| Cánh quạt, ống phụt | body3d_add_force() tại một điểm, mỗi bước cố định; joint3d_speed() cho tốc độ quay của cánh |
+| Máy hỏng | joint3d_force(), joint3d_torque() cho lực khớp đang chịu: quá ngưỡng thì joint3d_destroy() |
+
+Bánh răng tính theo góc quay của mỗi bánh so với khung của nó (body `b` của bản lề), nên vẫn đúng khi
+cả cỗ máy chạy và xoay. Mô-men truyền theo tỉ số: bánh nhỏ (`ratio` 3) quay bánh lớn chậm hơn ba lần
+với mô-men gấp ba. Hủy một bản lề thì bánh răng hay thanh răng trên nó bị hủy theo. Răng và mắt xích
+chỉ là hình vẽ: khớp giữ tỉ số, không cần va chạm giữa các răng.
+
+@code
+// Bánh nhỏ 10 răng có mô-tơ quay bánh lớn 30 răng, cả hai trên khung `frame`, trục z.
+const njin::joint3d_handle small = njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = pinion,
+    .b = frame, .anchor = {0, 1, 0}, .axis = {0, 0, 1}, .motor_force = 50});
+const njin::joint3d_handle big = njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = wheel,
+    .b = frame, .anchor = {2, 1, 0}, .axis = {0, 0, 1}});
+njin::joint3d_create(ctx, {.kind = njin::joint3d_gear, .joint_a = small, .joint_b = big, .ratio = 3});
+njin::joint3d_set_motor(ctx, small, 360); // bánh lớn quay 120 độ mỗi giây, ngược chiều
+
+// Pít-tông có đệm lò xo cuối hành trình: trượt tự do dọc y trong 0..0.5, vượt ra thì lò xo 4 Hz kéo lại.
+njin::joint3d_create(ctx, {.kind = njin::joint3d_slider, .a = rod, .b = cylinder, .axis = {0, 1, 0},
+                           .min = 0, .max = 0.5f, .spring = 4, .damping = 0.3f});
 @endcode
 
 ### Ragdoll {#ragdoll3d}

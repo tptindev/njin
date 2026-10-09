@@ -368,12 +368,12 @@ njin::shape3d, so an object and the shape that draws it share their numbers.
 |---|---|---|
 | Static body | body3d_create() with `body3d_static` | Floors, walls, fixed platforms |
 | Kinematic body | `body3d_kinematic`, then body3d_move_kinematic() every step | Moving platforms, lifts, doors: carry and push others |
-| Dynamic body | `body3d_dynamic` | Crates, balls, debris: fall, collide, roll, get pushed; body3d_add_impulse() for a blast |
+| Dynamic body | `body3d_dynamic` | Crates, balls, debris: fall, collide, roll, get pushed; body3d_add_impulse() for a blast, body3d_add_force() and body3d_add_torque() for a steady push |
 | Character | character3d_create() | The player, enemies: a capsule that walks on floors, steps up, slides along walls, pushes dynamic bodies |
 | Body from a model | `body3d_desc::model` and `scale` | Floors, slopes, caves made in Blender (static, kinematic); convex props (dynamic) |
 | Sensor | `body3d_desc::sensor` | Pickup zones, checkpoints, traps, goals: no collision, only contact reports |
 | Contact events | physics3d_contact_count(), physics3d_contact() | Knowing what started or stopped touching what |
-| Joint | joint3d_create() | Hinged doors, seesaws, chains, pistons |
+| Joint | joint3d_create() | Hinged doors, seesaws, chains, pistons, springs, gears, pulleys |
 | Ragdoll | ragdoll3d_create() | A character falling or hit: the model's skeleton follows physics |
 | Soft body | softbody3d_create() | Rubber ball, mattress, jelly block: deforms on impact, held round by pressure; soft bodies collide with each other, characters can stand on them |
 | Cloth | cloth3d_create() | Flag, curtain, cape: pinned in place, blown by the wind |
@@ -495,6 +495,42 @@ const njin::body3d_handle plank = njin::body3d_create(
     ctx, {.position = pivot, .size = {4, 0.2f, 1}, .motion = njin::body3d_dynamic, .mass = 25});
 njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = plank, .anchor = pivot, .axis = {0, 0, 1},
                            .min = -18, .max = 18});
+@endcode
+
+### Springs, drives and forces
+
+The joints and functions below are enough to build a machine from parts: motors, pistons, springs,
+rubber bands, gears, chains, racks, pulleys, propellers.
+
+| Part | Made with |
+|---|---|
+| Spring, shock absorber | `spring` (frequency, Hz) and `damping` on a hinge, slider or njin::joint3d_distance: the limits `[min, max]` become a spring; without limits the spring holds the joint at its position at creation |
+| Rubber band | njin::joint3d_distance with `min = 0`, `max` the slack length, and a `spring`: pulls only when stretched |
+| Rubber-band motor, throttle | joint3d_set_motor_force() changes the motor force while running (0 turns it off, the joint spins freely); joint3d_speed() counts the turns wound |
+| Gears, chains, belts | njin::joint3d_gear ties two hinges `joint_a`, `joint_b` at the ratio `ratio`: positive turns the other way (meshing gears), negative the same way (chains, belts) |
+| Rack | njin::joint3d_rack ties hinge `joint_a` (the pinion) and slider `joint_b` (the rack): the rack slides `ratio` units per turn of the pinion |
+| Pulley, block and tackle | njin::joint3d_pulley: a rope from `a` over `pulley_a`, `pulley_b` down to `b`; a `ratio` of 2 is a block and tackle |
+| Propeller, jet | body3d_add_force() at a point, every fixed step; joint3d_speed() gives the blades' spin |
+| Breaking machines | joint3d_force(), joint3d_torque() give the load a joint bears: past a threshold, joint3d_destroy() |
+
+A gear counts each wheel's turn against its frame (body `b` of its hinge), so it stays right while
+the whole machine drives and turns. Torque passes at the ratio: a small wheel (`ratio` 3) turns a big
+one three times slower with three times the torque. Destroying a hinge destroys the gear or rack on
+it. Teeth and chain links are only drawn: the joint keeps the ratio, no collision between teeth is
+needed.
+
+@code
+// A 10-tooth pinion with a motor turns a 30-tooth wheel, both on `frame`, axis z.
+const njin::joint3d_handle small = njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = pinion,
+    .b = frame, .anchor = {0, 1, 0}, .axis = {0, 0, 1}, .motor_force = 50});
+const njin::joint3d_handle big = njin::joint3d_create(ctx, {.kind = njin::joint3d_hinge, .a = wheel,
+    .b = frame, .anchor = {2, 1, 0}, .axis = {0, 0, 1}});
+njin::joint3d_create(ctx, {.kind = njin::joint3d_gear, .joint_a = small, .joint_b = big, .ratio = 3});
+njin::joint3d_set_motor(ctx, small, 360); // the big wheel turns 120 degrees per second, the other way
+
+// A piston with a spring end stop: slides freely along y within 0..0.5, past that a 4 Hz spring pulls it back.
+njin::joint3d_create(ctx, {.kind = njin::joint3d_slider, .a = rod, .b = cylinder, .axis = {0, 1, 0},
+                           .min = 0, .max = 0.5f, .spring = 4, .damping = 0.3f});
 @endcode
 
 ### Ragdoll {#ragdoll3d}

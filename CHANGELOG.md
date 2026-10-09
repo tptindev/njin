@@ -63,6 +63,29 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Machine parts in 3D physics (`njin_physics3d.h`), for a game built from
+  motors, gears and springs:
+  - `body3d_add_force()` (at the centre of mass or at a point),
+    `body3d_add_torque()` and `body3d_angular_velocity()`: propellers, jets.
+  - `joint3d_desc::spring` and `damping` make the limits of a hinge, slider
+    or distance joint a spring; without limits the spring holds the joint
+    where it was made. A distance joint with `min = 0` is a rubber band.
+  - New joint kinds: `joint3d_gear` (two hinges at a ratio, negative for a
+    chain or belt), `joint3d_rack` (a hinge and a slider) and
+    `joint3d_pulley` (a rope over two fixed points, `ratio` 2 for a block
+    and tackle), with the new fields `joint_a`, `joint_b`, `ratio`,
+    `pulley_a`, `pulley_b`. Destroying a hinge destroys the gear on it.
+  - `joint3d_set_motor_force()` changes or switches off a motor while
+    running; `joint3d_speed()` reads a hinge's or slider's speed;
+    `joint3d_force()` and `joint3d_torque()` read the load a joint bears,
+    to break a machine past a threshold.
+
+  The gear is njin's own constraint, not Jolt's `GearConstraint`: in Jolt
+  5.6 (and its master) that one gives the second gear the impulse without
+  the ratio, so any ratio but 1 passes the wrong torque and a negative one
+  spins both gears up to the speed cap. njin's gear passes torque at the
+  ratio (3:1 holds 3 N·m against 1) and counts each wheel's turn against
+  its frame, so gears on a moving machine keep their ratio.
 - Navmesh areas and costs (`njin_nav3d.h`): every walkable place has an area
   0..15 (`nav3d_max_areas`; 0 is plain ground), set per piece of geometry by
   a new last `area` parameter of `navmesh3d_add_mesh()`, `_add_model()`,
