@@ -57,6 +57,7 @@ riêng, nhận làm tham số đầu của mọi hàm:
 | `on_render(self)` | Mỗi frame, trong `phase_render`, để vẽ bằng `njin.draw_*` |
 | `on_destroy(self)` | Khi entity bị hủy hay script bị gỡ (script_detach()) |
 | `on_reload(self)` | Sau khi file được nạp lại (hot reload) |
+| `on_load(self)` | Sau khi script_load_state() đổ dữ liệu đã lưu vào `self` (@ref script_save) |
 
 `self.entity` là entity. Dữ liệu game ghi vào `self` (máu, số xu, trạng thái) ở lại với entity; C++ đọc ghi nó bằng
 script_field() và script_set_field(). Nhiều entity dùng chung một file thì file chỉ nạp một lần.
@@ -105,6 +106,35 @@ nil nếu không trúng. Entity không có component cần thiết thì hàm kh�
 `platformer_input` và `topdown_input` ghi vào `input` của thân như phía C++: lần bấm nhảy hay lướt được giữ đến
 nhịp vật lý kế tiếp, nên gọi mỗi frame là đủ.
 
+## Lưu và nạp game {#script_save}
+
+Dữ liệu trong `self` (máu, túi đồ, cửa đã mở) đi vào save game bằng script_save_state(): nó trả về một
+njin::json_value để ghi cùng phần còn lại của save bằng json_save() (@ref window_files). Khi nạp, game dựng lại
+màn, gắn script, rồi gọi script_load_state(): mỗi script nhận lại các trường đã lưu, sau đó `on_load(self)` chạy.
+
+Entity tạo lại có số khác, nên mỗi entity cần lưu phải có một **tên lưu** giống nhau ở mọi lần dựng màn:
+script_set_save_id() phía C++, hay `self.save_id = "cua_kho"` trong script. Entity không có tên lưu thì không được
+lưu (đạn, hạt, những gì dựng lại từ đầu là đủ).
+
+@include script_save.cpp
+
+| Trong `self` | Lưu thành |
+|---|---|
+| Số, bool, chuỗi | Như cũ (số nguyên vẫn là số nguyên khi nạp) |
+| `njin.vec2`, `njin.vec3` | `{"$vec2": [x, y]}`, `{"$vec3": [x, y, z]}`, nạp lại đúng từng số |
+| Bảng có khóa 1..n liền nhau | Mảng JSON |
+| Bảng khác | Object; khóa số nguyên ghi là `"#n"` |
+| `self.entity` | Không lưu: script_attach() đặt lại |
+| Hàm, userdata khác, số không hữu hạn, vòng tham chiếu, khóa không phải chuỗi hay số nguyên | Bỏ, kèm một cảnh báo có đường dẫn, ví dụ `chest_1.self.inv[3]` |
+
+Hai điều cần nhớ:
+
+- `on_start` của script vừa gắn vẫn chạy ở lần cập nhật đầu tiên, **sau** `on_load`. Đặt giá trị mặc định trong
+  bảng của file (`M.hp = 10`: `self.hp` đọc ra 10 cho đến khi entity tự đặt) hay viết
+  `self.hp = self.hp or 10`, để `on_start` không đè lên dữ liệu vừa nạp.
+- Số entity cất trong `self` (mục tiêu đang đuổi) được lưu như số thường và không còn đúng sau khi nạp. Lưu tên lưu
+  của entity đó thay vì số của nó.
+
 ## Sửa script khi game đang chạy
 
 Khi hot_reload_enable() bật (@ref rendering), engine theo dõi cả file script. File gắn trên entity được chạy lại và
@@ -134,4 +164,5 @@ gọi C++ thường: vòng lặp nóng trên hàng nghìn vật (hạt, đạn) 
 - Chuyển động và vật lý cần chạy như nhau ở mọi FPS thì đặt trong `on_fixed_update`: nó chạy đúng số bước cố định
   của engine (mặc định 60 lần mỗi giây, config::fixed_hz), trước bước vật lý 3D, nên `njin.body_set_velocity` đặt ở
   đó có hiệu lực ngay trong bước. Không script nào có hàm này thì engine không đi qua các entity ở nhịp cố định.
-- Dữ liệu `self` giữ qua hot reload nhưng không được lưu vào file save; save game vẫn do C++ (@ref window_files).
+- Dữ liệu `self` giữ qua hot reload, và vào file save qua script_save_state() khi entity có tên lưu
+  (@ref script_save). Script không tự ghi file được (không có `io`): việc lưu do C++ gọi.

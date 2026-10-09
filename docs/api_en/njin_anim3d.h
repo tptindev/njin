@@ -1,6 +1,7 @@
 #pragma once
 #include "_types.h"
 #include "njin_3d.h"
+#include <functional>
 
 namespace njin {
 struct context;
@@ -171,5 +172,110 @@ i32 retarget3d_source_bone(const context &ctx, retarget3d_handle handle, i32 bon
 /// @param ctx Engine context.
 /// @param handle The retargeting.
 void retarget3d_destroy(context &ctx, retarget3d_handle handle);
+
+/// One leg for foot3d: thigh, shin, foot (model_bone_find()). The foot bone's
+/// origin is the ankle.
+struct foot3d_leg {
+  i32 upper = -1; ///< Thigh.
+  i32 lower = -1; ///< Shin.
+  i32 foot = -1;  ///< Foot.
+};
+
+/// How to make a foot placer. The `legs` array only needs to live until
+/// foot3d_create() returns.
+struct foot3d_desc {
+  model_handle model{}; ///< A model with bones, standing at its origin (soles at y = 0).
+  /// The legs. nullptr: the two human legs are found by bone_humanoid_name()
+  /// (`left_upper_leg`, `left_lower_leg`, `left_foot` and the right ones).
+  const foot3d_leg *legs = nullptr;
+  u32 leg_count = 0; ///< Number of legs in `legs`.
+  /// How far a leg reaches up or down from the draw's origin, world units. More
+  /// than the highest step the character climbs.
+  f32 max_step = 0.5f;
+  /// A surface steeper than this many degrees does not tilt the foot (walls, step edges).
+  f32 max_tilt = 35.0f;
+  /// How fast the feet follow new ground, per second. Large: at once; small:
+  /// smoother. A foot going up is always twice as fast, so it does not sink into a
+  /// step it just climbed.
+  f32 smoothing = 15.0f;
+  /// The way the knees bend, along the model's axes (usually where it faces). Used
+  /// when the animation has the leg straight; a leg the animation bends keeps that side.
+  vec3 knee_forward{0.0f, 0.0f, 1.0f};
+};
+
+/// Makes a foot placer for one character: each frame, each foot of the
+/// animation is set on the ground right under it (stairs, slopes, rocks), the
+/// hips lowered so the lower foot reaches, the knee bent by two-bone IK, the sole
+/// tilted to the ground. A foot the animation lifts (a step) stays lifted, that
+/// much above the ground under it. One per character (it remembers heights to
+/// smooth them).
+/// @param ctx Engine context.
+/// @param desc The model and its legs.
+/// @return A handle; invalid if the model has no bones or no leg has all three
+/// bones (a warning says why). Free it with foot3d_destroy().
+foot3d_handle foot3d_create(context &ctx, const foot3d_desc &desc);
+
+/// The ground under a point, for foot3d_update(): takes where to start probing
+/// (world) and how far down to probe; returns `true` and writes `point` (the hit)
+/// and `normal` if there is ground. For terrain, for example:
+/// `point = {p.x, terrain3d_height(ctx, t, p.x, p.z), p.z}`.
+using foot3d_ground = std::function<bool(vec3 from, f32 distance, vec3 &point, vec3 &normal)>;
+
+/// Sets the feet on the ground and writes the final pose to `out`, probing the
+/// ground with physics3d_raycast() straight down under each ankle (it hits
+/// static, dynamic and kinematic bodies and terrain height fields; not
+/// character3d characters).
+///
+/// Order with the other steps: retarget3d_pose() first (if any), then
+/// foot3d_update() with `pose.bones` set to that result, then spring3d_update()
+/// with `pose.bones` set to foot3d's result, then draw. The draw's origin
+/// (`transform`) is where the character stands (the bottom of a character3d's capsule).
+///
+/// @code
+/// njin::bone_pose3d bones[64];
+/// njin::foot3d_update(ctx, feet, {.anim = idle, .time = t}, at, dt, bones, 64);
+/// njin::draw_model_anim(ctx, hero, at, {.bones = bones});
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle The foot placer.
+/// @param pose The pose before placing the feet (an animation, or bones already worked out).
+/// @param transform Position, rotation and scale of the draw (scale should be the same on all three axes).
+/// @param dt Time passed, seconds, for smoothing. 0: placed at once, no smoothing.
+/// @param out Array receiving model_bone_count() bones, as model_bone_pose().
+/// @param count Number of elements in `out`.
+/// @param weight How much to apply, 0..1: 0 is the animation as it is, 1 is the
+/// feet fully on the ground (lower it while the character jumps).
+/// @return Number of bones written; 0 if the handle is invalid or `count` is smaller than the number of bones.
+i32 foot3d_update(context &ctx, foot3d_handle handle, const model_pose &pose, const transform3d &transform, f32 dt,
+                  bone_pose3d *out, i32 count, f32 weight = 1.0f);
+
+/// As above, but the ground is given by the game through `ground` (terrain, a
+/// tile grid, any shape that is not in physics3d).
+/// @param ctx Engine context.
+/// @param handle The foot placer.
+/// @param pose The pose before placing the feet.
+/// @param transform Position, rotation and scale of the draw.
+/// @param dt Time passed, seconds.
+/// @param out Array receiving model_bone_count() bones.
+/// @param count Number of elements in `out`.
+/// @param ground The ground probe.
+/// @param weight How much to apply, 0..1.
+/// @return Number of bones written.
+i32 foot3d_update(context &ctx, foot3d_handle handle, const model_pose &pose, const transform3d &transform, f32 dt,
+                  bone_pose3d *out, i32 count, const foot3d_ground &ground, f32 weight = 1.0f);
+
+/// How far the hips are moved (world units, negative is down) after the last
+/// foot3d_update(), for a camera or a held item to follow.
+/// @param ctx Engine context. @param handle The foot placer. @return The offset.
+f32 foot3d_hip_offset(const context &ctx, foot3d_handle handle);
+
+/// Resets: the next foot3d_update() places the feet at once, without smoothing
+/// from where they were. Call it after teleporting the character.
+/// @param ctx Engine context. @param handle The foot placer.
+void foot3d_reset(context &ctx, foot3d_handle handle);
+
+/// Destroys the foot placer. An invalid handle is ignored.
+/// @param ctx Engine context. @param handle The foot placer.
+void foot3d_destroy(context &ctx, foot3d_handle handle);
 /// @}
 } // namespace njin

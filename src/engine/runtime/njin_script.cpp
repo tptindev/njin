@@ -7,6 +7,7 @@
 #include "njin_path.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <unordered_set>
 
 namespace njin {
@@ -175,6 +176,7 @@ void set_handlers(script_runtime &rt, script_class &c) {
   c.on_render = get("on_render");
   c.on_destroy = get("on_destroy");
   c.on_reload = get("on_reload");
+  c.on_load = get("on_load");
 }
 
 // Runs a class file; it must return a table.
@@ -594,5 +596,288 @@ bool script_reload_file(context &ctx, const std::string &path) {
     ok = ok && run_ok;
   }
   return ok;
+}
+
+namespace {
+// A script's `self` as JSON. Tables whose keys are exactly 1..n become arrays,
+// other tables objects; an integer key is written "#n", and a string key that
+// starts with '#' or '$' gets one more '$' in front, so `{"$vec3": [...]}` and
+// `{"$vec2": [...]}` (the vectors) cannot be mistaken for a game's table.
+constexpr i32 save_depth = 64;
+
+struct save_writer {
+  std::vector<const void *> open; // tables being written: one seen again is a cycle
+  i32 skipped = 0;
+
+  void skip(const std::string &where, const char *why) {
+    skipped++;
+    NJIN_WARN("script_save_state: %s %s: not saved", where.c_str(), why);
+  }
+
+  static std::string key_name(const sol::object &k, bool &ok) {
+    ok = true;
+    if (k.get_type() == sol::type::string) {
+      std::string s = k.as<std::string>();
+      return !s.empty() && (s[0] == '#' || s[0] == '$') ? "$" + s : s;
+    }
+    if (k.get_type() == sol::type::number && k.is<lua_Integer>())
+      return "#" + std::to_string(k.as<lua_Integer>());
+    ok = false;
+    return {};
+  }
+
+  static std::string shown(const sol::object &k) {
+    if (k.get_type() == sol::type::string)
+      return k.as<std::string>();
+    if (k.get_type() == sol::type::number)
+      return std::to_string(k.as<f64>());
+    return std::string("<") + sol::type_name(k.lua_state(), k.get_type()) + ">";
+  }
+
+  bool value(const sol::object &o, const std::string &where, i32 depth, json_value &out) {
+    switch (o.get_type()) {
+    case sol::type::boolean:
+      out = json_value(o.as<bool>());
+      return true;
+    case sol::type::number: {
+      const f64 v = o.as<f64>();
+      if (!std::isfinite(v)) {
+        skip(where, "is not a finite number");
+        return false;
+      }
+      out = json_value(v);
+      return true;
+    }
+    case sol::type::string:
+      out = json_value(o.as<std::string>());
+      return true;
+    case sol::type::userdata:
+      if (o.is<vec2>()) {
+        const vec2 v = o.as<vec2>();
+        json_value a = json_value::make_array();
+        a.push(v.x).push(v.y);
+        out = json_value::make_object();
+        out.set("$vec2", std::move(a));
+        return true;
+      }
+      if (o.is<vec3>()) {
+        const vec3 v = o.as<vec3>();
+        json_value a = json_value::make_array();
+        a.push(v.x).push(v.y).push(v.z);
+        out = json_value::make_object();
+        out.set("$vec3", std::move(a));
+        return true;
+      }
+      skip(where, "is a userdata other than vec2 or vec3");
+      return false;
+    case sol::type::table:
+      return table(o.as<sol::table>(), where, depth, false, out);
+    default:
+      skip(where, (std::string("is a ") + sol::type_name(o.lua_state(), o.get_type())).c_str());
+      return false;
+    }
+  }
+
+  bool table(const sol::table &t, const std::string &where, i32 depth, bool top, json_value &out) {
+    const void *p = t.pointer();
+    if (std::find(open.begin(), open.end(), p) != open.end()) {
+      skip(where, "refers back to a table that contains it (a cycle)");
+      return false;
+    }
+    if (depth >= save_depth) {
+      skip(where, "is nested too deep");
+      return false;
+    }
+    open.push_back(p);
+    // An array when the keys are exactly 1..n.
+    usize n = 0;
+    bool seq = true;
+    for (const auto &kv : t) {
+      n++;
+      if (!(kv.first.get_type() == sol::type::number && kv.first.is<lua_Integer>()))
+        seq = false;
+    }
+    if (seq && n > 0) {
+      for (usize i = 1; i <= n && seq; i++)
+        seq = t.raw_get<sol::object>((lua_Integer)i).get_type() != sol::type::lua_nil;
+    }
+    if (seq && n > 0 && !top) {
+      out = json_value::make_array();
+      for (usize i = 1; i <= n; i++) {
+        json_value v;
+        if (!value(t.raw_get<sol::object>((lua_Integer)i), where + "[" + std::to_string(i) + "]", depth + 1, v))
+          v = json_value{}; // keeps the positions of the items after it
+        out.push(std::move(v));
+      }
+    } else {
+      out = json_value::make_object();
+      for (const auto &kv : t) {
+        bool ok = false;
+        const std::string name = key_name(kv.first, ok);
+        const std::string at = where + "." + shown(kv.first);
+        if (!ok) {
+          skip(at, "has a key that is not a string or an integer");
+          continue;
+        }
+        if (top && name == "entity")
+          continue; // set again on attach: entities get new numbers when a game loads
+        json_value v;
+        if (value(kv.second, at, depth + 1, v))
+          out.set(name, std::move(v));
+      }
+    }
+    open.pop_back();
+    return true;
+  }
+};
+
+sol::object load_value(sol::state_view lua, const json_value &v);
+
+sol::table load_table(sol::state_view lua, const json_value &v) {
+  sol::table t = lua.create_table();
+  if (v.kind == json_value::array) {
+    for (usize i = 0; i < v.items.size(); i++)
+      t.raw_set((lua_Integer)(i + 1), load_value(lua, v.items[i]));
+    return t;
+  }
+  for (const auto &[name, item] : v.members) {
+    if (!name.empty() && name[0] == '#') {
+      char *end = nullptr;
+      const long long k = std::strtoll(name.c_str() + 1, &end, 10);
+      if (end != nullptr && *end == '\0' && end != name.c_str() + 1) {
+        t.raw_set((lua_Integer)k, load_value(lua, item));
+        continue;
+      }
+    }
+    const std::string key = !name.empty() && name[0] == '$' ? name.substr(1) : name;
+    t.raw_set(key, load_value(lua, item));
+  }
+  return t;
+}
+
+sol::object load_value(sol::state_view lua, const json_value &v) {
+  switch (v.kind) {
+  case json_value::boolean:
+    return sol::make_object(lua, v.b);
+  case json_value::number:
+    return script_to_lua(lua, script_value{v.num});
+  case json_value::string:
+    return sol::make_object(lua, v.str);
+  case json_value::array:
+    return load_table(lua, v);
+  case json_value::object: {
+    if (v.members.size() == 1 && v.members[0].first == "$vec2" && v.members[0].second.size() == 2) {
+      const json_value &a = v.members[0].second;
+      return sol::make_object(lua, vec2{a[(usize)0].f32_or(0.0f), a[(usize)1].f32_or(0.0f)});
+    }
+    if (v.members.size() == 1 && v.members[0].first == "$vec3" && v.members[0].second.size() == 3) {
+      const json_value &a = v.members[0].second;
+      return sol::make_object(lua, vec3{a[(usize)0].f32_or(0.0f), a[(usize)1].f32_or(0.0f), a[(usize)2].f32_or(0.0f)});
+    }
+    return load_table(lua, v);
+  }
+  default:
+    return sol::make_object(lua, sol::lua_nil);
+  }
+}
+
+std::string save_id_of(const script_instance &inst) {
+  const sol::object id = inst.self.raw_get<sol::object>("save_id");
+  if (id.get_type() == sol::type::string)
+    return id.as<std::string>();
+  if (id.get_type() == sol::type::number)
+    return std::to_string(id.as<lua_Integer>());
+  return {};
+}
+} // namespace
+
+void script_set_save_id(context &ctx, entt::entity entity, const char *id) {
+  script_runtime *rt = ctx.script.rt.get();
+  if (rt == nullptr)
+    return;
+  const auto it = rt->instances.find(entt::to_integral(entity));
+  if (it == rt->instances.end())
+    return;
+  if (id == nullptr || id[0] == '\0')
+    it->second.self.raw_set("save_id", sol::lua_nil);
+  else
+    it->second.self.raw_set("save_id", std::string(id));
+}
+
+std::string script_save_id(context &ctx, entt::entity entity) {
+  script_runtime *rt = ctx.script.rt.get();
+  if (rt == nullptr)
+    return {};
+  const auto it = rt->instances.find(entt::to_integral(entity));
+  return it == rt->instances.end() ? std::string{} : save_id_of(it->second);
+}
+
+json_value script_save_state(context &ctx) {
+  json_value entities = json_value::make_object();
+  script_runtime *rt = ctx.script.rt.get();
+  if (rt != nullptr) {
+    save_writer w;
+    i32 unnamed = 0;
+    for (const u32 id : instance_ids(*rt)) {
+      const script_instance &inst = rt->instances.at(id);
+      const std::string key = save_id_of(inst);
+      if (key.empty()) {
+        unnamed++;
+        continue;
+      }
+      if (entities.has(key)) {
+        NJIN_WARN("script_save_state: two entities have save_id '%s': only the first is saved", key.c_str());
+        continue;
+      }
+      json_value self;
+      w.table(inst.self, key, 0, true, self);
+      json_value e = json_value::make_object();
+      e.set("script", inst.path).set("self", std::move(self));
+      entities.set(key, std::move(e));
+    }
+    if (unnamed > 0)
+      log_write(log_debug, nullptr, 0, "script_save_state: %d scripted entities have no save_id and are not saved",
+                unnamed);
+  }
+  json_value out = json_value::make_object();
+  out.set("version", 1).set("entities", std::move(entities));
+  return out;
+}
+
+i32 script_load_state(context &ctx, const json_value &state) {
+  const json_value &entities = state["entities"];
+  if (!entities.is(json_value::object))
+    return 0;
+  script_runtime &rt = script_rt(ctx);
+  i32 restored = 0;
+  for (const u32 id : instance_ids(rt)) {
+    const auto it = rt.instances.find(id);
+    if (it == rt.instances.end())
+      continue; // an on_load detached it
+    const std::string key = save_id_of(it->second);
+    if (key.empty() || !entities.has(key))
+      continue;
+    const json_value &saved = entities[key];
+    if (const char *path = saved["script"].string_or(nullptr); path != nullptr && it->second.path != path)
+      NJIN_WARN("script_load_state: '%s' was saved from %s and is restored into %s", key.c_str(), path,
+                it->second.path.c_str());
+    sol::table self = it->second.self;
+    for (const auto &[name, item] : saved["self"].members) {
+      if (!name.empty() && name[0] == '#') {
+        char *end = nullptr;
+        const long long k = std::strtoll(name.c_str() + 1, &end, 10);
+        if (end != nullptr && *end == '\0' && end != name.c_str() + 1) {
+          self.raw_set((lua_Integer)k, load_value(rt.lua, item));
+          continue;
+        }
+      }
+      self.raw_set(!name.empty() && name[0] == '$' ? name.substr(1) : name, load_value(rt.lua, item));
+    }
+    restored++;
+    const auto cit = rt.classes.find(it->second.path);
+    if (cit != rt.classes.end())
+      script_pcall(cit->second.on_load, "on_load", self);
+  }
+  return restored;
 }
 } // namespace njin

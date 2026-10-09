@@ -37,8 +37,25 @@ struct retarget_slot {
   f32 scale = 1.0f;           // target hips height over the source's
 };
 
+struct foot_leg_state {
+  foot3d_leg bones;
+  f32 lift = 0.0f;              // the ground under the foot over the draw's origin, world, eased
+  vec3 normal{0.0f, 1.0f, 0.0f}; // the ground's normal in model space, eased
+};
+
+struct foot_slot {
+  bool alive = false;
+  model_handle model{};
+  std::vector<foot_leg_state> legs;
+  f32 max_step = 0.5f, max_tilt = 35.0f, smoothing = 15.0f;
+  vec3 knee_forward{0.0f, 0.0f, 1.0f};
+  f32 hip = 0.0f;    // the hips' drop, world, eased
+  bool fresh = true; // the next update places the feet at once
+};
+
 struct anim3d_store {
   std::vector<spring_slot> springs;
   std::vector<retarget_slot> retargets;
+  std::vector<foot_slot> feet;
 };
 } // namespace njin

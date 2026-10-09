@@ -1,6 +1,7 @@
 #pragma once
 #include "_math.h"
 #include "_types.h"
+#include "njin_json.h"
 #include <entt/entity/fwd.hpp>
 #include <functional>
 #include <initializer_list>
@@ -222,6 +223,7 @@ script_value script_get_global(context &ctx, const char *name);
 /// - `on_destroy(self)`: when the entity is destroyed or the script detached.
 ///   Do not destroy other entities here.
 /// - `on_reload(self)`: after the file was loaded again (hot reload).
+/// - `on_load(self)`: after script_load_state() put saved data into `self`.
 ///
 /// `self.entity` is the entity. Every field the game writes into `self` is kept
 /// across hot reloads: a reloaded file only replaces the functions. When several
@@ -258,5 +260,55 @@ void script_set_field(context &ctx, entt::entity entity, const char *key, const 
 
 /// Number of entities that have a script. @param ctx The engine context. @return The number of entities.
 i32 script_count(const context &ctx);
+
+/// Sets the save name (`self.save_id`) of the script on an entity: the key
+/// script_load_state() finds the right entity by when a game is loaded, since a
+/// recreated entity has another number. A script can set it itself with
+/// `self.save_id = "store_door"`. Names must differ between saved entities;
+/// `nullptr` or an empty string removes the name (not saved).
+/// @param ctx The engine context.
+/// @param entity An entity with a script.
+/// @param id The save name.
+void script_set_save_id(context &ctx, entt::entity entity, const char *id);
+
+/// The save name of the script on an entity. @param ctx The engine context.
+/// @param entity The entity. @return The name, or an empty string if there is none.
+std::string script_save_id(context &ctx, entt::entity entity);
+
+/// The state of every script with a save name, to write into a save game: the
+/// fields of `self` (numbers, booleans, strings, vec2, vec3 and nested tables of
+/// them), by save name, with the script file. `self.entity` is not saved
+/// (attaching sets it again). Functions, other userdata, reference cycles,
+/// non-finite numbers and keys that are not strings or integers are left out, each
+/// with a warning that gives its path (`store_door.self.inventory[3]`). Two fields
+/// pointing at one table become two copies. Entity numbers in `self` are saved as
+/// plain numbers and do not follow the new entities.
+///
+/// @code
+/// njin::json_value save = njin::json_value::make_object();
+/// save.set("level", level).set("scripts", njin::script_save_state(ctx));
+/// njin::json_save(njin::save_path(ctx, "save.json").c_str(), save);
+/// @endcode
+/// @param ctx The engine context.
+/// @return The object `{"version": 1, "entities": {name: {"script": file, "self": {...}}}}`.
+json_value script_save_state(context &ctx);
+
+/// Puts a state saved by script_save_state() into the attached scripts with the
+/// same save names, then calls their `on_load(self)`. Call it after recreating the
+/// entities, attaching the scripts and setting the save names. Saved fields
+/// overwrite fields of the same name; fields not in the save stay as they are. The
+/// `on_start` of a freshly attached script still runs on the first update (after
+/// `on_load`), so set defaults in the file's table (`M.hp = 10`) or with
+/// `self.hp = self.hp or 10`, so they do not overwrite the loaded data.
+///
+/// @code
+/// njin::json_value save;
+/// if (njin::json_load(njin::save_path(ctx, "save.json").c_str(), save))
+///   njin::script_load_state(ctx, save["scripts"]);
+/// @endcode
+/// @param ctx The engine context.
+/// @param state The value script_save_state() returned (after json_save()/json_load()).
+/// @return The number of entities that got their data back.
+i32 script_load_state(context &ctx, const json_value &state);
 /// @}
 } // namespace njin

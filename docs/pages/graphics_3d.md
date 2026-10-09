@@ -241,6 +241,34 @@ Ví dụ đầy đủ: tóc lò xo, nháy mắt bằng morph, và người lùn 
 
 @include anim3d.cpp
 
+### Đặt chân lên mặt đất {#foot3d}
+
+Animation được làm trên sàn phẳng: đứng trên bậc thang hay dốc thì một bàn chân lơ lửng, bàn kia lún vào đất.
+foot3d_create() và foot3d_update() đặt từng bàn chân lên mặt đất ngay dưới nó:
+
+1. Dò thẳng xuống dưới mỗi cổ chân (physics3d_raycast(), hay một hàm njin::foot3d_ground của game cho địa hình hay
+   lưới ô) để biết mặt đất cao bao nhiêu so với gốc của lần vẽ.
+2. Hạ cả người xuống cho bàn chân thấp hơn với tới (đứng ở mép bậc, một chân thõng xuống).
+3. IK hai xương (đùi, cẳng chân) cho mỗi chân: cổ chân tới đúng chỗ, đầu gối gập về phía animation gập nó, hay về
+   `knee_forward` khi chân thẳng.
+4. Lòng bàn chân nghiêng theo mặt đất (không quá `max_tilt`, nên mép bậc không làm chân lật).
+
+Bàn chân đang nhấc trong animation (khi bước) vẫn cao hơn mặt đất dưới nó bấy nhiêu, nên đi lên bậc thang vẫn là
+bước. Độ cao được làm mượt theo `smoothing` (đi lên nhanh gấp đôi đi xuống, để chân không lún vào bậc vừa bước
+lên); foot3d_reset() sau khi dịch chuyển tức thời. `weight` giảm về 0 khi nhân vật rời mặt đất (nhảy, rơi).
+
+Không đưa `legs` thì foot3d_create() tự tìm hai chân người theo bone_humanoid_name(). Gốc của lần vẽ là chỗ nhân vật
+đứng: chân của character3d (character3d_position()). Tia dò không trúng character3d, chỉ trúng body và địa hình.
+
+Thứ tự khi dùng chung: retarget3d_pose(), rồi foot3d_update() với `pose.bones` là kết quả đó, rồi spring3d_update()
+với `pose.bones` là kết quả của foot3d (tóc đung đưa theo người đã hạ xuống), rồi vẽ.
+
+@include foot3d.cpp
+
+Đo bằng harness với một người 65 xương, animation đứng yên: trên bậc 0,2 m, mép bậc và dốc 20 độ (dọc, ngang, chéo
+45 độ), cổ chân cách mặt đất đúng như trên sàn phẳng, sai tối đa 6 mm, mũi chân không lún; trên sàn phẳng tư thế
+giống hệt animation.
+
 ## Ánh sáng
 
 | Phần | Đặt bằng | Ghi chú |

@@ -210,6 +210,12 @@ struct retarget3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifies a foot placer (feet on the ground by IK), made by foot3d_create().
+/// `id == 0` is an invalid handle. A destroyed handle is ignored too.
+struct foot3d_handle {
+  u32 id = 0; ///< 0 means invalid.
+};
+
 /// Identifier of a wheeled vehicle, created by vehicle3d_create().
 ///
 /// `id == 0` is an invalid handle. A destroyed handle is also ignored.

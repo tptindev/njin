@@ -58,6 +58,7 @@ script_attach() attaches a file to an entity. The file returns a table, like a c
 | `on_render(self)` | Every frame, in `phase_render`, to draw with `njin.draw_*` |
 | `on_destroy(self)` | When the entity is destroyed or the script detached (script_detach()) |
 | `on_reload(self)` | After the file was loaded again (hot reload) |
+| `on_load(self)` | After script_load_state() put saved data into `self` (@ref script_save) |
 
 `self.entity` is the entity. Data the game writes into `self` (health, coins, state) stays with the entity; C++
 reads and writes it with script_field() and script_set_field(). When several entities use one file, the file is
@@ -108,6 +109,36 @@ alone (or gives nil).
 `platformer_input` and `topdown_input` write to the body's `input` the same way C++ does: a jump or dash press is
 kept until the next physics step, so calling them every frame is enough.
 
+## Saving and loading the game {#script_save}
+
+The data in `self` (health, inventory, opened doors) goes into a save game through script_save_state(): it returns a
+njin::json_value to write with the rest of the save through json_save() (@ref window_files). On load, the game builds
+the level again, attaches the scripts, then calls script_load_state(): each script gets its saved fields back, then
+`on_load(self)` runs.
+
+A recreated entity has another number, so every entity to save needs a **save name** that is the same each time the
+level is built: script_set_save_id() on the C++ side, or `self.save_id = "store_door"` in the script. An entity
+without a save name is not saved (bullets, particles, anything rebuilt from scratch is enough).
+
+@include script_save.cpp
+
+| In `self` | Saved as |
+|---|---|
+| Numbers, booleans, strings | As they are (integers are integers again on load) |
+| `njin.vec2`, `njin.vec3` | `{"$vec2": [x, y]}`, `{"$vec3": [x, y, z]}`, loaded back to the exact numbers |
+| Tables with keys 1..n in a row | JSON arrays |
+| Other tables | Objects; integer keys written as `"#n"` |
+| `self.entity` | Not saved: script_attach() sets it again |
+| Functions, other userdata, non-finite numbers, reference cycles, keys that are not strings or integers | Left out, with a warning that gives the path, e.g. `chest_1.self.inv[3]` |
+
+Two things to keep in mind:
+
+- The `on_start` of a freshly attached script still runs on the first update, **after** `on_load`. Put defaults in
+  the file's table (`M.hp = 10`: `self.hp` reads 10 until the entity sets its own) or write
+  `self.hp = self.hp or 10`, so `on_start` does not overwrite the data just loaded.
+- An entity number kept in `self` (a target being chased) is saved as a plain number and is wrong after loading. Save
+  that entity's save name instead of its number.
+
 ## Editing scripts while the game runs
 
 With hot_reload_enable() on (@ref rendering), the engine also watches script files. A file attached to entities is
@@ -140,5 +171,5 @@ bullets) belong in C++.
   engine's fixed steps (60 a second by default, config::fixed_hz), before the 3D physics step, so a
   `njin.body_set_velocity` set there takes effect in that step. While no script has this function the engine walks no
   entities at the fixed rate.
-- Data in `self` is kept across hot reloads but not written to save files; saving the game is still done in C++
-  (@ref window_files).
+- Data in `self` is kept across hot reloads, and goes into save files through script_save_state() when the entity
+  has a save name (@ref script_save). Scripts cannot write files themselves (there is no `io`): saving is called from C++.

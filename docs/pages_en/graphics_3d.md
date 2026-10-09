@@ -250,6 +250,36 @@ A complete example: springy hair, a blink by morph, and a dwarf running with the
 
 @include anim3d.cpp
 
+### Feet on the ground {#foot3d}
+
+Animations are made on a flat floor: standing on stairs or a slope, one foot floats and the other sinks into the
+ground. foot3d_create() and foot3d_update() set each foot on the ground right under it:
+
+1. Probe straight down under each ankle (physics3d_raycast(), or a njin::foot3d_ground function of the game for
+   terrain or a tile grid) to find how high the ground is against the draw's origin.
+2. Lower the whole body so the lower foot reaches (standing on a step's edge, one leg hanging down).
+3. Two-bone IK (thigh, shin) for each leg: the ankle goes exactly where it should, the knee bending the way the
+   animation bends it, or towards `knee_forward` when the leg is straight.
+4. The sole tilts to the ground (no more than `max_tilt`, so a step's edge does not tip the foot over).
+
+A foot the animation lifts (in a step) stays that much above the ground under it, so walking up stairs is still
+stepping. Heights are smoothed by `smoothing` (up twice as fast as down, so a foot does not sink into a step it just
+climbed); foot3d_reset() after a teleport. Bring `weight` down to 0 when the character leaves the ground (jumping,
+falling).
+
+Without `legs`, foot3d_create() finds the two human legs by bone_humanoid_name(). The draw's origin is where the
+character stands: a character3d's feet (character3d_position()). The probe rays do not hit character3d, only bodies
+and terrain.
+
+The order when used together: retarget3d_pose(), then foot3d_update() with `pose.bones` set to that result, then
+spring3d_update() with `pose.bones` set to foot3d's result (hair swings with the lowered body), then draw.
+
+@include foot3d.cpp
+
+Measured by a harness with a 65-bone person and an idle animation: on a 0.2 m step, on a step's edge and on 20 degree
+slopes (rising ahead, across, and at 45 degrees), the ankles are as high above the ground as on a flat floor, 6 mm off
+at most, with no toe in the ground; on a flat floor the pose is exactly the animation.
+
 ## Lighting
 
 | Part | Set with | Notes |

@@ -1,6 +1,7 @@
 #pragma once
 #include "_math.h"
 #include "_types.h"
+#include "njin_json.h"
 #include <entt/entity/fwd.hpp>
 #include <functional>
 #include <initializer_list>
@@ -216,6 +217,7 @@ script_value script_get_global(context &ctx, const char *name);
 /// - `on_destroy(self)`: khi entity bị hủy hay script bị gỡ. Đừng hủy entity khác
 ///   ở đây.
 /// - `on_reload(self)`: sau khi file được nạp lại (hot reload).
+/// - `on_load(self)`: sau khi script_load_state() đổ dữ liệu đã lưu vào `self`.
 ///
 /// `self.entity` là entity. Mọi trường game ghi vào `self` được giữ qua hot reload:
 /// file nạp lại chỉ thay các hàm. Nhiều entity dùng chung một file thì file chỉ nạp
@@ -251,5 +253,52 @@ void script_set_field(context &ctx, entt::entity entity, const char *key, const 
 
 /// Số entity đang có script. @param ctx Context của engine. @return Số entity.
 i32 script_count(const context &ctx);
+
+/// Đặt tên lưu (`self.save_id`) cho script gắn trên entity: khóa để
+/// script_load_state() tìm lại đúng entity khi nạp game, vì entity tạo lại có số
+/// khác. Script tự đặt được bằng `self.save_id = "cua_kho"`. Tên phải khác nhau
+/// giữa các entity được lưu; `nullptr` hay chuỗi rỗng là bỏ tên (không lưu).
+/// @param ctx Context của engine.
+/// @param entity Entity có script.
+/// @param id Tên lưu.
+void script_set_save_id(context &ctx, entt::entity entity, const char *id);
+
+/// Tên lưu của script gắn trên entity. @param ctx Context của engine.
+/// @param entity Entity. @return Tên, hoặc chuỗi rỗng nếu không có.
+std::string script_save_id(context &ctx, entt::entity entity);
+
+/// Trạng thái của mọi script có tên lưu, để ghi vào save game: các trường của
+/// `self` (số, bool, chuỗi, vec2, vec3 và bảng lồng nhau của chúng), theo tên lưu,
+/// kèm file script. `self.entity` không được lưu (gắn lại sẽ có). Hàm, userdata
+/// khác, vòng tham chiếu, số không hữu hạn và khóa không phải chuỗi hay số nguyên
+/// bị bỏ, mỗi chỗ một cảnh báo kèm đường dẫn (`cua_kho.self.inventory[3]`). Hai
+/// trường cùng trỏ tới một bảng thành hai bản sao. Số entity trong `self` được
+/// lưu như số thường, không đổi theo entity mới.
+///
+/// @code
+/// njin::json_value save = njin::json_value::make_object();
+/// save.set("level", level).set("scripts", njin::script_save_state(ctx));
+/// njin::json_save(njin::save_path(ctx, "save.json").c_str(), save);
+/// @endcode
+/// @param ctx Context của engine.
+/// @return Object `{"version": 1, "entities": {tên: {"script": file, "self": {...}}}}`.
+json_value script_save_state(context &ctx);
+
+/// Đổ trạng thái đã lưu bằng script_save_state() vào các script đang gắn có cùng
+/// tên lưu, rồi gọi `on_load(self)` của chúng. Gọi sau khi đã tạo lại entity, gắn
+/// script và đặt tên lưu. Các trường đã lưu ghi đè trường cùng tên; trường không có
+/// trong bản lưu giữ nguyên. `on_start` của script vừa gắn vẫn chạy ở lần cập nhật
+/// đầu (sau `on_load`), nên đặt giá trị mặc định trong bảng của file (`M.hp = 10`)
+/// hay bằng `self.hp = self.hp or 10` để không đè lên dữ liệu vừa nạp.
+///
+/// @code
+/// njin::json_value save;
+/// if (njin::json_load(njin::save_path(ctx, "save.json").c_str(), save))
+///   njin::script_load_state(ctx, save["scripts"]);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param state Giá trị script_save_state() trả về (đã qua json_save()/json_load()).
+/// @return Số entity được đổ dữ liệu.
+i32 script_load_state(context &ctx, const json_value &state);
 /// @}
 } // namespace njin

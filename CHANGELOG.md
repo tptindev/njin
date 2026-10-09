@@ -63,6 +63,26 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Lua state in save games: `script_save_state()` returns a `json_value` with
+  the `self` of every entity script that has a save name
+  (`script_set_save_id()`, or `self.save_id` from Lua), keyed by that name
+  since entities get new numbers when a game is loaded; numbers, booleans,
+  strings, `vec2`/`vec3` and nested tables are kept exactly (integer keys as
+  `"#n"`), and functions, other userdata, cycles and non-finite numbers are
+  left out with a warning giving their path. `script_load_state()` puts the
+  fields back into the recreated entities' scripts and calls their new
+  `on_load(self)`; `script_save_id()` reads a name back.
+- Feet on the ground (`njin_anim3d.h`): `foot3d_create()` takes a model's legs
+  (found by their humanoid names when none are given) and `foot3d_update()`
+  probes the ground under each ankle (`physics3d_raycast()`, or a game's
+  `foot3d_ground` function for terrain), lowers the hips for the lower foot,
+  bends each leg by two-bone IK (knees on the animation's side, or
+  `knee_forward`), tilts the soles to the ground up to `max_tilt` and keeps a
+  lifted foot lifted over the ground under it, smoothed, with a blend
+  `weight`; it writes a pose for `model_pose::bones` and runs between
+  `retarget3d_pose()` and `spring3d_update()`. `foot3d_hip_offset()`,
+  `foot3d_reset()`, `foot3d_destroy()`. On a 0.2 m step, a step's edge and
+  20 degree slopes the ankles stay within 6 mm of their flat-floor height.
 - Temporal anti-aliasing: `post3d::taa` (off by default, so existing games
   draw exactly as before) jitters the projection of the frame's first 3D
   pass into the world by a Halton (2, 3) sub-pixel offset and blends it with
