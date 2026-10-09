@@ -45,10 +45,28 @@ void set_streams(Mesh &m, const std::vector<void *> &data) {
 struct welded {
   std::vector<u32> indices;
   std::vector<std::vector<u8>> data; // per stream of streams_of(), empty when absent
+  std::vector<std::vector<u8>> extra; // per stream of `extra` given to weld()
   usize vertex_count = 0;
 };
 
-welded weld(const Mesh &m) {
+// The morph offsets of `mm` as vertex streams (3 floats each), in the order
+// morph_from() reads them back: per target its positions, then its normals
+// and tangents when it has them.
+std::vector<stream> morph_streams(const mesh_morph &mm) {
+  std::vector<stream> out;
+  for (usize t = 0; t < mm.slot.size(); t++) {
+    out.push_back({mm.dpos[t].data(), 12});
+    if (!mm.dnrm[t].empty())
+      out.push_back({mm.dnrm[t].data(), 12});
+    if (t < mm.dtan.size() && !mm.dtan[t].empty())
+      out.push_back({mm.dtan[t].data(), 12});
+  }
+  return out;
+}
+
+// Vertices of `m` are merged only when every stream, `extra` included (a
+// morph's offsets), is the same.
+welded weld(const Mesh &m, const std::vector<stream> &extra = {}) {
   welded w;
   const usize n = (usize)m.vertexCount;
   std::vector<u32> indices((usize)m.triangleCount * 3);
@@ -59,6 +77,8 @@ welded weld(const Mesh &m) {
   for (const stream &s : streams)
     if (s.data != nullptr)
       present.push_back({s.data, s.size, s.size});
+  for (const stream &s : extra)
+    present.push_back({s.data, s.size, s.size});
   std::vector<u32> remap(n);
   w.vertex_count =
       meshopt_generateVertexRemapMulti(remap.data(), indices.data(), indices.size(), n, present.data(), present.size());
@@ -71,12 +91,19 @@ welded weld(const Mesh &m) {
     w.data[k].resize(w.vertex_count * streams[k].size);
     meshopt_remapVertexBuffer(w.data[k].data(), streams[k].data, n, streams[k].size, remap.data());
   }
+  w.extra.resize(extra.size());
+  for (usize k = 0; k < extra.size(); k++) {
+    w.extra[k].resize(w.vertex_count * extra[k].size);
+    meshopt_remapVertexBuffer(w.extra[k].data(), extra[k].data, n, extra[k].size, remap.data());
+  }
   return w;
 }
 
 // A raylib mesh of the triangles `indices` of `w`, keeping only the vertices
-// they use, uploaded. vaoId 0 when it does not fit (16-bit indices).
-Mesh make_mesh(const welded &w, const Mesh &source, const std::vector<u32> &indices) {
+// they use, uploaded. vaoId 0 when it does not fit (16-bit indices). `extra`
+// gets `w.extra` for those vertices.
+Mesh make_mesh(const welded &w, const Mesh &source, const std::vector<u32> &indices,
+               std::vector<std::vector<f32>> *extra = nullptr) {
   std::vector<u32> remap(w.vertex_count);
   const usize n = meshopt_optimizeVertexFetchRemap(remap.data(), indices.data(), indices.size(), w.vertex_count);
   if (n == 0 || n > 65535)
@@ -95,6 +122,13 @@ Mesh make_mesh(const welded &w, const Mesh &source, const std::vector<u32> &indi
     meshopt_remapVertexBuffer(data[k], w.data[k].data(), w.vertex_count, streams[k].size, remap.data());
   }
   set_streams(m, data);
+  if (extra != nullptr) {
+    extra->assign(w.extra.size(), {});
+    for (usize k = 0; k < w.extra.size(); k++) {
+      (*extra)[k].resize(n * 3);
+      meshopt_remapVertexBuffer((*extra)[k].data(), w.extra[k].data(), w.vertex_count, 12, remap.data());
+    }
+  }
   std::vector<u32> out(indices.size());
   meshopt_remapIndexBuffer(out.data(), indices.data(), indices.size(), remap.data());
   m.indices = (unsigned short *)MemAlloc((u32)(out.size() * sizeof(unsigned short)));
@@ -118,6 +152,50 @@ void upload_skin(model_lod_mesh &lod) {
   rlSetVertexAttribute(skin_weight_loc, 4, RL_FLOAT, false, 0, 0);
   rlEnableVertexAttribute(skin_weight_loc);
   rlDisableVertexArray();
+}
+
+// The position offsets of the first targets of `mm` (in `w.extra`, from
+// morph_streams()), interleaved per vertex as the simplifier's attributes, so
+// it keeps the edges a morph moves even where the rest shape is flat.
+// meshoptimizer takes at most 32 attribute floats: 10 targets.
+std::vector<f32> morph_attributes(const mesh_morph &mm, const welded &w, usize &count) {
+  const usize targets = std::min<usize>(mm.slot.size(), 10);
+  count = targets * 3;
+  std::vector<f32> out(w.vertex_count * count);
+  usize k = 0;
+  for (usize t = 0; t < targets; t++) {
+    const f32 *d = (const f32 *)w.extra[k].data();
+    for (usize v = 0; v < w.vertex_count; v++)
+      for (usize a = 0; a < 3; a++)
+        out[v * count + t * 3 + a] = d[v * 3 + a];
+    k += 1 + (!mm.dnrm[t].empty() ? 1 : 0) + (t < mm.dtan.size() && !mm.dtan[t].empty() ? 1 : 0);
+  }
+  return out;
+}
+
+// The morphs of a level of detail: `mm`'s targets, with the offsets make_mesh
+// remapped (in morph_streams()' order), over the level's own vertices.
+mesh_morph morph_from(const mesh_morph &mm, const Mesh &mesh, std::vector<std::vector<f32>> &offsets) {
+  mesh_morph out;
+  const usize n = (usize)mesh.vertexCount;
+  out.base_pos.assign(mesh.vertices, mesh.vertices + n * 3);
+  if (mesh.normals != nullptr && !mm.base_nrm.empty())
+    out.base_nrm.assign(mesh.normals, mesh.normals + n * 3);
+  if (mesh.tangents != nullptr && !mm.base_tan.empty())
+    out.base_tan.assign(mesh.tangents, mesh.tangents + n * 4);
+  usize k = 0;
+  for (usize t = 0; t < mm.slot.size(); t++) {
+    out.dpos.push_back(std::move(offsets[k++]));
+    out.dnrm.push_back(!mm.dnrm[t].empty() ? std::move(offsets[k++]) : std::vector<f32>{});
+    out.dtan.push_back(t < mm.dtan.size() && !mm.dtan[t].empty() ? std::move(offsets[k++]) : std::vector<f32>{});
+    if (out.base_nrm.empty())
+      out.dnrm.back().clear();
+    if (out.base_tan.empty())
+      out.dtan.back().clear();
+  }
+  out.slot = mm.slot;
+  out.held.assign(out.slot.size(), 0.0f); // uploaded with the file's shape
+  return out;
 }
 } // namespace
 
@@ -155,26 +233,44 @@ i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &des
         kept[k] += (u32)source.triangleCount;
       continue;
     }
-    const welded w = weld(source);
+    // A mesh with morphs keeps them at every level: its offsets go through the
+    // same welding and remaps as its vertices.
+    const mesh_morph *morph =
+        (usize)i < slot->morphs.size() && !slot->morphs[(usize)i].slot.empty() ? &slot->morphs[(usize)i] : nullptr;
+    const welded w = weld(source, morph != nullptr ? morph_streams(*morph) : std::vector<stream>{});
     const bool skinned = (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0;
     usize last = w.indices.size();
     std::vector<u32> out(w.indices.size());
+    usize attribute_count = 0;
+    const std::vector<f32> attributes =
+        morph != nullptr ? morph_attributes(*morph, w, attribute_count) : std::vector<f32>{};
+    const std::vector<f32> attribute_weights(attribute_count, 1.0f);
     for (i32 k = 0; k < levels; k++) {
       const usize target = (usize)((f32)w.indices.size() * std::pow(ratio, (f32)(k + 1))) / 3 * 3;
       f32 got = 0.0f;
-      const usize count = meshopt_simplify(out.data(), w.indices.data(), w.indices.size(), (const f32 *)w.data[0].data(),
-                                           w.vertex_count, 12, std::max<usize>(target, 3), error, 0, &got);
+      const usize count =
+          attribute_count > 0
+              ? meshopt_simplifyWithAttributes(out.data(), w.indices.data(), w.indices.size(),
+                                               (const f32 *)w.data[0].data(), w.vertex_count, 12, attributes.data(),
+                                               attribute_count * sizeof(f32), attribute_weights.data(),
+                                               attribute_count, nullptr, std::max<usize>(target, 3), error, 0, &got)
+              : meshopt_simplify(out.data(), w.indices.data(), w.indices.size(), (const f32 *)w.data[0].data(),
+                                 w.vertex_count, 12, std::max<usize>(target, 3), error, 0, &got);
       // Not worth a level: no fewer triangles than the one above, near enough.
       if (count < 3 || (f32)count > (f32)last * 0.9f) {
         kept[k] += (u32)(last / 3);
         continue;
       }
       model_lod_mesh &lod = slot->lods[(usize)k][(usize)i];
-      lod.mesh = make_mesh(w, source, std::vector<u32>(out.begin(), out.begin() + (std::ptrdiff_t)count));
+      std::vector<std::vector<f32>> offsets;
+      lod.mesh = make_mesh(w, source, std::vector<u32>(out.begin(), out.begin() + (std::ptrdiff_t)count),
+                           morph != nullptr ? &offsets : nullptr);
       if (lod.mesh.vaoId == 0) {
         kept[k] += (u32)(last / 3);
         continue;
       }
+      if (morph != nullptr)
+        lod.morph = morph_from(*morph, lod.mesh, offsets);
       if (skinned)
         upload_skin(lod);
       last = count;

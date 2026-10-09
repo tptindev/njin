@@ -63,6 +63,18 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Morph targets reach the rest of the 3D pipeline. `draw_instanced3d()` has a
+  version taking a `model_pose`: every instance of the call gets that morphed
+  shape (one weight set per call; for a crowd with several faces, one call per
+  group). `ray3d_model()` has a version taking a `model_pose` that tests the
+  morphed shape. `model_lod_build()` keeps morphs at every level: each
+  target's offsets go through the same welding and remaps, and the simplifier
+  weighs the first ten targets' offsets so a flat surface a morph bends keeps
+  its edges (meshoptimizer's `simplifyWithAttributes`); a morphed mesh used to
+  be drawn at full detail only. A model loaded with `model_load_desc::merge`
+  keeps the morphs of the meshes it merges (it dropped them, with a warning).
+  Targets with `TANGENT` offsets blend the tangents too. The calls without a
+  pose draw and test exactly as before.
 - Rain and snow stay out from under roofs (`weather3d::cover_auto`, on by
   default): while it rains or snows the engine draws the depth of every
   opaque shadow caster straight down over 36 m round the camera, refreshed

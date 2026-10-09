@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <raymath.h>
+#include <vector>
 
 namespace njin {
 namespace {
@@ -156,10 +157,10 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape) {
   return ray3d_hit{};
 }
 
-ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle, const transform3d &transform) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
-  if (slot == nullptr)
-    return ray3d_hit{};
+namespace {
+// The ray against `slot`'s meshes at `transform`; with `weights` (the model's
+// morph weights) a mesh with morphs is tested in that shape.
+ray3d_hit ray_model(const model_slot &slot, const ray3d &ray, const transform3d &transform, const f32 *weights) {
   // The same matrix draw_model builds.
   const vec3 r = transform.rotation * (PI / 180.0f);
   Matrix m = MatrixScale(transform.scale.x, transform.scale.y, transform.scale.z);
@@ -167,15 +168,39 @@ ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle,
   m = MatrixMultiply(m, MatrixRotateX(r.x));
   m = MatrixMultiply(m, MatrixRotateY(r.y));
   m = MatrixMultiply(m, MatrixTranslate(transform.position.x, transform.position.y, transform.position.z));
-  m = MatrixMultiply(slot->model.transform, m);
+  m = MatrixMultiply(slot.model.transform, m);
   const Ray rr = to_ray(ray);
   RayCollision best{};
   best.distance = 1e30f;
-  for (i32 i = 0; i < slot->model.meshCount; i++) {
-    const RayCollision c = GetRayCollisionMesh(rr, slot->model.meshes[i], m);
+  thread_local std::vector<f32> morphed;
+  for (i32 i = 0; i < slot.model.meshCount; i++) {
+    Mesh mesh = slot.model.meshes[i];
+    if (weights != nullptr && (usize)i < slot.morphs.size() && !slot.morphs[(usize)i].slot.empty()) {
+      morph_positions(slot.morphs[(usize)i], weights, morphed);
+      mesh.vertices = morphed.data(); // the test reads only vertices and indices
+    }
+    const RayCollision c = GetRayCollisionMesh(rr, mesh, m);
     if (c.hit && c.distance < best.distance)
       best = c;
   }
   return best.hit ? from_raylib(best) : ray3d_hit{};
+}
+} // namespace
+
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle, const transform3d &transform) {
+  const model_slot *slot = model_slot_of(ctx.model, handle);
+  return slot != nullptr ? ray_model(*slot, ray, transform, nullptr) : ray3d_hit{};
+}
+
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle, const transform3d &transform,
+                      const model_pose &pose) {
+  const model_slot *slot = model_slot_of(ctx.model, handle);
+  if (slot == nullptr)
+    return ray3d_hit{};
+  if (slot->morphs.empty())
+    return ray_model(*slot, ray, transform, nullptr);
+  std::vector<f32> weights;
+  model_morph_eval(ctx.model, *slot, &pose, weights);
+  return ray_model(*slot, ray, transform, weights.data());
 }
 } // namespace njin

@@ -351,7 +351,7 @@ struct model_load_desc {
   u32 only_count = 0;                       ///< Số chuỗi trong `only_nodes`.
   /// Gộp các mesh dùng cùng vật liệu thành một mesh (mỗi mesh tối đa 65535 đỉnh),
   /// để draw_instanced3d() vẽ ít lệnh hơn. Mesh gộp bỏ dữ liệu xương: model vẽ ở
-  /// tư thế gốc trong file, như đồ vật đứng yên.
+  /// tư thế gốc trong file, như đồ vật đứng yên. Morph target được giữ.
   bool merge = false;
 };
 
@@ -480,8 +480,8 @@ struct model_lod_desc {
 /// Tạo các mức chi tiết cho model: bản giản lược, ít tam giác hơn, được vẽ thay
 /// model khi nó nhỏ trên màn hình. Sau đó draw_model(), draw_model_anim() và
 /// njin::model3d tự chọn mức theo khoảng cách tới camera; model có xương giữ
-/// xương và animation ở mọi mức. draw_instanced3d() và ray3d_model() luôn dùng
-/// model gốc.
+/// xương và animation ở mọi mức, model có morph giữ morph ở mọi mức.
+/// draw_instanced3d() và ray3d_model() luôn dùng model gốc.
 ///
 /// Làm một lần sau khi nạp (tốn vài mili giây với vài chục nghìn tam giác); gọi
 /// lại thì thay các mức cũ. model_unload() giải phóng cả các mức.
@@ -784,10 +784,10 @@ struct bone_pose3d {
 /// định của file (`mesh.weights`), rồi animation của `model_pose` đặt lại các
 /// morph nó có đường cong, rồi cộng `model_pose::morph_weights`. Morph được trộn
 /// trên CPU vào bộ đệm đỉnh của mesh, trước khi xương (nếu có) uốn nó, nên chạy
-/// với mọi shader, cả shader của game và bóng đổ. Mesh có morph luôn vẽ ở mức
-/// chi tiết đầy đủ (model_lod_build() không áp cho nó). draw_instanced3d() và
-/// ray3d_model() dùng hình gốc. Model nạp với `model_load_desc::merge` không
-/// giữ morph.
+/// với mọi shader, cả shader của game và bóng đổ. Các mức chi tiết của
+/// model_lod_build() giữ morph. draw_instanced3d() và ray3d_model() có bản nhận
+/// njin::model_pose để dùng hình đã morph (bản không có nó dùng hình gốc). Model
+/// nạp với `model_load_desc::merge` giữ morph của các mesh được gộp.
 /// @param ctx Context của engine.
 /// @param handle Model.
 /// @return Số morph, 0 nếu model không có hay handle không hợp lệ.
@@ -906,6 +906,19 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape);
 /// @return Điểm chạm gần nhất, hoặc không chạm nếu handle không hợp lệ.
 ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle model, const transform3d &transform);
 
+/// Như bản trên, nhưng mesh có morph target được thử ở hình của `pose`: trọng
+/// số mặc định, animation và `pose.morph_weights`, đúng như draw_model_anim()
+/// vẽ nó (model_morph_weights()). Xương của `pose` không được dùng: tia thử
+/// tư thế gốc. Model không có morph thì như bản trên.
+/// @param ctx Context của engine.
+/// @param ray Tia.
+/// @param model Model từ model_load().
+/// @param transform Vị trí, hướng và tỉ lệ.
+/// @param pose Tư thế cho trọng số morph.
+/// @return Điểm chạm gần nhất, hoặc không chạm nếu handle không hợp lệ.
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle model, const transform3d &transform,
+                      const model_pose &pose);
+
 /// Hình lưới có sẵn để vẽ nhiều bản một lúc bằng draw_instanced3d().
 enum mesh3d_kind {
   mesh3d_cube,     ///< Hộp 1 x 1 x 1, tâm ở gốc.
@@ -959,6 +972,27 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 /// @param shader Shader của game, hoặc không hợp lệ để dùng shader có sẵn.
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader = {});
+
+/// Như bản trên, với morph target theo `pose` (trọng số mặc định, animation và
+/// `pose.morph_weights`, như draw_model_anim()): **mọi** instance của lệnh này có
+/// cùng một hình đã morph. Để các instance mang nhiều hình khác nhau (đám đông
+/// mỗi người một nét mặt), chia chúng thành vài nhóm, mỗi nhóm một lệnh với
+/// `pose` riêng. Xương của `pose` không được dùng. Model không có morph thì như
+/// bản trên.
+/// @code
+/// // 500 người cùng cười: một lệnh vẽ.
+/// const njin::f32 smile[] = {1.0f};
+/// njin::draw_instanced3d(ctx, face, crowd, 0, 500, njin::model_pose{.morph_weights = smile, .morph_count = 1});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param model Model từ model_load().
+/// @param buffer Bộ đệm đã ghi bằng instance_buffer_upload().
+/// @param first Instance đầu tiên.
+/// @param count Số instance, bị cắt bớt nếu vượt quá số đã ghi.
+/// @param pose Tư thế cho trọng số morph.
+/// @param shader Shader của game, hoặc không hợp lệ để dùng shader có sẵn.
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
+                      const model_pose &pose, shader_handle shader = {});
 
 /// Hiệu ứng cho các hình 3D vẽ sau fx3d_set(): nháy màu và tan biến, như
 /// njin::flash_fx và njin::dissolve_fx của sprite.

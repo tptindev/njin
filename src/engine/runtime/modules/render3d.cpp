@@ -1087,11 +1087,19 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     }
     const rgba color{own.r * c.color.r, own.g * c.color.g, own.b * c.color.b, own.a * c.color.a};
     to_raylib(color, maps[MATERIAL_MAP_DIFFUSE].color);
-    // A mesh with morphs gets the draw's weights, at full detail.
+    // A mesh with morphs gets the draw's weights, at its level of detail when
+    // that level carries them (model_lod_build() keeps them), else in full.
     const bool morphed = (usize)i < slot->morphs.size() && !slot->morphs[(usize)i].slot.empty();
-    if (morphed)
-      model_morph_upload(*slot, i, c.morph_count > 0 ? &ctx.render3d.morphs[c.morph_first] : nullptr);
-    const model_lod_mesh *lod = morphed ? nullptr : model_lod_of(*slot, c.lod, i);
+    const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
+    if (morphed) {
+      const f32 *w = c.morph_count > 0 ? &ctx.render3d.morphs[c.morph_first] : nullptr;
+      if (lod != nullptr && lod->morph.slot.empty())
+        lod = nullptr;
+      if (lod != nullptr)
+        morph_upload(lod->morph, lod->mesh, w);
+      else
+        model_morph_upload(*slot, i, w);
+    }
     const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok &&
                        (lod != nullptr ? lod->bone_vbo != 0
                                        : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
@@ -1525,7 +1533,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
-      model_morph_upload(*m, i, m->morph_defaults.data()); // instances share the file's shape
+      // Every instance shares one shape: the call's weights, or the file's.
+      model_morph_upload(*m, i, c.morph_count > 0 ? &s.morphs[c.morph_first] : m->morph_defaults.data());
       parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
       parts.back().shader = mm.shader;
       mesh_texture(ctx, mm.normal, parts.back().normal);
@@ -2446,6 +2455,23 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
   if (open_pass(ctx) == nullptr || buffer.id == 0 || model_slot_of(ctx.model, model) == nullptr)
     return;
   record_instanced(ctx, nullptr, model, buffer, first, count, shader);
+}
+
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
+                      const model_pose &pose, shader_handle shader) {
+  const render3d_state *s = open_pass(ctx);
+  const model_slot *m = model_slot_of(ctx.model, model);
+  if (s == nullptr || buffer.id == 0 || m == nullptr)
+    return;
+  record_instanced(ctx, nullptr, model, buffer, first, count, shader);
+  if (m->morphs.empty())
+    return;
+  thread_local std::vector<f32> weights;
+  model_morph_eval(ctx.model, *m, &pose, weights);
+  draw3d_cmd &c = s->cmds.back();
+  c.morph_first = (u32)s->morphs.size();
+  c.morph_count = (u32)weights.size();
+  s->morphs.insert(s->morphs.end(), weights.begin(), weights.end());
 }
 
 void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color) {

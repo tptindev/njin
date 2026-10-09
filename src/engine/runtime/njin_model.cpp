@@ -226,9 +226,10 @@ template <typename T> T *to_raylib_array(const std::vector<T> &v) {
 }
 
 // The meshes in `keep`, sharing material `material`, as few meshes as their
-// 16-bit indices allow. Bone data is dropped: the result is static.
+// 16-bit indices allow. Bone data is dropped: the result is static. `from`
+// gets, per merged mesh, each source mesh in it and its first vertex there.
 void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<Mesh> &out_meshes,
-                  std::vector<i32> &out_materials) {
+                  std::vector<i32> &out_materials, std::vector<std::vector<std::pair<i32, u32>>> &from) {
   std::vector<i32> materials;
   for (const i32 k : keep)
     if (std::find(materials.begin(), materials.end(), model.meshMaterial[k]) == materials.end())
@@ -237,6 +238,7 @@ void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<
     std::vector<f32> pos, nrm, uv, tan;
     std::vector<u8> col;
     std::vector<unsigned short> idx;
+    std::vector<std::pair<i32, u32>> parts;
     bool has_nrm = false, has_uv = false, has_tan = false, has_col = false;
     for (const i32 k : keep)
       if (model.meshMaterial[k] == material) {
@@ -261,6 +263,8 @@ void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<
       UploadMesh(&m, false);
       out_meshes.push_back(m);
       out_materials.push_back(material);
+      from.push_back(std::move(parts));
+      parts.clear();
       pos.clear(), nrm.clear(), uv.clear(), tan.clear(), col.clear(), idx.clear();
     };
     for (const i32 k : keep) {
@@ -272,6 +276,7 @@ void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<
       if (pos.size() / 3 + (usize)m.vertexCount > 65535)
         flush();
       const u32 base = (u32)(pos.size() / 3);
+      parts.push_back({k, base});
       append(pos, m.vertices, m.vertexCount, 3, 0.0f);
       if (has_nrm)
         append(nrm, m.normals, m.vertexCount, 3, 0.0f);
@@ -294,9 +299,10 @@ void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<
 
 // Leaves out the meshes of the nodes `desc` filters out, and merges the rest
 // by material when it asks. False when nothing is left. `kept` gets the old
-// index of each mesh left when they are filtered without merging.
+// index of each mesh left when they are filtered without merging, `merged`
+// what merge_meshes says each merged mesh is made of.
 bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &desc, const char *path,
-                  std::vector<i32> &kept) {
+                  std::vector<i32> &kept, std::vector<std::vector<std::pair<i32, u32>>> &merged) {
   const bool filtering = desc.skip_count > 0 || desc.only_count > 0;
   if (!filtering && !desc.merge)
     return true;
@@ -319,7 +325,7 @@ bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &d
   std::vector<Mesh> meshes;
   std::vector<i32> materials;
   if (desc.merge) {
-    merge_meshes(model, keep, meshes, materials);
+    merge_meshes(model, keep, meshes, materials, merged);
   } else {
     kept = keep;
     for (const i32 k : keep) {
@@ -476,26 +482,32 @@ void load_morphs(model_slot &slot, const cgltf_data *data, const char *path,
       mm.base_pos.assign(mesh.vertices, mesh.vertices + floats);
       if (mesh.normals != nullptr)
         mm.base_nrm.assign(mesh.normals, mesh.normals + floats);
+      if (mesh.tangents != nullptr)
+        mm.base_tan.assign(mesh.tangents, mesh.tangents + (usize)mesh.vertexCount * 4);
       bool ok = true;
       for (cgltf_size t = 0; t < prim.targets_count && t < slots.size(); t++) {
-        std::vector<f32> dp, dn;
+        std::vector<f32> dp, dn, dt;
         for (cgltf_size a = 0; a < prim.targets[t].attributes_count; a++) {
           const cgltf_attribute &attr = prim.targets[t].attributes[a];
           if (attr.type == cgltf_attribute_type_position)
             dp = unpack(attr.data);
           else if (attr.type == cgltf_attribute_type_normal && !mm.base_nrm.empty())
             dn = unpack(attr.data);
+          else if (attr.type == cgltf_attribute_type_tangent && !mm.base_tan.empty())
+            dt = unpack(attr.data);
         }
         if (dp.empty())
           dp.assign(floats, 0.0f);
-        if (dp.size() != floats || (!dn.empty() && dn.size() != floats)) {
+        if (dp.size() != floats || (!dn.empty() && dn.size() != floats) || (!dt.empty() && dt.size() != floats)) {
           ok = false;
           break;
         }
         transform_offsets(dp, world);
         transform_offsets(dn, normals);
+        transform_offsets(dt, world); // tangents turn like directions in the surface
         mm.dpos.push_back(std::move(dp));
         mm.dnrm.push_back(std::move(dn));
+        mm.dtan.push_back(std::move(dt));
         mm.slot.push_back(slots[t]);
       }
       if (!ok) {
@@ -558,14 +570,70 @@ std::vector<morph_clip> load_morph_clips(const cgltf_data *data,
   return clips;
 }
 
-// Morphs the slot keeps through filter_model: none when merged, the kept ones
-// when filtered.
-void filter_morphs(model_slot &slot, const model_load_desc &desc, const std::vector<i32> &kept, const char *path) {
+// The morphs of merged mesh `out`, made of the source meshes `parts` of
+// `src` (each from its first vertex): every model morph any of them has,
+// with zero offsets on the vertices of the others.
+mesh_morph merge_morph(const std::vector<mesh_morph> &src, const std::vector<std::pair<i32, u32>> &parts,
+                       const Mesh &out) {
+  mesh_morph mm;
+  const usize n = (usize)out.vertexCount;
+  for (const auto &[k, base] : parts)
+    if ((usize)k < src.size())
+      for (const i32 s : src[(usize)k].slot)
+        if (std::find(mm.slot.begin(), mm.slot.end(), s) == mm.slot.end())
+          mm.slot.push_back(s);
+  if (mm.slot.empty())
+    return mm;
+  mm.base_pos.assign(out.vertices, out.vertices + n * 3);
+  if (out.normals != nullptr)
+    mm.base_nrm.assign(out.normals, out.normals + n * 3);
+  if (out.tangents != nullptr)
+    mm.base_tan.assign(out.tangents, out.tangents + n * 4);
+  for (const i32 s : mm.slot) {
+    std::vector<f32> dp(n * 3, 0.0f), dn, dt;
+    for (const auto &[k, base] : parts) {
+      if ((usize)k >= src.size())
+        continue;
+      const mesh_morph &from = src[(usize)k];
+      const auto at = std::find(from.slot.begin(), from.slot.end(), s);
+      if (at == from.slot.end())
+        continue;
+      const usize t = (usize)(at - from.slot.begin());
+      std::copy(from.dpos[t].begin(), from.dpos[t].end(), dp.begin() + (std::ptrdiff_t)(base * 3));
+      if (!mm.base_nrm.empty() && !from.dnrm[t].empty()) {
+        dn.resize(n * 3, 0.0f);
+        std::copy(from.dnrm[t].begin(), from.dnrm[t].end(), dn.begin() + (std::ptrdiff_t)(base * 3));
+      }
+      if (!mm.base_tan.empty() && t < from.dtan.size() && !from.dtan[t].empty()) {
+        dt.resize(n * 3, 0.0f);
+        std::copy(from.dtan[t].begin(), from.dtan[t].end(), dt.begin() + (std::ptrdiff_t)(base * 3));
+      }
+    }
+    mm.dpos.push_back(std::move(dp));
+    mm.dnrm.push_back(std::move(dn));
+    mm.dtan.push_back(std::move(dt));
+  }
+  mm.held.assign(mm.slot.size(), 0.0f); // the merged buffers hold the file's shape
+  return mm;
+}
+
+// Morphs the slot keeps through filter_model: those of the merged meshes'
+// sources when merged, the kept ones when filtered.
+void filter_morphs(model_slot &slot, const model_load_desc &desc, const std::vector<i32> &kept,
+                   const std::vector<std::vector<std::pair<i32, u32>>> &merged, const Model &model) {
   if (slot.morphs.empty())
     return;
   if (desc.merge) {
-    NJIN_WARN("model: %s: merged meshes keep no morph targets", path);
-    slot.morphs.clear();
+    std::vector<mesh_morph> out((usize)model.meshCount);
+    bool any = false;
+    for (usize i = 0; i < merged.size() && i < out.size(); i++) {
+      out[i] = merge_morph(slot.morphs, merged[i], model.meshes[i]);
+      any |= !out[i].slot.empty();
+    }
+    if (any)
+      slot.morphs = std::move(out);
+    else
+      slot.morphs.clear();
     return;
   }
   if (kept.empty())
@@ -658,13 +726,14 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
   if (gltf != nullptr)
     apply_texcoord_sets(model, gltf);
   std::vector<i32> kept;
-  if (gltf != nullptr && !filter_model(model, gltf, desc, path, kept)) {
+  std::vector<std::vector<std::pair<i32, u32>>> merged;
+  if (gltf != nullptr && !filter_model(model, gltf, desc, path, kept, merged)) {
     NJIN_WARN("model: %s: the node filter leaves no mesh", path);
     cgltf_free(gltf);
     UnloadModel(model);
     return model_handle{};
   }
-  filter_morphs(slot, desc, kept, path);
+  filter_morphs(slot, desc, kept, merged, model);
   slot.model = model;
   slot.alive = true;
   slot.bounds = GetModelBoundingBox(model);
@@ -730,14 +799,25 @@ void model_morph_eval(const model_store &store, const model_slot &m, const model
         out[(usize)i] += pose->morph_weights[i];
 }
 
-void model_morph_upload(const model_slot &m, i32 mesh, const f32 *w) {
-  if (mesh < 0 || (usize)mesh >= m.morphs.size())
+void morph_positions(const mesh_morph &mm, const f32 *w, std::vector<f32> &out) {
+  out = mm.base_pos;
+  if (w == nullptr)
     return;
-  const mesh_morph &mm = m.morphs[(usize)mesh];
+  for (usize t = 0; t < mm.slot.size(); t++) {
+    const f32 k = w[mm.slot[t]];
+    if (k == 0.0f)
+      continue;
+    const std::vector<f32> &d = mm.dpos[t];
+    for (usize i = 0; i < out.size(); i++)
+      out[i] += k * d[i];
+  }
+}
+
+void morph_upload(const mesh_morph &mm, const Mesh &me, const f32 *w) {
   const usize n = mm.slot.size();
-  if (n == 0)
+  if (n == 0 || me.vaoId == 0)
     return;
-  thread_local std::vector<f32> weights, pos, nrm;
+  thread_local std::vector<f32> weights, pos, nrm, tan;
   weights.resize(n);
   bool same = mm.held.size() == n;
   for (usize t = 0; t < n; t++) {
@@ -746,11 +826,11 @@ void model_morph_upload(const model_slot &m, i32 mesh, const f32 *w) {
   }
   if (same)
     return;
-  const Mesh &me = m.model.meshes[mesh];
   pos = mm.base_pos;
-  bool bends = false; // some target moves the normals
+  bool bends = false, turns = false; // some target moves the normals, the tangents
   for (usize t = 0; t < n; t++) {
     bends |= !mm.dnrm[t].empty();
+    turns |= t < mm.dtan.size() && !mm.dtan[t].empty();
     if (weights[t] == 0.0f)
       continue;
     const f32 k = weights[t];
@@ -773,7 +853,27 @@ void model_morph_upload(const model_slot &m, i32 mesh, const f32 *w) {
     }
     UpdateMeshBuffer(me, RL_DEFAULT_SHADER_ATTRIB_LOCATION_NORMAL, nrm.data(), bytes, 0);
   }
+  if (turns && !mm.base_tan.empty() && me.vboId[RL_DEFAULT_SHADER_ATTRIB_LOCATION_TANGENT] != 0) {
+    tan = mm.base_tan;
+    for (usize t = 0; t < n; t++)
+      if (weights[t] != 0.0f && t < mm.dtan.size() && !mm.dtan[t].empty())
+        for (usize v = 0; v * 3 + 2 < mm.dtan[t].size(); v++)
+          for (usize a = 0; a < 3; a++)
+            tan[v * 4 + a] += weights[t] * mm.dtan[t][v * 3 + a];
+    for (usize i = 0; i + 3 < tan.size(); i += 4) {
+      const f32 l = std::sqrt(tan[i] * tan[i] + tan[i + 1] * tan[i + 1] + tan[i + 2] * tan[i + 2]);
+      if (l > 1e-12f)
+        tan[i] /= l, tan[i + 1] /= l, tan[i + 2] /= l;
+    }
+    UpdateMeshBuffer(me, RL_DEFAULT_SHADER_ATTRIB_LOCATION_TANGENT, tan.data(), (i32)(tan.size() * sizeof(f32)), 0);
+  }
   mm.held = weights;
+}
+
+void model_morph_upload(const model_slot &m, i32 mesh, const f32 *w) {
+  if (mesh < 0 || (usize)mesh >= m.morphs.size())
+    return;
+  morph_upload(m.morphs[(usize)mesh], m.model.meshes[mesh], w);
 }
 
 namespace {

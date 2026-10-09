@@ -380,7 +380,7 @@ struct model_load_desc {
   /// Merge the meshes that use the same material into one mesh (at most 65535
   /// vertices each), so draw_instanced3d() issues fewer draws. Merged meshes
   /// drop their bone data: the model is drawn in the file's rest pose, as a
-  /// still object.
+  /// still object. Morph targets are kept.
   bool merge = false;
 };
 
@@ -518,8 +518,8 @@ struct model_lod_desc {
 /// triangles, drawn in its place when it is small on screen. From then on
 /// draw_model(), draw_model_anim() and njin::model3d pick the level by the
 /// distance to the camera; a model with bones keeps its bones and animations
-/// at every level. draw_instanced3d() and ray3d_model() always use the
-/// original model.
+/// at every level, a model with morphs keeps its morphs at every level.
+/// draw_instanced3d() and ray3d_model() always use the original model.
 ///
 /// Do it once after loading (a few milliseconds for a few tens of thousands
 /// of triangles); calling it again replaces the old levels. model_unload()
@@ -833,9 +833,10 @@ struct bone_pose3d {
 /// morphs it has curves for, then `model_pose::morph_weights` is added. Morphs are
 /// blended on the CPU into the mesh's vertex buffer, before the bones (if any)
 /// bend it, so they work with every shader, the game's own and shadows included.
-/// A mesh with morphs is always drawn at full detail (model_lod_build() does not
-/// apply to it). draw_instanced3d() and ray3d_model() use the original shape. A
-/// model loaded with `model_load_desc::merge` keeps no morphs.
+/// The levels of detail of model_lod_build() keep the morphs. draw_instanced3d()
+/// and ray3d_model() have versions taking a njin::model_pose to use the morphed
+/// shape (those without it use the original shape). A model loaded with
+/// `model_load_desc::merge` keeps the morphs of the meshes it merges.
 /// @param ctx Engine context.
 /// @param handle Model.
 /// @return Morph count, 0 if the model has none or the handle is invalid.
@@ -959,6 +960,19 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape);
 /// @return The nearest hit, or no hit if the handle is invalid.
 ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle model, const transform3d &transform);
 
+/// As above, but a mesh with morph targets is tested in the shape of `pose`:
+/// the default weights, the animation and `pose.morph_weights`, exactly as
+/// draw_model_anim() draws it (model_morph_weights()). The bones of `pose` are
+/// not used: the ray tests the rest pose. A model without morphs is as above.
+/// @param ctx Engine context.
+/// @param ray Ray.
+/// @param model Model from model_load().
+/// @param transform Position, orientation and scale.
+/// @param pose Pose for the morph weights.
+/// @return The nearest hit, or no hit if the handle is invalid.
+ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle model, const transform3d &transform,
+                      const model_pose &pose);
+
 /// Built-in mesh to draw many copies of at once with draw_instanced3d().
 enum mesh3d_kind {
   mesh3d_cube,     ///< 1 x 1 x 1 box, centred on the origin.
@@ -1019,6 +1033,27 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 /// @param shader The game's shader, or invalid to use the built-in one.
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader = {});
+
+/// As above, with morph targets set by `pose` (the default weights, the
+/// animation and `pose.morph_weights`, as draw_model_anim()): **every** instance
+/// of this call has the same morphed shape. For instances with several shapes
+/// (a crowd with a face each), split them into a few groups, one call each with
+/// its own `pose`. The bones of `pose` are not used. A model without morphs is
+/// as above.
+/// @code
+/// // 500 people smiling at once: one draw call.
+/// const njin::f32 smile[] = {1.0f};
+/// njin::draw_instanced3d(ctx, face, crowd, 0, 500, njin::model_pose{.morph_weights = smile, .morph_count = 1});
+/// @endcode
+/// @param ctx Engine context.
+/// @param model Model from model_load().
+/// @param buffer Buffer written with instance_buffer_upload().
+/// @param first First instance.
+/// @param count Number of instances, cut down if it exceeds what was written.
+/// @param pose Pose for the morph weights.
+/// @param shader The game's shader, or invalid to use the built-in one.
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
+                      const model_pose &pose, shader_handle shader = {});
 
 /// Effect for 3D shapes drawn after fx3d_set(): a colour flash and dissolving
 /// away, like njin::flash_fx and njin::dissolve_fx for sprites.

@@ -169,9 +169,22 @@ njin::draw_model_anim(ctx, hero, at, {.anim = talk, .time = t, .morph_weights = 
 | Vì sao không trên GPU | Chỉ còn ba chỗ cho thuộc tính đỉnh (một mặt có hàng chục morph), và sẽ phải sửa mọi shader dựng sẵn lẫn shader của game |
 | Chi phí | Mỗi mesh có morph tốn một lần chép đỉnh lên GPU cho mỗi lượt vẽ (cả lượt bóng) khi trọng số đổi; vẽ lại cùng trọng số thì không tốn gì |
 | Đọc trọng số | model_morph_weights() trả về đúng trọng số lần vẽ sẽ dùng |
-| Dùng hình gốc | draw_instanced3d() (hình mặc định của file), ray3d_model() |
-| Mức chi tiết | Mesh có morph luôn vẽ ở mức đầy đủ |
-| Không giữ morph | Model nạp với `model_load_desc::merge` |
+| Vẽ nhiều bản | draw_instanced3d() có bản nhận njin::model_pose: **mọi** instance của một lệnh có cùng một hình. Bản không có nó vẽ hình mặc định của file |
+| Nhiều hình trong một đám đông | Chia instance thành vài nhóm, mỗi nhóm một lệnh với `pose` riêng (trọng số theo instance cần thêm một bộ đệm instance và một texture độ lệch, chưa có) |
+| Bắn tia | ray3d_model() có bản nhận njin::model_pose, thử đúng hình đã morph (bản cũ thử hình trong file) |
+| Mức chi tiết | model_lod_build() giữ morph ở mọi mức: độ lệch của mỗi target đi qua cùng phép giản lược, và việc giản lược tính cả độ lệch nên mặt phẳng mà morph làm cong vẫn giữ đủ cạnh |
+| Gộp mesh | `model_load_desc::merge` giữ morph của các mesh được gộp |
+| Tangent | Target có `TANGENT` thì tangent cũng được trộn, nên normal map theo đúng hình |
+
+@code{.cpp}
+// Một đám đông cùng cười: một lệnh vẽ cho mọi instance.
+njin::f32 smile[16] = {};
+smile[njin::model_morph_find(ctx, face, "Smile")] = 1.0f;
+const njin::model_pose happy{.morph_weights = smile, .morph_count = 16};
+njin::draw_instanced3d(ctx, face, crowd, 0, 500, happy);
+// Bắn trúng má đang phồng, không phải má trong file.
+const njin::ray3d_hit hit = njin::ray3d_model(ctx, shot, face, at, happy);
+@endcode
 
 ### Xương lò xo {#spring3d}
 

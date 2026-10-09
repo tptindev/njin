@@ -176,9 +176,22 @@ njin::draw_model_anim(ctx, hero, at, {.anim = talk, .time = t, .morph_weights = 
 | Why not on the GPU | Only three vertex attribute slots are left (a face has dozens of morphs), and every built-in shader and the game's own would need changing |
 | Cost | Each mesh with morphs copies its vertices to the GPU once per pass (shadow passes included) when the weights change; drawing again with the same weights costs nothing |
 | Reading the weights | model_morph_weights() returns exactly the weights a draw will use |
-| Drawn in the file's shape | draw_instanced3d() (the file's default shape), ray3d_model() |
-| Level of detail | A mesh with morphs is always drawn at full detail |
-| Morphs not kept | A model loaded with `model_load_desc::merge` |
+| Drawing many copies | draw_instanced3d() has a version taking a njin::model_pose: **every** instance of one call has the same shape. The version without it draws the file's default shape |
+| Several shapes in one crowd | Split the instances into a few groups, one call each with its own `pose` (per-instance weights would need a second instance buffer and an offset texture, not done) |
+| Rays | ray3d_model() has a version taking a njin::model_pose, testing the morphed shape (the old one tests the file's shape) |
+| Level of detail | model_lod_build() keeps the morphs at every level: each target's offsets go through the same simplification, and the simplifier weighs the offsets, so a flat surface a morph bends keeps enough edges |
+| Merged meshes | `model_load_desc::merge` keeps the morphs of the meshes it merges |
+| Tangents | A target with `TANGENT` blends the tangents too, so normal maps follow the shape |
+
+@code{.cpp}
+// A whole crowd smiling: one draw call for every instance.
+njin::f32 smile[16] = {};
+smile[njin::model_morph_find(ctx, face, "Smile")] = 1.0f;
+const njin::model_pose happy{.morph_weights = smile, .morph_count = 16};
+njin::draw_instanced3d(ctx, face, crowd, 0, 500, happy);
+// Hit the swollen cheek, not the one in the file.
+const njin::ray3d_hit hit = njin::ray3d_model(ctx, shot, face, at, happy);
+@endcode
 
 ### Spring bones {#spring3d}
 

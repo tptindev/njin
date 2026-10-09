@@ -13,24 +13,27 @@ namespace njin {
 // id N maps to slots[N - 1], and slots are never reused, so a stale handle can
 // never alias a newer model.
 
+// Morph targets (glTF blend shapes) of one of raylib's meshes: its file
+// positions, normals and tangents, and per target of its glTF mesh the offsets
+// in the same space (raylib bakes the node's transform into the vertices, so
+// the offsets get its linear part). Blended on the CPU into the mesh's GPU
+// buffers when a draw asks for other weights than they hold (render3d.cpp).
+struct mesh_morph {
+  std::vector<f32> base_pos, base_nrm;
+  std::vector<f32> base_tan;                      // 4 per vertex (xyz, handedness w), empty without tangents
+  std::vector<std::vector<f32>> dpos, dnrm, dtan; // per target, 3 per vertex; a dnrm or dtan may be empty
+  std::vector<i32> slot;                          // model morph of each target
+  mutable std::vector<f32> held;                  // weight of each target now in the GPU buffers
+};
+
 // One mesh of a level of detail, with its own vertices (only those its
-// triangles use) and bone buffers when the mesh has a skin.
+// triangles use), bone buffers when the mesh has a skin, and its morph
+// targets (the source mesh's, through the same vertex remap) when it has any.
 struct model_lod_mesh {
   Mesh mesh{};
   u32 bone_vbo = 0;
   u32 weight_vbo = 0;
-};
-
-// Morph targets (glTF blend shapes) of one of raylib's meshes: its file
-// positions and normals, and per target of its glTF mesh the offsets in the
-// same space (raylib bakes the node's transform into the vertices, so the
-// offsets get its linear part). Blended on the CPU into the mesh's GPU
-// buffers when a draw asks for other weights than they hold (render3d.cpp).
-struct mesh_morph {
-  std::vector<f32> base_pos, base_nrm;
-  std::vector<std::vector<f32>> dpos, dnrm; // per target; a dnrm may be empty
-  std::vector<i32> slot;                    // model morph of each target
-  mutable std::vector<f32> held;            // weight of each target now in the GPU buffers
+  mesh_morph morph;
 };
 
 // One glTF mesh's weight curve in a clip: key times, and per key one value
@@ -170,5 +173,9 @@ void model_morph_eval(const model_store &store, const model_slot &m, const model
 // Makes mesh `mesh`'s GPU buffers hold its morphs at the model weights `w`
 // (model_morph_eval's), unless they already do.
 void model_morph_upload(const model_slot &m, i32 mesh, const f32 *w);
+// The same for any mesh and its morphs (a level of detail's).
+void morph_upload(const mesh_morph &mm, const Mesh &me, const f32 *w);
+// The positions of `mm` at the model weights `w` (3 per vertex), on the CPU.
+void morph_positions(const mesh_morph &mm, const f32 *w, std::vector<f32> &out);
 void model_store_unload(model_store &store, model_handle handle);
 } // namespace njin
