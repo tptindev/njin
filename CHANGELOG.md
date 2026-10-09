@@ -462,6 +462,18 @@ To release: edit that header, add a section here, commit, then
   does not edit (scale, morph weights, nodes outside the skin) are kept from
   the source animation of the same name. Writing uses cgltf_write (MIT),
   vendored at the cgltf commit whose parser raylib 6.0 bundles.
+- The animation editor captures motion from a webcam (tool only, nothing in
+  the engine): `mocap/pose_stream.py` runs MediaPipe Pose Landmarker (and
+  optionally Hand Landmarker; Apache-2.0) in a Python venv the tool's
+  `mocap/setup.bat` makes, and sends 3D world landmarks over UDP on
+  127.0.0.1. The **Mocap** window starts it, smooths the points with a One
+  Euro filter, turns them into rotations of the rig's humanoid bones (trunk
+  and head as whole frames, limbs and fingers as the shortest turn along each
+  segment), drives the chosen bones live on top of the clip (whole body,
+  upper body, an arm, head, spine, legs, hands, or the selected bone), and
+  records keys at the clip's rate from the playhead after a countdown, with
+  optional key reduction; a recording is one undo step. `--mocap-test` and
+  `--mocap-smoke` check the solver and the live path without a camera.
 
 ### Removed
 

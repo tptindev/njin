@@ -31,8 +31,10 @@ Run `run_anim_editor.bat` to open the **njin Animation Editor**: open a rigged
 author clips on a keyframe timeline. The model's own clips open for editing.
 Projects are saved as `.anim.json` (the model path plus the clips), and
 **Export glTF** writes a `.glb` with the model and every clip, which
-`model_load()` plays directly. See the
-[Animation Editor guide](src/tools/anim_editor/README.md).
+`model_load()` plays directly. Its **Mocap** window captures motion from a
+webcam (MediaPipe in a Python helper, set up once with
+`src/tools/anim_editor/mocap/setup.bat`) and records it onto the bones you
+choose. See the [Animation Editor guide](src/tools/anim_editor/README.md).
 
 ## Sample games
 

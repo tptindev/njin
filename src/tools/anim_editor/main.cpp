@@ -1,5 +1,7 @@
 #include "document.h"
 #include "imgui.h"
+#include "mocap.h"
+#include "mocap_net.h"
 #include "imgui_internal.h"
 #include "ImGuizmo.h"
 #include "raymath.h"
@@ -84,6 +86,10 @@ struct App {
   int gizmo_operation = 1;
   int dragging_key_bone = -1;
   float dragging_key_time = 0;
+  // Webcam capture drives these bones on top of the clip while it runs.
+  bool live = false;
+  std::vector<BonePose> live_pose;
+  std::vector<char> live_mask;
 
   std::vector<uint64_t> hashes() const {
     std::vector<uint64_t> h;
@@ -106,10 +112,18 @@ struct App {
     return s;
   }
   bool clip_active() const { return has_rig && active_clip >= 0 && active_clip < (int)doc.clips.size(); }
-  std::vector<BonePose> pose() const {
+  std::vector<BonePose> clip_pose() const {
     if (!clip_active())
       return std::vector<BonePose>(rig.bones.size());
     return sample_animation((int)rig.bones.size(), doc.clips[active_clip], playhead);
+  }
+  std::vector<BonePose> pose() const {
+    auto p = clip_pose();
+    if (live && live_pose.size() == p.size() && live_mask.size() == p.size())
+      for (size_t b = 0; b < p.size(); ++b)
+        if (live_mask[b])
+          p[b] = live_pose[b];
+    return p;
   }
   void select_clip(int index) {
     active_clip = index;
@@ -184,6 +198,9 @@ struct App {
       }
     }
     pose_buffer.assign(rig.bones.size(), Transform{});
+    live = false;
+    live_pose.clear();
+    live_mask.clear();
     std::snprintf(model_path, sizeof(model_path), "%s", model_file.c_str());
     undo.clear();
     redo.clear();
@@ -810,6 +827,264 @@ void animation_panel(App &a) {
   ImGui::EndChild();
   ImGui::End();
 }
+// Webcam capture: pose_stream.py (MediaPipe) sends landmarks over UDP; the
+// solver turns them into rotations of the masked bones.
+struct Mocap {
+  MocapLink link;
+  Sidecar sidecar;
+  MocapRig rig_map;
+  const Rig *rig_for = nullptr;
+  size_t rig_bones = 0;
+  MocapSmoother smoother;
+  MocapFrame latest{};
+  bool have = false, fresh = false;
+  int camera = 0, port = 47800, preset = mask_whole, countdown = 3;
+  bool hands = false, preview = true, mirror = false, drive = true, reduce = true, launched = false;
+  float min_cutoff = 1.5f, beta = 0.3f, tolerance = 0.5f;
+  int packets = 0;
+  double rate_from = 0;
+  float fps = 0, latency = -1;
+  double last_packet = 0;
+  enum { idle, counting, recording } state = idle;
+  double record_wall = 0, reduced_at = 0;
+  float record_from = 0, next_key = 0;
+  int removed = 0;
+  std::string status = "Stopped.";
+  std::string folder = NJIN_ANIM_EDITOR_MOCAP_DIR;
+
+  std::string python() const { return folder + "/.venv/Scripts/python.exe"; }
+  bool ready() const {
+    return fs::exists(u8path(python())) && fs::exists(u8path(folder + "/pose_landmarker_full.task"));
+  }
+  bool running() const { return link.open(); }
+  void start(bool spawn) {
+    std::string error;
+    if (!link.listen(port, error)) {
+      status = "Cannot listen: " + error;
+      return;
+    }
+    launched = false;
+    if (spawn) {
+      std::vector<std::string> args{"--camera", std::to_string(camera), "--port", std::to_string(port)};
+      if (hands)
+        args.push_back("--hands");
+      if (preview)
+        args.push_back("--preview");
+      if (!sidecar.start(python(), folder + "/pose_stream.py", args, folder + "/last_run.log", error)) {
+        link.close();
+        status = error;
+        return;
+      }
+      launched = true;
+    }
+    smoother.reset();
+    have = false;
+    packets = 0;
+    latency = -1;
+    rate_from = clock_seconds();
+    status = spawn ? "Starting the camera (MediaPipe loads in a few seconds)..."
+                   : "Listening on port " + std::to_string(port) + ".";
+  }
+  void stop(App &a) {
+    end_recording(a);
+    sidecar.stop();
+    launched = false;
+    link.close();
+    a.live = false;
+    have = false;
+    status = "Stopped.";
+  }
+  std::vector<char> mask(const App &a) const {
+    return mocap_mask(a.rig, rig_map, (MaskPreset)preset, a.selected_bone);
+  }
+  void end_recording(App &a, const char *why = nullptr) {
+    if (state == recording) {
+      char text[200];
+      if (reduce && a.clip_active())
+        removed += reduce_keys(a.doc.clips[a.active_clip], mask(a), record_from, a.playhead, tolerance);
+      std::snprintf(text, sizeof(text), "%s %.1f s%s", why ? why : "Recorded", a.playhead - record_from,
+                    reduce ? ("; key reduction removed " + std::to_string(removed) + " keys.").c_str() : ".");
+      status = text;
+    }
+    state = idle;
+  }
+  void update(App &a) {
+    if (rig_for != &a.rig || rig_bones != a.rig.bones.size()) {
+      rig_map = a.has_rig ? find_mocap_rig(a.rig) : MocapRig{};
+      rig_for = &a.rig;
+      rig_bones = a.rig.bones.size();
+    }
+    if (launched && !sidecar.running()) {
+      launched = false;
+      link.close();
+      a.live = false;
+      state = idle;
+      status = "The capture process ended (code " + std::to_string(sidecar.exit_code()) + "): see " + folder +
+               "/last_run.log";
+    }
+    if (!running())
+      return;
+    std::vector<std::vector<unsigned char>> in;
+    link.receive(in);
+    fresh = false;
+    MocapFrame newest;
+    for (const auto &b : in) {
+      MocapFrame f;
+      if (!parse_mocap_packet(b.data(), b.size(), f))
+        continue;
+      ++packets;
+      last_packet = clock_seconds();
+      newest = f;
+      fresh = true;
+    }
+    const double now = clock_seconds();
+    if (now - rate_from >= 1) {
+      fps = (float)(packets / (now - rate_from));
+      packets = 0;
+      rate_from = now;
+    }
+    if (fresh) {
+      if (newest.time > 1e9) // camera frames carry the wall clock
+        latency = (float)(now - newest.time);
+      smoother.set(min_cutoff, beta);
+      latest = smoother.filter(newest);
+      if (mirror)
+        mirror_frame(latest);
+      have = true;
+      if (status.rfind("Starting", 0) == 0)
+        status = "Camera running.";
+    }
+    a.live = drive && have && latest.pose && a.has_rig && rig_map.usable();
+    if (a.live) {
+      a.live_mask = mask(a);
+      a.live_pose = a.clip_pose();
+      solve_mocap(a.rig, rig_map, latest, a.live_mask, a.live_pose);
+    }
+    if (state == counting && now >= record_wall) {
+      state = recording;
+      record_wall = now;
+      record_from = a.playhead;
+      next_key = a.playhead;
+      reduced_at = now;
+      removed = 0;
+      status = "Recording...";
+    }
+    if (state == recording && a.clip_active()) {
+      auto &clip = a.doc.clips[a.active_clip];
+      const float t = record_from + (float)(now - record_wall);
+      a.playing = false;
+      if (t > 600) {
+        end_recording(a);
+        return;
+      }
+      clip.duration = std::max(clip.duration, t);
+      a.playhead = t;
+      bool full = false;
+      if (a.live)
+        for (; next_key <= t; next_key += 1.0f / clip.fps)
+          for (size_t b = 0; b < a.live_mask.size(); ++b)
+            if (a.live_mask[b])
+              full |= !set_key(clip, {(int)b, std::round(next_key * clip.fps) / clip.fps, a.live_pose[b].translation,
+                                      matrix_euler(QuaternionToMatrix(a.live_pose[b].rotation))});
+      // Reduce as it goes (all but the last frames), so long takes stay under the clip's key limit.
+      if (reduce && now - reduced_at > 0.5) {
+        removed += reduce_keys(clip, a.live_mask, record_from, next_key - 3.0f / clip.fps, tolerance);
+        reduced_at = now;
+      }
+      if (full)
+        end_recording(a, "Stopped at the clip's key limit (10000) after");
+    }
+  }
+};
+
+void mocap_window(App &a, Mocap &m) {
+  ImGui::Begin("Mocap");
+  if (!m.ready()) {
+    ImGui::TextWrapped("Webcam capture needs Python and MediaPipe. Run once:");
+    ImGui::TextWrapped("%s/setup.bat", m.folder.c_str());
+  }
+  ImGui::BeginDisabled(m.running());
+  ImGui::SetNextItemWidth(80);
+  ImGui::InputInt("Camera", &m.camera);
+  m.camera = std::clamp(m.camera, 0, 16);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(90);
+  ImGui::InputInt("Port", &m.port, 0);
+  m.port = std::clamp(m.port, 1024, 65535);
+  ImGui::Checkbox("Hands (fingers)", &m.hands);
+  ImGui::SameLine();
+  ImGui::Checkbox("Camera preview window", &m.preview);
+  ImGui::EndDisabled();
+  if (!m.running()) {
+    ImGui::BeginDisabled(!m.ready() || !a.has_rig);
+    if (ImGui::Button("Start camera"))
+      m.start(true);
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Listen only"))
+      m.start(false);
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("Receive from a pose_stream.py you started yourself.");
+  } else if (ImGui::Button("Stop"))
+    m.stop(a);
+  if (m.running()) {
+    const bool body = m.have && m.latest.pose && clock_seconds() - m.last_packet < 0.5;
+    char latency[32] = "";
+    if (m.latency >= 0)
+      std::snprintf(latency, sizeof(latency), "  %d ms", (int)(m.latency * 1000));
+    ImGui::TextColored(body ? ImVec4{0.5f, 1, 0.6f, 1} : ImVec4{1, 0.7f, 0.4f, 1}, "%s  %.0f fps%s",
+                       body ? "Tracking" : (m.have ? "No body in view" : "Waiting for frames"), m.fps, latency);
+  }
+  if (a.has_rig && !m.rig_map.usable())
+    ImGui::TextColored({1, 0.5f, 0.4f, 1}, "This rig has no recognisable humanoid bones (hips, arms, legs).");
+  else if (a.has_rig)
+    ImGui::TextDisabled("%d humanoid bones matched", m.rig_map.found);
+  ImGui::Separator();
+  ImGui::Checkbox("Drive bones", &m.drive);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(190);
+  ImGui::Combo("##mask", &m.preset, mask_names, mask_preset_count);
+  ImGui::Checkbox("Mirror", &m.mirror);
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Off: raise your right arm, the character raises its right arm.\n"
+                      "On: it moves like your reflection.");
+  ImGui::SetNextItemWidth(150);
+  ImGui::SliderFloat("Smoothing", &m.min_cutoff, 0.2f, 5.0f, "%.2f Hz", ImGuiSliderFlags_Logarithmic);
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("One Euro filter cutoff when still: lower is smoother, higher follows small moves.");
+  ImGui::SetNextItemWidth(150);
+  ImGui::SliderFloat("Responsiveness", &m.beta, 0.0f, 2.0f, "%.2f");
+  ImGui::Separator();
+  if (!a.clip_active())
+    ImGui::TextWrapped("Choose or create a clip in Animation to record into.");
+  ImGui::BeginDisabled(!a.clip_active() || !m.running());
+  ImGui::SetNextItemWidth(80);
+  ImGui::InputInt("Countdown (s)", &m.countdown);
+  m.countdown = std::clamp(m.countdown, 0, 10);
+  ImGui::Checkbox("Reduce keys", &m.reduce);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(110);
+  ImGui::SliderFloat("Tolerance", &m.tolerance, 0.05f, 5.0f, "%.2f deg");
+  if (m.state == Mocap::idle) {
+    if (ImGui::Button("Record from playhead")) {
+      a.playing = false;
+      m.state = Mocap::counting;
+      m.record_wall = clock_seconds() + m.countdown;
+    }
+  } else {
+    if (ImGui::Button("Stop recording"))
+      m.end_recording(a);
+    ImGui::SameLine();
+    if (m.state == Mocap::counting)
+      ImGui::TextColored({1, 0.8f, 0.3f, 1}, "Recording in %d...", (int)std::ceil(m.record_wall - clock_seconds()));
+    else
+      ImGui::TextColored({1, 0.35f, 0.35f, 1}, "REC %.1f s", a.playhead - m.record_from);
+  }
+  ImGui::EndDisabled();
+  ImGui::TextWrapped("%s", m.status.c_str());
+  ImGui::End();
+}
+
 void dock_layout(App &a) {
   ImGuiID dock = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
   if (ImGui::DockBuilderGetNode(dock)->ChildNodes[0] && !a.reset_layout)
@@ -827,6 +1102,7 @@ void dock_layout(App &a) {
   ImGui::DockBuilderDockWindow("Properties", right);
   ImGui::DockBuilderDockWindow("Viewport", center);
   ImGui::DockBuilderDockWindow("Project", project);
+  ImGui::DockBuilderDockWindow("Mocap", project);
   ImGui::DockBuilderDockWindow("Animation", bottom);
   ImGui::DockBuilderFinish(dock);
 }
@@ -901,10 +1177,15 @@ int main(int argc, char **argv) {
   using namespace anim_editor;
   const std::string mode = argc > 1 ? argv[1] : "";
   if (mode == "--self-test")
-    return self_test() || app_self_test();
+    return self_test() || app_self_test() || mocap_unit_test();
+  if (mode == "--mocap-test")
+    return mocap_test(argc, argv);
   if (mode == "--roundtrip-test")
     return roundtrip_test(argc > 2 ? argv[2] : nullptr);
-  const bool smoke = mode == "--smoke-test";
+  // --mocap-smoke <model> <frames folder>: pose_stream.py on rendered frames
+  // drives the model over UDP, records a second, checks undo, screenshots.
+  const bool mocap_smoke = mode == "--mocap-smoke" && argc > 3;
+  const bool smoke = mode == "--smoke-test" || mocap_smoke;
   SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
   InitWindow(1600, 960, "njin Animation Editor");
   SetWindowMinSize(1000, 700);
@@ -923,8 +1204,30 @@ int main(int argc, char **argv) {
   ImGui::GetStyle().FrameRounding = 4;
   ImGui::GetStyle().GrabRounding = 4;
   App app;
+  Mocap mocap;
   std::string smoke_folder;
-  if (smoke) {
+  if (mocap_smoke) {
+    if (!app.open_model(argv[2])) {
+      std::fprintf(stderr, "Mocap smoke: %s\n", app.status.c_str());
+      return 1;
+    }
+    AnimationClip c;
+    c.name = "Mocap";
+    c.duration = 0.5f;
+    app.doc.clips.push_back(c);
+    app.select_clip((int)app.doc.clips.size() - 1);
+    app.commit();
+    mocap.port = 47877;
+    mocap.start(false);
+    std::string error;
+    mocap.launched = mocap.sidecar.start(mocap.python(), mocap.folder + "/pose_stream.py",
+                                         {"--frames", argv[3], "--fps", "30", "--port", std::to_string(mocap.port)},
+                                         mocap.folder + "/last_run.log", error);
+    if (!mocap.launched) {
+      std::fprintf(stderr, "Mocap smoke: %s\n", error.c_str());
+      return 1;
+    }
+  } else if (smoke) {
     // The given model, or the generated test column; a key on its middle bone.
     smoke_folder = temp_folder("smoke");
     const std::string model = argc > 2 ? argv[2] : write_test_model(smoke_folder);
@@ -951,7 +1254,8 @@ int main(int argc, char **argv) {
   while (!app.exit) {
     if (WindowShouldClose())
       app.request(4);
-    if (app.clip_active())
+    mocap.update(app);
+    if (app.clip_active() && mocap.state != Mocap::recording)
       app.playhead = advance_animation(app.playhead, GetFrameTime() * app.speed, app.doc.clips[app.active_clip], app.playing);
     BeginDrawing();
     ClearBackground({20, 24, 31, 255});
@@ -964,6 +1268,7 @@ int main(int argc, char **argv) {
     inspector(app);
     project(app);
     viewport(app);
+    mocap_window(app, mocap);
     if (!io.WantTextInput && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)) {
       if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
         app.save();
@@ -978,17 +1283,58 @@ int main(int argc, char **argv) {
       if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && app.timeline_focused && app.clip_active() && !app.playing)
         remove_key(app.doc.clips[app.active_clip], app.selected_bone, app.playhead);
     }
-    if (!ImGui::IsAnyItemActive() && !ImGuizmo::IsUsing())
-      app.commit();
+    if (!ImGui::IsAnyItemActive() && !ImGuizmo::IsUsing() && mocap.state != Mocap::recording)
+      app.commit(); // a whole recording is one undo step
     rlImGuiEnd();
     EndDrawing();
     ++frames;
-    if (smoke && frames == 30) {
+    if (mocap_smoke) {
+      static double started = clock_seconds(), live_at = 0;
+      static size_t undo_before = 0;
+      static int phase = 0;
+      const double now = clock_seconds();
+      if (phase == 0 && app.live) {
+        live_at = now;
+        undo_before = app.undo.size();
+        mocap.state = Mocap::counting;
+        mocap.record_wall = now;
+        phase = 1;
+      }
+      if (phase == 1 && now - live_at > 0.7) {
+        Image shot = LoadImageFromScreen();
+        ExportImage(shot, "build/anim_editor_mocap.png");
+        UnloadImage(shot);
+        phase = 2;
+      }
+      if (phase == 2 && now - live_at > 1.1) {
+        mocap.end_recording(app);
+        phase = 3;
+      } else if (phase == 3) {
+        const size_t keys = app.doc.clips[app.active_clip].keys.size();
+        const bool one_step = app.undo.size() == undo_before + 1;
+        app.history(false);
+        const bool undone = app.doc.clips[app.active_clip].keys.empty();
+        app.history(true);
+        const bool redone = app.doc.clips[app.active_clip].keys.size() == keys;
+        smoke_ok = keys > 0 && one_step && undone && redone;
+        std::printf("%s: mocap smoke: live after %.1f s at %.0f fps, recorded %d keys over %.2f s (%s), "
+                    "one undo step %s, undo/redo %s; screenshot build/anim_editor_mocap.png\n",
+                    smoke_ok ? "PASS" : "FAIL", live_at - started, mocap.fps, (int)keys,
+                    app.doc.clips[app.active_clip].duration, mocap.status.c_str(), one_step ? "yes" : "no",
+                    undone && redone ? "ok" : "broken");
+        app.exit = true;
+      }
+      if (phase == 0 && now - started > 30) {
+        std::printf("FAIL: mocap smoke: no live pose after 30 s (%s)\n", mocap.status.c_str());
+        app.exit = true;
+      }
+    }
+    if (smoke && !mocap_smoke && frames == 30) {
       rest = LoadImageFromTexture(app.viewport.texture);
       // Bend the selected bone 60 degrees at the playhead, as a gizmo drag would.
       set_key(app.doc.clips[app.active_clip], {app.selected_bone, 0, {}, {0, 0, 60}});
     }
-    if (smoke && frames == 60) {
+    if (smoke && !mocap_smoke && frames == 60) {
       Image posed = LoadImageFromTexture(app.viewport.texture);
       int changed = 0;
       if (rest.width == posed.width && rest.height == posed.height) {
@@ -1009,6 +1355,7 @@ int main(int argc, char **argv) {
       app.exit = true;
     }
   }
+  mocap.stop(app);
   if (rest.data)
     UnloadImage(rest);
   if (app.has_model)

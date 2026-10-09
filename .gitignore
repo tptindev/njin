@@ -6,6 +6,10 @@ njin_inspector.ini
 njin_ui_editor.ini
 njin_anim_editor.ini
 njin_model_editor.ini
+# Animation editor webcam capture: the venv, MediaPipe models and logs that setup.bat and runs create.
+/src/tools/anim_editor/mocap/.venv/
+/src/tools/anim_editor/mocap/*.task
+/src/tools/anim_editor/mocap/last_run.log
 /docs/doxygen_warnings.txt
 /docs/doxygen_warnings_en.txt
 __pycache__/

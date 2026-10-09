@@ -79,13 +79,69 @@ trọng số skin; clip CUBICSPLINE/STEP thành key theo từng khung; không c�
 dùng skin CPU của raylib và vẽ không chiếu sáng. Tối đa 64 clip và 10000 key mỗi clip.
 ImGuizmo (MIT) nằm trong `third_party/ImGuizmo`, cgltf_write (MIT) trong `third_party/cgltf`.
 
+## Bắt chuyển động bằng webcam (Mocap)
+
+Cửa sổ **Mocap** cho một hoặc vài xương (hay cả người) đi theo cử động của bạn trước webcam, rồi ghi
+thành key. Việc nhận dạng khung xương do **MediaPipe Pose Landmarker** của Google (Apache-2.0) làm,
+chạy trong một tiến trình Python riêng (`mocap/pose_stream.py`); editor nhận các khớp qua UDP trên
+`127.0.0.1` và tự đổi thành góc xoay xương. Chỉ là công cụ của editor: không có gì trong engine hay
+trong game.
+
+**Cài một lần:** cần Python 3.10–3.13. Chạy `src\tools\anim_editor\mocap\setup.bat`: tạo venv
+`mocap\.venv`, cài `requirements.txt` (mediapipe 1.1.0, opencv-python 5.0.0.93, numpy 2.5.3) và tải
+hai model `pose_landmarker_full.task`, `hand_landmarker.task` vào thư mục `mocap` (không nằm trong
+git).
+
+**Dùng:**
+
+1. Mở một model có rig người (tên xương kiểu Mixamo, Unreal, Unity/VRM, Blender đều nhận) và chọn
+   hoặc tạo một clip. Mocap ghi dòng "N humanoid bones matched".
+2. Trong **Mocap**: chọn **Camera** (0 là webcam mặc định), bật **Hands** nếu cần ngón tay, bấm
+   **Start camera**. Cửa sổ xem trước của camera hiện khung xương MediaPipe vẽ đè (Esc để tắt). Đứng
+   lùi để camera thấy cả người; ánh sáng đều, phông nền gọn giúp bắt chính xác hơn.
+3. **Drive bones** + danh sách chọn xương: cả người, nửa trên, tay trái, tay phải, đầu và cổ, cột
+   sống, chân, bàn tay, hoặc **xương đang chọn và các xương dưới nó**. Các xương đó đi theo camera
+   ngay trong viewport, các xương khác giữ tư thế của clip.
+4. **Mirror** tắt: bạn giơ tay phải thì nhân vật giơ tay phải (như nhìn một người đối diện). Bật:
+   nhân vật cử động như ảnh trong gương. **Smoothing** (tần số cắt của bộ lọc One Euro) thấp thì mượt
+   hơn nhưng chậm theo cử động nhỏ; **Responsiveness** cao thì bám nhanh khi cử động nhanh.
+5. Đặt playhead, bấm **Record from playhead**: đếm ngược (Countdown) rồi ghi key cho các xương được
+   chọn theo FPS của clip, clip tự dài ra nếu cần. **Stop recording** để dừng. **Reduce keys** bỏ
+   các key mà nội suy giữa hai key bên cạnh đã cho đúng trong **Tolerance** độ. Cả lần ghi là một
+   bước Undo.
+6. **Stop** tắt camera. **Listen only** chỉ nghe cổng UDP, khi bạn tự chạy
+   `mocap\.venv\Scripts\python.exe mocap\pose_stream.py --preview` (xem `--help`: `--camera`,
+   `--hands`, `--mirror`, `--video file.mp4`, `--frames thư_mục`).
+
+**Cách tính:** MediaPipe cho 33 khớp cơ thể theo mét, gốc ở giữa hai hông (trục x sang phải ảnh, y
+xuống, z ra xa camera); editor đổi sang trục glTF `(x, -y, -z)` (+Y lên, +Z về phía camera). Hông,
+cột sống, cổ và đầu lấy cả hướng: hướng lên (hông → vai, vai → tai) và đường trái–phải (hai hông, hai
+vai, hai tai), so với cùng các đường đó ở tư thế nghỉ của rig. Tay, chân, bàn chân và từng đốt ngón
+quay theo góc ngắn nhất để trỏ theo đoạn khớp tương ứng (vai → khuỷu, khuỷu → cổ tay, hông → gối...);
+bàn tay lấy cả hướng khi có dữ liệu bàn tay. Khớp có độ tin cậy dưới 0,5 bị bỏ qua (xương giữ tư thế
+clip). Gói UDP được mô tả ở đầu `pose_stream.py`.
+
+**Giới hạn:** một webcam chỉ ước lượng được độ sâu: tay đưa thẳng về phía camera, tay bắt chéo hay
+bị che dễ sai (thử với hình dựng từ clip có sẵn: lệch trung vị khoảng 9–13°, p90 khoảng 25°). Không
+có dịch chuyển gốc (đi khắp phòng không làm nhân vật đi), không xoắn cánh tay quanh trục của nó, không
+khóa chân xuống sàn. Bật bàn tay làm MediaPipe chậm hẳn (khoảng 8 khung/giây so với 30 trên CPU thử).
+
 ## Kiểm tra
 
 ```powershell
 .\build\bin\njin_anim_editor.exe --self-test
 .\build\bin\njin_anim_editor.exe --roundtrip-test [model.glb]
 .\build\bin\njin_anim_editor.exe --smoke-test [model.glb]
+.\build\bin\njin_anim_editor.exe --mocap-test model.glb [clip] [dump.bin fps camera_yaw]
+.\build\bin\njin_anim_editor.exe --mocap-smoke model.glb thư_mục_ảnh
 ```
+
+Mocap test tạo các khớp từ chính clip của rig, cho qua định dạng gói UDP rồi giải lại: tay chân phải
+trỏ đúng như clip (lệch dưới 0,05°); kiểm tra thêm việc chỉ các xương được chọn bị đổi. Với file
+`dump.bin` (`pose_stream.py --frames thư_mục --dump dump.bin` trên các khung hình dựng từ clip đó,
+nhìn từ phía trước) nó in độ lệch của MediaPipe và của xương giải ra so với clip. Mocap smoke mở
+editor, chạy `pose_stream.py` trên thư mục ảnh, cho model đi theo, ghi khoảng một giây, kiểm tra cả
+lần ghi là một bước Undo và lưu `build/anim_editor_mocap.png`. Hai lệnh cuối cần `mocap\setup.bat`.
 
 Self-test tự sinh một model glTF có rig nhỏ rồi kiểm tra: nạp rig và clip, lấy mẫu, key, JSON dự
 án, xuất `.glb` rồi nạp lại, giữ mesh/skin/vật liệu và kênh không sửa; cùng undo/redo, lưu, mở
