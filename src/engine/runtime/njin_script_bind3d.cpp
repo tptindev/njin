@@ -81,10 +81,6 @@ transform3d transform_of(const sol::object &o) {
   return t;
 }
 
-sol::table transform_table(sol::state_view lua, const transform3d &t) {
-  return lua.create_table_with("position", t.position, "rotation", t.rotation, "scale", t.scale);
-}
-
 camera3d camera_of(const sol::table &t) {
   camera3d c{};
   c.position = vec3_of(t["position"], c.position);
@@ -384,7 +380,7 @@ void script_bind_njin_more(context &ctx, script_runtime &rt, sol::table n) {
     m.speed = num(t, "speed", m.speed);
     m.tint = color_of(t["tint"], m.tint);
     m.visible = flag(t, "visible", m.visible);
-    w.get_or_emplace<transform3d>(e);
+    static_cast<void>(w.get_or_emplace<transform3d>(e));
   };
   n["model3d"] = [c, r](lua_Integer entity) -> sol::object {
     entt::registry &w = world(*c);
@@ -457,7 +453,7 @@ void script_bind_njin_more(context &ctx, script_runtime &rt, sol::table n) {
     l.elevation = num(t, "elevation", l.elevation);
     l.cast_shadows = flag(t, "cast_shadows", l.cast_shadows);
     l.enabled = flag(t, "enabled", l.enabled);
-    w.get_or_emplace<transform>(e);
+    static_cast<void>(w.get_or_emplace<transform>(e));
   };
 
   // --- immediate UI (on_ui, screen space)
