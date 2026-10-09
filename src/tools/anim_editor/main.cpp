@@ -1165,6 +1165,15 @@ void camera_window(const Mocap &m) {
 
 void dock_layout(App &a) {
   ImGuiID dock = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
+  // A layout saved before the Camera window existed leaves it floating, tiny, over Mocap: rebuild it once.
+  static bool checked = false;
+  if (!checked) {
+    checked = true;
+    const ImGuiWindowSettings *skeleton = ImGui::FindWindowSettingsByID(ImHashStr("Skeleton"));
+    const ImGuiWindowSettings *camera = ImGui::FindWindowSettingsByID(ImHashStr("Camera"));
+    if (skeleton && skeleton->DockId && (!camera || !camera->DockId))
+      a.reset_layout = true;
+  }
   if (ImGui::DockBuilderGetNode(dock)->ChildNodes[0] && !a.reset_layout)
     return;
   a.reset_layout = false;
