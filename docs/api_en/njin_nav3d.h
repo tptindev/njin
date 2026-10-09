@@ -39,6 +39,27 @@ struct navmesh3d_desc {
   vec3 bounds_min{0.0f, 0.0f, 0.0f};
   vec3 bounds_max{0.0f, 0.0f, 0.0f}; ///< See `bounds_min`.
   i32 max_agents = 128;     ///< Most agents walking at once (nav3d_agent_add()).
+  /// Most tiles rebuilt each frame when obstacles (navmesh3d_add_obstacle()) are
+  /// added, moved or removed. The rest wait for the next frame, so a big obstacle spreads its work over a few frames.
+  i32 obstacle_tiles_per_frame = 4;
+};
+
+/// Number of area kinds: areas 0 to 15. Area 0 is plain ground, every place not marked.
+/// The game gives the other numbers their meaning (road, grass, swamp, shallow water, door...).
+constexpr i32 nav3d_max_areas = 16;
+
+/// How pathfinding weighs the areas: the cost of crossing each area and which areas are forbidden.
+///
+/// A path takes the smallest total of (distance × cost): cost 1 is normal, 4 means
+/// a metre there costs as much as four metres of plain ground (going round by the
+/// road rather than wading through the swamp). Areas with a bit in `excluded` are
+/// never crossed (a locked door). Changing a filter needs no navmesh rebuild.
+struct nav3d_filter {
+  /// Cost per metre of each area, indexed by the area number. Must be above 0.
+  f32 cost[nav3d_max_areas]{1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+  /// The forbidden areas, bit `1 << area`. 0 (the default) forbids none.
+  u16 excluded = 0;
 };
 
 /// Creates an empty navmesh. Add geometry with navmesh3d_add_mesh(),
@@ -62,8 +83,10 @@ void navmesh3d_destroy(context &ctx, navmesh3d_handle handle);
 /// @param vertex_count Number of vertices.
 /// @param indices Three indices per triangle; nullptr is every three consecutive vertices one triangle.
 /// @param index_count Number of indices, a multiple of 3.
+/// @param area Area of the walkable surface on this mesh, 0..15 (see nav3d_filter). Where two
+/// surfaces lie at the same height, the higher area number wins.
 void navmesh3d_add_mesh(context &ctx, navmesh3d_handle handle, const vec3 *positions, u32 vertex_count,
-                        const u32 *indices = nullptr, u32 index_count = 0);
+                        const u32 *indices = nullptr, u32 index_count = 0, u8 area = 0);
 
 /// Adds the triangles of a model, placed at a position, rotation (degrees) and
 /// scale as draw_model() does. The model is read again at each build, so it must
@@ -74,8 +97,9 @@ void navmesh3d_add_mesh(context &ctx, navmesh3d_handle handle, const vec3 *posit
 /// @param position Position.
 /// @param rotation Rotation, degrees, as njin::transform3d::rotation.
 /// @param scale Scale.
+/// @param area Area of the walkable surface on the model, 0..15.
 void navmesh3d_add_model(context &ctx, navmesh3d_handle handle, model_handle model, vec3 position,
-                         vec3 rotation = {0.0f, 0.0f, 0.0f}, vec3 scale = {1.0f, 1.0f, 1.0f});
+                         vec3 rotation = {0.0f, 0.0f, 0.0f}, vec3 scale = {1.0f, 1.0f, 1.0f}, u8 area = 0);
 
 /// Adds a box: a platform, a table, an obstacle, a wall.
 /// @param ctx The engine context.
@@ -83,15 +107,18 @@ void navmesh3d_add_model(context &ctx, navmesh3d_handle handle, model_handle mod
 /// @param center Centre.
 /// @param size Size.
 /// @param rotation Rotation, degrees.
+/// @param area Area of the box's top, 0..15.
 void navmesh3d_add_box(context &ctx, navmesh3d_handle handle, vec3 center, vec3 size,
-                       vec3 rotation = {0.0f, 0.0f, 0.0f});
+                       vec3 rotation = {0.0f, 0.0f, 0.0f}, u8 area = 0);
 
 /// Adds a terrain (njin_world3d.h). Its heights are read again at each build, so
 /// after terrain3d_edit() only the edited area needs navmesh3d_rebuild().
 /// @param ctx The engine context.
 /// @param handle Navmesh.
 /// @param terrain Terrain.
-void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_handle terrain);
+/// @param area Area of the terrain's surface, 0..15 (mark separate stretches with
+/// navmesh3d_add_area()).
+void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_handle terrain, u8 area = 0);
 
 /// Adds a shortcut agents can take even though the ground does not join: a jump
 /// over a gap, a ladder, a drop from a ledge. Both ends must lie on the navmesh
@@ -102,8 +129,28 @@ void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_hand
 /// @param to End.
 /// @param both_ways Walkable in the other direction too.
 /// @param radius How far around each end to look for the navmesh, metres.
+/// @param area Area of the link, 0..15: give it its own cost (a jump is expensive) or forbid it.
 void navmesh3d_add_link(context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, bool both_ways = true,
-                        f32 radius = 0.5f);
+                        f32 radius = 0.5f, u8 area = 0);
+
+/// Marks an upright block as an area (0..15): every walkable place inside a box turned
+/// about the vertical axis (a road, a swamp, a doorway). A block marked later wins over
+/// an earlier one where they overlap. If the navmesh is built, the tiles the block touches are rebuilt at once.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param center Centre of the block.
+/// @param size Size of the block: `x` and `z` along the ground, `y` the height it reaches.
+/// @param yaw Turn about the vertical axis, degrees.
+/// @param area Area, 0..15.
+/// @return The block's number, to remove it with navmesh3d_remove_area(); 0 if refused.
+i32 navmesh3d_add_area(context &ctx, navmesh3d_handle handle, vec3 center, vec3 size, f32 yaw, u8 area);
+
+/// Removes a marked block (that place goes back to the area of the geometry under it) and rebuilds the
+/// tiles it touches. An unknown number is ignored.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param id The number navmesh3d_add_area() returned.
+void navmesh3d_remove_area(context &ctx, navmesh3d_handle handle, i32 id);
 
 /// Drops all geometry and links added (the built navmesh stays until the next build).
 /// @param ctx The engine context.
@@ -128,6 +175,77 @@ bool navmesh3d_build(context &ctx, navmesh3d_handle handle);
 /// @return Number of tiles rebuilt.
 i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max);
 
+/// A new navmesh with the same geometry, marked areas, links, obstacles and filters
+/// as `source`, but built by `desc` (usually another agent size): each agent size
+/// needs its own navmesh, because the gap kept from walls is worked out at build
+/// time. Not built yet: call navmesh3d_build(). Geometry, areas or obstacles added later are added to each navmesh.
+/// @code
+/// const auto small = njin::navmesh3d_create(ctx, {.agent_radius = 0.3f});
+/// // ... add geometry to small ...
+/// const auto large = njin::navmesh3d_clone(ctx, small, {.agent_radius = 1.0f, .agent_height = 3.0f});
+/// njin::navmesh3d_build(ctx, small);
+/// njin::navmesh3d_build(ctx, large);
+/// @endcode
+/// @param ctx The engine context.
+/// @param source Navmesh to copy the geometry from.
+/// @param desc How to build the new navmesh.
+/// @return A new handle, or an invalid handle if `source` does not exist or `desc` is wrong.
+navmesh3d_handle navmesh3d_clone(context &ctx, navmesh3d_handle source, const navmesh3d_desc &desc);
+
+/// Sets the navmesh's filter number `index` (0..15). Filter 0 is the default filter: every
+/// pathfinding call that picks no filter and every agent that sets no `filter` uses it. Agents
+/// walking by this filter find their path again at once. No navmesh rebuild needed.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param index Filter number, 0..15.
+/// @param filter Filter.
+void navmesh3d_set_filter(context &ctx, navmesh3d_handle handle, i32 index, const nav3d_filter &filter);
+
+/// The navmesh's filter number `index`.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param index Filter number, 0..15.
+/// @return The filter, or the default filter if the handle or number is invalid.
+nav3d_filter navmesh3d_filter(const context &ctx, navmesh3d_handle handle, i32 index);
+
+/// A moving obstacle on the navmesh: a pushed crate, a parked car, a closed door. Where it stands
+/// is no longer walkable (kept `agent_radius` away), with no geometry to add.
+struct nav3d_obstacle_desc {
+  vec3 position{};               ///< Centre.
+  vec3 size{1.0f, 2.0f, 1.0f};   ///< Box size; for a cylinder only `y` (the height) is used.
+  f32 yaw = 0.0f;                ///< Turn about the vertical axis, degrees.
+  f32 radius = 0.0f;             ///< Above 0, a cylinder of this radius instead of a box.
+};
+
+/// Adds an obstacle. The tiles it touches are rebuilt over the next frames (at most
+/// `obstacle_tiles_per_frame` tiles a frame), then agents find a way round it.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param desc Obstacle.
+/// @return The obstacle's number, 0 if refused.
+i32 navmesh3d_add_obstacle(context &ctx, navmesh3d_handle handle, const nav3d_obstacle_desc &desc);
+
+/// Moves an obstacle: rebuilds the tiles at the old place and the new one.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param id The number navmesh3d_add_obstacle() returned.
+/// @param position New centre.
+/// @param yaw New turn, degrees.
+/// @return `false` if there is no such obstacle.
+bool navmesh3d_move_obstacle(context &ctx, navmesh3d_handle handle, i32 id, vec3 position, f32 yaw = 0.0f);
+
+/// Removes an obstacle: that place is walkable again once its tiles are rebuilt.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param id The number navmesh3d_add_obstacle() returned.
+void navmesh3d_remove_obstacle(context &ctx, navmesh3d_handle handle, i32 id);
+
+/// Number of tiles still waiting to be rebuilt because of obstacles. 0 means the navmesh matches every obstacle.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @return Number of tiles.
+i32 navmesh3d_pending_tiles(const context &ctx, navmesh3d_handle handle);
+
 /// Finds a path from `from` to `to`: the corner points, the first the point on
 /// the navmesh nearest `from`, the last the point nearest `to`. If `to` cannot be
 /// reached the path stops at the reachable point nearest it (compare the last
@@ -141,6 +259,18 @@ i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max)
 /// @return `true` if a path was found (even one only getting near `to`); `false`
 /// if `from` or `to` is not near the navmesh.
 bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, std::vector<vec3> &out);
+
+/// As above, by filter number `filter` (navmesh3d_set_filter()): the cost of each area,
+/// the forbidden areas.
+/// @param ctx The engine context.
+/// @param handle Navmesh.
+/// @param from Start point.
+/// @param to End point.
+/// @param out Receives the points (cleared first).
+/// @param filter Filter number, 0..15.
+/// @return As above.
+bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, std::vector<vec3> &out,
+                    i32 filter);
 
 /// The point on the navmesh nearest `p`, searched in a box of half size `extents`
 /// around `p`.
@@ -215,6 +345,8 @@ struct nav3d_agent_desc {
   /// position. The game should no longer set this character's velocity. Invalid
   /// is an agent that moves by itself, with no physics collisions.
   character3d_handle character{};
+  /// Number of the filter (navmesh3d_set_filter()) the agent finds paths by, 0..15.
+  i32 filter = 0;
 };
 
 /// Adds an agent. It stands still until it has a target (nav3d_agent_set_target()).
@@ -240,6 +372,13 @@ void nav3d_agent_remove(context &ctx, nav3d_agent_handle agent);
 /// @param target Target.
 /// @return `false` if the target is not near the navmesh.
 bool nav3d_agent_set_target(context &ctx, nav3d_agent_handle agent, vec3 target);
+
+/// Changes the filter the agent finds paths by (a soldier with a key can go through the locked door).
+/// An agent with a target finds its path again at once.
+/// @param ctx The engine context.
+/// @param agent Agent.
+/// @param filter Filter number, 0..15.
+void nav3d_agent_set_filter(context &ctx, nav3d_agent_handle agent, i32 filter);
 
 /// Drops the target: the agent stops (and still keeps apart from others).
 /// @param ctx The engine context.

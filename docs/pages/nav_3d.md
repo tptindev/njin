@@ -94,6 +94,52 @@ nav3d_agent_stop() bỏ đích, nav3d_agent_teleport() đặt sang chỗ khác n
 của tác tử thành vận tốc ngang của nhân vật, nhân vật rơi theo trọng lực khi không đứng trên sàn, và chỗ nhân
 vật thật sự đến (bị đẩy, va vào thùng) thành chỗ của tác tử. Game đừng tự đặt vận tốc cho nhân vật đó nữa.
 
+## Vùng và chi phí {#nav_3d_areas}
+
+Mỗi chỗ đi được thuộc một **vùng**, số từ 0 đến 15 (njin::nav3d_max_areas). Vùng 0 là mặt đất thường; các số
+khác game tự đặt nghĩa: đường cái, cỏ, đầm lầy, nước nông, ô cửa. Đánh dấu vùng theo hai cách:
+
+- Cả một mảng hình học: tham số `area` cuối của navmesh3d_add_mesh(), navmesh3d_add_model(), navmesh3d_add_box(),
+  navmesh3d_add_terrain() và navmesh3d_add_link() (lối tắt cũng có vùng: nhảy qua khe thì đắt).
+- Một khối đứng trên bản đồ: navmesh3d_add_area() với tâm, cỡ, góc xoay quanh trục đứng và số vùng. Navmesh đã
+  dựng thì các ô vuông khối chạm vào được dựng lại ngay; navmesh3d_remove_area() bỏ khối.
+
+**Bộ lọc** (njin::nav3d_filter) nói cách tìm đường nhìn các vùng: `cost[vùng]` là giá mỗi mét (1 là bình thường,
+8 là một mét ở đó tốn như tám mét đường thường) và `excluded` là các vùng cấm hẳn (bit `1 << vùng`). Mỗi navmesh
+giữ 16 bộ lọc, đặt bằng navmesh3d_set_filter(); đổi bộ lọc **không** cần dựng lại navmesh, và tác tử đang đi theo
+nó tìm lại đường ngay. Bộ lọc 0 là bộ lọc mặc định: navmesh3d_path() không chọn bộ lọc dùng nó. Tác tử chọn bộ lọc
+bằng `nav3d_agent_desc::filter`, đổi bằng nav3d_agent_set_filter().
+
+```cpp
+constexpr njin::u8 swamp = 2, door = 3;
+njin::navmesh3d_add_area(ctx, nav, {-4.0f, 0.0f, 0.0f}, {10.0f, 4.0f, 14.0f}, 0.0f, swamp);
+njin::nav3d_filter f{};
+f.cost[swamp] = 8.0f;     // vòng qua đầm lầy, trừ khi vòng quá xa
+f.excluded = 1u << door;  // không bao giờ đi qua cửa khóa
+njin::navmesh3d_set_filter(ctx, nav, 1, f);
+std::vector<njin::vec3> path;
+njin::navmesh3d_path(ctx, nav, from, to, path, 1); // tìm đường theo bộ lọc 1
+```
+
+Khi hai mặt nằm sát nhau (đường cái phủ lên sàn), vùng số lớn hơn thắng. Khối của navmesh3d_add_area() luôn thắng
+vùng của hình học bên dưới.
+
+## Nhiều cỡ tác tử
+
+Khoảng chừa quanh tường (`agent_radius`) được tính lúc dựng, nên mỗi cỡ tác tử cần một navmesh. navmesh3d_clone()
+chép hình học, vùng, lối tắt, vật cản và bộ lọc của một navmesh sang navmesh mới dựng theo cỡ khác; dựng cả hai,
+rồi thêm tác tử to vào navmesh to. Hình học, vùng hay vật cản thêm về sau thì thêm cho từng navmesh. Tác tử trên
+hai navmesh khác nhau không né nhau.
+
+## Vật cản di động
+
+navmesh3d_add_obstacle() đặt một hộp (hay hình trụ, khi `radius` lớn hơn 0) lên navmesh: chỗ nó đứng không còn đi
+được, cách nó một khoảng `agent_radius` như tường. navmesh3d_move_obstacle() dời nó, navmesh3d_remove_obstacle()
+bỏ nó. Không cần thêm hình học hay gọi navmesh3d_rebuild(): engine dựng lại các ô vuông nó chạm vào ở các frame
+sau, tối đa `navmesh3d_desc::obstacle_tiles_per_frame` ô mỗi frame (mặc định 4), và tác tử tìm đường vòng qua nó.
+navmesh3d_pending_tiles() cho biết còn bao nhiêu ô chờ. Mỗi ô vuông 8 m dựng lại mất vài mili giây, nên dời vật cản
+khi nó thật sự đổi chỗ (thùng dừng lại, cửa đóng xong), không phải mỗi frame khi nó đang trượt.
+
 ## Ví dụ đầy đủ
 
 Một căn phòng có tường và bục có dốc; tám tác tử đi tới chỗ chuột trái bấm; đường từ con đầu tới chỗ chuột được
@@ -101,17 +147,27 @@ vẽ thử.
 
 @include nav3d.cpp
 
+Vùng, bộ lọc, hai cỡ tác tử và một vật cản di động: lính gác đi qua cửa, tránh đầm lầy, đi đường cái; con quái to
+có navmesh riêng; phím K lấy chìa khóa của lính gác.
+
+@include nav3d_areas.cpp
+
 ## Từ Lua
 
 Script (@ref scripting) gọi được `njin.nav3d_path(navmesh, from, to)` (bảng các điểm, hay nil),
 `njin.nav3d_set_target(agent, target)`, `njin.nav3d_stop`, `njin.nav3d_position`, `njin.nav3d_velocity` và
 `njin.nav3d_arrived`, với `navmesh` và `agent` là số `id` của handle mà phía C++ đưa sang (ví dụ bằng
-script_set_global()).
+script_set_global()). Vùng và vật cản:
+
+- `njin.nav3d_path(navmesh, from, to, filter)`: tìm đường theo bộ lọc số `filter`.
+- `njin.nav3d_set_filter(navmesh, index, {cost = {[2] = 8}, exclude = {3}})`, `njin.nav3d_agent_filter(agent, index)`.
+- `njin.nav3d_add_area(navmesh, center, size, yaw, area)` trả về số của khối; `njin.nav3d_remove_area(navmesh, id)`.
+- `njin.nav3d_add_obstacle(navmesh, {position = ..., size = ..., yaw = 0, radius = 0})` trả về số của vật cản;
+  `njin.nav3d_move_obstacle(navmesh, id, position, yaw)`, `njin.nav3d_remove_obstacle(navmesh, id)`.
 
 ## Giới hạn
 
-- Navmesh dựng từ hình học tĩnh. Vật động (thùng bị đẩy, cửa) không tự cắt navmesh: thêm hay bỏ hình rồi
-  navmesh3d_rebuild() vùng đó.
-- Các tác tử chỉ né nhau trên cùng một navmesh. Mỗi navmesh dành cho một cỡ tác tử; quái to và quái nhỏ cần hai
-  navmesh.
-- Không có vùng có giá (đầm lầy đi chậm, đường cấm): mọi chỗ đi được ngang nhau.
+- Vật cản cắt navmesh bằng cách dựng lại cả ô vuông nó chạm vào (vài mili giây mỗi ô 8 m), không phải bằng tile
+  cache của Detour: hợp với thùng, xe đậu, cửa; không hợp với hàng chục vật cản cùng chạy mỗi frame.
+- Các tác tử chỉ né nhau trên cùng một navmesh, nên tác tử to (navmesh to) và tác tử nhỏ không né nhau.
+- Vùng chỉ có 16 số (0 đến 15).

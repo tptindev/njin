@@ -99,6 +99,57 @@ agent's velocity becomes the character's horizontal velocity, the character fall
 the ground, and where the character really got to (pushed, blocked by a crate) becomes the agent's position. The
 game should no longer set that character's velocity itself.
 
+## Areas and costs {#nav_3d_areas}
+
+Every walkable place belongs to an **area**, a number from 0 to 15 (njin::nav3d_max_areas). Area 0 is plain
+ground; the game gives the other numbers their meaning: road, grass, swamp, shallow water, doorway. Mark areas in
+two ways:
+
+- A whole piece of geometry: the last `area` parameter of navmesh3d_add_mesh(), navmesh3d_add_model(),
+  navmesh3d_add_box(), navmesh3d_add_terrain() and navmesh3d_add_link() (links have an area too: jumping a gap
+  can be expensive).
+- An upright block on the map: navmesh3d_add_area() with a centre, a size, a turn about the vertical axis and the
+  area number. On a navmesh already built, the tiles the block touches are rebuilt at once; navmesh3d_remove_area()
+  drops the block.
+
+A **filter** (njin::nav3d_filter) says how pathfinding sees the areas: `cost[area]` is the price of each metre (1
+is normal, 8 means a metre there costs as much as eight metres of plain ground) and `excluded` holds the areas
+that are forbidden outright (bit `1 << area`). Each navmesh keeps 16 filters, set with navmesh3d_set_filter();
+changing a filter does **not** need a rebuild, and agents walking by it find their path again at once. Filter 0
+is the default: navmesh3d_path() without a filter uses it. An agent picks its filter with
+`nav3d_agent_desc::filter` and changes it with nav3d_agent_set_filter().
+
+```cpp
+constexpr njin::u8 swamp = 2, door = 3;
+njin::navmesh3d_add_area(ctx, nav, {-4.0f, 0.0f, 0.0f}, {10.0f, 4.0f, 14.0f}, 0.0f, swamp);
+njin::nav3d_filter f{};
+f.cost[swamp] = 8.0f;     // go round the swamp, unless that is much too far
+f.excluded = 1u << door;  // never through the locked door
+njin::navmesh3d_set_filter(ctx, nav, 1, f);
+std::vector<njin::vec3> path;
+njin::navmesh3d_path(ctx, nav, from, to, path, 1); // find the path with filter 1
+```
+
+Where two surfaces lie close together (a road laid over the floor), the higher area number wins. A block from
+navmesh3d_add_area() always wins over the area of the geometry under it.
+
+## Several agent sizes
+
+The gap kept from walls (`agent_radius`) is worked out at build time, so each agent size needs its own navmesh.
+navmesh3d_clone() copies a navmesh's geometry, areas, links, obstacles and filters into a new navmesh built for
+another size; build both, then add big agents to the big navmesh. Geometry, areas or obstacles added later are
+added to each navmesh. Agents on two different navmeshes do not steer round each other.
+
+## Moving obstacles
+
+navmesh3d_add_obstacle() puts a box (or a cylinder, when `radius` is above 0) on the navmesh: where it stands is
+no longer walkable, kept `agent_radius` away like a wall. navmesh3d_move_obstacle() moves it,
+navmesh3d_remove_obstacle() removes it. No geometry to add and no navmesh3d_rebuild() call: the engine rebuilds
+the tiles it touches over the next frames, at most `navmesh3d_desc::obstacle_tiles_per_frame` tiles a frame (4
+by default), and agents find a way round it. navmesh3d_pending_tiles() tells how many tiles are still waiting.
+Rebuilding an 8 m tile takes a few milliseconds, so move an obstacle when it really changes place (the crate
+comes to rest, the door has closed), not every frame while it slides.
+
 ## Full example
 
 A room with walls and a platform with a ramp; eight agents walk to where the left mouse button clicks; the path
@@ -106,17 +157,27 @@ from the first one to the mouse is drawn as a preview.
 
 @include nav3d.cpp
 
+Areas, filters, two agent sizes and a moving obstacle: the guard goes through the door, keeps out of the swamp and
+takes the road; the big monster has its own navmesh; key K takes the guard's key away.
+
+@include nav3d_areas.cpp
+
 ## From Lua
 
 Scripts (@ref scripting) can call `njin.nav3d_path(navmesh, from, to)` (a table of points, or nil),
 `njin.nav3d_set_target(agent, target)`, `njin.nav3d_stop`, `njin.nav3d_position`, `njin.nav3d_velocity` and
 `njin.nav3d_arrived`, where `navmesh` and `agent` are the handle's `id` number passed over from C++ (for example
-with script_set_global()).
+with script_set_global()). Areas and obstacles:
+
+- `njin.nav3d_path(navmesh, from, to, filter)`: find the path with filter number `filter`.
+- `njin.nav3d_set_filter(navmesh, index, {cost = {[2] = 8}, exclude = {3}})`, `njin.nav3d_agent_filter(agent, index)`.
+- `njin.nav3d_add_area(navmesh, center, size, yaw, area)` returns the block's number; `njin.nav3d_remove_area(navmesh, id)`.
+- `njin.nav3d_add_obstacle(navmesh, {position = ..., size = ..., yaw = 0, radius = 0})` returns the obstacle's
+  number; `njin.nav3d_move_obstacle(navmesh, id, position, yaw)`, `njin.nav3d_remove_obstacle(navmesh, id)`.
 
 ## Limits
 
-- The navmesh is built from static geometry. Moving things (a pushed crate, a door) do not cut it by themselves:
-  add or drop the shape, then navmesh3d_rebuild() that area.
-- Agents only steer round each other on the same navmesh. Each navmesh is for one agent size; big and small
-  monsters need two navmeshes.
-- There are no area costs (a swamp that is slow to cross, a forbidden path): every walkable place is the same.
+- An obstacle cuts the navmesh by rebuilding every tile it touches (a few milliseconds per 8 m tile), not through
+  Detour's tile cache: right for crates, parked cars, doors; not for dozens of obstacles all moving every frame.
+- Agents only steer round each other on the same navmesh, so big agents (big navmesh) and small ones do not.
+- There are only 16 area numbers (0 to 15).

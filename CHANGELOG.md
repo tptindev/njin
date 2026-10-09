@@ -63,6 +63,32 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Navmesh areas and costs (`njin_nav3d.h`): every walkable place has an area
+  0..15 (`nav3d_max_areas`; 0 is plain ground), set per piece of geometry by
+  a new last `area` parameter of `navmesh3d_add_mesh()`, `_add_model()`,
+  `_add_box()`, `_add_terrain()` and `_add_link()`, or for an upright block
+  by `navmesh3d_add_area()` / `navmesh3d_remove_area()` (the touched tiles
+  are rebuilt at once). A `nav3d_filter` holds a cost per area and the
+  excluded areas; each navmesh keeps 16, set with `navmesh3d_set_filter()`
+  without a rebuild (agents on that filter re-path at once). Filter 0 is
+  the default, so existing paths and agents behave exactly as before; the
+  new `navmesh3d_path()` overload, `nav3d_agent_desc::filter` and
+  `nav3d_agent_set_filter()` pick another. A road round a costly swamp is
+  taken, an excluded door is never crossed.
+- `navmesh3d_clone()`: a new navmesh with the same geometry, areas, links,
+  obstacles and filters, built for another agent size (the gap kept from
+  walls is baked in at build time, so each size needs its own navmesh).
+- Moving obstacles: `navmesh3d_add_obstacle()` (a box, or a cylinder with a
+  radius), `navmesh3d_move_obstacle()`, `navmesh3d_remove_obstacle()` and
+  `navmesh3d_pending_tiles()`. Where an obstacle stands is cut from the
+  navmesh, padded by the agent radius, by rebuilding only the tiles it
+  touches, `navmesh3d_desc::obstacle_tiles_per_frame` (4) a frame; crowd
+  agents re-path round it. An 8 m tile rebuilds in about 3-4 ms (Debug).
+  Detour's tile cache was not used: it needs a second, layer-based build
+  path without detail meshes, while this reuses the existing tile build.
+- Lua: `njin.nav3d_path(navmesh, from, to, filter)`, `nav3d_set_filter`,
+  `nav3d_agent_filter`, `nav3d_add_area`, `nav3d_remove_area`,
+  `nav3d_add_obstacle`, `nav3d_move_obstacle`, `nav3d_remove_obstacle`.
 - The `njin` Lua module reaches 3D, lighting, the interface and splines,
   as thin bindings over the C++ API. 3D drawing in `on_render`:
   `begin_3d`/`end_3d` with a camera table, cubes, spheres, cylinders,

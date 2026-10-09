@@ -37,6 +37,27 @@ struct navmesh3d_desc {
   vec3 bounds_min{0.0f, 0.0f, 0.0f};
   vec3 bounds_max{0.0f, 0.0f, 0.0f}; ///< Xem `bounds_min`.
   i32 max_agents = 128;     ///< Số tác tử tối đa đi cùng lúc (nav3d_agent_add()).
+  /// Số ô vuông tối đa được dựng lại mỗi frame khi vật cản (navmesh3d_add_obstacle())
+  /// thêm, dời hay bỏ. Ô còn lại chờ frame sau, nên một vật cản lớn rải việc ra vài frame.
+  i32 obstacle_tiles_per_frame = 4;
+};
+
+/// Số loại vùng: vùng 0 đến 15. Vùng 0 là mặt đất thường, mọi chỗ chưa đánh dấu.
+/// Số còn lại game tự đặt nghĩa (đường, cỏ, đầm lầy, nước nông, cửa...).
+constexpr i32 nav3d_max_areas = 16;
+
+/// Cách tìm đường đánh giá các vùng: chi phí đi qua mỗi vùng và vùng nào cấm.
+///
+/// Đường đi chọn tổng (quãng đường × chi phí) nhỏ nhất: chi phí 1 là bình thường, 4
+/// là đi một mét ở đó tốn như bốn mét đường thường (đường vòng qua đường cái thay vì
+/// lội đầm). Vùng có bit trong `excluded` không bao giờ được đi qua (cửa khóa). Đổi
+/// bộ lọc không cần dựng lại navmesh.
+struct nav3d_filter {
+  /// Chi phí mỗi mét của từng vùng, chỉ số là số vùng. Phải lớn hơn 0.
+  f32 cost[nav3d_max_areas]{1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+  /// Các vùng cấm, bit `1 << vùng`. 0 (mặc định) là không cấm vùng nào.
+  u16 excluded = 0;
 };
 
 /// Tạo một navmesh trống. Thêm hình học bằng navmesh3d_add_mesh(),
@@ -60,8 +81,10 @@ void navmesh3d_destroy(context &ctx, navmesh3d_handle handle);
 /// @param vertex_count Số đỉnh.
 /// @param indices Ba chỉ số một tam giác; nullptr là mỗi ba đỉnh liên tiếp một tam giác.
 /// @param index_count Số chỉ số, bội của 3.
+/// @param area Vùng của mặt đi được trên lưới này, 0..15 (xem nav3d_filter). Khi hai
+/// mặt trùng độ cao, vùng số lớn hơn thắng.
 void navmesh3d_add_mesh(context &ctx, navmesh3d_handle handle, const vec3 *positions, u32 vertex_count,
-                        const u32 *indices = nullptr, u32 index_count = 0);
+                        const u32 *indices = nullptr, u32 index_count = 0, u8 area = 0);
 
 /// Thêm các tam giác của một model, đặt ở vị trí, góc xoay (độ) và tỉ lệ như
 /// draw_model(). Model được đọc lại mỗi lần dựng, nên phải còn sống đến lúc đó.
@@ -71,8 +94,9 @@ void navmesh3d_add_mesh(context &ctx, navmesh3d_handle handle, const vec3 *posit
 /// @param position Vị trí.
 /// @param rotation Góc xoay, độ, như njin::transform3d::rotation.
 /// @param scale Tỉ lệ.
+/// @param area Vùng của mặt đi được trên model, 0..15.
 void navmesh3d_add_model(context &ctx, navmesh3d_handle handle, model_handle model, vec3 position,
-                         vec3 rotation = {0.0f, 0.0f, 0.0f}, vec3 scale = {1.0f, 1.0f, 1.0f});
+                         vec3 rotation = {0.0f, 0.0f, 0.0f}, vec3 scale = {1.0f, 1.0f, 1.0f}, u8 area = 0);
 
 /// Thêm một hình hộp: bục, bàn, vật cản, tường.
 /// @param ctx Context của engine.
@@ -80,15 +104,18 @@ void navmesh3d_add_model(context &ctx, navmesh3d_handle handle, model_handle mod
 /// @param center Tâm.
 /// @param size Cỡ.
 /// @param rotation Góc xoay, độ.
+/// @param area Vùng của mặt trên hộp, 0..15.
 void navmesh3d_add_box(context &ctx, navmesh3d_handle handle, vec3 center, vec3 size,
-                       vec3 rotation = {0.0f, 0.0f, 0.0f});
+                       vec3 rotation = {0.0f, 0.0f, 0.0f}, u8 area = 0);
 
 /// Thêm một địa hình (njin_world3d.h). Độ cao được đọc lại mỗi lần dựng, nên sau
 /// terrain3d_edit() chỉ cần navmesh3d_rebuild() vùng đã sửa.
 /// @param ctx Context của engine.
 /// @param handle Navmesh.
 /// @param terrain Địa hình.
-void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_handle terrain);
+/// @param area Vùng của mặt địa hình, 0..15 (từng khoảng riêng thì đánh dấu bằng
+/// navmesh3d_add_area()).
+void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_handle terrain, u8 area = 0);
 
 /// Thêm một lối tắt mà tác tử đi được dù không liền mặt đất: nhảy qua khe, leo
 /// thang, nhảy xuống bục. Hai đầu phải nằm trên navmesh (cách nó không quá
@@ -99,8 +126,28 @@ void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_hand
 /// @param to Đầu đến.
 /// @param both_ways Đi được cả chiều ngược lại.
 /// @param radius Khoảng tìm navmesh quanh hai đầu, mét.
+/// @param area Vùng của lối tắt, 0..15: cho nó chi phí riêng (nhảy thì đắt) hay cấm nó.
 void navmesh3d_add_link(context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, bool both_ways = true,
-                        f32 radius = 0.5f);
+                        f32 radius = 0.5f, u8 area = 0);
+
+/// Đánh dấu một khối đứng là một vùng (0..15): mọi chỗ đi được bên trong hộp xoay quanh
+/// trục đứng (đường cái, đầm lầy, khung cửa). Khối đánh dấu sau thắng khối trước chỗ
+/// chồng nhau. Nếu navmesh đã dựng, các ô vuông khối chạm vào được dựng lại ngay.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param center Tâm khối.
+/// @param size Cỡ khối: `x` và `z` theo mặt đất, `y` là tầm cao phủ tới.
+/// @param yaw Góc xoay quanh trục đứng, độ.
+/// @param area Vùng, 0..15.
+/// @return Số của khối, để bỏ bằng navmesh3d_remove_area(); 0 nếu từ chối.
+i32 navmesh3d_add_area(context &ctx, navmesh3d_handle handle, vec3 center, vec3 size, f32 yaw, u8 area);
+
+/// Bỏ một khối đã đánh dấu (chỗ đó trở về vùng của hình học bên dưới) và dựng lại các ô
+/// vuông nó chạm vào. Số không có bị bỏ qua.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param id Số do navmesh3d_add_area() trả về.
+void navmesh3d_remove_area(context &ctx, navmesh3d_handle handle, i32 id);
 
 /// Bỏ mọi hình học và lối tắt đã thêm (navmesh đã dựng vẫn giữ đến lần dựng sau).
 /// @param ctx Context của engine.
@@ -124,6 +171,77 @@ bool navmesh3d_build(context &ctx, navmesh3d_handle handle);
 /// @return Số ô vuông đã dựng lại.
 i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max);
 
+/// Một navmesh mới cùng hình học, vùng đánh dấu, lối tắt, vật cản và bộ lọc với
+/// `source`, nhưng dựng theo `desc` (thường là cỡ tác tử khác): mỗi cỡ tác tử cần
+/// navmesh riêng, vì khoảng chừa quanh tường được tính lúc dựng. Chưa dựng: gọi
+/// navmesh3d_build(). Thêm hình học, vùng hay vật cản về sau thì thêm cho từng navmesh.
+/// @code
+/// const auto small = njin::navmesh3d_create(ctx, {.agent_radius = 0.3f});
+/// // ... thêm hình học vào small ...
+/// const auto large = njin::navmesh3d_clone(ctx, small, {.agent_radius = 1.0f, .agent_height = 3.0f});
+/// njin::navmesh3d_build(ctx, small);
+/// njin::navmesh3d_build(ctx, large);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param source Navmesh để chép hình học.
+/// @param desc Cách dựng navmesh mới.
+/// @return Handle mới, hoặc handle không hợp lệ nếu `source` không có hay `desc` sai.
+navmesh3d_handle navmesh3d_clone(context &ctx, navmesh3d_handle source, const navmesh3d_desc &desc);
+
+/// Đặt bộ lọc số `index` (0..15) của navmesh. Bộ lọc 0 là bộ lọc mặc định: mọi hàm tìm
+/// đường không chọn bộ lọc và mọi tác tử không đặt `filter` dùng nó. Tác tử đang đi
+/// theo bộ lọc này tìm lại đường ngay. Không cần dựng lại navmesh.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param index Số bộ lọc, 0..15.
+/// @param filter Bộ lọc.
+void navmesh3d_set_filter(context &ctx, navmesh3d_handle handle, i32 index, const nav3d_filter &filter);
+
+/// Bộ lọc số `index` của navmesh.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param index Số bộ lọc, 0..15.
+/// @return Bộ lọc, hoặc bộ lọc mặc định nếu handle hay số không hợp lệ.
+nav3d_filter navmesh3d_filter(const context &ctx, navmesh3d_handle handle, i32 index);
+
+/// Một vật cản di động trên navmesh: thùng bị đẩy, xe đậu, cửa đóng. Chỗ nó đứng không
+/// còn đi được (cách nó một khoảng `agent_radius`), mà không cần thêm hình học.
+struct nav3d_obstacle_desc {
+  vec3 position{};               ///< Tâm.
+  vec3 size{1.0f, 2.0f, 1.0f};   ///< Cỡ hộp; với hình trụ chỉ dùng `y` (chiều cao).
+  f32 yaw = 0.0f;                ///< Góc xoay quanh trục đứng, độ.
+  f32 radius = 0.0f;             ///< Lớn hơn 0 là hình trụ bán kính này thay vì hộp.
+};
+
+/// Thêm một vật cản. Các ô vuông nó chạm vào được dựng lại ở các frame sau (tối đa
+/// `obstacle_tiles_per_frame` ô mỗi frame), rồi tác tử tìm đường vòng qua nó.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param desc Vật cản.
+/// @return Số của vật cản, 0 nếu từ chối.
+i32 navmesh3d_add_obstacle(context &ctx, navmesh3d_handle handle, const nav3d_obstacle_desc &desc);
+
+/// Dời một vật cản: dựng lại các ô vuông chỗ cũ và chỗ mới.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param id Số do navmesh3d_add_obstacle() trả về.
+/// @param position Tâm mới.
+/// @param yaw Góc xoay mới, độ.
+/// @return `false` nếu không có vật cản này.
+bool navmesh3d_move_obstacle(context &ctx, navmesh3d_handle handle, i32 id, vec3 position, f32 yaw = 0.0f);
+
+/// Bỏ một vật cản: chỗ đó đi được lại sau khi các ô vuông được dựng lại.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param id Số do navmesh3d_add_obstacle() trả về.
+void navmesh3d_remove_obstacle(context &ctx, navmesh3d_handle handle, i32 id);
+
+/// Số ô vuông còn chờ dựng lại vì vật cản. 0 là navmesh đã khớp với mọi vật cản.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @return Số ô vuông.
+i32 navmesh3d_pending_tiles(const context &ctx, navmesh3d_handle handle);
+
 /// Tìm đường từ `from` đến `to`: các điểm gấp khúc, đầu là điểm gần `from` nhất
 /// trên navmesh, cuối là điểm gần `to` nhất. Không đến được `to` thì đường dừng ở
 /// chỗ gần nó nhất mà đến được (so điểm cuối với `to` để biết). Trên địa hình, đoạn
@@ -136,6 +254,18 @@ i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max)
 /// @return `true` nếu tìm được đường (dù chỉ đến gần `to`); `false` nếu `from` hay
 /// `to` không gần navmesh.
 bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, std::vector<vec3> &out);
+
+/// Như bản trên, theo bộ lọc số `filter` (navmesh3d_set_filter()): chi phí từng vùng,
+/// vùng cấm.
+/// @param ctx Context của engine.
+/// @param handle Navmesh.
+/// @param from Điểm đi.
+/// @param to Điểm đến.
+/// @param out Nhận các điểm (được xóa trước).
+/// @param filter Số bộ lọc, 0..15.
+/// @return Như bản trên.
+bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, std::vector<vec3> &out,
+                    i32 filter);
 
 /// Điểm gần `p` nhất trên navmesh, tìm trong hộp nửa cỡ `extents` quanh `p`.
 /// @param ctx Context của engine.
@@ -206,6 +336,8 @@ struct nav3d_agent_desc {
   /// đến (bị đẩy, va chạm) thành chỗ của tác tử. Game đừng đặt vận tốc cho nhân vật
   /// này nữa. Không hợp lệ là tác tử tự đi, không có va chạm vật lý.
   character3d_handle character{};
+  /// Số bộ lọc (navmesh3d_set_filter()) tác tử tìm đường theo, 0..15.
+  i32 filter = 0;
 };
 
 /// Thêm một tác tử. Nó đứng yên đến khi có đích (nav3d_agent_set_target()). Mọi tác
@@ -230,6 +362,13 @@ void nav3d_agent_remove(context &ctx, nav3d_agent_handle agent);
 /// @param target Đích.
 /// @return `false` nếu đích không gần navmesh.
 bool nav3d_agent_set_target(context &ctx, nav3d_agent_handle agent, vec3 target);
+
+/// Đổi bộ lọc tác tử tìm đường theo (người lính có chìa khóa đi được qua cửa khóa).
+/// Tác tử đang có đích tìm lại đường ngay.
+/// @param ctx Context của engine.
+/// @param agent Tác tử.
+/// @param filter Số bộ lọc, 0..15.
+void nav3d_agent_set_filter(context &ctx, nav3d_agent_handle agent, i32 filter);
 
 /// Bỏ đích: tác tử dừng lại (vẫn tách khỏi tác tử khác).
 /// @param ctx Context của engine.
