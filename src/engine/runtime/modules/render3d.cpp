@@ -914,9 +914,13 @@ void load_camera(const context &ctx, const camera3d &camera) {
   const f64 aspect = screen.y > 0.0f ? (f64)screen.x / (f64)screen.y : 1.0;
   const f64 top = (f64)camera.near_plane * std::tan((f64)camera.fovy * 0.5 * (f64)DEG2RAD);
   const f64 right = top * aspect;
+  // TAA's jitter: an off-axis frustum, the image moved by a fraction of a pixel.
+  const vec2 j = ctx.render3d.jitter;
+  const f64 jx = (f64)j.x * right;
+  const f64 jy = (f64)j.y * top;
   rlMatrixMode(RL_PROJECTION);
   rlLoadIdentity();
-  rlFrustum(-right, right, -top, top, camera.near_plane, camera.far_plane);
+  rlFrustum(-right + jx, right + jx, -top + jy, top + jy, camera.near_plane, camera.far_plane);
   rlMatrixMode(RL_MODELVIEW);
   rlLoadIdentity();
   rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(camera.position), rl3(camera.target), rl3(camera.up))));
@@ -1980,6 +1984,7 @@ void start_pass(context &ctx, const camera3d &camera) {
   rlPushMatrix();
   // A pass into a render texture is another eye: the screen's shake is not its.
   s.camera = s.target_fbo != 0 ? camera : shaken(ctx, camera);
+  s.jitter = s.target_fbo != 0 ? vec2{} : post3d_taa_jitter(ctx);
   load_camera(ctx, s.camera);
   set_frustum(s);
   s.cmds.clear();
@@ -2127,10 +2132,13 @@ void end_3d(context &ctx) {
   particles3d_draw(ctx, s.camera);
   if (post3d) {
     post3d_after_pass(ctx);
+    // Gizmos go over the resolved image, unshifted.
+    s.jitter = {};
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
     rlEnableDepthTest();
   }
+  s.jitter = {};
   if (!offscreen)
     gizmo_draw_3d(ctx, s.camera);
 

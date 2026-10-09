@@ -23,11 +23,15 @@ struct context;
 //        colour copied again, then each masked pixel marches its reflected ray
 //        over the depth and takes the colour where it hits.
 //   post3d_after_pass (after particles, before gizmos):
-//     5. light shafts: the sky near the sun, blurred towards the sun at half
+//     5. TAA (first world pass of the frame only, its projection jittered by
+//        render3d): the colour copied, blended with the history reprojected
+//        by depth, clipped to the colour round each pixel, history rejected
+//        where the depth there does not match; the result sharpened back,
+//     6. light shafts: the sky near the sun, blurred towards the sun at half
 //        size, added,
-//     6. lens flare: how much of the sun shows (1x1 pass over the depth),
+//     7. lens flare: how much of the sun shows (1x1 pass over the depth),
 //        then ghosts and a halo added,
-//     7. motion blur: the colour copied again, smeared along the screen motion
+//     8. motion blur: the colour copied again, smeared along the screen motion
 //        of each pixel since the last pass's view-projection.
 // end_3d binds the world target and the 3D camera again after each.
 struct post3d_decal {
@@ -57,9 +61,25 @@ struct post3d_state {
   RenderTexture2D mask{};               // SSR: how much each pixel reflects
   RenderTexture2D shafts_a{}, shafts_b{}; // half size
   RenderTexture2D visible{};            // 1x1: how much of the sun shows
-  Matrix prev_view_proj{}; // the last pass's, for the motion blur
+  Matrix prev_view_proj{}; // the last pass's, unjittered, for the motion blur
   f32 prev_time = 0.0f;
   bool has_prev = false;
+
+  // TAA: two history images (half float) swapped each frame, and the depth
+  // of the last resolved pass (with a colour attachment so the framebuffer
+  // is complete everywhere).
+  Shader taa{}, taa_out{};
+  u32 hist_fbo[2]{}, hist_tex[2]{};
+  u32 hdepth_fbo = 0, hdepth_color = 0, hdepth_tex = 0;
+  i32 hist_w = 0, hist_h = 0;
+  i32 hist_cur = 0;          // which history holds the last result
+  bool has_history = false;
+  Matrix hist_view_proj{};   // the last resolved pass's, unjittered
+  vec3 hist_eye{}, hist_dir{};
+  f64 hist_time = 0.0;       // GetTime() then: a gap means a stale history
+  u32 taa_index = 0;         // Halton sample
+  bool taa_claimed = false;  // a world pass of this frame is resolved
+  bool taa_pass = false;     // the open pass is that one
 
   post3d_state() = default;
   ~post3d_state();
@@ -78,4 +98,11 @@ void post3d_after_pass(context &ctx);
 
 // Ages the decals by the game's frame time; phase_update.
 void post3d_update(context &ctx);
+
+// A new frame's world: no pass of it is resolved by TAA yet (camera.cpp).
+void post3d_frame_begin(context &ctx);
+
+// The jitter (NDC) for a world pass about to open: non-zero when TAA is on and
+// this is the frame's first world pass, which post3d_after_pass then resolves.
+vec2 post3d_taa_jitter(context &ctx);
 } // namespace njin

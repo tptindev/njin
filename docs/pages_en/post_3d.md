@@ -3,7 +3,7 @@
 This page adds effects to the 3D scene that work on the image of the whole frame, from the depth of each pixel:
 wall corners and the feet of objects darken (SSAO), polished floors reflect (SSR), bullet holes, scorch marks and
 paint stick to any surface (decals), the image smears as the camera turns (motion blur), sunlight shines in rays
-through gaps, and the lens flares. Everything is declared in `njin_post3d.h` and runs on OpenGL 3.3 like the rest
+through gaps, the lens flares, and edges are smoothed over time (TAA). Everything is declared in `njin_post3d.h` and runs on OpenGL 3.3 like the rest
 of 3D.
 
 What you need first: @ref graphics_3d (begin_3d(), lighting, materials). Light shafts go with the sky of
@@ -33,10 +33,11 @@ njin::post3d_set(ctx, fx);
 | Motion blur | `motion_blur` | The whole 3D image, while the camera moves or turns |
 | Light shafts | `shafts` | The sky round the sun, through gaps between objects |
 | Lens flare | `flare` | The whole image, while the sun is in the frame and not hidden |
+| Temporal anti-aliasing (TAA) | `taa`, `taa_sharpen` | The first 3D pass into the world of each frame |
 
 The effects only apply to 3D passes into the world, not to passes into a render texture (begin_3d() with a
 `target`). They run inside end_3d() in this order: after every opaque shape come decals, SSAO and reflections;
-then glass, water and 3D particles; then light shafts, lens flare and motion blur. post_fx_set()
+then glass, water and 3D particles; then TAA, light shafts, lens flare and motion blur. post_fx_set()
 (@ref post_processing) and the game's own shader run last, on the whole image.
 
 ## Ambient occlusion (SSAO) {#post3d_ssao}
@@ -122,9 +123,38 @@ has set, and the lens flare also fades by how much of the sun's disc objects hid
 
 @image html post_3d_sun.png "The evening sun behind the middle post: shafts spreading through the two gaps, the floor reflecting the posts"
 
+## Temporal anti-aliasing (TAA) {#post3d_taa}
+
+`taa = true` makes the slanted edges of 3D shapes as smooth as if drawn at twice the resolution, and thin edges
+(wires, far posts) stop flickering. Each frame the 3D projection moves by a small fraction of a pixel, to a
+different place each frame (the Halton 2, 3 sequence, eight positions), so the same pixel sees an object's edge at
+different points in turn. The frame's image is blended with the blend of the frames before (about 10% new image),
+after the old image is moved back into place by the depth and the camera's motion. After blending, the image is
+sharpened back a little (`taa_sharpen`, 0.25 by default), since blending many points softens it.
+
+```cpp
+njin::post3d fx{};
+fx.taa = true;
+njin::post3d_set(ctx, fx);
+```
+
+The old image is only used while it still matches, so it leaves no ghosts:
+
+- Each pixel compares the old colour with the colours of the nine pixels round it in the new image; an old colour
+  outside that range is pulled back into it.
+- The old image's depth, round where it is read, must contain the point being drawn; otherwise the old image there
+  shows something else (an object that has moved away, or a spot just uncovered behind one), so it is dropped.
+- When the camera jumps (moves more than 3 units or turns more than about 25 degrees in one frame), the image size
+  changes, or TAA is turned off and on again, the old image is dropped entirely: the first frame after is the new
+  image, not yet smoothed.
+
+Only the first 3D pass into the world of each frame is smoothed; 2D drawn after end_3d() goes over the smoothed
+image, so it does not shake. Moving objects have no velocity of their own: the old image at a moving object's edge
+is dropped, so that edge stays jagged but leaves no trail.
+
 ## Full example
 
-A corner of a room with a polished floor; keys 1, 2, 3 toggle SSAO, reflections and motion blur; the left mouse
+A corner of a room with a polished floor; keys 1, 2, 3, 4 toggle SSAO, reflections, motion blur and TAA; the left mouse
 button leaves a bullet hole on the floor or a wall, fading after 10 seconds.
 
 @include post3d.cpp
@@ -134,7 +164,7 @@ button leaves a bullet hole on the floor or a wall, fading after 10 seconds.
 Measured on an RTX 3050 Laptop, Release build, 1280 x 720, the scene of the image above (mean of three runs):
 no effects 0.64 ms a frame; half-resolution SSAO adds about 0.24 ms (full resolution 0.54 ms), reflections
 0.41 ms, 50 decals 0.28 ms, motion blur 0.15 ms, light shafts 0.25 ms, lens flare 0.14 ms; all of them with 50
-decals add about 1 ms. Turning
+decals add about 1 ms. TAA adds about 0.3 to 0.4 ms (drawing the world into an image of its own included). Turning
 any effect on (or having a decal) draws the world into an image of its own with a depth, then copies it to the
 screen, as post_fx_set() does.
 
@@ -146,8 +176,9 @@ screen, as post_fx_set() does.
   motion blur follows the depth of the opaque shapes behind them.
 - Normals come from the depth, so right where two faces meet (floor meeting wall) a reflection can flash for one
   pixel.
-- Motion blur follows only the camera, not objects. There is no temporal anti-aliasing (TAA): it needs every
-  frame's projection jittered, the 2D drawn into the same world image included, and each object's velocity so it
-  leaves no ghosts.
+- Motion blur follows only the camera, not objects.
+- TAA has no per-object velocity: the edges of moving objects stay jagged (they leave no trail). Only the first 3D
+  pass into the world of each frame is smoothed; 2D drawn into the world image before begin_3d() is blended with
+  the 3D image, does not shake, but can soften a little while the camera turns.
 - Every 3D pass into the world gets the effects: a game that draws the world with two begin_3d() in one frame gets
   its decals drawn in both.

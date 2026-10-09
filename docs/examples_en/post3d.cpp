@@ -22,13 +22,15 @@ void load(context &ctx) {
 }
 
 void update(context &ctx) {
-  // Keys 1, 2, 3 toggle SSAO, reflections, motion blur.
+  // Keys 1, 2, 3, 4 toggle SSAO, reflections, motion blur, TAA.
   if (key_pressed(ctx, key_1))
     fx.ssao = fx.ssao > 0.0f ? 0.0f : 0.8f;
   if (key_pressed(ctx, key_2))
     fx.ssr = fx.ssr > 0.0f ? 0.0f : 1.0f;
   if (key_pressed(ctx, key_3))
     fx.motion_blur = fx.motion_blur > 0.0f ? 0.0f : 0.5f;
+  if (key_pressed(ctx, key_4))
+    fx.taa = !fx.taa;
   post3d_set(ctx, fx);
 
   // Left mouse button: a bullet hole where the mouse points (floor or wall), fading after 10 seconds.

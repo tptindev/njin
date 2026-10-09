@@ -369,6 +369,128 @@ void main() {
 }
 )";
 
+// TAA resolve, into the next history. The front-most depth of the 3x3 round
+// the pixel finds where it was last frame (unjittered matrices on both sides,
+// so a still camera reads the history right here); the history there is
+// clipped to the colour spread of the 3x3 now (YCoCg, mean +- gamma sigma) and
+// dropped where the depth it was drawn with does not hold this point.
+constexpr const char *taa_main = R"(
+uniform sampler2D texture0;
+uniform sampler2D historyTex;
+uniform sampler2D prevDepthTex;
+uniform mat4 viewProjUnj;
+uniform mat4 prevViewProj;
+uniform float reset;
+uniform float feedback;
+vec3 to_ycocg(vec3 c) {
+  return vec3(0.25 * c.r + 0.5 * c.g + 0.25 * c.b, 0.5 * c.r - 0.5 * c.b, -0.25 * c.r + 0.5 * c.g - 0.25 * c.b);
+}
+vec3 from_ycocg(vec3 c) {
+  float t = c.x - c.z;
+  return vec3(t + c.y, c.x + c.z, t - c.y);
+}
+// The history read with a Catmull-Rom filter (five bilinear taps): plain
+// bilinear blurs a little more each frame the camera moves.
+vec3 history_at(vec2 uv) {
+  vec2 size = 1.0 / texel;
+  vec2 pos = uv * size;
+  vec2 c = floor(pos - 0.5) + 0.5;
+  vec2 f = pos - c;
+  vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+  vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+  vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+  vec2 w3 = f * f * (-0.5 + 0.5 * f);
+  vec2 w12 = w1 + w2;
+  vec2 t0 = (c - 1.0) * texel, t3 = (c + 2.0) * texel, t12 = (c + w2 / w12) * texel;
+  vec3 r = texture(historyTex, vec2(t12.x, t0.y)).rgb * w12.x * w0.y +
+           texture(historyTex, vec2(t0.x, t12.y)).rgb * w0.x * w12.y +
+           texture(historyTex, t12).rgb * w12.x * w12.y +
+           texture(historyTex, vec2(t3.x, t12.y)).rgb * w3.x * w12.y +
+           texture(historyTex, vec2(t12.x, t3.y)).rgb * w12.x * w3.y;
+  float wsum = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+  return max(r / wsum, vec3(0.0));
+}
+vec3 clip_box(vec3 lo, vec3 hi, vec3 h) {
+  vec3 c = 0.5 * (hi + lo);
+  vec3 e = 0.5 * (hi - lo) + 1e-4;
+  vec3 v = h - c;
+  vec3 a = abs(v / e);
+  float m = max(a.x, max(a.y, a.z));
+  return m > 1.0 ? c + v / m : h;
+}
+void main() {
+  vec2 uv = fragTexCoord;
+  vec3 cur = texture(texture0, uv).rgb;
+  if (reset > 0.5) {
+    finalColor = vec4(cur, 1.0);
+    return;
+  }
+  vec2 near_uv = uv;
+  float near_d = 1.0;
+  vec3 m1 = vec3(0.0), m2 = vec3(0.0);
+  for (int y = -1; y <= 1; y++)
+    for (int x = -1; x <= 1; x++) {
+      vec2 o = uv + vec2(float(x), float(y)) * texel;
+      float d = texture(depthTex, o).r;
+      if (d < near_d) {
+        near_d = d;
+        near_uv = o;
+      }
+      vec3 c = to_ycocg(texture(texture0, o).rgb);
+      m1 += c;
+      m2 += c * c;
+    }
+  m1 /= 9.0;
+  m2 /= 9.0;
+  vec3 p = world_at(near_uv, near_d);
+  vec4 cu = viewProjUnj * vec4(p, 1.0);
+  vec4 cp = prevViewProj * vec4(p, 1.0);
+  vec2 vel = cp.w > 0.0 ? (cu.xy / cu.w - cp.xy / cp.w) * 0.5 : vec2(0.0);
+  vec2 huv = uv - vel;
+  float speed = length(vel / texel);
+  float alpha = mix(1.0 - feedback, 0.25, clamp(speed / 3.0, 0.0, 1.0));
+  if (any(lessThan(huv, vec2(0.0))) || any(greaterThan(huv, vec2(1.0))) || cp.w <= 0.0)
+    alpha = 1.0;
+  // The depth the history was drawn with, round where it is read: this point
+  // must lie within it (with some slack), or the history shows something else.
+  float expect = linear_depth(cp.z / cp.w * 0.5 + 0.5);
+  float lo_d = 1e30, hi_d = 0.0;
+  for (int y = -1; y <= 1; y++)
+    for (int x = -1; x <= 1; x++) {
+      float l = linear_depth(texture(prevDepthTex, huv + vec2(float(x), float(y)) * texel).r);
+      lo_d = min(lo_d, l);
+      hi_d = max(hi_d, l);
+    }
+  if (near_d < 1.0 && (expect < lo_d * 0.97 - 0.05 || expect > hi_d * 1.03 + 0.05))
+    alpha = 1.0;
+  vec3 sigma = sqrt(max(m2 - m1 * m1, vec3(0.0)));
+  float gamma = mix(1.25, 0.75, clamp(speed / 4.0, 0.0, 1.0));
+  vec3 hist = to_ycocg(speed < 0.01 ? texture(historyTex, huv).rgb : history_at(huv));
+  hist = clip_box(m1 - gamma * sigma, m1 + gamma * sigma, hist);
+  vec3 res = mix(from_ycocg(hist), cur, alpha);
+  finalColor = vec4(max(res, vec3(0.0)), 1.0);
+}
+)";
+
+// TAA output: the new history sharpened back (a resolve averages sub-pixel
+// samples, which softens), into the world image with its alpha kept.
+constexpr const char *taa_out_fs = R"(#version 330
+in vec2 fragTexCoord;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform sampler2D alphaTex;
+uniform vec2 texel;
+uniform float sharpen;
+void main() {
+  vec2 uv = fragTexCoord;
+  vec3 c = texture(texture0, uv).rgb;
+  vec3 n = texture(texture0, uv + vec2(0.0, texel.y)).rgb + texture(texture0, uv - vec2(0.0, texel.y)).rgb +
+           texture(texture0, uv + vec2(texel.x, 0.0)).rgb + texture(texture0, uv - vec2(texel.x, 0.0)).rgb;
+  vec3 s = c + (c * 4.0 - n) * sharpen * 0.25;
+  finalColor = vec4(clamp(s, 0.0, 1.0), texture(alphaTex, uv).a);
+}
+)";
+
 // A decal: a box drawn by its back faces over the image. Each pixel's world
 // position from the depth copy, brought into the box; outside it, nothing.
 constexpr const char *decal_vs = R"(#version 330
@@ -447,8 +569,10 @@ bool load(post3d_state &st) {
   st.add = LoadShaderFromMemory(nullptr, add_fs);
   st.flare = LoadShaderFromMemory(nullptr, flare_fs);
   st.decal = LoadShaderFromMemory(decal_vs, decal_fs);
+  st.taa = load_fullscreen(taa_main);
+  st.taa_out = LoadShaderFromMemory(nullptr, taa_out_fs);
   for (const Shader *s : {&st.ssao, &st.ssao_blur, &st.ssao_apply, &st.ssr, &st.shafts_sky, &st.shafts_blur,
-                          &st.flare_vis, &st.blur, &st.add, &st.flare, &st.decal})
+                          &st.flare_vis, &st.blur, &st.add, &st.flare, &st.decal, &st.taa, &st.taa_out})
     if (!IsShaderValid(*s)) {
       NJIN_WARN("post3d: built-in shaders failed to compile; 3D screen effects and decals are off");
       st.failed = true;
@@ -874,7 +998,120 @@ void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v) {
   ctx.stats.post_passes += 1;
 }
 
-bool effects_on(const post3d &p) { return p.ssao > 0.0f || p.ssr > 0.0f || p.motion_blur > 0.0f || p.shafts > 0.0f || p.flare > 0.0f; }
+void free_history(post3d_state &st) {
+  for (i32 i = 0; i < 2; i++) {
+    if (st.hist_fbo[i] != 0)
+      rlUnloadFramebuffer(st.hist_fbo[i]);
+    if (st.hist_tex[i] != 0)
+      rlUnloadTexture(st.hist_tex[i]);
+    st.hist_fbo[i] = st.hist_tex[i] = 0;
+  }
+  if (st.hdepth_fbo != 0)
+    rlUnloadFramebuffer(st.hdepth_fbo);
+  for (const u32 t : {st.hdepth_color, st.hdepth_tex})
+    if (t != 0)
+      rlUnloadTexture(t);
+  st.hdepth_fbo = st.hdepth_color = st.hdepth_tex = 0;
+  st.hist_w = st.hist_h = 0;
+  st.has_history = false;
+}
+
+void filter_clamp(u32 t, i32 filter) {
+  rlTextureParameters(t, RL_TEXTURE_MIN_FILTER, filter);
+  rlTextureParameters(t, RL_TEXTURE_MAG_FILTER, filter);
+  rlTextureParameters(t, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
+  rlTextureParameters(t, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
+}
+
+// The two history images (half float, so a 10% blend each frame does not
+// band) and the last depth, at the target's size; a new size starts over.
+bool ensure_history(post3d_state &st, i32 w, i32 h) {
+  if (st.hist_fbo[0] != 0 && st.hist_w == w && st.hist_h == h)
+    return true;
+  free_history(st);
+  for (i32 i = 0; i < 2; i++) {
+    st.hist_fbo[i] = rlLoadFramebuffer();
+    st.hist_tex[i] = rlLoadTexture(nullptr, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16, 1);
+    filter_clamp(st.hist_tex[i], RL_TEXTURE_FILTER_LINEAR);
+    rlFramebufferAttach(st.hist_fbo[i], st.hist_tex[i], RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+  }
+  st.hdepth_fbo = rlLoadFramebuffer();
+  st.hdepth_color = rlLoadTexture(nullptr, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+  st.hdepth_tex = rlLoadTextureDepth(w, h, false);
+  filter_clamp(st.hdepth_tex, RL_TEXTURE_FILTER_NEAREST);
+  rlFramebufferAttach(st.hdepth_fbo, st.hdepth_color, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+  rlFramebufferAttach(st.hdepth_fbo, st.hdepth_tex, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+  if (!rlFramebufferComplete(st.hist_fbo[0]) || !rlFramebufferComplete(st.hist_fbo[1]) ||
+      !rlFramebufferComplete(st.hdepth_fbo)) {
+    NJIN_WARN("post3d: TAA history framebuffers incomplete; TAA is off");
+    free_history(st);
+    return false;
+  }
+  st.hist_w = w;
+  st.hist_h = h;
+  return true;
+}
+
+// The projection without TAA's jitter: load_camera's frustum is symmetric but
+// for it, which shows only in these two terms.
+Matrix unjittered(const pass_view &v) {
+  Matrix proj = v.proj;
+  proj.m8 = 0.0f;
+  proj.m9 = 0.0f;
+  return MatrixMultiply(v.view, proj);
+}
+
+void run_taa(context &ctx, post3d_state &st, const pass_view &v) {
+  const post3d &p = st.settings;
+  if (!ensure_history(st, v.w, v.h))
+    return;
+  const Matrix vp = unjittered(v);
+  const camera3d &cam = ctx.render3d.camera;
+  const vec3 dir = normalize(cam.target - cam.position);
+  const f64 now = GetTime();
+  // A cut (the camera jumped or turned sharply), or no resolved pass a moment
+  // ago: the old image would show where nothing is now.
+  const vec3 moved = cam.position - st.hist_eye;
+  const bool cut = !st.has_history || now - st.hist_time > 0.25 ||
+                   moved.x * moved.x + moved.y * moved.y + moved.z * moved.z > 9.0f ||
+                   dir.x * st.hist_dir.x + dir.y * st.hist_dir.y + dir.z * st.hist_dir.z < 0.9f;
+  blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
+  const i32 next = 1 - st.hist_cur;
+  Shader sh = st.taa;
+  set_view(sh, v);
+  set_m(sh, "viewProjUnj", vp);
+  set_m(sh, "prevViewProj", st.hist_view_proj);
+  set_f(sh, "reset", cut ? 1.0f : 0.0f);
+  set_f(sh, "feedback", 0.9f);
+  bind_2d(st.hist_fbo[next], v.w, v.h);
+  rlSetBlendFactors(RL_ONE, RL_ZERO, RL_FUNC_ADD);
+  BeginBlendMode(BLEND_CUSTOM);
+  quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] {
+    sampler(sh, "depthTex", st.copy_depth);
+    sampler(sh, "historyTex", st.hist_tex[st.hist_cur]);
+    sampler(sh, "prevDepthTex", st.hdepth_tex);
+  });
+  // Back into the world image, sharpened, its alpha kept.
+  Shader out = st.taa_out;
+  set_v2(out, "texel", {1.0f / (f32)v.w, 1.0f / (f32)v.h});
+  set_f(out, "sharpen", clamp(p.taa_sharpen, 0.0f, 1.0f));
+  bind_2d(v.target, v.w, v.h);
+  quad(out, texture_of(st.hist_tex[next], v.w, v.h), v.w, v.h, [&] { sampler(out, "alphaTex", st.copy_color); });
+  EndBlendMode();
+  // This pass's depth, for the next one.
+  blit(st.copy_fbo, st.hdepth_fbo, v.w, v.h, depth_bit);
+  st.hist_cur = next;
+  st.hist_view_proj = vp;
+  st.hist_eye = cam.position;
+  st.hist_dir = dir;
+  st.hist_time = now;
+  st.has_history = true;
+  ctx.stats.post_passes += 2;
+}
+
+bool effects_on(const post3d &p) {
+  return p.ssao > 0.0f || p.ssr > 0.0f || p.motion_blur > 0.0f || p.shafts > 0.0f || p.flare > 0.0f || p.taa;
+}
 
 bool usable(const context &ctx) {
   return ctx.post.drawing && ctx.post.target.depth.id != 0 && ctx.post.target.texture.width > 0;
@@ -908,13 +1145,41 @@ bool finite3(vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::i
 
 post3d_state::~post3d_state() {
   free_copy(*this);
+  free_history(*this);
   for (RenderTexture2D *t : {&ao_a, &ao_b, &mask, &shafts_a, &shafts_b, &visible})
     if (IsRenderTextureValid(*t))
       UnloadRenderTexture(*t);
   if (loaded)
     for (Shader *s : {&ssao, &ssao_blur, &ssao_apply, &ssr, &decal, &shafts_sky, &shafts_blur, &add, &flare_vis, &flare,
-                      &blur})
+                      &blur, &taa, &taa_out})
       UnloadShader(*s);
+}
+
+void post3d_frame_begin(context &ctx) { ctx.post3d.taa_claimed = false; }
+
+vec2 post3d_taa_jitter(context &ctx) {
+  post3d_state &st = ctx.post3d;
+  st.taa_pass = false;
+  if (!st.settings.taa || st.failed || st.taa_claimed || !usable(ctx))
+    return {};
+  st.taa_claimed = true;
+  st.taa_pass = true;
+  // Halton (2, 3), eight samples, centred on the pixel.
+  const auto halton = [](u32 i, u32 base) {
+    f32 f = 1.0f, r = 0.0f;
+    while (i > 0) {
+      f /= (f32)base;
+      r += f * (f32)(i % base);
+      i /= base;
+    }
+    return r;
+  };
+  st.taa_index = st.taa_index % 8 + 1;
+  const f32 px = halton(st.taa_index, 2) - 0.5f;
+  const f32 py = halton(st.taa_index, 3) - 0.5f;
+  const f32 w = (f32)ctx.post.target.texture.width;
+  const f32 h = (f32)ctx.post.target.texture.height;
+  return {2.0f * px / w, 2.0f * py / h};
 }
 
 bool post3d_wanted(const context &ctx) {
@@ -939,12 +1204,16 @@ void post3d_after_opaque(context &ctx) {
 
 void post3d_after_pass(context &ctx) {
   post3d_state &st = ctx.post3d;
+  const bool taa = st.taa_pass;
+  st.taa_pass = false;
   if (!usable(ctx) || !st.loaded || st.copy_fbo == 0)
     return;
   const pass_view v = current_view(ctx);
   if (v.w != st.w || v.h != st.h)
     return;
   const post3d &p = st.settings;
+  if (taa)
+    run_taa(ctx, st, v);
   vec2 sun{};
   f32 on_screen = 0.0f;
   const bool sun_shows = (p.shafts > 0.0f || p.flare > 0.0f) && sun_on_screen(ctx, v, sun, on_screen);
@@ -957,7 +1226,7 @@ void post3d_after_pass(context &ctx) {
   const bool recent = st.has_prev && ctx.time.elapsed - st.prev_time < 0.25f;
   if (p.motion_blur > 0.0f && recent)
     run_motion_blur(ctx, st, v);
-  st.prev_view_proj = v.view_proj;
+  st.prev_view_proj = unjittered(v);
   st.prev_time = ctx.time.elapsed;
   st.has_prev = true;
 }

@@ -2,7 +2,8 @@
 
 Trang này thêm cho cảnh 3D những hiệu ứng tính trên ảnh của cả khung hình, từ độ sâu của từng pixel: góc
 tường và chân vật tối đi (SSAO), sàn bóng phản chiếu (SSR), vết đạn, vết cháy, sơn dán lên mọi bề mặt
-(decal), nhòe khi camera quay (mờ chuyển động), tia nắng xuyên qua khe và lóa ống kính. Mọi thứ khai báo
+(decal), nhòe khi camera quay (mờ chuyển động), tia nắng xuyên qua khe, lóa ống kính và khử răng cưa theo thời
+gian (TAA). Mọi thứ khai báo
 trong `njin_post3d.h` và chạy trên OpenGL 3.3 như phần 3D còn lại.
 
 Cần biết trước: @ref graphics_3d (begin_3d(), ánh sáng, vật liệu). Tia nắng đi cùng bầu trời của
@@ -32,10 +33,11 @@ njin::post3d_set(ctx, fx);
 | Mờ chuyển động | `motion_blur` | Cả ảnh 3D, khi camera di chuyển hay quay |
 | Tia nắng | `shafts` | Trời quanh mặt trời, qua khe giữa các vật |
 | Lóa ống kính | `flare` | Cả ảnh, khi mặt trời trong khung hình và không bị che |
+| Khử răng cưa theo thời gian (TAA) | `taa`, `taa_sharpen` | Lần vẽ 3D đầu tiên vào thế giới của mỗi frame |
 
 Hiệu ứng chỉ áp cho lần vẽ 3D vào thế giới, không cho lần vẽ vào render texture (begin_3d() có `target`).
 Chúng chạy trong end_3d() theo thứ tự: sau mọi hình đục là decal, SSAO, phản chiếu; rồi kính, nước và hạt 3D;
-rồi tia nắng, lóa ống kính và mờ chuyển động. post_fx_set() (@ref post_processing) và shader riêng của game
+rồi TAA, tia nắng, lóa ống kính và mờ chuyển động. post_fx_set() (@ref post_processing) và shader riêng của game
 chạy sau cùng, trên cả ảnh.
 
 ## Che khuất môi trường (SSAO) {#post3d_ssao}
@@ -112,9 +114,34 @@ có khi mặt trời ở sau lưng camera hay đã lặn; lóa ống kính còn 
 
 @image html post_3d_sun.png "Mặt trời chiều sau cột giữa: tia nắng tỏa qua hai khe, sàn phản chiếu các cột"
 
+## Khử răng cưa theo thời gian (TAA) {#post3d_taa}
+
+`taa = true` làm mép xiên của hình 3D mịn như vẽ ở độ phân giải gấp đôi, và mép mảnh (dây, cột xa) thôi nhấp nháy.
+Mỗi frame, hình chiếu 3D dịch đi một phần nhỏ của pixel, mỗi frame một chỗ (dãy Halton 2, 3, tám vị trí), nên cùng
+một pixel lần lượt thấy mép vật ở những điểm khác nhau. Ảnh của frame được trộn với ảnh đã trộn của các frame trước
+(khoảng 10% ảnh mới), sau khi đưa ảnh cũ về đúng chỗ theo độ sâu và chuyển động của camera. Sau khi trộn, ảnh được
+làm nét lại một chút (`taa_sharpen`, mặc định 0.25), vì trộn nhiều điểm làm ảnh hơi mềm.
+
+```cpp
+njin::post3d fx{};
+fx.taa = true;
+njin::post3d_set(ctx, fx);
+```
+
+Ảnh cũ chỉ được dùng khi còn khớp, nên không để lại bóng mờ:
+
+- Mỗi pixel so màu ảnh cũ với màu chín pixel quanh nó trong ảnh mới; màu cũ nằm ngoài khoảng đó thì bị kéo về.
+- Độ sâu của ảnh cũ, quanh chỗ đọc, phải chứa điểm đang vẽ; không thì ảnh cũ ở đó cho thấy vật khác (một vật đã
+  chạy đi, hay chỗ vừa lộ ra sau vật), nên bị bỏ.
+- Camera nhảy chỗ (đi xa hơn 3 đơn vị hay quay hơn khoảng 25 độ trong một frame), đổi cỡ ảnh, hay tắt TAA rồi bật
+  lại, thì ảnh cũ bị bỏ hẳn: frame đầu sau đó là ảnh mới chưa khử.
+
+Chỉ lần vẽ 3D đầu tiên vào thế giới của mỗi frame được khử; 2D vẽ sau end_3d() vẽ lên ảnh đã khử nên không rung.
+Vật đang chạy không có vận tốc riêng: ảnh cũ ở mép vật chạy bị bỏ, nên mép đó còn răng cưa nhưng không để lại vệt.
+
 ## Ví dụ đầy đủ
 
-Một góc phòng có sàn bóng; phím 1, 2, 3 bật tắt SSAO, phản chiếu và mờ chuyển động; chuột trái để lại vết đạn
+Một góc phòng có sàn bóng; phím 1, 2, 3, 4 bật tắt SSAO, phản chiếu, mờ chuyển động và TAA; chuột trái để lại vết đạn
 trên sàn hay tường, mờ dần sau 10 giây.
 
 @include post3d.cpp
@@ -123,7 +150,8 @@ trên sàn hay tường, mờ dần sau 10 giây.
 
 Đo trên RTX 3050 Laptop, bản Release, 1280 x 720, cảnh của ảnh trên (trung bình ba lần đo): không hiệu ứng
 0,64 ms mỗi frame; SSAO nửa độ phân giải thêm khoảng 0,24 ms (đầy đủ 0,54 ms), phản chiếu 0,41 ms, 50 decal
-0,28 ms, mờ chuyển động 0,15 ms, tia nắng 0,25 ms, lóa ống kính 0,14 ms; tất cả cùng 50 decal thêm khoảng 1 ms. Bật bất kỳ hiệu ứng nào
+0,28 ms, mờ chuyển động 0,15 ms, tia nắng 0,25 ms, lóa ống kính 0,14 ms; tất cả cùng 50 decal thêm khoảng 1 ms. TAA thêm khoảng 0,3 đến 0,4 ms (kể cả việc vẽ
+thế giới vào ảnh riêng). Bật bất kỳ hiệu ứng nào
 (hay có một decal) thì thế giới được vẽ vào ảnh riêng có độ sâu rồi chép ra màn hình, như khi bật post_fx_set().
 
 - Chỉ có những gì trên màn hình: phản chiếu không thấy thứ ngoài khung hình hay bị che, SSAO không biết thứ sau
@@ -133,7 +161,9 @@ trên sàn hay tường, mờ dần sau 10 giây.
 - Kính, nước và hạt 3D vẽ sau decal, SSAO và phản chiếu nên không có chúng; mờ chuyển động của chúng theo độ sâu
   của hình đục phía sau.
 - Pháp tuyến tính từ độ sâu, nên đúng đường giao giữa hai mặt (sàn gặp tường) phản chiếu có thể lóe một pixel.
-- Mờ chuyển động chỉ theo camera, không theo vật. Không có khử răng cưa theo thời gian (TAA): nó cần rung từng
-  frame mọi phép chiếu, kể cả phần 2D vẽ chung ảnh thế giới, và tốc độ của từng vật để không để lại bóng mờ.
+- Mờ chuyển động chỉ theo camera, không theo vật.
+- TAA không có vận tốc riêng của từng vật: mép vật đang chạy còn răng cưa (không để lại vệt). Chỉ lần vẽ 3D đầu
+  tiên vào thế giới của mỗi frame được khử; 2D vẽ vào ảnh thế giới trước begin_3d() được trộn cùng ảnh 3D, không
+  rung nhưng có thể hơi mềm khi camera quay.
 - Mỗi lần vẽ 3D vào thế giới đều có hiệu ứng: game vẽ thế giới bằng hai begin_3d() trong một frame thì decal
   được vẽ ở cả hai lần.

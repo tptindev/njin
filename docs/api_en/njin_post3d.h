@@ -71,6 +71,18 @@ struct post3d {
   f32 flare = 0.0f;             ///< Brightness, 0..2. 0 is off.
   f32 flare_halo = 0.5f;        ///< Brightness of the halo ring round the centre, multiplied by `flare`.
   /// @}
+
+  /// @name Temporal anti-aliasing (TAA)
+  /// Each frame the 3D projection is moved by a small fraction of a pixel (to a different place each frame), then
+  /// the image is blended with the images of the frames before, moved back into place by the depth and the camera's
+  /// motion: slanted edges lose their jaggies, thin edges stop flickering. Only the first 3D pass into the world of
+  /// each frame is smoothed; 2D drawn after end_3d() is not touched. Moving objects have no velocity of their own:
+  /// wherever the old image no longer matches (a very different depth, a colour outside the colours around it) the
+  /// old image is dropped, so it leaves no trail, but the edges of moving objects stay jagged.
+  /// @{
+  bool taa = false;           ///< Turns TAA on.
+  f32 taa_sharpen = 0.25f;    ///< Sharpens the image back after blending, 0..1. 0 is no sharpening.
+  /// @}
 };
 
 /// Sets the 3D screen effects, for every 3D pass from this frame on. `post3d{}`

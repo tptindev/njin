@@ -63,6 +63,22 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Temporal anti-aliasing: `post3d::taa` (off by default, so existing games
+  draw exactly as before) jitters the projection of the frame's first 3D
+  pass into the world by a Halton (2, 3) sub-pixel offset and blends it with
+  a half-float history reprojected by the depth and the camera's motion
+  (Catmull-Rom history fetch, YCoCg variance clipping, faster blending while
+  the camera moves), then sharpens it back (`post3d::taa_sharpen`, 0.25).
+  There is no per-object velocity buffer: the history is dropped where the
+  depth it was drawn with does not hold the point, so a moving object leaves
+  no trail but its edges stay aliased. Camera cuts, a new size, or TAA
+  turned off and on start the history over. It runs in end_3d() after
+  glass, water and particles and before light shafts, lens flare and motion
+  blur; 2D drawn after end_3d() goes over the resolved image. Against a 2x2
+  supersampled reference, edge error drops from 24.7 to 15.4 and stair-step
+  pixels from 2725 to 1084 on a still camera. On an RTX 3050 Laptop
+  (Release, 1280x720) it costs 0.3 to 0.4 ms.
+
 - Morph targets reach the rest of the 3D pipeline. `draw_instanced3d()` has a
   version taking a `model_pose`: every instance of the call gets that morphed
   shape (one weight set per call; for a crowd with several faces, one call per

@@ -67,6 +67,19 @@ struct post3d {
   f32 flare = 0.0f;             ///< Độ sáng, 0..2. 0 là tắt.
   f32 flare_halo = 0.5f;        ///< Độ sáng của vòng quầng quanh tâm, nhân với `flare`.
   /// @}
+
+  /// @name Khử răng cưa theo thời gian (TAA)
+  /// Mỗi frame, hình chiếu 3D bị dịch đi một phần nhỏ của pixel (mỗi frame một chỗ
+  /// khác), rồi ảnh được trộn với ảnh của các frame trước, đưa về đúng chỗ theo độ
+  /// sâu và chuyển động của camera: cạnh xiên hết răng cưa, cạnh mảnh hết nhấp nháy.
+  /// Chỉ lần vẽ 3D đầu tiên vào thế giới của mỗi frame được khử; 2D vẽ sau end_3d()
+  /// không bị đụng tới. Vật đang chạy không có vận tốc riêng: chỗ nào ảnh cũ không
+  /// còn khớp (độ sâu khác hẳn, màu nằm ngoài màu xung quanh) thì ảnh cũ bị bỏ, nên
+  /// không để lại vệt, nhưng mép vật đang chạy còn răng cưa.
+  /// @{
+  bool taa = false;           ///< Bật TAA.
+  f32 taa_sharpen = 0.25f;    ///< Làm nét lại ảnh sau khi trộn, 0..1. 0 là không làm nét.
+  /// @}
 };
 
 /// Đặt hiệu ứng màn hình 3D, cho mọi lần vẽ 3D từ frame này. `post3d{}` là tắt hết.

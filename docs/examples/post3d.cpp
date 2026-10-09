@@ -22,13 +22,15 @@ void load(context &ctx) {
 }
 
 void update(context &ctx) {
-  // Phím 1, 2, 3 bật tắt SSAO, phản chiếu, mờ chuyển động.
+  // Phím 1, 2, 3, 4 bật tắt SSAO, phản chiếu, mờ chuyển động, TAA.
   if (key_pressed(ctx, key_1))
     fx.ssao = fx.ssao > 0.0f ? 0.0f : 0.8f;
   if (key_pressed(ctx, key_2))
     fx.ssr = fx.ssr > 0.0f ? 0.0f : 1.0f;
   if (key_pressed(ctx, key_3))
     fx.motion_blur = fx.motion_blur > 0.0f ? 0.0f : 0.5f;
+  if (key_pressed(ctx, key_4))
+    fx.taa = !fx.taa;
   post3d_set(ctx, fx);
 
   // Chuột trái: một vết đạn chỗ chuột trỏ tới (sàn hay tường), mờ dần sau 10 giây.

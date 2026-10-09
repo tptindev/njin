@@ -196,6 +196,9 @@ struct render3d_state {
 
   // The open pass. Draw calls take a const ctx, so the list is mutable.
   camera3d camera; // shake included
+  // Sub-pixel shift of the open world pass's projection, in NDC, while TAA
+  // (post3d) resolves it; zero otherwise. load_camera() applies it.
+  vec2 jitter{};
   // The open pass's frustum, as planes (xyz the inward normal, w the offset:
   // a point p is inside when dot(xyz, p) + w >= 0 for all six), and what
   // model LOD picking needs: tan(fovy / 2).
