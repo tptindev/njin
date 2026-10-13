@@ -114,6 +114,8 @@ struct ui_state {
   f32 scroll_from = 0.0f; // the y its content starts at, before the offset
   std::unordered_map<u64, f32> scroll_offset, scroll_content;
   std::vector<rect> scrolls, last_scrolls;
+  // ui_let_through(): where the mouse's left button is left to the game, panels or not.
+  std::vector<rect> through, last_through;
   f32 wheel = 0.0f; // the wheel this frame, if over one of last frame's scroll areas
 
   std::string tooltip; // ui_tooltip(): drawn by the mouse after the panels, then cleared

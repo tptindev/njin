@@ -407,6 +407,28 @@ rect ui_last_rect(const context &ctx);
 /// @return `true` nếu chuột đang trên một panel.
 bool ui_mouse_over(const context &ctx);
 
+/// Để nút chuột trái lọt qua UI ở vùng `area` (pixel màn hình), dù vùng đó
+/// nằm trong một panel: game vẫn đọc được mouse_pressed(), mouse_held(),
+/// mouse_released() ở đó. Dùng cho thứ game tự vẽ và tự xử lý chuột bên trong
+/// một panel, như một bản đồ nhỏ kéo bằng chuột.
+///
+/// Gọi mỗi frame còn muốn để lọt (thường ngay khi đặt vùng đó trong panel,
+/// lấy khung bằng ui_last_rect()); có hiệu lực từ frame sau, như việc panel
+/// nuốt chuột. ui_mouse_over() vẫn trả về `true` ở đó, nên phần game bỏ qua
+/// chuột trên HUD (chọn quân, ra lệnh) vẫn bỏ qua. Chuột ra khỏi vùng thì UI
+/// lại nuốt nút trái: game thấy nút như đã thả.
+/// @code
+/// njin::ui_space(ctx, 200.0f);
+/// const njin::rect map = njin::ui_last_rect(ctx);
+/// njin::ui_let_through(ctx, map);
+/// njin::ui_end(ctx);
+/// if (njin::mouse_held(ctx, njin::mouse_left) && njin::point_in_rect(njin::mouse_pos(ctx), map))
+///   g.map_centre -= njin::mouse_delta(ctx) / g.map_zoom;
+/// @endcode
+/// @param ctx Context của engine.
+/// @param area Vùng để chuột lọt qua, pixel màn hình.
+void ui_let_through(context &ctx, rect area);
+
 /// Loại toast: quyết định màu vạch bên trái (xem ui_style::toast_accent).
 enum ui_toast_kind {
   ui_toast_info,    ///< Thông tin trung tính.

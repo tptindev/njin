@@ -8,6 +8,14 @@ To release: edit that header, add a section here, commit, then
 
 ## Unreleased
 
+### Added
+
+- `ui_let_through(ctx, area)`: the mouse's left button is left to the game
+  over `area`, inside a panel or not, for what the game draws and drives
+  with the mouse there (a map dragged inside a panel). `ui_mouse_over()`
+  stays true there, so the game's own clicks on the world stay off. Panels
+  that do not call it behave as before.
+
 ### Fixed
 
 - The runtime builds again with MSVC in Debug: the sol2 bindings

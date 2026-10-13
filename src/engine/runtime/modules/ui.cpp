@@ -318,6 +318,8 @@ void frame_begin(context &ctx) {
   ui.panels.clear();
   ui.last_scrolls = std::move(ui.scrolls);
   ui.scrolls.clear();
+  ui.last_through = std::move(ui.through);
+  ui.through.clear();
   ui.back_reported = false;
   const u64 prev_modal = ui.modal_last;
   ui.modal_last = ui.modal;
@@ -421,7 +423,11 @@ void frame_begin(context &ctx) {
     ui.wheel = mouse_wheel(ctx);
     mouse_wheel_consume(ctx);
   }
-  if (ui.mouse_over)
+  // Over a panel the left button is the UI's, but where a panel lets it through
+  // (ui_let_through: a map drawn in it, dragged by the game).
+  const bool through = std::any_of(ui.last_through.begin(), ui.last_through.end(),
+                                   [&](const rect &r) { return inside(mouse, r); });
+  if (ui.mouse_over && !through)
     mouse_consume(ctx, mouse_left);
   if (!active) {
     // No panel takes the keys (none at all, or only HUD panels): they stay the game's.
@@ -1196,6 +1202,8 @@ void ui_focus(context &ctx, const char *label) {
 bool ui_active(const context &ctx) { return ctx.ui.navigable_last; }
 
 rect ui_last_rect(const context &ctx) { return ctx.ui.last_rect; }
+
+void ui_let_through(context &ctx, rect area) { ctx.ui.through.push_back(area); }
 
 bool ui_mouse_over(const context &ctx) { return ctx.ui.mouse_over; }
 
