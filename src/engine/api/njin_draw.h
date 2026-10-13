@@ -66,6 +66,26 @@ void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 /// @param c Đỉnh thứ ba.
 /// @param color Màu.
 void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color);
+
+/// Phóng mọi hình vẽ sau đó theo `scale` rồi dời đi `offset` (đơn vị thế
+/// giới) cho tới draw_offset_pop(): điểm `p` được vẽ ở `p * scale + offset`.
+/// Dùng để vẽ một phần của thế giới có tọa độ riêng (một khu bản đồ được sinh
+/// riêng) đúng chỗ của nó, hoặc vẽ nó thu nhỏ vào một render texture rồi vẽ
+/// texture đó phóng to lại. Lồng được; mỗi lần push cần một lần pop trong
+/// cùng phase. Chữ pixel (draw_text với font pixel) không bị dời.
+/// @code
+/// njin::draw_offset_push(ctx, ward_origin);
+/// draw_ward(ctx, ward); // tọa độ riêng của khu
+/// njin::draw_offset_pop(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param offset Độ dời.
+/// @param scale Hệ số phóng, 1 là giữ nguyên cỡ.
+void draw_offset_push(const context &ctx, vec2 offset, f32 scale = 1.0f);
+
+/// Bỏ độ dời của lần draw_offset_push() gần nhất.
+/// @param ctx Context của engine.
+void draw_offset_pop(const context &ctx);
 /// @}
 
 /// @addtogroup grp_text

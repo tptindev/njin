@@ -138,6 +138,14 @@ void draw_line(const context &, vec2 a, vec2 b, f32 thickness, rgba color) {
   DrawLineEx(vec_of(a), vec_of(b), thickness, color_of(color));
 }
 
+void draw_offset_push(const context &, vec2 offset, f32 scale) {
+  rlPushMatrix();
+  rlTranslatef(offset.x, offset.y, 0.0f);
+  rlScalef(scale, scale, 1.0f);
+}
+
+void draw_offset_pop(const context &) { rlPopMatrix(); }
+
 void draw_triangle(const context &, vec2 a, vec2 b, vec2 c, rgba color) {
   // raylib culls triangles whose vertices are not counter-clockwise on screen
   // (y down), which is cross < 0 there. Swap two vertices for the other order

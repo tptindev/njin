@@ -66,6 +66,27 @@ void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 /// @param c Third vertex.
 /// @param color Color.
 void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color);
+
+/// Scales everything drawn afterwards by `scale`, then moves it by `offset`
+/// (world units), until draw_offset_pop(): a point `p` is drawn at
+/// `p * scale + offset`. Draws a part of the world that has its own
+/// coordinates (a map area generated on its own) in its place, or draws it
+/// shrunk into a render texture and that texture scaled back up. Nests; every
+/// push needs one pop in the same phase. Pixel text (draw_text with a pixel
+/// font) is not moved.
+/// @code
+/// njin::draw_offset_push(ctx, ward_origin);
+/// draw_ward(ctx, ward); // the area's own coordinates
+/// njin::draw_offset_pop(ctx);
+/// @endcode
+/// @param ctx Engine context.
+/// @param offset The offset.
+/// @param scale The scale factor, 1 keeps the size.
+void draw_offset_push(const context &ctx, vec2 offset, f32 scale = 1.0f);
+
+/// Removes the offset of the latest draw_offset_push().
+/// @param ctx Engine context.
+void draw_offset_pop(const context &ctx);
 /// @}
 
 /// @addtogroup grp_text
