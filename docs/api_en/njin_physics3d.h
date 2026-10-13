@@ -34,6 +34,14 @@ struct body3d_desc {
   f32 mass = 1.0f;                   ///< Mass, kg, dynamic bodies only.
   f32 friction = 0.5f;               ///< Friction, 0..1.
   f32 restitution = 0.0f;            ///< Bounciness, 0 (none) .. 1 (full bounce).
+  /// Damping: the share of linear velocity lost each second (like drag),
+  /// dynamic bodies only. 0.05 is the default; raise it for things that must
+  /// stop quickly.
+  f32 linear_damping = 0.05f;
+  /// The share of angular velocity lost each second. 0.05 is the default;
+  /// raise it (1..5) for small, light things that spin like rubber when they
+  /// knock into something, so they tip over and lie still like solid ones.
+  f32 angular_damping = 0.05f;
   /// The game's number attached to the body (an array index, an entity id...),
   /// read back with body3d_user() or from a physics3d_raycast() result.
   u64 user = 0;
@@ -97,6 +105,22 @@ vec3 body3d_velocity(const context &ctx, body3d_handle handle);
 /// @param velocity New velocity, units per second.
 void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 
+/// Puts the body in a group: bodies in the same (non-zero) group do not collide
+/// with each other, and still collide with every other body. So the pieces of an
+/// assembled machine can sit inside each other (a shaft in its bearing, a hinge
+/// leaf in its knuckle, a rod in its cylinder) without pushing apart. The group
+/// can change at any time: the next step follows the new one.
+///
+/// @code
+/// // A wheel fitted on the frame's axle: the two bodies overlap where they join.
+/// njin::body3d_set_group(ctx, frame, 7);
+/// njin::body3d_set_group(ctx, wheel, 7);
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Body (not a part of a ragdoll).
+/// @param group Group number chosen by the game; 0 is no group (the default).
+void body3d_set_group(context &ctx, body3d_handle handle, u32 group);
+
 /// Gives a dynamic body a push (an impulse, kg * units per second) at its
 /// centre: an explosion, a kick, a bullet hit.
 /// @param ctx Engine context.
@@ -156,6 +180,52 @@ vec3 body3d_angular_velocity(const context &ctx, body3d_handle handle);
 /// @param mass Mass, kg. Ignored unless positive.
 /// @param point Where it rests, world; kept inside the body.
 void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point);
+
+/// How body3d_pull() pulls a body.
+struct pull3d {
+  f32 hz = 5.0f;      ///< Stiffness of the position spring: its frequency, Hz. Critically damped (no bounce).
+  f32 turn_hz = 4.0f; ///< Stiffness of the turning spring, Hz, per axis by the body's inertia. 0 does not hold its turn.
+  /// The most it pulls, as so many times the weight (of the body and
+  /// `extra_mass`): something stuck or held is not yanked harder than this.
+  f32 most = 4.0f;
+  /// The mass of what is jointed to the body (a whole machine), kg: force enough to pull that too.
+  f32 extra_mass = 0.0f;
+  /// The rotational inertia of what is jointed to the body, about the body's
+  /// centre, kg m^2 (each piece's mass times its distance to the centre
+  /// squared): torque enough to turn that too.
+  f32 extra_inertia = 0.0f;
+  bool hold_weight = true; ///< Holds its weight up too, so it does not sag below the pull.
+};
+
+/// Pulls a dynamic body toward `position`, turning it toward `rotation`, with a
+/// critically damped spring, for the next physics step: carrying things in a
+/// first-person game, cranes, magnets. Unlike welding the body to a kinematic
+/// one, it keeps its mass in collisions: knocking into something pushes it as
+/// a real thing would instead of flinging it like a wall, and it is not forced
+/// through walls. Call every fixed step.
+/// @code
+/// // Hold a thing 2 m ahead of the eye, turned as it was picked up.
+/// njin::body3d_pull(ctx, held, eye + forward * 2.0f, held_rotation);
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Body. Ignored if it is not dynamic.
+/// @param position Where the body's centre should go, world.
+/// @param rotation The turn to hold, degrees, as njin::transform3d. Ignored if `how.turn_hz` is 0.
+/// @param how Stiffness, the most force, the mass pulled along.
+void body3d_pull(context &ctx, body3d_handle handle, vec3 position, vec3 rotation, const pull3d &how = {});
+
+/// Keeps the body's axis `axis` (in its own frame) pointing straight up, by a
+/// critically damped spring torque scaled by the body's inertia, for the next
+/// physics step: a gyro balancing a unicycle, a robot, a rocket. Turning about
+/// the vertical is left alone. Call every fixed step.
+/// @param ctx Engine context.
+/// @param handle Body. Ignored if it is not dynamic.
+/// @param axis The body's axis to keep vertical, in its own frame.
+/// @param hz Stiffness, Hz.
+/// @param extra_inertia The rotational inertia of what is jointed to the body (a
+///   whole machine), about the body's centre, kg m^2, as njin::pull3d::extra_inertia:
+///   torque enough for that too.
+void body3d_keep_upright(context &ctx, body3d_handle handle, vec3 axis, f32 hz = 2.0f, f32 extra_inertia = 0.0f);
 
 /// The game's number attached to the body on creation (njin::body3d_desc::user).
 /// @param ctx Engine context.

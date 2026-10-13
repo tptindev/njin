@@ -754,6 +754,19 @@ i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 /// có da hay handle, `bone` không hợp lệ.
 bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max);
 
+/// Thể tích chất liệu của model, đơn vị thế giới khối, ở tư thế gốc: tổng thể
+/// tích mà các mặt tam giác của nó bao kín (vỏ rỗng chỉ tính phần thành). Nhân
+/// với khối lượng riêng của vật liệu là được khối lượng của vật, để mỗi vật nặng
+/// theo đúng hình của nó (thanh rỗng nhẹ hơn thanh đặc cùng cỡ).
+/// @code
+/// // Thanh nhôm: 2700 kg mỗi mét khối.
+/// const float mass = njin::model_volume(ctx, bar) * 2700.0f;
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model từ model_load() hay model_create().
+/// @return Thể tích; lưới hở thì gần đúng. 0 nếu handle không hợp lệ.
+f32 model_volume(const context &ctx, model_handle handle);
+
 /// Các đỉnh của phần da đó (như model_bone_bounds()), cùng hệ trục: theo các
 /// trục của model ở tư thế gốc, tính từ gốc của xương. Để dựng một khối lồi ôm
 /// đúng hình (physics3d_hull_create()).
@@ -1035,6 +1048,29 @@ struct fx3d {
 /// @param fx Hiệu ứng.
 void fx3d_set(context &ctx, const fx3d &fx);
 
+/// Kiểu vẽ có sẵn của hạt 3D (particles3d_desc::style): shader của engine tô
+/// từng hạt, theo màu và độ trong suốt của nó (giảm theo tuổi), thời gian và
+/// mặt trời của light3d_set().
+enum particle3d_style {
+  particle3d_flat,  ///< Như emitter tả: ảnh hay hình của nó nhân màu (mặc định).
+  /// Khói, bụi, hơi: quả cầu mềm, mép bị noise trôi chậm trong không gian ăn
+  /// vào nên một dòng hạt thành một đám mây cuộn; mặt phía mặt trời sáng, mặt
+  /// kia tối theo ánh sáng nền. Hạt càng già càng mỏng, rách. Dùng `blend_alpha`.
+  particle3d_smoke,
+  /// Lửa: lõi trắng nóng qua vàng, cam tới viền đỏ, lập loè theo noise; nguội
+  /// dần theo tuổi. Dùng `blend_additive`.
+  particle3d_fire,
+  /// Tia lửa: vệt có sợi lõi trắng nóng trong quầng cam, sáng ở đầu, tắt dần
+  /// về đuôi, đỏ dần khi nguội. Dùng với `stretch` và `blend_additive`.
+  particle3d_spark,
+  /// Luồng lửa phụt của động cơ phản lực, tên lửa: phát dày các hạt nhanh, cùng
+  /// tốc độ, có `stretch`, `blend_additive`, màu bắt đầu có `a` bằng 1 và kết thúc
+  /// bằng 0, để tuổi của hạt là quãng cách miệng phun. Gần miệng phun lõi trắng
+  /// xanh, xa dần vàng, cam, đỏ, có các vạch sáng (shock diamond) đứng yên trong
+  /// dòng khí. Kênh đỏ của màu là lực đẩy, 0..1.
+  particle3d_flame,
+};
+
 /// Cách đặt một loạt hạt vào thế giới 3D, dùng với particles3d_spawn().
 struct particles3d_desc {
   /// Hướng phát. Emitter có `spread` dưới 360 độ phát trong hình nón quanh hướng
@@ -1044,6 +1080,19 @@ struct particles3d_desc {
   /// nhân vào tốc độ, kích thước, trọng lực và `area`. Trọng lực `{0, 400}`
   /// (rơi xuống màn hình) thành rơi theo `-y`.
   f32 scale = 0.02f;
+  /// Kéo dài mỗi hạt theo hướng nó bay: dài thêm quãng nó bay trong `stretch`
+  /// giây, rộng bằng kích thước hạt, nên tia lửa, mưa, mảnh vụn thành vệt.
+  /// Bỏ qua xoay của hạt. 0 là hạt vuông quay mặt về camera như thường.
+  f32 stretch = 0.0f;
+  /// Shader của game vẽ các hạt này, thay cho shader có sẵn: khói cuộn bằng
+  /// noise, lõi lửa nóng sáng. Mỗi hạt là một hình chữ nhật, đỉnh có toạ độ thế
+  /// giới (`vertexPosition`; `mvp` đã gồm camera), toạ độ ảnh 0..1
+  /// (`vertexTexCoord`), màu của hạt lúc đó (`vertexColor`, độ trong suốt giảm
+  /// theo tuổi), ảnh của emitter ở `texture0`. Đặt uniform bằng `shader_set_*`
+  /// trước end_3d(). Không hợp lệ là shader có sẵn (`style`).
+  shader_handle shader{};
+  /// Kiểu vẽ có sẵn, khi không có `shader`: khói, lửa, tia lửa, luồng lửa phụt.
+  particle3d_style style = particle3d_flat;
 };
 
 /// Phát một loạt `count` hạt tại `pos`, dùng lại một emitter 2D: các mẫu njin::fx

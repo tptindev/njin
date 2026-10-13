@@ -212,6 +212,12 @@ void flush(context &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
     case ui_cmd::ring:
       draw_ring(c);
       break;
+    case ui_cmd::clip_begin:
+      clip_begin(ctx, c.area);
+      break;
+    case ui_cmd::clip_end:
+      clip_end(ctx);
+      break;
     case ui_cmd::text:
       draw_text(ctx, c.str.c_str(), c.area.pos, c.size, c.color, ui.style.font);
       break;
@@ -310,6 +316,8 @@ void frame_begin(context &ctx) {
   ui.current.clear();
   ui.last_panels = std::move(ui.panels);
   ui.panels.clear();
+  ui.last_scrolls = std::move(ui.scrolls);
+  ui.scrolls.clear();
   ui.back_reported = false;
   const u64 prev_modal = ui.modal_last;
   ui.modal_last = ui.modal;
@@ -407,6 +415,12 @@ void frame_begin(context &ctx) {
 
   ui.mouse_over = std::any_of(ui.last_panels.begin(), ui.last_panels.end(),
                               [&](const rect &p) { return inside(mouse, p); });
+  // The wheel over a scroll area scrolls it, and the game does not see it.
+  ui.wheel = 0.0f;
+  if (std::any_of(ui.last_scrolls.begin(), ui.last_scrolls.end(), [&](const rect &r) { return inside(mouse, r); })) {
+    ui.wheel = mouse_wheel(ctx);
+    mouse_wheel_consume(ctx);
+  }
   if (ui.mouse_over)
     mouse_consume(ctx, mouse_left);
   if (!active) {
@@ -541,9 +555,11 @@ interaction interact(context &ctx, const char *label, bool enabled, bool adjusta
     it.state = state_disabled;
     return it;
   }
+  // In a scroll area, only where it shows.
+  const bool shown_here = !ui.in_scroll || inside(ui.mouse, ui.scroll_area);
   if (!ui.panel_navigable) {
     // HUD panel: mouse only, never focused, not reachable by the keys.
-    it.hover = ui.modal_last == 0 && inside(ui.mouse, it.area);
+    it.hover = ui.modal_last == 0 && inside(ui.mouse, it.area) && shown_here;
     if (it.hover && ui.mouse_pressed)
       ui.pressed = it.id;
     it.clicked = ui.pressed == it.id && ui.mouse_released && it.hover;
@@ -555,7 +571,16 @@ interaction interact(context &ctx, const char *label, bool enabled, bool adjusta
   // Behind a popup: listed (so focus can come back to it) but inert.
   if (ui.modal_last != 0 && ui.panel_id != ui.modal_last)
     return it;
-  it.hover = inside(ui.mouse, it.area);
+  it.hover = inside(ui.mouse, it.area) && shown_here;
+  // Focused by the keys out of a scroll area's view: scrolled to it next frame.
+  if (ui.in_scroll && ui.focus == it.id) {
+    f32 &off = ui.scroll_offset[ui.scroll_id];
+    const rect &a = ui.scroll_area;
+    if (it.area.pos.y < a.pos.y)
+      off -= a.pos.y - it.area.pos.y;
+    else if (it.area.pos.y + it.area.size.y > a.pos.y + a.size.y)
+      off += it.area.pos.y + it.area.size.y - (a.pos.y + a.size.y);
+  }
   if (it.hover && ui.mouse_moved && ui.focus != it.id) {
     ui.focus = it.id;
     play(ctx, ui.style.sound_move);
@@ -656,6 +681,24 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
               ui.style.panel.text, title_size);
     ui.cursor += m.y + sc(ui, ui.style.spacing) * 1.6f;
   }
+  if (desc.open != nullptr) {
+    // The close box, top right: mouse only, like a HUD button.
+    const f32 s = font_px(ui) * 1.3f;
+    const f32 pad = sc(ui, ui.style.padding) * 0.5f;
+    const rect box{{ui.panel.pos.x + width - pad - s, ui.panel.pos.y + pad}, {s, s}};
+    const u64 id = hash_id(ui.panel_id, "##close");
+    const bool hover = ui.modal_last == 0 && inside(ui.mouse, box);
+    if (hover && ui.mouse_pressed)
+      ui.pressed = id;
+    if (ui.pressed == id && ui.mouse_released && hover) {
+      *desc.open = false;
+      play(ctx, ui.style.sound_back);
+    }
+    const widget_state st = ui.pressed == id && ui.mouse_held ? state_pressed : hover ? state_focused : state_normal;
+    push_skin(ui, ui.style.button, st, box);
+    text_center(ctx, ui, "X", box, text_for(ui.style.button, st));
+    ui.cursor = std::max(ui.cursor, box.pos.y + s + sc(ui, ui.style.spacing));
+  }
 }
 
 void ui_end(context &ctx) {
@@ -663,6 +706,10 @@ void ui_end(context &ctx) {
   if (!ui.in_panel) {
     NJIN_WARN("ui_end without ui_begin");
     return;
+  }
+  if (ui.in_scroll) {
+    NJIN_WARN("ui_end: a scroll area left open; close it with ui_scroll_end");
+    ui_scroll_end(ctx);
   }
   ui.in_panel = false;
   if (ui.row_cols > 0) { // a row left unfinished
@@ -725,14 +772,16 @@ void ui_space(context &ctx, f32 height) {
   ui.cursor += sc(ui, height);
 }
 
-bool ui_button(context &ctx, const char *label, bool enabled) {
+bool ui_button(context &ctx, const char *label, bool enabled, bool selected) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_button");
   if (label == nullptr)
     return false;
   const interaction it = interact(ctx, label, enabled, false);
-  push_skin(ui, ui.style.button, it.state, it.area);
-  text_center(ctx, ui, shown(label), it.area, text_for(ui.style.button, it.state));
+  // Selected (a tab, a tool that is on): its pressed face while nothing else shows.
+  const widget_state face = selected && it.state == state_normal ? state_pressed : it.state;
+  push_skin(ui, ui.style.button, face, it.area);
+  text_center(ctx, ui, shown(label), it.area, text_for(ui.style.button, face));
   if (it.clicked)
     play(ctx, ui.style.sound_accept);
   return it.clicked;
@@ -861,16 +910,92 @@ bool ui_choice(context &ctx, const char *label, i32 &index,
                         [&](i32 i) { return options[(size_t)i].c_str(); });
 }
 
-void ui_progress(context &ctx, f32 value, const char *text) {
+void ui_progress(context &ctx, f32 value, const char *text, rgba fill) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_progress");
   const f32 t = clamp(value, 0.0f, 1.0f);
   const rect r = place(ui, sc(ui, ui.style.widget_height) * 0.6f);
   push_skin(ui, ui.style.track, state_normal, r, t);
-  if (t > 0.0f)
+  if (t > 0.0f) {
     push_skin(ui, ui.style.fill, state_normal, rect{r.pos, {r.size.x * t, r.size.y}}, t);
+    if (fill.a > 0.0f)
+      ui.cmds.back().look.color = fill;
+  }
   if (text != nullptr)
     text_center(ctx, ui, text, r, ui.style.track.text);
+}
+
+void ui_text(context &ctx, const char *text, const ui_text_desc &desc) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_text");
+  if (text == nullptr)
+    return;
+  const f32 size = desc.size > 0.0f ? sc(ui, desc.size) : font_px(ui);
+  const vec2 m = measure(ctx, ui, text, size);
+  const rgba color = desc.color.a > 0.0f ? desc.color : ui.style.label.text;
+  // In a row as tall as the widgets beside it, its text in the middle (as ui_label).
+  const bool in_row = ui.row_cols > 0;
+  const rect r = place(ui, in_row ? sc(ui, ui.style.widget_height) : m.y);
+  const f32 y = in_row ? rect_center(r).y - m.y * 0.5f : r.pos.y;
+  push_text(ctx, ui, text, {r.pos.x + (r.size.x - m.x) * clamp(desc.align, 0.0f, 1.0f), y}, color, size);
+}
+
+void ui_tooltip(context &ctx, const char *text) {
+  if (text != nullptr)
+    ctx.ui.tooltip = text;
+}
+
+void ui_scroll_begin(context &ctx, const char *id, f32 height) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_scroll_begin");
+  if (ui.in_scroll) {
+    NJIN_WARN("ui_scroll_begin: '%s' opened inside another scroll area", id != nullptr ? id : "");
+    ui_scroll_end(ctx);
+  }
+  if (ui.row_cols > 0) { // a row left unfinished
+    ui.cursor = ui.row_y + sc(ui, ui.style.widget_height) + sc(ui, ui.style.spacing);
+    ui.row_cols = 0;
+  }
+  const f32 pad = sc(ui, ui.style.padding);
+  const rect area{{ui.panel.pos.x + pad, ui.cursor}, {ui.panel.size.x - 2.0f * pad, sc(ui, height)}};
+  ui.in_scroll = true;
+  ui.scroll_id = hash_id(ui.panel_id, id != nullptr ? id : "scroll");
+  ui.scroll_area = area;
+  // The wheel, a widget's height a notch; never past what it held last frame.
+  f32 &off = ui.scroll_offset[ui.scroll_id];
+  if (ui.modal_last == 0 && inside(ui.mouse, area))
+    off -= ui.wheel * sc(ui, ui.style.widget_height);
+  const f32 content = ui.scroll_content[ui.scroll_id];
+  off = clamp(off, 0.0f, std::max(0.0f, content - area.size.y));
+  push_skin(ui, ui.style.track, state_normal, area);
+  ui.cmds.back().look.roundness = 0.0f;
+  ui_cmd clip{};
+  clip.kind = ui_cmd::clip_begin;
+  clip.area = area;
+  ui.cmds.push_back(std::move(clip));
+  ui.scroll_from = area.pos.y + sc(ui, ui.style.spacing) * 0.5f;
+  ui.cursor = ui.scroll_from - off;
+}
+
+void ui_scroll_end(context &ctx) {
+  ui_state &ui = ctx.ui;
+  if (!ui.in_scroll) {
+    NJIN_WARN("ui_scroll_end without ui_scroll_begin");
+    return;
+  }
+  if (ui.row_cols > 0) {
+    ui.cursor = ui.row_y + sc(ui, ui.style.widget_height) + sc(ui, ui.style.spacing);
+    ui.row_cols = 0;
+  }
+  const f32 off = ui.scroll_offset[ui.scroll_id];
+  ui.scroll_content[ui.scroll_id] = ui.cursor + off - ui.scroll_from;
+  ui_cmd clip{};
+  clip.kind = ui_cmd::clip_end;
+  ui.cmds.push_back(std::move(clip));
+  ui.scrolls.push_back(ui.scroll_area);
+  ui.in_scroll = false;
+  ui.cursor = ui.scroll_area.pos.y + ui.scroll_area.size.y + sc(ui, ui.style.spacing);
+  ui.last_rect = ui.scroll_area;
 }
 
 void ui_progress_circle(context &ctx, const ui_circle_desc &d) {
@@ -1168,8 +1293,38 @@ void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc) {
 
 void ui_toast_clear(context &ctx) { ctx.ui.toasts.clear(); }
 
+namespace {
+// ui_tooltip(): a small box by the mouse, in the toast's dress, kept on screen.
+void draw_tooltip(context &ctx, ui_state &ui) {
+  if (ui.tooltip.empty())
+    return;
+  const f32 size = font_px(ui) * 0.85f;
+  const f32 pad = sc(ui, 6.0f);
+  const vec2 m = measure(ctx, ui, ui.tooltip, size);
+  const vec2 screen = screen_size(ctx);
+  const vec2 box{m.x + 2.0f * pad, m.y + 2.0f * pad};
+  vec2 pos = ui.mouse + vec2{sc(ui, 16.0f), sc(ui, 18.0f)};
+  pos.x = std::min(pos.x, screen.x - box.x - 2.0f);
+  pos.y = std::min(pos.y, screen.y - box.y - 2.0f);
+  ui_cmd back{};
+  back.kind = ui_cmd::skin;
+  back.area = {pos, box};
+  back.look = ui.style.toast.normal;
+  back.shader = ui.style.toast.shader;
+  ui_cmd text{};
+  text.kind = ui_cmd::text;
+  text.str = ui.tooltip;
+  text.size = size;
+  text.area.pos = pos + vec2{pad, pad};
+  text.color = ui.style.toast.text;
+  flush(ctx, ui, {back, text});
+  ui.tooltip.clear();
+}
+} // namespace
+
 void ui_draw_toasts(context &ctx) {
   ui_state &ui = ctx.ui;
+  draw_tooltip(ctx, ui);
   if (ui.toasts.empty())
     return;
   const f32 dt = ctx.time.dt_real; // real time: toasts run while the game is paused

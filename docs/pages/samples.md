@@ -89,7 +89,8 @@ cmake --build --preset release --target my_game_dist
 
 Kết quả là `build-release/dist/my_game-1.0.0.zip` chứa exe, thư mục `assets` và các file kèm theo. Trên
 Windows, exe được gắn icon và thông tin phiên bản, và **không có cửa sổ console** trừ bản Debug (cần
-console để đọc log). Game tìm `assets/...` cạnh exe dù chạy từ thư mục nào.
+console để đọc log). Game tìm `assets/...` cạnh exe dù chạy từ thư mục nào. Game chưa đóng gói mà
+vẫn muốn bỏ cửa sổ console thì gọi riêng `njin_hide_console(my_game)`.
 
 Nhớ tắt cổng debug trong bản phát hành: `debug_server_start()` chỉ trong `#ifndef NDEBUG`.
 

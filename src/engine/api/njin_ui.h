@@ -116,6 +116,10 @@ struct ui_panel_desc {
   /// cho HUD luôn hiện trong lúc chơi: nút của nó chỉ bấm bằng chuột, không bao
   /// giờ được chọn sẵn, và các phím đó vẫn thuộc về game (xem ui_active()).
   bool navigable = true;
+  /// Có thì vẽ một nút đóng ở góc trên phải panel; bấm vào (chỉ bằng chuột)
+  /// thì `*open` thành `false`. Panel vẫn được vẽ hết frame đó; game thôi gọi
+  /// nó từ frame sau. Null là không có nút đóng.
+  bool *open = nullptr;
 };
 
 /// Bắt đầu một panel. Các widget gọi sau đó xếp từ trên xuống bên trong nó,
@@ -165,8 +169,10 @@ void ui_space(context &ctx, f32 height);
 /// @param ctx Context của engine.
 /// @param label Nhãn (UTF-8).
 /// @param enabled `false` thì nút xám và không bấm được.
+/// @param selected `true` thì nút giữ mặt "đang nhấn" (ui_look::pressed) khi
+/// không có gì khác: một tab đang mở, một công cụ đang bật, tốc độ đang chọn.
 /// @return `true` ở frame nút được bấm (chuột, Enter, Space, nút A).
-bool ui_button(context &ctx, const char *label, bool enabled = true);
+bool ui_button(context &ctx, const char *label, bool enabled = true, bool selected = false);
 
 /// Một công tắc bật/tắt. Bấm để đổi.
 /// @param ctx Context của engine.
@@ -210,7 +216,59 @@ bool ui_choice(context &ctx, const char *label, i32 &index,
 /// @param ctx Context của engine.
 /// @param value Tiến độ 0..1.
 /// @param text Chữ vẽ giữa thanh. Có thể null.
-void ui_progress(context &ctx, f32 value, const char *text = nullptr);
+/// @param fill Màu phần đầy, cho thanh mang nghĩa riêng (máu đỏ khi thấp).
+/// Alpha 0: dùng ui_style::fill.
+void ui_progress(context &ctx, f32 value, const char *text = nullptr, rgba fill = {0.0f, 0.0f, 0.0f, 0.0f});
+
+/// Cách vẽ một dòng chữ bằng ui_text().
+struct ui_text_desc {
+  rgba color{0.0f, 0.0f, 0.0f, 0.0f}; ///< Màu. Alpha 0: màu của ui_label() (ui_style::label).
+  f32 size = 0.0f;  ///< Cỡ chữ, pixel (trước `scale`). 0 là ui_style::font_size.
+  f32 align = 0.0f; ///< Căn ngang trong ô: 0 trái, 0.5 giữa, 1 phải.
+};
+
+/// Một dòng chữ như ui_label(), có màu, cỡ và căn lề riêng: số tiền xanh hay
+/// đỏ, một giá trị căn phải cạnh tên của nó trong một hàng.
+/// @code
+/// njin::ui_row(ctx, 2);
+/// njin::ui_label(ctx, "Tiền");
+/// njin::ui_text(ctx, "1500k", {.color = {0.5f, 0.8f, 0.4f, 1.0f}, .align = 1.0f});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param text Chữ (UTF-8).
+/// @param desc Màu, cỡ, căn lề.
+void ui_text(context &ctx, const char *text, const ui_text_desc &desc = {});
+
+/// Một chú thích nhỏ cạnh con trỏ chuột, vẽ đè lên mọi panel ở cuối frame. Gọi
+/// mỗi frame còn muốn hiện (thường khi chuột đang trỏ vào thứ cần giải thích);
+/// không gọi nữa thì nó biến mất. Gọi được từ bất cứ đâu, không cần ui_begin.
+/// @code
+/// const bool pause = njin::ui_button(ctx, "||");
+/// if (njin::point_in_rect(njin::mouse_pos(ctx), njin::ui_last_rect(ctx)))
+///   njin::ui_tooltip(ctx, "Dừng (Space)");
+/// @endcode
+/// @param ctx Context của engine.
+/// @param text Chữ (UTF-8).
+void ui_tooltip(context &ctx, const char *text);
+
+/// Bắt đầu một vùng cuộn cao `height` trong panel đang mở: các widget gọi sau
+/// đó, đến ui_scroll_end(), xếp trong vùng này và chỉ hiện phần nằm trong nó.
+/// Bánh xe chuột trên vùng cuộn nó (game không thấy bánh xe đó); một widget
+/// được chọn bằng phím mà nằm ngoài khung nhìn thì vùng tự cuộn tới.
+/// @code
+/// njin::ui_scroll_begin(ctx, "list", 240.0f);
+/// for (const shop &s : shops)
+///   if (njin::ui_button(ctx, s.name.c_str()))
+///     open_shop(s);
+/// njin::ui_scroll_end(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param id Tên của vùng, duy nhất trong panel: nó nhớ đã cuộn tới đâu.
+/// @param height Chiều cao, pixel (trước `scale`).
+void ui_scroll_begin(context &ctx, const char *id, f32 height);
+
+/// Kết thúc vùng cuộn bắt đầu bằng ui_scroll_begin(). @param ctx Context của engine.
+void ui_scroll_end(context &ctx);
 
 /// Mô tả một thanh tiến độ hình tròn, dùng với ui_progress_circle().
 /// Mọi cỡ tính bằng pixel trước `ui_style::scale`. Màu có alpha 0 thì lấy từ ui_style.

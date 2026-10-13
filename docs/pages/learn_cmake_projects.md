@@ -456,7 +456,8 @@ không tải Dear ImGui và không build công cụ inspector.
 Còn `njin_package(<target> ...)` trong `cmake/njin.cmake`, mỗi game gọi một lần để đóng gói bản phát hành: trên Windows
 gắn icon và thông tin phiên bản vào file chạy, bỏ cửa sổ console ở mọi kiểu build trừ Debug, và tạo target
 `<tên>_dist` gom file chạy, thư mục assets và vài file kèm (readme, giấy phép) vào một file `.zip`. Mình mới chỉ **đọc**
-hàm này để mô tả, chưa chạy nó trong bài học này. Xem @ref samples để biết cách dùng.
+hàm này để mô tả, chưa chạy nó trong bài học này. Xem @ref samples để biết cách dùng. Game chưa cần đóng gói
+mà vẫn muốn bỏ cửa sổ console thì gọi riêng `njin_hide_console(<target>)`, phần mà `njin_package` dùng.
 
 ## Tự kiểm tra
 

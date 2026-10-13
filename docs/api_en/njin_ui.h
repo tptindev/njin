@@ -117,6 +117,10 @@ struct ui_panel_desc {
   /// with the mouse only, are never preselected, and those keys stay the game's
   /// (see ui_active()).
   bool navigable = true;
+  /// When set, a close box is drawn in the panel's top right corner; clicking
+  /// it (mouse only) sets `*open` to `false`. The panel is still drawn that
+  /// frame; the game stops calling it from the next. Null means no close box.
+  bool *open = nullptr;
 };
 
 /// Begins a panel. Widgets called afterwards are stacked top to bottom inside it,
@@ -166,8 +170,10 @@ void ui_space(context &ctx, f32 height);
 /// @param ctx Engine context.
 /// @param label Label (UTF-8).
 /// @param enabled `false` makes the button gray and not pressable.
+/// @param selected `true` keeps the button's "pressed" face (ui_look::pressed)
+/// while nothing else shows: an open tab, a tool that is on, the chosen speed.
 /// @return `true` on the frame the button is pressed (mouse, Enter, Space, A button).
-bool ui_button(context &ctx, const char *label, bool enabled = true);
+bool ui_button(context &ctx, const char *label, bool enabled = true, bool selected = false);
 
 /// An on/off switch. Press to change.
 /// @param ctx Engine context.
@@ -211,7 +217,61 @@ bool ui_choice(context &ctx, const char *label, i32 &index,
 /// @param ctx Engine context.
 /// @param value Progress 0..1.
 /// @param text Text drawn in the middle of the bar. May be null.
-void ui_progress(context &ctx, f32 value, const char *text = nullptr);
+/// @param fill Colour of the filled part, for a bar with its own meaning (health
+/// red when low). Alpha 0: ui_style::fill.
+void ui_progress(context &ctx, f32 value, const char *text = nullptr, rgba fill = {0.0f, 0.0f, 0.0f, 0.0f});
+
+/// How ui_text() draws a line of text.
+struct ui_text_desc {
+  rgba color{0.0f, 0.0f, 0.0f, 0.0f}; ///< Colour. Alpha 0: the colour of ui_label() (ui_style::label).
+  f32 size = 0.0f;  ///< Font size, pixels (before `scale`). 0 means ui_style::font_size.
+  f32 align = 0.0f; ///< Horizontal alignment in its slot: 0 left, 0.5 centre, 1 right.
+};
+
+/// A line of text like ui_label(), with its own colour, size and alignment: an
+/// amount of money in green or red, a value aligned right beside its name in a row.
+/// @code
+/// njin::ui_row(ctx, 2);
+/// njin::ui_label(ctx, "Money");
+/// njin::ui_text(ctx, "1500k", {.color = {0.5f, 0.8f, 0.4f, 1.0f}, .align = 1.0f});
+/// @endcode
+/// @param ctx Engine context.
+/// @param text Text (UTF-8).
+/// @param desc Colour, size, alignment.
+void ui_text(context &ctx, const char *text, const ui_text_desc &desc = {});
+
+/// A small note beside the mouse pointer, drawn over every panel at the end of
+/// the frame. Call it every frame it should show (usually while the mouse is
+/// over the thing it explains); once no longer called, it is gone. Callable
+/// from anywhere, no ui_begin needed.
+/// @code
+/// const bool pause = njin::ui_button(ctx, "||");
+/// if (njin::point_in_rect(njin::mouse_pos(ctx), njin::ui_last_rect(ctx)))
+///   njin::ui_tooltip(ctx, "Pause (Space)");
+/// @endcode
+/// @param ctx Engine context.
+/// @param text Text (UTF-8).
+void ui_tooltip(context &ctx, const char *text);
+
+/// Starts a scroll area `height` tall in the open panel: the widgets called
+/// after it, up to ui_scroll_end(), are laid out inside it and only the part
+/// within it shows. The mouse wheel over the area scrolls it (the game does not
+/// see that wheel); a widget focused with the keys outside the view scrolls
+/// the area to it.
+/// @code
+/// njin::ui_scroll_begin(ctx, "list", 240.0f);
+/// for (const shop &s : shops)
+///   if (njin::ui_button(ctx, s.name.c_str()))
+///     open_shop(s);
+/// njin::ui_scroll_end(ctx);
+/// @endcode
+/// @param ctx Engine context.
+/// @param id Name of the area, unique in the panel: it remembers how far it was scrolled.
+/// @param height Height, pixels (before `scale`).
+void ui_scroll_begin(context &ctx, const char *id, f32 height);
+
+/// Ends the scroll area started with ui_scroll_begin(). @param ctx Engine context.
+void ui_scroll_end(context &ctx);
 
 /// Describes a circular progress bar, for ui_progress_circle().
 /// Every size is in pixels before `ui_style::scale`. A colour with alpha 0 comes from ui_style.

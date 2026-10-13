@@ -456,7 +456,8 @@ Dear ImGui is not downloaded and the inspector tool is not built.
 Then there is `njin_package(<target> ...)` in `cmake/njin.cmake`, which each game calls once to package a release: on Windows it
 attaches an icon and version info to the executable, hides the console window in every build type except Debug, and creates a
 `<name>_dist` target that gathers the executable, the assets folder and a few extra files (readme, licence) into a `.zip` file. This lesson has only **read**
-this function to describe it; it has not run it. See @ref samples for how to use it.
+this function to describe it; it has not run it. See @ref samples for how to use it. A game that does not package yet but
+still wants no console window calls `njin_hide_console(<target>)` on its own, the part `njin_package` uses.
 
 ## Self-check
 

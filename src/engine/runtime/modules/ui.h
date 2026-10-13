@@ -34,7 +34,7 @@ struct ui_toast_rec {
 // One deferred draw inside a panel. Panels draw at ui_end, background first,
 // so the background can be sized to what the panel turned out to contain.
 struct ui_cmd {
-  enum kind_t { skin, text, image, ring } kind = skin;
+  enum kind_t { skin, text, image, ring, clip_begin, clip_end } kind = skin; // clip_*: `area` a scroll area
   rect area{};
   ui_skin look{};
   shader_handle shader{};
@@ -105,6 +105,18 @@ struct ui_state {
   u64 saved_focus = 0;
 
   std::vector<ui_toast_rec> toasts;
+
+  // Scroll areas (ui_scroll_begin): the one open, each one's offset and the
+  // height of what it held last frame, by id; their boxes this frame and last.
+  bool in_scroll = false;
+  u64 scroll_id = 0;
+  rect scroll_area{};
+  f32 scroll_from = 0.0f; // the y its content starts at, before the offset
+  std::unordered_map<u64, f32> scroll_offset, scroll_content;
+  std::vector<rect> scrolls, last_scrolls;
+  f32 wheel = 0.0f; // the wheel this frame, if over one of last frame's scroll areas
+
+  std::string tooltip; // ui_tooltip(): drawn by the mouse after the panels, then cleared
 
   // ui_keybind waiting for the next press: the widget's id, and the device
   // it wants (input_source kind). Navigation is off meanwhile.

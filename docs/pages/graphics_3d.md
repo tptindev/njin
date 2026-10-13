@@ -319,6 +319,32 @@ njin::fx3d_set(ctx, {});
 Hạt 3D quay mặt về camera, dừng trong hitstop, và `particles3d_desc::scale` đổi đơn vị pixel của các
 mẫu njin::fx sang đơn vị thế giới 3D.
 
+`particles3d_desc` còn có:
+
+| Trường | Tác dụng |
+|---|---|
+| `style` | Kiểu vẽ có sẵn bằng shader của engine: `particle3d_smoke` (khói, bụi cuộn theo noise, sáng phía mặt trời), `particle3d_fire` (lõi lửa lập loè), `particle3d_spark` (vệt tia lửa nguội dần), `particle3d_flame` (luồng lửa phụt của động cơ phản lực, tên lửa) |
+| `stretch` | Kéo hạt thành vệt dọc hướng bay, dài thêm quãng bay trong `stretch` giây: tia lửa, mưa, mảnh vụn |
+| `shader` | Shader của game vẽ hạt thay cho kiểu có sẵn; đỉnh mang toạ độ thế giới |
+
+Kiểu có sẵn đọc màu của hạt: độ trong suốt giảm theo tuổi, nên khói già thì mỏng, tia lửa đỏ dần.
+Luồng lửa phụt dựng từ nhiều hạt nhanh cùng tốc độ: tuổi của hạt là quãng cách miệng phun.
+
+@code
+// Một bước cố định của động cơ phản lực: luồng lửa dài 1.5 m từ miệng phun theo hướng `dir`.
+njin::particle_emitter flame{};
+flame.life = {0.11f, 0.12f};          // 1.5 m ở 13 m/s
+flame.speed = {650, 680};             // 13 m/s, đơn vị pixel (scale 0.02)
+flame.spread = 4;
+flame.size_start = 11;
+flame.size_end = 34;
+flame.color_start = {thrust, thrust, thrust, 1}; // kênh đỏ là lực đẩy, alpha là tuổi
+flame.color_end = {thrust, thrust, thrust, 0};
+flame.blend = njin::blend_additive;
+njin::particles3d_spawn(ctx, flame, nozzle, 6,
+                        {.direction = dir, .stretch = 0.025f, .style = njin::particle3d_flame});
+@endcode
+
 Hiệu ứng tính trên ảnh 3D theo độ sâu (góc tường tối đi, sàn bóng phản chiếu, vết đạn dán lên bề mặt, mờ
 chuyển động, tia nắng, lóa ống kính) ở trang riêng: @ref post_3d.
 
@@ -494,6 +520,11 @@ bánh răng, xích, thanh răng, ròng rọc, cánh quạt.
 | Ròng rọc, palăng | njin::joint3d_pulley: dây từ `a` vắt qua `pulley_a`, `pulley_b` xuống `b`; `ratio` 2 là palăng |
 | Cánh quạt, ống phụt | body3d_add_force() tại một điểm, mỗi bước cố định; joint3d_speed() cho tốc độ quay của cánh |
 | Máy hỏng | joint3d_force(), joint3d_torque() cho lực khớp đang chịu: quá ngưỡng thì joint3d_destroy() |
+| Cầm vật, cẩu, nam châm | body3d_pull() mỗi bước cố định: lò xo giảm chấn kéo body về chỗ và hướng cần tới; vật vẫn giữ khối lượng khi va chạm, đẩy vật khác như vật thật thay vì hất văng như khi hàn vào body kinematic |
+| Con quay giữ thăng bằng | body3d_keep_upright() mỗi bước cố định: giữ một trục của body thẳng đứng, quay quanh trục đứng thì để yên |
+| Linh kiện lồng nhau | body3d_set_group(): các body cùng nhóm không va chạm nhau (trục trong ổ, lá bản lề trong khe) |
+| Mỗi linh kiện nặng theo hình của nó | `mass` của njin::body3d_desc là model_volume() (thể tích chất liệu của model, m³) nhân khối lượng riêng: thanh nhôm 2700 kg/m³, nên thanh rỗng nhẹ hơn thanh đặc cùng cỡ |
+| Vật nhỏ quay tít như cao su | `angular_damping` (và `linear_damping`) của njin::body3d_desc: tăng lên 1..5 để vật lật rồi nằm yên |
 
 Bánh răng tính theo góc quay của mỗi bánh so với khung của nó (body `b` của bản lề), nên vẫn đúng khi
 cả cỗ máy chạy và xoay. Mô-men truyền theo tỉ số: bánh nhỏ (`ratio` 3) quay bánh lớn chậm hơn ba lần
@@ -512,6 +543,12 @@ njin::joint3d_set_motor(ctx, small, 360); // bánh lớn quay 120 độ mỗi gi
 // Pít-tông có đệm lò xo cuối hành trình: trượt tự do dọc y trong 0..0.5, vượt ra thì lò xo 4 Hz kéo lại.
 njin::joint3d_create(ctx, {.kind = njin::joint3d_slider, .a = rod, .b = cylinder, .axis = {0, 1, 0},
                            .min = 0, .max = 0.5f, .spring = 4, .damping = 0.3f});
+
+// Mỗi bước cố định: vật đang cầm ở 2 m trước mắt, giữ hướng lúc nhặt; khung nặng 20 kg gắn vào nó
+// (quán tính 5 kg·m² quanh nó) được kéo theo.
+njin::body3d_pull(ctx, held, eye + forward * 2.0f, held_turn, {.extra_mass = 20, .extra_inertia = 5});
+// Con quay trên thân xe một bánh: giữ trục y của nó thẳng đứng.
+njin::body3d_keep_upright(ctx, gyro, {0, 1, 0}, 2.0f, frame_inertia);
 @endcode
 
 ### Ragdoll {#ragdoll3d}

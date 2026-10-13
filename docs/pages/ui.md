@@ -14,13 +14,16 @@ Menu có nhiều widget hoặc hay đổi thì dựng bằng kéo thả trong nj
 | Hàm | Là gì | Trả về `true` khi |
 |---|---|---|
 | njin::ui_begin(), njin::ui_end() | Một panel: nền, tiêu đề, xếp widget từ trên xuống | |
-| njin::ui_button() | Nút bấm, có thể tắt (`enabled = false`) | Được bấm |
+| njin::ui_button() | Nút bấm, có thể tắt (`enabled = false`); `selected = true` giữ mặt "đang nhấn" cho tab đang mở, công cụ đang bật | Được bấm |
 | njin::ui_toggle() | Công tắc bật/tắt | Giá trị đổi |
 | njin::ui_slider() | Thanh trượt, hiện số hoặc phần trăm | Giá trị đổi |
 | njin::ui_choice() | Chọn một trong nhiều mục bằng trái/phải | Lựa chọn đổi |
-| njin::ui_progress() | Thanh tiến độ: máu, thời gian nạp | |
+| njin::ui_progress() | Thanh tiến độ: máu, thời gian nạp. Tham số `fill` đổi màu phần đầy (máu đỏ khi thấp) | |
 | njin::ui_progress_circle() | Vòng tiến độ: hồi chiêu, nạp đạn. Tùy chỉnh độ dày, màu, góc bắt đầu, chiều chạy, đầu bo tròn, chữ giữa | |
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Chữ, ảnh, khoảng trống | |
+| njin::ui_text() | Chữ có màu, cỡ, căn lề riêng (njin::ui_text_desc): số tiền xanh hay đỏ, giá trị căn phải | |
+| njin::ui_tooltip() | Chú thích nhỏ cạnh con trỏ, vẽ đè lên mọi panel; gọi mỗi frame còn muốn hiện | |
+| njin::ui_scroll_begin(), njin::ui_scroll_end() | Vùng cuộn cao cố định trong panel: danh sách dài | |
 | njin::ui_last_rect() | Khung của widget vừa đặt, để vẽ thêm lên nó (sau njin::ui_end()) | |
 | njin::ui_row() | Xếp vài widget tiếp theo thành một hàng ngang | |
 | njin::ui_input() | Ô nhập chữ một dòng: tìm kiếm, đặt tên | Chữ đổi |
@@ -36,6 +39,30 @@ HUD luôn hiện trong lúc chơi (thanh tài nguyên, dãy nút chiêu mộ) th
 nút của nó chỉ bấm bằng chuột, không bao giờ được chọn sẵn, và mũi tên, Enter, Space, Esc vẫn
 thuộc về game. Muốn vẽ thêm lên một widget (hình trong nút, bản đồ nhỏ trong một khoảng
 njin::ui_space()) thì lấy khung của nó bằng njin::ui_last_rect() và vẽ sau njin::ui_end().
+
+Panel có thể tự đóng: trỏ `.open` vào một `bool` của game thì góc trên phải có nút đóng, bấm vào
+(chỉ bằng chuột) thì biến đó thành `false`. Panel vẫn được vẽ hết frame đó; game thôi gọi nó từ frame sau.
+
+```cpp
+static bool show_shop = true;
+if (show_shop) {
+  njin::ui_begin(ctx, {.id = "shop", .title = "Cửa hàng", .open = &show_shop});
+  njin::ui_row(ctx, 2);
+  njin::ui_label(ctx, "Tiền");
+  njin::ui_text(ctx, "1500k", {.color = njin::rgb8(120, 200, 100), .align = 1.0f});
+  njin::ui_scroll_begin(ctx, "items", 240.0f);
+  for (const item &it : items)
+    if (njin::ui_button(ctx, it.name.c_str(), true, it.id == picked))
+      picked = it.id;
+  njin::ui_scroll_end(ctx);
+  njin::ui_end(ctx);
+}
+```
+
+Vùng cuộn nhận bánh xe chuột khi con trỏ nằm trên nó (game không thấy cú cuộn đó), nhớ đã cuộn tới
+đâu theo `id`, và tự cuộn tới widget được chọn bằng phím hay tay cầm. Tooltip gọi được từ bất cứ đâu,
+không cần ui_begin: thường là ngay sau widget, khi njin::point_in_rect(njin::mouse_pos(ctx),
+njin::ui_last_rect(ctx)).
 
 ### Vòng tiến độ
 

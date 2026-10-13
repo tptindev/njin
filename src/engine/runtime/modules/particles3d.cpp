@@ -3,6 +3,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_draw.h"
+#include "njin_render.h"
 #include "njin_texture.h"
 #include <algorithm>
 #include <cmath>
@@ -99,6 +100,9 @@ void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, 
   burst.look = emitter;
   burst.look.particles.clear();
   burst.scale = desc.scale;
+  burst.stretch = std::max(desc.stretch, 0.0f);
+  burst.shader = desc.shader;
+  burst.style = desc.style;
   burst.particles.reserve(n);
   rng &random = njin::random(ctx);
   const vec3 axis = length_sq(desc.direction) > 0.0f ? normalize(desc.direction) : vec3{0.0f, 1.0f, 0.0f};
@@ -156,7 +160,18 @@ void particles3d_draw(context &ctx, const camera3d &view) {
                                  em.source.size.y};
     }
     const f32 longest = std::max(source.width, source.height);
+    const f32 u0 = source.x / (f32)texture.width, u1 = (source.x + source.width) / (f32)texture.width;
+    const f32 v0 = source.y / (f32)texture.height, v1 = (source.y + source.height) / (f32)texture.height;
     blend_begin(ctx, em.blend);
+    // The game's shader, or the look of the burst's style.
+    bool look = false;
+    if (b.shader.id != 0) {
+      rlDrawRenderBatchActive();
+      shader_begin(ctx, b.shader);
+    } else if (b.style != particle3d_flat) {
+      rlDrawRenderBatchActive();
+      look = particle3d_look_begin(ctx, s.looks, b.style);
+    }
     stats.emitters++;
     for (const particle3d &p : b.particles) {
       const f32 t = p.age / p.life;
@@ -168,11 +183,49 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       to_raylib(tint, color);
       // The longer side of the image is the particle's size.
       const Vector2 extent{size * source.width / longest, size * source.height / longest};
+      stats.particles++;
+      if (b.stretch > 0.0f && length_sq(p.velocity) > 1e-8f) {
+        // A streak: along the flight as the camera sees it, from where the
+        // particle was `stretch` seconds ago to a little past where it is.
+        const vec3 eye = normalize(p.pos - view.position);
+        vec3 along = p.velocity - eye * dot(p.velocity, eye);
+        const f32 run = length(along);
+        if (run > 1e-6f) {
+          along = along * (1.0f / run);
+          const vec3 side = normalize(cross(along, eye)) * (extent.x * 0.5f);
+          const vec3 head = p.pos + along * (extent.y * 0.5f);
+          const vec3 tail = p.pos - along * (extent.y * 0.5f + run * b.stretch);
+          // Seen from either side: which way round its corners go depends on the flight.
+          rlDisableBackfaceCulling();
+          rlSetTexture(texture.id);
+          rlBegin(RL_QUADS);
+          rlColor4ub(color.r, color.g, color.b, color.a);
+          rlTexCoord2f(u0, v1);
+          rlVertex3f(tail.x - side.x, tail.y - side.y, tail.z - side.z);
+          rlTexCoord2f(u1, v1);
+          rlVertex3f(tail.x + side.x, tail.y + side.y, tail.z + side.z);
+          rlTexCoord2f(u1, v0);
+          rlVertex3f(head.x + side.x, head.y + side.y, head.z + side.z);
+          rlTexCoord2f(u0, v0);
+          rlVertex3f(head.x - side.x, head.y - side.y, head.z - side.z);
+          rlEnd();
+          rlSetTexture(0);
+          rlDrawRenderBatchActive();
+          rlEnableBackfaceCulling();
+          continue;
+        }
+      }
       Vector3 pos{};
       to_raylib(p.pos, pos);
       DrawBillboardPro(camera, texture, source, pos, camera.up, extent,
                        Vector2{extent.x * 0.5f, extent.y * 0.5f}, p.rotation, color);
-      stats.particles++;
+    }
+    if (b.shader.id != 0) {
+      rlDrawRenderBatchActive();
+      shader_end(ctx);
+    } else if (look) {
+      rlDrawRenderBatchActive();
+      EndShaderMode();
     }
     blend_end(ctx);
   }

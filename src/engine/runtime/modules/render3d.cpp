@@ -2961,6 +2961,32 @@ template <class F> void each_bone_vertex(const context &ctx, model_handle handle
 }
 } // namespace
 
+f32 model_volume(const context &ctx, model_handle handle) {
+  const model_slot *m = model_slot_of(ctx.model, handle);
+  if (m == nullptr)
+    return 0.0f;
+  // Each triangle with the origin makes a tetrahedron; their signed volumes
+  // add up to what the surface encloses.
+  f64 total = 0.0;
+  for (i32 k = 0; k < m->model.meshCount; k++) {
+    const Mesh &mesh = m->model.meshes[k];
+    if (mesh.vertices == nullptr)
+      continue;
+    const auto at = [&](i32 v) {
+      return Vector3Transform({mesh.vertices[v * 3], mesh.vertices[v * 3 + 1], mesh.vertices[v * 3 + 2]}, m->model.transform);
+    };
+    const i32 corners = mesh.indices != nullptr ? mesh.triangleCount * 3 : mesh.vertexCount;
+    for (i32 c = 0; c + 2 < corners; c += 3) {
+      const i32 i0 = mesh.indices != nullptr ? mesh.indices[c] : c;
+      const i32 i1 = mesh.indices != nullptr ? mesh.indices[c + 1] : c + 1;
+      const i32 i2 = mesh.indices != nullptr ? mesh.indices[c + 2] : c + 2;
+      const Vector3 a = at(i0), b = at(i1), d = at(i2);
+      total += (f64)Vector3DotProduct(a, Vector3CrossProduct(b, d)) / 6.0;
+    }
+  }
+  return (f32)std::fabs(total);
+}
+
 bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max) {
   vec3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
   bool any = false;

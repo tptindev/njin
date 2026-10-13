@@ -145,6 +145,9 @@ target_link_libraries(njin_sol2 INTERFACE njin_lua)
 # built on njin may want F12 for something else; njin::screenshot() is the
 # explicit replacement.
 target_compile_definitions(raylib PRIVATE SUPPORT_SCREEN_CAPTURE=0)
+# JPEG images, off in raylib by default: glTF models carry them (external
+# or embedded), and a texture_load() of a .jpg is as common as a .png.
+target_compile_definitions(raylib PRIVATE SUPPORT_FILEFORMAT_JPG=1)
 
 include(cmake/njin.cmake)
 

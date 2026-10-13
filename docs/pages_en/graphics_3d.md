@@ -332,6 +332,33 @@ njin::fx3d_set(ctx, {});
 3D particles face the camera, stop during hitstop, and `particles3d_desc::scale` converts an emitter
 preset's pixel units to 3D world units.
 
+`particles3d_desc` also has:
+
+| Field | Effect |
+|---|---|
+| `style` | A built-in look drawn by an engine shader: `particle3d_smoke` (smoke, dust billowing with noise, lit on the sun's side), `particle3d_fire` (a flickering fire core), `particle3d_spark` (spark streaks that cool), `particle3d_flame` (the flame of a jet engine or a rocket) |
+| `stretch` | Stretches particles into streaks along their flight, longer by the distance flown in `stretch` seconds: sparks, rain, debris |
+| `shader` | A game shader drawing the particles instead of a built-in look; vertices carry world coordinates |
+
+The built-in looks read the particle's colour: alpha falls with age, so old smoke is thin and sparks
+redden. A flame is made of many fast particles at one speed: a particle's age is its distance from the
+nozzle.
+
+@code
+// One fixed step of a jet engine: a 1.5 m flame out of the nozzle along `dir`.
+njin::particle_emitter flame{};
+flame.life = {0.11f, 0.12f};          // 1.5 m at 13 m/s
+flame.speed = {650, 680};             // 13 m/s, in pixel units (scale 0.02)
+flame.spread = 4;
+flame.size_start = 11;
+flame.size_end = 34;
+flame.color_start = {thrust, thrust, thrust, 1}; // red is the thrust, alpha the age
+flame.color_end = {thrust, thrust, thrust, 0};
+flame.blend = njin::blend_additive;
+njin::particles3d_spawn(ctx, flame, nozzle, 6,
+                        {.direction = dir, .stretch = 0.025f, .style = njin::particle3d_flame});
+@endcode
+
 Effects worked out on the 3D image from its depth (wall corners that darken, polished floors that reflect,
 bullet holes stuck to surfaces, motion blur, light shafts, lens flare) have a page of their own: @ref post_3d.
 
@@ -512,6 +539,10 @@ rubber bands, gears, chains, racks, pulleys, propellers.
 | Pulley, block and tackle | njin::joint3d_pulley: a rope from `a` over `pulley_a`, `pulley_b` down to `b`; a `ratio` of 2 is a block and tackle |
 | Propeller, jet | body3d_add_force() at a point, every fixed step; joint3d_speed() gives the blades' spin |
 | Breaking machines | joint3d_force(), joint3d_torque() give the load a joint bears: past a threshold, joint3d_destroy() |
+| Carrying, cranes, magnets | body3d_pull() every fixed step: a damped spring pulls the body toward a place and a turn; it keeps its mass in collisions, pushing other things as a real thing would instead of flinging them as a body welded to a kinematic one does |
+| A balancing gyro | body3d_keep_upright() every fixed step: keeps one of the body's axes vertical, leaving its turn about the vertical alone |
+| Parts that fit inside each other | body3d_set_group(): bodies in one group do not collide (a shaft in its bearing, a hinge leaf in its knuckle) |
+| Small things spinning like rubber | `angular_damping` (and `linear_damping`) of njin::body3d_desc: raise it to 1..5 so they tip over and lie still |
 
 A gear counts each wheel's turn against its frame (body `b` of its hinge), so it stays right while
 the whole machine drives and turns. Torque passes at the ratio: a small wheel (`ratio` 3) turns a big
@@ -531,6 +562,12 @@ njin::joint3d_set_motor(ctx, small, 360); // the big wheel turns 120 degrees per
 // A piston with a spring end stop: slides freely along y within 0..0.5, past that a 4 Hz spring pulls it back.
 njin::joint3d_create(ctx, {.kind = njin::joint3d_slider, .a = rod, .b = cylinder, .axis = {0, 1, 0},
                            .min = 0, .max = 0.5f, .spring = 4, .damping = 0.3f});
+
+// Every fixed step: the thing carried 2 m ahead of the eye, turned as it was picked up; a 20 kg frame
+// jointed to it (5 kg m^2 of inertia about it) is pulled along.
+njin::body3d_pull(ctx, held, eye + forward * 2.0f, held_turn, {.extra_mass = 20, .extra_inertia = 5});
+// A gyro on a unicycle's frame: keeps its y axis vertical.
+njin::body3d_keep_upright(ctx, gyro, {0, 1, 0}, 2.0f, frame_inertia);
 @endcode
 
 ### Ragdoll {#ragdoll3d}

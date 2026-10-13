@@ -198,6 +198,21 @@ endif()
 #
 # Paths are relative to the calling CMakeLists.txt. VERSION defaults to the
 # project version.
+# No console window for players on Windows: every configuration but Debug
+# builds `target` as a windowed program; Debug keeps the console for the log.
+# main() stays the entry point. Output redirected to a file or a pipe (a test
+# run, a script) still arrives.
+function(njin_hide_console target)
+  if(NOT WIN32)
+    return()
+  endif()
+  set_property(TARGET ${target} PROPERTY WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
+  if(MSVC)
+    # A GUI program starts at WinMain; keep main() as the entry point.
+    target_link_options(${target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:/ENTRY:mainCRTStartup>)
+  endif()
+endfunction()
+
 function(njin_package target)
   cmake_parse_arguments(PKG "" "NAME;VERSION;ICON" "ASSETS;FILES" ${ARGN})
   if(NOT TARGET ${target})
@@ -248,12 +263,7 @@ function(njin_package target)
       "END\n")
     file(CONFIGURE OUTPUT "${rc}" CONTENT "${body}" @ONLY)
     target_sources(${target} PRIVATE "${rc}")
-    # No console window for players; Debug keeps it for the log.
-    set_property(TARGET ${target} PROPERTY WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
-    if(MSVC)
-      # A GUI program starts at WinMain; keep main() as the entry point.
-      target_link_options(${target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:/ENTRY:mainCRTStartup>)
-    endif()
+    njin_hide_console(${target})
   endif()
 
   set(dist_root "${CMAKE_BINARY_DIR}/dist")

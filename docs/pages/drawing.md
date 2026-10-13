@@ -21,7 +21,8 @@ Mọi hàm vẽ phải gọi trong ba phase vẽ. Không gian phụ thuộc phas
 | njin::draw_triangle() | Tam giác. Thứ tự ba đỉnh không quan trọng |
 
 Màu là njin::rgba, mỗi kênh 0..1. Có sẵn vài màu trong `njin::colors` (`white`, `black`,
-`red`, `green`, `blue`, `yellow`, `gray`, `transparent`).
+`red`, `green`, `blue`, `yellow`, `gray`, `transparent`). Màu lấy từ trình vẽ ảnh (kênh 0..255) thì
+viết bằng njin::rgb8(): `njin::rgb8(196, 48, 40)`, thêm tham số thứ tư cho độ đục.
 
 ## Chữ
 

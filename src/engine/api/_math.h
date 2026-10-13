@@ -229,6 +229,16 @@ constexpr rect rect_from_center(vec2 center, vec2 size) {
   return {center - size * 0.5f, size};
 }
 
+/// Màu từ các kênh 0..255, như trong trình vẽ ảnh: `rgb8(196, 48, 40)`.
+/// @param r Đỏ, 0..255.
+/// @param g Xanh lá, 0..255.
+/// @param b Xanh dương, 0..255.
+/// @param a Độ đục, 0..255. Mặc định là đục hoàn toàn.
+/// @return Màu tương ứng, mỗi kênh 0..1.
+constexpr rgba rgb8(i32 r, i32 g, i32 b, i32 a = 255) {
+  return {(f32)r / 255.0f, (f32)g / 255.0f, (f32)b / 255.0f, (f32)a / 255.0f};
+}
+
 /// Các màu hay dùng.
 namespace colors {
 inline constexpr rgba white{1.0f, 1.0f, 1.0f, 1.0f};  ///< Trắng.

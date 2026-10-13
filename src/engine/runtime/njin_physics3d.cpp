@@ -586,6 +586,17 @@ private:
   }
 };
 
+// Bodies the game put in the same group (body3d_set_group) do not collide.
+// Only bodies carrying this filter are compared, so a ragdoll's own groups are
+// left to its table.
+class same_group final : public JPH::GroupFilter {
+public:
+  bool CanCollide(const JPH::CollisionGroup &a, const JPH::CollisionGroup &b) const override {
+    return b.GetGroupFilter() != this || a.GetGroupID() == JPH::CollisionGroup::cInvalidGroup ||
+           a.GetGroupID() != b.GetGroupID();
+  }
+};
+
 // Body pairs starting and stopping to touch, from Jolt's contact callbacks
 // (on the physics step, single-threaded here).
 class contact_listener final : public JPH::ContactListener {
@@ -672,6 +683,7 @@ struct physics3d_world {
   std::unordered_map<u32, u32> soft_by_body;   // Jolt body id -> soft body handle id
   u64 steps = 0;                               // physics3d_step() calls so far
   std::unordered_map<u64, pair_state> touching; // pair_key -> the pair
+  JPH::Ref<JPH::GroupFilter> groups = new same_group(); // body3d_set_group
   std::vector<contact3d> contacts; // events of the last step
   character_grid crowd;            // characters against each other
   // Static bodies added since the broad phase was last rebuilt: a town's
@@ -1827,6 +1839,8 @@ body3d_handle body3d_create(context &ctx, const body3d_desc &desc) {
                                      desc.motion == body3d_static ? layers::still : layers::moving);
   settings.mFriction = desc.friction;
   settings.mRestitution = desc.restitution;
+  settings.mLinearDamping = std::max(desc.linear_damping, 0.0f);
+  settings.mAngularDamping = std::max(desc.angular_damping, 0.0f);
   settings.mIsSensor = desc.sensor;
   // A sensor that does not move still notices kinematic bodies passing.
   settings.mCollideKinematicVsNonDynamic = desc.sensor;
@@ -2113,6 +2127,23 @@ void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity) {
   }
 }
 
+void body3d_set_group(context &ctx, body3d_handle handle, u32 group) {
+  body_slot *b = body_of(ctx, handle);
+  if (b == nullptr)
+    return;
+  if (b->ragdoll) {
+    NJIN_WARN("physics3d: body3d_set_group on a part of a ragdoll: its parts keep the ragdoll's groups");
+    return;
+  }
+  physics3d_world &w = *ctx.physics3d.world;
+  JPH::BodyLockWrite lock(w.system.GetBodyLockInterface(), b->id);
+  if (!lock.Succeeded())
+    return;
+  JPH::CollisionGroup &g = lock.GetBody().GetCollisionGroup();
+  g.SetGroupFilter(group != 0 ? w.groups.GetPtr() : nullptr);
+  g.SetGroupID(group != 0 ? (JPH::CollisionGroup::GroupID)group : JPH::CollisionGroup::cInvalidGroup);
+}
+
 void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && !refuse(finite3(impulse), "body3d_add_impulse"))
@@ -2150,6 +2181,91 @@ void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && mass > 0.0f)
     ctx.physics3d.world->loads.push_back({b->id, mass, jv(point)});
+}
+
+namespace {
+// A body's mass (with `extra` kg pulled along) and world inertia (with
+// `extra_inertia` kg m^2 about its centre turned along), its pose and
+// velocities; false if it is not a live dynamic body.
+struct pull_state {
+  f32 mass = 0.0f;
+  JPH::Mat44 inertia;
+  JPH::Quat rotation;
+  JPH::Vec3 position, velocity, spin;
+};
+bool pull_state_of(context &ctx, const body_slot &b, f32 extra, f32 extra_inertia, pull_state &out) {
+  JPH::BodyLockRead lock(ctx.physics3d.world->system.GetBodyLockInterface(), b.id);
+  if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
+    return false;
+  const JPH::Body &body = lock.GetBody();
+  const JPH::MotionProperties *m = body.GetMotionProperties();
+  if (m->GetInverseMass() <= 0.0f)
+    return false;
+  out.mass = 1.0f / m->GetInverseMass() + std::max(extra, 0.0f);
+  out.inertia = body.GetInverseInertia().Inversed3x3();
+  const f32 more = std::max(extra_inertia, 0.0f);
+  for (i32 c = 0; c < 3; c++) {
+    JPH::Vec3 column = out.inertia.GetColumn3(c);
+    column.SetComponent(c, column[c] + more);
+    out.inertia.SetColumn3(c, column);
+  }
+  out.rotation = body.GetRotation();
+  out.position = JPH::Vec3(body.GetCenterOfMassPosition());
+  out.velocity = body.GetLinearVelocity();
+  out.spin = body.GetAngularVelocity();
+  return true;
+}
+// Torque turning the body through the small rotation `error` (radians,
+// world), critically damped against `spin`.
+JPH::Vec3 spring_torque(const pull_state &p, JPH::Vec3 error, JPH::Vec3 spin, f32 hz) {
+  const f32 w = 2.0f * pi * hz;
+  return p.inertia.Multiply3x3(error * (w * w) - spin * (2.0f * w));
+}
+} // namespace
+
+void body3d_pull(context &ctx, body3d_handle handle, vec3 position, vec3 rotation, const pull3d &how) {
+  body_slot *b = body_of(ctx, handle);
+  pull_state p;
+  if (b == nullptr || refuse(finite3(position) && finite3(rotation), "body3d_pull") ||
+      !pull_state_of(ctx, *b, how.extra_mass, how.extra_inertia, p))
+    return;
+  JPH::PhysicsSystem &system = ctx.physics3d.world->system;
+  const f32 w = 2.0f * pi * std::max(how.hz, 0.0f);
+  JPH::Vec3 force = ((jv(position) - p.position) * (w * w) - p.velocity * (2.0f * w)) * p.mass;
+  if (how.hold_weight)
+    force -= system.GetGravity() * p.mass;
+  const f32 cap = std::max(how.most, 0.0f) * system.GetGravity().Length() * p.mass;
+  if (cap > 0.0f && force.Length() > cap)
+    force *= cap / force.Length();
+  JPH::BodyInterface &bi = system.GetBodyInterface();
+  bi.AddForce(b->id, force);
+  if (how.turn_hz > 0.0f) {
+    // The rotation from how it is turned to how it should be, the short way.
+    JPH::Quat d = quat_of(rotation) * p.rotation.Conjugated();
+    if (d.GetW() < 0.0f)
+      d = -d;
+    JPH::Vec3 axis;
+    f32 angle = 0.0f;
+    d.GetAxisAngle(axis, angle);
+    bi.AddTorque(b->id, spring_torque(p, axis * angle, p.spin, how.turn_hz));
+  }
+}
+
+void body3d_keep_upright(context &ctx, body3d_handle handle, vec3 axis, f32 hz, f32 extra_inertia) {
+  body_slot *b = body_of(ctx, handle);
+  pull_state p;
+  if (b == nullptr || length_sq(axis) <= 0.0f || refuse(finite3(axis), "body3d_keep_upright") ||
+      !pull_state_of(ctx, *b, 0.0f, extra_inertia, p))
+    return;
+  const JPH::Vec3 up = p.rotation * jv(normalize(axis));
+  const JPH::Vec3 tilt = up.Cross(JPH::Vec3::sAxisY());
+  const f32 s = std::min(tilt.Length(), 1.0f);
+  // The tilt as a rotation by its angle (not its sine), past 90 degrees too.
+  const f32 angle = std::atan2(s, up.GetY());
+  const JPH::Vec3 error = s > 1e-6f ? tilt / s * angle : JPH::Vec3::sZero();
+  JPH::Vec3 spin = p.spin;
+  spin.SetY(0.0f); // turning about the vertical is left alone
+  ctx.physics3d.world->system.GetBodyInterface().AddTorque(b->id, spring_torque(p, error, spin, hz));
 }
 
 u64 body3d_user(const context &ctx, body3d_handle handle) {

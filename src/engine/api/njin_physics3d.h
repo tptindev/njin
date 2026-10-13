@@ -33,6 +33,13 @@ struct body3d_desc {
   f32 mass = 1.0f;                   ///< Khối lượng, kg, chỉ cho body động.
   f32 friction = 0.5f;               ///< Ma sát, 0..1.
   f32 restitution = 0.0f;            ///< Độ nảy, 0 (không nảy) .. 1 (nảy hết).
+  /// Giảm chấn: phần vận tốc thẳng mất đi mỗi giây (như lực cản), chỉ cho body
+  /// động. 0.05 là mặc định; tăng lên cho vật phải dừng nhanh.
+  f32 linear_damping = 0.05f;
+  /// Phần vận tốc quay mất đi mỗi giây. 0.05 là mặc định; tăng lên (1..5) cho
+  /// vật nhỏ, nhẹ mà va chạm làm quay tít như cao su, để chúng lật rồi nằm yên
+  /// như vật rắn thật.
+  f32 angular_damping = 0.05f;
   /// Số của game gắn vào body (chỉ số trong mảng, id entity...), đọc lại bằng
   /// body3d_user() hoặc từ kết quả physics3d_raycast().
   u64 user = 0;
@@ -93,6 +100,21 @@ vec3 body3d_velocity(const context &ctx, body3d_handle handle);
 /// @param velocity Vận tốc mới, đơn vị mỗi giây.
 void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity);
 
+/// Cho body vào một nhóm: các body cùng nhóm (khác 0) không va chạm với nhau,
+/// với mọi body khác vẫn va chạm như thường. Để các mảnh của một cỗ máy ghép
+/// lồng vào nhau (trục trong ổ, lá bản lề trong khe, cần trong xi-lanh) mà không
+/// đẩy nhau ra. Đổi nhóm bất cứ lúc nào: bước mô phỏng sau theo nhóm mới.
+///
+/// @code
+/// // Bánh xe lắp lên trục của khung: hai body chồng lên nhau ở chỗ lắp.
+/// njin::body3d_set_group(ctx, frame, 7);
+/// njin::body3d_set_group(ctx, wheel, 7);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Body (không phải một phần của ragdoll).
+/// @param group Số nhóm do game chọn; 0 là không thuộc nhóm nào (mặc định).
+void body3d_set_group(context &ctx, body3d_handle handle, u32 group);
+
 /// Đẩy một body động một cú (xung lực, kg * đơn vị mỗi giây) tại tâm của nó:
 /// nổ, cú đá, đạn trúng.
 /// @param ctx Context của engine.
@@ -150,6 +172,49 @@ vec3 body3d_angular_velocity(const context &ctx, body3d_handle handle);
 /// @param mass Khối lượng, kg. Không dương thì bỏ qua.
 /// @param point Chỗ đặt, thế giới; được giữ ở trong body.
 void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point);
+
+/// Cách body3d_pull() kéo một body.
+struct pull3d {
+  f32 hz = 5.0f;      ///< Độ cứng của lò xo vị trí: tần số dao động, Hz. Giảm chấn tới hạn (không nảy).
+  f32 turn_hz = 4.0f; ///< Độ cứng của lò xo hướng, Hz, cho từng trục theo quán tính của body. 0 là không giữ hướng.
+  /// Lực kéo tối đa, bội số trọng lượng (của body và `extra_mass`): vật kẹt hay
+  /// bị giữ không bị giật mạnh hơn mức này.
+  f32 most = 4.0f;
+  /// Khối lượng những gì nối vào body bằng khớp (cả cỗ máy), kg: lực đủ kéo cả chúng.
+  f32 extra_mass = 0.0f;
+  /// Quán tính quay của những gì nối vào body, quanh tâm body, kg·m² (mỗi phần
+  /// khối lượng nhân bình phương khoảng cách tới tâm body): mô-men đủ xoay cả chúng.
+  f32 extra_inertia = 0.0f;
+  bool hold_weight = true; ///< Đỡ cả trọng lượng, để vật không võng xuống dưới chỗ kéo.
+};
+
+/// Kéo một body động về `position`, xoay về `rotation`, bằng lò xo có giảm chấn
+/// tới hạn, trong bước vật lý kế tiếp: cầm vật trong game góc nhìn thứ nhất,
+/// cẩu, nam châm. Khác với hàn body vào một body kinematic, vật vẫn giữ khối
+/// lượng của nó khi va chạm: đụng vật khác thì đẩy như một vật thật, không hất
+/// văng như một bức tường, và không bị ép xuyên qua tường. Gọi mỗi bước cố định.
+/// @code
+/// // Cầm vật ở 2 m trước mắt, giữ hướng lúc nhặt lên.
+/// njin::body3d_pull(ctx, held, eye + forward * 2.0f, held_rotation);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Body. Không phải body động thì bỏ qua.
+/// @param position Chỗ tâm body cần tới, thế giới.
+/// @param rotation Hướng cần giữ, độ, như njin::transform3d. Bỏ qua nếu `how.turn_hz` bằng 0.
+/// @param how Độ cứng, lực tối đa, khối lượng kéo theo.
+void body3d_pull(context &ctx, body3d_handle handle, vec3 position, vec3 rotation, const pull3d &how = {});
+
+/// Giữ trục `axis` của body (trong hệ trục riêng của nó) chỉ thẳng lên, bằng
+/// mô-men lò xo có giảm chấn tới hạn theo quán tính của body, trong bước vật lý
+/// kế tiếp: con quay giữ thăng bằng cho xe một bánh, robot, tên lửa. Quay quanh
+/// trục thẳng đứng thì để yên. Gọi mỗi bước cố định.
+/// @param ctx Context của engine.
+/// @param handle Body. Không phải body động thì bỏ qua.
+/// @param axis Trục của body cần giữ thẳng đứng, hệ trục riêng của body.
+/// @param hz Độ cứng, Hz.
+/// @param extra_inertia Quán tính quay của những gì nối vào body (cả cỗ máy),
+///   quanh tâm body, kg·m², như njin::pull3d::extra_inertia: mô-men đủ cho cả chúng.
+void body3d_keep_upright(context &ctx, body3d_handle handle, vec3 axis, f32 hz = 2.0f, f32 extra_inertia = 0.0f);
 
 /// Số của game gắn vào body lúc tạo (njin::body3d_desc::user).
 /// @param ctx Context của engine.

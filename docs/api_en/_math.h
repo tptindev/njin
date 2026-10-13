@@ -229,6 +229,16 @@ constexpr rect rect_from_center(vec2 center, vec2 size) {
   return {center - size * 0.5f, size};
 }
 
+/// A colour from 0..255 channels, as in an image editor: `rgb8(196, 48, 40)`.
+/// @param r Red, 0..255.
+/// @param g Green, 0..255.
+/// @param b Blue, 0..255.
+/// @param a Opacity, 0..255. Fully opaque by default.
+/// @return The colour, each channel 0..1.
+constexpr rgba rgb8(i32 r, i32 g, i32 b, i32 a = 255) {
+  return {(f32)r / 255.0f, (f32)g / 255.0f, (f32)b / 255.0f, (f32)a / 255.0f};
+}
+
 /// Commonly used colors.
 namespace colors {
 inline constexpr rgba white{1.0f, 1.0f, 1.0f, 1.0f};  ///< White.

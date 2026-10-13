@@ -800,6 +800,19 @@ i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone);
 /// has no skin, or the handle or `bone` is invalid.
 bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max);
 
+/// The volume of a model's material, in cubic world units, in its rest pose:
+/// what its triangles enclose (a hollow shell counts only its walls). Times the
+/// material's density it gives the thing's mass, so each thing weighs as its
+/// shape says (a hollow bar lighter than a solid one of the same size).
+/// @code
+/// // An aluminium bar: 2700 kg a cubic metre.
+/// const float mass = njin::model_volume(ctx, bar) * 2700.0f;
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Model from model_load() or model_create().
+/// @return The volume; approximate for an open mesh. 0 if the handle is invalid.
+f32 model_volume(const context &ctx, model_handle handle);
+
 /// The vertices of that skin (as model_bone_bounds()), in the same axes: along the
 /// model's axes in the rest pose, from the bone's origin. To build a convex hull
 /// that fits the real shape (physics3d_hull_create()).
@@ -1100,6 +1113,32 @@ struct fx3d {
 /// @param fx Effect.
 void fx3d_set(context &ctx, const fx3d &fx);
 
+/// Built-in looks for 3D particles (particles3d_desc::style): an engine shader
+/// colours each particle by its colour and alpha (fading with age), the time,
+/// and the sun of light3d_set().
+enum particle3d_style {
+  particle3d_flat,  ///< As the emitter says: its image or shape times its colour (the default).
+  /// Smoke, dust, steam: a soft ball whose edge is eaten by noise drifting
+  /// slowly through space, so a stream of particles becomes one billowing
+  /// cloud; lit on the sun's side, darker on the other by the ambient light.
+  /// Older particles are thinner and more ragged. Use `blend_alpha`.
+  particle3d_smoke,
+  /// Fire: a white-hot core through yellow and orange to a red fringe,
+  /// flickering with noise, cooling with age. Use `blend_additive`.
+  particle3d_fire,
+  /// Sparks: streaks with a white-hot thread in an orange glow, bright at the
+  /// head and dying away to the tail, reddening as they cool. Use with
+  /// `stretch` and `blend_additive`.
+  particle3d_spark,
+  /// The flame of a jet engine or a rocket: emit many fast particles at one
+  /// speed, with `stretch`, `blend_additive`, a start colour with alpha 1 and an
+  /// end colour with alpha 0, so a particle's age is its distance from the
+  /// nozzle. White-blue core by the nozzle, yellow, orange then red further
+  /// out, with bright bands (shock diamonds) standing still in the stream. The
+  /// colour's red channel is the thrust, 0..1.
+  particle3d_flame,
+};
+
 /// How to place a burst of particles in the 3D world, used with
 /// particles3d_spawn().
 struct particles3d_desc {
@@ -1111,6 +1150,21 @@ struct particles3d_desc {
   /// 3D world units: multiplied into speed, size, gravity and `area`.
   /// Gravity `{0, 400}` (falling down the screen) becomes falling along `-y`.
   f32 scale = 0.02f;
+  /// Stretches each particle along the way it flies: longer by the distance it
+  /// covers in `stretch` seconds, as wide as the particle's size, so sparks,
+  /// rain and debris become streaks. The particle's rotation is ignored. 0 is a
+  /// square particle facing the camera, as usual.
+  f32 stretch = 0.0f;
+  /// A game shader that draws these particles instead of the built-in one:
+  /// smoke curling with noise, a fire's hot core. Each particle is a
+  /// rectangle whose vertices carry world coordinates (`vertexPosition`; `mvp`
+  /// already holds the camera), texture coordinates 0..1 (`vertexTexCoord`),
+  /// the particle's colour at the time (`vertexColor`, its alpha fading with
+  /// age), and the emitter's image in `texture0`. Set uniforms with
+  /// `shader_set_*` before end_3d(). Invalid means the built-in shader (`style`).
+  shader_handle shader{};
+  /// The built-in look, when there is no `shader`: smoke, fire, sparks, a jet's flame.
+  particle3d_style style = particle3d_flat;
 };
 
 /// Spawns a burst of `count` particles at `pos`, reusing a 2D emitter: the
