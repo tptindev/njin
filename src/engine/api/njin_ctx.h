@@ -127,6 +127,21 @@ bool time_paused(const context &ctx);
 /// @return Độ dài một nhịp, tính bằng giây.
 f32 fixed_delta(const context &ctx);
 
+/// Đặt nhịp chạy của `phase_fixed_update` so với thời gian thật, mà không đổi độ dài
+/// một nhịp (fixed_delta()) hay delta(). 1.02 là chạy nhanh hơn 2%: thêm khoảng một
+/// nhịp mỗi giây ở 60 Hz.
+///
+/// Dùng để giữ hai máy chơi mạng cùng nhịp: netcode tự đặt nó trên máy khách (xem
+/// @ref multiplayer). Giá trị được kẹp trong 0.5..2.
+/// @param ctx Context của engine.
+/// @param rate Nhịp, mặc định 1.
+void time_set_fixed_rate(context &ctx, f32 rate);
+
+/// Nhịp chạy hiện tại của `phase_fixed_update`, xem time_set_fixed_rate().
+/// @param ctx Context của engine.
+/// @return Nhịp, mặc định 1.
+f32 time_fixed_rate(const context &ctx);
+
 /// Phần nhịp cố định còn dư sau `phase_fixed_update` của frame này, từ 0 đến 1.
 ///
 /// Dùng để nội suy vị trí khi vẽ, cho chuyển động mượt dù FPS khác nhịp vật lý:

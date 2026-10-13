@@ -45,6 +45,10 @@ chuyển động mượt khi FPS cao hơn nhịp vật lý:
 const njin::vec2 draw_pos = njin::lerp(prev_pos, pos, njin::fixed_alpha(ctx));
 ```
 
+njin::time_set_fixed_rate() cho `phase_fixed_update` chạy nhanh hay chậm hơn thời gian thật một chút (1.02 là
+nhanh hơn 2%) mà không đổi độ dài một nhịp. Game chơi mạng dùng nó để giữ hai máy cùng nhịp; netcode tự đặt nó trên
+máy khách (@ref netcode).
+
 ## Timer và tween
 
 @include time_tween.cpp

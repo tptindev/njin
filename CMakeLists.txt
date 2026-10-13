@@ -121,7 +121,29 @@ FetchContent_Declare(
   SOURCE_SUBDIR no-cmake
   SYSTEM)
 
-FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg)
+# Asio (Boost Software License 1.0, standalone, header-only) for njin_network.h:
+# TCP and UDP on one network thread, written as C++20 coroutines. Private to
+# njin_rt; its CMake-less repository is used for its headers only.
+FetchContent_Declare(
+  asio
+  URL https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-38-2.tar.gz
+  URL_HASH SHA256=9f2648fa483e58a6bf848d970ee0ea650ca19ed7769dfa520ed4f7b8d27af1db
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  SOURCE_SUBDIR no-cmake
+  SYSTEM)
+
+# ENet (MIT) for njin_multiplayer.h: reliable and unreliable channels over UDP
+# for realtime games. Its C sources are compiled into njin_enet below; its CMake
+# (install rules, global definitions) is skipped. Private to njin_rt.
+FetchContent_Declare(
+  enet
+  URL https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.tar.gz
+  URL_HASH SHA256=28603c895f9ed24a846478180ee72c7376b39b4bb1287b73877e5eae7d96b0dd
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  SOURCE_SUBDIR no-cmake
+  SYSTEM)
+
+FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg asio enet)
 
 file(GLOB _njin_recast_sources "${recastnavigation_SOURCE_DIR}/Recast/Source/*.cpp"
      "${recastnavigation_SOURCE_DIR}/Detour/Source/*.cpp" "${recastnavigation_SOURCE_DIR}/DetourCrowd/Source/*.cpp")
@@ -130,6 +152,35 @@ target_include_directories(njin_recast SYSTEM PUBLIC "${recastnavigation_SOURCE_
                            "${recastnavigation_SOURCE_DIR}/Detour/Include" "${recastnavigation_SOURCE_DIR}/DetourCrowd/Include")
 add_library(njin_plmpeg INTERFACE)
 target_include_directories(njin_plmpeg SYSTEM INTERFACE "${pl_mpeg_SOURCE_DIR}")
+find_package(Threads REQUIRED)
+add_library(njin_asio INTERFACE)
+target_include_directories(njin_asio SYSTEM INTERFACE "${asio_SOURCE_DIR}/include")
+target_compile_definitions(njin_asio INTERFACE ASIO_STANDALONE ASIO_NO_DEPRECATED)
+target_link_libraries(njin_asio INTERFACE Threads::Threads)
+if(WIN32)
+  target_link_libraries(njin_asio INTERFACE ws2_32 mswsock)
+endif()
+
+set(_njin_enet_dir "${enet_SOURCE_DIR}")
+add_library(njin_enet STATIC
+  "${_njin_enet_dir}/callbacks.c" "${_njin_enet_dir}/compress.c" "${_njin_enet_dir}/host.c"
+  "${_njin_enet_dir}/list.c" "${_njin_enet_dir}/packet.c" "${_njin_enet_dir}/peer.c"
+  "${_njin_enet_dir}/protocol.c" "${_njin_enet_dir}/unix.c" "${_njin_enet_dir}/win32.c")
+target_include_directories(njin_enet SYSTEM PUBLIC "${_njin_enet_dir}/include")
+if(WIN32)
+  target_compile_definitions(njin_enet PRIVATE _WINSOCK_DEPRECATED_NO_WARNINGS _CRT_SECURE_NO_WARNINGS)
+  if(MSVC)
+    target_compile_options(njin_enet PRIVATE /wd5287) # ENet mixes its enum types on purpose
+  endif()
+  target_link_libraries(njin_enet PUBLIC ws2_32 winmm)
+else()
+  # What ENet's own configure step would find on a POSIX system.
+  target_compile_definitions(njin_enet PRIVATE HAS_FCNTL=1 HAS_POLL=1 HAS_GETADDRINFO=1 HAS_GETNAMEINFO=1
+                             HAS_INET_PTON=1 HAS_INET_NTOP=1 HAS_MSGHDR_FLAGS=1 HAS_SOCKLEN_T=1)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_compile_definitions(njin_enet PRIVATE HAS_GETHOSTBYNAME_R=1 HAS_GETHOSTBYADDR_R=1)
+  endif()
+endif()
 
 file(GLOB _njin_lua_sources "${lua_SOURCE_DIR}/src/*.c")
 list(FILTER _njin_lua_sources EXCLUDE REGEX "/(lua|luac)\\.c$")
@@ -156,7 +207,7 @@ add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
 # Export the engine build for standalone games. Private games are never
 # discovered or added by this project.
-set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg EnTT)
+set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_asio njin_enet EnTT)
 if(TARGET glfw)
   get_target_property(_njin_glfw_type glfw TYPE)
   if(_njin_glfw_type STREQUAL "OBJECT_LIBRARY")

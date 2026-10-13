@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <unordered_map>
 #include <vector>
 
 // A port of Biped-Potato's Bevy FPS tutorial (part 2) to njin, with its gun
@@ -18,6 +20,11 @@
 //              while the camera kicks
 //   gizmos     G shows the debug view: target hit boxes, each shot's path for
 //              a second, a label where it hit (njin_gizmo.h)
+//   network    --host / --join (main.cpp): one player hosts and plays, others
+//              join; everyone shoots at the same targets (njin_netcode.h).
+//              The host moves every player from their inputs and owns the
+//              targets and the score; a client moves its own player at once
+//              (prediction) and draws the others interpolated.
 // Units are the tutorial's: the player is 20 tall, the floor 2000 wide.
 
 namespace fps {
@@ -145,17 +152,49 @@ std::vector<box> solids() {
 
 // Moves one axis and pushes back out of whatever it ran into. Returns true
 // when the move was stopped.
-bool move_axis(f32 vec3::*axis, f32 amount, const std::vector<box> &boxes) {
-  g.pos.*axis += amount;
+bool move_axis(vec3 &pos, f32 vec3::*axis, f32 amount, const std::vector<box> &boxes) {
+  pos.*axis += amount;
   bool blocked = false;
   for (const box &b : boxes) {
-    if (!overlaps(g.pos, player_half, b))
+    if (!overlaps(pos, player_half, b))
       continue;
     const f32 reach = player_half.*axis + b.half.*axis;
-    g.pos.*axis = amount > 0.0f ? b.center.*axis - reach : b.center.*axis + reach;
+    pos.*axis = amount > 0.0f ? b.center.*axis - reach : b.center.*axis + reach;
     blocked = true;
   }
   return blocked;
+}
+
+// One fixed step of a player: `input` is (forward, right), each -1..1. The
+// same code moves the solo player, every player on the host, and the client's
+// own prediction, so they agree.
+void step_player(vec3 &pos, vec3 &velocity, bool &grounded, vec2 input, f32 yaw, f32 dt,
+                 const std::vector<box> &boxes) {
+  // Standing on something cancels the fall, as the tutorial's controller does.
+  if (grounded)
+    velocity = {};
+  const vec3 move = normalize(forward_of(yaw, 0.0f) * input.x + right_of(yaw) * input.y);
+  if (length_sq(move) > 0.0f) {
+    velocity.x = move.x * move_speed;
+    velocity.z = move.z * move_speed;
+  }
+  velocity.y -= gravity * dt;
+  move_axis(pos, &vec3::x, velocity.x * dt, boxes);
+  move_axis(pos, &vec3::z, velocity.z * dt, boxes);
+  grounded = move_axis(pos, &vec3::y, velocity.y * dt, boxes) && velocity.y < 0.0f;
+}
+
+vec2 move_keys(const context &ctx) {
+  vec2 input{};
+  if (key_held(ctx, key_w))
+    input.x += 1.0f;
+  if (key_held(ctx, key_s))
+    input.x -= 1.0f;
+  if (key_held(ctx, key_d))
+    input.y += 1.0f;
+  if (key_held(ctx, key_a))
+    input.y -= 1.0f;
+  return input;
 }
 
 vec2 grid_cell(rng &r) {
@@ -182,19 +221,36 @@ void place_targets(context &ctx) {
   }
 }
 
-void shoot(context &ctx) {
-  // The ray through the crosshair: the centre of the screen.
-  const ray3d ray{.origin = g.pos, .direction = forward_of(g.yaw, g.pitch)};
-  const vec3 dir = ray.direction;
-  f32 nearest = 1e30f;
-  target *hit_target = nullptr;
+// Where a shot from `eye` along yaw/pitch lands: the nearest of the level and
+// the live targets.
+struct shot {
+  vec3 muzzle;
+  vec3 dir;
+  vec3 end;
   bool hit = false;
+  target *hit_target = nullptr;
+};
+
+vec3 muzzle_of(vec3 eye, f32 yaw, f32 pitch) {
+  const vec3 right = right_of(yaw);
+  const vec3 forward = forward_of(yaw, pitch);
+  const vec3 up = cross(right, forward);
+  return eye + right * muzzle_local.x + up * muzzle_local.y - forward * muzzle_local.z;
+}
+
+shot trace_shot(vec3 eye, f32 yaw, f32 pitch) {
+  // The ray through the crosshair: the centre of the screen.
+  const ray3d ray{.origin = eye, .direction = forward_of(yaw, pitch)};
+  shot out;
+  out.dir = ray.direction;
+  out.muzzle = muzzle_of(eye, yaw, pitch);
+  f32 nearest = 1e30f;
   for (const box &b : level_boxes) {
     const ray3d_hit h = ray3d_box(ray, b.center, b.half * 2.0f);
     if (h.hit && h.distance < nearest) {
       nearest = h.distance;
-      hit_target = nullptr;
-      hit = true;
+      out.hit_target = nullptr;
+      out.hit = true;
     }
   }
   for (target &tg : g.targets) {
@@ -203,38 +259,536 @@ void shoot(context &ctx) {
     const ray3d_hit h = ray3d_box(ray, tg.pos, vec3{target_half, target_half, target_half} * 2.0f);
     if (h.hit && h.distance < nearest) {
       nearest = h.distance;
-      hit_target = &tg;
-      hit = true;
+      out.hit_target = &tg;
+      out.hit = true;
     }
   }
-  // Every shot kicks the view a little and lights the muzzle.
-  const vec3 right = right_of(g.yaw);
-  const vec3 forward = forward_of(g.yaw, g.pitch);
-  const vec3 up = cross(right, forward);
-  const vec3 muzzle = g.pos + right * muzzle_local.x + up * muzzle_local.y - forward * muzzle_local.z;
-  camera_shake(ctx, 0.12f);
-  g.muzzle = muzzle_time;
-  g.muzzle_pos = muzzle;
-  if (!hit)
-    return;
-  const vec3 end = g.pos + dir * nearest;
-  gizmo_line3d(ctx, g.pos, end, colors::yellow, 1.0f);
-  gizmo_point3d(ctx, end, colors::yellow, 1.0f);
-  if (hit_target != nullptr)
-    gizmo_text3d(ctx, end, "trúng", colors::red, 0.6f);
-  particles3d_spawn(ctx, fx::sparks(), end, 18, {.direction = -dir, .scale = fx_scale});
-  if (hit_target != nullptr) {
-    g.ghosts.push_back({.pos = hit_target->pos, .seed = (f32)g.hits});
-    particle_emitter burst = fx::explosion();
-    burst.color_start = {1.0f, 0.45f, 0.35f, 1.0f};
-    particles3d_spawn(ctx, burst, hit_target->pos, 40, {.scale = fx_scale * 0.5f});
-    camera_shake(ctx, 0.25f);
-    hitstop(ctx, 0.04f);
-    hit_target->dead = true;
-    g.hits++;
-    place_targets(ctx);
+  out.end = out.hit ? eye + out.dir * nearest : eye + out.dir * 1000.0f;
+  return out;
+}
+
+// The look of a shot: our own kicks the view and lights the muzzle; anyone's
+// leaves sparks where it lands and a tracer.
+void shot_effects(context &ctx, vec3 eye, const shot &s, bool own) {
+  if (own) {
+    camera_shake(ctx, 0.12f);
+    g.muzzle = muzzle_time;
+    g.muzzle_pos = s.muzzle;
   }
-  g.tracers.push_back({.from = muzzle, .to = end, .lifetime = distance(muzzle, end) / tracer_speed});
+  if (!s.hit)
+    return;
+  gizmo_line3d(ctx, eye, s.end, colors::yellow, 1.0f);
+  gizmo_point3d(ctx, s.end, colors::yellow, 1.0f);
+  particles3d_spawn(ctx, fx::sparks(), s.end, 18, {.direction = -s.dir, .scale = fx_scale});
+  g.tracers.push_back({.from = s.muzzle, .to = s.end, .lifetime = distance(s.muzzle, s.end) / tracer_speed});
+}
+
+// A target hit at `pos` flashes, bursts and dissolves there. `own` kicks the
+// camera; `stop` also freezes time a moment (solo only: online it would hold
+// up the host's ticks).
+void target_hit_effects(context &ctx, vec3 pos, vec3 at, f32 seed, bool own, bool stop) {
+  gizmo_text3d(ctx, at, "trúng", colors::red, 0.6f);
+  g.ghosts.push_back({.pos = pos, .seed = seed});
+  particle_emitter burst = fx::explosion();
+  burst.color_start = {1.0f, 0.45f, 0.35f, 1.0f};
+  particles3d_spawn(ctx, burst, pos, 40, {.scale = fx_scale * 0.5f});
+  if (own)
+    camera_shake(ctx, 0.25f);
+  if (stop)
+    hitstop(ctx, 0.04f);
+}
+
+void shoot(context &ctx) {
+  const shot s = trace_shot(g.pos, g.yaw, g.pitch);
+  shot_effects(ctx, g.pos, s, true);
+  if (s.hit_target == nullptr)
+    return;
+  target_hit_effects(ctx, s.hit_target->pos, s.end, (f32)g.hits, true, true);
+  s.hit_target->dead = true;
+  g.hits++;
+  place_targets(ctx);
+}
+
+
+// ---------------------------------------------------------------- network --
+// Replicated components. Positions to 1 cm, angles to about 0.005 degrees:
+// a body is under 10 bytes.
+struct mp_body {
+  vec3 pos = spawn;
+  f32 yaw = 0.0f;   // degrees
+  f32 pitch = 0.0f; // degrees
+};
+struct mp_player {
+  i32 id = 0; // netcode player id; 0 is the host
+};
+struct mp_score {
+  i32 hits = 0;
+};
+struct mp_target {
+  vec3 pos;
+};
+// Fall speed and footing: only the owner reads it, to replay from the host's
+// state (velocity sideways comes from the input every tick).
+struct mp_motion {
+  f32 fall = 0.0f;
+  bool grounded = false;
+};
+
+constexpr f32 world_extent = 2048.0f;
+
+void write_body(const mp_body &b, bit_writer &w) {
+  w.write_vec3(b.pos, -world_extent, world_extent, 0.01f);
+  w.write_angle(b.yaw * (pi / 180.0f), 16);
+  w.write_float(b.pitch, -90.0f, 90.0f, 0.01f);
+}
+void read_body(mp_body &b, bit_reader &r) {
+  b.pos = r.read_vec3(-world_extent, world_extent, 0.01f);
+  b.yaw = r.read_angle(16) * (180.0f / pi);
+  b.pitch = r.read_float(-90.0f, 90.0f, 0.01f);
+}
+void read_motion(mp_motion &m, bit_reader &r) {
+  m.fall = r.read_float(-200.0f, 200.0f, 0.001f);
+  m.grounded = r.read_bool();
+}
+mp_body lerp_body(const mp_body &a, const mp_body &b, f32 t) {
+  f32 turn = std::fmod(b.yaw - a.yaw + 540.0f, 360.0f) - 180.0f; // the short way round
+  return {lerp(a.pos, b.pos, t), a.yaw + turn * t, a.pitch + (b.pitch - a.pitch) * t};
+}
+
+// What a player sends each tick: the keys held, where it looks, whether it
+// fired since the last tick.
+struct mp_input {
+  vec2 move{};
+  f32 yaw = 0.0f;
+  f32 pitch = 0.0f;
+  bool fire = false;
+};
+
+std::string encode_input(const mp_input &in) {
+  bit_writer w;
+  w.write_int((i32)in.move.x, -1, 1);
+  w.write_int((i32)in.move.y, -1, 1);
+  w.write_angle(in.yaw * (pi / 180.0f), 16);
+  w.write_float(in.pitch, -90.0f, 90.0f, 0.01f);
+  w.write_bool(in.fire);
+  return w.data();
+}
+
+bool decode_input(const std::string &bytes, mp_input &out) {
+  bit_reader r(bytes);
+  out.move = {(f32)r.read_int(-1, 1), (f32)r.read_int(-1, 1)};
+  out.yaw = r.read_angle(16) * (180.0f / pi);
+  out.pitch = r.read_float(-90.0f, 90.0f, 0.01f);
+  out.fire = r.read_bool();
+  return r.ok();
+}
+
+// A shot, sent by the host to everyone so all see it (and who hit what).
+struct mp_shot_msg {
+  i32 shooter = 0;
+  vec3 eye;
+  f32 yaw = 0.0f;
+  f32 pitch = 0.0f;
+  bool hit = false;
+  vec3 end;
+  bool hit_target = false;
+  vec3 target_pos;
+};
+
+std::string encode_shot(const mp_shot_msg &m) {
+  bit_writer w;
+  w.write_varint((u64)m.shooter);
+  w.write_vec3(m.eye, -world_extent, world_extent, 0.01f);
+  w.write_angle(m.yaw * (pi / 180.0f), 16);
+  w.write_float(m.pitch, -90.0f, 90.0f, 0.01f);
+  w.write_bool(m.hit);
+  w.write_vec3(m.end, -world_extent, world_extent, 0.01f);
+  w.write_bool(m.hit_target);
+  w.write_vec3(m.target_pos, -world_extent, world_extent, 0.01f);
+  return w.data();
+}
+
+bool decode_shot(const std::string &bytes, mp_shot_msg &m) {
+  bit_reader r(bytes);
+  m.shooter = (i32)r.read_varint();
+  m.eye = r.read_vec3(-world_extent, world_extent, 0.01f);
+  m.yaw = r.read_angle(16) * (180.0f / pi);
+  m.pitch = r.read_float(-90.0f, 90.0f, 0.01f);
+  m.hit = r.read_bool();
+  m.end = r.read_vec3(-world_extent, world_extent, 0.01f);
+  m.hit_target = r.read_bool();
+  m.target_pos = r.read_vec3(-world_extent, world_extent, 0.01f);
+  return r.ok();
+}
+
+struct mover {
+  vec3 velocity{};
+  bool grounded = false;
+};
+
+// One tick of the client's own player: the input it ran and where it ended.
+struct predicted {
+  mp_input input;
+  vec3 pos;
+  mover move;
+};
+
+struct mp_state {
+  net_mode mode;
+  bool fire = false; // clicked since the last tick
+  std::string status;
+  // host
+  std::unordered_map<u32, entt::entity> players; // player id (0: the host) -> entity
+  std::unordered_map<u32, mover> movers;
+  std::vector<entt::entity> targets;
+  // client
+  entt::entity me = entt::null;
+  mover my_move;
+  std::map<u32, predicted> history; // each tick the client moved its own player
+  u32 checked = 0;             // newest server tick compared with the prediction
+  f32 correction = 0.0f;       // size of the last correction, for the HUD
+  f32 worst_correction = 0.0f; // since the last log line
+  f32 bot_fire = 0.0f;
+  f32 log_timer = 0.0f;
+};
+mp_state mp;
+
+bool online() { return mp.mode.kind != net_mode::solo; }
+
+rgba player_color(i32 id) {
+  static const rgba colors_by_id[] = {{0.3f, 0.8f, 1.0f, 1.0f}, {1.0f, 0.5f, 0.2f, 1.0f}, {0.4f, 1.0f, 0.4f, 1.0f},
+                                      {1.0f, 0.35f, 0.8f, 1.0f}, {1.0f, 0.9f, 0.3f, 1.0f}, {0.7f, 0.6f, 1.0f, 1.0f}};
+  return colors_by_id[(u32)id % 6];
+}
+
+void register_net_components(context &ctx) {
+  // Same order on every machine.
+  netcode_component<mp_body>(ctx, {.write = write_body, .read = read_body, .lerp = lerp_body, .predicted = true});
+  netcode_component<mp_player>(ctx, {
+                                        .write = [](const mp_player &p, bit_writer &w) { w.write_varint((u64)p.id); },
+                                        .read = [](mp_player &p, bit_reader &r) { p.id = (i32)r.read_varint(); },
+                                    });
+  netcode_component<mp_score>(ctx, {
+                                       .write = [](const mp_score &sc, bit_writer &w) { w.write_varint((u64)sc.hits); },
+                                       .read = [](mp_score &sc, bit_reader &r) { sc.hits = (i32)r.read_varint(); },
+                                   });
+  netcode_component<mp_motion>(ctx, {
+                                        .write = [](const mp_motion &m, bit_writer &w) {
+                                          w.write_float(m.fall, -200.0f, 200.0f, 0.001f);
+                                          w.write_bool(m.grounded);
+                                        },
+                                        .read = [](mp_motion &m, bit_reader &r) {
+                                          m.fall = r.read_float(-200.0f, 200.0f, 0.001f);
+                                          m.grounded = r.read_bool();
+                                        },
+                                        .predicted = true,
+                                    });
+  netcode_component<mp_target>(ctx, {
+                                        .write = [](const mp_target &t,
+                                                    bit_writer &w) { w.write_vec3(t.pos, -world_extent, world_extent, 0.01f); },
+                                        .read = [](mp_target &t,
+                                                   bit_reader &r) { t.pos = r.read_vec3(-world_extent, world_extent, 0.01f); },
+                                    });
+}
+
+// --bot: strafes left and right and sweeps its aim across the targets, so two
+// windows can play without anyone at the keyboard.
+vec2 bot_move(const context &ctx) { return {0.0f, std::sin(elapsed(ctx) * 1.5f) >= 0.0f ? 1.0f : -1.0f}; }
+
+mp_input local_input(const context &ctx) {
+  const vec2 move = mp.mode.bot ? bot_move(ctx) : g.locked ? move_keys(ctx) : vec2{};
+  return {.move = move, .yaw = g.yaw, .pitch = g.pitch, .fire = mp.fire};
+}
+
+// --- host ---
+
+entt::entity add_player(context &ctx, u32 id) {
+  entt::registry &reg = world(ctx);
+  const entt::entity e = reg.create();
+  // Side by side, so nobody spawns inside anyone.
+  reg.emplace<mp_body>(e, mp_body{.pos = spawn + vec3{(f32)((i32)(id % 8) - 4) * 6.0f, 0.0f, 0.0f}});
+  reg.emplace<mp_player>(e, (i32)id);
+  reg.emplace<mp_score>(e);
+  reg.emplace<mp_motion>(e);
+  netcode_replicate(ctx, e, id); // the host's own (id 0) has no owner: clients interpolate it
+  mp.players[id] = e;
+  mp.movers[id] = {};
+  return e;
+}
+
+void host_shot(context &ctx, u32 shooter, const mp_body &body) {
+  const shot s = trace_shot(body.pos, body.yaw, body.pitch);
+  mp_shot_msg m;
+  m.shooter = (i32)shooter;
+  m.eye = body.pos;
+  m.yaw = body.yaw;
+  m.pitch = body.pitch;
+  m.hit = s.hit;
+  m.end = s.end;
+  if (s.hit_target != nullptr) {
+    m.hit_target = true;
+    m.target_pos = s.hit_target->pos;
+    s.hit_target->dead = true;
+    place_targets(ctx);
+    world(ctx).get<mp_score>(mp.players[shooter]).hits++;
+  }
+  netcode_send_all(ctx, encode_shot(m), net_delivery::reliable);
+  // The host sees it at once (its own muzzle flashed on the click).
+  const bool own = shooter == 0;
+  shot_effects(ctx, m.eye, s, false);
+  if (m.hit_target)
+    target_hit_effects(ctx, m.target_pos, m.end, (f32)world(ctx).get<mp_score>(mp.players[shooter]).hits, own, false);
+}
+
+void host_fixed(context &ctx) {
+  entt::registry &reg = world(ctx);
+  netcode_set_input(ctx, encode_input(local_input(ctx)));
+  mp.fire = false;
+  const std::vector<box> boxes = solids();
+  for (auto &[id, e] : mp.players) {
+    std::string bytes;
+    const bool fresh = netcode_input(ctx, id, bytes);
+    mp_body &body = reg.get<mp_body>(e);
+    mp_input in{.yaw = body.yaw, .pitch = body.pitch};
+    if (!bytes.empty() && !decode_input(bytes, in))
+      in = mp_input{.yaw = body.yaw, .pitch = body.pitch}; // damaged: stand still
+    mover &mv = mp.movers[id];
+    // Quantized like the replicated fall speed, so the client replays the same.
+    mv.velocity.y = std::round(mv.velocity.y * 1000.0f) / 1000.0f;
+    step_player(body.pos, mv.velocity, mv.grounded, in.move, in.yaw, delta(ctx), boxes);
+    body.pos = vec3{std::round(body.pos.x * 100.0f), std::round(body.pos.y * 100.0f), std::round(body.pos.z * 100.0f)} / 100.0f;
+    body.yaw = in.yaw;
+    body.pitch = in.pitch;
+    reg.get<mp_motion>(e) = {.fall = mv.velocity.y, .grounded = mv.grounded};
+    // A repeated input (the real one is late) never fires twice.
+    if (fresh && in.fire)
+      host_shot(ctx, id, body);
+  }
+  for (usize i = 0; i < mp.targets.size(); i++)
+    reg.get<mp_target>(mp.targets[i]).pos = g.targets[i].pos;
+  g.pos = reg.get<mp_body>(mp.players[0]).pos;
+}
+
+void host_update(context &ctx) {
+  netcode_event e;
+  while (netcode_poll(ctx, e)) {
+    if (e.kind == netcode_event_kind::joined) {
+      add_player(ctx, e.player);
+    } else if (e.kind == netcode_event_kind::left) {
+      const auto it = mp.players.find(e.player);
+      if (it != mp.players.end()) {
+        world(ctx).destroy(it->second);
+        mp.players.erase(it);
+        mp.movers.erase(e.player);
+      }
+    }
+  }
+}
+
+void host_start(context &ctx) {
+  netcode_opts opts;
+  opts.sim = mp.mode.sim;
+  if (!netcode_host(ctx, mp.mode.port, opts)) {
+    mp.status = "Không mở được cổng " + std::to_string(mp.mode.port) + "; đang chơi một mình";
+    mp.mode.kind = net_mode::solo;
+    return;
+  }
+  add_player(ctx, 0);
+  entt::registry &reg = world(ctx);
+  for (const target &t : g.targets) {
+    const entt::entity e = reg.create();
+    reg.emplace<mp_target>(e, t.pos);
+    netcode_replicate(ctx, e);
+    mp.targets.push_back(e);
+  }
+  mp.status = "Đang mở phòng ở cổng " + std::to_string(mp.mode.port);
+}
+
+// --- client ---
+
+void client_fixed(context &ctx) {
+  if (!netcode_synced(ctx))
+    return;
+  netcode_set_input(ctx, encode_input(local_input(ctx)));
+  mp.fire = false;
+  entt::registry &reg = world(ctx);
+  if (mp.me == entt::null || !reg.valid(mp.me))
+    return; // our player has not arrived yet
+  // Move at once with the same input the host will use (quantized the same).
+  std::string bytes;
+  netcode_input(ctx, 0, bytes);
+  mp_input in;
+  if (bytes.empty() || !decode_input(bytes, in))
+    return;
+  mp_body &body = reg.get<mp_body>(mp.me);
+  const std::vector<box> boxes = solids();
+  // The same steps as the host, rounded the same way.
+  const auto step = [&](vec3 &pos, mover &mv, const mp_input &input) {
+    mv.velocity.y = std::round(mv.velocity.y * 1000.0f) / 1000.0f;
+    step_player(pos, mv.velocity, mv.grounded, input.move, input.yaw, delta(ctx), boxes);
+    pos = vec3{std::round(pos.x * 100.0f), std::round(pos.y * 100.0f), std::round(pos.z * 100.0f)} / 100.0f;
+  };
+  // Where the host says we were at an older tick, against where we said. If
+  // they differ (pushed by a target, a late input), start again from the
+  // host's state at that tick and replay our inputs since.
+  mp_body confirmed;
+  mp_motion motion;
+  u32 at = 0, at_motion = 0;
+  if (netcode_confirmed(ctx, mp.me, confirmed, at, read_body) &&
+      netcode_confirmed(ctx, mp.me, motion, at_motion, read_motion) && at == at_motion && at > mp.checked) {
+    mp.checked = at;
+    const auto h = mp.history.find(at);
+    if (h != mp.history.end() && length(confirmed.pos - h->second.pos) > 0.02f) {
+      mp.correction = length(confirmed.pos - h->second.pos);
+      mp.worst_correction = std::max(mp.worst_correction, mp.correction);
+      vec3 pos = confirmed.pos;
+      mover mv{.velocity = {0.0f, motion.fall, 0.0f}, .grounded = motion.grounded};
+      h->second.pos = pos;
+      h->second.move = mv;
+      for (auto it = std::next(h); it != mp.history.end(); ++it) {
+        step(pos, mv, it->second.input);
+        it->second.pos = pos;
+        it->second.move = mv;
+      }
+      body.pos = pos;
+      mp.my_move = mv;
+    }
+    mp.history.erase(mp.history.begin(), mp.history.lower_bound(at));
+  }
+  step(body.pos, mp.my_move, in);
+  body.yaw = in.yaw;
+  body.pitch = in.pitch;
+  mp.history[netcode_tick(ctx)] = {in, body.pos, mp.my_move};
+  if (mp.history.size() > 256)
+    mp.history.erase(mp.history.begin());
+}
+
+void client_update(context &ctx) {
+  entt::registry &reg = world(ctx);
+  netcode_event e;
+  while (netcode_poll(ctx, e)) {
+    if (e.kind == netcode_event_kind::joined) {
+      mp.status = "Đã vào phòng, bạn là người chơi " + std::to_string(e.player);
+    } else if (e.kind == netcode_event_kind::left) {
+      mp.status = e.code == netcode_code_full      ? "Phòng đã đủ người"
+                  : e.code == netcode_code_version ? "Khác phiên bản với chủ phòng"
+                                                   : "Mất kết nối với chủ phòng";
+      mp.me = entt::null;
+    } else if (e.kind == netcode_event_kind::message) {
+      mp_shot_msg m;
+      if (!decode_shot(e.data, m))
+        continue;
+      const bool own = (u32)m.shooter == netcode_self(ctx);
+      // Our own shot was drawn when we clicked; the others' are drawn now.
+      if (!own) {
+        shot s{.muzzle = muzzle_of(m.eye, m.yaw, m.pitch), .dir = forward_of(m.yaw, m.pitch), .end = m.end, .hit = m.hit};
+        shot_effects(ctx, m.eye, s, false);
+      }
+      if (m.hit_target)
+        target_hit_effects(ctx, m.target_pos, m.end, m.target_pos.x + m.target_pos.y, own, false);
+    }
+  }
+  // Our player, once it has arrived.
+  if (mp.me == entt::null || !reg.valid(mp.me))
+    for (auto [en, body] : reg.view<mp_body>().each())
+      if (netcode_is_mine(ctx, en))
+        mp.me = en;
+  if (mp.me != entt::null && reg.valid(mp.me))
+    g.pos = reg.get<mp_body>(mp.me).pos;
+  // The targets are the host's.
+  g.targets.clear();
+  for (auto [en, t] : reg.view<mp_target>().each())
+    g.targets.push_back({.pos = t.pos, .dead = false});
+}
+
+void client_start(context &ctx) {
+  netcode_opts opts;
+  opts.sim = mp.mode.sim;
+  g.targets.clear(); // the host's arrive with the first snapshot
+  if (!netcode_join(ctx, mp.mode.address.c_str(), mp.mode.port, opts)) {
+    mp.status = "Địa chỉ không hợp lệ: " + mp.mode.address;
+    return;
+  }
+  mp.status = "Đang vào phòng " + mp.mode.address + ":" + std::to_string(mp.mode.port) + "...";
+}
+
+// A click online: the host shoots in its next tick; a client draws its shot at
+// once and lets the host decide what it hit.
+void click_online(context &ctx) {
+  mp.fire = true;
+  if (mp.mode.kind == net_mode::join) {
+    shot_effects(ctx, g.pos, trace_shot(g.pos, g.yaw, g.pitch), true);
+  } else {
+    camera_shake(ctx, 0.12f);
+    g.muzzle = muzzle_time;
+    g.muzzle_pos = muzzle_of(g.pos, g.yaw, g.pitch);
+  }
+}
+
+// Online and every 5 s: one line in the log (what a test harness reads).
+void log_online(context &ctx) {
+  mp.log_timer += delta_real(ctx);
+  if (mp.log_timer < 5.0f)
+    return;
+  mp.log_timer = 0.0f;
+  entt::registry &reg = world(ctx);
+  i32 players = 0, mine = -1;
+  for (auto [en, who, score] : reg.view<mp_player, mp_score>().each()) {
+    players++;
+    if (mp.mode.kind == net_mode::host ? who.id == 0 : en == mp.me)
+      mine = score.hits;
+  }
+  const netcode_stats st = netcode_info(ctx);
+  NJIN_INFO("fps net: %s players=%d score=%d tick=%u rtt=%.0fms margin=%d rate=%.3f worst_correction=%.2f "
+            "snapshot=%u late_inputs=%u",
+            mp.mode.kind == net_mode::host ? "host" : "client", players, mine, st.tick, st.rtt * 1000.0f,
+            st.input_margin, st.fixed_rate, mp.worst_correction, st.snapshot_bytes, st.missing_inputs);
+  mp.worst_correction = 0.0f;
+}
+
+void draw_players(context &ctx) {
+  entt::registry &reg = world(ctx);
+  for (auto [en, body, who] : reg.view<mp_body, mp_player>().each()) {
+    const bool self = mp.mode.kind == net_mode::host ? who.id == 0 : en == mp.me;
+    if (self)
+      continue;
+    // A body down to the floor, a head at the eye with a visor where it looks,
+    // and the gun where its camera would hold it.
+    const vec3 forward = forward_of(body.yaw, body.pitch);
+    draw_capsule3d(ctx, body.pos - vec3{0.0f, player_half.y - 2.0f, 0.0f}, body.pos - vec3{0.0f, 3.0f, 0.0f}, 2.0f,
+                   player_color(who.id));
+    draw_sphere3d(ctx, body.pos, 1.5f, player_color(who.id));
+    draw_sphere3d(ctx, body.pos + forward * 1.2f, 0.6f, colors::white);
+    draw_model(ctx, g.gun, {.position = body.pos, .rotation = {body.pitch, body.yaw, 0.0f}});
+  }
+}
+
+void draw_online_ui(context &ctx) {
+  entt::registry &reg = world(ctx);
+  const vec2 screen = screen_size(ctx);
+  f32 y = 44.0f;
+  draw_text(ctx, mp.status.c_str(), {16.0f, y}, 18.0f, {0.8f, 0.9f, 1.0f, 1.0f});
+  y += 26.0f;
+  const netcode_stats st = netcode_info(ctx);
+  char line[160];
+  if (mp.mode.kind == net_mode::join)
+    std::snprintf(line, sizeof line, "ping %.0f ms  tick %u  input sớm %d tick  nhịp %.3f  sửa lệch %.2f", st.rtt * 1000.0f,
+                  st.tick, st.input_margin, st.fixed_rate, mp.correction);
+  else
+    std::snprintf(line, sizeof line, "tick %u  snapshot %u byte  input trễ %u lần", st.tick, st.snapshot_bytes,
+                  st.missing_inputs);
+  draw_text(ctx, line, {16.0f, y}, 16.0f, {0.75f, 0.78f, 0.85f, 1.0f});
+  // The scoreboard, top right.
+  f32 row = 16.0f;
+  for (auto [en, who, score] : reg.view<mp_player, mp_score>().each()) {
+    const bool self = mp.mode.kind == net_mode::host ? who.id == 0 : en == mp.me;
+    std::string name = who.id == 0 ? "Chủ phòng" : "Người chơi " + std::to_string(who.id);
+    if (self)
+      name += " (bạn)";
+    std::snprintf(line, sizeof line, "%s: %d", name.c_str(), score.hits);
+    draw_text(ctx, line, {screen.x - 280.0f, row}, 18.0f, player_color(who.id));
+    row += 24.0f;
+  }
 }
 
 void startup(context &ctx) {
@@ -262,6 +816,10 @@ void startup(context &ctx) {
     m.surface.shininess = 48.0f;
     model_material_set(ctx, g.gun, i, m);
   }
+  if (mp.mode.kind == net_mode::host)
+    host_start(ctx);
+  else if (mp.mode.kind == net_mode::join)
+    client_start(ctx);
 }
 
 void update(context &ctx) {
@@ -277,12 +835,28 @@ void update(context &ctx) {
     g.locked = !g.locked;
     cursor_set_locked(ctx, g.locked);
   }
-  if (g.locked) {
+  if (online() && mp.mode.bot) {
+    // Aims at one target after another, then fires.
+    mp.bot_fire += delta_real(ctx);
+    if (!g.targets.empty()) {
+      const vec3 d = g.targets[(usize)(elapsed(ctx) / 0.5f) % g.targets.size()].pos - g.pos;
+      g.yaw = std::atan2(-d.x, -d.z) * (180.0f / pi);
+      g.pitch = std::asin(d.y / length(d)) * (180.0f / pi);
+      if (mp.bot_fire > 0.5f) {
+        mp.bot_fire = 0.0f;
+        click_online(ctx);
+      }
+    }
+  } else if (g.locked) {
     const vec2 d = mouse_delta(ctx);
     g.yaw -= d.x * sensitivity;
     g.pitch = clamp(g.pitch - d.y * sensitivity, -pitch_limit, pitch_limit);
-    if (mouse_pressed(ctx, mouse_left))
-      shoot(ctx);
+    if (mouse_pressed(ctx, mouse_left)) {
+      if (online())
+        click_online(ctx);
+      else
+        shoot(ctx);
+    }
   }
   const f32 dt = delta(ctx);
   for (tracer &t : g.tracers)
@@ -292,33 +866,12 @@ void update(context &ctx) {
     gh.age += dt;
   std::erase_if(g.ghosts, [](const ghost &gh) { return gh.age > ghost_time; });
   g.muzzle = std::max(0.0f, g.muzzle - dt);
+  if (online())
+    log_online(ctx);
 }
 
 void fixed_update(context &ctx) {
-  const f32 dt = delta(ctx);
-  // Standing on something cancels the fall, as the tutorial's controller does.
-  if (g.grounded)
-    g.velocity = {};
-  vec2 input{};
-  if (key_held(ctx, key_w))
-    input.x += 1.0f;
-  if (key_held(ctx, key_s))
-    input.x -= 1.0f;
-  if (key_held(ctx, key_d))
-    input.y += 1.0f;
-  if (key_held(ctx, key_a))
-    input.y -= 1.0f;
-  const vec3 flat_forward = forward_of(g.yaw, 0.0f);
-  const vec3 move = normalize(flat_forward * input.x + right_of(g.yaw) * input.y);
-  if (length_sq(move) > 0.0f) {
-    g.velocity.x = move.x * move_speed;
-    g.velocity.z = move.z * move_speed;
-  }
-  g.velocity.y -= gravity * dt;
-  const std::vector<box> boxes = solids();
-  move_axis(&vec3::x, g.velocity.x * dt, boxes);
-  move_axis(&vec3::z, g.velocity.z * dt, boxes);
-  g.grounded = move_axis(&vec3::y, g.velocity.y * dt, boxes) && g.velocity.y < 0.0f;
+  step_player(g.pos, g.velocity, g.grounded, move_keys(ctx), g.yaw, delta(ctx), solids());
 }
 
 void render(context &ctx) {
@@ -344,6 +897,8 @@ void render(context &ctx) {
 
   draw_plane3d(ctx, {0.0f, 0.0f, 0.0f}, {2000.0f, 2000.0f}, floor_color);
   draw_cube3d(ctx, level_boxes[1].center, level_boxes[1].half * 2.0f, level_color);
+  if (online())
+    draw_players(ctx);
 
   material3d_set(ctx, {.specular = 0.9f, .shininess = 64.0f, .emission = {1.0f, 0.1f, 0.05f, 0.25f}});
   for (const target &t : g.targets) {
@@ -387,7 +942,10 @@ void render_ui(context &ctx) {
             crosshair_color);
   char line[64];
   std::snprintf(line, sizeof line, "Trúng: %d", g.hits);
-  draw_text(ctx, line, {16.0f, 16.0f}, 22.0f, colors::white);
+  if (online())
+    draw_online_ui(ctx);
+  else
+    draw_text(ctx, line, {16.0f, 16.0f}, 22.0f, colors::white);
   if (!g.locked)
     draw_text(ctx, "Esc: khóa chuột để chơi", {16.0f, 44.0f}, 18.0f, colors::white);
   draw_text(ctx, "WASD: đi   Chuột trái: bắn   F: đèn pin   G: gizmo   Esc: nhả chuột", {16.0f, screen.y - 30.0f},
@@ -397,11 +955,27 @@ void render_ui(context &ctx) {
 void setup(context &ctx) {
   ecs_register(ctx, phase_startup, startup, "fps_startup");
   ecs_register(ctx, phase_update, update, "fps_update");
-  ecs_register(ctx, phase_fixed_update, fixed_update, "fps_move");
+  if (mp.mode.kind == net_mode::host) {
+    register_net_components(ctx);
+    ecs_register(ctx, phase_update, host_update, "fps_host");
+    ecs_register(ctx, phase_fixed_update, host_fixed, "fps_host_tick");
+  } else if (mp.mode.kind == net_mode::join) {
+    register_net_components(ctx);
+    ecs_register(ctx, phase_update, client_update, "fps_client");
+    ecs_register(ctx, phase_fixed_update, client_fixed, "fps_client_tick");
+  } else {
+    ecs_register(ctx, phase_fixed_update, fixed_update, "fps_move");
+  }
   ecs_register(ctx, phase_render, render, "fps_render");
   ecs_register(ctx, phase_post_render, render_ui, "fps_ui");
 }
 } // namespace
 
-mod_desc fps_module() { return mod_desc{.name = "fps", .setup = setup}; }
+mod_desc fps_module() { return fps_module(net_mode{}); }
+
+mod_desc fps_module(const net_mode &mode) {
+  mp = mp_state{};
+  mp.mode = mode;
+  return mod_desc{.name = "fps", .setup = setup};
+}
 } // namespace fps

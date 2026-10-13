@@ -33,6 +33,19 @@ Bảy chương trình trong `src/games` để đọc, chạy và sửa. Mới b�
 không rõ nguồn. `njin_platformer3d` vẽ mọi thứ bằng hình khối và hình SDF, không có file asset nào. Cả
 ba không có menu, cài đặt hay nhạc: đọc @ref graphics_3d để xem API 3D chúng dùng.
 
+`njin_fps` còn chơi được nhiều người qua mạng (@ref netcode): một máy mở phòng và chơi luôn, các máy khác vào,
+mọi người bắn chung một bộ bia, chủ phòng giữ điểm. Thử hai cửa sổ trên cùng một máy, với mạng xấu giả lập:
+
+```sh
+cd build/bin/fps
+njin_fps --host --lag 100 --jitter 30 --loss 10
+njin_fps --join 127.0.0.1 --lag 100 --jitter 30 --loss 10
+```
+
+Máy khác trong mạng LAN thì `--join` tới IP của máy chủ phòng (`--port` nếu không phải 7777). `--bot` cho người
+chơi tự đi ngang và tự bắn, để thử mà không cần ngồi ở cả hai bàn phím. Mỗi cửa sổ hiện ping, tick, input đến sớm
+mấy tick và cỡ lần sửa lệch gần nhất; log ghi các số đó mỗi 5 giây.
+
 `njin_render_demo` không có menu hay tiếng: nó chỉ để **thấy** các tính năng vẽ làm gì. Đi quanh
 bản đồ bằng WASD hoặc phím mũi tên, đọc phím ở dòng cuối của HUD (hoặc đầu `main.cpp`). Thử phím
 1 với 3000 cây đá bật: số lệnh vẽ rơi từ vài trăm xuống còn vài lệnh. Nó cũng mở cổng debug, nên chạy

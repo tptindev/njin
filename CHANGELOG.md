@@ -10,6 +10,9 @@ To release: edit that header, add a section here, commit, then
 
 ### Fixed
 
+- The runtime builds again with MSVC in Debug: the sol2 bindings
+  (`njin_script_bind.cpp`) went over the default section limit of an object
+  file (C1128). `njin_rt` now compiles with `/bigobj` under MSVC.
 - Rain no longer collapses into a flat sheet every few seconds: each drop's
   start height and its fall speed came from the same random number, so every
   ~4.9 s (when the spread of speeds had added up to the 22 m box) all drops
@@ -63,6 +66,49 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- TCP and UDP networking (`njin_network.h`), for games played across
+  machines: `tcp_listen()`, `tcp_connect()`, `tcp_send()` and `udp_open()`,
+  `udp_send()`. Sockets run on one network thread of the engine, on asio
+  (standalone, Boost Software License) coroutines; nothing a game calls ever
+  waits on the network. What happens arrives as events (`net_connected`,
+  `net_connect_failed`, `net_disconnected`, `net_message`, `net_datagram`).
+  Each `tcp_send()` arrives whole as one `net_message`; `tcp_opts` caps the
+  size of a message and of the send queue, so a stranger cannot make the game
+  allocate at will. The thread starts on the first network call.
+- Realtime multiplayer (`njin_multiplayer.h`) on ENet (MIT): `net_host_create()`,
+  `net_host_connect()`, `net_peer_send()`, `net_host_broadcast()`. Reliable,
+  unreliable and unordered packets on up to 255 channels of one UDP
+  connection. `net_host_poll()` reads on the spot, so a game reading in
+  `phase_fixed_update` sees input in that tick, and `net_host_flush()` sends
+  without waiting for the end of the frame. Ping, loss and bandwidth through
+  `net_peer_info()` and `net_host_info()`; `net_host_opts::sim` adds latency,
+  jitter and loss to test a bad network on one machine; a peer that sends a
+  packet over `max_packet` is cut off.
+- Netcode (`njin_netcode.h`) on top of it, after Lightyear (Bevy): a server
+  that decides and clients that send input. Inputs per tick with redundancy
+  (the last 8 ride in every packet) and optional input delay; tick sync, where
+  the server reports how early each client's input arrives and the client
+  runs up to 4% faster or slower (or jumps when far off) to keep it
+  `input_margin` ticks early; snapshot interpolation whose delay follows the
+  widest snapshot gap and the jitter seen in the last 2 s; and replication of
+  EnTT components (`netcode_component<T>()`, `netcode_replicate()`) sending
+  only what changed since the snapshot the client confirmed, filtered by
+  `netcode_set_relevance()` and ordered by accumulated
+  `netcode_set_priority()` within a byte budget. `predicted` components are
+  left to the owning client, with `netcode_confirmed()` to correct it. Tested
+  across two processes at 150 ms, 60 ms jitter and 20% loss each way.
+- `njin_fps` plays online: `--host` opens a game the host plays in, `--join IP`
+  joins it, and `--lag`, `--jitter`, `--loss` simulate a bad network; `--bot`
+  walks and shoots by itself. The host moves every player with the solo
+  game's movement and decides hits and score; a client predicts its own
+  player and, when the host's state for an older tick differs, replays its
+  inputs from there. Playing alone is unchanged.
+- `time_set_fixed_rate()`: runs `phase_fixed_update` slightly faster or slower
+  than real time without changing the step; netcode sets it on clients.
+- `njin_bits.h`: `bit_writer` and `bit_reader` pack values in the bits they
+  need (a position to 1 cm in +-500 m is 17 bits a component) for packets,
+  replays and saves. The reader never reads past its data: truncated or
+  out-of-range input turns `ok()` false.
 - Machine parts in 3D physics (`njin_physics3d.h`), for a game built from
   motors, gears and springs:
   - `body3d_add_force()` (at the centre of mass or at a point),

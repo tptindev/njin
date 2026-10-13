@@ -104,6 +104,18 @@
 /// @defgroup grp_spline Đường cong
 /// Catmull-Rom và Bezier 2D, 3D: đi đều theo khoảng cách, điểm gần nhất, vật đi dọc đường.
 
+/// @defgroup grp_network Mạng
+/// TCP và UDP trên một luồng mạng riêng: server, client, message nguyên vẹn, gói UDP; kết quả đến qua event.
+
+/// @defgroup grp_multiplayer Mạng realtime
+/// Host và peer trên ENet: kênh tin cậy và không tin cậy, đọc gói trong tick, số liệu, giả lập mạng xấu.
+
+/// @defgroup grp_netcode Netcode
+/// Tick, input theo tick, đồng bộ tick, nội suy snapshot, replicate component EnTT có lọc và ưu tiên.
+
+/// @defgroup grp_bits Ghi đọc theo bit
+/// Đóng gói dữ liệu nhị phân bằng đúng số bit cần, đọc an toàn dữ liệu lạ: gói mạng, replay, save.
+
 /// @defgroup grp_video Video
 /// Phát video MPEG-1 có tiếng: cutscene toàn màn hình, màn hình trong thế giới 3D.
 

@@ -26,6 +26,10 @@ void time_set_paused(context &ctx, bool paused) { ctx.time.paused = paused; }
 bool time_paused(const context &ctx) { return ctx.time.paused; }
 f32 fixed_delta(const context &ctx) { return ctx.time.fixed_dt; }
 f32 fixed_alpha(const context &ctx) { return ctx.time.fixed_alpha; }
+void time_set_fixed_rate(context &ctx, f32 rate) {
+  ctx.time.fixed_rate = rate >= 0.5f ? (rate <= 2.0f ? rate : 2.0f) : 0.5f; // NaN gives 0.5
+}
+f32 time_fixed_rate(const context &ctx) { return ctx.time.fixed_rate; }
 
 rng &random(context &ctx) { return ctx.random; }
 

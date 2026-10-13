@@ -32,6 +32,7 @@
 #include "njin_level_impl.h"
 #include "njin_model.h"
 #include "njin_nav3d_impl.h"
+#include "njin_network_impl.h"
 #include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_scene_impl.h"
@@ -64,6 +65,7 @@ struct time_state {
   f32 fixed_dt = 1.0f / 60.0f;
   f32 fixed_accum = 0.0f;
   f32 fixed_alpha = 0.0f;
+  f32 fixed_rate = 1.0f; // time_set_fixed_rate: fixed steps run this much faster than time
   bool in_fixed = false; // delta() answers fixed_dt while this is set
 };
 
@@ -114,6 +116,8 @@ struct context {
   nav3d_store nav3d;
   // After texture and audio: closing a video frees its stream and its texture slot.
   video_store video;
+  // Stops the network thread and closes every socket.
+  network_store network;
   particle_gpu_state particles_gpu;
   render_stats stats;
   reload_state reload;

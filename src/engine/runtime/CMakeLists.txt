@@ -25,7 +25,13 @@ set_target_properties(njin_rt PROPERTIES NJIN_ENGINE_INTERNAL ON)
 target_link_libraries(
   njin_rt
   PUBLIC njin::api
-  PRIVATE raylib Jolt meshoptimizer njin_sol2 njin_recast njin_plmpeg njin_warnings)
+  PRIVATE raylib Jolt meshoptimizer njin_sol2 njin_recast njin_plmpeg njin_asio njin_enet njin_warnings)
+
+# sol2 bindings (njin_script_bind*.cpp) make more sections than an MSVC Debug
+# object holds by default.
+if(MSVC)
+  target_compile_options(njin_rt PRIVATE /bigobj)
+endif()
 
 # njin_gpu_hint.cpp checks for the NVIDIA GLX library with dlopen.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

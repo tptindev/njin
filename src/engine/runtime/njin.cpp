@@ -26,7 +26,7 @@ void run_fixed_steps(context &ctx) {
     time.fixed_alpha = time.fixed_dt > 0.0f ? time.fixed_accum / time.fixed_dt : 0.0f;
     return;
   }
-  time.fixed_accum += time.dt;
+  time.fixed_accum += time.dt * time.fixed_rate;
   i32 steps = 0;
   time.in_fixed = true;
   while (time.fixed_accum >= time.fixed_dt && steps < fixed_max_steps) {

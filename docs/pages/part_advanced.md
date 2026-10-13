@@ -42,6 +42,14 @@ Muốn tự viết shader thì học trước ba bài shader trong @ref learn (b
 |---|---|
 | @subpage scripting | Viết luật chơi và hành vi của entity bằng Lua, sửa file khi game đang chạy, gọi hàm qua lại giữa C++ và Lua |
 
+## Mạng
+
+| Trang | Bạn được gì |
+|---|---|
+| @subpage network | Nhiều máy chơi với nhau qua TCP và UDP: mở phòng, vào phòng, gửi message mà game không bao giờ phải chờ mạng |
+| @subpage netcode | Server quyết định, máy khách đoán trước nhân vật của mình, người khác được nội suy mượt, thế giới tự replicate theo tầm nhìn và băng thông |
+| @subpage multiplayer | Game realtime: kênh tin cậy và không tin cậy trên một kết nối, gói nhỏ theo bit, đọc input ngay trong tick, thử với độ trễ và mất gói giả |
+
 ## Công cụ
 
 | Trang | Bạn được gì |
