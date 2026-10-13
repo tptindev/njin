@@ -78,6 +78,9 @@ struct input_store {
   f32 pad_deadzone = pad_deadzone_default;
   i32 text[input_text_max] = {};
   i32 text_count = 0;
+  // Backspace presses this frame, held repeats among them: an input method
+  // (Unikey, Telex) rewrites a word by sending several in one frame.
+  i32 backspaces = 0;
   std::vector<action_slot> actions;
   std::vector<axis_slot> axes;
 };
@@ -161,6 +164,7 @@ void input_pad_set_deadzone(input_store &input, f32 deadzone);
 
 i32 input_text_count(const input_store &input);
 i32 input_text_char(const input_store &input, i32 index);
+i32 input_backspaces(const input_store &input);
 
 void input_key_consume(input_store &input, key_code key);
 void input_mouse_consume(input_store &input, mouse_button button);

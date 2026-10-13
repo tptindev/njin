@@ -504,6 +504,14 @@ void script_bind_njin_more(context &ctx, script_runtime &rt, sol::table n) {
   n["ui_progress"] = [c](f32 value, sol::optional<std::string> text) {
     ui_progress(*c, value, text ? text->c_str() : nullptr);
   };
+  // changed, text = ui_input(label, text, hint, max_chars)
+  n["ui_input"] = [c](const std::string &label, std::string text, sol::optional<std::string> hint,
+                      sol::optional<i32> max_chars) {
+    const bool changed = ui_input(*c, label.c_str(), text,
+                                  {.hint = hint ? hint->c_str() : nullptr, .max_chars = max_chars.value_or(64)});
+    return std::make_tuple(changed, text);
+  };
+  n["ui_typing"] = [c] { return ui_typing(*c); };
   n["ui_back"] = [c] { return ui_back(*c); };
   n["ui_active"] = [c] { return ui_active(*c); };
   n["ui_mouse_over"] = [c] { return ui_mouse_over(*c); };

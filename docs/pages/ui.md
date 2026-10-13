@@ -23,6 +23,7 @@ Menu có nhiều widget hoặc hay đổi thì dựng bằng kéo thả trong nj
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Chữ, ảnh, khoảng trống | |
 | njin::ui_last_rect() | Khung của widget vừa đặt, để vẽ thêm lên nó (sau njin::ui_end()) | |
 | njin::ui_row() | Xếp vài widget tiếp theo thành một hàng ngang | |
+| njin::ui_input() | Ô nhập chữ một dòng: tìm kiếm, đặt tên | Chữ đổi |
 | njin::ui_back() | | Người chơi bấm quay lại |
 
 Nhãn là định danh của widget trong panel. Hai widget cùng chữ thì thêm hậu tố ẩn sau `##`:
@@ -55,6 +56,16 @@ njin::ui_progress_circle(ctx, {.value = cooldown, .diameter = 64.0f, .thickness 
 | `text`, `percent`, `text_color` | Chữ giữa vòng; hoặc `percent` để hiện "75%" |
 
 Widget chiếm một dòng cao bằng `diameter` và được căn giữa; trong njin::ui_row() nó thu nhỏ vừa cột.
+
+### Ô nhập chữ
+
+njin::ui_input() sửa thẳng một `std::string`. Bấm vào ô thì bắt đầu gõ; Enter, Esc hay bấm ra
+ngoài thì thôi. Chữ đến từ njin::text_char(), tức đã qua bố cục bàn phím và bộ gõ của hệ điều
+hành, nên gõ tiếng Việt có dấu được (cả bộ gõ xóa rồi gõ lại chữ trong một frame). Trong lúc gõ,
+**game không thấy phím nào**: chữ "e" gõ vào ô không thành phím tắt. Thứ không đi qua phím (tay
+cầm, action) thì hỏi njin::ui_typing() trước.
+
+@include ui_input.cpp
 
 ## Chuột, bàn phím, tay cầm
 

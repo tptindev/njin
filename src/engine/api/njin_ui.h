@@ -269,6 +269,44 @@ bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad 
 /// @return `true` nếu đang chờ.
 bool ui_keybind_listening(const context &ctx);
 
+/// Cách một ô nhập chữ hiện và giới hạn, dùng với ui_input().
+struct ui_input_desc {
+  /// Chữ mờ hiện khi ô trống và chưa gõ. Null: phần nhãn trước `##`.
+  const char *hint = nullptr;
+  /// Số ký tự (không phải byte) tối đa. 0 là không giới hạn.
+  i32 max_chars = 64;
+};
+
+/// Một ô nhập chữ một dòng: ô tìm kiếm, tên nhân vật, tên file lưu.
+///
+/// Bấm vào ô (hay Enter khi đang chọn nó) thì bắt đầu gõ. Trong lúc gõ, bàn
+/// phím thuộc về ô này: game không thấy phím nào được nhấn hay giữ (kể cả
+/// WASD và Esc), ui_typing() trả về `true`. Chữ đến từ text_char(), tức đã qua
+/// bố cục bàn phím và bộ gõ của hệ điều hành, nên gõ được tiếng Việt có dấu.
+/// Backspace (giữ thì lặp) xóa từng ký tự cuối. Enter, Esc hay bấm chuột ra
+/// ngoài ô thì thôi gõ, chữ vẫn giữ. Ô không được vẽ nữa (menu đóng) cũng thôi.
+/// Chữ dài hơn ô thì chỉ hiện phần cuối.
+/// @code
+/// static std::string search;
+/// njin::ui_begin(ctx, {.id = "shop"});
+/// if (njin::ui_input(ctx, "Tìm##search", search, {.hint = "Tên món đồ"}))
+///   filter(search);
+/// njin::ui_end(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param label Nhãn (UTF-8), là định danh của ô; phần trước `##` là chữ gợi ý
+/// mặc định.
+/// @param text Chữ trong ô, UTF-8; ô sửa thẳng vào đây.
+/// @param desc Chữ gợi ý và giới hạn.
+/// @return `true` ở frame chữ đổi.
+bool ui_input(context &ctx, const char *label, std::string &text, const ui_input_desc &desc = {});
+
+/// Có ô ui_input() nào đang được gõ không. Trong lúc đó game không nhận phím
+/// nào; dùng hàm này để không coi phím là phím tắt khi đọc chúng theo cách khác.
+/// @param ctx Context của engine.
+/// @return `true` nếu đang gõ.
+bool ui_typing(const context &ctx);
+
 /// `true` ở frame người chơi bấm quay lại (Esc, Backspace, nút B) trong lúc
 /// có panel đang hiện. Dùng để đóng menu con hay quay về màn trước.
 /// @param ctx Context của engine.

@@ -23,6 +23,7 @@ A menu with many widgets, or one that changes often, can be built by drag and dr
 | njin::ui_label(), njin::ui_image(), njin::ui_space() | Text, image, empty space | |
 | njin::ui_last_rect() | Frame of the widget just placed, to draw more on it (after njin::ui_end()) | |
 | njin::ui_row() | Lays out the next few widgets as a horizontal row | |
+| njin::ui_input() | A one-line text field: search, naming | The text changes |
 | njin::ui_back() | | The player pressed back |
 
 The label is the widget's identifier within the panel. If two widgets have the same text, add a hidden suffix after `##`:
@@ -55,6 +56,17 @@ njin::ui_progress_circle(ctx, {.value = cooldown, .diameter = 64.0f, .thickness 
 | `text`, `percent`, `text_color` | Text in the middle; or `percent` to show "75%" |
 
 The widget takes one line as tall as `diameter` and is centred; inside njin::ui_row() it shrinks to fit the column.
+
+### Text field
+
+njin::ui_input() edits a `std::string` in place. Click the field to start typing; Enter, Esc or a
+click outside it stops. The characters come from njin::text_char(), so they have been through the
+operating system's keyboard layout and input method, and Vietnamese with diacritics can be typed
+(including input methods that delete and retype a letter within one frame). While typing,
+**the game sees no keys**: an "e" typed into the field does not become a shortcut. Input that does
+not go through the keys (gamepad, actions) should ask njin::ui_typing() first.
+
+@include ui_input.cpp
 
 ## Mouse, keyboard, gamepad
 

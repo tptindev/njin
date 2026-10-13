@@ -137,13 +137,17 @@ void input_key_poll(input_store &input) {
   // A key pressed and released between two frames reads as up here, and its
   // press would be lost. raylib queues every press, so a queued key that is
   // already up counts as down for this one frame: pressed now, released next.
+  input.backspaces = 0;
   for (i32 rl_key = GetKeyPressed(); rl_key != 0; rl_key = GetKeyPressed()) {
+    input.backspaces += rl_key == KEY_BACKSPACE ? 1 : 0;
     if (rl_key > 0 && rl_key < (i32)from_rl.size()) {
       const key_code key = from_rl[(usize)rl_key];
       if (key != key_none && !input.prev.keys[key])
         input.cur.keys[key] = true;
     }
   }
+  if (IsKeyPressedRepeat(KEY_BACKSPACE))
+    input.backspaces++;
   for (i32 b = 0; b < mouse_button_count; b++)
     input.cur.mouse[b] = IsMouseButtonDown(b);
 
@@ -241,6 +245,7 @@ void input_pad_set_deadzone(input_store &input, f32 deadzone) {
 // Text
 
 i32 input_text_count(const input_store &input) { return input.text_count; }
+i32 input_backspaces(const input_store &input) { return input.backspaces; }
 
 i32 input_text_char(const input_store &input, i32 index) {
   if (index < 0 || index >= input.text_count)

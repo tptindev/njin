@@ -34,6 +34,7 @@ const std::vector<int> &font_codepoints() {
     add(0x2010, 0x2027); // dashes, quotes, bullet, ellipsis
     add(0x20AB, 0x20AC); // đồng and euro signs
     add(0x2190, 0x2195); // arrows: left, up, right, down, both ways
+    add(0x2212, 0x2212); // the minus sign, as a "−" zoom button writes it
     return out;
   }();
   return cps;

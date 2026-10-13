@@ -48,6 +48,39 @@ std::string shown(const char *label) {
 
 bool inside(vec2 p, rect r) { return point_in_rect(p, r); }
 
+void append_utf8(std::string &out, i32 c) {
+  const u32 u = (u32)c;
+  if (u < 0x80) {
+    out += (char)u;
+  } else if (u < 0x800) {
+    out += (char)(0xC0 | (u >> 6));
+    out += (char)(0x80 | (u & 0x3F));
+  } else if (u < 0x10000) {
+    out += (char)(0xE0 | (u >> 12));
+    out += (char)(0x80 | ((u >> 6) & 0x3F));
+    out += (char)(0x80 | (u & 0x3F));
+  } else {
+    out += (char)(0xF0 | (u >> 18));
+    out += (char)(0x80 | ((u >> 12) & 0x3F));
+    out += (char)(0x80 | ((u >> 6) & 0x3F));
+    out += (char)(0x80 | (u & 0x3F));
+  }
+}
+
+// Characters (not bytes) in UTF-8 `s`; the byte where its last one starts.
+i32 utf8_count(const std::string &s) {
+  i32 n = 0;
+  for (const char ch : s)
+    n += ((u8)ch & 0xC0) != 0x80 ? 1 : 0;
+  return n;
+}
+usize utf8_last(const std::string &s) {
+  usize at = s.size();
+  while (at > 0 && ((u8)s[--at] & 0xC0) == 0x80) {
+  }
+  return at;
+}
+
 const ui_skin &skin_for(const ui_look &look, widget_state s) {
   switch (s) {
   case state_focused: return look.focused;
@@ -350,6 +383,26 @@ void frame_begin(context &ctx) {
     ui.up = ui.down = ui.left = ui.right = false;
     ui.accept = ui.accept_held = ui.back = false;
     ui.mouse_pressed = ui.mouse_released = false;
+  }
+  // A text field being typed in: the keys are its, not navigation and not
+  // the game's (it is not drawn any more: it lets them go).
+  if (ui.editing != 0 && !ui.edit_drawn)
+    ui.editing = 0;
+  ui.edit_drawn = false;
+  ui.edit_typed.clear();
+  ui.edit_back = 0;
+  ui.edit_enter = ui.edit_escape = false;
+  if (ui.editing != 0) {
+    for (i32 i = 0; i < text_count(ctx); i++)
+      if (const i32 c = text_char(ctx, i); c >= 32)
+        append_utf8(ui.edit_typed, c);
+    ui.edit_back = input_backspaces(ctx.input);
+    ui.edit_enter = key_pressed(ctx, key_enter) || key_pressed(ctx, key_kp_enter);
+    ui.edit_escape = key_pressed(ctx, key_escape);
+    for (i32 k = key_none + 1; k < key_count; k++)
+      key_consume(ctx, (key_code)k);
+    ui.up = ui.down = ui.left = ui.right = false;
+    ui.accept = ui.accept_held = ui.back = false;
   }
 
   ui.mouse_over = std::any_of(ui.last_panels.begin(), ui.last_panels.end(),
@@ -934,6 +987,66 @@ bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad)
 }
 
 bool ui_keybind_listening(const context &ctx) { return ctx.ui.listening != 0; }
+
+bool ui_input(context &ctx, const char *label, std::string &text, const ui_input_desc &desc) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_input");
+  if (label == nullptr)
+    return false;
+  const interaction it = interact(ctx, label, true, false);
+  bool changed = false;
+  if (ui.editing == it.id) {
+    ui.edit_drawn = true;
+    for (i32 k = 0; k < ui.edit_back && !text.empty(); k++) {
+      text.erase(utf8_last(text));
+      changed = true;
+    }
+    if (!ui.edit_typed.empty()) {
+      // Character by character, up to the most it holds.
+      for (usize at = 0; at < ui.edit_typed.size();) {
+        usize next = at + 1;
+        while (next < ui.edit_typed.size() && ((u8)ui.edit_typed[next] & 0xC0) == 0x80)
+          next++;
+        if (desc.max_chars > 0 && utf8_count(text) >= desc.max_chars)
+          break;
+        text.append(ui.edit_typed, at, next - at);
+        changed = true;
+        at = next;
+      }
+    }
+    if (ui.edit_enter || ui.edit_escape || (ui.mouse_pressed && !it.hover)) {
+      ui.editing = 0;
+      play(ctx, ui.edit_escape ? ui.style.sound_back : ui.style.sound_accept);
+    }
+  } else if (it.clicked) {
+    ui.editing = it.id;
+    ui.edit_drawn = true;
+    ui.listening = 0;
+    play(ctx, ui.style.sound_accept);
+  }
+  const bool on = ui.editing == it.id;
+  push_skin(ui, ui.style.track, on ? state_pressed : it.state, it.area);
+  const f32 room = it.area.size.x - sc(ui, 28.0f);
+  if (text.empty() && !on) {
+    const std::string hint = desc.hint != nullptr ? std::string(desc.hint) : shown(label);
+    text_left(ctx, ui, hint, it.area, ui.style.track.text_disabled);
+  } else {
+    // The end of the text, with the caret, as much as fits: whole characters
+    // dropped from the front.
+    std::string view = text;
+    const bool caret = on && std::fmod(GetTime(), 1.0) < 0.55; // real time: it blinks when paused
+    while (!view.empty() && measure(ctx, ui, view + "|").x > room) {
+      usize n = 1;
+      while (n < view.size() && ((u8)view[n] & 0xC0) == 0x80)
+        n++;
+      view.erase(0, n);
+    }
+    text_left(ctx, ui, caret ? view + "|" : view, it.area, text_for(ui.style.track, on ? state_focused : it.state));
+  }
+  return changed;
+}
+
+bool ui_typing(const context &ctx) { return ctx.ui.editing != 0; }
 
 bool ui_back(context &ctx) {
   ui_state &ui = ctx.ui;

@@ -110,6 +110,16 @@ struct ui_state {
   // it wants (input_source kind). Navigation is off meanwhile.
   u64 listening = 0;
   i32 listen_kind = 0;
+
+  // ui_input being typed in: its id; whether it was drawn this frame (one
+  // not drawn stops taking the keys). What was typed this frame, read at its
+  // start before the keys are taken from the game: the text, the backspaces,
+  // Enter, Esc.
+  u64 editing = 0;
+  bool edit_drawn = false;
+  std::string edit_typed;
+  i32 edit_back = 0;
+  bool edit_enter = false, edit_escape = false;
 };
 
 // Draws and ages the toasts. Called by the main loop after post_render, so

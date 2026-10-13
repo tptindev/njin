@@ -270,6 +270,46 @@ bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad 
 /// @return `true` if waiting.
 bool ui_keybind_listening(const context &ctx);
 
+/// How a text field looks and what it holds, used with ui_input().
+struct ui_input_desc {
+  /// Faded text shown while the field is empty and not being typed in. Null: the part of the label before `##`.
+  const char *hint = nullptr;
+  /// Most characters (not bytes) it holds. 0 is no limit.
+  i32 max_chars = 64;
+};
+
+/// A one-line text field: a search box, a character's name, a save file's name.
+///
+/// Clicking the field (or Enter while it is selected) starts typing. While
+/// typing, the keyboard belongs to this field: the game sees no key pressed or
+/// held (WASD and Esc included), and ui_typing() returns `true`. Characters
+/// come from text_char(), so they have been through the operating system's
+/// keyboard layout and input method, and Vietnamese with diacritics can be
+/// typed. Backspace (repeating while held) deletes the last character. Enter,
+/// Esc or a mouse click outside the field stops typing and keeps the text. A
+/// field that is no longer drawn (its menu closed) stops too. Text longer than
+/// the field shows only its end.
+/// @code
+/// static std::string search;
+/// njin::ui_begin(ctx, {.id = "shop"});
+/// if (njin::ui_input(ctx, "Tìm##search", search, {.hint = "Tên món đồ"}))
+///   filter(search);
+/// njin::ui_end(ctx);
+/// @endcode
+/// @param ctx The engine context.
+/// @param label Label (UTF-8), the field's identifier; the part before `##` is
+/// the default hint.
+/// @param text The field's text, UTF-8; the field edits it in place.
+/// @param desc Hint and limit.
+/// @return `true` in the frame the text changes.
+bool ui_input(context &ctx, const char *label, std::string &text, const ui_input_desc &desc = {});
+
+/// Whether some ui_input() is being typed in. Meanwhile the game gets no keys;
+/// use this so as not to take keys read some other way as shortcuts.
+/// @param ctx The engine context.
+/// @return `true` while typing.
+bool ui_typing(const context &ctx);
+
 /// `true` on the frame the player presses back (Esc, Backspace, B button) while
 /// a panel is shown. Use it to close a submenu or return to the previous screen.
 /// @param ctx Engine context.
