@@ -96,6 +96,12 @@ struct nav_path_opts {
   /// Maximum number of cells examined, so an unreachable target on a large map
   /// does not slow down the frame.
   i32 max_nodes = 20000;
+  /// How "greedy" A* is: the estimated cost to the target is multiplied by
+  /// this. 1 (the default) gives the shortest path; higher (1.5 to 3) examines
+  /// far fewer cells on a large map, at the price of a path that may be a
+  /// little longer than the shortest (never more than `greed` times). Suits a
+  /// crowd walking far across a city.
+  f32 greed = 1.0f;
 };
 
 /// Finds the shortest path (A*) from `from` to `to`.

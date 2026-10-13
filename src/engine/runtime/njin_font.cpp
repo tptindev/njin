@@ -33,6 +33,7 @@ const std::vector<int> &font_codepoints() {
     add(0x1EA0, 0x1EF9); // Vietnamese
     add(0x2010, 0x2027); // dashes, quotes, bullet, ellipsis
     add(0x20AB, 0x20AC); // đồng and euro signs
+    add(0x2190, 0x2195); // arrows: left, up, right, down, both ways
     return out;
   }();
   return cps;

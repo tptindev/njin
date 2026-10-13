@@ -96,6 +96,11 @@ struct nav_path_opts {
   /// Số ô tối đa được xét, để một đích không tới được trên bản đồ lớn không
   /// làm chậm frame.
   i32 max_nodes = 20000;
+  /// Độ "tham" của A*: chi phí ước lượng tới đích nhân với số này. 1 (mặc
+  /// định) cho đường ngắn nhất; lớn hơn (1.5 đến 3) xét ít ô hơn nhiều trên
+  /// bản đồ lớn, đổi lại đường có thể dài hơn đường ngắn nhất một chút
+  /// (không quá `greed` lần). Hợp với đám đông đi xa trong thành phố.
+  f32 greed = 1.0f;
 };
 
 /// Tìm đường ngắn nhất (A*) từ `from` đến `to`.

@@ -129,6 +129,37 @@ bool nav_line_clear(const nav_grid &g, vec2 a, vec2 b) {
   return true;
 }
 
+namespace {
+
+// A search's bookkeeping, kept between calls: clearing a grid-sized array per
+// search cost more than the search itself on a big grid. A cell's entries
+// count only when its stamp is the current search's.
+struct search_scratch {
+  std::vector<f32> cost;
+  std::vector<i32> came_from;
+  std::vector<u32> stamp;
+  u32 now = 0;
+  void begin(usize n) {
+    if (stamp.size() < n) {
+      cost.resize(n);
+      came_from.resize(n);
+      stamp.resize(n, 0);
+    }
+    if (++now == 0) { // wrapped: forget every old stamp
+      std::fill(stamp.begin(), stamp.end(), 0u);
+      now = 1;
+    }
+  }
+  bool seen(i32 i) const { return stamp[(usize)i] == now; }
+  void set(i32 i, f32 c, i32 from) {
+    stamp[(usize)i] = now;
+    cost[(usize)i] = c;
+    came_from[(usize)i] = from;
+  }
+};
+
+} // namespace
+
 bool nav_find_path(const nav_grid &g, vec2 from, vec2 to, std::vector<vec2> &out,
                    const nav_path_opts &opts) {
   out.clear();
@@ -138,13 +169,14 @@ bool nav_find_path(const nav_grid &g, vec2 from, vec2 to, std::vector<vec2> &out
     return false;
 
   const usize n = (usize)g.width * (usize)g.height;
-  std::vector<f32> cost_so_far(n, -1.0f);
-  std::vector<i32> came_from(n, -1);
+  thread_local search_scratch sc;
+  sc.begin(n);
   using node = std::pair<f32, i32>; // f, index
   std::priority_queue<node, std::vector<node>, std::greater<node>> open;
   const i32 s = index_of(g, start);
-  cost_so_far[(usize)s] = 0.0f;
-  open.push({heuristic(start, goal, opts.diagonal), s});
+  sc.set(s, 0.0f, -1);
+  const f32 w = opts.greed > 1.0f ? opts.greed : 1.0f;
+  open.push({w * heuristic(start, goal, opts.diagonal), s});
 
   const bool goal_ok = inside(g, goal) && nav_cost(g, goal) != 0;
   i32 found = -1;
@@ -156,8 +188,8 @@ bool nav_find_path(const nav_grid &g, vec2 from, vec2 to, std::vector<vec2> &out
     const auto [f, cur] = open.top();
     open.pop();
     const cell c{cur % g.width, cur / g.width};
-    const f32 here = cost_so_far[(usize)cur];
-    if (f > here + heuristic(c, goal, opts.diagonal) + 1e-3f)
+    const f32 here = sc.cost[(usize)cur];
+    if (f > here + w * heuristic(c, goal, opts.diagonal) + 1e-3f)
       continue; // a stale entry: this cell was reached cheaper since
     expanded++;
     if (goal_ok && cur == index_of(g, goal)) {
@@ -184,11 +216,10 @@ bool nav_find_path(const nav_grid &g, vec2 from, vec2 to, std::vector<vec2> &out
       const f32 step = (diag ? 1.41421356f : 1.0f) * (f32)enter;
       const i32 ni = index_of(g, nb);
       const f32 next = here + step;
-      if (cost_so_far[(usize)ni] >= 0.0f && cost_so_far[(usize)ni] <= next)
+      if (sc.seen(ni) && sc.cost[(usize)ni] <= next)
         continue;
-      cost_so_far[(usize)ni] = next;
-      came_from[(usize)ni] = cur;
-      open.push({next + heuristic(nb, goal, opts.diagonal), ni});
+      sc.set(ni, next, cur);
+      open.push({next + w * heuristic(nb, goal, opts.diagonal), ni});
     }
   }
 
@@ -199,7 +230,7 @@ bool nav_find_path(const nav_grid &g, vec2 from, vec2 to, std::vector<vec2> &out
     return found >= 0;
   }
   std::vector<cell> cells;
-  for (i32 i = end; i != s && i >= 0; i = came_from[(usize)i])
+  for (i32 i = end; i != s && i >= 0; i = sc.came_from[(usize)i])
     cells.push_back({i % g.width, i / g.width});
   std::reverse(cells.begin(), cells.end());
   for (const cell &c : cells)
