@@ -9,18 +9,18 @@
 #include "njin_log_impl.h"
 #include "njin_view.h"
 #include "njin_physics3d_impl.h"
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <raylib.h>
 
 namespace njin {
 namespace {
-// At most this many fixed steps per frame. After a long stall (a breakpoint,
-// dragging the window) the backlog is dropped instead of being simulated in
-// one frame, which would only make the next frame longer still.
-constexpr i32 fixed_max_steps = 8;
-
+// At most config::fixed_max_steps fixed steps per frame. After a long stall (a
+// breakpoint, dragging the window) the backlog is dropped instead of being
+// simulated in one frame, which would only make the next frame longer still.
 void run_fixed_steps(context &ctx) {
+  const i32 fixed_max_steps = std::max(ctx.cfg.fixed_max_steps, 1);
   time_state &time = ctx.time;
   if (time.paused) {
     time.fixed_alpha = time.fixed_dt > 0.0f ? time.fixed_accum / time.fixed_dt : 0.0f;

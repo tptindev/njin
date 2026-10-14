@@ -7,6 +7,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
+#include "njin_log_impl.h"
 #include "njin_instance.h"
 #include "njin_model.h"
 #include "njin_shader.h"
@@ -92,6 +93,7 @@ uniform sampler2D lampShadowMap;
 uniform int lightShadow[16];
 uniform mat4 lampVP[24];
 uniform vec4 lampParams[4];
+uniform float lampRows;   // rows in the atlas: the lamps that cast, so far
 out vec4 finalColor;
 
 float hash(vec3 p) {
@@ -186,7 +188,7 @@ float lamplight(int row, bool point, vec3 lpos, vec3 pos, vec3 n, vec3 l) {
   for (int x = -1; x <= 1; x++)
     for (int y = -1; y <= 1; y++) {
       vec2 q = clamp(uv + vec2(x, y) * p.w, lo, hi);
-      float z = texture(lampShadowMap, (cell + q) / vec2(6.0, 4.0)).r;
+      float z = texture(lampShadowMap, (cell + q) / vec2(6.0, lampRows)).r;
       float linear = p.x * p.y / (p.y - z * (p.y - p.x));
       lit += depth - bias <= linear ? 1.0 : 0.0;
     }
@@ -859,6 +861,7 @@ render3d_locations find_locations(Shader shader) {
   l.light_shadow = loc("lightShadow");
   l.lamp_vp = loc("lampVP");
   l.lamp_params = loc("lampParams");
+  l.lamp_rows = loc("lampRows");
   l.lamp_map = loc("lampShadowMap");
   l.bones = loc("boneMatrices");
   return l;
@@ -1020,14 +1023,38 @@ void load_camera(const context &ctx, const camera3d &camera) {
 
 // The frustum of the matrices load_camera() set, as six planes. Row i of the
 // view-projection is (m[i], m[i + 4], m[i + 8], m[i + 12]) in raylib's layout.
-void set_frustum(render3d_state &s) {
-  const Matrix m = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+std::array<vec4, 6> frustum_planes(const Matrix &m) {
   const vec4 r0{m.m0, m.m4, m.m8, m.m12}, r1{m.m1, m.m5, m.m9, m.m13}, r2{m.m2, m.m6, m.m10, m.m14},
       r3{m.m3, m.m7, m.m11, m.m15};
   const auto add = [](vec4 a, vec4 b, f32 k) { return vec4{a.x + b.x * k, a.y + b.y * k, a.z + b.z * k, a.w + b.w * k}; };
-  s.frustum = {add(r3, r0, 1.0f), add(r3, r0, -1.0f), add(r3, r1, 1.0f),
-               add(r3, r1, -1.0f), add(r3, r2, 1.0f), add(r3, r2, -1.0f)};
+  return {add(r3, r0, 1.0f), add(r3, r0, -1.0f), add(r3, r1, 1.0f),
+          add(r3, r1, -1.0f), add(r3, r2, 1.0f), add(r3, r2, -1.0f)};
+}
+
+void set_frustum(render3d_state &s) {
+  s.frustum = frustum_planes(MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
   s.tan_half_fovy = std::tan(s.camera.fovy * 0.5f * DEG2RAD);
+}
+
+// Whether the box (centre, half size) lies wholly outside one of `planes`.
+bool box_outside(const std::array<vec4, 6> &planes, vec3 center, vec3 extent) {
+  for (const vec4 &p : planes) {
+    const f32 reach = std::abs(p.x) * extent.x + std::abs(p.y) * extent.y + std::abs(p.z) * extent.z;
+    if (p.x * center.x + p.y * center.y + p.z * center.z + p.w + reach < 0.0f)
+      return true;
+  }
+  return false;
+}
+
+// The world box of the local box (centre `mid`, half size `half`) moved by `t`.
+void place_box(draw3d_cmd &c, const Matrix &t, vec3 mid, vec3 half) {
+  c.boxed = true;
+  c.box_center = {t.m0 * mid.x + t.m4 * mid.y + t.m8 * mid.z + t.m12,
+                  t.m1 * mid.x + t.m5 * mid.y + t.m9 * mid.z + t.m13,
+                  t.m2 * mid.x + t.m6 * mid.y + t.m10 * mid.z + t.m14};
+  c.box_extent = {std::abs(t.m0) * half.x + std::abs(t.m4) * half.y + std::abs(t.m8) * half.z,
+                  std::abs(t.m1) * half.x + std::abs(t.m5) * half.y + std::abs(t.m9) * half.z,
+                  std::abs(t.m2) * half.x + std::abs(t.m6) * half.y + std::abs(t.m10) * half.z};
 }
 
 // Pass state for a draw call: only inside begin_3d/end_3d.
@@ -1254,8 +1281,12 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
   depth.maps = maps.data();
   Material skinned = depth;
   skinned.shader = s.depth_skinned;
+  // Only what can land in this map: a caster outside the light's frustum
+  // (another cube face of a lamp, beyond its reach, far from the sun's box)
+  // would be clipped away anyway.
+  const std::array<vec4, 6> planes = frustum_planes(view_proj);
   for (const draw3d_cmd &c : s.cmds) {
-    if (!casts(c))
+    if (!casts(c) || (c.boxed && box_outside(planes, c.box_center, c.box_extent)))
       continue;
     if (c.world != world3d_none) {
       // Grass blades would leave the ground under them dry in patches.
@@ -1389,7 +1420,13 @@ bool render_lamp_shadows(context &ctx) {
   i32 tile = std::clamp(s.light.source_shadow_size, 64, 2048);
   if (q.lamp_shadow_size_max > 0)
     tile = std::max(64, std::min(tile, q.lamp_shadow_size_max));
-  if (!ensure_shadow(s.lamp, tile * lamp_faces, tile * light3d_shadow_max)) {
+  // A row per lamp that casts, not light3d_shadow_max of them: one lamp costs
+  // a quarter of the atlas. Grown, never shrunk, while the tile size stays, so
+  // a lamp that comes and goes does not make a new atlas each time.
+  i32 rows = ls.rows;
+  if (s.lamp.fbo != 0 && s.lamp.size == tile * lamp_faces)
+    rows = std::max(rows, s.lamp.height / tile);
+  if (!ensure_shadow(s.lamp, tile * lamp_faces, tile * rows)) {
     ls.row.fill(-1);
     ls.rows = 0;
     return false;
@@ -1483,6 +1520,8 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   set_i32(sh, l.lamp_map, lamp_unit);
   if (lamps) {
     SetShaderValueV(sh, l.lamp_params, ls.params.data(), SHADER_UNIFORM_VEC4, ls.rows);
+    const f32 atlas_rows = (f32)std::max(s.lamp.height / std::max(s.lamp.size / lamp_faces, 1), 1);
+    SetShaderValue(sh, l.lamp_rows, &atlas_rows, SHADER_UNIFORM_FLOAT);
     rlEnableShader(sh.id);
     rlSetUniformMatrices(l.lamp_vp, ls.vp.data(), ls.rows * lamp_faces);
     rlDisableShader();
@@ -1642,7 +1681,9 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     Texture2D under{}, under_normal{};
     shader_handle shader{}; // the part's own (model_material::shader)
   };
-  std::vector<part> parts;
+  // Kept between calls: no allocation per instanced draw once it has grown.
+  thread_local std::vector<part> parts;
+  parts.clear();
   Texture2D texture = default_texture();
   if (c.mesh != nullptr && s.translucent_pass) {
     // A built-in shape has no see-through material.
@@ -1768,6 +1809,8 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     return;
   }
   if (s.translucent_pass && (c.is_shape || (c.mesh != nullptr && c.buffer.id == 0)))
+    return;
+  if (c.culled && (c.is_shape || c.mesh != nullptr))
     return;
   if (c.is_shape) {
     draw_shape(s, c, view_proj, false, {}, false);
@@ -1928,6 +1971,44 @@ bool pose_bones(const render3d_state &s, const model_slot &m, const model_slot &
   return true;
 }
 
+// The local box of a built-in primitive mesh (render3d_state::cube...), or
+// false for a mesh of the game's own.
+bool primitive_box(const render3d_state &s, const Mesh *mesh, vec3 &mid, vec3 &half) {
+  if (mesh == &s.cube) {
+    mid = {}, half = {0.5f, 0.5f, 0.5f};
+  } else if (mesh == &s.sphere || mesh == &s.sphere_low) {
+    mid = {}, half = {1.0f, 1.0f, 1.0f};
+  } else if (mesh == &s.plane) {
+    mid = {}, half = {0.5f, 0.0f, 0.5f};
+  } else if (mesh == &s.cylinder || mesh == &s.cylinder_low) {
+    mid = {0.0f, 0.5f, 0.0f}, half = {1.0f, 0.5f, 1.0f};
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// Boxes for the primitives and SDF shapes of the pass (models got theirs when
+// recorded, place_model()), and whether each is out of the camera's view.
+void cull_boxes(const render3d_state &s) {
+  vec4 blend_a[sdf_blend_max], blend_b[sdf_blend_max];
+  f32 blend_k[sdf_blend_max];
+  for (draw3d_cmd &c : s.cmds) {
+    if (c.world != world3d_none || c.buffer.id != 0 || c.boxed)
+      continue;
+    if (c.is_shape) {
+      const shape_frame f = c.blend_count > 0 ? blend_frame(s, c, blend_a, blend_b, blend_k) : frame_of(c.shape);
+      // The same margin draw_shape() gives the box it draws.
+      place_box(c, f.to_world, {}, f.bounds * 1.02f + vec3{1e-3f, 1e-3f, 1e-3f});
+    } else if (vec3 mid, half; c.mesh != nullptr && primitive_box(s, c.mesh, mid, half)) {
+      place_box(c, c.transform, mid, half);
+    } else {
+      continue;
+    }
+    c.culled = box_outside(s.frustum, c.box_center, c.box_extent);
+  }
+}
+
 // The model's box as the draw places it, against the pass's frustum (`culled`),
 // and how much of the screen's height it covers, for the level of detail.
 // `lod_scale` is graphics_quality::lod_scale.
@@ -1936,21 +2017,15 @@ void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c, f3
   const Vector3 lo = m.bounds.min, hi = m.bounds.max;
   const vec3 mid{(lo.x + hi.x) * 0.5f, (lo.y + hi.y) * 0.5f, (lo.z + hi.z) * 0.5f};
   const vec3 half{(hi.x - lo.x) * 0.5f, (hi.y - lo.y) * 0.5f, (hi.z - lo.z) * 0.5f};
-  const vec3 center{t.m0 * mid.x + t.m4 * mid.y + t.m8 * mid.z + t.m12,
-                    t.m1 * mid.x + t.m5 * mid.y + t.m9 * mid.z + t.m13,
-                    t.m2 * mid.x + t.m6 * mid.y + t.m10 * mid.z + t.m14};
-  vec3 extent{std::abs(t.m0) * half.x + std::abs(t.m4) * half.y + std::abs(t.m8) * half.z,
-              std::abs(t.m1) * half.x + std::abs(t.m5) * half.y + std::abs(t.m9) * half.z,
-              std::abs(t.m2) * half.x + std::abs(t.m6) * half.y + std::abs(t.m10) * half.z};
+  place_box(c, t, mid, half);
   // The box is the rest pose's: an arm swung out may leave it.
   if (c.bone_count > 0)
-    extent = extent + vec3{1.0f, 1.0f, 1.0f} * (std::max({extent.x, extent.y, extent.z}) * 0.3f);
-  for (const vec4 &p : s.frustum) {
-    const f32 reach = std::abs(p.x) * extent.x + std::abs(p.y) * extent.y + std::abs(p.z) * extent.z;
-    if (p.x * center.x + p.y * center.y + p.z * center.z + p.w + reach < 0.0f) {
-      c.culled = true;
-      return;
-    }
+    c.box_extent = c.box_extent +
+                   vec3{1.0f, 1.0f, 1.0f} * (std::max({c.box_extent.x, c.box_extent.y, c.box_extent.z}) * 0.3f);
+  const vec3 center = c.box_center, extent = c.box_extent;
+  if (box_outside(s.frustum, center, extent)) {
+    c.culled = true;
+    return;
   }
   if (m.lods.empty())
     return;
@@ -2094,11 +2169,11 @@ namespace {
 bool can_begin(context &ctx) {
   render3d_state &s = ctx.render3d;
   if (s.active) {
-    NJIN_WARN("3d: begin_3d called twice without end_3d, ignored");
+    NJIN_WARN_LIMITED("3d: begin_3d called twice without end_3d, ignored");
     return false;
   }
   if (ctx.view.world_depth == 0) {
-    NJIN_WARN("3d: begin_3d outside phase_render, ignored");
+    NJIN_WARN_LIMITED("3d: begin_3d outside phase_render, ignored");
     return false;
   }
   return ensure_ready(s);
@@ -2141,7 +2216,7 @@ void begin_3d(context &ctx, const camera3d &camera) {
 void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target, rgba clear) {
   const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, target);
   if (slot == nullptr) {
-    NJIN_WARN("3d: begin_3d into an invalid render texture, ignored");
+    NJIN_WARN_LIMITED("3d: begin_3d into an invalid render texture, ignored");
     return;
   }
   if (!can_begin(ctx))
@@ -2164,6 +2239,7 @@ void end_3d(context &ctx) {
   const bool offscreen = s.target_fbo != 0;
   if (s.entities)
     record_entities(ctx);
+  cull_boxes(s);
   if (ctx.debug.running && !offscreen)
     render3d_capture_debug(ctx);
 
@@ -2646,7 +2722,7 @@ void draw3d_motion_id(const context &ctx, u64 id) {
 void render3d_close(context &ctx) {
   if (!ctx.render3d.active)
     return;
-  NJIN_WARN("3d: begin_3d without end_3d, closed at the end of phase_render");
+  NJIN_WARN_LIMITED("3d: begin_3d without end_3d, closed at the end of phase_render");
   end_3d(ctx);
 }
 
@@ -2659,7 +2735,7 @@ void light3d_add(context &ctx, const light3d_source &light) {
   if (!s.active)
     return;
   if ((i32)s.lights.size() >= light3d_max) {
-    NJIN_WARN("3d: more than %d lights in one pass, the rest are ignored", light3d_max);
+    NJIN_WARN_LIMITED("3d: more than %d lights in one pass, the rest are ignored", light3d_max);
     return;
   }
   s.lights.push_back(light);
@@ -2760,7 +2836,7 @@ void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 bl
   if (s == nullptr || parts == nullptr || count == 0)
     return;
   if (count > sdf_blend_max) {
-    NJIN_WARN("draw_sdf_blend: %u parts, at most %u: the rest are dropped", count, sdf_blend_max);
+    NJIN_WARN_LIMITED("draw_sdf_blend: %u parts, at most %u: the rest are dropped", count, sdf_blend_max);
     count = sdf_blend_max;
   }
   const u32 first = (u32)s->blend_parts.size();

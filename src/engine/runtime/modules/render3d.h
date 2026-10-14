@@ -45,7 +45,7 @@ struct render3d_locations {
   i32 mat_vp = -1, ray_ortho = -1, ray_dir = -1, depth_only = -1;
   i32 blend_a = -1, blend_b = -1, blend_count = -1, blend_k = -1; // draw_sdf_blend
   // Point/spot light shadows, and the skinning shader's bones.
-  i32 light_shadow = -1, lamp_vp = -1, lamp_params = -1, lamp_map = -1;
+  i32 light_shadow = -1, lamp_vp = -1, lamp_params = -1, lamp_map = -1, lamp_rows = -1;
   i32 bones = -1;
 };
 
@@ -86,11 +86,18 @@ struct draw3d_cmd {
   u32 blend_first = 0;
   u32 blend_count = 0;
   f32 blend_k = 0.0f;
-  // Models: the level of detail drawn (0 = the full mesh, model_lod_build()),
-  // and whether the box is outside the camera's frustum. A model out of view
-  // still casts its shadow into it, so only the camera pass skips it.
+  // Models: the level of detail drawn (0 = the full mesh, model_lod_build()).
+  // Models, primitives and SDF shapes: whether the box is outside the camera's
+  // frustum. A draw out of view still casts its shadow into it, so only the
+  // camera pass skips it.
   u8 lod = 0;
   bool culled = false;
+  // World-space box round the draw (centre and half size), when `boxed`, for
+  // culling against the camera and each shadow pass (cull_boxes()).
+  // Instanced and world3d draws have none: they cull themselves, or not.
+  bool boxed = false;
+  vec3 box_center{};
+  vec3 box_extent{};
   // Models: materials drawn in another colour than their own (draw_model_anim
   // with model_recolor), in render3d_state::recolors. count 0 = none.
   u32 recolor_first = 0;

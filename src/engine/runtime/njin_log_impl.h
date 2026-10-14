@@ -1,6 +1,9 @@
 #pragma once
 #include "njin_internal_only.h"
 
+#include "njin_log.h"
+#include <chrono>
+
 namespace njin {
 // Routes raylib's TraceLog output through the njin logger. Call before
 // InitWindow so window/GL startup messages are captured too.
@@ -23,3 +26,8 @@ void log_hold(bool on);
 // log_set_sink() is not affected.
 void log_set_console(bool on);
 } // namespace njin
+
+// NJIN_WARN for a misuse a game may repeat every frame (too many lights,
+// begin_3d twice): written the first time, then at most once every five
+// seconds from the same line, so the log is not one line per frame.
+#define NJIN_WARN_LIMITED(...)                                                                       do {                                                                                                 using njin_clock_ = std::chrono::steady_clock;                                                     static njin_clock_::time_point njin_next_{};                                                       const njin_clock_::time_point njin_now_ = njin_clock_::now();                                      if (njin_now_ >= njin_next_) {                                                                       njin_next_ = njin_now_ + std::chrono::seconds(5);                                                  NJIN_WARN(__VA_ARGS__);                                                                          }                                                                                                } while (0)

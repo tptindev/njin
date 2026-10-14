@@ -65,6 +65,24 @@ graphics_quality_suggest() đọc tên GPU mà driver OpenGL báo và trả về
 Đây chỉ là gợi ý: tên GPU không nói được máy nhanh tới đâu, và gợi ý nghiêng về phía thấp cho an toàn.
 Dùng nó khi chưa có file cài đặt, rồi để người chơi đổi trong menu.
 
+## Những gì engine tự làm, không cần đặt
+
+Các việc sau luôn chạy, ở mọi mức, và không đổi hình ảnh:
+
+- **Bóng chỉ vẽ vật có thể đổ bóng vào ảnh bóng đó.** Mỗi lượt vẽ bóng (mặt trời, từng mặt của
+  đèn điểm, đèn rọi) bỏ qua model, hình khối và hình SDF nằm ngoài tầm của đèn. Cảnh nhiều vật trải
+  rộng với vài đèn có bóng nhanh hơn nhiều lần.
+- **Hình khối và hình SDF ngoài camera không được vẽ**, như model.
+- **Ảnh bóng của đèn chỉ to bằng số đèn có bóng**, không luôn đủ chỗ cho bốn đèn.
+- **Hạt 3D ngoài camera không được vẽ**, và vệt hạt (`particles3d_desc::stretch`) vẽ chung một lệnh.
+- Vẽ sprite, chữ, va chạm 2D và cỏ giữ lại các danh sách tạm giữa các frame thay vì cấp phát lại mỗi frame.
+
+## Nhịp vật lý trên máy chậm
+
+Máy không theo kịp `config::fixed_hz` thì `phase_fixed_update` chạy dồn nhiều nhịp trong một frame, làm
+frame đó dài hơn nữa. `config::fixed_max_steps` (mặc định 8) giới hạn số nhịp mỗi frame; game cho máy yếu
+nên đặt 2–4 khi gọi create(): vật lý chậm lại một chút lúc tụt FPS, thay vì giật mạnh dần. Xem @ref time.
+
 ## Lưu cùng cài đặt
 
 Sau lần gọi graphics_quality_set() đầu tiên, settings_save() lưu cả bộ giới hạn dưới khóa `graphics` của

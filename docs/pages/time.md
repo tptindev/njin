@@ -36,7 +36,9 @@ Trong phase này, njin::delta() trả về **đúng một nhịp**. Đặt **v�
 nhau dù máy chạy 30 hay 144 FPS, và va chạm không bị xuyên qua khi FPS tụt.
 
 Nếu một frame quá dài (ví dụ dừng ở breakpoint), phần dư quá 8 nhịp bị bỏ, để game không
-phải chạy dồn hàng trăm nhịp một lúc.
+phải chạy dồn hàng trăm nhịp một lúc. Số 8 đặt được bằng `config::fixed_max_steps`: trên máy yếu,
+2–4 tránh vòng "frame dài, nhiều nhịp, frame càng dài" (game chậm đi một chút khi tụt FPS thay vì giật
+mạnh dần), xem @ref quality.
 
 njin::fixed_alpha() cho biết phần nhịp còn dư (0..1). Dùng để nội suy vị trí khi vẽ, cho
 chuyển động mượt khi FPS cao hơn nhịp vật lý:

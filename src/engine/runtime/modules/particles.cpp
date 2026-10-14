@@ -196,7 +196,13 @@ void particles_draw(context &ctx, entt::entity entity, const transform &tr,
       DrawRectanglePro(Rectangle{pos.x, pos.y, size, size},
                        Vector2{size * 0.5f, size * 0.5f}, p.rot, color);
     } else {
-      DrawCircleV(Vector2{pos.x, pos.y}, size * 0.5f, color);
+      // As few sides as keep the edge within half a pixel of a true circle,
+      // raylib's own measure (DrawCircleV always spends 36): most particles
+      // are a few pixels wide.
+      const f32 r = size * 0.5f;
+      const f32 half_turn = r > 0.5f ? std::acos(1.0f - 0.5f / r) : pi;
+      const i32 sides = std::clamp((i32)std::ceil(pi / half_turn), 8, 36);
+      DrawCircleSector(Vector2{pos.x, pos.y}, r, 0.0f, 360.0f, sides, color);
     }
   }
   blend_end(ctx);

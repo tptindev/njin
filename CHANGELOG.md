@@ -28,12 +28,41 @@ To release: edit that header, add a section here, commit, then
   The `_get` functions still return what the game set. `settings_save()`
   stores it under `"graphics"` once a game has set one. The defaults cap
   nothing: a game that never calls it draws exactly as before.
+- `config::fixed_max_steps` (default 8, as before): at most this many
+  `phase_fixed_update` steps per frame. A game for weak hardware can set 2–4
+  so a slow frame does not run a long backlog of steps and make the next
+  frame slower still.
+
+### Changed
+
+- 3D shadows draw only what can land in them: each shadow pass (the sun, each
+  face of a point lamp, a spot lamp) skips models, primitives and SDF shapes
+  whose box is outside the light's frustum. Primitives and SDF shapes out of
+  the camera's view are skipped like models already were. A 1,600-object
+  scene with sun and two lamp shadows went from 70 ms to 4–5 ms a frame on
+  the same machine, pixel for pixel the same image.
+- The lamp shadow atlas has a row per lamp that casts (grown, not shrunk),
+  instead of always four: a single lamp uses a quarter of the memory.
+- 3D particles out of view are not drawn, and streaks (`stretch`) no longer
+  flush the batch once per particle. CPU 2D particle discs use as few sides
+  as keep them round to half a pixel (8 for small ones, at most 36).
+- Less per-frame allocation: sprite draw lists, the crisp-text queue, 2D
+  collision buffers, grass cells and instanced draws keep their buffers; the
+  sprite sort no longer allocates. Lines of crisp text with nothing over them
+  join one batch instead of each flushing it. world3d caches its uniform
+  locations.
+- Repeated misuse warnings of the 3D pass (too many lights, begin_3d twice,
+  too many SDF blend parts) are written at most once every five seconds.
 
 ### Fixed
 
 - The camera's world target clamps at its edges, so a bilinear scale
   (`render_scale`, or the new `world_scale`) no longer blends the top row
   with the bottom one into a light line along the edge.
+- Sprites, tilemap chunks and particles are culled against the shaken
+  camera's view while the camera shakes, instead of not at all (sprites and
+  particles) or against the steady view (tilemap chunks, which could leave a
+  gap along an edge during a shake).
 - The runtime builds again with MSVC in Debug: the sol2 bindings
   (`njin_script_bind.cpp`) went over the default section limit of an object
   file (C1128). `njin_rt` now compiles with `/bigobj` under MSVC.

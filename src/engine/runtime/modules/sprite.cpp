@@ -240,7 +240,9 @@ void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
     const chunk_image *image;
     vec2 pos;
   };
-  std::vector<animated_chunk> animated;
+  // Kept between frames: no allocation once it has grown.
+  thread_local std::vector<animated_chunk> animated;
+  animated.clear();
   for (const auto &[key, chunk] : map.chunks) {
     const rect area = chunk_rect(map, tr.pos, key);
     if (!rects_overlap(area, view))
@@ -302,15 +304,36 @@ struct draw_item {
   i32 kind = 0; // 0 tilemap, 1 sprite, 2 particle emitter
   entt::entity entity{};
   f32 y = 0.0f; // for layers sorted by y
+  bool by_y = false; // the layer is sorted by y (draw_set_y_sort())
+  u32 order = 0;     // place in the list, so the sort keeps ties in order
 };
+
+// What the world pass shows this frame: camera_bounds(), or with a shake on,
+// the box round the shaken camera's view (camera.cpp keeps the camera it drew
+// the world through), which reaches a little past the steady one.
+rect frame_view(const context &ctx) {
+  if (ctx.fx.trauma <= 0.0f)
+    return camera_bounds(ctx);
+  const Camera2D &camera = ctx.post.world_camera;
+  const vec2 screen = screen_size(ctx);
+  const Vector2 corners[4] = {{0.0f, 0.0f}, {screen.x, 0.0f}, {0.0f, screen.y}, {screen.x, screen.y}};
+  Vector2 lo = GetScreenToWorld2D(corners[0], camera);
+  Vector2 hi = lo;
+  for (const Vector2 &corner : corners) {
+    const Vector2 p = GetScreenToWorld2D(corner, camera);
+    lo = {std::min(lo.x, p.x), std::min(lo.y, p.y)};
+    hi = {std::max(hi.x, p.x), std::max(hi.y, p.y)};
+  }
+  return rect{{lo.x, lo.y}, {hi.x - lo.x, hi.y - lo.y}};
+}
 
 void draw(context &ctx) {
   entt::registry &registry = ctx.ecs.registry;
   render_stats &stats = ctx.stats;
-  const rect view = camera_bounds(ctx);
-  // A shaking camera reveals a little of what lies outside `view`.
-  const bool cull = ctx.fx.trauma <= 0.0f;
-  std::vector<draw_item> items;
+  const rect view = frame_view(ctx);
+  // Kept between frames: no allocation once it has grown.
+  thread_local std::vector<draw_item> items;
+  items.clear();
   for (auto [entity, tr, map] : registry.view<const transform, const tilemap>().each()) {
     if (map.visible)
       items.push_back({map.layer, 0, entity});
@@ -318,7 +341,7 @@ void draw(context &ctx) {
   for (auto [entity, tr, spr] : registry.view<const transform, const sprite>().each()) {
     if (!spr.visible)
       continue;
-    if (cull && !sprite_on_screen(ctx, tr, spr, view)) {
+    if (!sprite_on_screen(ctx, tr, spr, view)) {
       stats.sprites_culled++;
       continue;
     }
@@ -329,23 +352,30 @@ void draw(context &ctx) {
     if (!em.visible || em.particles.empty())
       continue;
     const particle_extent *extent = registry.try_get<particle_extent>(entity);
-    if (cull && extent != nullptr && !particles_on_screen(tr, em, *extent, view)) {
+    if (extent != nullptr && !particles_on_screen(tr, em, *extent, view)) {
       stats.emitters_culled++;
       continue;
     }
     items.push_back({em.layer, 2, entity, tr.pos.y});
   }
+  // The y-sorted layers are looked up once per item, not per comparison, and
+  // a plain sort with the list's order as the last key stands in for
+  // stable_sort, which allocates a buffer every call.
   const std::unordered_set<i32> &by_y = ctx.sprites.y_sorted;
-  std::stable_sort(items.begin(), items.end(),
-                   [&by_y](const draw_item &a, const draw_item &b) {
-                     if (a.layer != b.layer)
-                       return a.layer < b.layer;
-                     // Tilemaps stay first, as the ground; the rest by y.
-                     if (!by_y.empty() && a.kind != 0 && b.kind != 0 && by_y.contains(a.layer) &&
-                         a.y != b.y)
-                       return a.y < b.y;
-                     return a.kind < b.kind;
-                   });
+  for (usize i = 0; i < items.size(); i++) {
+    items[i].order = (u32)i;
+    items[i].by_y = !by_y.empty() && by_y.contains(items[i].layer);
+  }
+  std::sort(items.begin(), items.end(), [](const draw_item &a, const draw_item &b) {
+    if (a.layer != b.layer)
+      return a.layer < b.layer;
+    // Tilemaps stay first, as the ground; the rest by y.
+    if (a.by_y && a.kind != 0 && b.kind != 0 && a.y != b.y)
+      return a.y < b.y;
+    if (a.kind != b.kind)
+      return a.kind < b.kind;
+    return a.order < b.order;
+  });
 
   for (const draw_item &item : items) {
     const transform &tr = registry.get<transform>(item.entity);

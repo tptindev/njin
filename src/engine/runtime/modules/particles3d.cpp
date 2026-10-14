@@ -1,4 +1,5 @@
 #include "particles3d.h"
+#include "render3d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
@@ -6,6 +7,7 @@
 #include "njin_render.h"
 #include "njin_texture.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <raymath.h>
 #include <rlgl.h>
@@ -178,11 +180,27 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       look = particle3d_look_begin(ctx, s.looks, b.style);
     }
     stats.emitters++;
+    // Streaks are seen from either side (which way round their corners go
+    // depends on the flight): culling is off for the whole burst, not toggled
+    // round each one, which flushed the batch once per particle.
+    if (b.stretch > 0.0f) {
+      rlDrawRenderBatchActive();
+      rlDisableBackfaceCulling();
+    }
+    const std::array<vec4, 6> &frustum = ctx.render3d.frustum;
     for (const particle3d &p : b.particles) {
       const f32 t = p.age / p.life;
       const f32 size = lerp(em.size_start, em.size_end, t) * p.size * b.scale;
       const rgba tint = lerp(em.color_start, em.color_end, t);
       if (size <= 0.0f || tint.a <= 0.0f)
+        continue;
+      // Off camera: a sphere round the particle (its streak included) wholly
+      // outside a plane of the pass's frustum.
+      const f32 reach = size + b.stretch * length(p.velocity);
+      bool outside = false;
+      for (const vec4 &pl : frustum)
+        outside = outside || pl.x * p.pos.x + pl.y * p.pos.y + pl.z * p.pos.z + pl.w < -reach;
+      if (outside)
         continue;
       Color color{};
       to_raylib(tint, color);
@@ -200,8 +218,6 @@ void particles3d_draw(context &ctx, const camera3d &view) {
           const vec3 side = normalize(cross(along, eye)) * (extent.x * 0.5f);
           const vec3 head = p.pos + along * (extent.y * 0.5f);
           const vec3 tail = p.pos - along * (extent.y * 0.5f + run * b.stretch);
-          // Seen from either side: which way round its corners go depends on the flight.
-          rlDisableBackfaceCulling();
           rlSetTexture(texture.id);
           rlBegin(RL_QUADS);
           rlColor4ub(color.r, color.g, color.b, color.a);
@@ -215,8 +231,6 @@ void particles3d_draw(context &ctx, const camera3d &view) {
           rlVertex3f(head.x - side.x, head.y - side.y, head.z - side.z);
           rlEnd();
           rlSetTexture(0);
-          rlDrawRenderBatchActive();
-          rlEnableBackfaceCulling();
           continue;
         }
       }
@@ -224,6 +238,10 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       to_raylib(p.pos, pos);
       DrawBillboardPro(camera, texture, source, pos, camera.up, extent,
                        Vector2{extent.x * 0.5f, extent.y * 0.5f}, p.rotation, color);
+    }
+    if (b.stretch > 0.0f) {
+      rlDrawRenderBatchActive();
+      rlEnableBackfaceCulling();
     }
     if (b.shader.id != 0) {
       rlDrawRenderBatchActive();

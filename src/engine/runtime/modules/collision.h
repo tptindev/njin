@@ -23,5 +23,7 @@ struct collision_state {
   // Scratch buffers kept between frames so detection does not reallocate.
   std::vector<std::pair<u64, i32>> cells;
   std::vector<u64> candidates;
+  std::vector<std::pair<u64, bool>> now; // this check's pairs; swapped with `touching`
+  std::vector<i32> large;
 };
 } // namespace njin

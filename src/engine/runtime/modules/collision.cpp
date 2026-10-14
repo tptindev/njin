@@ -116,7 +116,9 @@ void detect(context &ctx) {
   collision_state &state = ctx.collision;
   const f32 cell = state.cell_size;
 
-  std::vector<shape_ref> shapes;
+  // Kept between frames: no allocation once it has grown.
+  thread_local std::vector<shape_ref> shapes;
+  shapes.clear();
   for (auto [entity, tr, col] : registry.view<const transform, const collider>().each()) {
     if (col.enabled && col.shape != collider_tiles)
       shapes.push_back(resolve(entity, tr, col));
@@ -130,7 +132,8 @@ void detect(context &ctx) {
   std::vector<u64> &candidates = state.candidates;
   cells.clear();
   candidates.clear();
-  std::vector<i32> large;
+  std::vector<i32> &large = state.large;
+  large.clear();
   for (i32 i = 0; i < (i32)shapes.size(); i++) {
     const rect &b = shapes[(usize)i].bounds;
     const i32 x0 = (i32)std::floor(b.pos.x / cell);
@@ -168,7 +171,8 @@ void detect(context &ctx) {
   std::sort(candidates.begin(), candidates.end());
   candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
 
-  std::vector<std::pair<u64, bool>> now;
+  std::vector<std::pair<u64, bool>> &now = state.now;
+  now.clear();
   for (const u64 c : candidates) {
     const shape_ref &a = shapes[(usize)(c >> 32)];
     const shape_ref &b = shapes[(usize)(c & 0xFFFFFFFFu)];
@@ -208,7 +212,7 @@ void detect(context &ctx) {
     i += take_now ? 1 : 0;
     j += take_last ? 1 : 0;
   }
-  state.touching = std::move(now);
+  state.touching.swap(now);
 }
 
 void draw_debug(context &ctx) {

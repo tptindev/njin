@@ -250,7 +250,9 @@ vec2 text_measure(const context &ctx, const char *text, f32 size,
 
 void text_layer_flush(context &ctx) {
   view_state &view = ctx.view;
-  std::vector<queued_text> queue;
+  // Swapped, not moved out, so both buffers keep their room between frames.
+  thread_local std::vector<queued_text> queue;
+  queue.clear();
   queue.swap(view.text_layer);
   if (queue.empty() || !view_active(view)) {
     view.occluders.clear();
@@ -278,7 +280,15 @@ void text_layer_flush(context &ctx) {
     // Each visible part of the line is drawn through a scissor of its own, in
     // window pixels, so the image's bars stay clean and what is drawn over the
     // line since it was queued stays over it.
-    for (const text_piece &p : visible_pieces(view, q)) {
+    const std::vector<text_piece> pieces = visible_pieces(view, q);
+    // Nothing over it, no clip, inside the image: the glyphs stay in `bounds`
+    // without a scissor, and the line joins the batch instead of flushing it.
+    if (pieces.size() == 1 && pieces[0].area.pos.x == q.bounds.pos.x && pieces[0].area.pos.y == q.bounds.pos.y &&
+        pieces[0].area.size.x == q.bounds.size.x && pieces[0].area.size.y == q.bounds.size.y) {
+      DrawTextEx(*atlas, q.text.c_str(), at, (f32)atlas->baseSize, spacing, color_of(pieces[0].color));
+      continue;
+    }
+    for (const text_piece &p : pieces) {
       const int x0 = (int)std::floor(view.offset.x + p.area.pos.x * view.scale);
       const int y0 = (int)std::floor(view.offset.y + p.area.pos.y * view.scale);
       const int x1 = (int)std::ceil(view.offset.x + (p.area.pos.x + p.area.size.x) * view.scale);

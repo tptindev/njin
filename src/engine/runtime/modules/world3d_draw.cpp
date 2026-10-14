@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <map>
 #include <raymath.h>
 #include <rlgl.h>
 #include <string>
@@ -733,6 +734,23 @@ struct lake_mesh {
 };
 } // namespace
 
+// Uniform locations by program and name, so a frame does not ask the driver
+// for each by its name again. Every name passed is a string literal (or an
+// entry of a table of them), so its address is the key. Cleared when the
+// shaders go (~world3d_gpu): a later context may get the same program ids.
+std::map<std::pair<u32, const char *>, i32> &uniform_cache() {
+  thread_local std::map<std::pair<u32, const char *>, i32> cache;
+  return cache;
+}
+
+i32 location(u32 program, const char *name) {
+  auto &cache = uniform_cache();
+  const auto [it, added] = cache.try_emplace({program, name}, -1);
+  if (added)
+    it->second = rlGetLocationUniform(program, name);
+  return it->second;
+}
+
 struct world3d_gpu {
   bool ready = false;
   bool failed = false;
@@ -744,6 +762,7 @@ struct world3d_gpu {
   std::vector<lake_mesh> lakes;
 
   ~world3d_gpu() {
+    uniform_cache().clear();
     if (!ready)
       return;
     for (auto &g : grids)
@@ -847,38 +866,38 @@ world3d_gpu &gpu_of(context &ctx) {
 }
 
 void set_i(u32 program, const char *name, i32 v) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   if (loc >= 0)
     rlSetUniform(loc, &v, RL_SHADER_UNIFORM_INT, 1);
 }
 void set_f(u32 program, const char *name, f32 v) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   if (loc >= 0)
     rlSetUniform(loc, &v, RL_SHADER_UNIFORM_FLOAT, 1);
 }
 void set_v2(u32 program, const char *name, vec2 v) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   if (loc >= 0)
     rlSetUniform(loc, &v, RL_SHADER_UNIFORM_VEC2, 1);
 }
 void set_v3(u32 program, const char *name, vec3 v) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   if (loc >= 0)
     rlSetUniform(loc, &v, RL_SHADER_UNIFORM_VEC3, 1);
 }
 void set_v4(u32 program, const char *name, vec4 v) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   if (loc >= 0)
     rlSetUniform(loc, &v, RL_SHADER_UNIFORM_VEC4, 1);
 }
 void set_iv2(u32 program, const char *name, i32 x, i32 y) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   const i32 v[2] = {x, y};
   if (loc >= 0)
     rlSetUniform(loc, v, RL_SHADER_UNIFORM_IVEC2, 1);
 }
 void set_m(u32 program, const char *name, const Matrix &m) {
-  const i32 loc = rlGetLocationUniform(program, name);
+  const i32 loc = location(program, name);
   if (loc >= 0)
     rlSetUniformMatrix(loc, m);
 }
@@ -912,7 +931,7 @@ void set_cover(const context &ctx, u32 program) {
     boxes[i * 2] = {covers[i].center.x, covers[i].center.y, covers[i].center.z, 0.0f};
     boxes[i * 2 + 1] = {covers[i].size.x * 0.5f, covers[i].size.y * 0.5f, covers[i].size.z * 0.5f, 0.0f};
   }
-  const i32 loc = rlGetLocationUniform(program, "coverBox");
+  const i32 loc = location(program, "coverBox");
   if (loc >= 0 && !covers.empty())
     rlSetUniform(loc, boxes, RL_SHADER_UNIFORM_VEC4, (i32)std::min<usize>(covers.size(), 16) * 2);
   set_i(program, "coverCount", (i32)std::min<usize>(covers.size(), 16));
@@ -1052,10 +1071,10 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
       colors[l] = {L.color.r, L.color.g, L.color.b, L.color.a};
     }
     set_v4(p, "layerTile", tiles);
-    const i32 loc = rlGetLocationUniform(p, "layerColor");
+    const i32 loc = location(p, "layerColor");
     if (loc >= 0)
       rlSetUniform(loc, colors, RL_SHADER_UNIFORM_VEC4, 4);
-    const i32 hn = rlGetLocationUniform(p, "layerHasNormal");
+    const i32 hn = location(p, "layerHasNormal");
     if (hn >= 0)
       rlSetUniform(hn, has_normal, RL_SHADER_UNIFORM_IVEC4, 1);
     set_i(p, "layerCount", t.desc.layer_count);
@@ -1120,7 +1139,11 @@ void draw_grass(context &ctx, grass3d_slot &gr, const Matrix &view_proj, bool de
       i32 cx, cz;
       f32 dist;
     };
-    std::vector<want> wanted;
+    // Kept between frames: no allocation once they have grown.
+    thread_local std::vector<want> wanted;
+    thread_local std::vector<f32> blades;
+    thread_local std::vector<std::pair<u64, usize>> known; // cell key -> index in gr.cells, sorted
+    wanted.clear();
     for (i32 cz = z0; cz <= z1; cz++)
       for (i32 cx = x0; cx <= x1; cx++) {
         const f32 ax = o.x + (f32)cx * gr.cell, az = o.z + (f32)cz * gr.cell;
@@ -1132,12 +1155,19 @@ void draw_grass(context &ctx, grass3d_slot &gr, const Matrix &view_proj, bool de
       }
     std::sort(wanted.begin(), wanted.end(), [](const want &a, const want &b) { return a.dist < b.dist; });
     i32 budget = 10;
-    std::vector<f32> blades;
+    const auto key_of = [](i32 cx, i32 cz) { return ((u64)(u32)cx << 32) | (u32)cz; };
+    known.clear();
+    for (usize k = 0; k < gr.cells.size(); k++)
+      known.emplace_back(key_of(gr.cells[k].cx, gr.cells[k].cz), k);
+    std::sort(known.begin(), known.end());
     for (const want &wc : wanted) {
+      // Cells added below are new keys, never looked for again this frame,
+      // so the index made before the loop stays right.
       grass_cell *cell = nullptr;
-      for (grass_cell &c : gr.cells)
-        if (c.cx == wc.cx && c.cz == wc.cz)
-          cell = &c;
+      const u64 key = key_of(wc.cx, wc.cz);
+      const auto at = std::lower_bound(known.begin(), known.end(), std::pair<u64, usize>{key, 0});
+      if (at != known.end() && at->first == key)
+        cell = &gr.cells[at->second];
       if (cell == nullptr || cell->stale) {
         if (budget <= 0)
           continue;
@@ -1308,7 +1338,7 @@ void draw_water(context &ctx, const water3d_slot &wslot, u32 id, const Matrix &v
     waves2[count] = {std::sqrt(9.81f / k) * wave.speed, st / k, 0.0f, 0.0f};
     count++;
   }
-  const i32 lw = rlGetLocationUniform(p, "waves"), lw2 = rlGetLocationUniform(p, "waves2");
+  const i32 lw = location(p, "waves"), lw2 = location(p, "waves2");
   if (count > 0) {
     rlSetUniform(lw, waves, RL_SHADER_UNIFORM_VEC4, count);
     rlSetUniform(lw2, waves2, RL_SHADER_UNIFORM_VEC4, count);

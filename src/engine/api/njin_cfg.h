@@ -67,6 +67,12 @@ struct config {
   /// về `render_scale`. Pixel art dùng `virtual_size` với `filter_nearest` nên
   /// thường không cần; hợp game vẽ hình khối, sprite xoay hay chữ vector hơn.
   i32 render_scale = 1;
+  /// Số lần `phase_fixed_update` tối đa trong một frame. Máy chậm không theo
+  /// kịp `fixed_hz` thì các bước dồn lại; quá mức này thì phần dồn bị bỏ, game
+  /// chạy chậm lại thay vì frame sau còn lâu hơn frame trước. Mặc định 8. Máy
+  /// yếu nên đặt 2–4: vật lý chậm đi một chút khi tụt FPS, nhưng không rơi
+  /// vào vòng "frame dài, nhiều bước, frame càng dài". Ít nhất là 1.
+  i32 fixed_max_steps = 8;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).
