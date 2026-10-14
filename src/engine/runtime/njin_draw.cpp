@@ -4,6 +4,7 @@
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
 #include "njin_render.h"
+#include "njin_sdf2d.h"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -103,6 +104,34 @@ void draw_rect(const context &ctx, rect r, rgba color) {
 
 void draw_rect_lines(const context &, rect r, f32 thickness, rgba color) {
   DrawRectangleLinesEx(rect_of(r), thickness, color_of(color));
+}
+
+namespace {
+// A radius in pixels as raylib's roundness: a share of half the shorter side.
+f32 roundness_of(rect r, f32 radius) {
+  const f32 shorter = std::min(r.size.x, r.size.y);
+  return shorter > 0.0f ? std::clamp(2.0f * radius / shorter, 0.0f, 1.0f) : 0.0f;
+}
+} // namespace
+
+void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color) {
+  if (!sdf2d_rounded_rect(ctx, r, radius, 0.0f, color)) {
+    if (radius <= 0.0f)
+      DrawRectangleRec(rect_of(r), color_of(color));
+    else
+      DrawRectangleRounded(rect_of(r), roundness_of(r, radius), 0, color_of(color));
+  }
+  view_text_occlude(ctx.view, r, color);
+}
+
+void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickness, rgba color) {
+  if (sdf2d_rounded_rect(ctx, r, radius, thickness, color))
+    return;
+  // raylib draws the line outside the rectangle it is given: give it the one
+  // `thickness` inside `r`, its corners rounder by as much less.
+  const f32 t = std::max(0.0f, std::min(thickness, std::min(r.size.x, r.size.y) * 0.5f));
+  const rect in{{r.pos.x + t, r.pos.y + t}, {r.size.x - 2.0f * t, r.size.y - 2.0f * t}};
+  DrawRectangleRoundedLinesEx(rect_of(in), roundness_of(in, std::max(0.0f, radius - t)), 0, t, color_of(color));
 }
 
 void draw_rect_rotated(const context &, vec2 center, vec2 size, f32 rotation,
@@ -250,10 +279,11 @@ namespace {
 // size is what the game measured and aligned with: stretch the gaps until the
 // line is as wide as that, so centred and right-aligned text stays where it was
 // put.
+// A line drawn under a transform of `scale` and `offset` (the smooth UI pass's,
+// the UI canvas's), baked at its size on the window and drawn without it.
 void draw_text_window(const context &ctx, const char *text, vec2 pos, f32 size, rgba color,
-                      font_handle font) {
-  const view_state &view = ctx.view;
-  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size * view.scale));
+                      font_handle font, vec2 offset, f32 scale) {
+  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size * scale));
   const Font *layout = font_store_atlas(ctx.font, font, font_px(size));
   if (atlas == nullptr || layout == nullptr)
     return;
@@ -266,12 +296,11 @@ void draw_text_window(const context &ctx, const char *text, vec2 pos, f32 size, 
   if (one_line)
     glyphs = GetCodepointCount(text);
   if (glyphs > 1) {
-    const f32 want = MeasureTextEx(*layout, text, (f32)layout->baseSize, 0.0f).x * view.scale;
+    const f32 want = MeasureTextEx(*layout, text, (f32)layout->baseSize, 0.0f).x * scale;
     const f32 have = MeasureTextEx(*atlas, text, (f32)atlas->baseSize, 0.0f).x;
     spacing = (want - have) / (f32)(glyphs - 1);
   }
-  const Vector2 at{std::round(view.offset.x + pos.x * view.scale),
-                   std::round(view.offset.y + pos.y * view.scale)};
+  const Vector2 at{std::round(offset.x + pos.x * scale), std::round(offset.y + pos.y * scale)};
   rlPushMatrix();
   rlLoadIdentity();
   DrawTextEx(*atlas, text, at, (f32)atlas->baseSize, spacing, color_of(color));
@@ -296,7 +325,11 @@ void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
     return;
   }
   if (ctx.view.ui_window && ctx.view.offscreen_depth == 0 && !font_store_is_pixel(ctx.font, font)) {
-    draw_text_window(ctx, text, pos, size, color, font);
+    draw_text_window(ctx, text, pos, size, color, font, ctx.view.offset, ctx.view.scale);
+    return;
+  }
+  if (ctx.view.canvas_on && !font_store_is_pixel(ctx.font, font)) {
+    draw_text_window(ctx, text, pos, size, color, font, {}, ctx.view.canvas_scale);
     return;
   }
   const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
@@ -464,6 +497,13 @@ void blend_end(const context &) { EndBlendMode(); }
 
 void clip_begin(const context &ctx, rect area) {
   ctx.view.clip = area;
+  if (ctx.view.canvas_on) {
+    // Scissor works in window pixels: the canvas's area times its scale.
+    const f32 k = ctx.view.canvas_scale;
+    BeginScissorMode((int)std::floor(area.pos.x * k), (int)std::floor(area.pos.y * k),
+                     (int)std::ceil(area.size.x * k), (int)std::ceil(area.size.y * k));
+    return;
+  }
   if (ctx.view.ui_window) {
     // Scissor works in window pixels, whatever the transform is.
     const view_state &v = ctx.view;

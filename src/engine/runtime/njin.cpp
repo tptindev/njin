@@ -151,7 +151,9 @@ void run(context &ctx) {
     // Over everything, UI included: toasts, the screen flash, then the scene
     // fade, which covers the whole frame.
     dialog_draw(ctx);
+    ui_canvas_begin(ctx); // toasts are UI: in the canvas when there is one
     ui_draw_toasts(ctx);
+    ui_canvas_end(ctx);
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
     if (ctx.view.ui_window)

@@ -15,6 +15,8 @@ Mọi hàm vẽ phải gọi trong ba phase vẽ. Không gian phụ thuộc phas
 |---|---|
 | njin::draw_rect() | Hình chữ nhật đặc |
 | njin::draw_rect_lines() | Viền hình chữ nhật, viền nằm bên trong |
+| njin::draw_rect_rounded() | Hình chữ nhật đặc bo góc, bán kính tính bằng pixel |
+| njin::draw_rect_rounded_lines() | Viền hình chữ nhật bo góc, viền nằm bên trong |
 | njin::draw_rect_rotated() | Hình chữ nhật xoay quanh tâm |
 | njin::draw_circle() / njin::draw_circle_lines() | Hình tròn đặc / viền |
 | njin::draw_line() | Đoạn thẳng có độ dày |
@@ -24,6 +26,23 @@ Mọi hàm vẽ phải gọi trong ba phase vẽ. Không gian phụ thuộc phas
 Màu là njin::rgba, mỗi kênh 0..1. Có sẵn vài màu trong `njin::colors` (`white`, `black`,
 `red`, `green`, `blue`, `yellow`, `gray`, `transparent`). Màu lấy từ trình vẽ ảnh (kênh 0..255) thì
 viết bằng njin::rgb8(): `njin::rgb8(196, 48, 40)`, thêm tham số thứ tư cho độ đục.
+
+### Hình bo góc mịn bằng SDF
+
+Mặc định hình bo góc được raylib vẽ bằng dải tam giác, nên mép cong hơi răng cưa, nhất là khi
+viền mảnh. njin::draw_set_smooth_shapes() bật cách vẽ khác: mỗi hình là một quad, shader tính
+khoảng cách từ pixel tới mép hình (signed distance field) rồi phủ mờ đúng một pixel, nên mép và
+góc mịn ở mọi tỉ lệ. Cách này áp dụng cho njin::draw_rect_rounded(),
+njin::draw_rect_rounded_lines() và mặt màu phẳng của UI (njin::ui_skin không ảnh: panel, nút,
+toast). Mỗi hình tốn một lần vẽ riêng, nên hợp để bật theo mức đồ họa:
+
+```cpp
+// Từ mức đồ họa vừa trở lên, UI vẽ mịn.
+njin::draw_set_smooth_shapes(ctx, quality >= 1);
+```
+
+Đang có shader khác (njin::shader_begin(), njin::draw_dissolve_begin()) thì hình vẫn vẽ kiểu cũ
+dưới shader đó.
 
 ## Chữ
 

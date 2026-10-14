@@ -8,6 +8,7 @@
 #include "_tween.h"
 #include "njin_bindings.h"
 #include "njin_log.h"
+#include "njin_sdf2d.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -106,7 +107,7 @@ void set_uniform_quiet(shader_slot &slot, const char *name, const void *value,
     SetShaderValue(slot.shader, it->second, value, type);
 }
 
-void draw_skin(context &ctx, const ui_cmd &c) {
+void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
   shader_slot *sh = shader_slot_of(ctx.shader, c.shader);
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
@@ -120,6 +121,9 @@ void draw_skin(context &ctx, const ui_cmd &c) {
       area[1] = v.offset.y + area[1] * v.scale;
       area[2] *= v.scale;
       area[3] *= v.scale;
+    } else if (ctx.view.canvas_on) {
+      for (f32 &a : area)
+        a *= ctx.view.canvas_scale;
     }
     set_uniform_quiet(*sh, "uiState", &c.state, SHADER_UNIFORM_FLOAT);
     set_uniform_quiet(*sh, "uiTime", &time, SHADER_UNIFORM_FLOAT);
@@ -145,16 +149,28 @@ void draw_skin(context &ctx, const ui_cmd &c) {
       DrawTexturePro(tex->texture, src, dest, Vector2{0.0f, 0.0f}, 0.0f, color);
     }
   } else {
-    if (s.color.a > 0.0f) {
-      if (s.roundness > 0.0f)
-        DrawRectangleRounded(dest, s.roundness, 8, color);
+    // A radius in pixels is raylib's roundness of the shorter side.
+    const f32 shorter = std::min(dest.width, dest.height);
+    const f32 round = s.radius > 0.0f && shorter > 0.0f ? std::min(1.0f, 2.0f * s.radius * scale / shorter)
+                                                        : s.roundness;
+    // Smooth shapes (draw_set_smooth_shapes()) when no skin shader is on: the
+    // same box and the same outline, round the outside of `dest` as raylib's.
+    const f32 px = round * shorter * 0.5f;
+    const bool smooth = sh == nullptr;
+    if (s.color.a > 0.0f && !(smooth && sdf2d_rounded_rect(ctx, c.area, px, 0.0f, s.color))) {
+      if (round > 0.0f)
+        DrawRectangleRounded(dest, round, 8, color);
       else
         DrawRectangleRec(dest, color);
     }
     if (s.outline.a > 0.0f && s.outline_width > 0.0f) {
-      Color line{};
-      to_raylib(s.outline, line);
-      DrawRectangleRoundedLinesEx(dest, s.roundness, 8, s.outline_width, line);
+      const f32 w = s.outline_width;
+      const rect out{c.area.pos - vec2{w, w}, c.area.size + vec2{2.0f * w, 2.0f * w}};
+      if (!(smooth && sdf2d_rounded_rect(ctx, out, round > 0.0f ? px + w : 0.0f, w, s.outline))) {
+        Color line{};
+        to_raylib(s.outline, line);
+        DrawRectangleRoundedLinesEx(dest, round, 8, w, line);
+      }
     }
   }
   if (sh != nullptr)
@@ -217,7 +233,7 @@ void flush(context &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
   for (const ui_cmd &c : cmds) {
     switch (c.kind) {
     case ui_cmd::skin:
-      draw_skin(ctx, c);
+      draw_skin(ctx, c, ui.style.scale * ui.fit);
       break;
     case ui_cmd::ring:
       draw_ring(c);
@@ -356,7 +372,8 @@ void frame_begin(context &ctx) {
 
   // Raw input, read before anything is consumed.
   const f32 dt = ctx.time.dt_real;
-  const vec2 mouse = mouse_pos(ctx);
+  // In the canvas's units when there is one: the panels were built in them.
+  const vec2 mouse = input_mouse_pos(ctx.input) * (1.0f / ctx.view.canvas_scale);
   ui.mouse_moved = mouse != ui.mouse;
   ui.mouse = mouse;
   ui.mouse_pressed = mouse_pressed(ctx, mouse_left);
@@ -658,6 +675,28 @@ ui_style ui_default_style() {
 }
 
 void ui_style_set(context &ctx, const ui_style &style) { ctx.ui.style = style; }
+
+void ui_canvas_set(context &ctx, const ui_canvas_desc &desc) {
+  view_state &v = ctx.view;
+  v.canvas_height = std::max(0.0f, desc.height);
+  v.canvas_min_width = std::max(0.0f, desc.min_width);
+  v.canvas_min = std::max(0.05f, desc.min_scale);
+  v.canvas_max = std::max(v.canvas_min, desc.max_scale);
+}
+
+void ui_canvas_begin(const context &ctx) {
+  ctx.view.canvas_depth++;
+  view_canvas_sync(ctx.view);
+}
+
+void ui_canvas_end(const context &ctx) {
+  if (ctx.view.canvas_depth <= 0)
+    return;
+  ctx.view.canvas_depth--;
+  view_canvas_sync(ctx.view);
+}
+
+f32 ui_canvas_scale(const context &ctx) { return ctx.view.canvas_scale; }
 ui_style ui_style_get(const context &ctx) { return ctx.ui.style; }
 
 void ui_begin(context &ctx, const ui_panel_desc &desc) {
@@ -1066,6 +1105,7 @@ void ui_scroll_begin(context &ctx, const char *id, f32 height) {
   off = clamp(off, 0.0f, std::max(0.0f, content - area.size.y));
   push_skin(ui, ui.style.track, state_normal, area);
   ui.cmds.back().look.roundness = 0.0f;
+  ui.cmds.back().look.radius = 0.0f;
   ui_cmd clip{};
   clip.kind = ui_cmd::clip_begin;
   clip.area = area;

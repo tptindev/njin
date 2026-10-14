@@ -13,7 +13,8 @@ struct context;
 
 /// Cách vẽ một mặt của widget: màu phẳng, ảnh (có thể 9-slice), hoặc cả hai.
 ///
-/// Không có ảnh thì vẽ hình chữ nhật `color` (bo góc theo `roundness`). Có ảnh
+/// Không có ảnh thì vẽ hình chữ nhật `color` (bo góc theo `radius`, hoặc
+/// `roundness` khi `radius` là 0). Có ảnh
 /// thì vẽ ảnh nhân màu `color`; `border > 0` cắt ảnh thành 9 mảnh (9-slice):
 /// bốn góc giữ nguyên, cạnh và giữa được kéo giãn, nên khung vẽ một lần dùng
 /// cho mọi kích thước nút.
@@ -25,6 +26,10 @@ struct ui_skin {
   f32 roundness = 0.0f;              ///< Bo góc khi không có ảnh, 0..1.
   rgba outline{0.0f, 0.0f, 0.0f, 0.0f}; ///< Màu viền khi không có ảnh. Alpha 0 là không viền.
   f32 outline_width = 0.0f;          ///< Bề dày viền, pixel.
+  /// Bán kính bo góc khi không có ảnh, pixel (nhân `ui_style::scale` như mọi
+  /// kích thước khác). Lớn hơn 0 thì thay `roundness`: góc tròn bằng nhau dù
+  /// widget cao hay thấp, còn `roundness` tính theo cạnh ngắn của widget.
+  f32 radius = 0.0f;
 };
 
 /// Diện mạo của một loại widget ở từng trạng thái.
@@ -104,6 +109,54 @@ void ui_style_set(context &ctx, const ui_style &style);
 
 /// Style hiện tại. @param ctx Context của engine. @return Style.
 ui_style ui_style_get(const context &ctx);
+
+/// Khung vẽ (canvas) của UI: UI thiết kế ở một chiều cao cố định rồi phóng
+/// theo cửa sổ. Xem ui_canvas_set().
+struct ui_canvas_desc {
+  /// Chiều cao thiết kế, pixel. Tỉ lệ là chiều cao cửa sổ chia số này. 0 là
+  /// tắt canvas (mặc định): UI tính bằng pixel cửa sổ như trước.
+  f32 height = 0.0f;
+  /// Canvas rộng ít nhất bấy nhiêu pixel thiết kế: cửa sổ hẹp quá thì tỉ lệ
+  /// giảm theo chiều ngang thay vì cắt mất mép UI. 0 là không giới hạn.
+  f32 min_width = 0.0f;
+  f32 min_scale = 0.5f; ///< Tỉ lệ nhỏ nhất.
+  f32 max_scale = 4.0f; ///< Tỉ lệ lớn nhất.
+};
+
+/// Bật/tắt khung vẽ UI (canvas). Bật thì giữa ui_canvas_begin() và
+/// ui_canvas_end(), UI và HUD được viết theo đơn vị thiết kế: screen_size() trả
+/// về cửa sổ chia tỉ lệ (cao bằng `height`, rộng theo khung hình cửa sổ),
+/// mouse_pos() và mouse_delta() tính theo đơn vị đó, mọi hình, ảnh và panel vẽ
+/// ra được phóng theo tỉ lệ, chữ được dựng đúng cỡ trên màn hình nên vẫn nét,
+/// clip_begin() nhận vùng theo đơn vị thiết kế. Một HUD viết cho 1600 x 900 nhờ
+/// đó vừa khít mọi cửa sổ, nhỏ hay 4K, không phải sửa từng kích thước.
+///
+/// Tỉ lệ tính lại mỗi frame theo cửa sổ (ui_canvas_scale()). Khi bật, mọi panel
+/// UI phải dựng trong ui_canvas_begin()/ui_canvas_end() (UI đọc chuột theo đơn
+/// vị canvas); toast cũng vẽ trong canvas. Không dùng chung với độ phân giải
+/// ảo (window_set_virtual_size()): khi đó tỉ lệ luôn là 1.
+/// @code
+/// njin::ui_canvas_set(ctx, {.height = 900.0f, .min_width = 1280.0f});
+/// // Mỗi frame, trong phase_post_render:
+/// njin::ui_canvas_begin(ctx);
+/// draw_hud(ctx); // tính theo 900 pixel chiều cao
+/// njin::ui_canvas_end(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param desc Chiều cao thiết kế và giới hạn tỉ lệ.
+void ui_canvas_set(context &ctx, const ui_canvas_desc &desc);
+
+/// Bắt đầu vẽ trong canvas (xem ui_canvas_set()). Lồng được; canvas tắt thì
+/// không làm gì. Vẽ vào render texture giữa chừng thì ảnh đó không bị phóng
+/// (tọa độ vẫn theo đơn vị canvas). @param ctx Context của engine.
+void ui_canvas_begin(const context &ctx);
+
+/// Kết thúc ui_canvas_begin(). @param ctx Context của engine.
+void ui_canvas_end(const context &ctx);
+
+/// Tỉ lệ canvas của frame này: pixel cửa sổ trên một đơn vị thiết kế; 1 khi
+/// tắt. @param ctx Context của engine. @return Tỉ lệ.
+f32 ui_canvas_scale(const context &ctx);
 
 /// Vị trí và kích thước của một panel, dùng với ui_begin().
 struct ui_panel_desc {

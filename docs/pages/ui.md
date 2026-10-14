@@ -214,7 +214,8 @@ panel được, ví dụ một hộp thoại cảnh báo màu đỏ.
 Mỗi njin::ui_look có bốn mặt (njin::ui_skin) cho bốn trạng thái: `normal`, `focused`,
 `pressed`, `disabled`, và màu chữ tương ứng. Một mặt vẽ bằng:
 
-- **màu phẳng**: `color`, bo góc `roundness`, viền `outline`;
+- **màu phẳng**: `color`, bo góc `radius` (pixel, góc bằng nhau ở mọi cỡ) hoặc `roundness` (theo
+  cạnh ngắn), viền `outline`;
 - **ảnh**: `texture` (và `source` nếu dùng một vùng trong atlas), nhân màu `color`;
 - **ảnh 9-slice**: thêm `border`: bốn góc giữ nguyên, cạnh và giữa kéo giãn, nên một khung vẽ
   nhỏ dùng được cho nút mọi kích thước.
@@ -261,6 +262,39 @@ khi bấm hoặc đổi giá trị, và khi quay lại.
 
 **Phông.** Phông mặc định của engine (JetBrains Mono, nhúng sẵn) đã có chữ tiếng Việt. Muốn
 phông khác, nạp bằng njin::font_load() và đặt vào `ui_style::font` (xem @ref drawing).
+
+## Co giãn theo cửa sổ {#ui_canvas}
+
+UI tính bằng pixel cửa sổ: một panel cao 640 pixel vừa cửa sổ 1600 x 900 nhưng tràn khỏi cửa
+sổ 1280 x 720, và trông bé tí trên màn hình 4K. njin::ui_canvas_set() cho UI một khung vẽ
+(canvas) có chiều cao thiết kế cố định: tỉ lệ là chiều cao cửa sổ chia chiều cao thiết kế, giới
+hạn trong `min_scale`..`max_scale`; `min_width` giảm tỉ lệ thêm khi cửa sổ hẹp quá, để canvas
+luôn rộng ít nhất bấy nhiêu.
+
+```cpp
+// Lúc khởi động: HUD viết cho 1600 x 900, không bao giờ hẹp hơn 1280.
+njin::ui_canvas_set(ctx, {.height = 900.0f, .min_width = 1280.0f});
+
+// Mỗi frame, trong phase_post_render:
+njin::ui_canvas_begin(ctx);
+draw_hud(ctx);
+njin::ui_canvas_end(ctx);
+```
+
+Giữa njin::ui_canvas_begin() và njin::ui_canvas_end():
+
+- njin::screen_size() trả về kích thước canvas (cao bằng `height`, rộng theo khung hình cửa sổ),
+  nên panel neo theo màn hình tự nằm đúng chỗ;
+- njin::mouse_pos() và njin::mouse_delta() tính theo đơn vị canvas;
+- mọi hình, ảnh, panel và widget được phóng theo tỉ lệ; chữ được dựng đúng cỡ trên màn hình nên
+  vẫn nét; njin::clip_begin() nhận vùng theo đơn vị canvas;
+- vẽ vào render texture thì ảnh đó không bị phóng (tọa độ vẫn theo đơn vị canvas).
+
+Khi canvas bật, mọi panel UI phải dựng trong canvas: UI đọc chuột theo đơn vị canvas ngay đầu
+frame. Toast cũng vẽ trong canvas. Thứ gắn với thế giới (nhãn trên bản đồ, chọn vật bằng chuột
+trong `phase_update`) vẫn dùng pixel cửa sổ: nhân hay chia cho njin::ui_canvas_scale() khi cần
+đổi qua lại. Canvas không dùng chung với độ phân giải ảo: khi có njin::window_set_virtual_size()
+tỉ lệ luôn là 1.
 
 UI vẽ trong không gian màn hình, sau post-processing, nên hiệu ứng như blur hay CRT không làm
 mờ menu (xem @ref post_processing; njin::post::paused() hợp với menu pause).

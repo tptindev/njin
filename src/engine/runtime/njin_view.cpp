@@ -57,6 +57,19 @@ view_state::~view_state() {
 }
 
 void view_frame_begin(view_state &view) {
+  // The UI canvas's scale: the window's height over the design height, less
+  // when the window is too narrow for the canvas's least width.
+  view.canvas_scale = 1.0f;
+  view.canvas_depth = 0;
+  view.canvas_on = false;
+  if (view.canvas_height > 0.0f && !view_active(view)) {
+    const f32 w = (f32)GetScreenWidth(), h = (f32)GetScreenHeight();
+    f32 k = h / view.canvas_height;
+    if (view.canvas_min_width > 0.0f)
+      k = std::min(k, w / view.canvas_min_width);
+    if (k > 0.0f)
+      view.canvas_scale = std::clamp(k, view.canvas_min, view.canvas_max);
+  }
   if (!view_has_virtual_size(view)) {
     view.scale = 1.0f;
     view.offset = {};
@@ -153,13 +166,33 @@ void view_ui_end(view_state &view) {
   view.ui_window = false;
 }
 
+void view_canvas_sync(const view_state &view) {
+  const bool want = view_in_canvas(view) && view.offscreen_depth == 0;
+  if (want == view.canvas_on)
+    return;
+  if (want) {
+    rlPushMatrix();
+    rlScalef(view.canvas_scale, view.canvas_scale, 1.0f);
+  } else {
+    rlPopMatrix();
+  }
+  view.canvas_on = want;
+}
+
 void view_ui_suspend(const view_state &view) {
+  // A render texture starts with no transform: the canvas's is popped first,
+  // and pushed again by view_rebind() when it ends.
+  if (view.canvas_on) {
+    rlPopMatrix();
+    view.canvas_on = false;
+  }
   if (!view.ui_window)
     return;
   ui_leave();
 }
 
 void view_rebind(const view_state &view) {
+  view_canvas_sync(view);
   if (view.ui_window) {
     ui_enter(view);
     return;
@@ -210,6 +243,8 @@ rect window_viewport(const context &ctx) {
 }
 
 vec2 screen_size(const context &ctx) {
+  if (view_in_canvas(ctx.view))
+    return vec2{(f32)GetScreenWidth(), (f32)GetScreenHeight()} * (1.0f / ctx.view.canvas_scale);
   if (view_active(ctx.view))
     return view_logical_size(ctx.view);
   return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};

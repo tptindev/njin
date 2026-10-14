@@ -37,6 +37,7 @@
 #include "njin_prefab_impl.h"
 #include "njin_quality_impl.h"
 #include "njin_scene_impl.h"
+#include "njin_sdf2d.h"
 #include "njin_script_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
@@ -105,6 +106,8 @@ struct context {
   physics3d_state physics3d;
   // Mutable: atlases are baked on first draw, and drawing takes a const ctx.
   mutable font_store font;
+  // Mutable too: the shape shader is loaded on first draw (njin_sdf2d.h).
+  mutable sdf2d_state sdf2d;
   audio_store audio;
   camera_post post;
   fx_state fx;

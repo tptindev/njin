@@ -26,6 +26,41 @@ void draw_rect(const context &ctx, rect r, rgba color);
 /// @param color Màu.
 void draw_rect_lines(const context &ctx, rect r, f32 thickness, rgba color);
 
+/// Vẽ hình chữ nhật đặc bo tròn bốn góc.
+/// @param ctx Context của engine.
+/// @param r Hình chữ nhật.
+/// @param radius Bán kính góc, pixel; lớn quá nửa cạnh ngắn thì lấy nửa cạnh
+///        ngắn (thành hình viên thuốc). 0 là góc vuông như draw_rect().
+/// @param color Màu.
+void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color);
+
+/// Vẽ viền hình chữ nhật bo tròn bốn góc. Viền nằm bên trong `r`, như
+/// draw_rect_lines(), nên vẽ cùng `r` và `radius` với draw_rect_rounded() thì
+/// viền ôm khít nền.
+/// @param ctx Context của engine.
+/// @param r Hình chữ nhật.
+/// @param radius Bán kính góc ngoài của viền, pixel.
+/// @param thickness Độ dày viền.
+/// @param color Màu.
+void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickness, rgba color);
+
+/// Bật/tắt vẽ hình bo góc bằng SDF (trường khoảng cách có dấu): mỗi hình là
+/// một quad, độ phủ của từng pixel tính trong shader, nên mép và góc bo được
+/// khử răng cưa mịn ở mọi tỉ lệ (độ phân giải ảo, UI mịn). Áp dụng cho
+/// draw_rect_rounded(), draw_rect_rounded_lines() và mặt màu phẳng của UI
+/// (ui_skin không ảnh). Mặc định tắt: hình vẽ bằng tam giác của raylib như
+/// trước. Mỗi hình đổi uniform nên tốn một lần vẽ riêng; đáng dùng cho UI, ở
+/// mức đồ họa vừa trở lên. Khi đang có shader khác (shader_begin(),
+/// draw_dissolve_begin()) hình vẫn vẽ kiểu cũ dưới shader đó.
+/// @param ctx Context của engine.
+/// @param on Bật hay tắt.
+void draw_set_smooth_shapes(context &ctx, bool on);
+
+/// Hình bo góc có đang vẽ bằng SDF không (draw_set_smooth_shapes()).
+/// @param ctx Context của engine.
+/// @return `true` khi đang bật.
+bool draw_smooth_shapes(const context &ctx);
+
 /// Vẽ hình chữ nhật đặc xoay quanh tâm của nó.
 /// @param ctx Context của engine.
 /// @param center Tâm.

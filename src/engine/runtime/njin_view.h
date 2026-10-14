@@ -81,11 +81,32 @@ struct view_state {
   mutable std::vector<queued_text> text_layer;
   mutable std::vector<text_occluder> occluders;
 
+  // The UI canvas (ui_canvas_set()): a game's UI laid out at a design height
+  // and drawn `canvas_scale` times bigger. Between ui_canvas_begin() and
+  // ui_canvas_end() the screen and the mouse are in its units, shapes and
+  // pictures go through a scale (rlgl's transform, as the smooth UI pass's),
+  // text is baked at its size on the window, and clip areas are scaled into
+  // window pixels. Not with a virtual size: there `canvas_scale` stays 1.
+  f32 canvas_height = 0.0f;            // 0: off
+  f32 canvas_min_width = 0.0f;         // the canvas is at least this wide
+  f32 canvas_min = 0.5f, canvas_max = 4.0f;
+  f32 canvas_scale = 1.0f;             // this frame's, set in view_frame_begin()
+  mutable i32 canvas_depth = 0;        // inside ui_canvas_begin()
+  mutable bool canvas_on = false;      // its transform is pushed now
+
   view_state() = default;
   ~view_state();
   view_state(const view_state &) = delete;
   view_state &operator=(const view_state &) = delete;
 };
+
+// Inside ui_canvas_begin()/ui_canvas_end() with the canvas scaling.
+inline bool view_in_canvas(const view_state &view) {
+  return view.canvas_depth > 0 && view.canvas_scale != 1.0f;
+}
+// The canvas's transform pushed when it should be on (inside the canvas, not
+// in a render texture), popped when it should not.
+void view_canvas_sync(const view_state &view);
 
 // An explicit virtual size was set (window_set_virtual_size()), as opposed to
 // supersampling alone driving the offscreen target.

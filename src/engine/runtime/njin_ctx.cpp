@@ -85,9 +85,16 @@ void action_clear_binds(context &ctx, action_handle handle) {
   input_action_clear_binds(ctx.input, handle);
 }
 
-vec2 mouse_pos(const context &ctx) { return input_mouse_pos(ctx.input); }
+// In the UI canvas (ui_canvas_begin()), in its units.
+vec2 mouse_pos(const context &ctx) {
+  const vec2 p = input_mouse_pos(ctx.input);
+  return view_in_canvas(ctx.view) ? p * (1.0f / ctx.view.canvas_scale) : p;
+}
 
-vec2 mouse_delta(const context &ctx) { return input_mouse_delta(ctx.input); }
+vec2 mouse_delta(const context &ctx) {
+  const vec2 d = input_mouse_delta(ctx.input);
+  return view_in_canvas(ctx.view) ? d * (1.0f / ctx.view.canvas_scale) : d;
+}
 
 f32 mouse_wheel(const context &ctx) { return input_mouse_wheel(ctx.input); }
 
@@ -343,6 +350,8 @@ void render_texture_begin(const context &ctx, render_texture_handle handle) {
     ctx.view.offscreen_depth++;
   else if (ctx.view.ui_window)
     view_rebind(ctx.view);
+  else
+    view_canvas_sync(ctx.view);
 }
 
 void render_texture_begin(const context &ctx, render_texture_handle handle,
@@ -353,6 +362,8 @@ void render_texture_begin(const context &ctx, render_texture_handle handle,
     render_texture_store_clear(clear);
   } else if (ctx.view.ui_window) {
     view_rebind(ctx.view);
+  } else {
+    view_canvas_sync(ctx.view);
   }
 }
 
