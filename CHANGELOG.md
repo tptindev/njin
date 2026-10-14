@@ -10,6 +10,11 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- `font_set_default(ctx, font)`: the font drawn when none is given (UI,
+  `draw_text()`, `text_measure()`), set once instead of passed to every
+  call; `{}` goes back to the built-in JetBrains Mono. A game that never
+  calls it draws as before. (turf: the HUD's words in Be Vietnam Pro.)
+
 - `ui_let_through(ctx, area)`: the mouse's left button is left to the game
   over `area`, inside a panel or not, for what the game draws and drives
   with the mouse there (a map dragged inside a panel). `ui_mouse_over()`
@@ -56,6 +61,12 @@ To release: edit that header, add a section here, commit, then
 
 ### Fixed
 
+- Text is no longer cramped: raylib cut each glyph's advance down to whole
+  pixels, half a pixel lost a letter on average, and a narrow space (Be
+  Vietnam Pro's) all but vanished at small sizes. The advances are now
+  rounded from the font's own metrics. Text in every font comes out a
+  little wider than before, as wide as the font means it. (turf: the HUD's
+  and the phone's words ran together.)
 - The camera's world target clamps at its edges, so a bilinear scale
   (`render_scale`, or the new `world_scale`) no longer blends the top row
   with the bottom one into a light line along the edge.

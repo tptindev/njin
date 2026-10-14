@@ -43,6 +43,12 @@ nên căn giữa và căn phải khớp với chữ được vẽ.
 Nạp thất bại (file thiếu, không đọc được) trả về handle id 0, nên chữ tự rơi về font mặc
 định thay vì biến mất.
 
+Cả game dùng một font khác cho mọi chữ không truyền font (UI, draw_text(), text_measure())
+thì gọi njin::font_set_default() một lần, thay vì truyền font ở từng lời gọi. Handle rỗng
+`{}` quay về JetBrains Mono.
+
+@snippet drawing.cpp default_font
+
 ### Chữ kiểu pixel
 
 njin::font_set_style() với njin::font_pixel (hoặc tham số `style` của njin::font_load()) tắt

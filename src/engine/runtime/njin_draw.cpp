@@ -170,6 +170,10 @@ void font_unload(context &ctx, font_handle font) {
   font_store_unload(ctx.font, font);
 }
 
+void font_set_default(context &ctx, font_handle font) {
+  font_store_set_default(ctx.font, font);
+}
+
 namespace {
 // Text in the UI pass: baked at size * scale and drawn in window pixels, with
 // the pass's transform put aside. A glyph advance is a whole number of pixels,

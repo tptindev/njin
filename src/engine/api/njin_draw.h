@@ -127,6 +127,17 @@ font_handle font_load(context &ctx, const char *path, i32 size = 0,
 /// @param style Kiểu mới.
 void font_set_style(context &ctx, font_handle font, font_style style);
 
+/// Chọn font vẽ khi không truyền font (handle rỗng `{}`), cho chữ của cả game,
+/// UI lẫn draw_text(), đổi một lần thay vì truyền font ở từng lời gọi. Handle
+/// không hợp lệ, `{}`, hoặc font đã giải phóng thì quay về font của engine
+/// (JetBrains Mono). Không gọi hàm này thì chữ vẽ y như trước.
+///
+/// njin::font_set_style() với handle rỗng vẫn đổi kiểu của font của engine,
+/// không phải font chọn ở đây: đổi kiểu font này thì truyền chính handle của nó.
+/// @param ctx Context của engine.
+/// @param font Font dùng làm mặc định, `{}` để quay về font của engine.
+void font_set_default(context &ctx, font_handle font);
+
 /// Giải phóng font. Handle không hợp lệ bị bỏ qua. Vẽ bằng handle đã giải
 /// phóng thì dùng font mặc định.
 /// @param ctx Context của engine.

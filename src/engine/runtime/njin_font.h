@@ -33,6 +33,9 @@ struct font_slot {
 struct font_store {
   font_slot fallback;
   std::vector<font_slot> slots;
+  // The font a handle of id 0 (or an invalid one) draws with, set by
+  // font_set_default(); id 0, or one unloaded since, is `fallback`.
+  font_handle chosen{};
 
   // Frees every atlas, so it must run while the GL context is still alive
   // (before CloseWindow).
@@ -55,6 +58,8 @@ void font_store_set_pixel(font_store &store, font_handle handle, bool pixel);
 // True when text in `handle` is drawn in the pixel style.
 bool font_store_is_pixel(const font_store &store, font_handle handle);
 void font_store_unload(font_store &store, font_handle handle);
+// The font drawn when no font is given (font_set_default); {} the built-in one.
+void font_store_set_default(font_store &store, font_handle handle);
 
 // The atlas to draw `handle` with at `px` pixels (see font_px). Never null once
 // the default font itself is fine. Past a cap on atlases per font (a size

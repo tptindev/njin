@@ -5,6 +5,19 @@
 #include <cmath>
 #include <string>
 
+// stb_truetype for the fonts' own metrics (round_advances); raylib's copy is
+// static to it, so this one is too.
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+#define STBTT_STATIC
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "external/stb_truetype.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
 namespace njin {
 namespace {
 // Below this a glyph is a smudge, and above it text does not go.
@@ -47,6 +60,27 @@ font_slot *slot_of(font_store &store, font_handle handle) {
   return slot.alive ? &slot : nullptr;
 }
 
+// raylib cuts each glyph's advance down to whole pixels (rtext.c,
+// LoadFontData): half a pixel lost a letter on average, so text came out
+// cramped, and a narrow space (Be Vietnam Pro's, a fifth of an em) all but
+// vanished at the small sizes text is read at. The advances are worked out
+// again from the font's own metrics, rounded. A glyph raylib gave none (one
+// the font lacks) keeps none.
+void round_advances(const font_slot &slot, Font &font, i32 px) {
+  stbtt_fontinfo info;
+  if (stbtt_InitFont(&info, slot.bytes, stbtt_GetFontOffsetForIndex(slot.bytes, 0)) == 0)
+    return;
+  const float scale = stbtt_ScaleForPixelHeight(&info, (float)px);
+  for (int i = 0; i < font.glyphCount; ++i) {
+    if (font.glyphs[i].advanceX <= 0)
+      continue;
+    int advance = 0;
+    stbtt_GetCodepointHMetrics(&info, font.glyphs[i].value, &advance, nullptr);
+    if (advance > 0)
+      font.glyphs[i].advanceX = (int)std::lround((float)advance * scale);
+  }
+}
+
 // Bakes one atlas; null when the bytes are not a font raylib can read.
 const Font *bake(font_slot &slot, i32 px) {
   const std::vector<int> &cps = font_codepoints();
@@ -78,6 +112,7 @@ const Font *bake(font_slot &slot, i32 px) {
   if (!IsFontValid(font) || font.glyphCount <= 0 ||
       font.texture.id == GetFontDefault().texture.id)
     return nullptr;
+  round_advances(slot, font, px);
   // Drawn at the size it was baked at, so filtering only smooths the fraction
   // of a pixel a position may still carry. The pixel style has none to smooth.
   SetTextureFilter(font.texture, slot.pixel ? TEXTURE_FILTER_POINT : TEXTURE_FILTER_BILINEAR);
@@ -172,11 +207,17 @@ void font_store_set_pixel(font_store &store, font_handle handle, bool pixel) {
 bool font_store_is_pixel(const font_store &store, font_handle handle) {
   if (handle.id != 0 && handle.id <= store.slots.size() && store.slots[handle.id - 1].alive)
     return store.slots[handle.id - 1].pixel;
+  if (const font_handle c = store.chosen; c.id != 0 && c.id <= store.slots.size() && store.slots[c.id - 1].alive)
+    return store.slots[c.id - 1].pixel;
   return store.fallback.pixel;
 }
 
+void font_store_set_default(font_store &store, font_handle handle) { store.chosen = handle; }
+
 const Font *font_store_atlas(font_store &store, font_handle handle, i32 px) {
   font_slot *slot = slot_of(store, handle);
+  if (slot == nullptr)
+    slot = slot_of(store, store.chosen); // the game's default, if it chose one
   if (slot == nullptr)
     slot = &store.fallback;
   const Font *font = atlas_of(*slot, px);

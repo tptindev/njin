@@ -8,6 +8,15 @@ void load(njin::context &ctx) {
   title_font = njin::font_load(ctx, "assets/fonts/roboto.ttf", 32);
 }
 
+// [default_font]
+// Mọi chữ không truyền font (panel, nút, draw_text) vẽ bằng font của game.
+void use_game_font(njin::context &ctx) {
+  const njin::font_handle body = njin::font_load(ctx, "assets/fonts/roboto.ttf", 16);
+  njin::font_set_default(ctx, body);
+  // Quay về font của engine: njin::font_set_default(ctx, {});
+}
+// [default_font]
+
 // [pixel_text]
 // Font pixel thiết kế ở 8 pixel: vẽ ở 8, 16, 24. Chữ luôn nằm trong ảnh ảo.
 void load_pixel_font(njin::context &ctx) {
