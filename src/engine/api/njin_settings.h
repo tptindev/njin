@@ -8,7 +8,8 @@ struct context;
 /// @{
 
 /// Cài đặt của người chơi dạng JSON: âm lượng và tắt tiếng từng kênh, phím
-/// đã gắn, toàn màn hình, đồng bộ dọc, ngôn ngữ.
+/// đã gắn, toàn màn hình, đồng bộ dọc, ngôn ngữ, và mức chất lượng đồ họa
+/// (khóa `"graphics"`, chỉ có khi game đã gọi graphics_quality_set()).
 /// @code{.json}
 /// { "audio": { "master": 0.8, "music": 0.5, "sfx": 1, "ui": 1, "voice": 1,
 ///              "muted": ["music"] },

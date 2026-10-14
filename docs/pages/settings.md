@@ -41,8 +41,9 @@ njin::settings_save(ctx); // khi rời menu cài đặt
 @endcode
 
 File là JSON trong thư mục lưu game (`settings.json`, xem save_path()): âm lượng và tắt tiếng từng
-kênh, phím của mọi action và axis, toàn màn hình, ngôn ngữ. Phần nào không có trong file thì giữ
-nguyên, nên game thêm action mới trong bản cập nhật vẫn có phím mặc định. Dữ liệu riêng của game
+kênh, phím của mọi action và axis, toàn màn hình, ngôn ngữ, và mức đồ họa nếu game đã đặt (@ref
+quality). Phần nào không có trong file thì giữ nguyên, nên game thêm action mới trong bản cập nhật vẫn
+có phím mặc định. Dữ liệu riêng của game
 (độ khó, độ sáng) đi kèm dưới khóa `game`: `settings_save(ctx, "settings.json", &data)`.
 
 Nếu cần tự lưu phím vào chỗ khác: input_bindings_save() và input_bindings_load().

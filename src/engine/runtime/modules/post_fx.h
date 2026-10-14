@@ -17,7 +17,9 @@ struct context;
 // does everything else and adds the bloom. Shaders and targets are created
 // on first use and resized with the window.
 struct post_chain {
+  // What is drawn: the game's `requested` under graphics_quality's limits.
   post_fx settings{};
+  post_fx requested{}; // post_fx_set(), returned by post_fx_get()
 
   Shader bright{};
   Shader blur{};
@@ -64,6 +66,8 @@ void post_chain_warmup(context &ctx);
 // True when any built-in effect is on, so the world must be drawn into an
 // offscreen target first.
 bool post_chain_active(const post_chain &chain);
+// Works `settings` out again from `requested` and graphics_quality.
+void post_fx_apply_quality(context &ctx);
 
 // The depth buffer of the world image, for the depth of field: a depth
 // texture the size of the scene, and the near and far planes of the 3D camera

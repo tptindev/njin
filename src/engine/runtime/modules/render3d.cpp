@@ -1377,13 +1377,18 @@ bool render_lamp_shadows(context &ctx) {
   lamp_shadows &ls = s.lamps;
   ls.row.fill(-1);
   ls.rows = 0;
+  const graphics_quality &q = ctx.quality.q;
+  if (!q.lamp_shadows)
+    return false;
   const i32 count = std::min((i32)s.lights.size(), light3d_max);
   for (i32 i = 0; i < count && ls.rows < light3d_shadow_max; i++)
     if (s.lights[(usize)i].shadows && s.lights[(usize)i].radius > 0.0f)
       ls.row[(usize)i] = ls.rows++;
   if (ls.rows == 0 || s.cmds.empty())
     return false;
-  const i32 tile = std::clamp(s.light.source_shadow_size, 64, 2048);
+  i32 tile = std::clamp(s.light.source_shadow_size, 64, 2048);
+  if (q.lamp_shadow_size_max > 0)
+    tile = std::max(64, std::min(tile, q.lamp_shadow_size_max));
   if (!ensure_shadow(s.lamp, tile * lamp_faces, tile * light3d_shadow_max)) {
     ls.row.fill(-1);
     ls.rows = 0;
@@ -1925,7 +1930,8 @@ bool pose_bones(const render3d_state &s, const model_slot &m, const model_slot &
 
 // The model's box as the draw places it, against the pass's frustum (`culled`),
 // and how much of the screen's height it covers, for the level of detail.
-void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c) {
+// `lod_scale` is graphics_quality::lod_scale.
+void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c, f32 lod_scale) {
   const Matrix t = MatrixMultiply(m.model.transform, c.transform);
   const Vector3 lo = m.bounds.min, hi = m.bounds.max;
   const vec3 mid{(lo.x + hi.x) * 0.5f, (lo.y + hi.y) * 0.5f, (lo.z + hi.z) * 0.5f};
@@ -1953,7 +1959,7 @@ void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c) {
   if (dist <= radius)
     return;
   const f32 share = radius / (dist * s.tan_half_fovy);
-  f32 below = m.lod_screen;
+  f32 below = m.lod_screen * lod_scale;
   while (c.lod < m.lods.size() && share < below) {
     c.lod++;
     below *= 0.5f;
@@ -1997,7 +2003,7 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
     s.morphs.insert(s.morphs.end(), weights.begin(), weights.end());
   }
   c.motion_key = key;
-  place_model(s, *m, c);
+  place_model(s, *m, c, ctx.quality.q.lod_scale);
   s.cmds.push_back(c);
 }
 
@@ -2163,8 +2169,12 @@ void end_3d(context &ctx) {
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
-  const i32 sun_size = std::clamp(s.light.shadow_size, 256, 8192);
-  if (s.light.shadows && !s.cmds.empty() && ensure_shadow(s.shadow, sun_size, sun_size)) {
+  // graphics_quality caps what light3d_set() asked for, never raises it.
+  const graphics_quality &q = ctx.quality.q;
+  i32 sun_size = std::clamp(s.light.shadow_size, 256, 8192);
+  if (q.shadow_size_max > 0)
+    sun_size = std::max(256, std::min(sun_size, q.shadow_size_max));
+  if (s.light.shadows && q.shadows && !s.cmds.empty() && ensure_shadow(s.shadow, sun_size, sun_size)) {
     light_vp = render_shadow(ctx);
     shadows = true;
   }

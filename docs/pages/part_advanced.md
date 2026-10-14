@@ -20,6 +20,7 @@ hơn, nhiều nội dung hơn, hoặc muốn hiểu engine bên trong. Mỗi tra
 | @subpage lighting | Ánh sáng 2D dựa trên vật lý (PBR): đèn điểm, nón, hướng; bóng đổ mềm từ vật chắn hình bất kỳ; normal map, vật liệu MRA, phát sáng, tonemap; bóng từng pixel theo bài của mattdesl |
 | @subpage shader_advanced | Shader đọc thêm ảnh (bảng màu, nhiễu), nhận mảng uniform (đèn), chạy trên cả khung hình, nhiều lượt vẽ nối nhau |
 | @subpage post_processing | Hiệu ứng toàn màn hình: bloom, CRT, vignette, blur |
+| @subpage quality | Chạy được trên máy yếu: mức đồ họa thấp/vừa/cao, vẽ thế giới ở độ phân giải thấp hơn, tự đoán mức theo GPU, lưu cùng cài đặt |
 
 Muốn tự viết shader thì học trước ba bài shader trong @ref learn (bài 10 đến 12).
 

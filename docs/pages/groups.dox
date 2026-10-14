@@ -168,7 +168,10 @@
 /// Kịch bản hội thoại, chữ chạy từng ký tự, chân dung, lựa chọn, event.
 
 /// @defgroup grp_settings Cài đặt
-/// Lưu và nạp âm lượng, phím, toàn màn hình, ngôn ngữ của người chơi.
+/// Lưu và nạp âm lượng, phím, toàn màn hình, ngôn ngữ, mức đồ họa của người chơi.
+
+/// @defgroup grp_quality Chất lượng đồ họa
+/// Mức low/medium/high cho máy yếu: render scale, bóng, hiệu ứng, số hạt, LOD.
 
 /// @defgroup grp_types Kiểu cơ bản
 /// Số nguyên, số thực, vector, màu và các handle.

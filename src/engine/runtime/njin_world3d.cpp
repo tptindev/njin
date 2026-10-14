@@ -832,9 +832,12 @@ void draw_scatter3d(const context &ctx, scatter3d_handle handle) {
     const vec3 lo = c.lo - pad, hi = c.hi + pad;
     const vec3 near{clamp(eye.x, lo.x, hi.x), clamp(eye.y, lo.y, hi.y), clamp(eye.z, lo.z, hi.z)};
     const f32 d = distance(eye, near);
-    if (d > s->desc.draw_distance || !render3d_box_visible(r, lo, hi))
+    // graphics_quality::view_distance shortens both distances.
+    const f32 reach = ctx.quality.q.view_distance;
+    if (d > s->desc.draw_distance * reach || !render3d_box_visible(r, lo, hi))
       continue;
-    const model_handle m = d > s->desc.lod_distance && s->desc.far_model.id != 0 ? s->desc.far_model : s->desc.model;
+    const model_handle m =
+        d > s->desc.lod_distance * reach && s->desc.far_model.id != 0 ? s->desc.far_model : s->desc.model;
     draw_instanced3d(ctx, m, c.buffer, 0, (u32)c.items.size());
   }
 }

@@ -5,6 +5,8 @@
 #include "njin_file.h"
 #include "njin_i18n.h"
 #include "njin_log.h"
+#include "njin_quality.h"
+#include "njin_quality_impl.h"
 #include "njin_window.h"
 #include <string>
 
@@ -29,6 +31,8 @@ json_value settings_to_json(const context &ctx) {
   out.set("vsync", window_vsync(ctx));
   if (*i18n_language(ctx) != '\0')
     out.set("language", i18n_language(ctx));
+  if (quality_was_set(ctx))
+    out.set("graphics", quality_to_json(graphics_quality_get(ctx)));
   return out;
 }
 
@@ -50,6 +54,8 @@ void settings_apply(context &ctx, const json_value &json) {
     window_set_fullscreen(ctx, json["fullscreen"].b);
   if (json["vsync"].is(json_value::boolean))
     window_set_vsync(ctx, json["vsync"].b);
+  if (json["graphics"].is(json_value::object))
+    graphics_quality_set(ctx, quality_from_json(json["graphics"], graphics_quality_get(ctx)));
   if (const char *lang = json["language"].string_or(nullptr)) {
     for (const std::string &l : i18n_languages(ctx))
       if (l == lang)

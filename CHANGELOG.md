@@ -15,9 +15,25 @@ To release: edit that header, add a section here, commit, then
   with the mouse there (a map dragged inside a panel). `ui_mouse_over()`
   stays true there, so the game's own clicks on the world stay off. Panels
   that do not call it behave as before.
+- Graphics quality for weak hardware (`njin_quality.h`): `graphics_quality`
+  is a ceiling over everything a game sets (sun and lamp shadows and their
+  sizes, SSAO/SSR/TAA/motion blur/shafts, bloom and depth of field, the 2D
+  light map's scale, particle counts, model LOD distance, grass/scatter draw
+  distance and terrain LOD) plus `world_scale`, which draws the world at a
+  fraction of the screen's resolution and scales it up while the UI and text
+  keep full resolution. `graphics_quality_preset(quality_low/medium/high)`
+  gives three ready sets, `graphics_quality_set()` applies one from the next
+  frame, and `graphics_quality_suggest()` picks a level from the GL renderer
+  name (software renderers, old Intel HD, Mali, Adreno, VideoCore are low).
+  The `_get` functions still return what the game set. `settings_save()`
+  stores it under `"graphics"` once a game has set one. The defaults cap
+  nothing: a game that never calls it draws exactly as before.
 
 ### Fixed
 
+- The camera's world target clamps at its edges, so a bilinear scale
+  (`render_scale`, or the new `world_scale`) no longer blends the top row
+  with the bottom one into a light line along the edge.
 - The runtime builds again with MSVC in Debug: the sol2 bindings
   (`njin_script_bind.cpp`) went over the default section limit of an object
   file (C1128). `njin_rt` now compiles with `/bigobj` under MSVC.

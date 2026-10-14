@@ -35,6 +35,7 @@
 #include "njin_network_impl.h"
 #include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
+#include "njin_quality_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_script_impl.h"
 #include "njin_shader.h"
@@ -94,6 +95,7 @@ struct context {
   config cfg;
   window_guard window;
   view_state view;
+  quality_state quality;
   input_store input;
   shader_store shader;
   instance_store instances;

@@ -24,9 +24,14 @@ f32 pick(rng &random, f32_range range) {
 // `birth` is the value for `particle::age` at spawn: 0 on the CPU, where age
 // counts up from there, and the emitter clock on the GPU, where it is the
 // moment of birth.
+//
+// `share` is graphics_quality::particles: the emitter keeps that part of its
+// particles, cap included.
 void spawn(rng &random, particle_emitter &em, particle_extent &extent, const transform &tr,
-           f32 birth) {
-  if ((i32)em.particles.size() >= em.max_particles)
+           f32 birth, f32 share) {
+  const i32 cap = share < 1.0f ? std::max(1, (i32)std::lround((f32)em.max_particles * share))
+                               : em.max_particles;
+  if ((i32)em.particles.size() >= cap)
     return;
   particle p{};
   const vec2 offset{random.range(-0.5f, 0.5f) * em.area.x,
@@ -73,6 +78,7 @@ void update(context &ctx) {
   const f32 dt = delta(ctx);
   entt::registry &registry = world(ctx);
   rng &random = njin::random(ctx);
+  const f32 share = std::clamp(ctx.quality.q.particles, 0.0f, 1.0f);
   std::vector<entt::entity> done;
   for (auto [entity, tr, em] : registry.view<const transform, particle_emitter>().each()) {
     // The GPU keeps a clock and works out the ages itself (particles_gpu.h).
@@ -96,14 +102,17 @@ void update(context &ctx) {
     if (em.particles.empty())
       extent = particle_extent{};
 
+    // A burst under graphics_quality keeps each particle by chance; the rng
+    // is only drawn from then, so a game's random sequence stays as it was.
     for (; em.pending_burst > 0; em.pending_burst--)
-      spawn(random, em, extent, tr, birth);
+      if (share >= 1.0f || random.chance(share))
+        spawn(random, em, extent, tr, birth, share);
 
     const bool continuous = em.emitting && em.rate > 0.0f;
     if (continuous) {
-      em.emit_accum = std::min(em.emit_accum + em.rate * dt, max_emit_per_frame);
+      em.emit_accum = std::min(em.emit_accum + em.rate * share * dt, max_emit_per_frame);
       for (; em.emit_accum >= 1.0f; em.emit_accum -= 1.0f)
-        spawn(random, em, extent, tr, birth);
+        spawn(random, em, extent, tr, birth, share);
     } else {
       em.emit_accum = 0.0f;
     }

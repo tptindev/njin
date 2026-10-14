@@ -573,10 +573,13 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
   if (!load(s))
     return scene;
 
-  const f32 scale = std::clamp(d.scale, 0.25f, 1.0f);
+  // graphics_quality::lighting_scale_max caps the game's scale.
+  const f32 scale = std::clamp(std::min(d.scale, ctx.quality.q.lighting_scale_max), 0.25f, 1.0f);
   const i32 lw = std::max(1, (i32)((f32)scene.width * scale));
   const i32 lh = std::max(1, (i32)((f32)scene.height * scale));
-  const bool bilinear_scene = ctx.view.render_scale > 1;
+  // The scene is not 1:1 with the screen (supersampled, or drawn smaller by
+  // graphics_quality::world_scale): scale it smoothly.
+  const bool bilinear_scene = ctx.view.render_scale > 1 || quality_world_scale(ctx) < 1.0f;
   if (!ensure_float_target(s.hdr, lw, lh, s.hdr_ok) || !ensure_target(s.lit, scene.width, scene.height, bilinear_scene))
     return scene;
 

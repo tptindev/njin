@@ -14,6 +14,7 @@
 #include "njin_view.h"
 #include "rl2njin.h"
 #include <algorithm>
+#include <cmath>
 #include <raylib.h>
 #include <raymath.h>
 #include <rlgl.h>
@@ -57,12 +58,14 @@ RenderTexture2D load_target(i32 w, i32 h) {
 // (Re)creates the post target when the window size changed. Sized by
 // render_scale like view.target, and bound the same way, so a game's post_fx
 // or its own post shader do not bake the world in at 1x before render_scale
-// gets a chance to smooth it.
+// gets a chance to smooth it. graphics_quality::world_scale makes it smaller
+// instead: the world is drawn at fewer pixels and scaled up when it is put on
+// the screen, while the UI after it keeps the screen's own resolution.
 bool ensure_post_target(const context &ctx, camera_post &post) {
   const vec2 screen = screen_size(ctx);
-  const i32 scale = ctx.view.render_scale;
-  const i32 w = (i32)screen.x * scale;
-  const i32 h = (i32)screen.y * scale;
+  const f32 scale = (f32)ctx.view.render_scale * quality_world_scale(ctx);
+  const i32 w = std::max(1, (i32)std::lround(screen.x * scale));
+  const i32 h = std::max(1, (i32)std::lround(screen.y * scale));
   if (IsRenderTextureValid(post.target) && post.target.texture.width == w &&
       post.target.texture.height == h)
     return true;
@@ -71,7 +74,10 @@ bool ensure_post_target(const context &ctx, camera_post &post) {
   post.target = load_target(w, h);
   if (!IsRenderTextureValid(post.target))
     return false;
-  SetTextureFilter(post.target.texture, scale > 1 ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
+  SetTextureFilter(post.target.texture, scale != 1.0f ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
+  // A bilinear scale would otherwise blend each edge with the opposite one
+  // (a light line along the top of a world drawn at world_scale 0.25).
+  SetTextureWrap(post.target.texture, TEXTURE_WRAP_CLAMP);
   return true;
 }
 
@@ -80,7 +86,7 @@ void begin_world_space(context &ctx) {
   camera_post &post = ctx.post;
   const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
                       post_chain_active(ctx.postfx) || lighting_active(ctx.light) ||
-                      post3d_wanted(ctx);
+                      post3d_wanted(ctx) || quality_world_scale(ctx) < 1.0f;
   post.drawing = wanted && ensure_post_target(ctx, post);
   if (post.drawing) {
     bind_view_target(post.target, screen_size(ctx));

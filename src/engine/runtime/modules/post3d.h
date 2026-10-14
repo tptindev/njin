@@ -49,7 +49,9 @@ struct post3d_decal {
 };
 
 struct post3d_state {
+  // What is drawn: the game's `requested` under graphics_quality's limits.
   post3d settings{};
+  post3d requested{}; // post3d_set(), returned by post3d_get()
   std::vector<post3d_decal> decals;
   i32 max_decals = 256;
   i32 live = 0;
@@ -104,6 +106,8 @@ struct post3d_state {
 // Whether the world must be drawn into the world target with a depth texture
 // this frame: an effect is on or a decal exists.
 bool post3d_wanted(const context &ctx);
+// Works `settings` out again from `requested` and graphics_quality.
+void post3d_apply_quality(context &ctx);
 
 // Called by end_3d on a pass into the world target (see above), with the
 // pass's 3D camera loaded. They leave other targets and matrices bound.

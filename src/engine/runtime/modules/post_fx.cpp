@@ -432,9 +432,22 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
   return dst.texture;
 }
 
-void post_fx_set(context &ctx, const post_fx &fx) { ctx.postfx.settings = fx; }
+void post_fx_apply_quality(context &ctx) {
+  const graphics_quality &q = ctx.quality.q;
+  post_fx p = ctx.postfx.requested;
+  if (!q.bloom)
+    p.bloom = 0.0f;
+  if (!q.dof)
+    p.dof = 0.0f;
+  ctx.postfx.settings = p;
+}
 
-post_fx post_fx_get(const context &ctx) { return ctx.postfx.settings; }
+void post_fx_set(context &ctx, const post_fx &fx) {
+  ctx.postfx.requested = fx;
+  post_fx_apply_quality(ctx);
+}
+
+post_fx post_fx_get(const context &ctx) { return ctx.postfx.requested; }
 
 post_fx post_fx_lerp(const post_fx &a, const post_fx &b, f32 t) {
   const auto mix = [t](f32 x, f32 y) { return x + (y - x) * t; };

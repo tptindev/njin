@@ -1358,9 +1358,34 @@ void post3d_update(context &ctx) {
   }
 }
 
-void post3d_set(context &ctx, const post3d &fx) { ctx.post3d.settings = fx; }
+void post3d_apply_quality(context &ctx) {
+  const graphics_quality &q = ctx.quality.q;
+  post3d p = ctx.post3d.requested;
+  if (!q.ssao)
+    p.ssao = 0.0f;
+  if (q.ssao_samples_max > 0)
+    p.ssao_samples = std::min(p.ssao_samples, q.ssao_samples_max);
+  if (!q.ssr)
+    p.ssr = 0.0f;
+  if (q.ssr_steps_max > 0)
+    p.ssr_steps = std::min(p.ssr_steps, q.ssr_steps_max);
+  if (!q.motion_blur)
+    p.motion_blur = 0.0f;
+  if (!q.taa)
+    p.taa = false;
+  if (!q.sun_shafts) {
+    p.shafts = 0.0f;
+    p.flare = 0.0f;
+  }
+  ctx.post3d.settings = p;
+}
 
-post3d post3d_get(const context &ctx) { return ctx.post3d.settings; }
+void post3d_set(context &ctx, const post3d &fx) {
+  ctx.post3d.requested = fx;
+  post3d_apply_quality(ctx);
+}
+
+post3d post3d_get(const context &ctx) { return ctx.post3d.requested; }
 
 // The box turns z, then x, then y (decal_matrix): x by acos(n.y) takes its y
 // axis to (0, n.y, sin), and y by atan2(n.x, n.z) swings that onto n.
