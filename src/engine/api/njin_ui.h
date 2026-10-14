@@ -84,6 +84,12 @@ struct ui_style {
   sound_handle sound_move{};   ///< Phát khi chuyển lựa chọn. Có thể để trống.
   sound_handle sound_accept{}; ///< Phát khi bấm nút hoặc đổi giá trị.
   sound_handle sound_back{};   ///< Phát khi ui_back() trả về `true`.
+  /// Thời gian (giây, giờ thật) ui_button() chuyển dần màu từ mặt thường sang
+  /// mặt đang chọn khi chuột vào, và ngược lại khi chuột ra. 0 là đổi ngay.
+  f32 hover_seconds = 0.0f;
+  /// ui_button() đang bị nhấn giữ được vẽ thu lại theo tỉ lệ này quanh tâm,
+  /// như bị ấn lún xuống (ví dụ `0.96`). 1 là giữ nguyên cỡ.
+  f32 press_scale = 1.0f;
 };
 
 /// Giao diện mặc định: panel tối trong suốt, nút bo góc, màu nhấn xanh.
@@ -120,6 +126,41 @@ struct ui_panel_desc {
   /// thì `*open` thành `false`. Panel vẫn được vẽ hết frame đó; game thôi gọi
   /// nó từ frame sau. Null là không có nút đóng.
   bool *open = nullptr;
+  /// Thời gian (giây, giờ thật) panel trượt vào và hiện dần, tính từ frame nó
+  /// bắt đầu được vẽ (frame trước không có nó). 0 là hiện ngay. Panel ẩn đi
+  /// rồi vẽ lại thì trượt vào lại.
+  f32 enter_seconds = 0.0f;
+  /// Lúc bắt đầu trượt vào, panel lệch chỗ của nó chừng này pixel rồi về dần,
+  /// chậm ở cuối (ease::out_cubic); `{0, 0}` là chỉ hiện dần tại chỗ. Mọi thứ
+  /// xếp trong panel đi theo, kể cả ui_last_rect(). Không dùng khi
+  /// `enter_seconds` là 0.
+  /// @code
+  /// // Bảng công cụ trồi lên từ thanh công cụ bên dưới.
+  /// njin::ui_begin(ctx, {.id = "tools", .anchor = {0.5f, 1.0f}, .pivot = {0.5f, 1.0f},
+  ///                      .enter_seconds = 0.18f, .enter_from = {0.0f, 32.0f}});
+  /// @endcode
+  vec2 enter_from{};
+  /// Panel đang rút đi, 0..1: 0 là bình thường, 1 là đã đi hẳn. Game tự đếm
+  /// thời gian và vẫn gọi panel trong lúc nó rút (UI vẽ tức thì nên panel
+  /// không gọi là biến mất ngay). Panel mờ dần, trượt về phía `enter_from`
+  /// (nhanh dần, ease::in_cubic), và không nhận chuột: không nút nào bấm
+  /// được, ui_mouse_over() không tính nó. Những gì game tự vẽ đè lên panel thì
+  /// game làm mờ theo bằng draw_alpha_push().
+  /// @code
+  /// // Đóng bảng: còn vẽ 0.15 giây nữa, rút xuống và mờ đi.
+  /// if (g.closing > 0.0f) {
+  ///   g.closing = std::max(0.0f, g.closing - njin::delta_real(ctx));
+  ///   const njin::f32 leaving = 1.0f - g.closing / 0.15f;
+  ///   njin::ui_begin(ctx, {.id = "tools", .enter_from = {0.0f, 32.0f}, .leaving = leaving});
+  ///   // ... các widget như lúc mở ...
+  ///   njin::ui_end(ctx);
+  /// }
+  /// @endcode
+  f32 leaving = 0.0f;
+  /// Panel chỉ để xem: vẽ như thường nhưng không nhận chuột, không nút nào bấm
+  /// được, ui_mouse_over() không tính nó. Ví dụ một panel đang được game vẽ
+  /// biến dạng (thu vào một icon) trong lúc nó đóng.
+  bool inert = false;
 };
 
 /// Bắt đầu một panel. Các widget gọi sau đó xếp từ trên xuống bên trong nó,
@@ -399,6 +440,13 @@ bool ui_active(const context &ctx);
 /// @param ctx Context của engine.
 /// @return Khung của widget đặt gần nhất.
 rect ui_last_rect(const context &ctx);
+
+/// Khung của panel vừa đóng bằng ui_end() gần nhất: vị trí và kích thước thật
+/// của nó, cả chiều cao nội dung. Dùng khi game cần vẽ thêm theo cả panel,
+/// như hiệu ứng mở panel từ một icon.
+/// @param ctx Context của engine.
+/// @return Khung của panel, pixel màn hình.
+rect ui_panel_rect(const context &ctx);
 
 /// Chuột có đang nằm trên một panel không (các panel của frame trước). Ở đó UI
 /// đã nuốt nút chuột trái; hàm này để game bỏ qua cả nút phải, bánh xe hay con

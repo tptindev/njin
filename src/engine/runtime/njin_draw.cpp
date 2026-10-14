@@ -2,9 +2,12 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_log.h"
 #include "njin_render.h"
 #include <algorithm>
 #include <cmath>
+#include <vector>
+#include <utility>
 #include <raylib.h>
 #include <rlgl.h>
 
@@ -138,6 +141,26 @@ void draw_line(const context &, vec2 a, vec2 b, f32 thickness, rgba color) {
   DrawLineEx(vec_of(a), vec_of(b), thickness, color_of(color));
 }
 
+namespace {
+std::vector<f32> alpha_layers; // draw_alpha_push(): each layer's alpha
+} // namespace
+
+void draw_alpha_push(const context &, f32 alpha) {
+  alpha_layers.push_back(std::clamp(alpha, 0.0f, 1.0f));
+  draw_alpha_now *= alpha_layers.back();
+}
+
+void draw_alpha_pop(const context &) {
+  if (alpha_layers.empty()) {
+    NJIN_WARN("draw_alpha_pop without draw_alpha_push");
+    return;
+  }
+  alpha_layers.pop_back();
+  draw_alpha_now = 1.0f;
+  for (const f32 a : alpha_layers)
+    draw_alpha_now *= a;
+}
+
 void draw_offset_push(const context &, vec2 offset, f32 scale) {
   rlPushMatrix();
   rlTranslatef(offset.x, offset.y, 0.0f);
@@ -154,6 +177,52 @@ void draw_triangle(const context &, vec2 a, vec2 b, vec2 c, rgba color) {
     DrawTriangle(vec_of(a), vec_of(c), vec_of(b), color_of(color));
   else
     DrawTriangle(vec_of(a), vec_of(b), vec_of(c), color_of(color));
+}
+
+namespace {
+// A textured triangle from texture `id`, `page` taking a corner's uv to the texture's.
+template <class Page>
+void textured_triangle(u32 id, vec2 a, vec2 b, vec2 c, vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint, Page page) {
+  // Counter-clockwise on screen, as draw_triangle().
+  if (cross(b - a, c - a) > 0.0f) {
+    std::swap(b, c);
+    std::swap(uv_b, uv_c);
+  }
+  const Color col = color_of(tint);
+  rlSetTexture(id);
+  rlBegin(RL_TRIANGLES);
+  rlColor4ub(col.r, col.g, col.b, col.a);
+  for (const auto &[p, uv] : {std::pair{a, uv_a}, std::pair{b, uv_b}, std::pair{c, uv_c}}) {
+    const vec2 t = page(uv);
+    rlTexCoord2f(t.x, t.y);
+    rlVertex2f(p.x, p.y);
+  }
+  rlEnd();
+  rlSetTexture(0);
+}
+} // namespace
+
+void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, vec2 b, vec2 c, vec2 uv_a,
+                            vec2 uv_b, vec2 uv_c, rgba tint) {
+  const texture_slot *slot = texture_slot_of(ctx.texture, texture);
+  if (slot == nullptr || slot->texture.width <= 0 || slot->texture.height <= 0)
+    return;
+  // The image's own 0..1 into the texture's (a packed image is a part of its page).
+  const Rectangle area = texture_area(*slot);
+  const f32 w = static_cast<f32>(slot->texture.width), h = static_cast<f32>(slot->texture.height);
+  textured_triangle(slot->texture.id, a, b, c, uv_a, uv_b, uv_c, tint, [&](vec2 uv) {
+    return vec2{(area.x + uv.x * area.width) / w, (area.y + uv.y * area.height) / h};
+  });
+}
+
+void draw_triangle_textured(const context &ctx, render_texture_handle texture, vec2 a, vec2 b, vec2 c,
+                            vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint) {
+  const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, texture);
+  if (slot == nullptr)
+    return;
+  // A render texture is stored upside down.
+  textured_triangle(slot->target.texture.id, a, b, c, uv_a, uv_b, uv_c, tint,
+                    [](vec2 uv) { return vec2{uv.x, 1.0f - uv.y}; });
 }
 
 // Text

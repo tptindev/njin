@@ -172,6 +172,38 @@ njin::ui_toast_clear() xóa hết toast đang hiện, ví dụ khi đổi scene.
 @note Nếu dựng toast bằng ui_begin, panel đó sẽ nuốt phím điều hướng của game mỗi khi nó hiện, và
 nhân vật đứng khựng. Dùng njin::ui_toast().
 
+## Chuyển động
+
+UI vẽ tức thì nên mặc định không có chuyển động: panel hiện ra và mất đi ngay, nút đổi mặt ngay.
+Các trường dưới đây bật chuyển động, đếm theo giờ thật; để mặc định thì UI vẫn như cũ.
+
+| Trường | Chi tiết |
+|---|---|
+| njin::ui_panel_desc::enter_seconds, njin::ui_panel_desc::enter_from | Panel bắt đầu được vẽ (frame trước không có nó) thì trượt từ chỗ lệch `enter_from` pixel về chỗ của nó và hiện dần, trong `enter_seconds` giây |
+| njin::ui_panel_desc::leaving | Panel đang rút đi, 0..1. Game tự đếm và vẫn gọi panel thêm một lúc; panel mờ dần, trượt về phía `enter_from` và không nhận chuột |
+| `ui_style::hover_seconds` | ui_button() chuyển dần sang mặt đang chọn khi chuột vào, và về lại khi chuột ra |
+| `ui_style::press_scale` | ui_button() đang bị nhấn giữ vẽ thu nhỏ quanh tâm, ví dụ `0.96` |
+| njin::ui_panel_desc::inert | Panel chỉ để xem, không nhận chuột: cho lúc game tự vẽ nó biến dạng |
+
+```cpp
+// Bảng công cụ trồi lên từ thanh công cụ, nút ấm dần khi rê chuột.
+ui_style s = njin::ui_style_get(ctx);
+s.hover_seconds = 0.12f;
+s.press_scale = 0.96f;
+njin::ui_style_set(ctx, s);
+njin::ui_begin(ctx, {.id = "tools", .anchor = {0.5f, 1.0f}, .pivot = {0.5f, 1.0f},
+                     .enter_seconds = 0.18f, .enter_from = {0.0f, 28.0f}});
+```
+
+Hiệu ứng tự vẽ (như cửa sổ "genie" của macOS thổi ra từ một icon): vẽ panel vào một render texture
+giữa njin::render_texture_begin() và njin::render_texture_end() với `.inert = true`, lấy khung thật của
+nó bằng njin::ui_panel_rect(), rồi vẽ lại render texture đó bị uốn bằng các dải
+njin::draw_triangle_textured().
+
+Những gì game tự vẽ đè lên panel (icon, chữ riêng) đi theo chỗ trượt của panel vì chúng lấy vị trí từ
+njin::ui_last_rect(); muốn chúng mờ theo khi panel rút đi thì bọc lời gọi trong njin::draw_alpha_push()
+và njin::draw_alpha_pop().
+
 ## Tùy biến giao diện
 
 Toàn bộ giao diện nằm trong njin::ui_style: phông, cỡ chữ, `scale`, khoảng cách, và diện mạo

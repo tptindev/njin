@@ -132,6 +132,33 @@ struct dissolve_fx {
 /// @param edge_color Màu viền cháy. `a` bằng 0 là không có viền.
 void sprite_dissolve(context &ctx, entt::entity entity, f32 duration = 0.6f,
                      rgba edge_color = {1.0f, 0.55f, 0.1f, 1.0f});
+
+/// Cách tan của draw_dissolve_begin(), như njin::dissolve_fx của sprite.
+struct dissolve_look {
+  rgba edge_color{1.0f, 0.55f, 0.1f, 1.0f}; ///< Màu viền cháy. `a` là độ đậm, 0 là bỏ viền.
+  f32 edge_width = 0.08f; ///< Độ dày viền, theo thang ngẫu nhiên 0..1. 0 là bỏ viền.
+  f32 grain = 2.0f;       ///< Cỡ mỗi mảng, tính bằng pixel của ảnh.
+  f32 seed = 0.0f;        ///< Đổi hình mẫu tan.
+};
+
+/// Cho mọi ảnh vẽ sau đó (texture_draw(), texture_draw_ex(), ảnh của UI, icon
+/// HUD) tan thành từng mảng, như sprite_dissolve() nhưng cho thứ game tự vẽ
+/// trên màn hình, cho tới draw_dissolve_end(). `progress` 0 là còn nguyên, 1 là
+/// tan hết; cho chạy từ 1 về 0 thì ảnh hiện ra dần từng mảng. Mảng tính theo
+/// pixel của từng ảnh. Không lồng được, và trong lúc đó không bật shader khác.
+/// @code
+/// // Icon hiện ra dần, viền vàng, trong 0.3 giây.
+/// njin::draw_dissolve_begin(ctx, 1.0f - t / 0.3f, {.edge_color = {0.9f, 0.7f, 0.3f, 1.0f}, .grain = 3.0f});
+/// njin::texture_draw(ctx, g.icon, at);
+/// njin::draw_dissolve_end(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param progress Đã tan bao nhiêu, 0..1.
+/// @param look Màu viền, cỡ mảng, hình mẫu.
+void draw_dissolve_begin(context &ctx, f32 progress, const dissolve_look &look = {});
+
+/// Kết thúc draw_dissolve_begin(). @param ctx Context của engine.
+void draw_dissolve_end(context &ctx);
 /// @}
 
 /// Các mẫu particle hay dùng, để truyền vào particles_spawn() hoặc gắn thẳng

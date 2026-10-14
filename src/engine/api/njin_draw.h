@@ -67,6 +67,51 @@ void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 /// @param color Màu.
 void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color);
 
+/// Vẽ tam giác phủ một phần của texture: mỗi đỉnh lấy ảnh ở toạ độ `uv` của
+/// nó (0..1 trên ảnh, `{0, 0}` là góc trên trái, `{1, 1}` góc dưới phải), phần
+/// giữa nội suy theo, rồi nhân với `tint`. Thứ tự ba đỉnh không quan trọng.
+/// Dùng khi ảnh phải nằm trong một hình không phải chữ nhật: một lát quạt, một
+/// dải cong, một đa giác cắt thành tam giác. Texture trong atlas cũng dùng được,
+/// `uv` vẫn tính trên riêng ảnh đó.
+/// @code
+/// // Một lát quạt có hoa văn, tâm quạt ở góc dưới phải của ảnh.
+/// const auto uv_of = [&](njin::vec2 p) { return njin::vec2{1, 1} + (p - corner) / radius; };
+/// njin::draw_triangle_textured(ctx, g.pattern, a, b, c, uv_of(a), uv_of(b), uv_of(c));
+/// @endcode
+/// @param ctx Context của engine.
+/// @param texture Ảnh phủ lên tam giác.
+/// @param a Đỉnh thứ nhất.
+/// @param b Đỉnh thứ hai.
+/// @param c Đỉnh thứ ba.
+/// @param uv_a Toạ độ trên ảnh của đỉnh `a`.
+/// @param uv_b Toạ độ trên ảnh của đỉnh `b`.
+/// @param uv_c Toạ độ trên ảnh của đỉnh `c`.
+/// @param tint Màu nhân vào ảnh; trắng là giữ nguyên.
+void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, vec2 b, vec2 c, vec2 uv_a,
+                            vec2 uv_b, vec2 uv_c, rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
+
+/// Như bản trên, phủ một phần của render texture (`uv` tính như ảnh thường:
+/// `{0, 0}` góc trên trái của những gì đã vẽ vào nó). Dùng để vẽ lại một thứ đã
+/// vẽ sẵn vào render texture mà biến dạng nó: uốn, bóp, thu vào một điểm.
+void draw_triangle_textured(const context &ctx, render_texture_handle texture, vec2 a, vec2 b, vec2 c,
+                            vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
+
+/// Làm mờ mọi thứ vẽ sau đó (hình, chữ, ảnh, UI): độ đục của chúng nhân với
+/// `alpha`, cho đến draw_alpha_pop(). Lồng được, các lớp nhân dồn với nhau;
+/// mỗi lần push cần một lần pop trong cùng frame. Dùng để một nhóm hình vẽ
+/// hiện dần hay tắt dần cùng nhau (một bảng HUD đang đóng, màn hình loading).
+/// @code
+/// njin::draw_alpha_push(ctx, 1.0f - leaving);
+/// draw_card(ctx);   // nền, chữ, icon của nó đều mờ theo
+/// njin::draw_alpha_pop(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param alpha Độ đục, 0 (trong suốt) đến 1 (giữ nguyên).
+void draw_alpha_push(const context &ctx, f32 alpha);
+
+/// Bỏ lớp mờ draw_alpha_push() gần nhất. @param ctx Context của engine.
+void draw_alpha_pop(const context &ctx);
+
 /// Phóng mọi hình vẽ sau đó theo `scale` rồi dời đi `offset` (đơn vị thế
 /// giới) cho tới draw_offset_pop(): điểm `p` được vẽ ở `p * scale + offset`.
 /// Dùng để vẽ một phần của thế giới có tọa độ riêng (một khu bản đồ được sinh

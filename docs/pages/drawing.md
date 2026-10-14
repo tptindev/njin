@@ -19,6 +19,7 @@ Mọi hàm vẽ phải gọi trong ba phase vẽ. Không gian phụ thuộc phas
 | njin::draw_circle() / njin::draw_circle_lines() | Hình tròn đặc / viền |
 | njin::draw_line() | Đoạn thẳng có độ dày |
 | njin::draw_triangle() | Tam giác. Thứ tự ba đỉnh không quan trọng |
+| njin::draw_triangle_textured() | Tam giác phủ một phần ảnh, mỗi đỉnh một toạ độ trên ảnh: cho ảnh nằm trong hình không phải chữ nhật (lát quạt, dải cong) |
 
 Màu là njin::rgba, mỗi kênh 0..1. Có sẵn vài màu trong `njin::colors` (`white`, `black`,
 `red`, `green`, `blue`, `yellow`, `gray`, `transparent`). Màu lấy từ trình vẽ ảnh (kênh 0..255) thì
@@ -140,6 +141,12 @@ njin::blend_begin() đổi cách màu mới trộn với màu đã có, cho đ�
 | njin::blend_alpha | Trộn theo độ trong suốt (mặc định) | Mọi thứ bình thường |
 | njin::blend_additive | Cộng màu, sáng lên | Lửa, ánh sáng, tia lửa |
 | njin::blend_multiply | Nhân màu, tối đi | Bóng đổ, lớp phủ màu |
+
+## Làm mờ cả nhóm
+
+njin::draw_alpha_push() nhân độ đục của mọi thứ vẽ sau đó (hình, chữ, ảnh, panel UI) với một số 0..1
+cho tới njin::draw_alpha_pop(). Lồng được, các lớp nhân dồn. Dùng để một nhóm hiện dần hay tắt dần cùng
+nhau: một bảng HUD đang đóng, màn hình loading mờ đi để lộ màn chơi.
 
 ## Cắt vùng vẽ
 

@@ -132,6 +132,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Dừng hình một chút khi trúng đòn | njin::hitstop() | @ref particles |
 | Nháy trắng một sprite, nháy cả màn hình | njin::sprite_flash(), njin::screen_flash() | @ref particles |
 | Kẻ địch chết: sprite tan biến (hoặc hiện ra dần) | njin::sprite_dissolve(), njin::dissolve_fx | @ref particles |
+| Icon, ảnh HUD tan biến hoặc hiện ra dần từng mảng | njin::draw_dissolve_begin(), njin::draw_dissolve_end() | @ref particles |
 | Slow motion, tạm dừng | njin::time_set_scale(), njin::time_set_paused() | @ref time |
 | Làm mờ, CRT, bloom, vignette toàn màn | njin::post_fx_set() | @ref post_processing |
 | Chuyển mượt giữa hai bộ hiệu ứng | njin::post_fx_lerp() | @ref post_processing |

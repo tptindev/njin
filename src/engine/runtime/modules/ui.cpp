@@ -203,6 +203,16 @@ void draw_ring(const ui_cmd &c) {
   }
 }
 
+// A panel's commands at `a` of their opacity (a panel entering).
+void fade(std::vector<ui_cmd> &cmds, f32 a) {
+  for (ui_cmd &c : cmds) {
+    c.look.color.a *= a;
+    c.look.outline.a *= a;
+    c.color.a *= a;
+    c.track.a *= a;
+  }
+}
+
 void flush(context &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
   for (const ui_cmd &c : cmds) {
     switch (c.kind) {
@@ -316,6 +326,8 @@ void frame_begin(context &ctx) {
   ui.current.clear();
   ui.last_panels = std::move(ui.panels);
   ui.panels.clear();
+  ui.last_shown = std::move(ui.shown);
+  ui.shown.clear();
   ui.last_scrolls = std::move(ui.scrolls);
   ui.scrolls.clear();
   ui.last_through = std::move(ui.through);
@@ -561,6 +573,8 @@ interaction interact(context &ctx, const char *label, bool enabled, bool adjusta
     it.state = state_disabled;
     return it;
   }
+  if (ui.panel_inert) // leaving: shown, not used
+    return it;
   // In a scroll area, only where it shows.
   const bool shown_here = !ui.in_scroll || inside(ui.mouse, ui.scroll_area);
   if (!ui.panel_navigable) {
@@ -679,6 +693,34 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
     height = nat->second * ui.fit;
   const vec2 size{width, height};
   ui.panel = rect{screen * desc.anchor - size * desc.pivot + desc.offset, size};
+  // Entering: slid from `enter_from` and faded in, over `enter_seconds` from
+  // the first frame it is drawn after a frame without it.
+  ui.panel_alpha = 1.0f;
+  ui.shown.push_back(ui.panel_id);
+  if (desc.enter_seconds > 0.0f) {
+    const bool was = std::find(ui.last_shown.begin(), ui.last_shown.end(), ui.panel_id) != ui.last_shown.end();
+    const auto age = ui.enter_age.find(ui.panel_id);
+    f32 t = 1.0f;
+    if (!was) {
+      ui.enter_age[ui.panel_id] = 0.0f;
+      t = 0.0f;
+    } else if (age != ui.enter_age.end()) {
+      age->second += ctx.time.dt_real;
+      t = std::min(1.0f, age->second / desc.enter_seconds);
+      if (t >= 1.0f)
+        ui.enter_age.erase(age);
+    }
+    const f32 e = ease_apply(ease::out_cubic, t);
+    ui.panel.pos += desc.enter_from * (1.0f - e);
+    ui.panel_alpha = e;
+  }
+  // Leaving: the other way, and dead to the mouse.
+  ui.panel_inert = desc.leaving > 0.0f || desc.inert;
+  if (desc.leaving > 0.0f) {
+    const f32 e = ease_apply(ease::in_cubic, std::clamp(desc.leaving, 0.0f, 1.0f));
+    ui.panel.pos += desc.enter_from * e;
+    ui.panel_alpha *= 1.0f - e;
+  }
   ui.cursor = ui.panel.pos.y + sc(ui, ui.style.padding);
   if (desc.title != nullptr) {
     const f32 title_size = font_px(ui) * 1.3f;
@@ -693,7 +735,7 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
     const f32 pad = sc(ui, ui.style.padding) * 0.5f;
     const rect box{{ui.panel.pos.x + width - pad - s, ui.panel.pos.y + pad}, {s, s}};
     const u64 id = hash_id(ui.panel_id, "##close");
-    const bool hover = ui.modal_last == 0 && inside(ui.mouse, box);
+    const bool hover = ui.modal_last == 0 && !ui.panel_inert && inside(ui.mouse, box);
     if (hover && ui.mouse_pressed)
       ui.pressed = id;
     if (ui.pressed == id && ui.mouse_released && hover) {
@@ -728,19 +770,29 @@ void ui_end(context &ctx) {
   ui.fit = 1.0f;
   rect bg = ui.panel;
   bg.size.y = height;
-  ui.panels.push_back(bg);
-  if (ui.panel_navigable)
-    ui.navigable_now = true;
+  ui.panel_done = bg;
+  if (!ui.panel_inert) {
+    ui.panels.push_back(bg);
+    if (ui.panel_navigable)
+      ui.navigable_now = true;
+  }
+  if (ui.panel_alpha < 1.0f)
+    fade(ui.cmds, ui.panel_alpha);
   if (ui.panel_background) {
     ui_cmd c{};
     c.kind = ui_cmd::skin;
     c.area = bg;
     c.look = ui.style.panel.normal;
     c.shader = ui.style.panel.shader;
-    flush(ctx, ui, {c});
+    std::vector<ui_cmd> back{c};
+    if (ui.panel_alpha < 1.0f)
+      fade(back, ui.panel_alpha);
+    flush(ctx, ui, back);
   }
   flush(ctx, ui, ui.cmds);
   ui.cmds.clear();
+  ui.panel_alpha = 1.0f;
+  ui.panel_inert = false;
 }
 
 void ui_row(context &ctx, i32 columns) {
@@ -786,8 +838,47 @@ bool ui_button(context &ctx, const char *label, bool enabled, bool selected) {
   const interaction it = interact(ctx, label, enabled, false);
   // Selected (a tab, a tool that is on): its pressed face while nothing else shows.
   const widget_state face = selected && it.state == state_normal ? state_pressed : it.state;
-  push_skin(ui, ui.style.button, face, it.area);
-  text_center(ctx, ui, shown(label), it.area, text_for(ui.style.button, face));
+  // Held down, drawn a little smaller (ui_style::press_scale).
+  rect area = it.area;
+  if (it.state == state_pressed && ui.style.press_scale != 1.0f) {
+    const vec2 c = rect_center(area);
+    area.size = area.size * ui.style.press_scale;
+    area.pos = c - area.size * 0.5f;
+  }
+  // Into its hover face and out of it over ui_style::hover_seconds.
+  f32 hover = -1.0f; // not blending
+  if (ui.style.hover_seconds > 0.0f && (face == state_normal || face == state_focused)) {
+    const f32 to = face == state_focused ? 1.0f : 0.0f;
+    const auto at = ui.hover_amount.find(it.id);
+    f32 h = at != ui.hover_amount.end() ? at->second : 0.0f;
+    const f32 step = ctx.time.dt_real / ui.style.hover_seconds;
+    h = to > h ? std::min(to, h + step) : std::max(to, h - step);
+    if (h <= 0.0f) {
+      if (at != ui.hover_amount.end())
+        ui.hover_amount.erase(at);
+    } else {
+      ui.hover_amount[it.id] = h;
+    }
+    if (h > 0.0f && h < 1.0f)
+      hover = ease_apply(ease::in_out_sine, h);
+  }
+  if (hover >= 0.0f) {
+    const ui_skin &a = ui.style.button.normal, &b = ui.style.button.focused;
+    ui_cmd c{};
+    c.kind = ui_cmd::skin;
+    c.area = area;
+    c.look = hover < 0.5f ? a : b;
+    c.look.color = lerp(a.color, b.color, hover);
+    c.look.outline = lerp(a.outline, b.outline, hover);
+    c.look.outline_width = lerp(a.outline_width, b.outline_width, hover);
+    c.shader = ui.style.button.shader;
+    c.state = hover < 0.5f ? (f32)state_normal : (f32)state_focused;
+    ui.cmds.push_back(std::move(c));
+    text_center(ctx, ui, shown(label), area, lerp(ui.style.button.text, ui.style.button.text_focused, hover));
+  } else {
+    push_skin(ui, ui.style.button, face, area);
+    text_center(ctx, ui, shown(label), area, text_for(ui.style.button, face));
+  }
   if (it.clicked)
     play(ctx, ui.style.sound_accept);
   return it.clicked;
@@ -1202,6 +1293,8 @@ void ui_focus(context &ctx, const char *label) {
 bool ui_active(const context &ctx) { return ctx.ui.navigable_last; }
 
 rect ui_last_rect(const context &ctx) { return ctx.ui.last_rect; }
+
+rect ui_panel_rect(const context &ctx) { return ctx.ui.panel_done; }
 
 void ui_let_through(context &ctx, rect area) { ctx.ui.through.push_back(area); }
 

@@ -30,6 +30,7 @@ struct fx_state {
   i32 dissolve_flash_loc = -1;
   i32 dissolve_edge_loc = -1;
   i32 dissolve_params_loc = -1;
+  bool screen_dissolve = false; // draw_dissolve_begin() has the shader on
 
   fx_state() = default;
   ~fx_state();

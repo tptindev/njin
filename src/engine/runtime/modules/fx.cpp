@@ -260,4 +260,16 @@ bool fx_dissolve_begin(context &ctx, const dissolve_fx &dissolve, const flash_fx
 }
 
 void fx_sprite_shader_end() { EndShaderMode(); }
+
+void draw_dissolve_begin(context &ctx, f32 progress, const dissolve_look &look) {
+  const dissolve_fx d{.edge_color = look.edge_color, .edge_width = look.edge_width, .grain = look.grain,
+                      .seed = look.seed, .duration = 1.0f, .time = std::clamp(progress, 0.0f, 1.0f)};
+  ctx.fx.screen_dissolve = fx_dissolve_begin(ctx, d, nullptr);
+}
+
+void draw_dissolve_end(context &ctx) {
+  if (ctx.fx.screen_dissolve)
+    EndShaderMode();
+  ctx.fx.screen_dissolve = false;
+}
 } // namespace njin

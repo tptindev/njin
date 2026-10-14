@@ -86,6 +86,18 @@ struct ui_state {
   const char *panel_title = nullptr;
   bool panel_background = true;
   bool panel_navigable = true;
+  // ui_panel_desc::enter_seconds: the panels drawn this frame and last, the
+  // seconds each entering one has been on screen, how opaque the one being
+  // built is (its commands are faded by it at ui_end).
+  std::vector<u64> shown, last_shown;
+  std::unordered_map<u64, f32> enter_age;
+  f32 panel_alpha = 1.0f;
+  bool panel_inert = false; // ui_panel_desc::leaving or inert: takes no input, not over
+  rect panel_done{};        // the panel ui_end() closed last (ui_panel_rect)
+
+  // ui_style::hover_seconds: how far each button is into its hover face, 0..1;
+  // a button leaves the map when it is back at 0.
+  std::unordered_map<u64, f32> hover_amount;
   // Whether a panel that takes the navigation keys was drawn this frame / last
   // frame. HUD panels (ui_panel_desc::navigable false) only take the mouse.
   bool navigable_now = false, navigable_last = false;

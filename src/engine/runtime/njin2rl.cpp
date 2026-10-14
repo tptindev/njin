@@ -27,11 +27,13 @@ void to_raylib(vec4 from, Color &to) {
   to.b = from.z;
   to.a = from.w;
 }
+f32 draw_alpha_now = 1.0f;
+
 void to_raylib(rgba from, Color &to) {
   to.r = (unsigned char)(from.r * 255.0f);
   to.g = (unsigned char)(from.g * 255.0f);
   to.b = (unsigned char)(from.b * 255.0f);
-  to.a = (unsigned char)(from.a * 255.0f);
+  to.a = (unsigned char)(from.a * draw_alpha_now * 255.0f);
 }
 
 void to_raylib(camera_view from, Camera2D &to) {
