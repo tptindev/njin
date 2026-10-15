@@ -68,8 +68,12 @@ void window_set_title(context &, const char *title) {
 }
 
 void window_set_fullscreen(context &ctx, bool fullscreen) {
-  if (fullscreen != window_fullscreen(ctx))
-    ToggleBorderlessWindowed();
+  if (fullscreen == window_fullscreen(ctx))
+    return;
+  ToggleBorderlessWindowed();
+  // Out of it raylib puts the title bar back: not on a window made without one.
+  if (!fullscreen && !ctx.cfg.decorated)
+    SetWindowState(FLAG_WINDOW_UNDECORATED);
 }
 
 bool window_fullscreen(const context &) {

@@ -1,6 +1,7 @@
 // --mocap-test <model.glb> [clip] [dump.bin fps camera_yaw_degrees]
 //   Synthetic: landmarks made from the rig's own clip, sent through the packet
-//   format and solved back; the limbs must point where the clip points them.
+//   format and solved back; the limbs must point where the clip points them,
+//   and hands, feet and head turn as in the clip.
 //   Dump: packets pose_stream.py wrote (--dump) for frames of that clip
 //   rendered from the front; reports how far MediaPipe and the solver are from
 //   the clip's true limb directions.
@@ -11,6 +12,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <string>
 
 namespace anim_editor {
@@ -55,6 +57,26 @@ constexpr Seg segs[] = {{"L upper arm", l_upper_arm, l_lower_arm, 11, 13}, {"L f
 Vector3 seg_dir(const std::vector<Matrix> &w, const MocapRig &m, const Seg &s) {
   return Vector3Subtract(pos(w[m.bone[s.to]]), pos(w[m.bone[s.from]]));
 }
+// Whole-rotation error, twist about the bone included: the limb directions
+// above cannot see a forearm turned about itself.
+struct Turn {
+  const char *name;
+  Slot slot;
+};
+constexpr Turn turns[] = {{"upper arms", l_upper_arm}, {"upper arms", r_upper_arm}, {"forearms", l_lower_arm},
+                          {"forearms", r_lower_arm},   {"hands", l_hand},           {"hands", r_hand},
+                          {"thighs", l_upper_leg},     {"thighs", r_upper_leg},     {"shins", l_lower_leg},
+                          {"shins", r_lower_leg},      {"feet", l_foot},            {"feet", r_foot},
+                          {"head", head}};
+constexpr const char *turn_groups[] = {"upper arms", "forearms", "hands", "thighs", "shins", "feet", "head"};
+float turn_error(const std::vector<Matrix> &a, const std::vector<Matrix> &b, int bone) {
+  Vector3 t{}, s{};
+  Quaternion qa{}, qb{};
+  MatrixDecompose(a[bone], &t, &qa, &s);
+  MatrixDecompose(b[bone], &t, &qb, &s);
+  const float dot = std::fabs(qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w);
+  return 2 * std::acos(std::min(1.0f, dot)) * RAD2DEG;
+}
 float percentile(std::vector<float> v, float p) {
   if (v.empty())
     return 0;
@@ -94,39 +116,59 @@ int mocap_test(int argc, char **argv) {
   }
   int failures = 0;
 
-  // 1. Synthetic: clip -> landmarks -> packet -> solve from rest.
-  float worst = 0, worst_head = 0;
+  // 1. Synthetic: clip -> landmarks -> packet -> solve from rest; with the
+  // hand model's points, then without (the palm from the body's knuckles).
   const std::vector<char> all = mocap_mask(rig, m, mask_whole, -1);
-  for (int i = 0; i < 40; ++i) {
-    const float t = clip->duration * i / 40.0f;
-    const auto truth = sample_animation((int)rig.bones.size(), *clip, t);
-    MocapFrame f = frame_from_pose(rig, m, truth);
-    f.time = t;
-    f.number = (uint32_t)i;
-    const auto bytes = encode(f);
-    MocapFrame g;
-    if (!parse_mocap_packet(bytes.data(), bytes.size(), g)) {
-      std::fprintf(stderr, "FAIL: synthetic packet did not parse\n");
-      return 1;
+  for (int pass = 0; pass < 2; ++pass) {
+    const bool hands = pass == 0;
+    float worst = 0;
+    std::vector<std::vector<float>> turned(std::size(turn_groups));
+    for (int i = 0; i < 40; ++i) {
+      const float t = clip->duration * i / 40.0f;
+      const auto truth = sample_animation((int)rig.bones.size(), *clip, t);
+      MocapFrame f = frame_from_pose(rig, m, truth);
+      f.time = t;
+      f.number = (uint32_t)i;
+      if (!hands)
+        f.hands[0] = f.hands[1] = false;
+      const auto bytes = encode(f);
+      MocapFrame g;
+      if (!parse_mocap_packet(bytes.data(), bytes.size(), g)) {
+        std::fprintf(stderr, "FAIL: synthetic packet did not parse\n");
+        return 1;
+      }
+      std::vector<BonePose> solved(rig.bones.size());
+      solve_mocap(rig, m, g, all, solved);
+      const auto tw = bone_world(rig, &truth), sw = bone_world(rig, &solved);
+      for (const Seg &s : segs)
+        worst = std::max(worst, angle(seg_dir(tw, m, s), seg_dir(sw, m, s)));
+      for (const Turn &k : turns)
+        if (m.bone[k.slot] >= 0)
+          for (size_t j = 0; j < std::size(turn_groups); ++j)
+            if (std::strcmp(turn_groups[j], k.name) == 0)
+              turned[j].push_back(turn_error(tw, sw, m.bone[k.slot]));
     }
-    std::vector<BonePose> solved(rig.bones.size());
-    solve_mocap(rig, m, g, all, solved);
-    const auto tw = bone_world(rig, &truth), sw = bone_world(rig, &solved);
-    for (const Seg &s : segs)
-      worst = std::max(worst, angle(seg_dir(tw, m, s), seg_dir(sw, m, s)));
-    if (m.bone[head] >= 0) {
-      Vector3 tt{}, ts{}, st{}, ss{};
-      Quaternion tq{}, sq{};
-      MatrixDecompose(tw[m.bone[head]], &tt, &tq, &ts);
-      MatrixDecompose(sw[m.bone[head]], &st, &sq, &ss);
-      const float dot = std::fabs(tq.x * sq.x + tq.y * sq.y + tq.z * sq.z + tq.w * sq.w);
-      worst_head = std::max(worst_head, 2 * std::acos(std::min(1.0f, dot)) * RAD2DEG);
-    }
+    // Limbs must point exactly; hands, feet and head have whole frames in the
+    // landmarks, so their whole rotations must match too. Upper and lower
+    // limbs only show how far the clip's own elbows and knees are from hinges.
+    auto worst_of = [&](const char *group) {
+      for (size_t j = 0; j < std::size(turn_groups); ++j)
+        if (std::strcmp(turn_groups[j], group) == 0)
+          return percentile(turned[j], 1);
+      return 0.0f;
+    };
+    const bool ok = worst < 0.05f && worst_of("hands") < 0.5f && worst_of("feet") < 0.5f && worst_of("head") < 0.5f;
+    failures += !ok;
+    std::printf("%s: synthetic '%s' %s (40 poses through the packet format): worst limb direction %.4f deg, "
+                "whole rotation of hands %.2f, feet %.2f, head %.2f deg\n",
+                ok ? "PASS" : "FAIL", clip->name.c_str(), hands ? "with hands" : "body only", worst, worst_of("hands"),
+                worst_of("feet"), worst_of("head"));
+    std::printf("  whole rotation (twist included) vs clip, median / p90 / worst deg:\n");
+    for (size_t j = 0; j < std::size(turn_groups); ++j)
+      if (!turned[j].empty())
+        std::printf("    %-10s %6.1f %6.1f %6.1f\n", turn_groups[j], percentile(turned[j], 0.5f),
+                    percentile(turned[j], 0.9f), percentile(turned[j], 1));
   }
-  const bool synth_ok = worst < 0.05f && worst_head < 0.1f;
-  failures += !synth_ok;
-  std::printf("%s: synthetic '%s' (40 poses through the packet format): worst limb %.4f deg, head %.4f deg\n",
-              synth_ok ? "PASS" : "FAIL", clip->name.c_str(), worst, worst_head);
 
   // 2. Mask: the left arm only moves left-arm bones.
   {

@@ -840,6 +840,7 @@ struct Mocap {
   bool have = false, fresh = false;
   int camera = 0, port = 47800, preset = mask_whole, countdown = 3;
   bool hands = false, mirror = false, drive = true, reduce = true, launched = false;
+  bool heavy = false; // MediaPipe's heavy body model: more exact, about 5x slower
   bool view = true, cv_window = false; // Camera window in the editor / pose_stream.py's OpenCV window
   MocapLink view_link;
   Texture2D view_texture{};
@@ -863,6 +864,8 @@ struct Mocap {
   bool ready() const {
     return fs::exists(u8path(python())) && fs::exists(u8path(folder + "/pose_landmarker_full.task"));
   }
+  std::string heavy_model() const { return folder + "/pose_landmarker_heavy.task"; }
+  bool heavy_ready() const { return fs::exists(u8path(heavy_model())); }
   bool running() const { return link.open(); }
   void start(bool spawn) {
     std::string error;
@@ -878,6 +881,8 @@ struct Mocap {
       std::vector<std::string> args{"--camera", std::to_string(camera), "--port", std::to_string(port)};
       if (hands)
         args.push_back("--hands");
+      if (heavy && heavy_ready())
+        args.insert(args.end(), {"--model", heavy_model()});
       if (view_link.open())
         args.insert(args.end(), {"--view", "--view-port", std::to_string(port + 1)});
       if (cv_window)
@@ -1059,6 +1064,16 @@ void mocap_window(App &a, Mocap &m) {
   ImGui::InputInt("Port", &m.port, 0);
   m.port = std::clamp(m.port, 1024, 65535);
   ImGui::Checkbox("Hands (fingers)", &m.hands);
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!m.heavy_ready());
+  bool heavy = m.heavy && m.heavy_ready();
+  if (ImGui::Checkbox("Heavy body model", &heavy))
+    m.heavy = heavy;
+  ImGui::EndDisabled();
+  if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    ImGui::SetTooltip(m.heavy_ready() ? "MediaPipe's most exact body model. About 5x slower on the CPU than the default\n"
+                                        "(70 ms against 14 ms a frame when tested): around 14 frames a second."
+                                      : "Run setup.bat again to download pose_landmarker_heavy.task.");
   ImGui::Checkbox("Camera view in editor", &m.view);
   ImGui::SameLine();
   ImGui::Checkbox("OpenCV window", &m.cv_window);

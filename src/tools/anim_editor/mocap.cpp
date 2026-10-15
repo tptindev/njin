@@ -47,9 +47,14 @@ Quaternion frame(Vector3 up, Vector3 side) {
   Vector3 s = Vector3Subtract(side, Vector3Scale(up, Vector3DotProduct(side, up)));
   if (Vector3Length(s) < 1e-6f)
     return q1;
-  return QuaternionNormalize(qmul(arc(s1, s), q1));
+  // About `up` itself: arc() would pick any axis when s is opposite s1.
+  const float turn = std::atan2(Vector3DotProduct(Vector3CrossProduct(s1, s), up), Vector3DotProduct(s1, s));
+  return QuaternionNormalize(qmul(QuaternionFromAxisAngle(up, turn), q1));
 }
 Quaternion slerp(Quaternion a, Quaternion b, float t) { return QuaternionSlerp(a, b, t); }
+float degrees_between(Vector3 a, Vector3 b) {
+  return std::acos(std::clamp(Vector3DotProduct(unit(a), unit(b)), -1.0f, 1.0f)) * RAD2DEG;
+}
 Vector3 pos(const Matrix &m) { return {m.m12, m.m13, m.m14}; }
 Quaternion rot(const Matrix &m) {
   Vector3 t{}, s{};
@@ -76,6 +81,25 @@ constexpr Limb limbs[] = {
     {r_lower_arm, r_hand, 14, 16},      {l_upper_leg, l_lower_leg, 23, 25}, {l_lower_leg, l_foot, 25, 27},
     {r_upper_leg, r_lower_leg, 24, 26}, {r_lower_leg, r_foot, 26, 28},   {l_foot, l_toes, 27, 31},
     {r_foot, r_toes, 28, 32}};
+
+// Elbows and knees bend about one axis. `bend` is where the lower bone folds
+// in the rest pose: +1 forwards (elbow), -1 backwards (knee). The lower bone
+// takes its twist from the plane of the limb; the upper bone only
+// `upper_twist` of it, the rest from the shortest swing: real elbows and knees
+// also turn a little about the limb (tested on a rig's own clips, the whole
+// rotations of both bones came closest so).
+struct Hinge {
+  Slot upper, lower, end;
+  int a, b, c; // MediaPipe points: shoulder, elbow, wrist (hip, knee, ankle)
+  float bend, upper_twist;
+};
+constexpr Hinge hinges[] = {{l_upper_arm, l_lower_arm, l_hand, 11, 13, 15, 1, 0.5f},
+                            {r_upper_arm, r_lower_arm, r_hand, 12, 14, 16, 1, 0.5f},
+                            {l_upper_leg, l_lower_leg, l_foot, 23, 25, 27, -1, 0.25f},
+                            {r_upper_leg, r_lower_leg, r_foot, 24, 26, 28, -1, 0.25f}};
+// Below this bend (degrees) the limb's plane is too unsure to give a twist;
+// the twist fades in up to the second.
+constexpr float hinge_from = 8, hinge_full = 25;
 
 int child_of(Slot s) {
   for (const Limb &l : limbs)
@@ -134,7 +158,7 @@ struct Posed {
 
 // Rest-pose references, in the rig's world.
 struct RestRefs {
-  Vector3 up, hip_side, shoulder_side, head_up;
+  Vector3 up, hip_side, shoulder_side, head_up, fwd;
   std::vector<Matrix> world;
 };
 RestRefs rest_refs(const Rig &rig, const MocapRig &m) {
@@ -146,7 +170,22 @@ RestRefs rest_refs(const Rig &rig, const MocapRig &m) {
   r.hip_side = Vector3Subtract(p(l_upper_leg), p(r_upper_leg));
   r.shoulder_side = Vector3Subtract(p(l_upper_arm), p(r_upper_arm));
   r.head_up = m.bone[head] >= 0 ? Vector3Subtract(p(head), arms) : r.up;
+  r.fwd = unit(Vector3CrossProduct(r.hip_side, r.up)); // the person's left x up: where they face
   return r;
+}
+// Where a bone points in the rest pose (see Posed::aim).
+Vector3 rest_aim(const Rig &rig, const MocapRig &m, const RestRefs &r, int slot) {
+  const int b = m.bone[slot];
+  const int c = child_of((Slot)slot);
+  if (c >= 0 && m.bone[c] >= 0)
+    return Vector3Subtract(pos(r.world[m.bone[c]]), pos(r.world[b]));
+  const Bone &bone = rig.bones[b];
+  return qrot(rot(r.world[b]), qrot(qinv(bone.rest_rotation), unit(bone.rest_translation)));
+}
+// The turn a bone needs from its rest pose so that the rest directions
+// (aim, side) become (aim_now, side_now), applied to its rest world rotation.
+Quaternion from_rest(const RestRefs &r, int bone, Vector3 aim_now, Vector3 side_now, Vector3 aim, Vector3 side) {
+  return qmul(qmul(frame(aim_now, side_now), qinv(frame(aim, side))), rot(r.world[bone]));
 }
 bool has_body(const MocapRig &m) {
   for (Slot s : {hips, l_upper_arm, r_upper_arm, l_upper_leg, r_upper_leg})
@@ -425,9 +464,15 @@ int solve_mocap(const Rig &rig, const MocapRig &m, const MocapFrame &f, const st
   const Quaternion d_hips = qmul(frame(up, Vector3Subtract(P[23], P[24])), qinv(frame(rest.up, rest.hip_side)));
   const Quaternion d_chest =
       qmul(frame(up, Vector3Subtract(P[11], P[12])), qinv(frame(rest.up, rest.shoulder_side)));
+  // The head: the ear line for turning and tilting; the eyes in front of the
+  // ears for nodding, which the line from the shoulders to the ears barely shows.
   Quaternion d_head = d_chest;
   const bool head_seen = seen({7, 8});
-  if (head_seen)
+  if (head_seen && seen({2, 5})) {
+    const Vector3 side = Vector3Subtract(P[7], P[8]), ahead = Vector3Subtract(mid(P[2], P[5]), mid(P[7], P[8]));
+    d_head = qmul(frame(Vector3CrossProduct(ahead, side), side),
+                  qinv(frame(Vector3CrossProduct(rest.fwd, rest.shoulder_side), rest.shoulder_side)));
+  } else if (head_seen)
     d_head = qmul(frame(Vector3Subtract(mid(P[7], P[8]), shoulder_mid), Vector3Subtract(P[7], P[8])),
                   qinv(frame(rest.head_up, rest.shoulder_side)));
   if (use(hips))
@@ -451,24 +496,74 @@ int solve_mocap(const Rig &rig, const MocapRig &m, const MocapFrame &f, const st
     posed.set_world_rotation(b, qmul(arc(posed.aim(m, slot), target), rot(posed.get()[b])));
     ++moved;
   };
+  // An upper or lower limb bone: pointed along its segment, and turned about
+  // it so that the elbow or knee bends in the plane the three points make.
+  // Nearly straight, the plane says nothing and the bone only swings.
+  auto limb = [&](int slot, Vector3 target) {
+    const Hinge *h = nullptr;
+    for (const Hinge &k : hinges)
+      if (k.upper == slot || k.lower == slot)
+        h = &k;
+    if (!h || m.bone[h->upper] < 0 || m.bone[h->lower] < 0 || !seen({h->a, h->b, h->c})) {
+      swing(slot, target);
+      return;
+    }
+    const Vector3 up_now = Vector3Subtract(P[h->b], P[h->a]), low_now = Vector3Subtract(P[h->c], P[h->b]);
+    const float t = std::clamp((degrees_between(up_now, low_now) - hinge_from) / (hinge_full - hinge_from), 0.0f, 1.0f);
+    const bool upper = slot == h->upper;
+    const Vector3 aim = rest_aim(rig, m, rest, slot);
+    const Vector3 axis = Vector3CrossProduct(rest_aim(rig, m, rest, h->upper), Vector3Scale(rest.fwd, h->bend));
+    if (t <= 0 || Vector3Length(axis) < 1e-6f) {
+      swing(slot, target);
+      return;
+    }
+    const int b = m.bone[slot];
+    const Quaternion bent =
+        from_rest(rest, b, upper ? up_now : low_now, Vector3CrossProduct(up_now, low_now), aim, axis);
+    const Quaternion swung = qmul(arc(posed.aim(m, slot), target), rot(posed.get()[b]));
+    const float w = t * t * (3 - 2 * t) * (upper ? h->upper_twist : 1.0f);
+    posed.set_world_rotation(b, slerp(swung, bent, w));
+    ++moved;
+  };
   for (int slot : m.order) {
     if (!use(slot))
       continue;
+    // The foot: the heel, ankle and toe make a plane that gives its roll.
+    if (slot == l_foot || slot == r_foot) {
+      const bool left = slot == l_foot;
+      const int ankle = left ? 27 : 28, heel = left ? 29 : 30, toe = left ? 31 : 32;
+      const Vector3 aim = rest_aim(rig, m, rest, slot);
+      if (seen({ankle, heel, toe}) && Vector3Length(Vector3CrossProduct(unit(aim), unit(rest.up))) > 0.2f) {
+        const Vector3 side_now = Vector3CrossProduct(Vector3Subtract(P[toe], P[heel]), Vector3Subtract(P[ankle], P[heel]));
+        posed.set_world_rotation(m.bone[slot], from_rest(rest, m.bone[slot], Vector3Subtract(P[toe], P[ankle]), side_now,
+                                                         aim, Vector3CrossProduct(aim, rest.up)));
+        ++moved;
+        continue;
+      }
+    }
     for (const Limb &l : limbs)
       if (l.slot == slot && seen({l.from, l.to}))
-        swing(slot, Vector3Subtract(P[l.to], P[l.from]));
+        limb(slot, Vector3Subtract(P[l.to], P[l.from]));
     if (slot == l_hand || slot == r_hand) {
       const int h = slot == l_hand ? 0 : 1, base = h == 0 ? l_finger : r_finger;
       const int index1 = m.bone[base + 3], middle1 = m.bone[base + 6], little1 = m.bone[base + 12];
       const auto &H = f.hand[h];
-      if (f.hands[h] && index1 >= 0 && middle1 >= 0 && little1 >= 0) {
-        const Vector3 rest_aim = Vector3Subtract(pos(rest.world[middle1]), pos(rest.world[m.bone[slot]]));
-        const Vector3 rest_side = Vector3Subtract(pos(rest.world[index1]), pos(rest.world[little1]));
+      const int wrist = h == 0 ? 15 : 16, index = h == 0 ? 19 : 20, pinky = h == 0 ? 17 : 18;
+      const bool fingers = index1 >= 0 && middle1 >= 0 && little1 >= 0;
+      const Vector3 hand_aim = fingers ? Vector3Subtract(pos(rest.world[middle1]), pos(rest.world[m.bone[slot]])) : Vector3{};
+      const Vector3 hand_side = fingers ? Vector3Subtract(pos(rest.world[index1]), pos(rest.world[little1])) : Vector3{};
+      if (f.hands[h] && fingers) {
         set_delta(slot, qmul(frame(Vector3Subtract(H[9], H[0]), Vector3Subtract(H[5], H[17])),
-                             qinv(frame(rest_aim, rest_side))));
-      } else {
-        const int wrist = h == 0 ? 15 : 16, index = h == 0 ? 19 : 20, pinky = h == 0 ? 17 : 18;
-        if (seen({wrist, index, pinky}))
+                             qinv(frame(hand_aim, hand_side))));
+      } else if (seen({wrist, index, pinky})) {
+        // Without the hand model, the body model's index and little knuckles
+        // still give the palm's roll (less exactly).
+        if (fingers) {
+          const Vector3 knuckles =
+              Vector3Subtract(mid(pos(rest.world[index1]), pos(rest.world[little1])), pos(rest.world[m.bone[slot]]));
+          set_delta(slot, qmul(frame(Vector3Subtract(mid(P[index], P[pinky]), P[wrist]), Vector3Subtract(P[index], P[pinky])),
+                               qinv(frame(knuckles, hand_side))));
+        } else
           swing(slot, Vector3Subtract(mid(P[index], P[pinky]), P[wrist]));
       }
     }
@@ -530,10 +625,18 @@ MocapFrame frame_from_pose(const Rig &rig, const MocapRig &m, const std::vector<
   const Vector3 ear_mid = Vector3Add(shoulder_mid, qrot(d_head, rest.head_up));
   const Vector3 side = Vector3Scale(unit(qrot(d_head, rest.shoulder_side)), 0.075f);
   f.points[7] = Vector3Add(ear_mid, side), f.points[8] = Vector3Subtract(ear_mid, side);
-  f.points[0] = Vector3Add(ear_mid, qrot(d_head, {0, 0, 0.1f}));
-  for (int i : {1, 2, 3, 4, 5, 6, 9, 10})
+  f.points[0] = Vector3Add(ear_mid, qrot(d_head, Vector3Scale(rest.fwd, 0.1f)));
+  for (int i : {1, 3, 4, 6, 9, 10})
     f.points[i] = f.points[0];
-  f.points[29] = f.points[27], f.points[30] = f.points[28];
+  const Vector3 eyes = Vector3Add(ear_mid, qrot(d_head, Vector3Scale(rest.fwd, 0.08f)));
+  const Vector3 eye_side = Vector3Scale(unit(qrot(d_head, rest.shoulder_side)), 0.03f);
+  f.points[2] = Vector3Add(eyes, eye_side), f.points[5] = Vector3Subtract(eyes, eye_side);
+  // Heels: below and behind the ankles, turned with the feet.
+  const Vector3 heel = Vector3Add(Vector3Scale(unit(rest.up), -0.07f), Vector3Scale(rest.fwd, -0.05f));
+  for (Slot s : {l_foot, r_foot}) {
+    const int b = m.bone[s];
+    f.points[s == l_foot ? 29 : 30] = Vector3Add(p(s), qrot(qmul(rot(W[b]), qinv(rot(rest.world[b]))), heel));
+  }
   const Vector3 origin = mid(f.points[23], f.points[24]);
   for (auto &q : f.points)
     q = Vector3Subtract(q, origin);

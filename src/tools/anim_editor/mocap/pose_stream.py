@@ -6,6 +6,7 @@ and sends the 3D world landmarks to the editor as one UDP packet per frame on
 run by hand, then the editor only listens.
 
   pose_stream.py [--camera 0] [--port 47800] [--hands] [--mirror] [--view] [--preview] [--preview-scale 0.5]
+                 [--model pose_landmarker_heavy.task]
   pose_stream.py --video clip.mp4 [--dump out.bin]      # tests: a file instead
   pose_stream.py --frames folder [--fps 30] [--dump out.bin]
 
@@ -59,7 +60,8 @@ VERSION = 1
 VIEW_MAGIC = b"NJMV"
 VIEW_MAX = 60000  # bytes in one datagram, header included
 POSE_EDGES = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16), (11, 23), (12, 24), (23, 24), (23, 25), (25, 27),
-              (24, 26), (26, 28), (27, 31), (28, 32), (0, 7), (0, 8)]
+              (24, 26), (26, 28), (27, 29), (29, 31), (27, 31), (28, 30), (30, 32), (28, 32),
+              (15, 17), (15, 19), (17, 19), (16, 18), (16, 20), (18, 20), (2, 7), (5, 8), (2, 5)]
 
 
 def packet(frame_no, t, pose_world, vis, left, right, mirrored):
@@ -153,7 +155,8 @@ def main():
     ap.add_argument("--preview-scale", type=float, default=0.5,
                     help="size of the preview window per side (0.5 = a quarter of the image area)")
     ap.add_argument("--dump", help="also append every packet to this file (tests)")
-    ap.add_argument("--model", default=os.path.join(HERE, "pose_landmarker_full.task"))
+    ap.add_argument("--model", default=os.path.join(HERE, "pose_landmarker_full.task"),
+                    help="pose_landmarker_heavy.task is more exact, and slower")
     args = ap.parse_args()
 
     stop = []

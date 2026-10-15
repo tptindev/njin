@@ -10,6 +10,9 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- `config::decorated` (default `true`, as before): `false` makes the window
+  without the system's title bar and border; it stays so on leaving
+  fullscreen. (turf: the window without a title bar.)
 - `font_set_default(ctx, font)`: the font drawn when none is given (UI,
   `draw_text()`, `text_measure()`), set once instead of passed to every
   call; `{}` goes back to the built-in JetBrains Mono. A game that never
@@ -601,12 +604,17 @@ To release: edit that header, add a section here, commit, then
   `mocap/setup.bat` makes, and sends 3D world landmarks over UDP on
   127.0.0.1. The **Mocap** window starts it, smooths the points with a One
   Euro filter, turns them into rotations of the rig's humanoid bones (trunk
-  and head as whole frames, limbs and fingers as the shortest turn along each
-  segment), drives the chosen bones live on top of the clip (whole body,
+  as whole frames; the head from the ears and eyes, so nodding shows; hands
+  from the palm, with the hand model or from the body model's knuckles; feet
+  from heel, ankle and toe; elbows and knees bend in the plane of the limb,
+  which gives forearms and shins their twist; fingers as the shortest turn
+  along each segment), drives the chosen bones live on top of the clip (whole body,
   upper body, an arm, head, spine, legs, hands, or the selected bone), and
   records keys at the clip's rate from the playhead after a countdown, with
-  optional key reduction; a recording is one undo step. `--mocap-test` and
-  `--mocap-smoke` check the solver and the live path without a camera.
+  optional key reduction; a recording is one undo step. **Heavy body model**
+  uses MediaPipe's most exact pose model (`setup.bat` downloads it; about 5x
+  slower on the CPU). `--mocap-test` and `--mocap-smoke` check the solver and
+  the live path without a camera.
 - The animation editor shows the webcam image itself, in a dockable
   **Camera** window (under Skeleton by default; Window > Reset layout for an
   older layout), with MediaPipe's skeleton drawn on it, the tracking state,

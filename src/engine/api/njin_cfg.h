@@ -22,6 +22,11 @@ struct config {
   key_code exit_key = key_escape;
   /// Cho phép người dùng kéo đổi kích thước cửa sổ.
   bool resizable = false;
+  /// Cửa sổ có thanh tiêu đề và viền của hệ điều hành (mặc định có). `false`
+  /// thì cửa sổ không viền, không thanh tiêu đề: không có nút [x], không kéo đi
+  /// hay đổi cỡ bằng chuột được, nhưng Alt+F4 vẫn đóng nó (chặn được bằng
+  /// window_set_close_intercept()). Ra khỏi toàn màn hình, cửa sổ vẫn không viền.
+  bool decorated = true;
   /// Tên thư mục lưu game, xem save_path(). Để trống thì dùng `title`.
   const char *app_name = nullptr;
   /// Độ phân giải ảo, ví dụ `{320, 180}` cho pixel art. `{0, 0}` là tắt. Xem

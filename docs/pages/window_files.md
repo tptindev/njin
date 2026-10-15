@@ -11,6 +11,7 @@ Ngoài tiêu đề, kích thước, FPS và màu nền, njin::config có:
 | `fixed_hz` | 60 | Số nhịp `phase_fixed_update` mỗi giây |
 | `exit_key` | `key_escape` | Phím đóng game ngay. Đặt `key_none` khi cần Esc cho menu |
 | `resizable` | `false` | Cho phép kéo đổi kích thước cửa sổ |
+| `decorated` | `true` | Cửa sổ có thanh tiêu đề và viền. `false` là cửa sổ không viền: không có nút [x], Alt+F4 vẫn đóng (chặn bằng njin::window_set_close_intercept()) |
 | `app_name` | tiêu đề | Tên thư mục lưu game |
 | `vsync` | `false` | Đồng bộ dọc: mỗi frame chờ màn hình làm tươi, không xé hình, CPU và GPU nghỉ giữa các frame. `target_fps` vẫn là mức trần thêm |
 

@@ -89,14 +89,16 @@ trong game.
 
 **Cài một lần:** cần Python 3.10–3.13. Chạy `src\tools\anim_editor\mocap\setup.bat`: tạo venv
 `mocap\.venv`, cài `requirements.txt` (mediapipe 1.1.0, opencv-python 5.0.0.93, numpy 2.5.3) và tải
-hai model `pose_landmarker_full.task`, `hand_landmarker.task` vào thư mục `mocap` (không nằm trong
-git).
+ba model `pose_landmarker_full.task`, `pose_landmarker_heavy.task`, `hand_landmarker.task` vào thư
+mục `mocap` (không nằm trong git). Đã cài từ trước thì chạy lại `setup.bat` để tải thêm model heavy.
 
 **Dùng:**
 
 1. Mở một model có rig người (tên xương kiểu Mixamo, Unreal, Unity/VRM, Blender đều nhận) và chọn
    hoặc tạo một clip. Mocap ghi dòng "N humanoid bones matched".
-2. Trong **Mocap**: chọn **Camera** (0 là webcam mặc định), bật **Hands** nếu cần ngón tay, bấm
+2. Trong **Mocap**: chọn **Camera** (0 là webcam mặc định), bật **Hands** nếu cần ngón tay, bật
+   **Heavy body model** nếu cần khớp chính xác hơn (model lớn nhất của MediaPipe; trên CPU thử mất
+   khoảng 70 ms mỗi khung so với 14 ms của model mặc định, tức chừng 14 khung/giây), bấm
    **Start camera**. Hình camera hiện ngay trong editor, ở cửa sổ **Camera** (mặc định nằm dưới
    Skeleton), có khung xương MediaPipe vẽ đè và dòng trạng thái (Tracking / No body in view); bật
    **Mirror** thì hình cũng lật như gương để khớp với nhân vật. Hình rộng 320 điểm ảnh, tối đa 15
@@ -118,23 +120,42 @@ git).
    `mocap\.venv\Scripts\python.exe mocap\pose_stream.py --view` (xem `--help`: `--camera`,
    `--hands`, `--mirror`, `--view` gửi hình vào cửa sổ Camera trên cổng kế tiếp (`--view-port`,
    `--view-width 320`, `--view-fps 15`), `--preview` mở cửa sổ OpenCV, `--preview-scale 0.5`,
-   `--video file.mp4`, `--frames thư_mục`).
+   `--video file.mp4`, `--frames thư_mục`, `--model mocap\pose_landmarker_heavy.task`).
 
 **Cách tính:** MediaPipe cho 33 khớp cơ thể theo mét, gốc ở giữa hai hông (trục x sang phải ảnh, y
-xuống, z ra xa camera); editor đổi sang trục glTF `(x, -y, -z)` (+Y lên, +Z về phía camera). Hông,
-cột sống, cổ và đầu lấy cả hướng: hướng lên (hông → vai, vai → tai) và đường trái–phải (hai hông, hai
-vai, hai tai), so với cùng các đường đó ở tư thế nghỉ của rig. Tay, chân, bàn chân và từng đốt ngón
-quay theo góc ngắn nhất để trỏ theo đoạn khớp tương ứng (vai → khuỷu, khuỷu → cổ tay, hông → gối...);
-bàn tay lấy cả hướng khi có dữ liệu bàn tay. Khớp có độ tin cậy dưới 0,5 bị bỏ qua (xương giữ tư thế
-clip). Gói UDP được mô tả ở đầu `pose_stream.py`. Hình cho cửa sổ Camera là gói thứ hai trên cổng
+xuống, z ra xa camera); editor đổi sang trục glTF `(x, -y, -z)` (+Y lên, +Z về phía camera). Mỗi
+xương được trỏ theo đoạn khớp tương ứng (vai → khuỷu, khuỷu → cổ tay, hông → gối...), so với cùng
+đoạn đó ở tư thế nghỉ của rig, và lấy thêm độ xoay quanh chính nó từ những điểm khác:
+
+- Hông, cột sống và cổ: hướng lên (hông → vai) và đường trái–phải (hai hông, hai vai).
+- Đầu: đường hai tai để quay và nghiêng; mắt nằm trước tai để biết cúi hay ngẩng (đường vai → tai
+  gần như không đổi khi gật đầu). Không thấy mắt thì dùng vai → tai như trước.
+- Khuỷu và gối: gập trong mặt phẳng ba khớp (vai, khuỷu, cổ tay; hông, gối, cổ chân). Mặt phẳng đó
+  cho cẳng tay và ống chân độ xoắn quanh trục của chúng, cánh tay trên nhận một nửa và đùi một phần tư
+  độ xoắn đó (phần còn lại quay theo góc ngắn nhất), vì khớp thật cũng xoay nhẹ quanh trục. Tay chân
+  gần thẳng (gập dưới 8°) thì mặt phẳng không đáng tin và xương chỉ quay theo góc ngắn nhất; từ 8° đến
+  25° hai cách được trộn dần để không giật.
+- Bàn chân: gót, cổ chân và mũi chân tạo một mặt phẳng, cho cả độ nghiêng của bàn chân.
+- Bàn tay: lòng bàn tay (cổ tay, gốc ngón trỏ, gốc ngón út) từ model bàn tay khi bật **Hands**; khi
+  tắt, từ hai điểm đốt ngón trỏ và ngón út của model cơ thể (kém chính xác hơn). Từng đốt ngón quay
+  theo góc ngắn nhất.
+
+Thử trên 10 clip có sẵn của một rig (khớp tạo từ chính clip, không qua camera), so với cách cũ chỉ
+quay theo góc ngắn nhất: độ lệch góc xoay đầy đủ trung bình của ống chân giảm từ 17,7° xuống 2,3°,
+bàn chân từ 11,5° xuống 0°, cẳng tay từ 16,9° xuống 11,1°, cánh tay trên từ 18,9° xuống 17,2°; đùi
+tăng nhẹ từ 2,2° lên 2,7°. Phần còn lệch là chỗ khuỷu và gối trong clip không gập như một bản lề.
+Khớp có độ tin cậy dưới 0,5 bị bỏ qua (xương giữ tư thế clip). Gói UDP được mô tả ở đầu `pose_stream.py`. Hình cho cửa sổ Camera là gói thứ hai trên cổng
 kế tiếp: ảnh JPEG nhỏ (thường 5–9 KB, tối đa 60 KB một gói), editor giải bằng một bản `stb_image`
 chỉ đọc JPEG của riêng nó (bản raylib dựng trong njin tắt JPEG). Mã hóa tốn khoảng 1–2 ms mỗi hình,
 tức chừng 2–3% một nhân CPU ở 15 khung/giây.
 
 **Giới hạn:** một webcam chỉ ước lượng được độ sâu: tay đưa thẳng về phía camera, tay bắt chéo hay
 bị che dễ sai (thử với hình dựng từ clip có sẵn: lệch trung vị khoảng 9–13°, p90 khoảng 25°). Không
-có dịch chuyển gốc (đi khắp phòng không làm nhân vật đi), không xoắn cánh tay quanh trục của nó, không
-khóa chân xuống sàn. Bật bàn tay làm MediaPipe chậm hẳn (khoảng 8 khung/giây so với 30 trên CPU thử).
+có dịch chuyển gốc (đi khắp phòng không làm nhân vật đi), không khóa chân xuống sàn, không có xương
+vai (xương đòn: nhún vai không hiện). Độ xoắn của cánh tay khi duỗi thẳng không đọc được (không có mặt
+phẳng khuỷu). Mắt nằm cao hơn tai một chút ở người thật, nên đầu có thể hơi ngẩng lên khi nhìn thẳng:
+cách tính đầu mới chưa được thử với camera thật. Bật bàn tay làm MediaPipe chậm hẳn (khoảng 8
+khung/giây so với 30 trên CPU thử).
 
 ## Kiểm tra
 
@@ -146,8 +167,10 @@ khóa chân xuống sàn. Bật bàn tay làm MediaPipe chậm hẳn (khoảng 8
 .\build\bin\njin_anim_editor.exe --mocap-smoke model.glb thư_mục_ảnh
 ```
 
-Mocap test tạo các khớp từ chính clip của rig, cho qua định dạng gói UDP rồi giải lại: tay chân phải
-trỏ đúng như clip (lệch dưới 0,05°); kiểm tra thêm việc chỉ các xương được chọn bị đổi. Với file
+Mocap test tạo các khớp từ chính clip của rig, cho qua định dạng gói UDP rồi giải lại, một lần có
+dữ liệu bàn tay và một lần không: tay chân phải trỏ đúng như clip (lệch dưới 0,05°), bàn tay, bàn
+chân và đầu phải xoay đúng như clip (lệch dưới 0,5°, tính cả độ xoắn); nó in thêm độ lệch góc xoay
+đầy đủ của từng nhóm xương. Kiểm tra thêm việc chỉ các xương được chọn bị đổi. Với file
 `dump.bin` (`pose_stream.py --frames thư_mục --dump dump.bin` trên các khung hình dựng từ clip đó,
 nhìn từ phía trước) nó in độ lệch của MediaPipe và của xương giải ra so với clip. Mocap smoke mở
 editor, chạy `pose_stream.py` trên thư mục ảnh, cho model đi theo, ghi khoảng một giây, kiểm tra cả

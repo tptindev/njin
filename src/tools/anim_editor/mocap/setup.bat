@@ -16,6 +16,7 @@ if not exist .venv\Scripts\python.exe (
 if errorlevel 1 exit /b 1
 set BASE=https://storage.googleapis.com/mediapipe-models
 if not exist pose_landmarker_full.task curl -fSL -o pose_landmarker_full.task %BASE%/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
+if not exist pose_landmarker_heavy.task curl -fSL -o pose_landmarker_heavy.task %BASE%/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task
 if not exist hand_landmarker.task curl -fSL -o hand_landmarker.task %BASE%/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
 if not exist pose_landmarker_full.task exit /b 1
 echo Mocap ready. In the editor: Mocap window, Start.
