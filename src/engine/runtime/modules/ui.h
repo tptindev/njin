@@ -64,6 +64,7 @@ struct ui_state {
   bool back_reported = false;
   bool mouse_pressed = false, mouse_held = false, mouse_released = false, mouse_moved = false;
   bool mouse_over = false; // the mouse is over one of last frame's panels
+  u64 mouse_top = 0;       // the one of them on top under the mouse (drawn last), 0 none
   vec2 mouse{};
   i32 adjust = 0; // -1/+1 for the focused slider or choice
   f32 repeat_timer = 0.0f;
@@ -73,6 +74,7 @@ struct ui_state {
   u64 pressed = 0; // widget the mouse went down on
   std::vector<ui_widget_rec> last, current;
   std::vector<rect> last_panels, panels;
+  std::vector<u64> last_panel_ids, panel_ids; // each panel's id, as `panels`
 
   // Panel being built.
   bool in_panel = false;
@@ -93,6 +95,7 @@ struct ui_state {
   std::unordered_map<u64, f32> enter_age;
   f32 panel_alpha = 1.0f;
   bool panel_inert = false; // ui_panel_desc::leaving or inert: takes no input, not over
+  bool panel_covered = false; // a panel drawn after it last frame is over the mouse: this one does not take it
   rect panel_done{};        // the panel ui_end() closed last (ui_panel_rect)
 
   // ui_style::hover_seconds: how far each button is into its hover face, 0..1;
@@ -126,8 +129,10 @@ struct ui_state {
   f32 scroll_from = 0.0f; // the y its content starts at, before the offset
   std::unordered_map<u64, f32> scroll_offset, scroll_content;
   std::vector<rect> scrolls, last_scrolls;
+  std::vector<u64> scroll_panel, last_scroll_panel; // the panel each scroll area is in
   // ui_let_through(): where the mouse's left button is left to the game, panels or not.
   std::vector<rect> through, last_through;
+  std::vector<u64> through_panel, last_through_panel; // the panel each was let through in, 0 outside one
   f32 wheel = 0.0f; // the wheel this frame, if over one of last frame's scroll areas
 
   std::string tooltip; // ui_tooltip(): drawn by the mouse after the panels, then cleared

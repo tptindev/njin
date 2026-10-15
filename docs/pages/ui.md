@@ -114,6 +114,12 @@ Backspace) và click chuột lên panel: game không thấy chúng, nên nhân v
 chơi đang chọn menu. Kiểm tra bằng njin::ui_active(). UI chỉ nuốt nút trái; game bấm chuột phải hay
 cuộn bánh xe vào thế giới thì hỏi njin::ui_mouse_over() trước, để cú bấm lên HUD không lọt xuống.
 
+**Panel chồng nhau** theo thứ tự vẽ: panel gọi sau nằm trên, và ở chỗ con trỏ chỉ panel trên
+cùng nhận chuột; nút của panel bị che bên dưới không sáng, không bấm được. Game muốn một cửa sổ
+lên trên thì gọi nó sau cùng, chẳng hạn khi njin::ui_pressed_on() báo người chơi vừa bấm vào nó.
+Chuột game tự đọc quanh một panel thì hỏi njin::ui_on_top() (ngoài panel) hoặc njin::ui_covered()
+(trong panel) để nó cũng không phản ứng qua panel đang che.
+
 @note Esc mặc định đóng cửa sổ (`config::exit_key`). Menu dùng Esc để quay lại thì đặt
 `.exit_key = njin::key_none` trong config và thoát bằng một nút "Thoát".
 

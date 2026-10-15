@@ -508,6 +508,40 @@ rect ui_panel_rect(const context &ctx);
 /// @return `true` nếu chuột đang trên một panel.
 bool ui_mouse_over(const context &ctx);
 
+/// Các panel chồng lên nhau theo thứ tự vẽ: panel vẽ sau nằm trên. Ở chỗ con
+/// trỏ, chỉ panel trên cùng nhận chuột (nút, nút đóng, bánh xe cuộn, vùng
+/// ui_let_through() đặt trong nó); panel bị che bên dưới thì không. Muốn đổi
+/// panel nào nằm trên, game đổi thứ tự gọi chúng.
+///
+/// Hàm này cho biết chuột có đang trên panel `id` và panel đó nằm trên cùng
+/// ở chỗ ấy không (theo các panel của frame trước). Dùng cho chuột game tự xử
+/// lý quanh một panel, như kéo panel đi bằng mép của nó.
+/// @param ctx Context của engine.
+/// @param id Tên panel, như ui_panel_desc::id.
+/// @return `true` nếu panel `id` nằm trên cùng dưới con trỏ.
+bool ui_on_top(const context &ctx, const char *id);
+
+/// Nút chuột trái vừa bấm xuống frame này lên panel `id`, ở chỗ nó nằm trên
+/// cùng (xem ui_on_top()). Dùng để đưa một cửa sổ game tự sắp lên trên khi
+/// người chơi bấm vào nó.
+/// @code
+/// if (njin::ui_pressed_on(ctx, "inventory"))
+///   g.inventory_on_top = true; // từ frame sau gọi nó sau cùng
+/// @endcode
+/// @param ctx Context của engine.
+/// @param id Tên panel, như ui_panel_desc::id.
+/// @return `true` nếu vừa bấm lên panel `id`.
+bool ui_pressed_on(const context &ctx, const char *id);
+
+/// Panel đang dựng (giữa ui_begin() và ui_end()), hoặc panel vừa đóng nếu
+/// không có panel nào mở, đang bị một panel vẽ sau nó che ở chỗ con trỏ: các
+/// widget của nó không nhận chuột. Dùng cho thứ game tự vẽ và tự đọc chuột
+/// trong panel (`point_in_rect(mouse_pos(ctx), ...)`), để nó cũng không phản
+/// ứng qua một panel đang che.
+/// @param ctx Context của engine.
+/// @return `true` nếu panel bị che ở chỗ con trỏ.
+bool ui_covered(const context &ctx);
+
 /// Để nút chuột trái lọt qua UI ở vùng `area` (pixel màn hình), dù vùng đó
 /// nằm trong một panel: game vẫn đọc được mouse_pressed(), mouse_held(),
 /// mouse_released() ở đó. Dùng cho thứ game tự vẽ và tự xử lý chuột bên trong

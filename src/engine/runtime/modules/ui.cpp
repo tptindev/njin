@@ -342,12 +342,18 @@ void frame_begin(context &ctx) {
   ui.current.clear();
   ui.last_panels = std::move(ui.panels);
   ui.panels.clear();
+  ui.last_panel_ids = std::move(ui.panel_ids);
+  ui.panel_ids.clear();
   ui.last_shown = std::move(ui.shown);
   ui.shown.clear();
   ui.last_scrolls = std::move(ui.scrolls);
   ui.scrolls.clear();
+  ui.last_scroll_panel = std::move(ui.scroll_panel);
+  ui.scroll_panel.clear();
   ui.last_through = std::move(ui.through);
   ui.through.clear();
+  ui.last_through_panel = std::move(ui.through_panel);
+  ui.through_panel.clear();
   ui.back_reported = false;
   const u64 prev_modal = ui.modal_last;
   ui.modal_last = ui.modal;
@@ -444,18 +450,31 @@ void frame_begin(context &ctx) {
     ui.accept = ui.accept_held = ui.back = false;
   }
 
-  ui.mouse_over = std::any_of(ui.last_panels.begin(), ui.last_panels.end(),
-                              [&](const rect &p) { return inside(mouse, p); });
+  // The panels overlap in the order they were drawn: under the mouse, the one
+  // drawn last is on top and takes it; the ones under it do not.
+  ui.mouse_top = 0;
+  for (size_t i = ui.last_panels.size(); i-- > 0;)
+    if (inside(mouse, ui.last_panels[i])) {
+      ui.mouse_top = ui.last_panel_ids[i];
+      break;
+    }
+  ui.mouse_over = ui.mouse_top != 0;
+  // Something in a panel takes the mouse only where that panel is on top; one
+  // marked outside any panel (0) takes it wherever it is.
+  const auto reaches = [&](u64 panel) { return panel == 0 || panel == ui.mouse_top; };
   // The wheel over a scroll area scrolls it, and the game does not see it.
   ui.wheel = 0.0f;
-  if (std::any_of(ui.last_scrolls.begin(), ui.last_scrolls.end(), [&](const rect &r) { return inside(mouse, r); })) {
-    ui.wheel = mouse_wheel(ctx);
-    mouse_wheel_consume(ctx);
-  }
+  for (size_t i = 0; i < ui.last_scrolls.size(); i++)
+    if (inside(mouse, ui.last_scrolls[i]) && reaches(ui.last_scroll_panel[i])) {
+      ui.wheel = mouse_wheel(ctx);
+      mouse_wheel_consume(ctx);
+      break;
+    }
   // Over a panel the left button is the UI's, but where a panel lets it through
   // (ui_let_through: a map drawn in it, dragged by the game).
-  const bool through = std::any_of(ui.last_through.begin(), ui.last_through.end(),
-                                   [&](const rect &r) { return inside(mouse, r); });
+  bool through = false;
+  for (size_t i = 0; i < ui.last_through.size(); i++)
+    through = through || (inside(mouse, ui.last_through[i]) && reaches(ui.last_through_panel[i]));
   if (ui.mouse_over && !through)
     mouse_consume(ctx, mouse_left);
   if (!active) {
@@ -593,7 +612,7 @@ interaction interact(context &ctx, const char *label, bool enabled, bool adjusta
   if (ui.panel_inert) // leaving: shown, not used
     return it;
   // In a scroll area, only where it shows.
-  const bool shown_here = !ui.in_scroll || inside(ui.mouse, ui.scroll_area);
+  const bool shown_here = (!ui.in_scroll || inside(ui.mouse, ui.scroll_area)) && !ui.panel_covered;
   if (!ui.panel_navigable) {
     // HUD panel: mouse only, never focused, not reachable by the keys.
     it.hover = ui.modal_last == 0 && inside(ui.mouse, it.area) && shown_here;
@@ -708,6 +727,7 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
   }
   ui.in_panel = true;
   ui.panel_id = hash_id(0, desc.id != nullptr ? desc.id : "panel");
+  ui.panel_covered = ui.mouse_top != 0 && ui.mouse_top != ui.panel_id;
   ui.panel_title = desc.title;
   ui.panel_background = desc.background;
   ui.panel_navigable = desc.navigable;
@@ -774,7 +794,7 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
     const f32 pad = sc(ui, ui.style.padding) * 0.5f;
     const rect box{{ui.panel.pos.x + width - pad - s, ui.panel.pos.y + pad}, {s, s}};
     const u64 id = hash_id(ui.panel_id, "##close");
-    const bool hover = ui.modal_last == 0 && !ui.panel_inert && inside(ui.mouse, box);
+    const bool hover = ui.modal_last == 0 && !ui.panel_inert && !ui.panel_covered && inside(ui.mouse, box);
     if (hover && ui.mouse_pressed)
       ui.pressed = id;
     if (ui.pressed == id && ui.mouse_released && hover) {
@@ -812,6 +832,7 @@ void ui_end(context &ctx) {
   ui.panel_done = bg;
   if (!ui.panel_inert) {
     ui.panels.push_back(bg);
+    ui.panel_ids.push_back(ui.panel_id);
     if (ui.panel_navigable)
       ui.navigable_now = true;
   }
@@ -1099,7 +1120,7 @@ void ui_scroll_begin(context &ctx, const char *id, f32 height) {
   ui.scroll_area = area;
   // The wheel, a widget's height a notch; never past what it held last frame.
   f32 &off = ui.scroll_offset[ui.scroll_id];
-  if (ui.modal_last == 0 && inside(ui.mouse, area))
+  if (ui.modal_last == 0 && !ui.panel_covered && inside(ui.mouse, area))
     off -= ui.wheel * sc(ui, ui.style.widget_height);
   const f32 content = ui.scroll_content[ui.scroll_id];
   off = clamp(off, 0.0f, std::max(0.0f, content - area.size.y));
@@ -1130,6 +1151,7 @@ void ui_scroll_end(context &ctx) {
   clip.kind = ui_cmd::clip_end;
   ui.cmds.push_back(std::move(clip));
   ui.scrolls.push_back(ui.scroll_area);
+  ui.scroll_panel.push_back(ui.panel_id);
   ui.in_scroll = false;
   ui.cursor = ui.scroll_area.pos.y + ui.scroll_area.size.y + sc(ui, ui.style.spacing);
   ui.last_rect = ui.scroll_area;
@@ -1336,9 +1358,20 @@ rect ui_last_rect(const context &ctx) { return ctx.ui.last_rect; }
 
 rect ui_panel_rect(const context &ctx) { return ctx.ui.panel_done; }
 
-void ui_let_through(context &ctx, rect area) { ctx.ui.through.push_back(area); }
+void ui_let_through(context &ctx, rect area) {
+  ctx.ui.through.push_back(area);
+  ctx.ui.through_panel.push_back(ctx.ui.in_panel ? ctx.ui.panel_id : 0);
+}
 
 bool ui_mouse_over(const context &ctx) { return ctx.ui.mouse_over; }
+
+bool ui_on_top(const context &ctx, const char *id) {
+  return id != nullptr && ctx.ui.mouse_top != 0 && ctx.ui.mouse_top == hash_id(0, id);
+}
+
+bool ui_pressed_on(const context &ctx, const char *id) { return ctx.ui.mouse_pressed && ui_on_top(ctx, id); }
+
+bool ui_covered(const context &ctx) { return ctx.ui.panel_covered; }
 
 // --- popup ---
 
