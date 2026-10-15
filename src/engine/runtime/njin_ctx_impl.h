@@ -23,6 +23,7 @@
 #include "njin_anim3d_impl.h"
 #include "njin_anim_impl.h"
 #include "njin_audio_impl.h"
+#include "njin_backdrop.h"
 #include "njin_cfg.h"
 #include "njin_ecs.h"
 #include "njin_font.h"
@@ -108,6 +109,8 @@ struct context {
   mutable font_store font;
   // Mutable too: the shape shader is loaded on first draw (njin_sdf2d.h).
   mutable sdf2d_state sdf2d;
+  // And the backdrop blur's shaders and targets (njin_backdrop.h).
+  mutable backdrop_state backdrop;
   audio_store audio;
   camera_post post;
   fx_state fx;

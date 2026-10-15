@@ -44,6 +44,26 @@ void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color);
 /// @param color Màu.
 void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickness, rgba color);
 
+/// Làm mờ những gì đã vẽ dưới `r` (kiểu kính mờ): nền của một popup, để nó
+/// tách khỏi những gì sau nó mà vẫn thấy lờ mờ. Phần đã vẽ trong `r` được thay
+/// bằng chính nó đã làm mờ, cắt theo góc bo `radius`; vẽ popup lên trên sau đó,
+/// nền hơi trong để lớp mờ hiện qua.
+///
+/// `r` tính theo màn hình, như UI (kể cả canvas của ui_canvas_set()). Không
+/// làm gì khi: `blur` <= 0, đang trong camera thế giới, đang vẽ vào render
+/// texture, hoặc máy vẽ bằng phần mềm. Không gọi giữa draw_offset_push() và
+/// draw_offset_pop(). Chữ đã xếp hàng để vẽ sắc nét ở độ phân giải cửa sổ
+/// (config::crisp_text) mà nằm dưới `r` thì bị giấu, vì nó chưa có trong ảnh để làm mờ.
+/// Mỗi lần gọi tốn một lần chép vùng đó và vài lượt vẽ ở nửa kích thước.
+/// ui_skin::blur làm việc này cho nền của widget và panel.
+/// @param ctx Context của engine.
+/// @param r Vùng cần làm mờ.
+/// @param blur Độ mờ: bán kính, pixel.
+/// @param radius Bán kính góc bo của vùng, pixel. 0 là góc vuông.
+/// @param tint Màu nhân vào lớp mờ; alpha nhỏ hơn 1 thì lớp mờ hòa với ảnh rõ dưới nó.
+void draw_backdrop_blur(const context &ctx, rect r, f32 blur, f32 radius = 0.0f,
+                        rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
+
 /// Bật/tắt vẽ hình bo góc bằng SDF (trường khoảng cách có dấu): mỗi hình là
 /// một quad, độ phủ của từng pixel tính trong shader, nên mép và góc bo được
 /// khử răng cưa mịn ở mọi tỉ lệ (độ phân giải ảo, UI mịn). Áp dụng cho

@@ -44,6 +44,24 @@ njin::draw_set_smooth_shapes(ctx, quality >= 1);
 Đang có shader khác (njin::shader_begin(), njin::draw_dissolve_begin()) thì hình vẫn vẽ kiểu cũ
 dưới shader đó.
 
+### Nền kính mờ cho popup
+
+njin::draw_backdrop_blur() làm mờ những gì đã vẽ dưới một vùng màn hình, cắt theo góc bo: popup
+vẽ lên trên với nền hơi trong thì tách khỏi những gì sau nó mà vẫn thấy lờ mờ (thành phố sau một
+bảng, đoạn chat sau một thẻ). Vùng được chép ra khỏi ảnh đang vẽ, làm mờ ở nửa kích thước rồi đặt
+lại, nên phải gọi sau khi đã vẽ những gì cần làm mờ và trước popup:
+
+```cpp
+// Đoạn chat sau thẻ việc: mờ đi và nhạt đi, thẻ vẽ sau, rõ.
+njin::draw_backdrop_blur(ctx, chat, 6.0f);
+njin::draw_rect(ctx, chat, njin::rgba{1.0f, 1.0f, 1.0f, 0.3f});
+```
+
+Panel và các widget của UI có sẵn cách này qua njin::ui_skin::blur: đặt cho `ui_style::panel`
+thì mọi panel làm mờ những gì sau nó, cùng góc bo với nền (màu nền nên có alpha dưới 1 để lớp mờ
+hiện qua). Hàm không làm gì trong camera thế giới, khi đang vẽ vào render texture, hay trên máy
+vẽ bằng phần mềm.
+
 ## Chữ
 
 njin::draw_text() vẽ chữ UTF-8 với góc trên trái tại vị trí cho trước, hỗ trợ xuống dòng

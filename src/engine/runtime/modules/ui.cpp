@@ -108,6 +108,14 @@ void set_uniform_quiet(shader_slot &slot, const char *name, const void *value,
 }
 
 void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
+  // What is under a flat skin blurred first (ui_skin::blur), cut to its corners.
+  if (c.look.blur > 0.0f && texture_slot_of(ctx.texture, c.look.texture) == nullptr) {
+    const f32 shorter = std::min(c.area.size.x, c.area.size.y);
+    const f32 round = c.look.radius > 0.0f && shorter > 0.0f
+                          ? std::min(1.0f, 2.0f * c.look.radius * scale / shorter)
+                          : c.look.roundness;
+    draw_backdrop_blur(ctx, c.area, c.look.blur * scale, round * shorter * 0.5f);
+  }
   shader_slot *sh = shader_slot_of(ctx.shader, c.shader);
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
@@ -224,6 +232,7 @@ void fade(std::vector<ui_cmd> &cmds, f32 a) {
   for (ui_cmd &c : cmds) {
     c.look.color.a *= a;
     c.look.outline.a *= a;
+    c.look.blur *= a;
     c.color.a *= a;
     c.track.a *= a;
   }

@@ -30,6 +30,10 @@ struct ui_skin {
   /// kích thước khác). Lớn hơn 0 thì thay `roundness`: góc tròn bằng nhau dù
   /// widget cao hay thấp, còn `roundness` tính theo cạnh ngắn của widget.
   f32 radius = 0.0f;
+  /// Làm mờ những gì dưới nó trước khi vẽ (draw_backdrop_blur()), bán kính
+  /// pixel (nhân `ui_style::scale`). 0 là tắt. Chỉ khi không có ảnh; muốn thấy
+  /// lớp mờ thì `color` nên hơi trong (alpha dưới 1).
+  f32 blur = 0.0f;
 };
 
 /// Diện mạo của một loại widget ở từng trạng thái.
