@@ -77,6 +77,18 @@ struct ui_style {
   ui_look knob{};   ///< Núm kéo của slider.
   ui_look toast{};  ///< Nền và màu chữ của toast (chỉ dùng `normal` và `text`).
 
+  /// Bề rộng thanh cuộn của vùng cuộn (ui_scroll_begin()), pixel (trước
+  /// `scale`), ở mép phải trong vùng. 0 (mặc định) là không có thanh, như
+  /// trước. Lớn hơn 0 thì widget trong vùng chừa bên phải chừng ấy cộng nửa
+  /// `spacing`, và thanh hiện khi vùng chứa nhiều hơn chiều cao của nó: kéo
+  /// con trượt để cuộn, bấm vào rãnh thì con trượt nhảy tới đó.
+  f32 scrollbar_width = 0.0f;
+  /// Con trượt của thanh cuộn: `normal`, `focused` (chuột trỏ vào),
+  /// `pressed` (đang kéo).
+  ui_look scrollbar{};
+  /// Rãnh của thanh cuộn, dưới con trượt. Alpha 0 thì không vẽ.
+  ui_skin scrollbar_rail{};
+
   /// Màu phủ làm tối nền phía sau popup.
   rgba dim{0.0f, 0.0f, 0.0f, 0.6f};
   /// Vạch màu bên trái toast theo loại: info, success, warning, error.
@@ -99,6 +111,23 @@ struct ui_style {
   /// ui_button() đang bị nhấn giữ được vẽ thu lại theo tỉ lệ này quanh tâm,
   /// như bị ấn lún xuống (ví dụ `0.96`). 1 là giữ nguyên cỡ.
   f32 press_scale = 1.0f;
+
+  /// Một tab của thanh tab (ui_tabs()) khi nó không mở: `normal`, `focused`
+  /// (chuột trỏ vào), `pressed` (đang bị nhấn giữ); `text` và `text_focused`
+  /// là màu chữ của nó. `disabled` không dùng. Mặt có alpha 0 thì không vẽ.
+  ui_look tab{};
+  /// Mặt của tab đang mở. Đổi tab thì nó trượt sang tab mới
+  /// (`tab_slide_seconds`). Thanh đang được chọn bằng phím thì nó lấy viền
+  /// của `tab.focused`.
+  ui_skin tab_open{};
+  rgba tab_open_text{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu chữ của tab đang mở.
+  /// Nền sau cả thanh tab. Alpha 0 là không vẽ; có nền thì các tab lùi vào trong 3 pixel.
+  ui_skin tab_bar{.color = {0.0f, 0.0f, 0.0f, 0.0f}};
+  /// Vạch dưới tab đang mở, trượt theo nó. Alpha 0 là không vẽ.
+  ui_skin tab_line{.color = {0.0f, 0.0f, 0.0f, 0.0f}};
+  f32 tab_line_height = 3.0f;    ///< Bề dày vạch đó, pixel (trước `scale`).
+  f32 tab_spacing = 4.0f;        ///< Khoảng giữa hai tab, pixel (trước `scale`).
+  f32 tab_slide_seconds = 0.15f; ///< Thời gian (giây, giờ thật) mặt tab mở trượt sang tab mới. 0 là nhảy ngay.
 };
 
 /// Giao diện mặc định: panel tối trong suốt, nút bo góc, màu nhấn xanh.
@@ -310,6 +339,54 @@ bool ui_choice(context &ctx, const char *label, i32 &index,
 bool ui_choice(context &ctx, const char *label, i32 &index,
                std::span<const std::string> options);
 
+/// Cách vẽ một thanh tab bằng ui_tabs().
+struct ui_tabs_desc {
+  f32 height = 0.0f;    ///< Chiều cao, pixel (trước `scale`). 0 là ui_style::widget_height.
+  f32 font_size = 0.0f; ///< Cỡ chữ, pixel (trước `scale`). 0 là ui_style::font_size.
+  /// Chừa một ô vuông cạnh này (pixel, trước `scale`) bên trái chữ của mỗi
+  /// tab, để game tự vẽ icon vào đó (lấy chỗ bằng ui_tabs_icon_rect()). 0 là
+  /// không chừa.
+  f32 icon_size = 0.0f;
+};
+
+/// Một thanh tab: các tab chia đều một dòng (hay một cột của ui_row()), đúng
+/// một tab mở. Bấm một tab để mở nó; khi thanh được chọn bằng phím hay tay
+/// cầm, trái/phải sang tab bên cạnh, Enter sang tab sau. Mặt tab mở
+/// (ui_style::tab_open) trượt sang tab mới. Chữ rộng hơn tab thì được thu nhỏ
+/// cho vừa. Dùng cho các trang của một bảng thay vì một hàng ui_button().
+/// @code
+/// static njin::i32 page = 0;
+/// njin::ui_tabs(ctx, "bank_tabs", page, {"Tổng quan", "Sao kê", "Tiết kiệm"});
+/// if (page == 0)
+///   overview(ctx);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param id Tên của thanh, khác nhau trong cùng panel (không vẽ ra).
+/// @param index Tab đang mở, được sửa khi đổi.
+/// @param labels Chữ của các tab; phần sau `##` không vẽ.
+/// @param desc Chiều cao, cỡ chữ, chỗ cho icon.
+/// @return `true` ở frame tab mở đổi.
+bool ui_tabs(context &ctx, const char *id, i32 &index, std::initializer_list<const char *> labels,
+             const ui_tabs_desc &desc = {});
+
+/// Một thanh tab với chữ là danh sách động (ví dụ một tab kèm số việc đang chờ).
+/// @param ctx Context của engine.
+/// @param id Tên của thanh.
+/// @param index Tab đang mở.
+/// @param labels Chữ của các tab.
+/// @param desc Chiều cao, cỡ chữ, chỗ cho icon.
+/// @return `true` ở frame tab mở đổi.
+bool ui_tabs(context &ctx, const char *id, i32 &index, std::span<const std::string> labels,
+             const ui_tabs_desc &desc = {});
+
+/// Ô icon của tab `tab` trong thanh tab vẽ gần nhất (ui_tabs_desc::icon_size),
+/// tọa độ màn hình như ui_last_rect(). Game vẽ icon vào đó, tô màu theo tab
+/// nào đang mở.
+/// @param ctx Context của engine.
+/// @param tab Thứ tự của tab.
+/// @return Ô icon; rỗng khi không có tab đó hay thanh không chừa icon.
+rect ui_tabs_icon_rect(const context &ctx, i32 tab);
+
 /// Một thanh tiến độ, không bấm được: máu, thời gian nạp.
 /// @param ctx Context của engine.
 /// @param value Tiến độ 0..1.
@@ -365,8 +442,27 @@ void ui_tooltip(context &ctx, const char *text);
 /// @param height Chiều cao, pixel (trước `scale`).
 void ui_scroll_begin(context &ctx, const char *id, f32 height);
 
+/// Như ui_scroll_begin(), nhưng vùng cao vừa đủ những gì nó chứa ở frame
+/// trước, không quá `max_height`: danh sách ngắn thì panel thấp, dài thì
+/// cuộn. Frame đầu tiên (chưa biết nó chứa gì) vùng cao `max_height`.
+/// @code
+/// // Cửa sổ thông tin không dài quá chỗ trống phía trên điện thoại.
+/// njin::ui_scroll_begin_fit(ctx, "body", phone_top - njin::ui_last_rect(ctx).pos.y);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param id Tên của vùng, duy nhất trong panel.
+/// @param max_height Chiều cao lớn nhất, pixel (trước `scale`).
+void ui_scroll_begin_fit(context &ctx, const char *id, f32 max_height);
+
 /// Kết thúc vùng cuộn bắt đầu bằng ui_scroll_begin(). @param ctx Context của engine.
 void ui_scroll_end(context &ctx);
+
+/// Cuộn vùng `id` xuống cuối, một lần: khung chat mở ra ở tin mới nhất, hay
+/// khi có tin mới. Gọi trong panel chứa vùng đó, trước hoặc trong lúc nó mở;
+/// người chơi vẫn cuộn lên được sau đó.
+/// @param ctx Context của engine.
+/// @param id Tên của vùng, như đã đưa cho ui_scroll_begin().
+void ui_scroll_to_end(context &ctx, const char *id);
 
 /// Mô tả một thanh tiến độ hình tròn, dùng với ui_progress_circle().
 /// Mọi cỡ tính bằng pixel trước `ui_style::scale`. Màu có alpha 0 thì lấy từ ui_style.

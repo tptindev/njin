@@ -14,6 +14,15 @@ To release: edit that header, add a section here, commit, then
   ASSETS folders in the release zip (Blender sources, backups); without it
   every file is copied, as before. (turf: an 800 MB assets folder sent to
   testers as a 213 MB zip.)
+- `ui_style::scrollbar_width` (default `0`, no bar, as before), `ui_style::scrollbar`
+  and `ui_style::scrollbar_rail`: a scroll area's bar at its right edge,
+  shown when it holds more than its height; its thumb dragged, its rail
+  clicked. The widgets in the area leave room for it. (turf: lists that
+  scroll show that they do.)
+- `ui_scroll_begin_fit(ctx, id, max_height)`: a scroll area as tall as what
+  it held last frame, at most `max_height`. (turf: the info window kept
+  clear of the phone.)
+
 - `config::decorated` (default `true`, as before): `false` makes the window
   without the system's title bar and border; it stays so on leaving
   fullscreen. (turf: the window without a title bar.)

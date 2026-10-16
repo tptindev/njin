@@ -254,7 +254,7 @@ void flush(context &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
       clip_end(ctx);
       break;
     case ui_cmd::text:
-      draw_text(ctx, c.str.c_str(), c.area.pos, c.size, c.color, ui.style.font);
+      draw_text(ctx, c.str.c_str(), c.area.pos, c.size, c.color, c.font_set ? c.font : ui.style.font);
       break;
     case ui_cmd::image:
       texture_draw_ex(ctx, c.texture,
@@ -484,7 +484,11 @@ void frame_begin(context &ctx) {
   bool through = false;
   for (size_t i = 0; i < ui.last_through.size(); i++)
     through = through || (inside(mouse, ui.last_through[i]) && reaches(ui.last_through_panel[i]));
-  if (ui.mouse_over && !through)
+  // A scroll bar's thumb held keeps it, the mouse off its panel or not (let
+  // go here too, in case its area is not drawn any more).
+  if (ui.scroll_drag != 0 && !ui.mouse_held && !ui.mouse_released)
+    ui.scroll_drag = 0;
+  if ((ui.mouse_over && !through) || ui.scroll_drag != 0)
     mouse_consume(ctx, mouse_left);
   if (!active) {
     // No panel takes the keys (none at all, or only HUD panels): they stay the game's.
@@ -532,18 +536,34 @@ void setup(context &ctx) { ecs_register(ctx, phase_pre_update, frame_begin, "fra
 f32 sc(const ui_state &ui, f32 v) { return v * ui.style.scale * ui.fit; }
 f32 font_px(const ui_state &ui) { return sc(ui, ui.style.font_size); }
 
+// The width of the next slot: a column of the current row, or the line.
+f32 slot_width(const ui_state &ui) {
+  const f32 pad = sc(ui, ui.style.padding);
+  const f32 gap = sc(ui, ui.style.spacing);
+  const f32 inner = ui.panel.size.x - 2.0f * pad - (ui.in_scroll ? ui.scroll_reserve : 0.0f);
+  if (ui.row_cols > 0)
+    return (inner - gap * (f32)(ui.row_cols - 1)) / (f32)ui.row_cols;
+  return inner;
+}
+
+// Where a row left unfinished ends: as tall as a widget, or its tallest.
+f32 row_end(const ui_state &ui) {
+  return ui.row_y + std::max(sc(ui, ui.style.widget_height), ui.row_h) + sc(ui, ui.style.spacing);
+}
+
 // Takes the next slot of height `h` in the panel (a column of the current
-// row, or a full-width line).
+// row, or a full-width line). A row is as tall as its tallest widget.
 rect place(ui_state &ui, f32 h) {
   const f32 pad = sc(ui, ui.style.padding);
   const f32 gap = sc(ui, ui.style.spacing);
-  const f32 inner = ui.panel.size.x - 2.0f * pad;
+  const f32 inner = slot_width(ui);
   if (ui.row_cols > 0) {
-    const f32 w = (inner - gap * (f32)(ui.row_cols - 1)) / (f32)ui.row_cols;
+    const f32 w = inner;
     const rect r{{ui.panel.pos.x + pad + (w + gap) * (f32)ui.row_index, ui.row_y}, {w, h}};
+    ui.row_h = std::max(ui.row_h, h);
     if (++ui.row_index >= ui.row_cols) {
       ui.row_cols = 0;
-      ui.cursor = ui.row_y + h + gap;
+      ui.cursor = ui.row_y + ui.row_h + gap;
     }
     ui.last_rect = r;
     return r;
@@ -565,11 +585,28 @@ void push_skin(ui_state &ui, const ui_look &look, widget_state s, rect area, f32
   ui.cmds.push_back(std::move(c));
 }
 
+// A scroll area's bar (ui_style::scrollbar_width): the rail down its right
+// edge, and the thumb on it, as tall as the part that shows, where `off` is.
+rect scroll_rail(const ui_state &ui, rect area) {
+  const f32 w = sc(ui, ui.style.scrollbar_width);
+  const f32 m = std::min(sc(ui, 2.0f), area.size.y * 0.25f);
+  return {{area.pos.x + area.size.x - w - m, area.pos.y + m}, {w, area.size.y - 2.0f * m}};
+}
+
+rect scroll_thumb(const ui_state &ui, rect area, f32 off, f32 content) {
+  const rect rail = scroll_rail(ui, area);
+  const f32 h = std::min(rail.size.y, std::max(2.0f * rail.size.x, rail.size.y * area.size.y / content));
+  const f32 most = std::max(1.0f, content - area.size.y);
+  return {{rail.pos.x, rail.pos.y + (rail.size.y - h) * clamp(off / most, 0.0f, 1.0f)}, {rail.size.x, h}};
+}
+
 void push_text(context &ctx, ui_state &ui, const std::string &text, vec2 pos, rgba color,
                f32 size = 0.0f) {
   ui_cmd c{};
   c.kind = ui_cmd::text;
   c.str = text;
+  c.font = ui.style.font;
+  c.font_set = true;
   c.size = size > 0.0f ? size : font_px(ui);
   c.area.pos = pos;
   c.color = color;
@@ -585,6 +622,23 @@ vec2 measure(const context &ctx, const ui_state &ui, const std::string &text, f3
 void text_center(context &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
   const vec2 m = measure(ctx, ui, text);
   push_text(ctx, ui, text, rect_center(area) - m * 0.5f, color);
+}
+
+// The size `text` is drawn at to fit `room` pixels: `size`, or smaller down
+// to `least` of it.
+f32 fit_size(const context &ctx, const ui_state &ui, const std::string &text, f32 size, f32 room,
+             f32 least = 0.6f) {
+  const f32 w = measure(ctx, ui, text, size).x;
+  if (w <= room || w <= 0.0f || room <= 0.0f)
+    return size;
+  return size * std::max(least, room / w);
+}
+
+// Text centred in `area`, made smaller when it is wider than the area.
+void text_center_fit(context &ctx, ui_state &ui, const std::string &text, rect area, rgba color) {
+  const f32 size = fit_size(ctx, ui, text, font_px(ui), area.size.x - 2.0f * sc(ui, 6.0f));
+  const vec2 m = measure(ctx, ui, text, size);
+  push_text(ctx, ui, text, rect_center(area) - m * 0.5f, color, size);
 }
 
 // Text at the left of `area`, vertically centred.
@@ -608,12 +662,13 @@ struct interaction {
   bool hover = false;
 };
 
-// Places a focusable widget and works out its state from the input.
-interaction interact(context &ctx, const char *label, bool enabled, bool adjustable) {
+// Places a focusable widget (`h` pixels high, 0 a widget's height) and works
+// out its state from the input.
+interaction interact(context &ctx, const char *label, bool enabled, bool adjustable, f32 h = 0.0f) {
   ui_state &ui = ctx.ui;
   interaction it;
   it.id = hash_id(ui.panel_id, label);
-  it.area = place(ui, sc(ui, ui.style.widget_height));
+  it.area = place(ui, h > 0.0f ? h : sc(ui, ui.style.widget_height));
   if (!enabled) {
     it.state = state_disabled;
     return it;
@@ -699,6 +754,17 @@ ui_style ui_default_style() {
   s.toast.normal = {.color = {0.09f, 0.10f, 0.14f, 0.95f}, .roundness = 0.25f,
                     .outline = {1.0f, 1.0f, 1.0f, 0.10f}, .outline_width = 1.0f};
   s.toast.text = {0.93f, 0.95f, 1.0f, 1.0f};
+  const ui_skin no_face{.color = {0.0f, 0.0f, 0.0f, 0.0f}, .roundness = 0.3f};
+  s.tab.normal = s.tab.disabled = no_face;
+  s.tab.focused = {.color = {1.0f, 1.0f, 1.0f, 0.06f}, .roundness = 0.3f, .outline = accent, .outline_width = 2.0f};
+  s.tab.pressed = {.color = {1.0f, 1.0f, 1.0f, 0.10f}, .roundness = 0.3f};
+  s.tab.text = {0.62f, 0.66f, 0.75f, 1.0f};
+  s.tab.text_focused = {0.90f, 0.92f, 0.97f, 1.0f};
+  s.tab.text_disabled = s.button.text_disabled;
+  s.tab_open = {.color = {0.16f, 0.18f, 0.24f, 1.0f}, .roundness = 0.3f};
+  s.tab_open_text = {1.0f, 1.0f, 1.0f, 1.0f};
+  s.tab_bar = {.color = {0.0f, 0.0f, 0.0f, 0.28f}, .roundness = 0.35f};
+  s.tab_line = {.color = accent, .roundness = 1.0f};
   return s;
 }
 
@@ -829,7 +895,7 @@ void ui_end(context &ctx) {
   }
   ui.in_panel = false;
   if (ui.row_cols > 0) { // a row left unfinished
-    ui.cursor = ui.row_y + sc(ui, ui.style.widget_height) + sc(ui, ui.style.spacing);
+    ui.cursor = row_end(ui);
     ui.row_cols = 0;
   }
   const f32 height = ui.cursor - sc(ui, ui.style.spacing) + sc(ui, ui.style.padding) - ui.panel.pos.y;
@@ -872,30 +938,54 @@ void ui_row(context &ctx, i32 columns) {
   ui.row_cols = columns;
   ui.row_index = 0;
   ui.row_y = ui.cursor;
+  ui.row_h = 0.0f;
 }
+
+namespace {
+// A line of text (ui_label, ui_text) in the next slot, `size` pixels, placed
+// across it by `align` (0 left, 1 right). In a row it stands as tall as the
+// widgets beside it, its text in the middle: level with a button's. Wider
+// than its slot, it is wrapped there, line under line, the slot (and its
+// row) as tall as the lines.
+void text_slot(context &ctx, ui_state &ui, const char *text, f32 size, rgba color, f32 align) {
+  const bool in_row = ui.row_cols > 0;
+  const f32 room = slot_width(ui);
+  const vec2 m = measure(ctx, ui, text, size);
+  std::vector<std::string> lines;
+  if (m.x > room && room > 0.0f)
+    lines = text_wrap(ctx, text, size, room, ui.style.font);
+  if (lines.size() <= 1) {
+    const rect r = place(ui, in_row ? sc(ui, ui.style.widget_height) : m.y);
+    const f32 y = in_row ? rect_center(r).y - m.y * 0.5f : r.pos.y;
+    push_text(ctx, ui, text, {r.pos.x + (r.size.x - m.x) * align, y}, color, size);
+    return;
+  }
+  const f32 line_h = measure(ctx, ui, lines[0], size).y * 1.1f;
+  const f32 tall = line_h * (f32)lines.size();
+  const rect r = place(ui, in_row ? std::max(sc(ui, ui.style.widget_height), tall) : tall);
+  f32 y = r.pos.y + (r.size.y - tall) * 0.5f;
+  for (const std::string &line : lines) {
+    const f32 w = measure(ctx, ui, line, size).x;
+    push_text(ctx, ui, line, {r.pos.x + std::max(0.0f, r.size.x - w) * align, y}, color, size);
+    y += line_h;
+  }
+}
+} // namespace
 
 void ui_label(context &ctx, const char *text) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_label");
   if (text == nullptr)
     return;
-  const vec2 m = measure(ctx, ui, text);
-  // In a row it stands as tall as the widgets beside it, its text in the
-  // middle: level with a button's, and the row as high as any of them.
-  if (ui.row_cols > 0) {
-    const rect r = place(ui, sc(ui, ui.style.widget_height));
-    push_text(ctx, ui, text, {r.pos.x, rect_center(r).y - m.y * 0.5f}, ui.style.label.text);
-    return;
-  }
-  const rect r = place(ui, m.y);
-  push_text(ctx, ui, text, r.pos, ui.style.label.text);
+  text_slot(ctx, ui, text, font_px(ui), ui.style.label.text, 0.0f);
 }
 
 void ui_space(context &ctx, f32 height) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_space");
   const f32 pad = sc(ui, ui.style.padding);
-  ui.last_rect = rect{{ui.panel.pos.x + pad, ui.cursor}, {ui.panel.size.x - 2.0f * pad, sc(ui, height)}};
+  ui.last_rect = rect{{ui.panel.pos.x + pad, ui.cursor},
+                      {ui.panel.size.x - 2.0f * pad - (ui.in_scroll ? ui.scroll_reserve : 0.0f), sc(ui, height)}};
   ui.cursor += sc(ui, height);
 }
 
@@ -943,10 +1033,10 @@ bool ui_button(context &ctx, const char *label, bool enabled, bool selected) {
     c.shader = ui.style.button.shader;
     c.state = hover < 0.5f ? (f32)state_normal : (f32)state_focused;
     ui.cmds.push_back(std::move(c));
-    text_center(ctx, ui, shown(label), area, lerp(ui.style.button.text, ui.style.button.text_focused, hover));
+    text_center_fit(ctx, ui, shown(label), area, lerp(ui.style.button.text, ui.style.button.text_focused, hover));
   } else {
     push_skin(ui, ui.style.button, face, area);
-    text_center(ctx, ui, shown(label), area, text_for(ui.style.button, face));
+    text_center_fit(ctx, ui, shown(label), area, text_for(ui.style.button, face));
   }
   if (it.clicked)
     play(ctx, ui.style.sound_accept);
@@ -1076,6 +1166,130 @@ bool ui_choice(context &ctx, const char *label, i32 &index,
                         [&](i32 i) { return options[(size_t)i].c_str(); });
 }
 
+namespace {
+bool visible(const ui_skin &s) {
+  return s.texture.id != 0 || s.color.a > 0.0f || (s.outline.a > 0.0f && s.outline_width > 0.0f);
+}
+
+void push_face(ui_state &ui, const ui_skin &skin, shader_handle shader, widget_state s, rect area) {
+  ui_cmd c{};
+  c.kind = ui_cmd::skin;
+  c.area = area;
+  c.look = skin;
+  c.shader = shader;
+  c.state = (f32)s;
+  ui.cmds.push_back(std::move(c));
+}
+
+template <typename F>
+bool ui_tabs_impl(context &ctx, const char *id, i32 &index, i32 count, F &&label_of, const ui_tabs_desc &desc) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_tabs");
+  ui.tab_icons.clear();
+  if (id == nullptr || count <= 0)
+    return false;
+  const ui_style &st = ui.style;
+  const interaction it =
+      interact(ctx, id, true, true, sc(ui, desc.height > 0.0f ? desc.height : st.widget_height));
+  // The tabs, side by side in the bar (inside its ground, when it has one).
+  const f32 inset = visible(st.tab_bar) ? sc(ui, 3.0f) : 0.0f;
+  const rect inner{it.area.pos + vec2{inset, inset}, it.area.size - vec2{2.0f * inset, 2.0f * inset}};
+  const f32 gap = sc(ui, st.tab_spacing);
+  const f32 w = (inner.size.x - gap * (f32)(count - 1)) / (f32)count;
+  const auto tab_at = [&](f32 k) { return rect{{inner.pos.x + (w + gap) * k, inner.pos.y}, {w, inner.size.y}}; };
+  i32 under = -1; // the tab under the mouse
+  if (it.hover && w > 0.0f) {
+    const f32 x = ui.mouse.x - inner.pos.x;
+    const i32 k = (i32)std::floor(x / (w + gap));
+    if (k >= 0 && k < count && x - (f32)k * (w + gap) <= w)
+      under = k;
+  }
+  // Picked: the tab clicked; with the keys, the one beside, or the next.
+  const i32 was = std::clamp(index, 0, count - 1);
+  i32 open = was;
+  if (ui.focus == it.id && ui.adjust != 0)
+    open = std::clamp(open + ui.adjust, 0, count - 1);
+  else if (it.clicked) {
+    const bool mouse_click = ui.pressed == it.id && ui.mouse_released;
+    if (!mouse_click)
+      open = (open + 1) % count;
+    else if (under >= 0)
+      open = under;
+  }
+  const bool changed = open != was;
+  if (changed) {
+    index = open;
+    play(ctx, st.sound_accept);
+  }
+  // The open face slides to the open tab.
+  f32 &at = ui.tab_slide.try_emplace(it.id, (f32)open).first->second;
+  if (st.tab_slide_seconds > 0.0f) {
+    at += ((f32)open - at) * (1.0f - std::exp(-ctx.time.dt_real * 5.0f / st.tab_slide_seconds));
+    if (std::abs((f32)open - at) < 0.002f)
+      at = (f32)open;
+  } else {
+    at = (f32)open;
+  }
+  if (visible(st.tab_bar))
+    push_face(ui, st.tab_bar, st.tab.shader, state_normal, it.area);
+  const bool held = ui.pressed == it.id && ui.mouse_held;
+  for (i32 k = 0; k < count; ++k) {
+    const widget_state s = k == under ? (held ? state_pressed : state_focused) : state_normal;
+    if (k != open && visible(skin_for(st.tab, s)))
+      push_skin(ui, st.tab, s, tab_at((f32)k));
+  }
+  const rect face = tab_at(at);
+  ui_skin open_skin = st.tab_open;
+  if (ui.focus == it.id && !it.hover && st.tab.focused.outline.a > 0.0f) { // chosen with the keys
+    open_skin.outline = st.tab.focused.outline;
+    open_skin.outline_width = st.tab.focused.outline_width;
+  }
+  if (visible(open_skin))
+    push_face(ui, open_skin, st.tab.shader, state_pressed, face);
+  if (visible(st.tab_line)) {
+    const f32 lh = sc(ui, st.tab_line_height);
+    push_face(ui, st.tab_line, st.tab.shader, state_pressed,
+              {{face.pos.x + face.size.x * 0.15f, face.pos.y + face.size.y - lh}, {face.size.x * 0.7f, lh}});
+  }
+  // The labels (and the icons' room), each centred in its tab, made smaller
+  // when they would not fit.
+  const f32 base = desc.font_size > 0.0f ? sc(ui, desc.font_size) : font_px(ui);
+  const f32 icon = desc.icon_size > 0.0f ? sc(ui, desc.icon_size) : 0.0f;
+  const f32 room = w - 2.0f * sc(ui, 6.0f);
+  for (i32 k = 0; k < count; ++k) {
+    const rect r = tab_at((f32)k);
+    const std::string label = shown(label_of(k));
+    const f32 between = icon > 0.0f && !label.empty() ? sc(ui, 6.0f) : 0.0f;
+    const f32 size = fit_size(ctx, ui, label, base, room - icon - between, 0.55f);
+    const vec2 m = label.empty() ? vec2{} : measure(ctx, ui, label, size);
+    const f32 x = r.pos.x + (r.size.x - (icon + between + m.x)) * 0.5f;
+    const f32 mid = rect_center(r).y;
+    if (icon > 0.0f)
+      ui.tab_icons.push_back({{x, mid - icon * 0.5f}, {icon, icon}});
+    if (!label.empty()) {
+      const rgba c = k == open ? st.tab_open_text : k == under ? st.tab.text_focused : st.tab.text;
+      push_text(ctx, ui, label, {x + icon + between, mid - m.y * 0.5f}, c, size);
+    }
+  }
+  return changed;
+}
+} // namespace
+
+bool ui_tabs(context &ctx, const char *id, i32 &index, std::initializer_list<const char *> labels,
+             const ui_tabs_desc &desc) {
+  return ui_tabs_impl(ctx, id, index, (i32)labels.size(), [&](i32 i) { return *(labels.begin() + i); }, desc);
+}
+
+bool ui_tabs(context &ctx, const char *id, i32 &index, std::span<const std::string> labels,
+             const ui_tabs_desc &desc) {
+  return ui_tabs_impl(ctx, id, index, (i32)labels.size(), [&](i32 i) { return labels[(size_t)i].c_str(); }, desc);
+}
+
+rect ui_tabs_icon_rect(const context &ctx, i32 tab) {
+  const std::vector<rect> &r = ctx.ui.tab_icons;
+  return tab >= 0 && tab < (i32)r.size() ? r[(size_t)tab] : rect{};
+}
+
 void ui_progress(context &ctx, f32 value, const char *text, rgba fill) {
   ui_state &ui = ctx.ui;
   require_panel(ui, "ui_progress");
@@ -1097,13 +1311,8 @@ void ui_text(context &ctx, const char *text, const ui_text_desc &desc) {
   if (text == nullptr)
     return;
   const f32 size = desc.size > 0.0f ? sc(ui, desc.size) : font_px(ui);
-  const vec2 m = measure(ctx, ui, text, size);
   const rgba color = desc.color.a > 0.0f ? desc.color : ui.style.label.text;
-  // In a row as tall as the widgets beside it, its text in the middle (as ui_label).
-  const bool in_row = ui.row_cols > 0;
-  const rect r = place(ui, in_row ? sc(ui, ui.style.widget_height) : m.y);
-  const f32 y = in_row ? rect_center(r).y - m.y * 0.5f : r.pos.y;
-  push_text(ctx, ui, text, {r.pos.x + (r.size.x - m.x) * clamp(desc.align, 0.0f, 1.0f), y}, color, size);
+  text_slot(ctx, ui, text, size, color, clamp(desc.align, 0.0f, 1.0f));
 }
 
 void ui_tooltip(context &ctx, const char *text) {
@@ -1119,7 +1328,7 @@ void ui_scroll_begin(context &ctx, const char *id, f32 height) {
     ui_scroll_end(ctx);
   }
   if (ui.row_cols > 0) { // a row left unfinished
-    ui.cursor = ui.row_y + sc(ui, ui.style.widget_height) + sc(ui, ui.style.spacing);
+    ui.cursor = row_end(ui);
     ui.row_cols = 0;
   }
   const f32 pad = sc(ui, ui.style.padding);
@@ -1132,6 +1341,34 @@ void ui_scroll_begin(context &ctx, const char *id, f32 height) {
   if (ui.modal_last == 0 && !ui.panel_covered && inside(ui.mouse, area))
     off -= ui.wheel * sc(ui, ui.style.widget_height);
   const f32 content = ui.scroll_content[ui.scroll_id];
+  if (ui.scroll_to_end.count(ui.scroll_id) != 0)
+    off = content;
+  // The bar: its thumb dragged, or the rail pressed (the thumb jumps there
+  // and is held by its middle).
+  const f32 bar_w = sc(ui, ui.style.scrollbar_width);
+  ui.scroll_reserve = bar_w > 0.0f ? bar_w + sc(ui, ui.style.spacing) * 0.5f : 0.0f;
+  ui.scroll_hover = false;
+  if (bar_w > 0.0f && content > area.size.y) {
+    const rect rail = scroll_rail(ui, area);
+    const rect thumb = scroll_thumb(ui, area, off, content);
+    const f32 travel = rail.size.y - thumb.size.y;
+    const f32 most = content - area.size.y;
+    const bool free = ui.modal_last == 0 && !ui.panel_covered && !ui.panel_inert;
+    ui.scroll_hover = free && (ui.scroll_drag == ui.scroll_id || inside(ui.mouse, thumb));
+    if (free && ui.mouse_pressed && inside(ui.mouse, rail)) {
+      ui.scroll_drag = ui.scroll_id;
+      ui.scroll_grab = inside(ui.mouse, thumb) ? ui.mouse.y - thumb.pos.y : thumb.size.y * 0.5f;
+      ui.pressed = ui.scroll_id;
+    }
+    if (ui.scroll_drag == ui.scroll_id) {
+      if (ui.mouse_held || ui.mouse_pressed) {
+        if (travel > 0.0f)
+          off = (ui.mouse.y - ui.scroll_grab - rail.pos.y) / travel * most;
+      } else {
+        ui.scroll_drag = 0;
+      }
+    }
+  }
   off = clamp(off, 0.0f, std::max(0.0f, content - area.size.y));
   push_skin(ui, ui.style.track, state_normal, area);
   ui.cmds.back().look.roundness = 0.0f;
@@ -1144,6 +1381,18 @@ void ui_scroll_begin(context &ctx, const char *id, f32 height) {
   ui.cursor = ui.scroll_from - off;
 }
 
+void ui_scroll_begin_fit(context &ctx, const char *id, f32 max_height) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_scroll_begin_fit");
+  // What it held last frame, from its top's half gap to its last widget's
+  // gap, back in pixels before the scale.
+  f32 height = max_height;
+  const auto it = ui.scroll_content.find(hash_id(ui.panel_id, id != nullptr ? id : "scroll"));
+  if (it != ui.scroll_content.end() && sc(ui, 1.0f) > 0.0f)
+    height = std::min(max_height, (it->second + sc(ui, ui.style.spacing) * 0.5f) / sc(ui, 1.0f));
+  ui_scroll_begin(ctx, id, std::max(0.0f, height));
+}
+
 void ui_scroll_end(context &ctx) {
   ui_state &ui = ctx.ui;
   if (!ui.in_scroll) {
@@ -1151,19 +1400,46 @@ void ui_scroll_end(context &ctx) {
     return;
   }
   if (ui.row_cols > 0) {
-    ui.cursor = ui.row_y + sc(ui, ui.style.widget_height) + sc(ui, ui.style.spacing);
+    ui.cursor = row_end(ui);
     ui.row_cols = 0;
   }
-  const f32 off = ui.scroll_offset[ui.scroll_id];
-  ui.scroll_content[ui.scroll_id] = ui.cursor + off - ui.scroll_from;
+  f32 &off = ui.scroll_offset[ui.scroll_id];
+  const f32 content = ui.cursor + off - ui.scroll_from;
+  ui.scroll_content[ui.scroll_id] = content;
+  // Asked to the end: laid out this frame on last frame's height, so it lands
+  // on what it holds now next frame.
+  if (ui.scroll_to_end.erase(ui.scroll_id) != 0)
+    off = std::max(0.0f, content - ui.scroll_area.size.y);
   ui_cmd clip{};
   clip.kind = ui_cmd::clip_end;
   ui.cmds.push_back(std::move(clip));
+  // The bar over what it holds, when it holds more than shows.
+  if (ui.style.scrollbar_width > 0.0f && content > ui.scroll_area.size.y) {
+    const rect rail = scroll_rail(ui, ui.scroll_area);
+    if (ui.style.scrollbar_rail.color.a > 0.0f) {
+      ui_cmd c{};
+      c.kind = ui_cmd::skin;
+      c.area = rail;
+      c.look = ui.style.scrollbar_rail;
+      ui.cmds.push_back(std::move(c));
+    }
+    const widget_state st = ui.scroll_drag == ui.scroll_id ? state_pressed
+                            : ui.scroll_hover              ? state_focused
+                                                           : state_normal;
+    push_skin(ui, ui.style.scrollbar, st, scroll_thumb(ui, ui.scroll_area, off, content));
+  }
+  ui.scroll_reserve = 0.0f;
   ui.scrolls.push_back(ui.scroll_area);
   ui.scroll_panel.push_back(ui.panel_id);
   ui.in_scroll = false;
   ui.cursor = ui.scroll_area.pos.y + ui.scroll_area.size.y + sc(ui, ui.style.spacing);
   ui.last_rect = ui.scroll_area;
+}
+
+void ui_scroll_to_end(context &ctx, const char *id) {
+  ui_state &ui = ctx.ui;
+  require_panel(ui, "ui_scroll_to_end");
+  ui.scroll_to_end.insert(hash_id(ui.panel_id, id != nullptr ? id : "scroll"));
 }
 
 void ui_progress_circle(context &ctx, const ui_circle_desc &d) {

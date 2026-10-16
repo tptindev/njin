@@ -4,6 +4,7 @@
 #include "njin_ui.h"
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace njin {
@@ -43,6 +44,10 @@ struct ui_cmd {
   std::string str;
   f32 size = 0.0f;
   rgba color{};
+  // text: the font it was measured with (the style's when it was pushed);
+  // not set, the style's when it is drawn.
+  font_handle font{};
+  bool font_set = false;
   texture_handle texture{};
   rect source{};
   vec2 scale{1.0f, 1.0f}; // image: target size over source size
@@ -84,6 +89,7 @@ struct ui_state {
   rect last_rect{};  // slot of the widget placed last (ui_last_rect)
   i32 row_cols = 0, row_index = 0;
   f32 row_y = 0.0f;
+  f32 row_h = 0.0f; // the tallest widget of the row so far: the row is as tall as it
   std::vector<ui_cmd> cmds;
   const char *panel_title = nullptr;
   bool panel_background = true;
@@ -101,6 +107,11 @@ struct ui_state {
   // ui_style::hover_seconds: how far each button is into its hover face, 0..1;
   // a button leaves the map when it is back at 0.
   std::unordered_map<u64, f32> hover_amount;
+  // ui_tabs(): where each bar's open face is, as a tab index that slides to
+  // the open one (ui_style::tab_slide_seconds); the icon boxes of the bar
+  // drawn last (ui_tabs_icon_rect).
+  std::unordered_map<u64, f32> tab_slide;
+  std::vector<rect> tab_icons;
   // Whether a panel that takes the navigation keys was drawn this frame / last
   // frame. HUD panels (ui_panel_desc::navigable false) only take the mouse.
   bool navigable_now = false, navigable_last = false;
@@ -128,8 +139,16 @@ struct ui_state {
   rect scroll_area{};
   f32 scroll_from = 0.0f; // the y its content starts at, before the offset
   std::unordered_map<u64, f32> scroll_offset, scroll_content;
+  std::unordered_set<u64> scroll_to_end; // ui_scroll_to_end(): taken to the end when next laid out
   std::vector<rect> scrolls, last_scrolls;
   std::vector<u64> scroll_panel, last_scroll_panel; // the panel each scroll area is in
+  // The scroll bar (ui_style::scrollbar_width): what the content leaves free
+  // on the right of the area open; the area whose thumb is held, and where on
+  // the thumb it was taken (from its top); the open area's thumb hovered.
+  f32 scroll_reserve = 0.0f;
+  u64 scroll_drag = 0;
+  f32 scroll_grab = 0.0f;
+  bool scroll_hover = false;
   // ui_let_through(): where the mouse's left button is left to the game, panels or not.
   std::vector<rect> through, last_through;
   std::vector<u64> through_panel, last_through_panel; // the panel each was let through in, 0 outside one

@@ -14,16 +14,19 @@ Menu có nhiều widget hoặc hay đổi thì dựng bằng kéo thả trong nj
 | Hàm | Là gì | Trả về `true` khi |
 |---|---|---|
 | njin::ui_begin(), njin::ui_end() | Một panel: nền, tiêu đề, xếp widget từ trên xuống | |
-| njin::ui_button() | Nút bấm, có thể tắt (`enabled = false`); `selected = true` giữ mặt "đang nhấn" cho tab đang mở, công cụ đang bật | Được bấm |
+| njin::ui_button() | Nút bấm, có thể tắt (`enabled = false`); `selected = true` giữ mặt "đang nhấn" cho công cụ đang bật. Nhãn rộng hơn nút thì chữ được thu nhỏ cho vừa | Được bấm |
 | njin::ui_toggle() | Công tắc bật/tắt | Giá trị đổi |
 | njin::ui_slider() | Thanh trượt, hiện số hoặc phần trăm | Giá trị đổi |
 | njin::ui_choice() | Chọn một trong nhiều mục bằng trái/phải | Lựa chọn đổi |
+| njin::ui_tabs() | Thanh tab: các trang của một bảng, đúng một tab mở (xem @ref ui_tab_bar "Thanh tab") | Tab mở đổi |
 | njin::ui_progress() | Thanh tiến độ: máu, thời gian nạp. Tham số `fill` đổi màu phần đầy (máu đỏ khi thấp) | |
 | njin::ui_progress_circle() | Vòng tiến độ: hồi chiêu, nạp đạn. Tùy chỉnh độ dày, màu, góc bắt đầu, chiều chạy, đầu bo tròn, chữ giữa | |
-| njin::ui_label(), njin::ui_image(), njin::ui_space() | Chữ, ảnh, khoảng trống | |
+| njin::ui_label(), njin::ui_image(), njin::ui_space() | Chữ (dài hơn chỗ của nó thì tự xuống dòng), ảnh, khoảng trống | |
 | njin::ui_text() | Chữ có màu, cỡ, căn lề riêng (njin::ui_text_desc): số tiền xanh hay đỏ, giá trị căn phải | |
 | njin::ui_tooltip() | Chú thích nhỏ cạnh con trỏ, vẽ đè lên mọi panel; gọi mỗi frame còn muốn hiện | |
 | njin::ui_scroll_begin(), njin::ui_scroll_end() | Vùng cuộn cao cố định trong panel: danh sách dài | |
+| njin::ui_scroll_begin_fit() | Vùng cuộn cao vừa đủ những gì nó chứa, không quá một chiều cao: panel không dài quá chỗ trống | |
+| njin::ui_scroll_to_end() | Cuộn một vùng xuống cuối một lần: khung chat mở ở tin mới nhất | |
 | njin::ui_last_rect() | Khung của widget vừa đặt, để vẽ thêm lên nó (sau njin::ui_end()) | |
 | njin::ui_row() | Xếp vài widget tiếp theo thành một hàng ngang | |
 | njin::ui_input() | Ô nhập chữ một dòng: tìm kiếm, đặt tên | Chữ đổi |
@@ -60,9 +63,37 @@ if (show_shop) {
 ```
 
 Vùng cuộn nhận bánh xe chuột khi con trỏ nằm trên nó (game không thấy cú cuộn đó), nhớ đã cuộn tới
-đâu theo `id`, và tự cuộn tới widget được chọn bằng phím hay tay cầm. Tooltip gọi được từ bất cứ đâu,
+đâu theo `id`, và tự cuộn tới widget được chọn bằng phím hay tay cầm. Đặt `ui_style::scrollbar_width`
+lớn hơn 0 thì vùng cuộn có thanh cuộn ở mép phải (con trượt `ui_style::scrollbar`, rãnh
+`ui_style::scrollbar_rail`), hiện khi nó chứa nhiều hơn chiều cao của nó: kéo con trượt để cuộn, bấm
+vào rãnh thì nhảy tới đó; widget trong vùng chừa chỗ cho thanh. Mặc định 0: không có thanh, như
+trước. Tooltip gọi được từ bất cứ đâu,
 không cần ui_begin: thường là ngay sau widget, khi njin::point_in_rect(njin::mouse_pos(ctx),
 njin::ui_last_rect(ctx)).
+
+Chữ của njin::ui_label() và njin::ui_text() rộng hơn chỗ của nó (cả dòng, hay một cột của
+njin::ui_row()) thì tự xuống dòng ở dấu cách, các dòng xếp dưới nhau; một hàng cao bằng widget cao
+nhất trong nó, nên cột chữ hai dòng không đè lên hàng sau.
+
+### Thanh tab {#ui_tab_bar}
+
+Một bảng có nhiều trang (tổng quan, sao kê, tiết kiệm) dùng njin::ui_tabs() thay vì một hàng
+njin::ui_button(): các tab chia đều một dòng, bấm một tab để mở nó, mặt tab đang mở trượt sang
+tab mới. Khi thanh được chọn bằng phím hay tay cầm, trái/phải sang tab bên cạnh. Chữ dài hơn tab
+thì được thu nhỏ cho vừa.
+
+```cpp
+static njin::i32 page = 0;
+njin::ui_tabs(ctx, "bank_tabs", page, {"Tổng quan", "Sao kê", "Tiết kiệm"});
+if (page == 0)
+  overview(ctx);
+```
+
+njin::ui_tabs_desc đổi chiều cao và cỡ chữ, và `icon_size` chừa một ô vuông bên trái chữ mỗi tab
+để game tự vẽ icon vào đó: lấy ô của tab thứ `k` bằng njin::ui_tabs_icon_rect() ngay sau
+njin::ui_tabs(). Diện mạo nằm trong njin::ui_style: `tab` (tab đóng: thường, chuột trỏ vào, đang
+nhấn), `tab_open` và `tab_open_text` (tab mở), `tab_bar` (nền sau cả thanh), `tab_line` (vạch dưới
+tab mở), `tab_spacing`, `tab_slide_seconds`.
 
 ### Vòng tiến độ
 
