@@ -183,7 +183,7 @@ if(WIN32)
 endif()
 
 # njin_package(<target> [NAME <shown name>] [VERSION <x.y.z>] [ICON <file.ico>]
-#              [ASSETS <dir>...] [FILES <file>...])
+#              [ASSETS <dir>...] [EXCLUDE <pattern>...] [FILES <file>...])
 #
 # Makes <target> ready to hand to players:
 # - on Windows, embeds the icon (njin_icon(): ICON, or the njin icon without
@@ -191,7 +191,11 @@ endif()
 #   without a console window in every configuration but Debug;
 # - adds a target <target>_dist that gathers the executable, the ASSETS
 #   folders and the extra FILES (readme, licence) into build/dist/<target>/,
-#   then zips that folder to build/dist/<target>-<VERSION>.zip.
+#   then zips that folder to build/dist/<target>-<VERSION>.zip;
+# - EXCLUDE leaves out of the ASSETS folders what only making the game needs
+#   (source files, backups): paths relative to each ASSETS folder, with * ** ?
+#   globs; a folder leaves out everything under it, a name without / matches
+#   at any depth (njin_copy_filtered.cmake). Without it every file is copied.
 #
 #   cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build-release --target my_game_dist
@@ -214,7 +218,7 @@ function(njin_hide_console target)
 endfunction()
 
 function(njin_package target)
-  cmake_parse_arguments(PKG "" "NAME;VERSION;ICON" "ASSETS;FILES" ${ARGN})
+  cmake_parse_arguments(PKG "" "NAME;VERSION;ICON" "ASSETS;FILES;EXCLUDE" ${ARGN})
   if(NOT TARGET ${target})
     message(FATAL_ERROR "njin_package: '${target}' is not a target")
   endif()
@@ -276,7 +280,13 @@ function(njin_package target)
     cmake_path(ABSOLUTE_PATH dir BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
                NORMALIZE OUTPUT_VARIABLE source)
     cmake_path(GET source FILENAME name)
-    list(APPEND commands COMMAND ${CMAKE_COMMAND} -E copy_directory "${source}" "${dist}/${name}")
+    if(PKG_EXCLUDE)
+      list(JOIN PKG_EXCLUDE "|" exclude)
+      list(APPEND commands COMMAND ${CMAKE_COMMAND} "-DSRC=${source}" "-DDST=${dist}/${name}"
+        "-DEXCLUDE=${exclude}" -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/njin_copy_filtered.cmake")
+    else()
+      list(APPEND commands COMMAND ${CMAKE_COMMAND} -E copy_directory "${source}" "${dist}/${name}")
+    endif()
   endforeach()
   foreach(f IN LISTS PKG_FILES)
     cmake_path(ABSOLUTE_PATH f BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

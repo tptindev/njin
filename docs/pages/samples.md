@@ -92,6 +92,7 @@ njin_package(my_game
   VERSION 1.0.0
   ICON icon.ico                     # icon của exe và thanh tác vụ
   ASSETS assets
+  EXCLUDE blender *.blend *.md      # không đưa vào bản phát hành
   FILES README.txt LICENSE)
 @endcode
 
@@ -104,6 +105,12 @@ Kết quả là `build-release/dist/my_game-1.0.0.zip` chứa exe, thư mục `a
 Windows, exe được gắn icon và thông tin phiên bản, và **không có cửa sổ console** trừ bản Debug (cần
 console để đọc log). Game tìm `assets/...` cạnh exe dù chạy từ thư mục nào. Game chưa đóng gói mà
 vẫn muốn bỏ cửa sổ console thì gọi riêng `njin_hide_console(my_game)`.
+
+`EXCLUDE` (không bắt buộc) bỏ khỏi thư mục assets trong bản đóng gói những thứ chỉ cần lúc làm game: file
+nguồn Blender, bản sao lưu, ảnh duyệt mẫu. Mỗi mẫu là một đường dẫn tính từ thư mục assets, dùng được `*`
+(mọi ký tự trừ `/`), `**` (mọi ký tự) và `?`. Mẫu chỉ một thư mục thì bỏ cả thư mục đó; mẫu không có `/`
+khớp tên ở mọi cấp (`*.md` bỏ mọi file `.md`). Không có `EXCLUDE` thì chép hết như trước. Chạy thử bản trong
+`dist/<target>/` một lần trước khi gửi, để chắc là không bỏ mất file game cần.
 
 Nhớ tắt cổng debug trong bản phát hành: `debug_server_start()` chỉ trong `#ifndef NDEBUG`.
 

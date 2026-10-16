@@ -10,6 +10,10 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- `njin_package(... EXCLUDE <pattern>...)`: paths and globs left out of the
+  ASSETS folders in the release zip (Blender sources, backups); without it
+  every file is copied, as before. (turf: an 800 MB assets folder sent to
+  testers as a 213 MB zip.)
 - `config::decorated` (default `true`, as before): `false` makes the window
   without the system's title bar and border; it stays so on leaving
   fullscreen. (turf: the window without a title bar.)
