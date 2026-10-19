@@ -14,7 +14,7 @@ namespace inspector {
 using njin::json_value;
 
 // Must match the game's debug module (modules/debug.cpp).
-constexpr int protocol_version = 5;
+constexpr int protocol_version = 6; // 6: the game's text documents (doc_list, doc_get)
 constexpr size_t frame_history = 600;
 constexpr size_t log_history = 5000;
 
@@ -171,6 +171,17 @@ struct app {
   json_value watches;
   std::deque<log_row> logs;
 
+  // The game's text documents (njin::debug_doc_source): its sources, the
+  // list of the one picked, the document open and its text.
+  std::vector<std::string> doc_sources;
+  int doc_source = 0;
+  std::vector<std::pair<std::string, std::string>> doc_items; // id, label
+  bool doc_list_asked = false;
+  float doc_list_wait = 0; // seconds to asking an empty list again
+  std::string doc_open; // id, empty none
+  std::string doc_text;
+  float doc_refresh = 0; // seconds to the next ask for the open one
+
   // Consumption: the game's own timings, memory and resources...
   std::vector<phase_row> phases;
   std::vector<system_row> systems;
@@ -193,6 +204,7 @@ struct app {
   int rec_scale = 2;  // index into the size choices (100%, 75%, 50%, 33%)
   float rec_max = 30; // seconds
   char entity_filter[128] = "";
+  char doc_filter[128] = "";
   char log_filter[128] = "";
   int log_min_level = 0;
   bool log_autoscroll = true;
@@ -209,7 +221,7 @@ struct app {
   char res_filter[128] = "";
   int ent_sort = 0; // 0 id, 1 RAM, 2 GPU
   bool sys_hide_idle = true;
-  int layout = 0;            // 0 overview, 1 consumption
+  int layout = 0;            // 0 overview, 1 consumption, 2 documents
   bool layout_dirty = true;  // windows take their place for the current layout this frame
   int layout_dirty_age = 0;  // frames the placement has been forced: two, so the menu bar's height is known
   // The window area (below the menu bar) as of the last frame, to notice a resize (then `rescale` is true for that

@@ -164,6 +164,12 @@ void on_message(app &a, const std::string &line) {
     a.orbit_fitted = false;
     if (a.selected >= 0)
       select(a, a.selected); // the game forgets the selection on reconnect
+    a.doc_sources.clear();
+    for (const json_value &n : m["docs"].items)
+      a.doc_sources.push_back(n.string_or(""));
+    a.doc_items.clear();
+    a.doc_list_asked = false;
+    a.doc_refresh = 0; // the open one asked again at once
   } else if (t == "stats") {
     for (const json_value &f : m["frames"].items) {
       a.frames.push_back(f.f32_or(0));
@@ -227,6 +233,14 @@ void on_message(app &a, const std::string &line) {
     r.error = m["err"].string_or("");
   } else if (t == "watch") {
     a.watches = m["values"];
+  } else if (t == "doc_list") {
+    a.doc_items.clear();
+    for (const json_value &it : m["items"].items)
+      a.doc_items.push_back({it.items.size() > 0 ? it.items[0].string_or("") : std::string(),
+                             it.items.size() > 1 ? it.items[1].string_or("") : std::string()});
+  } else if (t == "doc") {
+    if (m["id"].string_or("") == a.doc_open)
+      a.doc_text = m["text"].string_or("");
   } else if (t == "log") {
     a.logs.push_back({m["lv"].int_or(2), m["src"].string_or(""), m["msg"].string_or("")});
     if (a.logs.size() > log_history)

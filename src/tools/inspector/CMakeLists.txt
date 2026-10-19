@@ -18,6 +18,7 @@ add_executable(njin_inspector
   panel_systems.cpp
   panel_memory.cpp
   panel_assets.cpp
+  panel_docs.cpp
   os_open.cpp
   sysmon.cpp)
 # The inspector reuses the runtime's JSON and socket code, so it sees the

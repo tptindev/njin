@@ -90,6 +90,10 @@ void status_bar(app &a) {
     a.layout = 1;
     a.layout_dirty = true;
   }
+  if (ImGui::SmallButton(a.layout == 2 ? "[Documents]" : "Documents")) {
+    a.layout = 2;
+    a.layout_dirty = true;
+  }
   ImGui::TextDisabled("|");
   if (a.handshake) {
     ImGui::TextColored({0.45f, 0.85f, 0.5f, 1}, "connected");

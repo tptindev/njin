@@ -1,7 +1,7 @@
 // njin_inspector: connects to a running njin game (njin::debug_server_start)
 // over 127.0.0.1 and shows its state with Dear ImGui, in its own window.
 //
-//   njin_inspector [--port 7779] [--layout overview|consumption] [--size 1280x720]
+//   njin_inspector [--port 7779] [--layout overview|consumption|documents] [--size 1280x720]
 //
 // It retries until a game is listening, and again whenever the game restarts.
 #include "app.h"
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
     if (std::strcmp(argv[i], "--size") == 0)
       std::sscanf(argv[i + 1], "%dx%d", &want_w, &want_h);
     if (std::strcmp(argv[i], "--layout") == 0)
-      a.layout = std::strcmp(argv[i + 1], "consumption") == 0 ? 1 : 0;
+      a.layout = std::strcmp(argv[i + 1], "consumption") == 0 ? 1 : std::strcmp(argv[i + 1], "documents") == 0 ? 2 : 0;
   }
   SetTraceLogLevel(LOG_WARNING);
   SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
@@ -84,6 +84,7 @@ int main(int argc, char **argv) {
     inspector::systems_window(a);
     inspector::memory_window(a);
     inspector::assets_window(a);
+    inspector::docs_window(a);
     inspector::end_frame_layout(a);
     rlImGuiEnd();
     EndDrawing();

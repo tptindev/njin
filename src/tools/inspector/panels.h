@@ -24,4 +24,5 @@ void monitor_window(app &a);      // CPU, RAM and GPU use of the game process
 void systems_window(app &a);      // time per phase and per system
 void memory_window(app &a);       // memory per component type and per entity
 void assets_window(app &a);       // textures, sounds, fonts, targets: GPU and RAM
+void docs_window(app &a);         // the game's text documents (njin::debug_doc_source)
 } // namespace inspector

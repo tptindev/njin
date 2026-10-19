@@ -23,7 +23,7 @@
 namespace njin {
 namespace {
 // The inspector speaks this version; it refuses a game with another one.
-constexpr i32 protocol_version = 5;
+constexpr i32 protocol_version = 6; // 6: the game's text documents (doc_list, doc_get)
 // Log lines held while no inspector is connected, or between sends.
 constexpr usize max_log_lines = 2000;
 
@@ -358,6 +358,26 @@ void apply(context &ctx, const json_value &cmd) {
   } else if (c == "destroy") {
     if (const entt::entity e = entity_from(reg, cmd["id"]); e != entt::null)
       reg.destroy(e);
+  } else if (c == "doc_list" || c == "doc_get") {
+    // The game's text documents (debug_doc_source): each asked for, sent once.
+    const std::string src = cmd["src"].string_or("");
+    for (const debug_doc_source_entry &s : d.docs) {
+      if (s.name != src)
+        continue;
+      if (c == "doc_list") {
+        json_value items = json_value::make_array();
+        if (s.list)
+          for (const debug_doc_entry &e : s.list())
+            items.push(json_value::make_array().push(e.id).push(e.label));
+        d.link.send(json_dump(json_value::make_object().set("t", "doc_list").set("src", src).set("items", std::move(items)), false));
+      } else {
+        const std::string id = cmd["id"].string_or("");
+        d.link.send(json_dump(
+            json_value::make_object().set("t", "doc").set("src", src).set("id", id).set("text", s.get ? s.get(id) : std::string()),
+            false));
+      }
+      break;
+    }
   } else if (c == "collision_debug") {
     collision_set_debug(ctx, cmd["value"].bool_or(false));
   } else if (c == "rec") {
@@ -380,7 +400,13 @@ void send_hello(context &ctx) {
                             .set("title", ctx.cfg.title != nullptr ? ctx.cfg.title : "njin")
                             .set("fixed_hz", ctx.time.fixed_dt > 0.0f ? 1.0f / ctx.time.fixed_dt : 0.0f)
                             .set("pid", (i64)net_process_id())
-                            .set("engine", version()),
+                            .set("engine", version())
+                            .set("docs", [&d] {
+                              json_value names = json_value::make_array();
+                              for (const debug_doc_source_entry &s : d.docs)
+                                names.push(s.name);
+                              return names;
+                            }()),
                         false));
 }
 
@@ -893,6 +919,20 @@ void debug_watch(context &ctx, const char *name, json_value value) {
 }
 
 void debug_watch(context &ctx, const char *name, vec2 value) { debug_watch(ctx, name, vec(value)); }
+
+void debug_doc_source(context &ctx, const char *name, std::function<std::vector<debug_doc_entry>()> list,
+                      std::function<std::string(const std::string &id)> get) {
+  if (name == nullptr)
+    return;
+  debug_state &d = ctx.debug;
+  for (debug_doc_source_entry &s : d.docs)
+    if (s.name == name) {
+      s.list = std::move(list);
+      s.get = std::move(get);
+      return;
+    }
+  d.docs.push_back({name, std::move(list), std::move(get)});
+}
 
 void debug_component(context &ctx, entt::id_type type, const char *name, debug_component_fn fn,
                      std::size_t bytes) {

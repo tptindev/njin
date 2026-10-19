@@ -44,6 +44,13 @@ struct debug_recorder {
   std::vector<u8> shrunk;    // scratch RGBA of one frame
 };
 
+// A source of text documents the game registered (debug_doc_source).
+struct debug_doc_source_entry {
+  std::string name;
+  std::function<std::vector<debug_doc_entry>()> list;
+  std::function<std::string(const std::string &id)> get;
+};
+
 struct debug_state {
   // Unhooks the log tap: the stores destroyed after this one still log.
   ~debug_state();
@@ -69,6 +76,7 @@ struct debug_state {
 
   std::unordered_map<entt::id_type, debug_type_entry> types;
   std::vector<std::pair<std::string, json_value>> watches; // in first-set order
+  std::vector<debug_doc_source_entry> docs;                 // in first-registered order
   std::vector<std::string> log_lines; // already serialized, waiting to send
 
   debug_recorder rec;

@@ -12,20 +12,23 @@ struct slot {
   ImVec2 pos_overview, size_overview;
   bool consumption;
   ImVec2 pos_consumption, size_consumption;
+  bool documents;
+  ImVec2 pos_documents, size_documents;
 };
 // Where each window lives in each layout, in pixels of a 1700 x 960 window whose menu bar is 30 px high. They are
 // scaled to the window's real work area (see place() and size()), so the layout fits any window size.
 const slot slots[] = {
-    {"Performance", true, {8, 30}, {420, 408}, true, {8, 522}, {540, 420}},
-    {"Entities", true, {8, 446}, {420, 506}, true, {1124, 522}, {568, 420}},
-    {"World", true, {436, 30}, {800, 650}, false, {0, 0}, {0, 0}},
-    {"Inspector", true, {1244, 30}, {448, 530}, false, {0, 0}, {0, 0}},
-    {"Watches", true, {1244, 568}, {448, 384}, false, {0, 0}, {0, 0}},
-    {"Log", true, {436, 688}, {800, 264}, false, {0, 0}, {0, 0}},
-    {"Process", false, {0, 0}, {0, 0}, true, {8, 30}, {540, 484}},
-    {"Systems", false, {0, 0}, {0, 0}, true, {556, 30}, {560, 484}},
-    {"Memory", false, {0, 0}, {0, 0}, true, {1124, 30}, {568, 484}},
-    {"Assets", false, {0, 0}, {0, 0}, true, {556, 522}, {560, 420}},
+    {"Performance", true, {8, 30}, {420, 408}, true, {8, 522}, {540, 420}, false, {0, 0}, {0, 0}},
+    {"Entities", true, {8, 446}, {420, 506}, true, {1124, 522}, {568, 420}, false, {0, 0}, {0, 0}},
+    {"World", true, {436, 30}, {800, 650}, false, {0, 0}, {0, 0}, false, {0, 0}, {0, 0}},
+    {"Inspector", true, {1244, 30}, {448, 530}, false, {0, 0}, {0, 0}, false, {0, 0}, {0, 0}},
+    {"Watches", true, {1244, 568}, {448, 384}, false, {0, 0}, {0, 0}, false, {0, 0}, {0, 0}},
+    {"Log", true, {436, 688}, {800, 264}, false, {0, 0}, {0, 0}, true, {8, 688}, {1684, 264}},
+    {"Process", false, {0, 0}, {0, 0}, true, {8, 30}, {540, 484}, false, {0, 0}, {0, 0}},
+    {"Systems", false, {0, 0}, {0, 0}, true, {556, 30}, {560, 484}, false, {0, 0}, {0, 0}},
+    {"Memory", false, {0, 0}, {0, 0}, true, {1124, 30}, {568, 484}, false, {0, 0}, {0, 0}},
+    {"Assets", false, {0, 0}, {0, 0}, true, {556, 522}, {560, 420}, false, {0, 0}, {0, 0}},
+    {"Documents", false, {0, 0}, {0, 0}, false, {0, 0}, {0, 0}, true, {8, 30}, {1684, 650}},
 };
 constexpr float design_w = 1700.0f, design_h = 960.0f, design_top = 30.0f;
 
@@ -78,12 +81,14 @@ bool begin_panel(app &a, const char *name) {
   for (const slot &s : slots) {
     if (std::strcmp(s.name, name) != 0)
       continue;
-    const bool shown = a.layout == 0 ? s.overview : s.consumption;
+    const bool shown = a.layout == 0 ? s.overview : a.layout == 1 ? s.consumption : s.documents;
     if (!shown)
       return false;
     if (a.layout_dirty) {
-      ImGui::SetNextWindowPos(place(a.layout == 0 ? s.pos_overview : s.pos_consumption), ImGuiCond_Always);
-      ImGui::SetNextWindowSize(size(a.layout == 0 ? s.size_overview : s.size_consumption), ImGuiCond_Always);
+      const ImVec2 pos = a.layout == 0 ? s.pos_overview : a.layout == 1 ? s.pos_consumption : s.pos_documents;
+      const ImVec2 sz = a.layout == 0 ? s.size_overview : a.layout == 1 ? s.size_consumption : s.size_documents;
+      ImGui::SetNextWindowPos(place(pos), ImGuiCond_Always);
+      ImGui::SetNextWindowSize(size(sz), ImGuiCond_Always);
     } else {
       restore(a, name);
     }

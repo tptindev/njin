@@ -19,6 +19,10 @@ void startup(njin::context &ctx) {
   njin::debug_component<enemy_ai>(ctx, "enemy_ai", [](const enemy_ai &a) {
     return njin::json_value::make_object().set("state", a.state);
   });
+  // Tài liệu chữ cho cửa sổ "Documents": inspector hỏi danh sách, rồi nội dung khi chọn.
+  njin::debug_doc_source(
+      ctx, "Quests", [] { return std::vector<njin::debug_doc_entry>{{"1", "Tìm chìa khoá"}, {"2", "Về làng"}}; },
+      [](const std::string &id) { return "# Nhiệm vụ " + id + "\n\n- Đang làm."; });
 }
 
 void update(njin::context &ctx) {

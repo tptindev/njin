@@ -12,6 +12,7 @@ muốn xem thì nhìn sang cửa sổ inspector, không thì cứ chơi bình th
 | **Inspector** | Component của entity đang chọn, kèm giá trị. Sửa trực tiếp vị trí, góc, tỉ lệ; bật tắt collider, trigger, sprite; hủy entity |
 | **Watches** | Giá trị game tự đặt bằng njin::debug_watch(), cập nhật trực tiếp |
 | **Log** | Log của game, lọc theo mức và chữ |
+| **Documents** | Tài liệu chữ game tự đăng ký bằng njin::debug_doc_source() (sổ tay NPC, nhật ký...), lọc và đọc từng trang |
 
 @image html inspector_overview.png "njin_inspector nối với njin_debug_demo, bố cục Overview. Đang chọn entity 27: thấy component ball, transform, collider và giá trị của chúng. Bảng Performance có mục Screen recording"
 
@@ -33,7 +34,7 @@ tắt cổng (bản phát hành) thì log luôn ra stderr.
 Cổng mặc định là 7779. Dùng cổng khác: `debug_server_start(*ctx, {.port = 7800})` trong game và
 `njin_inspector --port 7800`.
 
-**Cỡ cửa sổ.** Hai bố cục phủ kín cửa sổ ở mọi cỡ: vị trí và kích thước các bảng là tỉ lệ của vùng dưới thanh menu, nên kéo
+**Cỡ cửa sổ.** Các bố cục phủ kín cửa sổ ở mọi cỡ: vị trí và kích thước các bảng là tỉ lệ của vùng dưới thanh menu, nên kéo
 cửa sổ to hay nhỏ thì các bảng co giãn theo và giữ nguyên chỗ, kể cả bảng bạn đã kéo đi chỗ khác. Màn hình nhỏ hơn 1700 x 960
 thì cửa sổ mở nhỏ lại cho vừa. `njin_inspector --size 1280x720` mở cửa sổ đúng cỡ đó (tối thiểu 640 x 400). Cửa sổ rất nhỏ thì
 bảng nào không đủ chỗ sẽ cuộn được.
@@ -49,6 +50,17 @@ Component của game muốn hiện giá trị thì đăng ký bằng njin::debug
 component và trả về njin::json_value (xem @ref json).
 
 Chưa đăng ký thì inspector ghi "no view" dưới tên component.
+
+## Tài liệu chữ của game {#debug_docs}
+
+Bố cục **Documents** của inspector có một bảng cùng tên: chọn một nguồn tài liệu của game, lọc danh
+sách theo tên, bấm một tài liệu để đọc. Markdown được hiện nhẹ (tiêu đề, gạch đầu dòng); nút **Copy**
+chép cả trang. Game đăng ký nguồn bằng njin::debug_doc_source() (xem ví dụ ở trên): một hàm trả danh
+sách njin::debug_doc_entry (định danh và tên), một hàm trả nội dung theo định danh. Inspector chỉ hỏi
+khi cần (danh sách lúc mở nguồn, nội dung lúc chọn, rồi hỏi lại vài giây một lần khi trang còn mở),
+nên một nguồn hàng nghìn tài liệu không làm nặng đường nối.
+
+`njin_inspector --layout documents` mở thẳng bố cục này.
 
 ## Gizmo: tự vẽ để debug {#debug_gizmo}
 

@@ -5,7 +5,9 @@
 #include <entt/core/type_info.hpp>
 #include <entt/entity/registry.hpp>
 #include <functional>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 namespace njin {
 struct context;
@@ -69,6 +71,32 @@ void debug_watch(context &ctx, const char *name, json_value value);
 /// Như debug_watch() cho một vec2. @param ctx Context của engine.
 /// @param name Tên hiển thị. @param value Giá trị.
 void debug_watch(context &ctx, const char *name, vec2 value);
+
+/// Một tài liệu trong danh sách của một nguồn (debug_doc_source()): định danh
+/// để hỏi nội dung, và tên hiện trong danh sách.
+struct debug_doc_entry {
+  std::string id;    ///< Định danh, game tự đặt (chỉ số, mã...).
+  std::string label; ///< Tên hiện trong danh sách của inspector.
+};
+
+/// Đăng ký một nguồn tài liệu văn bản cho cửa sổ "Documents" của inspector:
+/// sổ tay của từng NPC, nhật ký nhiệm vụ, bất cứ thứ gì game muốn đọc như một
+/// trang chữ (markdown được hiện nhẹ: tiêu đề, gạch đầu dòng). Inspector chỉ
+/// hỏi khi cần: danh sách khi mở nguồn, nội dung khi chọn một tài liệu, rồi
+/// hỏi lại vài giây một lần khi tài liệu còn mở. Hai hàm chạy trên luồng của
+/// game, lúc engine đọc lệnh của inspector. Đăng ký lại cùng tên thì thay
+/// nguồn cũ. Không có inspector thì không làm gì.
+/// @code
+/// njin::debug_doc_source(ctx, "Quests",
+///   [] { return std::vector<njin::debug_doc_entry>{{"1", "Tìm chìa khoá"}}; },
+///   [](const std::string &id) { return "# Nhiệm vụ " + id + "\n\n- Tìm chìa khoá ở hầm."; });
+/// @endcode
+/// @param ctx Context của engine.
+/// @param name Tên nguồn, hiện trong inspector.
+/// @param list Hàm trả danh sách tài liệu.
+/// @param get Hàm trả nội dung một tài liệu theo định danh.
+void debug_doc_source(context &ctx, const char *name, std::function<std::vector<debug_doc_entry>()> list,
+                      std::function<std::string(const std::string &id)> get);
 
 /// Hàm chuyển một component thành JSON để inspector hiện giá trị của nó.
 using debug_component_fn = std::function<json_value(const entt::registry &, entt::entity)>;
