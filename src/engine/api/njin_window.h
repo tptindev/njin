@@ -109,6 +109,23 @@ void window_set_bar_color(context &ctx, rgba color);
 /// @return Kích thước cửa sổ.
 vec2 window_size(const context &ctx);
 
+/// Kích thước của màn hình (monitor) đang chứa cửa sổ, pixel: để biết cửa sổ
+/// lớn được tới đâu, như danh sách độ phân giải trong cài đặt.
+/// @code
+/// const njin::vec2 most = njin::monitor_size(ctx);
+/// if (1920.0f <= most.x && 1080.0f <= most.y)
+///   njin::window_set_size(ctx, {1920.0f, 1080.0f});
+/// @endcode
+/// @param ctx Context của engine.
+/// @return Kích thước màn hình; {0, 0} nếu không đọc được.
+vec2 monitor_size(const context &ctx);
+
+/// Đặt cửa sổ vào giữa màn hình đang chứa nó, như sau khi đổi kích thước bằng
+/// window_set_size() (cửa sổ giữ góc trên trái nên có thể tràn khỏi màn hình).
+/// Toàn màn hình thì không làm gì.
+/// @param ctx Context của engine.
+void window_center(context &ctx);
+
 /// Vùng của cửa sổ mà màn hình ảo đang chiếm, pixel cửa sổ. Không có độ phân
 /// giải ảo thì là cả cửa sổ.
 /// @param ctx Context của engine.

@@ -62,6 +62,21 @@ void window_set_size(context &, vec2 size) {
     SetWindowSize((int)size.x, (int)size.y);
 }
 
+vec2 monitor_size(const context &) {
+  const int m = GetCurrentMonitor();
+  return {(f32)GetMonitorWidth(m), (f32)GetMonitorHeight(m)};
+}
+
+void window_center(context &) {
+  if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) || IsWindowFullscreen())
+    return;
+  const int m = GetCurrentMonitor();
+  const Vector2 at = GetMonitorPosition(m);
+  const int x = (int)at.x + std::max(0, (GetMonitorWidth(m) - GetScreenWidth()) / 2);
+  const int y = (int)at.y + std::max(0, (GetMonitorHeight(m) - GetScreenHeight()) / 2);
+  SetWindowPosition(x, y);
+}
+
 void window_set_title(context &, const char *title) {
   if (title != nullptr)
     SetWindowTitle(title);
