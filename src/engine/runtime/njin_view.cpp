@@ -171,7 +171,13 @@ void view_canvas_sync(const view_state &view) {
   if (want == view.canvas_on)
     return;
   if (want) {
+    // From identity, not from what rlgl's transform holds: a window resized
+    // while the canvas was pushed (window_set_size() from a settings menu)
+    // resets rlgl's matrix mode under it (raylib's SetupViewport), the pop
+    // then misses the transform, and its old scale would stay in it, every
+    // later canvas scaled by it again (the UI's boxes off, its text not).
     rlPushMatrix();
+    rlLoadIdentity();
     rlScalef(view.canvas_scale, view.canvas_scale, 1.0f);
   } else {
     rlPopMatrix();
