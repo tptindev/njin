@@ -6,7 +6,11 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
-## Unreleased
+## 0.4.0
+
+Compatible with 0.3.0: existing games build and behave unchanged; every new
+option is off by default. The model editor tool is replaced by an animation
+editor (tool only, nothing in the engine API).
 
 ### Added
 
