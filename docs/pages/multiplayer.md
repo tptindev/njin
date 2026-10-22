@@ -100,5 +100,5 @@ ENet không mã hóa: ai cùng mạng cũng đọc được gói. Không gửi m
 ## Không có ở đây
 
 Đây là lớp vận chuyển: gói đi được, đi nhanh, đi gọn. Input theo tick, đồng bộ tick, nội suy và replicate component
-có sẵn ở @ref netcode, xây trên trang này. Lùi thời gian khi xét trúng đạn (lag compensation) chưa có. Chơi qua Internet mà không mở cổng router (NAT traversal) cũng chưa
+có sẵn ở @ref netcode, xây trên trang này; mô phỏng chạy giống nhau trên mọi máy, chỉ gửi lệnh, ở @ref lockstep. Lùi thời gian khi xét trúng đạn (lag compensation) chưa có. Chơi qua Internet mà không mở cổng router (NAT traversal) cũng chưa
 có. ENet chỉ dùng IPv4.

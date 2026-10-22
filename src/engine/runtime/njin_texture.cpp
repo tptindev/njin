@@ -60,6 +60,23 @@ texture_handle texture_store_load(texture_store &store, const char *path) {
   return texture_handle{.id = (u32)store.slots.size()};
 }
 
+texture_handle texture_store_from_pixels(texture_store &store, const u8 *rgba, u32 width, u32 height) {
+  if (rgba == nullptr || width == 0 || height == 0) {
+    NJIN_WARN("texture: no pixels (%ux%u)", width, height);
+    return texture_handle{};
+  }
+  const Image image{.data = const_cast<u8 *>(rgba), .width = (int)width, .height = (int)height, .mipmaps = 1,
+                    .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+  const Texture2D texture = LoadTextureFromImage(image);
+  if (!IsTextureValid(texture)) {
+    NJIN_WARN("texture: failed to make a %ux%u texture from pixels", width, height);
+    return texture_handle{};
+  }
+  SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+  store.slots.push_back(texture_slot{.texture = texture, .alive = true, .filter = filter_linear, .version = 0});
+  return texture_handle{.id = (u32)store.slots.size()};
+}
+
 void texture_store_unload(texture_store &store, texture_handle handle) {
   texture_slot *slot = texture_slot_of(store, handle);
   if (slot == nullptr)

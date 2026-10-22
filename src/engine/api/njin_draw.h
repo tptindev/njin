@@ -148,6 +148,15 @@ void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, 
 /// Như bản trên, phủ một phần của render texture (`uv` tính như ảnh thường:
 /// `{0, 0}` góc trên trái của những gì đã vẽ vào nó). Dùng để vẽ lại một thứ đã
 /// vẽ sẵn vào render texture mà biến dạng nó: uốn, bóp, thu vào một điểm.
+/// @param ctx Context của engine.
+/// @param texture Render texture phủ lên tam giác.
+/// @param a Đỉnh thứ nhất.
+/// @param b Đỉnh thứ hai.
+/// @param c Đỉnh thứ ba.
+/// @param uv_a Toạ độ trên ảnh của đỉnh `a`.
+/// @param uv_b Toạ độ trên ảnh của đỉnh `b`.
+/// @param uv_c Toạ độ trên ảnh của đỉnh `c`.
+/// @param tint Màu nhân vào ảnh; trắng là giữ nguyên.
 void draw_triangle_textured(const context &ctx, render_texture_handle texture, vec2 a, vec2 b, vec2 c,
                             vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
 

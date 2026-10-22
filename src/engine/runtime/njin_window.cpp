@@ -77,6 +77,24 @@ void window_center(context &) {
   SetWindowPosition(x, y);
 }
 
+void window_set_position(context &, vec2 pos) {
+  if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) || IsWindowFullscreen())
+    return;
+  SetWindowPosition((int)pos.x, (int)pos.y);
+}
+
+vec2 window_position(const context &) {
+  const Vector2 at = GetWindowPosition();
+  return {at.x, at.y};
+}
+
+vec2 monitor_position(const context &) {
+  const Vector2 at = GetMonitorPosition(GetCurrentMonitor());
+  return {at.x, at.y};
+}
+
+void *window_native_handle(const context &) { return GetWindowHandle(); }
+
 void window_set_title(context &, const char *title) {
   if (title != nullptr)
     SetWindowTitle(title);

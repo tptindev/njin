@@ -34,6 +34,12 @@ struct ui_skin {
   /// pixel (nhân `ui_style::scale`). 0 là tắt. Chỉ khi không có ảnh; muốn thấy
   /// lớp mờ thì `color` nên hơi trong (alpha dưới 1).
   f32 blur = 0.0f;
+  /// Góc 9-slice co theo chiều cao: có `border`, các góc vẽ bằng `border` nhân
+  /// tỉ lệ chiều cao widget trên chiều cao vùng ảnh, thay vì đúng `border`
+  /// pixel. Dùng cho ảnh nút vẽ to hơn chỗ nó chiếm (HUD theo canvas, vẽ ra
+  /// màn hình 4K): góc thu lại cùng nút, ảnh chỉ bị thu nhỏ nên vẫn nét.
+  /// `false` (mặc định) là như trước.
+  bool border_fit = false;
 };
 
 /// Diện mạo của một loại widget ở từng trạng thái.
@@ -128,6 +134,14 @@ struct ui_style {
   f32 tab_line_height = 3.0f;    ///< Bề dày vạch đó, pixel (trước `scale`).
   f32 tab_spacing = 4.0f;        ///< Khoảng giữa hai tab, pixel (trước `scale`).
   f32 tab_slide_seconds = 0.15f; ///< Thời gian (giây, giờ thật) mặt tab mở trượt sang tab mới. 0 là nhảy ngay.
+
+  /// Thân công tắc của ui_toggle() riêng, khác rãnh slider: bật thì công tắc
+  /// vẽ thân bằng `toggle_off` khi tắt và `toggle_on` khi bật (theo trạng thái
+  /// widget như mọi `ui_look`), núm vẫn là `knob`. Tắt (mặc định) thì như
+  /// trước: thân là `track`, thêm `fill` khi bật.
+  bool toggle_own = false;
+  ui_look toggle_off{}; ///< Thân công tắc khi tắt (khi `toggle_own`).
+  ui_look toggle_on{};  ///< Thân công tắc khi bật (khi `toggle_own`).
 };
 
 /// Giao diện mặc định: panel tối trong suốt, nút bo góc, màu nhấn xanh.
@@ -250,8 +264,11 @@ struct ui_panel_desc {
 };
 
 /// Bắt đầu một panel. Các widget gọi sau đó xếp từ trên xuống bên trong nó,
-/// cho đến ui_end(). Chiều cao tự tính theo nội dung. Panel cao hơn màn hình thì
-/// tự thu nhỏ (cả chữ, tối đa còn một nửa) cho vừa, thay vì tràn ra trên và dưới.
+/// cho đến ui_end(). Chiều cao tự tính theo nội dung. Panel cao hơn chỗ nó có
+/// ở vị trí của nó (theo `anchor`, `pivot`, `offset`: panel treo trên mép dưới
+/// chỉ có phần màn hình phía trên điểm đó) thì tự thu nhỏ (cả chữ, tối đa còn
+/// một nửa) cho vừa, thay vì tràn ra ngoài màn hình. Thu hết cỡ vẫn không vừa
+/// thì panel được dời xuống để đầu nó (tiêu đề, nút đóng) vẫn trên màn hình.
 ///
 /// Gọi trong `phase_post_render` (không gian màn hình). Chỉ panel nào được
 /// gọi trong frame mới hiện; muốn ẩn menu thì đừng gọi nó.
@@ -600,6 +617,14 @@ rect ui_last_rect(const context &ctx);
 /// @param ctx Context của engine.
 /// @return Khung của panel, pixel màn hình.
 rect ui_panel_rect(const context &ctx);
+
+/// Khung của panel `id` ở frame trước (các panel đã vẽ xong, như ui_on_top()).
+/// Dùng khi game cần biết các cửa sổ của nó có chồng lên nhau không, như làm
+/// mờ cửa sổ bị một cửa sổ khác đè lên.
+/// @param ctx Context của engine.
+/// @param id Tên panel, như ui_panel_desc::id.
+/// @return Khung của panel, pixel màn hình; kích thước 0 nếu frame trước nó không được vẽ.
+rect ui_panel_rect(const context &ctx, const char *id);
 
 /// Chuột có đang nằm trên một panel không (các panel của frame trước). Ở đó UI
 /// đã nuốt nút chuột trái; hàm này để game bỏ qua cả nút phải, bánh xe hay con

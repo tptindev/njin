@@ -49,6 +49,7 @@ Muốn tự viết shader thì học trước ba bài shader trong @ref learn (b
 |---|---|
 | @subpage network | Nhiều máy chơi với nhau qua TCP và UDP: mở phòng, vào phòng, gửi message mà game không bao giờ phải chờ mạng |
 | @subpage netcode | Server quyết định, máy khách đoán trước nhân vật của mình, người khác được nội suy mượt, thế giới tự replicate theo tầm nhìn và băng thông |
+| @subpage lockstep | Mọi máy chạy cùng một mô phỏng, chỉ gửi lệnh: hàng nghìn thứ chuyển động không tốn byte nào trên mạng, lệch thì biết ngay |
 | @subpage multiplayer | Game realtime: kênh tin cậy và không tin cậy trên một kết nối, gói nhỏ theo bit, đọc input ngay trong tick, thử với độ trễ và mất gói giả |
 
 ## Công cụ

@@ -11,6 +11,7 @@
 #include <asio/detached.hpp>
 #include <asio/executor_work_guard.hpp>
 #include <asio/io_context.hpp>
+#include <asio/ip/host_name.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/ip/udp.hpp>
 #include <asio/post.hpp>
@@ -20,6 +21,7 @@
 #include <asio/use_awaitable.hpp>
 #include <asio/write.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -532,5 +534,27 @@ void net_service_drain(net_service &s, std::vector<net_event> &out) {
   std::lock_guard lock(s.mu);
   out.swap(s.events);
   s.events.clear();
+}
+std::vector<std::string> net_local_addresses() {
+  // The addresses this machine's own name resolves to: every adapter's.
+  std::vector<std::string> out;
+  asio::io_context io;
+  asio::error_code ec;
+  const std::string name = asio::ip::host_name(ec);
+  if (ec)
+    return out;
+  asio::ip::udp::resolver resolver(io);
+  const auto found = resolver.resolve(asio::ip::udp::v4(), name, "", ec);
+  if (ec)
+    return out;
+  for (const auto &entry : found) {
+    const asio::ip::address a = entry.endpoint().address();
+    if (a.is_loopback())
+      continue;
+    std::string text = a.to_string();
+    if (std::find(out.begin(), out.end(), text) == out.end())
+      out.push_back(std::move(text));
+  }
+  return out;
 }
 } // namespace njin

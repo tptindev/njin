@@ -89,6 +89,9 @@ từ chối gói trên 65507 byte. `host` nên là địa chỉ IP: tên máy ph
 `host` của tcp_listen() và udp_open() mặc định là mọi địa chỉ **IPv4**. Truyền `"::"` để nghe IPv6. Một socket UDP
 IPv4 chỉ gửi được tới địa chỉ IPv4; tcp_connect() tự thử mọi địa chỉ của tên máy cho đến khi nối được.
 
+net_local_addresses() cho các địa chỉ IPv4 của chính máy này (trừ 127.0.0.1), để hiện cho người chơi khác gõ vào
+khi vào phòng. Nó hỏi hệ điều hành ngay: gọi một lần rồi giữ lại.
+
 ## Không có ở đây
 
 Trang này là lớp vận chuyển: đưa byte từ máy này sang máy kia. Game realtime (vị trí mỗi tick cùng với việc không

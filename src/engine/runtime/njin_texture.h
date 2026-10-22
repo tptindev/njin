@@ -118,6 +118,9 @@ render_texture_slot_of(const render_texture_store &store,
 
 // Returns an invalid handle if the file is missing or cannot be decoded.
 texture_handle texture_store_load(texture_store &store, const char *path);
+// A texture from RGBA8 pixels in memory, rows top to bottom; no file behind
+// it, so it cannot be reloaded.
+texture_handle texture_store_from_pixels(texture_store &store, const u8 *rgba, u32 width, u32 height);
 void texture_store_unload(texture_store &store, texture_handle handle);
 // Reloads a texture from its file into the same slot. On failure the old
 // texture stays and false is returned.

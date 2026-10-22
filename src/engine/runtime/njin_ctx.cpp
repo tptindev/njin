@@ -252,6 +252,10 @@ texture_handle texture_load(context &ctx, const char *path) {
   return texture_store_load(ctx.texture, path);
 }
 
+texture_handle texture_from_pixels(context &ctx, const u8 *rgba, u32 width, u32 height) {
+  return texture_store_from_pixels(ctx.texture, rgba, width, height);
+}
+
 void texture_unload(context &ctx, texture_handle handle) {
   texture_store_unload(ctx.texture, handle);
 }

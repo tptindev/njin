@@ -78,6 +78,15 @@ struct config {
   /// yếu nên đặt 2–4: vật lý chậm đi một chút khi tụt FPS, nhưng không rơi
   /// vào vòng "frame dài, nhiều bước, frame càng dài". Ít nhất là 1.
   i32 fixed_max_steps = 8;
+  /// Cửa sổ có nền trong suốt: chỗ nào game không vẽ (hoặc vẽ với alpha < 1)
+  /// thì thấy được những gì nằm dưới cửa sổ, như desktop. Cần `clear_bg_color`
+  /// có alpha 0. Hợp với `decorated = false` cho một lớp phủ không viền, như
+  /// thú cưng trên desktop. Mặc định tắt. Không đổi được lúc đang chạy.
+  ///
+  /// Trên laptop có hai GPU (Windows), hình của GPU rời được chép qua GPU tích
+  /// hợp và mất kênh alpha: cửa sổ thành nền đen. Game trong suốt thì đừng
+  /// link `njin::gpu`, để chạy trên GPU tích hợp.
+  bool transparent = false;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).
@@ -87,6 +96,13 @@ struct config {
 /// @param ctx Context của engine.
 /// @return FPS mục tiêu.
 f32 fps(const context &ctx);
+
+/// Đổi FPS mục tiêu lúc đang chạy, ví dụ hạ xuống vài khung hình mỗi giây khi
+/// game rảnh để đỡ tốn CPU, rồi nâng lên lại khi có gì chuyển động. fps() trả
+/// về giá trị mới.
+/// @param ctx Context của engine.
+/// @param target FPS mục tiêu, ít nhất là 1.
+void set_fps(context &ctx, f32 target);
 
 /// Trả về kích thước màn hình mà game vẽ lên, tính bằng pixel.
 ///

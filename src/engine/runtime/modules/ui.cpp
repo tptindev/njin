@@ -149,7 +149,23 @@ void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
                         area.y + (whole ? 0.0f : s.source.pos.y),
                         whole ? area.width : s.source.size.x,
                         whole ? area.height : s.source.size.y};
-    if (s.border > 0.0f) {
+    if (s.border > 0.0f && s.border_fit && src.height > 0.0f) {
+      // The corners scaled with the widget's height against the picture's.
+      const f32 k = dest.height / src.height;
+      const f32 bs = std::min(s.border, 0.5f * std::min(src.width, src.height));
+      const f32 bd = std::min({bs * k, 0.5f * dest.width, 0.5f * dest.height});
+      const f32 sx[4] = {src.x, src.x + bs, src.x + src.width - bs, src.x + src.width};
+      const f32 sy[4] = {src.y, src.y + bs, src.y + src.height - bs, src.y + src.height};
+      const f32 dx[4] = {dest.x, dest.x + bd, dest.x + dest.width - bd, dest.x + dest.width};
+      const f32 dy[4] = {dest.y, dest.y + bd, dest.y + dest.height - bd, dest.y + dest.height};
+      for (i32 j = 0; j < 3; ++j)
+        for (i32 i = 0; i < 3; ++i) {
+          const Rectangle from{sx[i], sy[j], sx[i + 1] - sx[i], sy[j + 1] - sy[j]};
+          const Rectangle to{dx[i], dy[j], dx[i + 1] - dx[i], dy[j + 1] - dy[j]};
+          if (from.width > 0.0f && from.height > 0.0f && to.width > 0.0f && to.height > 0.0f)
+            DrawTexturePro(tex->texture, from, to, Vector2{0.0f, 0.0f}, 0.0f, color);
+        }
+    } else if (s.border > 0.0f) {
       const i32 b = (i32)s.border;
       const NPatchInfo patch{src, b, b, b, b, NPATCH_NINE_PATCH};
       DrawTextureNPatch(tex->texture, patch, dest, Vector2{0.0f, 0.0f}, 0.0f, color);
@@ -809,14 +825,22 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
   ui.cmds.clear();
   ui.row_cols = 0;
   const vec2 screen = screen_size(ctx);
-  // A panel taller than the screen would run off it, top and bottom: shrink
-  // its sizes (text included) by the factor that makes it fit, down to half.
-  // The height it would have unshrunk is known from the frame before.
+  // A panel taller than the room it has where it stands (its anchor, pivot
+  // and offset: one hung from above the bottom edge has only the screen
+  // above that point) would run off it: shrink its sizes (text included) by
+  // the factor that makes it fit, down to half. The height it would have
+  // unshrunk is known from the frame before.
   ui.fit = 1.0f;
+  const f32 margin = sc(ui, panel_screen_margin);
   const auto nat = ui.natural.find(ui.panel_id);
   if (nat != ui.natural.end() && nat->second > 0.0f) {
-    const f32 room = screen.y - 2.0f * sc(ui, panel_screen_margin);
-    ui.fit = std::clamp(room / nat->second, min_panel_fit, 1.0f);
+    const f32 at = screen.y * desc.anchor.y + desc.offset.y; // the pivot's height on the screen
+    f32 room = screen.y - 2.0f * margin;
+    if (desc.pivot.y > 0.0f)
+      room = std::min(room, (at - margin) / desc.pivot.y);
+    if (desc.pivot.y < 1.0f)
+      room = std::min(room, (screen.y - margin - at) / (1.0f - desc.pivot.y));
+    ui.fit = std::clamp(std::max(room, 0.0f) / nat->second, min_panel_fit, 1.0f);
   }
   const f32 width = sc(ui, desc.width > 0.0f ? desc.width : ui.style.width);
   // The height is last frame's: the panel is placed before its content is
@@ -827,6 +851,10 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
     height = nat->second * ui.fit;
   const vec2 size{width, height};
   ui.panel = rect{screen * desc.anchor - size * desc.pivot + desc.offset, size};
+  // Shrunk as far as it goes and still too tall where it stands: moved down
+  // to keep its top (its title, its close box) on the screen.
+  if (ui.fit <= min_panel_fit && ui.panel.pos.y < margin)
+    ui.panel.pos.y = margin;
   // Entering: slid from `enter_from` and faded in, over `enter_seconds` from
   // the first frame it is drawn after a frame without it.
   ui.panel_alpha = 1.0f;
@@ -1061,13 +1089,17 @@ bool ui_toggle(context &ctx, const char *label, bool &value) {
   const rect b{{it.area.pos.x + it.area.size.x - sc(ui, 14.0f) - box * 1.8f,
                 rect_center(it.area).y - box * 0.5f},
                {box * 1.8f, box}};
-  push_skin(ui, ui.style.track, it.state, b, value ? 1.0f : 0.0f);
+  // Its body: its own off and on faces if the style has them, else the track and the fill.
+  if (ui.style.toggle_own)
+    push_skin(ui, value ? ui.style.toggle_on : ui.style.toggle_off, it.state, b, value ? 1.0f : 0.0f);
+  else
+    push_skin(ui, ui.style.track, it.state, b, value ? 1.0f : 0.0f);
   // A switch: the knob sits left when off, right when on.
   const f32 k = box - sc(ui, 6.0f);
   const rect knob{{value ? b.pos.x + b.size.x - k - sc(ui, 3.0f) : b.pos.x + sc(ui, 3.0f),
                    b.pos.y + sc(ui, 3.0f)},
                   {k, k}};
-  if (value)
+  if (value && !ui.style.toggle_own)
     push_skin(ui, ui.style.fill, it.state, b, 1.0f);
   push_skin(ui, ui.style.knob, it.state, knob, value ? 1.0f : 0.0f);
   return changed;
@@ -1642,6 +1674,16 @@ bool ui_active(const context &ctx) { return ctx.ui.navigable_last; }
 rect ui_last_rect(const context &ctx) { return ctx.ui.last_rect; }
 
 rect ui_panel_rect(const context &ctx) { return ctx.ui.panel_done; }
+
+rect ui_panel_rect(const context &ctx, const char *id) {
+  if (id == nullptr)
+    return {};
+  const u64 h = hash_id(0, id);
+  for (size_t i = ctx.ui.last_panel_ids.size(); i-- > 0;)
+    if (ctx.ui.last_panel_ids[i] == h)
+      return ctx.ui.last_panels[i];
+  return {};
+}
 
 void ui_let_through(context &ctx, rect area) {
   ctx.ui.through.push_back(area);

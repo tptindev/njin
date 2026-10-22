@@ -132,6 +132,36 @@ void window_center(context &ctx);
 /// @return Vùng ảnh trong cửa sổ.
 rect window_viewport(const context &ctx);
 
+/// Đặt góc trên trái của cửa sổ vào một điểm trên màn hình, pixel màn hình.
+/// Toàn màn hình thì không làm gì.
+/// @param ctx Context của engine.
+/// @param pos Vị trí mới.
+void window_set_position(context &ctx, vec2 pos);
+
+/// Góc trên trái của cửa sổ trên màn hình, pixel màn hình.
+/// @param ctx Context của engine.
+/// @return Vị trí cửa sổ.
+vec2 window_position(const context &ctx);
+
+/// Góc trên trái của màn hình (monitor) đang chứa cửa sổ, trong tọa độ của cả
+/// bàn làm việc (màn hình chính bắt đầu ở {0, 0}). Cùng monitor_size() để phủ
+/// kín một màn hình:
+/// @code
+/// njin::window_set_size(ctx, njin::monitor_size(ctx));
+/// njin::window_set_position(ctx, njin::monitor_position(ctx));
+/// @endcode
+/// @param ctx Context của engine.
+/// @return Vị trí của màn hình.
+vec2 monitor_position(const context &ctx);
+
+/// Handle gốc của cửa sổ trong hệ điều hành: `HWND` trên Windows. Cho code của
+/// game gọi thẳng API của hệ điều hành về cửa sổ (biểu tượng ở khay hệ thống,
+/// thứ tự trên dưới với cửa sổ khác, để chuột đi xuyên qua một lớp phủ) mà
+/// engine không có.
+/// @param ctx Context của engine.
+/// @return Handle, hoặc nullptr nếu không có.
+void *window_native_handle(const context &ctx);
+
 /// Khóa con trỏ chuột trong cửa sổ và ẩn nó, như game bắn súng góc nhìn thứ
 /// nhất. Khi khóa, dùng mouse_delta() thay cho mouse_pos().
 /// @param ctx Context của engine.

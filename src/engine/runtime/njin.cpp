@@ -52,6 +52,8 @@ window_guard::window_guard(const config &cfg) {
     flags |= FLAG_VSYNC_HINT;
   if (!cfg.decorated)
     flags |= FLAG_WINDOW_UNDECORATED;
+  if (cfg.transparent)
+    flags |= FLAG_WINDOW_TRANSPARENT;
   SetConfigFlags(flags);
   InitWindow((i32)cfg.width, (i32)cfg.height, cfg.title);
   // Without a device (no speakers, driver problem) the game still runs; the

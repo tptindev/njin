@@ -24,6 +24,8 @@ njin::texture_draw(ctx, tex, {100.0f, 100.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
 ```
 
 - njin::texture_load() nạp ảnh; đường dẫn tính từ thư mục làm việc khi chạy game.
+- njin::texture_from_pixels() tạo texture từ điểm ảnh RGBA trong bộ nhớ, cho ảnh game
+  tự làm ra hoặc lấy từ hệ thống (không có file nên không hot reload).
 - njin::texture_draw() vẽ với **góc trên trái** tại vị trí cho trước.
 - Tham số cuối là **màu nhân** (njin::rgba, mỗi kênh 0..1). Trắng `{1,1,1,1}` giữ
   nguyên ảnh; `{1,0,0,1}` chỉ giữ kênh đỏ.

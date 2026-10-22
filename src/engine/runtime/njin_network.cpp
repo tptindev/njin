@@ -1,4 +1,5 @@
 #include "njin_network_impl.h"
+#include "njin_lockstep_impl.h"
 #include "njin_multiplayer_impl.h"
 #include "njin_netcode_impl.h"
 #include "njin_ctx.h"
@@ -34,6 +35,8 @@ void setup(context &ctx) { ecs_register(ctx, phase_pre_update, pump_network, "ne
 network_store::~network_store() {
   if (netcode) // before the hosts: it only names them
     netcode_state_destroy(netcode);
+  if (lockstep) // the same
+    lockstep_state_destroy(lockstep);
   if (multiplayer)
     mp_service_destroy(multiplayer);
   if (service)

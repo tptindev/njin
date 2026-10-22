@@ -78,6 +78,12 @@ struct net_host_opts {
   /// bỏ, kèm một cảnh báo.
   u32 max_queued = 16384;
   net_sim sim; ///< Giả lập mạng xấu; mặc định tắt.
+  /// Phục vụ host trên một luồng nền khoảng mỗi mili giây, thay vì chỉ mỗi frame: gói
+  /// đến và xác nhận (ACK) được nhận và trả lời ngay, không chờ frame sau. Ping
+  /// (net_peer_stats::rtt) khi đó gần với mạng thật (vài ms trong mạng LAN) thay vì
+  /// cộng thêm một tới hai frame. Gói đã xếp hàng cũng có thể đi trước cuối frame.
+  /// Event vẫn chỉ đọc bằng net_host_poll(), trên luồng của game.
+  bool service_thread = false;
 };
 
 /// Loại của một net_host_event.
@@ -119,8 +125,9 @@ struct net_host_stats {
 /// Tạo một host mạng realtime (ENet trên UDP).
 ///
 /// Engine phục vụ host mỗi frame: nhận gói trong `phase_pre_update`, gửi đi những
-/// gì game đã xếp trong `phase_post_update`. Gói đến được giữ cho tới khi game đọc
-/// bằng net_host_poll().
+/// gì game đã xếp trong `phase_post_update` (và thêm trên luồng nền nếu đặt
+/// net_host_opts::service_thread). Gói đến được giữ cho tới khi game đọc bằng
+/// net_host_poll().
 /// @param ctx Context của engine.
 /// @param opts Cách tạo.
 /// @return Handle, hoặc handle không hợp lệ nếu cổng đã bị chiếm hay tham số sai

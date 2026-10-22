@@ -2,6 +2,7 @@
 #include "_types.h"
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace njin {
 struct context;
@@ -186,6 +187,12 @@ u16 udp_port(const context &ctx, net_udp socket);
 /// @param ctx Context của engine.
 /// @param socket Socket.
 void udp_close(context &ctx, net_udp socket);
+
+/// Các địa chỉ IPv4 của máy này, trừ 127.0.0.1: để hiện cho người chơi khác gõ vào
+/// khi vào phòng ("192.168.1.20"). Hỏi hệ điều hành ngay, có thể mất vài mili giây:
+/// gọi một lần rồi giữ lại, đừng gọi mỗi frame.
+/// @return Các địa chỉ; rỗng nếu máy không có mạng.
+std::vector<std::string> net_local_addresses();
 
 /// @}
 } // namespace njin

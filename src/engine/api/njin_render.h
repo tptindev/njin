@@ -229,6 +229,18 @@ void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle s
 /// @return Handle của texture, hoặc handle có id 0 nếu file thiếu hoặc không giải mã được.
 texture_handle texture_load(context &ctx, const char *path);
 
+/// Tạo một texture từ điểm ảnh RGBA trong bộ nhớ (mỗi điểm 4 byte, các hàng
+/// từ trên xuống), cho ảnh game tự làm ra hoặc lấy từ hệ thống, không có file.
+///
+/// Dữ liệu được chép lên GPU ngay; game giữ hay bỏ `rgba` sau đó tùy ý. Texture
+/// này không có file nên không nạp lại được khi sửa asset.
+/// @param ctx Context của engine.
+/// @param rgba `width * height * 4` byte.
+/// @param width Chiều rộng (pixel).
+/// @param height Chiều cao (pixel).
+/// @return Handle của texture, hoặc handle có id 0 nếu không có dữ liệu.
+texture_handle texture_from_pixels(context &ctx, const u8 *rgba, u32 width, u32 height);
+
 /// Giải phóng texture. Handle không hợp lệ bị bỏ qua.
 /// @param ctx Context của engine.
 /// @param handle Texture cần giải phóng.

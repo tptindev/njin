@@ -25,6 +25,7 @@ using net_event = std::variant<net_connected, net_connect_failed, net_disconnect
 class net_service; // njin_network_asio.cpp
 class mp_service;  // njin_multiplayer_enet.cpp
 struct netcode_state; // njin_netcode.cpp
+struct lockstep_state; // njin_lockstep.cpp
 
 net_service *net_service_create();
 void net_service_destroy(net_service *service);
@@ -58,6 +59,8 @@ struct network_store {
   mp_service *multiplayer = nullptr;
   // The netcode session (njin_netcode.h) and its registered components.
   netcode_state *netcode = nullptr;
+  // The lockstep session (njin_lockstep.h).
+  lockstep_state *lockstep = nullptr;
 
   network_store() = default;
   ~network_store();

@@ -113,6 +113,9 @@
 /// @defgroup grp_netcode Netcode
 /// Tick, input theo tick, đồng bộ tick, nội suy snapshot, replicate component EnTT có lọc và ưu tiên.
 
+/// @defgroup grp_lockstep Lockstep
+/// Mọi máy chạy cùng một mô phỏng tất định, chỉ gửi lệnh: máy chủ xếp lệnh vào tick, so mã trạng thái để bắt lệch.
+
 /// @defgroup grp_bits Ghi đọc theo bit
 /// Đóng gói dữ liệu nhị phân bằng đúng số bit cần, đọc an toàn dữ liệu lạ: gói mạng, replay, save.
 

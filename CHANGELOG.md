@@ -10,6 +10,39 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- `texture_from_pixels()`: a texture from RGBA pixels in memory, with no file.
+  (deskbot: robots carry a copy of the real desktop icon on their deck.)
+
+- `config::transparent` (off by default), `window_set_position()`,
+  `window_position()`, `monitor_position()`, `window_native_handle()` and
+  `set_fps()`: a borderless see-through window over the desktop, which the game
+  can hand to the OS for what njin does not do (click-through, tray), and
+  which drops its frame rate when idle. (deskbot: a robot that tidies the
+  desktop icons, with no window of its own.)
+
+- `njin_lockstep.h`: deterministic lockstep over ENet. Every machine runs the
+  same simulation and only players' commands go over the wire: the host orders
+  them into ticks, guests run the ticks it has closed and keep a few in hand,
+  state hashes are compared and a `desync` event names the tick. A room with a
+  setup blob for everyone at the start, out-of-simulation messages
+  (`lockstep_say`), `lockstep_hasher`. (turf: co-op, a town of 2000 people on
+  every machine, with only the bosses' orders sent.)
+- `net_local_addresses()`: this machine's IPv4 addresses, to show the other
+  players where to join. (turf: the co-op room's card.)
+- `net_host_opts::service_thread` (off by default, as before): the host is
+  serviced on a background thread about every millisecond, so packets and
+  ACKs are answered at once and `net_peer_stats::rtt` is close to the real
+  network instead of adding a frame or two. Events are still read with
+  `net_host_poll()` on the game's thread. (turf: co-op ping on a LAN.)
+- `ui_skin::border_fit` (off by default, as before): 9-slice corners scale
+  with the widget's height against the picture's, so a button picture drawn
+  larger than it shows stays sharp with its corners shrunk alongside it.
+- `ui_style::toggle_own` with `toggle_off` and `toggle_on` (off by default,
+  as before): ui_toggle()'s switch body gets its own off and on faces instead
+  of the slider's track and fill.
+- `ui_panel_rect(ctx, id)`: a named panel's frame from last frame, so a game
+  can tell whether its windows overlap. (turf: a window under another one
+  dimmed.)
 - `njin_package(... EXCLUDE <pattern>...)`: paths and globs left out of the
   ASSETS folders in the release zip (Blender sources, backups); without it
   every file is copied, as before. (turf: an 800 MB assets folder sent to
@@ -53,99 +86,6 @@ To release: edit that header, add a section here, commit, then
   `phase_fixed_update` steps per frame. A game for weak hardware can set 2–4
   so a slow frame does not run a long backlog of steps and make the next
   frame slower still.
-
-### Changed
-
-- 3D shadows draw only what can land in them: each shadow pass (the sun, each
-  face of a point lamp, a spot lamp) skips models, primitives and SDF shapes
-  whose box is outside the light's frustum. Primitives and SDF shapes out of
-  the camera's view are skipped like models already were. A 1,600-object
-  scene with sun and two lamp shadows went from 70 ms to 4–5 ms a frame on
-  the same machine, pixel for pixel the same image.
-- The lamp shadow atlas has a row per lamp that casts (grown, not shrunk),
-  instead of always four: a single lamp uses a quarter of the memory.
-- 3D particles out of view are not drawn, and streaks (`stretch`) no longer
-  flush the batch once per particle. CPU 2D particle discs use as few sides
-  as keep them round to half a pixel (8 for small ones, at most 36).
-- Less per-frame allocation: sprite draw lists, the crisp-text queue, 2D
-  collision buffers, grass cells and instanced draws keep their buffers; the
-  sprite sort no longer allocates. Lines of crisp text with nothing over them
-  join one batch instead of each flushing it. world3d caches its uniform
-  locations.
-- Repeated misuse warnings of the 3D pass (too many lights, begin_3d twice,
-  too many SDF blend parts) are written at most once every five seconds.
-
-### Fixed
-
-- Text is no longer cramped: raylib cut each glyph's advance down to whole
-  pixels, half a pixel lost a letter on average, and a narrow space (Be
-  Vietnam Pro's) all but vanished at small sizes. The advances are now
-  rounded from the font's own metrics. Text in every font comes out a
-  little wider than before, as wide as the font means it. (turf: the HUD's
-  and the phone's words ran together.)
-- The camera's world target clamps at its edges, so a bilinear scale
-  (`render_scale`, or the new `world_scale`) no longer blends the top row
-  with the bottom one into a light line along the edge.
-- Sprites, tilemap chunks and particles are culled against the shaken
-  camera's view while the camera shakes, instead of not at all (sprites and
-  particles) or against the steady view (tilemap chunks, which could leave a
-  gap along an edge during a shake).
-- The runtime builds again with MSVC in Debug: the sol2 bindings
-  (`njin_script_bind.cpp`) went over the default section limit of an object
-  file (C1128). `njin_rt` now compiles with `/bigobj` under MSVC.
-- Rain no longer collapses into a flat sheet every few seconds: each drop's
-  start height and its fall speed came from the same random number, so every
-  ~4.9 s (when the spread of speeds had added up to the 22 m box) all drops
-  lined up at one height, and for a while rain showed only high above the
-  camera. Snow had the same fault every ~44 s. The speed now has its own
-  random number.
-- Navmesh paths and crowd agents sit on the ground over hilly terrain. Points
-  took Detour's detail height, which samples the ground only every few cells
-  (path corners up to 0.54 m off), and straight segments between corners cut
-  through hills (up to 2.4 m under a hilltop). Over terrain added with
-  `navmesh3d_add_terrain()`, `navmesh3d_path()` points and
-  `nav3d_agent_position()` now take `terrain3d_height()`, and a segment that
-  would leave the ground by more than 5 cm gets points in between: on the
-  batch-7 hills, corners are exact and segments within 5.3 cm.
-- `physics3d_raycast()` with a `body` out-parameter no longer trips Jolt's
-  lock check (two "lock of same or higher priority" asserts in Debug): it read
-  the hit body's handle through the body interface, locking the body a second
-  time while it was already locked for the surface normal. The handle is now
-  read from the locked body.
-- A character standing on a light dynamic body (a board lying on the floor)
-  no longer makes it shake, and its whole weight now counts. It was put on
-  the body as an impulse straight into the body's velocity outside the
-  solver. Now, for each step's solve, the body carries the character: it
-  is as heavy as both together, with the character's inertia where it
-  stands and the turn its weight gives there, shared among every point the
-  character stands on. A board on the floor stays put, standing across two
-  boards keeps both still, a seesaw tips, and a board leant on a wall slips
-  out from under a character (with a light board it used to hold, as the
-  weight was only a few times the board's own).
-- A character no longer shoves aside what it stands on: resting across two
-  boards' edges it wedged them apart every step and was thrown up and down.
-  What it walks into is still pushed.
-- A kinematic body moved with `body3d_move_kinematic()` no longer keeps
-  drifting once the game stops giving it a new target each step.
-  `MoveKinematic` sets a velocity for that one step and Jolt kept it running;
-  a door opened once would fly on for ever and eventually land outside the
-  broadphase's range, crashing far from the cause. It now stops exactly where
-  it got to.
-- `physics3d` no longer crashes on a NaN or infinite position, rotation, size
-  or velocity (`body3d_create`, `body3d_set_position`,
-  `body3d_move_kinematic`, `body3d_set_velocity`, `body3d_add_impulse`,
-  `character3d_create`, `character3d_set_velocity`,
-  `character3d_set_position`): Jolt's broadphase would read past its bounds a
-  step later, far from the bad value. The call is now refused, with a warning
-  once per call site, instead.
-- A glTF material whose base colour reads the model's second UV set
-  (texCoord 1, a texture baked onto a fresh unwrap while the source UVs stay)
-  now samples the right UVs: raylib samples every map with a material's first
-  UV set only, so the mesh's two sets are swapped to match what the shader
-  expects.
-
-### Added
-
 - TCP and UDP networking (`njin_network.h`), for games played across
   machines: `tcp_listen()`, `tcp_connect()`, `tcp_send()` and `udp_open()`,
   `udp_send()`. Sockets run on one network thread of the engine, on asio
@@ -599,6 +539,28 @@ To release: edit that header, add a section here, commit, then
 
 ### Changed
 
+- A panel taller than the room it has where it stands shrinks to fit that
+  room (its anchor, pivot and offset), not the whole screen's height: one
+  hung above the bottom edge no longer runs off the top. Shrunk as far as it
+  goes and still too tall, it is moved down so its title stays on screen.
+- 3D shadows draw only what can land in them: each shadow pass (the sun, each
+  face of a point lamp, a spot lamp) skips models, primitives and SDF shapes
+  whose box is outside the light's frustum. Primitives and SDF shapes out of
+  the camera's view are skipped like models already were. A 1,600-object
+  scene with sun and two lamp shadows went from 70 ms to 4–5 ms a frame on
+  the same machine, pixel for pixel the same image.
+- The lamp shadow atlas has a row per lamp that casts (grown, not shrunk),
+  instead of always four: a single lamp uses a quarter of the memory.
+- 3D particles out of view are not drawn, and streaks (`stretch`) no longer
+  flush the batch once per particle. CPU 2D particle discs use as few sides
+  as keep them round to half a pixel (8 for small ones, at most 36).
+- Less per-frame allocation: sprite draw lists, the crisp-text queue, 2D
+  collision buffers, grass cells and instanced draws keep their buffers; the
+  sprite sort no longer allocates. Lines of crisp text with nothing over them
+  join one batch instead of each flushing it. world3d caches its uniform
+  locations.
+- Repeated misuse warnings of the 3D pass (too many lights, begin_3d twice,
+  too many SDF blend parts) are written at most once every five seconds.
 - The model editor tool is replaced by an animation editor:
   `src/tools/model_editor` is now `src/tools/anim_editor` (target
   `njin_anim_editor`, `run_anim_editor.bat`, CMake option
@@ -637,6 +599,75 @@ To release: edit that header, add a section here, commit, then
   since njin's raylib is built without JPEG; about 1-2 ms of encoding per
   image. The separate OpenCV window is now an option (**OpenCV window**,
   off by default).
+
+### Fixed
+
+- Text is no longer cramped: raylib cut each glyph's advance down to whole
+  pixels, half a pixel lost a letter on average, and a narrow space (Be
+  Vietnam Pro's) all but vanished at small sizes. The advances are now
+  rounded from the font's own metrics. Text in every font comes out a
+  little wider than before, as wide as the font means it. (turf: the HUD's
+  and the phone's words ran together.)
+- The camera's world target clamps at its edges, so a bilinear scale
+  (`render_scale`, or the new `world_scale`) no longer blends the top row
+  with the bottom one into a light line along the edge.
+- Sprites, tilemap chunks and particles are culled against the shaken
+  camera's view while the camera shakes, instead of not at all (sprites and
+  particles) or against the steady view (tilemap chunks, which could leave a
+  gap along an edge during a shake).
+- The runtime builds again with MSVC in Debug: the sol2 bindings
+  (`njin_script_bind.cpp`) went over the default section limit of an object
+  file (C1128). `njin_rt` now compiles with `/bigobj` under MSVC.
+- Rain no longer collapses into a flat sheet every few seconds: each drop's
+  start height and its fall speed came from the same random number, so every
+  ~4.9 s (when the spread of speeds had added up to the 22 m box) all drops
+  lined up at one height, and for a while rain showed only high above the
+  camera. Snow had the same fault every ~44 s. The speed now has its own
+  random number.
+- Navmesh paths and crowd agents sit on the ground over hilly terrain. Points
+  took Detour's detail height, which samples the ground only every few cells
+  (path corners up to 0.54 m off), and straight segments between corners cut
+  through hills (up to 2.4 m under a hilltop). Over terrain added with
+  `navmesh3d_add_terrain()`, `navmesh3d_path()` points and
+  `nav3d_agent_position()` now take `terrain3d_height()`, and a segment that
+  would leave the ground by more than 5 cm gets points in between: on the
+  batch-7 hills, corners are exact and segments within 5.3 cm.
+- `physics3d_raycast()` with a `body` out-parameter no longer trips Jolt's
+  lock check (two "lock of same or higher priority" asserts in Debug): it read
+  the hit body's handle through the body interface, locking the body a second
+  time while it was already locked for the surface normal. The handle is now
+  read from the locked body.
+- A character standing on a light dynamic body (a board lying on the floor)
+  no longer makes it shake, and its whole weight now counts. It was put on
+  the body as an impulse straight into the body's velocity outside the
+  solver. Now, for each step's solve, the body carries the character: it
+  is as heavy as both together, with the character's inertia where it
+  stands and the turn its weight gives there, shared among every point the
+  character stands on. A board on the floor stays put, standing across two
+  boards keeps both still, a seesaw tips, and a board leant on a wall slips
+  out from under a character (with a light board it used to hold, as the
+  weight was only a few times the board's own).
+- A character no longer shoves aside what it stands on: resting across two
+  boards' edges it wedged them apart every step and was thrown up and down.
+  What it walks into is still pushed.
+- A kinematic body moved with `body3d_move_kinematic()` no longer keeps
+  drifting once the game stops giving it a new target each step.
+  `MoveKinematic` sets a velocity for that one step and Jolt kept it running;
+  a door opened once would fly on for ever and eventually land outside the
+  broadphase's range, crashing far from the cause. It now stops exactly where
+  it got to.
+- `physics3d` no longer crashes on a NaN or infinite position, rotation, size
+  or velocity (`body3d_create`, `body3d_set_position`,
+  `body3d_move_kinematic`, `body3d_set_velocity`, `body3d_add_impulse`,
+  `character3d_create`, `character3d_set_velocity`,
+  `character3d_set_position`): Jolt's broadphase would read past its bounds a
+  step later, far from the bad value. The call is now refused, with a warning
+  once per call site, instead.
+- A glTF material whose base colour reads the model's second UV set
+  (texCoord 1, a texture baked onto a fresh unwrap while the source UVs stay)
+  now samples the right UVs: raylib samples every map with a material's first
+  UV set only, so the mesh's two sets are swapped to match what the shader
+  expects.
 
 ### Removed
 

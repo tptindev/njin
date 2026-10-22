@@ -27,6 +27,7 @@
 #include "njin_input.h"
 #include "njin_json.h"
 #include "njin_light.h"
+#include "njin_lockstep.h"
 #include "njin_multiplayer.h"
 #include "njin_level.h"
 #include "njin_log.h"
