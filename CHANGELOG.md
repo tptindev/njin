@@ -6,6 +6,30 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## 0.5.0
+
+Compatible with 0.4.0: existing games build and behave unchanged.
+
+### Added
+
+- `font_add_chars()`: a font bakes the letters of a text on top of the Latin
+  and Vietnamese set it always had, so text in Russian, Thai, Chinese,
+  Japanese or Korean draws with a font that has those letters. Works on the
+  engine's own font too (it has Cyrillic). (deskbot: the UI in seven
+  languages.)
+- `font_load()` reads `.ttc` font collections (their first font), such as
+  the Chinese and Japanese fonts Windows ships. (deskbot: the system's own
+  fonts for Chinese and Japanese, nothing shipped.)
+
+### Fixed
+
+- Thai vowels and tones, and combining accents, were drawn after their
+  letter with a gap: a glyph with no advance now sits over the letter before
+  it.
+- `text_wrap()` (and every UI label that wraps) left Chinese and Japanese
+  lines, which have no spaces, running out of their box: a line may now
+  break between two of their characters. Text with spaces wraps as before.
+
 ## 0.4.0
 
 Compatible with 0.3.0: existing games build and behave unchanged; every new
