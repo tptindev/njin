@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Reads the njin version from src/engine/api/njin_version.h and checks it
-# against the newest numbered section of CHANGELOG.md.
+# against the newest numbered section of CHANGELOG.md and the "Current
+# version" line of README.md.
 #
 #   version.sh          print the version, or fail if the two disagree
 #   version.sh notes    print the body of that version's CHANGELOG section
@@ -23,7 +24,15 @@ esac
 # The newest numbered section. A "## Unreleased" heading above it is skipped.
 top="$(grep -m1 -E '^## [0-9]+\.[0-9]+\.[0-9]+' "$changelog" | sed 's/^## //' | awk '{print $1}')"
 if [ "$top" != "$version" ]; then
-  echo "::error::njin_version.h says $version but the newest CHANGELOG.md section is '${top:-none}'. Release edits both." >&2
+  echo "::error::njin_version.h says $version but the newest CHANGELOG.md section is '${top:-none}'. Release edits all three." >&2
+  exit 1
+fi
+
+# The README's "Current version" line, which went stale for two releases.
+readme="$root/README.md"
+shown="$(sed -n 's/^Current version: \*\*\([0-9][0-9.]*\)\*\*.*/\1/p' "$readme")"
+if [ "$shown" != "$version" ]; then
+  echo "::error::njin_version.h says $version but README.md says '${shown:-none}'. Release edits all three." >&2
   exit 1
 fi
 
