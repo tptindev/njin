@@ -213,7 +213,7 @@ enum font_style : u8 {
 /// tiên (cỡ làm tròn thành số nguyên pixel, từ 6 đến 256), nên chữ nét ở mọi
 /// cỡ và một font dùng được cho cả chữ nhỏ lẫn chữ to.
 /// @param ctx Context của engine.
-/// @param path Đường dẫn file font (ttf, otf).
+/// @param path Đường dẫn file font (ttf, otf, hoặc ttc: font đầu tiên của bộ).
 /// @param size Cỡ dựng sẵn ngay lúc nạp, tính bằng pixel, để lần vẽ đầu không
 /// phải chờ. Bỏ qua hoặc 0 thì dựng thử ở cỡ 16 để biết file có đọc được không.
 /// @param style Kiểu dựng chữ, mặc định là font_smooth.
@@ -246,6 +246,22 @@ void font_set_style(context &ctx, font_handle font, font_style style);
 /// @param ctx Context của engine.
 /// @param font Font dùng làm mặc định, `{}` để quay về font của engine.
 void font_set_default(context &ctx, font_handle font);
+
+/// Cho font dựng thêm các ký tự có trong `text`, ngoài bộ ký tự Latin và
+/// tiếng Việt có sẵn: chữ Nga, Thái, Trung, Nhật, Hàn... Mỗi cỡ chữ được dựng
+/// lại ở lần vẽ kế tiếp. Ký tự font không có thì vẫn không vẽ được: chữ Trung
+/// cần một font có chữ Trung. Thường gọi một lần với cả file ngôn ngữ.
+/// @code
+/// const njin::font_handle cjk = njin::font_load(ctx, "C:/Windows/Fonts/msyh.ttc");
+/// std::string zh;
+/// if (njin::file_read("assets/lang/zh.json", zh))
+///   njin::font_add_chars(ctx, cjk, zh.c_str());
+/// njin::font_set_default(ctx, cjk);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param font Font cần thêm, handle id 0 là font của engine.
+/// @param text Chữ (UTF-8) có các ký tự cần dựng.
+void font_add_chars(context &ctx, font_handle font, const char *text);
 
 /// Giải phóng font. Handle không hợp lệ bị bỏ qua. Vẽ bằng handle đã giải
 /// phóng thì dùng font mặc định.

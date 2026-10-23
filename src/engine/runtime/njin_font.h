@@ -23,6 +23,7 @@ struct font_slot {
   std::map<i32, Font> atlases;
   bool alive = false;
   bool pixel = false; // font_pixel: no anti-aliasing, nearest filter
+  std::vector<int> extra; // codepoints baked on top of the common set (font_add_chars), sorted
 
   void unload_atlases();
 };
@@ -60,6 +61,7 @@ bool font_store_is_pixel(const font_store &store, font_handle handle);
 void font_store_unload(font_store &store, font_handle handle);
 // The font drawn when no font is given (font_set_default); {} the built-in one.
 void font_store_set_default(font_store &store, font_handle handle);
+void font_store_add_chars(font_store &store, font_handle handle, const char *text);
 
 // The atlas to draw `handle` with at `px` pixels (see font_px). Never null once
 // the default font itself is fine. Past a cap on atlases per font (a size

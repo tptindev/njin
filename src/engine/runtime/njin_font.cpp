@@ -3,6 +3,7 @@
 #include "njin_path.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <string>
 
 // stb_truetype for the fonts' own metrics (round_advances); raylib's copy is
@@ -53,6 +54,33 @@ const std::vector<int> &font_codepoints() {
   return cps;
 }
 
+// A font collection (.ttc: msyh.ttc, the Japanese and Chinese fonts on
+// Windows) holds several fonts after a header, and raylib reads a font only
+// from the start of the file. The first font's table directory is moved to
+// the start in place of the header: its tables' offsets count from the start
+// of the file, so they still point at the same bytes. False when the bytes
+// are a collection that cannot be read that way.
+bool first_of_collection(std::vector<unsigned char> &bytes) {
+  const auto be32 = [&](size_t at) {
+    return (u32)bytes[at] << 24 | (u32)bytes[at + 1] << 16 | (u32)bytes[at + 2] << 8 | (u32)bytes[at + 3];
+  };
+  if (bytes.size() < 16 || std::memcmp(bytes.data(), "ttcf", 4) != 0)
+    return true; // a single font
+  const size_t dir = be32(12);
+  if (dir + 12 > bytes.size())
+    return false;
+  const size_t tables = (size_t)bytes[dir + 4] << 8 | bytes[dir + 5];
+  const size_t length = 12 + tables * 16;
+  if (dir + length > bytes.size())
+    return false;
+  // Every table must lie past the bytes the directory is moved over.
+  for (size_t t = 0; t < tables; t++)
+    if (be32(dir + 12 + t * 16 + 8) < dir + length)
+      return false;
+  std::memmove(bytes.data(), bytes.data() + dir, length);
+  return true;
+}
+
 font_slot *slot_of(font_store &store, font_handle handle) {
   if (handle.id == 0 || handle.id > store.slots.size())
     return nullptr;
@@ -72,18 +100,26 @@ void round_advances(const font_slot &slot, Font &font, i32 px) {
     return;
   const float scale = stbtt_ScaleForPixelHeight(&info, (float)px);
   for (int i = 0; i < font.glyphCount; ++i) {
-    if (font.glyphs[i].advanceX <= 0)
-      continue;
+    const int cp = font.glyphs[i].value;
     int advance = 0;
-    stbtt_GetCodepointHMetrics(&info, font.glyphs[i].value, &advance, nullptr);
-    if (advance > 0)
-      font.glyphs[i].advanceX = (int)std::lround((float)advance * scale);
+    stbtt_GetCodepointHMetrics(&info, cp, &advance, nullptr);
+    if (font.glyphs[i].advanceX > 0) {
+      if (advance > 0)
+        font.glyphs[i].advanceX = (int)std::lround((float)advance * scale);
+    } else if (advance == 0 && stbtt_FindGlyphIndex(&info, cp) != 0 && font.recs[i].width > 0.0f) {
+      // A mark drawn over the letter before it (Thai vowels and tones, a
+      // combining accent): raylib steps a glyph with no advance by its whole
+      // width, which pushed every mark off its letter. One pixel is the least
+      // it can step.
+      font.glyphs[i].advanceX = 1;
+    }
   }
 }
 
 // Bakes one atlas; null when the bytes are not a font raylib can read.
 const Font *bake(font_slot &slot, i32 px) {
-  const std::vector<int> &cps = font_codepoints();
+  std::vector<int> cps = font_codepoints();
+  cps.insert(cps.end(), slot.extra.begin(), slot.extra.end());
   Font font{};
   if (slot.pixel) {
     // FONT_BITMAP rasterizes without anti-aliasing: every texel of a glyph is
@@ -173,6 +209,10 @@ font_handle font_store_load(font_store &store, const char *path, i32 size, bool 
   font_slot slot;
   slot.owned.assign(data, data + length);
   UnloadFileData(data);
+  if (!first_of_collection(slot.owned)) {
+    NJIN_WARN("font: cannot read the font collection: %s", path);
+    return font_handle{};
+  }
   slot.bytes = slot.owned.data();
   slot.length = length;
   slot.alive = true;
@@ -213,6 +253,31 @@ bool font_store_is_pixel(const font_store &store, font_handle handle) {
 }
 
 void font_store_set_default(font_store &store, font_handle handle) { store.chosen = handle; }
+
+void font_store_add_chars(font_store &store, font_handle handle, const char *text) {
+  font_slot *slot = handle.id == 0 ? &store.fallback : slot_of(store, handle);
+  if (slot == nullptr || text == nullptr)
+    return;
+  const std::vector<int> &common = font_codepoints();
+  std::vector<int> added;
+  int count = 0;
+  int *cps = LoadCodepoints(text, &count);
+  for (int i = 0; i < count; i++) {
+    const int c = cps[i];
+    if (c < 0x20 || std::binary_search(common.begin(), common.end(), c) ||
+        std::binary_search(slot->extra.begin(), slot->extra.end(), c))
+      continue;
+    added.push_back(c);
+  }
+  UnloadCodepoints(cps);
+  if (added.empty())
+    return;
+  slot->extra.insert(slot->extra.end(), added.begin(), added.end());
+  std::sort(slot->extra.begin(), slot->extra.end());
+  slot->extra.erase(std::unique(slot->extra.begin(), slot->extra.end()), slot->extra.end());
+  // Baked again, with them, the next time each size is drawn.
+  slot->unload_atlases();
+}
 
 const Font *font_store_atlas(font_store &store, font_handle handle, i32 px) {
   font_slot *slot = slot_of(store, handle);

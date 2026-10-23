@@ -272,6 +272,10 @@ void font_set_default(context &ctx, font_handle font) {
   font_store_set_default(ctx.font, font);
 }
 
+void font_add_chars(context &ctx, font_handle font, const char *text) {
+  font_store_add_chars(ctx.font, font, text);
+}
+
 namespace {
 // Text in the UI pass: baked at size * scale and drawn in window pixels, with
 // the pass's transform put aside. A glyph advance is a whole number of pixels,
@@ -412,21 +416,51 @@ std::vector<std::string> text_wrap(const context &ctx, const char *text, f32 siz
   std::vector<std::string> lines;
   if (text == nullptr)
     return lines;
+  // Chinese and Japanese have no spaces: a line may break between any two of
+  // their characters, but not before a closing mark (、。」) or after an opening one.
+  const auto cjk = [](i32 c) {
+    return (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF00 && c <= 0xFFEF);
+  };
+  const auto closing = [](i32 c) {
+    return c == 0x3001 || c == 0x3002 || c == 0x300D || c == 0x300F || c == 0x3011 || c == 0xFF01 ||
+           c == 0xFF09 || c == 0xFF0C || c == 0xFF0E || c == 0xFF1A || c == 0xFF1B || c == 0xFF1F ||
+           c == 0x30FC || c == 0x2026;
+  };
+  const auto opening = [](i32 c) { return c == 0x300C || c == 0x300E || c == 0x3010 || c == 0xFF08; };
   std::string paragraph;
   const auto flush_paragraph = [&]() {
+    // The pieces a line may break between, each with what joins it to the
+    // one before: a space, or nothing between two CJK characters.
+    struct piece {
+      std::string text;
+      bool spaced = false;
+    };
+    std::vector<piece> pieces(1);
+    i32 last = 0; // the character before, in this piece
+    for (usize i = 0; i < paragraph.size();) {
+      int bytes = 1;
+      const i32 c = GetCodepointNext(paragraph.c_str() + i, &bytes);
+      if (c == ' ') {
+        pieces.push_back({"", true});
+        last = 0;
+      } else {
+        if ((cjk(last) || cjk(c)) && !closing(c) && !opening(last) && !pieces.back().text.empty())
+          pieces.push_back({"", false});
+        last = c;
+      }
+      if (c != ' ')
+        pieces.back().text.append(paragraph, i, (usize)bytes);
+      i += (usize)std::max(1, bytes);
+    }
     std::string line;
-    usize i = 0;
-    while (i <= paragraph.size()) {
-      const usize end = std::min(paragraph.find(' ', i), paragraph.size());
-      const std::string word = paragraph.substr(i, end - i);
-      const std::string trial = line.empty() ? word : line + " " + word;
+    for (const piece &p : pieces) {
+      const std::string trial = line.empty() ? p.text : line + (p.spaced ? " " : "") + p.text;
       if (!line.empty() && text_measure(ctx, trial.c_str(), size, font).x > max_width) {
         lines.push_back(line);
-        line = word;
+        line = p.text;
       } else {
         line = trial;
       }
-      i = end + 1;
     }
     lines.push_back(line);
     paragraph.clear();
