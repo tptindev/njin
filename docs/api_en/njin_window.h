@@ -114,11 +114,57 @@ void window_set_bar_color(context &ctx, rgba color);
 /// @return Window size.
 vec2 window_size(const context &ctx);
 
+/// Size of the monitor currently containing the window, in pixels: to know how large the window
+/// can get, like a list of resolutions in a settings menu.
+/// @code
+/// const njin::vec2 most = njin::monitor_size(ctx);
+/// if (1920.0f <= most.x && 1080.0f <= most.y)
+///   njin::window_set_size(ctx, {1920.0f, 1080.0f});
+/// @endcode
+/// @param ctx Engine context.
+/// @return Monitor size; {0, 0} if it could not be read.
+vec2 monitor_size(const context &ctx);
+
+/// Centers the window on the monitor currently containing it, for example after changing its size with
+/// window_set_size() (the window keeps its top-left corner, so it may spill off the monitor).
+/// Does nothing in fullscreen.
+/// @param ctx Engine context.
+void window_center(context &ctx);
+
 /// The area of the window that the virtual screen occupies, in window pixels. Without
 /// virtual resolution it is the whole window.
 /// @param ctx Engine context.
 /// @return Image area within the window.
 rect window_viewport(const context &ctx);
+
+/// Sets the top-left corner of the window to a point on the screen, in screen pixels.
+/// Does nothing in fullscreen.
+/// @param ctx Engine context.
+/// @param pos New position.
+void window_set_position(context &ctx, vec2 pos);
+
+/// Top-left corner of the window on the screen, in screen pixels.
+/// @param ctx Engine context.
+/// @return Window position.
+vec2 window_position(const context &ctx);
+
+/// Top-left corner of the monitor currently containing the window, in desktop-wide
+/// coordinates (the main monitor starts at {0, 0}). Combine with monitor_size() to cover
+/// a monitor exactly:
+/// @code
+/// njin::window_set_size(ctx, njin::monitor_size(ctx));
+/// njin::window_set_position(ctx, njin::monitor_position(ctx));
+/// @endcode
+/// @param ctx Engine context.
+/// @return Monitor position.
+vec2 monitor_position(const context &ctx);
+
+/// Native OS handle of the window: `HWND` on Windows. Lets game code call the OS's own window
+/// APIs directly for things the engine does not provide (a system tray icon, stacking order with
+/// other windows, letting the mouse click through an overlay).
+/// @param ctx Engine context.
+/// @return The handle, or nullptr if there is none.
+void *window_native_handle(const context &ctx);
 
 /// Lock the mouse cursor inside the window and hide it, like a first-person shooter.
 /// While locked, use mouse_delta() instead of mouse_pos().

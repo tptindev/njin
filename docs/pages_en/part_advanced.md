@@ -21,6 +21,7 @@ lighting, instancing). @ref procgen and @ref debug are **shared** between the tw
 | @subpage lighting | Physically based (PBR) 2D lighting: point, spot and directional lights; soft shadows from occluders of any shape; normal maps, MRA materials, emission, tonemapping; per-pixel shadows after mattdesl's tutorial |
 | @subpage shader_advanced | Shaders that read extra images (palettes, noise), take uniform arrays (lights), run over the whole frame, chain several passes together |
 | @subpage post_processing | Full-screen effects: bloom, CRT, vignette, blur |
+| @subpage quality | Running on weak hardware: low/medium/high graphics levels, drawing the world at a lower resolution, guessing a level from the GPU, saved along with settings |
 
 To write your own shaders, first study the three shader lessons in @ref learn (lessons 10 to 12).
 
@@ -42,6 +43,15 @@ To write your own shaders, first study the three shader lessons in @ref learn (l
 | Page | What you get |
 |---|---|
 | @subpage scripting | Write game rules and entity behaviour in Lua, edit files while the game runs, call functions both ways between C++ and Lua |
+
+## Network
+
+| Page | What you get |
+|---|---|
+| @subpage network | Several machines playing together over TCP and UDP: opening rooms, joining rooms, sending messages the game never has to wait on |
+| @subpage netcode | The server decides, clients predict their own character ahead of time, others are smoothly interpolated, the world replicates itself by sight range and bandwidth |
+| @subpage lockstep | Every machine runs the same simulation, sending only commands: thousands of moving things cost no network bytes at all, and a desync is known right away |
+| @subpage multiplayer | Realtime games: reliable and unreliable channels on one connection, packets packed bit by bit, reading input right in the tick, testing with simulated latency and packet loss |
 
 ## Tools
 

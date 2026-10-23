@@ -22,6 +22,11 @@ struct config {
   key_code exit_key = key_escape;
   /// Lets the user drag to resize the window.
   bool resizable = false;
+  /// Whether the window has the OS title bar and border (on by default). `false`
+  /// makes the window borderless, with no title bar: no [x] button, cannot be dragged
+  /// or resized with the mouse, but Alt+F4 still closes it (block that with
+  /// window_set_close_intercept()). Leaving fullscreen, the window stays borderless.
+  bool decorated = true;
   /// Name of the game's save folder, see save_path(). If empty, `title` is used.
   const char *app_name = nullptr;
   /// Virtual resolution, for example `{320, 180}` for pixel art. `{0, 0}` disables it. See
@@ -67,6 +72,21 @@ struct config {
   /// about `render_scale`. Pixel art uses `virtual_size` with `filter_nearest`, so it
   /// usually does not need this; it suits games with drawn shapes, rotated sprites or vector text better.
   i32 render_scale = 1;
+  /// Maximum number of `phase_fixed_update` steps in a single frame. A slow machine that
+  /// cannot keep up with `fixed_hz` accumulates steps; past this limit the extra steps are dropped, so
+  /// the game slows down instead of each frame taking longer than the last. Default 8. A weak
+  /// machine should set 2-4: physics slows down a bit when FPS drops, but it does not fall
+  /// into a "long frame, many steps, even longer frame" spiral. At least 1.
+  i32 fixed_max_steps = 8;
+  /// Window with a transparent background: wherever the game does not draw (or draws with
+  /// alpha < 1), whatever is behind the window, like the desktop, shows through. Needs `clear_bg_color`
+  /// with alpha 0. Pairs with `decorated = false` for a borderless overlay, like a
+  /// desktop pet. Off by default. Cannot be changed at runtime.
+  ///
+  /// On a laptop with two GPUs (Windows), the image from the discrete GPU is copied over to the
+  /// integrated GPU and loses its alpha channel: the window becomes a black background. A transparent
+  /// game should not link `njin::gpu`, so it runs on the integrated GPU.
+  bool transparent = false;
 };
 
 /// Returns the configured target FPS (`target_fps`).
@@ -76,6 +96,13 @@ struct config {
 /// @param ctx Engine context.
 /// @return Target FPS.
 f32 fps(const context &ctx);
+
+/// Changes the target FPS at runtime, for example lowering it to a few frames per second while the
+/// game is idle to save CPU, then raising it again when something starts moving. fps() returns
+/// the new value.
+/// @param ctx Engine context.
+/// @param target Target FPS, at least 1.
+void set_fps(context &ctx, f32 target);
 
 /// Returns the size of the screen the game draws to, in pixels.
 ///

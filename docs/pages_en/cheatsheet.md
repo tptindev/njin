@@ -132,6 +132,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Freeze the frame briefly on a hit | njin::hitstop() | @ref particles |
 | Flash a sprite white, flash the whole screen | njin::sprite_flash(), njin::screen_flash() | @ref particles |
 | An enemy dies: the sprite dissolves away (or fades in) | njin::sprite_dissolve(), njin::dissolve_fx | @ref particles |
+| An icon or HUD image dissolving or fading in piece by piece | njin::draw_dissolve_begin(), njin::draw_dissolve_end() | @ref particles |
 | Slow motion, pause | njin::time_set_scale(), njin::time_set_paused() | @ref time |
 | Full-screen blur, CRT, bloom, vignette | njin::post_fx_set() | @ref post_processing |
 | Blend smoothly between two sets of effects | njin::post_fx_lerp() | @ref post_processing |

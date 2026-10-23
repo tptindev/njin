@@ -34,6 +34,21 @@ binary file of unknown origin. `njin_platformer3d` draws everything with primiti
 asset files at all. None of the three has a menu, settings or music: read @ref graphics_3d for the 3D API
 they use.
 
+`njin_fps` can also be played by several people over a network (@ref netcode): one machine opens a room and
+plays right away, other machines join, everyone shoots at one shared set of targets, and the host keeps score.
+Try two windows on the same machine, with simulated bad network conditions:
+
+```sh
+cd build/bin/fps
+njin_fps --host --lag 100 --jitter 30 --loss 10
+njin_fps --join 127.0.0.1 --lag 100 --jitter 30 --loss 10
+```
+
+Another machine on the LAN uses `--join` with the host machine's IP (`--port` if it is not 7777). `--bot` makes
+a player walk sideways and shoot on its own, for trying it without sitting at two keyboards. Each window shows
+the ping, the tick, how many ticks input arrives early by, and the size of the latest correction; the log writes
+those numbers every 5 seconds.
+
 `njin_render_demo` has no menu or sound: it exists only to let you **see** what the drawing features do. Walk around the
 map with WASD or the arrow keys, and read the keys on the last line of the HUD (or at the top of `main.cpp`). Try key
 1 with the 3000 stone trees on: the number of draw calls falls from a few hundred to just a few. It also opens the debug gateway, so run
@@ -80,6 +95,7 @@ njin_package(my_game
   VERSION 1.0.0
   ICON icon.ico                     # the icon of the exe and the taskbar
   ASSETS assets
+  EXCLUDE blender *.blend *.md      # not carried into the release
   FILES README.txt LICENSE)
 @endcode
 
@@ -90,7 +106,16 @@ cmake --build --preset release --target my_game_dist
 
 The result is `build-release/dist/my_game-1.0.0.zip` containing the exe, the `assets` folder and the accompanying files. On
 Windows, the exe gets an icon and version information, and has **no console window** except in the Debug build (it needs a
-console to read the log). The game finds `assets/...` next to the exe no matter which folder it runs from.
+console to read the log). The game finds `assets/...` next to the exe no matter which folder it runs from. A
+game that is not packaged but still wants to drop the console window can call `njin_hide_console(my_game)`
+on its own.
+
+`EXCLUDE` (optional) leaves out of the packaged assets folder things only needed while making the game: Blender
+source files, backups, preview images. Each pattern is a path relative to the assets folder, and can use `*`
+(any character except `/`), `**` (any character) and `?`. A pattern that is only a folder leaves out the whole
+folder; a pattern with no `/` matches the name at every level (`*.md` leaves out every `.md` file). With no
+`EXCLUDE`, everything is copied as before. Try running the build in `dist/<target>/` once before shipping it,
+to make sure no file the game needs was left out.
 
 Remember to turn off the debug gateway in the release build: call `debug_server_start()` only inside `#ifndef NDEBUG`.
 

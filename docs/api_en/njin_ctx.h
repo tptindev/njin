@@ -127,6 +127,21 @@ bool time_paused(const context &ctx);
 /// @return Length of one step, in seconds.
 f32 fixed_delta(const context &ctx);
 
+/// Sets the rate `phase_fixed_update` runs at relative to real time, without changing the length of
+/// one step (fixed_delta()) or delta(). 1.02 runs 2% faster: about one extra
+/// step per second at 60 Hz.
+///
+/// Use it to keep two networked machines on the same step: netcode sets this itself on the client (see
+/// @ref multiplayer). The value is clamped to 0.5..2.
+/// @param ctx Engine context.
+/// @param rate Rate, 1 by default.
+void time_set_fixed_rate(context &ctx, f32 rate);
+
+/// Current rate of `phase_fixed_update`, see time_set_fixed_rate().
+/// @param ctx Engine context.
+/// @return Rate, 1 by default.
+f32 time_fixed_rate(const context &ctx);
+
 /// The part of a fixed step left over after this frame's `phase_fixed_update`, from 0 to 1.
 ///
 /// Use it to interpolate positions when drawing, for smooth motion even when the

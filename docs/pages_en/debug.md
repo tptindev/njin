@@ -12,6 +12,7 @@ if you want to look, look at the inspector window, otherwise just play as normal
 | **Inspector** | The components of the selected entity, with their values. Edit position, angle and scale directly; toggle collider, trigger and sprite on and off; destroy the entity |
 | **Watches** | Values the game sets with njin::debug_watch(), updated live |
 | **Log** | The game's log, filtered by level and text |
+| **Documents** | Text documents the game registers with njin::debug_doc_source() (an NPC's notebook, a diary...), filtered and read page by page |
 
 @image html inspector_overview.png "njin_inspector connected to njin_debug_demo, Overview layout. Entity 27 is selected: you can see the ball, transform and collider components and their values. The Performance panel has a Screen recording section"
 
@@ -49,6 +50,17 @@ For a game component to show its values, register it with njin::debug_component(
 component and returns a njin::json_value (see @ref json).
 
 If it is not registered, the inspector writes "no view" under the component name.
+
+## The game's text documents {#debug_docs}
+
+The inspector's **Documents** layout has a panel of the same name: pick one of the game's document sources, filter the
+list by name, click a document to read it. Markdown is rendered lightly (headings, bullet points); the **Copy** button
+copies the whole page. The game registers a source with njin::debug_doc_source() (see the example above): one function
+returns the list of njin::debug_doc_entry (an id and a name), another returns the content for an id. The inspector only
+asks when it needs to (the list when the source is opened, the content when one is selected, then asks again every few
+seconds while the page stays open), so a source with thousands of documents does not weigh down the connection.
+
+`njin_inspector --layout documents` opens this layout directly.
 
 ## Gizmos: draw your own debug views {#debug_gizmo}
 

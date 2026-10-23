@@ -8,6 +8,15 @@ void load(njin::context &ctx) {
   title_font = njin::font_load(ctx, "assets/fonts/roboto.ttf", 32);
 }
 
+// [default_font]
+// Any text that does not pass a font (panels, buttons, draw_text) is drawn with the game's font.
+void use_game_font(njin::context &ctx) {
+  const njin::font_handle body = njin::font_load(ctx, "assets/fonts/roboto.ttf", 16);
+  njin::font_set_default(ctx, body);
+  // Fall back to the engine's font: njin::font_set_default(ctx, {});
+}
+// [default_font]
+
 // [pixel_text]
 // A pixel font designed at 8 pixels: draw it at 8, 16, 24. Text always sits inside the virtual image.
 void load_pixel_font(njin::context &ctx) {

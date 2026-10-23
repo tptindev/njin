@@ -19,8 +19,11 @@ minor versions before 1.0. See [CHANGELOG.md](CHANGELOG.md) for details.
 - Sprites, animation, square tilemaps from Tiled/LDtk, collision and a camera that follows the player.
 - Character controllers for platformer and top-down games, A* navigation, particles and post-processing effects.
 - UI, audio, settings saves, dialogue and localization.
+- 2D lighting (PBR): point, spot and directional lights, soft shadows from occluders, normal maps, material and glow.
 - 3D: perspective camera, solid shapes and smooth SDF shapes, glTF models with materials, lights with shadows and fog, 3D particles, instancing, ray picking.
 - 3D physics (Jolt Physics): static, kinematic and dynamic bodies; a character that walks on the ground, climbs steps, stands on moving platforms; raycasts and ragdolls.
+- Networking: TCP/UDP sockets for simple messaging, realtime multiplayer on ENet, netcode (ticks, prediction, snapshot interpolation, component replication) and deterministic lockstep for games with thousands of simulated things.
+- Graphics quality presets for weak hardware (render scale, shadows, effects, particle counts, LOD) and a bit-packed reader/writer for compact network and save data.
 - Gizmos for 2D and 3D debugging.
 - A virtual screen for pixel art, anti-aliasing via supersampling, and the `njin_inspector` tool to inspect entities, systems, logs, performance, resources and the 3D scene while the game runs.
 
@@ -46,6 +49,7 @@ choose. See the [Animation Editor guide](src/tools/anim_editor/README.md).
 | `njin_topdown` | A top-down game with tilemaps, combat and enemy pathfinding |
 | `njin_debug_demo` | A sample for trying out `njin_inspector` |
 | `njin_render_demo` | A sample for atlases, particles, culling and post-processing |
+| `njin_lighting_demo` | A gallery of 2D lighting: point, spot and sun lights, shadows from occluders and sprites, PBR surfaces, colour and tonemapping |
 | `njin_tower_defense` | A tower defense game with defensive towers and enemy waves |
 | `njin_fps` | A first-person shooter: glTF models, shadows, lights, glowing tracers, 3D particles |
 | `njin_sokoban` | 2.5D box-pushing: instancing, an SDF-shaped character, lights on target tiles |

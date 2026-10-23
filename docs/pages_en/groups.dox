@@ -104,6 +104,21 @@
 /// @defgroup grp_spline Curves
 /// Catmull-Rom and Bezier in 2D and 3D: moving evenly by distance, nearest point, things following a curve.
 
+/// @defgroup grp_network Network
+/// TCP and UDP on one dedicated network thread: server, client, whole messages, UDP datagrams; results arrive as events.
+
+/// @defgroup grp_multiplayer Realtime multiplayer
+/// Host and peer on ENet: reliable and unreliable channels, reading packets within the tick, stats, simulating a bad network.
+
+/// @defgroup grp_netcode Netcode
+/// Ticks, input per tick, tick sync, snapshot interpolation, EnTT component replication with filtering and priority.
+
+/// @defgroup grp_lockstep Lockstep
+/// Every machine runs the same deterministic simulation and only sends commands: the host orders them into ticks, state hashes are compared to catch desyncs.
+
+/// @defgroup grp_bits Bit-level reading and writing
+/// Packing binary data in exactly the bits it needs, and reading untrusted data safely: network packets, replays, saves.
+
 /// @defgroup grp_video Video
 /// Playing MPEG-1 video with sound: full-screen cutscenes, screens in a 3D world.
 
@@ -156,7 +171,10 @@
 /// Dialog scripts, character-by-character text, portraits, choices, events.
 
 /// @defgroup grp_settings Settings
-/// Save and load the player's volume, keys, fullscreen and language.
+/// Save and load the player's volume, keys, fullscreen, language and graphics quality level.
+
+/// @defgroup grp_quality Graphics quality
+/// Low/medium/high levels for weak hardware: render scale, shadows, effects, particle counts, LOD.
 
 /// @defgroup grp_types Basic types
 /// Integers, floats, vectors, colors and handles.

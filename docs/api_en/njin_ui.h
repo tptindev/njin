@@ -25,6 +25,24 @@ struct ui_skin {
   f32 roundness = 0.0f;              ///< Corner rounding when there is no image, 0..1.
   rgba outline{0.0f, 0.0f, 0.0f, 0.0f}; ///< Outline color when there is no image. Alpha 0 means no outline.
   f32 outline_width = 0.0f;          ///< Outline thickness, pixels.
+  /// Corner radius when there is no image, pixels (multiplied by
+  /// `ui_style::scale` like every other size). Above 0 this replaces
+  /// `roundness`: corners are equally round whether the widget is tall or
+  /// short, while `roundness` is relative to the widget's short side.
+  f32 radius = 0.0f;
+  /// Blurs whatever is behind it before drawing (draw_backdrop_blur()),
+  /// radius in pixels (multiplied by `ui_style::scale`). 0 turns it off.
+  /// Only when there is no image; to see the blur, `color` should be
+  /// somewhat translucent (alpha below 1).
+  f32 blur = 0.0f;
+  /// 9-slice corners scale with height: with `border` set, the corners are
+  /// drawn at `border` times the ratio of the widget's height to the image
+  /// region's height, instead of exactly `border` pixels. Used for a button
+  /// image drawn larger than the space it occupies (a canvas-scaled HUD
+  /// drawn to a 4K screen): the corners shrink along with the button while
+  /// the image is only scaled down, so it stays sharp. `false` (default)
+  /// behaves as before.
+  bool border_fit = false;
 };
 
 /// Look of one kind of widget in each state.
@@ -68,6 +86,19 @@ struct ui_style {
   ui_look knob{};   ///< Slider drag knob.
   ui_look toast{};  ///< Toast background and text color (only `normal` and `text` are used).
 
+  /// Width of a scroll area's scrollbar (ui_scroll_begin()), pixels (before
+  /// `scale`), at the area's right edge. 0 (default) means no scrollbar, as
+  /// before. Above 0, widgets in the area leave that much plus half of
+  /// `spacing` free on the right, and the bar shows when the area holds more
+  /// than its height: drag the thumb to scroll, click the track to jump the
+  /// thumb there.
+  f32 scrollbar_width = 0.0f;
+  /// The scrollbar's thumb: `normal`, `focused` (mouse hovering),
+  /// `pressed` (being dragged).
+  ui_look scrollbar{};
+  /// The scrollbar's track, under the thumb. Alpha 0 means it is not drawn.
+  ui_skin scrollbar_rail{};
+
   /// Overlay color that darkens the background behind a popup.
   rgba dim{0.0f, 0.0f, 0.0f, 0.6f};
   /// Colored stripe on the left of a toast by kind: info, success, warning, error.
@@ -84,6 +115,41 @@ struct ui_style {
   sound_handle sound_move{};   ///< Played when the selection moves. May be left empty.
   sound_handle sound_accept{}; ///< Played when a button is pressed or a value changes.
   sound_handle sound_back{};   ///< Played when ui_back() returns `true`.
+  /// Time (seconds, real time) ui_button() takes to fade from its normal
+  /// face to its focused face when the mouse enters, and back when it
+  /// leaves. 0 means change instantly.
+  f32 hover_seconds = 0.0f;
+  /// A ui_button() being held down is drawn shrunk by this ratio around its
+  /// centre, as if pressed in (e.g. `0.96`). 1 keeps it the same size.
+  f32 press_scale = 1.0f;
+
+  /// A tab bar's (ui_tabs()) tab when it is not open: `normal`, `focused`
+  /// (mouse hovering), `pressed` (being held down); `text` and
+  /// `text_focused` are its text colours. `disabled` is not used. A face
+  /// with alpha 0 is not drawn.
+  ui_look tab{};
+  /// Face of the open tab. Changing tabs slides it to the new tab
+  /// (`tab_slide_seconds`). A bar selected by keyboard takes the outline of
+  /// `tab.focused`.
+  ui_skin tab_open{};
+  rgba tab_open_text{1.0f, 1.0f, 1.0f, 1.0f}; ///< Text colour of the open tab.
+  /// Background behind the whole tab bar. Alpha 0 means it is not drawn;
+  /// with a background the tabs are inset 3 pixels.
+  ui_skin tab_bar{.color = {0.0f, 0.0f, 0.0f, 0.0f}};
+  /// Underline below the open tab, sliding along with it. Alpha 0 means it is not drawn.
+  ui_skin tab_line{.color = {0.0f, 0.0f, 0.0f, 0.0f}};
+  f32 tab_line_height = 3.0f;    ///< Thickness of that underline, pixels (before `scale`).
+  f32 tab_spacing = 4.0f;        ///< Spacing between two tabs, pixels (before `scale`).
+  f32 tab_slide_seconds = 0.15f; ///< Time (seconds, real time) the open tab's face takes to slide to the new tab. 0 means jump instantly.
+
+  /// A ui_toggle() switch body drawn on its own, separate from the slider
+  /// track: when on, the switch body uses `toggle_off` when off and
+  /// `toggle_on` when on (by widget state like any `ui_look`), the knob is
+  /// still `knob`. Off (default) behaves as before: the body is `track`,
+  /// with `fill` added when on.
+  bool toggle_own = false;
+  ui_look toggle_off{}; ///< Switch body when off (when `toggle_own`).
+  ui_look toggle_on{};  ///< Switch body when on (when `toggle_own`).
 };
 
 /// Default look: transparent dark panel, rounded buttons, blue accent color.
@@ -98,6 +164,61 @@ void ui_style_set(context &ctx, const ui_style &style);
 
 /// Current style. @param ctx Engine context. @return Style.
 ui_style ui_style_get(const context &ctx);
+
+/// UI drawing frame (canvas): the UI is designed at one fixed height then
+/// scaled to the window. See ui_canvas_set().
+struct ui_canvas_desc {
+  /// Design height, pixels. The scale is the window height divided by this.
+  /// 0 turns the canvas off (default): the UI is measured in window pixels
+  /// as before.
+  f32 height = 0.0f;
+  /// The canvas is at least this many design pixels wide: too narrow a
+  /// window shrinks the scale horizontally instead of cutting off the UI's
+  /// edge. 0 means no limit.
+  f32 min_width = 0.0f;
+  f32 min_scale = 0.5f; ///< Smallest scale.
+  f32 max_scale = 4.0f; ///< Largest scale.
+};
+
+/// Turns the UI drawing canvas on or off. When on, between ui_canvas_begin()
+/// and ui_canvas_end(), the UI and HUD are written in design units:
+/// screen_size() returns the window scaled down (as tall as `height`, as
+/// wide as the window's aspect ratio allows), mouse_pos() and mouse_delta()
+/// are measured in those units, every shape, image and panel drawn is
+/// scaled accordingly, text is built at its true on-screen size so it stays
+/// sharp, and clip_begin() takes a region in design units. A HUD written for
+/// 1600 x 900 therefore fits any window, small or 4K, with no size to adjust
+/// per widget.
+///
+/// The scale is recomputed every frame from the window (ui_canvas_scale()).
+/// When on, every UI panel must be built inside
+/// ui_canvas_begin()/ui_canvas_end() (the UI reads the mouse in canvas
+/// units); toasts are also drawn inside the canvas. Do not use together
+/// with the virtual resolution (window_set_virtual_size()): then the scale
+/// is always 1.
+/// @code
+/// njin::ui_canvas_set(ctx, {.height = 900.0f, .min_width = 1280.0f});
+/// // Every frame, in phase_post_render:
+/// njin::ui_canvas_begin(ctx);
+/// draw_hud(ctx); // measured in 900 pixels of height
+/// njin::ui_canvas_end(ctx);
+/// @endcode
+/// @param ctx Engine context.
+/// @param desc Design height and scale limits.
+void ui_canvas_set(context &ctx, const ui_canvas_desc &desc);
+
+/// Begins drawing inside the canvas (see ui_canvas_set()). Nestable; does
+/// nothing when the canvas is off. Drawing into an intermediate render
+/// texture is not scaled by it (coordinates stay in canvas units).
+/// @param ctx Engine context.
+void ui_canvas_begin(const context &ctx);
+
+/// Ends ui_canvas_begin(). @param ctx Engine context.
+void ui_canvas_end(const context &ctx);
+
+/// This frame's canvas scale: window pixels per design unit; 1 when off.
+/// @param ctx Engine context. @return The scale.
+f32 ui_canvas_scale(const context &ctx);
 
 /// Position and size of a panel, used with ui_begin().
 struct ui_panel_desc {
@@ -121,6 +242,44 @@ struct ui_panel_desc {
   /// it (mouse only) sets `*open` to `false`. The panel is still drawn that
   /// frame; the game stops calling it from the next. Null means no close box.
   bool *open = nullptr;
+  /// Time (seconds, real time) the panel takes to slide in and fade in,
+  /// counted from the frame it starts being drawn (the previous frame did
+  /// not have it). 0 means show it instantly. A panel that is hidden then
+  /// drawn again slides in again.
+  f32 enter_seconds = 0.0f;
+  /// At the start of the slide-in, the panel is offset this many pixels
+  /// from its place and eases back, slowing at the end (ease::out_cubic);
+  /// `{0, 0}` means just fade in in place. Everything laid out in the panel
+  /// follows, including ui_last_rect(). Not used when `enter_seconds` is 0.
+  /// @code
+  /// // A tool panel rises up from the toolbar below it.
+  /// njin::ui_begin(ctx, {.id = "tools", .anchor = {0.5f, 1.0f}, .pivot = {0.5f, 1.0f},
+  ///                      .enter_seconds = 0.18f, .enter_from = {0.0f, 32.0f}});
+  /// @endcode
+  vec2 enter_from{};
+  /// The panel is withdrawing, 0..1: 0 is normal, 1 is fully gone. The game
+  /// counts the time itself and keeps calling the panel while it withdraws
+  /// (the UI draws immediately, so the panel is not considered gone yet).
+  /// The panel fades out, slides toward `enter_from` (speeding up,
+  /// ease::in_cubic), and takes no mouse input: no button is pressable, and
+  /// ui_mouse_over() does not count it. Anything the game draws over the
+  /// panel itself should be faded the same way with draw_alpha_push().
+  /// @code
+  /// // Closing a panel: draw 0.15 more seconds, withdrawing and fading.
+  /// if (g.closing > 0.0f) {
+  ///   g.closing = std::max(0.0f, g.closing - njin::delta_real(ctx));
+  ///   const njin::f32 leaving = 1.0f - g.closing / 0.15f;
+  ///   njin::ui_begin(ctx, {.id = "tools", .enter_from = {0.0f, 32.0f}, .leaving = leaving});
+  ///   // ... the same widgets as when open ...
+  ///   njin::ui_end(ctx);
+  /// }
+  /// @endcode
+  f32 leaving = 0.0f;
+  /// Panel is display-only: drawn as usual but takes no mouse input, no
+  /// button is pressable, and ui_mouse_over() does not count it. For
+  /// example a panel the game is drawing deformed (shrinking into an icon)
+  /// while it closes.
+  bool inert = false;
 };
 
 /// Begins a panel. Widgets called afterwards are stacked top to bottom inside it,
@@ -213,6 +372,56 @@ bool ui_choice(context &ctx, const char *label, i32 &index,
 bool ui_choice(context &ctx, const char *label, i32 &index,
                std::span<const std::string> options);
 
+/// How a tab bar is drawn by ui_tabs().
+struct ui_tabs_desc {
+  f32 height = 0.0f;    ///< Height, pixels (before `scale`). 0 means ui_style::widget_height.
+  f32 font_size = 0.0f; ///< Font size, pixels (before `scale`). 0 means ui_style::font_size.
+  /// Leaves a square this size (pixels, before `scale`) to the left of each
+  /// tab's text, for the game to draw its own icon into (get the slot with
+  /// ui_tabs_icon_rect()). 0 means none is left.
+  f32 icon_size = 0.0f;
+};
+
+/// A tab bar: tabs share a row (or a column of ui_row()) equally, exactly
+/// one open. Click a tab to open it; when the bar is selected by keyboard
+/// or gamepad, left/right moves to the neighbouring tab, Enter moves to the
+/// next one. The open tab's face (ui_style::tab_open) slides to the new
+/// tab. Text wider than the tab is shrunk to fit. Use it for the pages of a
+/// panel instead of a row of ui_button().
+/// @code
+/// static njin::i32 page = 0;
+/// njin::ui_tabs(ctx, "bank_tabs", page, {"Overview", "Statement", "Savings"});
+/// if (page == 0)
+///   overview(ctx);
+/// @endcode
+/// @param ctx Engine context.
+/// @param id Name of the bar, unique within the panel (not drawn).
+/// @param index Open tab, modified when it changes.
+/// @param labels Text of the tabs; the part after `##` is not drawn.
+/// @param desc Height, font size, icon slot.
+/// @return `true` on the frame the open tab changes.
+bool ui_tabs(context &ctx, const char *id, i32 &index, std::initializer_list<const char *> labels,
+             const ui_tabs_desc &desc = {});
+
+/// A tab bar whose text is a dynamic list (for example a tab with a
+/// pending-count badge).
+/// @param ctx Engine context.
+/// @param id Name of the bar.
+/// @param index Open tab.
+/// @param labels Text of the tabs.
+/// @param desc Height, font size, icon slot.
+/// @return `true` on the frame the open tab changes.
+bool ui_tabs(context &ctx, const char *id, i32 &index, std::span<const std::string> labels,
+             const ui_tabs_desc &desc = {});
+
+/// Icon slot for tab `tab` in the tab bar drawn most recently
+/// (ui_tabs_desc::icon_size), screen coordinates like ui_last_rect(). The
+/// game draws its icon into it, tinted by which tab is open.
+/// @param ctx Engine context.
+/// @param tab Index of the tab.
+/// @return The icon slot; empty when there is no such tab or the bar leaves no icon slot.
+rect ui_tabs_icon_rect(const context &ctx, i32 tab);
+
 /// A progress bar, not pressable: health, reload time.
 /// @param ctx Engine context.
 /// @param value Progress 0..1.
@@ -270,8 +479,29 @@ void ui_tooltip(context &ctx, const char *text);
 /// @param height Height, pixels (before `scale`).
 void ui_scroll_begin(context &ctx, const char *id, f32 height);
 
+/// Like ui_scroll_begin(), but the area is exactly as tall as what it held
+/// in the previous frame, up to `max_height`: a short list makes a short
+/// panel, a long one scrolls. On the first frame (what it holds is not
+/// known yet) the area is `max_height` tall.
+/// @code
+/// // An info window never taller than the space above the phone.
+/// njin::ui_scroll_begin_fit(ctx, "body", phone_top - njin::ui_last_rect(ctx).pos.y);
+/// @endcode
+/// @param ctx Engine context.
+/// @param id Name of the area, unique within the panel.
+/// @param max_height Maximum height, pixels (before `scale`).
+void ui_scroll_begin_fit(context &ctx, const char *id, f32 max_height);
+
 /// Ends the scroll area started with ui_scroll_begin(). @param ctx Engine context.
 void ui_scroll_end(context &ctx);
+
+/// Scrolls area `id` to the end, once: a chat box opens at its newest
+/// message, or when a new message arrives. Call it in the panel holding
+/// that area, before or while it is open; the player can still scroll up
+/// afterwards.
+/// @param ctx Engine context.
+/// @param id Name of the area, as given to ui_scroll_begin().
+void ui_scroll_to_end(context &ctx, const char *id);
 
 /// Describes a circular progress bar, for ui_progress_circle().
 /// Every size is in pixels before `ui_style::scale`. A colour with alpha 0 comes from ui_style.
@@ -405,6 +635,22 @@ bool ui_active(const context &ctx);
 /// @return Frame of the widget placed last.
 rect ui_last_rect(const context &ctx);
 
+/// Frame of the panel just closed by the most recent ui_end(): its real
+/// position and size, including content height. Use it when the game needs
+/// to draw more relative to the whole panel, like an effect opening a panel
+/// from an icon.
+/// @param ctx Engine context.
+/// @return Frame of the panel, screen pixels.
+rect ui_panel_rect(const context &ctx);
+
+/// Frame of panel `id` in the previous frame (panels already drawn, such as
+/// ui_on_top()). Use it when the game needs to know whether its windows
+/// overlap each other, such as dimming a window covered by another one.
+/// @param ctx Engine context.
+/// @param id Panel name, as in ui_panel_desc::id.
+/// @return Frame of the panel, screen pixels; size 0 if it was not drawn the previous frame.
+rect ui_panel_rect(const context &ctx, const char *id);
+
 /// Whether the mouse is over a panel (last frame's panels). There the UI has
 /// already taken the left mouse button; this lets the game skip the right
 /// button, the wheel or its own cursor too, for example not ordering units
@@ -412,6 +658,69 @@ rect ui_last_rect(const context &ctx);
 /// @param ctx Engine context.
 /// @return `true` if the mouse is over a panel.
 bool ui_mouse_over(const context &ctx);
+
+/// Panels overlap each other in draw order: a panel drawn later sits on
+/// top. At the cursor's spot, only the topmost panel takes the mouse
+/// (buttons, the close box, the scroll wheel, a ui_let_through() area
+/// placed in it); a panel covered below it does not. To change which panel
+/// sits on top, the game changes the order it calls them in.
+///
+/// This tells whether the mouse is over panel `id` and that panel is the
+/// topmost one there (by the previous frame's panels). Use it for mouse
+/// handling the game does itself around a panel, such as dragging the
+/// panel by its edge.
+/// @param ctx Engine context.
+/// @param id Panel name, as in ui_panel_desc::id.
+/// @return `true` if panel `id` is the topmost one under the cursor.
+bool ui_on_top(const context &ctx, const char *id);
+
+/// The left mouse button was just pressed this frame on panel `id`, at the
+/// spot it is topmost (see ui_on_top()). Use it to bring a window the game
+/// stacks itself to the top when the player clicks it.
+/// @code
+/// if (njin::ui_pressed_on(ctx, "inventory"))
+///   g.inventory_on_top = true; // from the next frame, call it last
+/// @endcode
+/// @param ctx Engine context.
+/// @param id Panel name, as in ui_panel_desc::id.
+/// @return `true` if it was just clicked on panel `id`.
+bool ui_pressed_on(const context &ctx, const char *id);
+
+/// The panel being built (between ui_begin() and ui_end()), or the panel
+/// just closed if none is open, is covered at the cursor's spot by a panel
+/// drawn after it: its widgets take no mouse input. Use it for something
+/// the game draws and reads the mouse for itself inside a panel
+/// (`point_in_rect(mouse_pos(ctx), ...)`), so it also stops reacting
+/// through a panel that covers it.
+/// @param ctx Engine context.
+/// @return `true` if the panel is covered at the cursor's spot.
+bool ui_covered(const context &ctx);
+
+/// Lets the left mouse button through the UI over `area` (screen pixels),
+/// even when that area lies inside a panel: the game can still read
+/// mouse_pressed(), mouse_held(), mouse_released() there. Use it for
+/// something the game draws and handles the mouse for itself inside a
+/// panel, such as a minimap dragged with the mouse.
+///
+/// Call it every frame it should still let through (usually right after
+/// placing that area in the panel, getting its frame with ui_last_rect());
+/// it takes effect from the next frame, like the panel swallowing the
+/// mouse. ui_mouse_over() still returns `true` there, so the part of the
+/// game that ignores the mouse over the HUD (selecting units, giving
+/// orders) still ignores it. Once the mouse leaves the area, the UI
+/// swallows the left button again: the game sees the button as if it had
+/// been released.
+/// @code
+/// njin::ui_space(ctx, 200.0f);
+/// const njin::rect map = njin::ui_last_rect(ctx);
+/// njin::ui_let_through(ctx, map);
+/// njin::ui_end(ctx);
+/// if (njin::mouse_held(ctx, njin::mouse_left) && njin::point_in_rect(njin::mouse_pos(ctx), map))
+///   g.map_centre -= njin::mouse_delta(ctx) / g.map_zoom;
+/// @endcode
+/// @param ctx Engine context.
+/// @param area Area to let the mouse through, screen pixels.
+void ui_let_through(context &ctx, rect area);
 
 /// Toast kind: decides the color of the left stripe (see ui_style::toast_accent).
 enum ui_toast_kind {

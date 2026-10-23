@@ -26,6 +26,62 @@ void draw_rect(const context &ctx, rect r, rgba color);
 /// @param color Color.
 void draw_rect_lines(const context &ctx, rect r, f32 thickness, rgba color);
 
+/// Draws a filled rectangle with all four corners rounded.
+/// @param ctx Engine context.
+/// @param r Rectangle.
+/// @param radius Corner radius, in pixels; larger than half the short side is
+///        clamped to half the short side (making a pill shape). 0 is square corners like draw_rect().
+/// @param color Color.
+void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color);
+
+/// Draws the outline of a rectangle with all four corners rounded. The outline lies inside
+/// `r`, like draw_rect_lines(), so drawing with the same `r` and `radius` as draw_rect_rounded()
+/// makes the outline hug the fill exactly.
+/// @param ctx Engine context.
+/// @param r Rectangle.
+/// @param radius Outer corner radius of the outline, in pixels.
+/// @param thickness Outline thickness.
+/// @param color Color.
+void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickness, rgba color);
+
+/// Blurs whatever was already drawn under `r` (a frosted-glass look): the background of a
+/// popup, to set it apart from what is behind it while still showing it faintly. The part already
+/// drawn inside `r` is replaced by itself blurred, clipped to the corner radius `radius`;
+/// the popup is then drawn on top, with a slightly transparent background so the blurred layer
+/// shows through.
+///
+/// `r` is measured in screen space, like the UI (including a canvas from ui_canvas_set()). Does
+/// nothing when: `blur` <= 0, inside a world camera, drawing into a render
+/// texture, or on a machine with a software renderer. Do not call it between draw_offset_push()
+/// and draw_offset_pop(). Text already queued to draw sharp at the window resolution
+/// (config::crisp_text) that lies under `r` is hidden, since it is not yet in the image to blur.
+/// Each call costs one copy of that region plus a few draws at half size.
+/// ui_skin::blur does this for the background of widgets and panels.
+/// @param ctx Engine context.
+/// @param r Region to blur.
+/// @param blur Blur amount: radius, in pixels.
+/// @param radius Corner radius of the region, in pixels. 0 is square corners.
+/// @param tint Color multiplied into the blurred layer; alpha less than 1 blends the blurred layer with the sharp image beneath it.
+void draw_backdrop_blur(const context &ctx, rect r, f32 blur, f32 radius = 0.0f,
+                        rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
+
+/// Turns drawing rounded shapes with an SDF (signed distance field) on or off: each shape is
+/// one quad, and each pixel's coverage is computed in the shader, so edges and rounded corners
+/// are anti-aliased smoothly at any scale (virtual resolution, smooth UI). Applies to
+/// draw_rect_rounded(), draw_rect_rounded_lines() and the UI's flat color faces (a ui_skin without an
+/// image). Off by default: shapes are drawn with raylib's triangles as before. Each shape changes a
+/// uniform, so it costs one separate draw call; worth using for the UI, from medium graphics quality up.
+/// When a different shader is already active (shader_begin(), draw_dissolve_begin()) the shape
+/// still draws the old way under that shader.
+/// @param ctx Engine context.
+/// @param on Turn on or off.
+void draw_set_smooth_shapes(context &ctx, bool on);
+
+/// Whether rounded shapes are currently drawn with SDF (draw_set_smooth_shapes()).
+/// @param ctx Engine context.
+/// @return `true` when on.
+bool draw_smooth_shapes(const context &ctx);
+
 /// Draws a filled rectangle rotated around its center.
 /// @param ctx Engine context.
 /// @param center Center.
@@ -67,6 +123,61 @@ void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color);
 /// @param color Color.
 void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color);
 
+/// Draws a triangle covered by part of a texture: each vertex samples the image at its
+/// `uv` coordinate (0..1 over the image, `{0, 0}` is the top-left corner, `{1, 1}` the bottom-right),
+/// the part in between is interpolated, then multiplied by `tint`. The order of the three vertices
+/// does not matter. Use it when an image must fit a shape that is not a rectangle: a pie slice, a
+/// curved strip, a polygon cut into triangles. A texture inside an atlas also works, `uv` is still
+/// measured over that image alone.
+/// @code
+/// // A patterned pie slice, with the slice's center at the image's bottom-right corner.
+/// const auto uv_of = [&](njin::vec2 p) { return njin::vec2{1, 1} + (p - corner) / radius; };
+/// njin::draw_triangle_textured(ctx, g.pattern, a, b, c, uv_of(a), uv_of(b), uv_of(c));
+/// @endcode
+/// @param ctx Engine context.
+/// @param texture Image to cover the triangle with.
+/// @param a First vertex.
+/// @param b Second vertex.
+/// @param c Third vertex.
+/// @param uv_a Image coordinate of vertex `a`.
+/// @param uv_b Image coordinate of vertex `b`.
+/// @param uv_c Image coordinate of vertex `c`.
+/// @param tint Color multiplied into the image; white keeps it unchanged.
+void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, vec2 b, vec2 c, vec2 uv_a,
+                            vec2 uv_b, vec2 uv_c, rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
+
+/// Like the version above, covered by part of a render texture (`uv` measured like a regular
+/// image: `{0, 0}` is the top-left corner of whatever was drawn into it). Use it to redraw
+/// something already drawn into a render texture while distorting it: bending, squeezing, pulling
+/// into a point.
+/// @param ctx Engine context.
+/// @param texture Render texture to cover the triangle with.
+/// @param a First vertex.
+/// @param b Second vertex.
+/// @param c Third vertex.
+/// @param uv_a Image coordinate of vertex `a`.
+/// @param uv_b Image coordinate of vertex `b`.
+/// @param uv_c Image coordinate of vertex `c`.
+/// @param tint Color multiplied into the image; white keeps it unchanged.
+void draw_triangle_textured(const context &ctx, render_texture_handle texture, vec2 a, vec2 b, vec2 c,
+                            vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint = {1.0f, 1.0f, 1.0f, 1.0f});
+
+/// Fades everything drawn afterward (shapes, text, images, UI): their opacity multiplied by
+/// `alpha`, until draw_alpha_pop(). Nests, with the layers multiplying together; each push needs
+/// one pop within the same frame. Use it to fade a group of drawn things in or out together
+/// (a HUD panel closing, a loading screen).
+/// @code
+/// njin::draw_alpha_push(ctx, 1.0f - leaving);
+/// draw_card(ctx);   // its background, text and icon all fade along with it
+/// njin::draw_alpha_pop(ctx);
+/// @endcode
+/// @param ctx Engine context.
+/// @param alpha Opacity, 0 (transparent) to 1 (unchanged).
+void draw_alpha_push(const context &ctx, f32 alpha);
+
+/// Removes the nearest draw_alpha_push() fade. @param ctx Engine context.
+void draw_alpha_pop(const context &ctx);
+
 /// Scales everything drawn afterwards by `scale`, then moves it by `offset`
 /// (world units), until draw_offset_pop(): a point `p` is drawn at
 /// `p * scale + offset`. Draws a part of the world that has its own
@@ -105,7 +216,7 @@ enum font_style : u8 {
 /// draw (the size is rounded to an integer number of pixels, from 6 to 256), so text is crisp at every
 /// size and one font works for both small and large text.
 /// @param ctx Engine context.
-/// @param path Font file path (ttf, otf).
+/// @param path Font file path (ttf, otf, or ttc: the first font in the collection).
 /// @param size Size prebuilt at load time, in pixels, so the first draw does not
 /// have to wait. Omitted or 0 makes a trial build at size 16 to check that the file is readable.
 /// @param style Text rendering style, font_smooth by default.
@@ -127,6 +238,33 @@ font_handle font_load(context &ctx, const char *path, i32 size = 0,
 /// @param font Font to change, handle id 0 is the default font.
 /// @param style New style.
 void font_set_style(context &ctx, font_handle font, font_style style);
+
+/// Chooses the font drawn when no font is passed (an empty handle `{}`), for text across the
+/// whole game, both the UI and draw_text(), changed once instead of passing a font at every call.
+/// An invalid handle, `{}`, or a freed font falls back to the engine's font
+/// (JetBrains Mono). Not calling this function leaves text drawn exactly as before.
+///
+/// njin::font_set_style() with an empty handle still changes the style of the engine's font,
+/// not the font chosen here: to change this font's style, pass its own handle.
+/// @param ctx Engine context.
+/// @param font Font to use as the default, `{}` to fall back to the engine's font.
+void font_set_default(context &ctx, font_handle font);
+
+/// Makes a font also build the characters found in `text`, beyond the built-in Latin and
+/// Vietnamese character set: Russian, Thai, Chinese, Japanese, Korean... Each text size is
+/// rebuilt on the next draw. A character the font does not have still cannot be drawn: Chinese
+/// text needs a font that has Chinese glyphs. Usually called once with an entire language file.
+/// @code
+/// const njin::font_handle cjk = njin::font_load(ctx, "C:/Windows/Fonts/msyh.ttc");
+/// std::string zh;
+/// if (njin::file_read("assets/lang/zh.json", zh))
+///   njin::font_add_chars(ctx, cjk, zh.c_str());
+/// njin::font_set_default(ctx, cjk);
+/// @endcode
+/// @param ctx Engine context.
+/// @param font Font to add to, handle id 0 is the engine's font.
+/// @param text Text (UTF-8) with the characters to build.
+void font_add_chars(context &ctx, font_handle font, const char *text);
 
 /// Frees a font. An invalid handle is ignored. Drawing with a freed handle uses
 /// the default font.

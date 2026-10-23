@@ -11,6 +11,7 @@ Besides the title, size, FPS and background color, njin::config has:
 | `fixed_hz` | 60 | Number of `phase_fixed_update` ticks per second |
 | `exit_key` | `key_escape` | The key that closes the game immediately. Set `key_none` when you need Esc for a menu |
 | `resizable` | `false` | Allows dragging to resize the window |
+| `decorated` | `true` | Whether the window has a title bar and border. `false` is a borderless window: no [x] button, Alt+F4 still closes it (block it with njin::window_set_close_intercept()) |
 | `app_name` | the title | Name of the save-game folder |
 | `vsync` | `false` | Vertical sync: each frame waits for the display to refresh, no tearing, and the CPU and GPU rest between frames. `target_fps` is still an additional cap |
 

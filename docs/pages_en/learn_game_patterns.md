@@ -37,7 +37,7 @@ That is exercise 2 at the end.
 
 **In njin:**
 - `njin::phase_fixed_update` runs exactly this `while` loop, 60 times a second by default (`config::fixed_hz`), at most 8 ticks
-  per frame (`src/engine/runtime/njin.cpp`). Inside that phase, `njin::delta()` always equals one fixed tick.
+  per frame (`config::fixed_max_steps`, `src/engine/runtime/njin.cpp`). Inside that phase, `njin::delta()` always equals one fixed tick.
 - `njin::fixed_alpha()` is the `alpha` above. See @ref game_loop and @ref time.
 
 ## 2. Entity, component, system

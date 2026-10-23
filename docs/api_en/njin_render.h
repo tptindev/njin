@@ -235,6 +235,18 @@ void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle s
 /// @return Texture handle, or a handle with id 0 if the file is missing or cannot be decoded.
 texture_handle texture_load(context &ctx, const char *path);
 
+/// Creates a texture from RGBA pixels in memory (4 bytes per pixel, rows
+/// top to bottom), for images the game makes itself or gets from the system, with no file.
+///
+/// The data is copied to the GPU immediately; afterward the game may keep or discard `rgba` as it likes. This
+/// texture has no file, so it cannot be reloaded when the asset changes.
+/// @param ctx Engine context.
+/// @param rgba `width * height * 4` bytes.
+/// @param width Width (pixels).
+/// @param height Height (pixels).
+/// @return Texture handle, or a handle with id 0 if there is no data.
+texture_handle texture_from_pixels(context &ctx, const u8 *rgba, u32 width, u32 height);
+
 /// Frees a texture. An invalid handle is ignored.
 /// @param ctx Engine context.
 /// @param handle Texture to free.

@@ -5,7 +5,9 @@
 #include <entt/core/type_info.hpp>
 #include <entt/entity/registry.hpp>
 #include <functional>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 namespace njin {
 struct context;
@@ -69,6 +71,32 @@ void debug_watch(context &ctx, const char *name, json_value value);
 /// Like debug_watch() for a vec2. @param ctx Engine context.
 /// @param name Display name. @param value Value.
 void debug_watch(context &ctx, const char *name, vec2 value);
+
+/// One document in the list of a source (debug_doc_source()): the identifier
+/// used to ask for its content, and the name shown in the list.
+struct debug_doc_entry {
+  std::string id;    ///< Identifier, chosen by the game (an index, a code...).
+  std::string label; ///< Name shown in the inspector's list.
+};
+
+/// Registers a text document source for the inspector's "Documents" window:
+/// each NPC's notebook, a quest log, anything the game wants to read as a
+/// page of text (markdown is rendered lightly: headings, bullet points). The inspector only
+/// asks when needed: the list when the source is opened, the content when a document is
+/// selected, then it asks again every few seconds while a document stays open. Both functions run on the
+/// game's thread, while the engine processes the inspector's commands. Registering again under the same name replaces
+/// the previous source. With no inspector it does nothing.
+/// @code
+/// njin::debug_doc_source(ctx, "Quests",
+///   [] { return std::vector<njin::debug_doc_entry>{{"1", "Find the key"}}; },
+///   [](const std::string &id) { return "# Quest " + id + "\n\n- Find the key in the basement."; });
+/// @endcode
+/// @param ctx Engine context.
+/// @param name Source name, shown in the inspector.
+/// @param list Function that returns the list of documents.
+/// @param get Function that returns a document's content by its identifier.
+void debug_doc_source(context &ctx, const char *name, std::function<std::vector<debug_doc_entry>()> list,
+                      std::function<std::string(const std::string &id)> get);
 
 /// Function that turns a component into JSON so the inspector can show its value.
 using debug_component_fn = std::function<json_value(const entt::registry &, entt::entity)>;

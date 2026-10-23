@@ -36,7 +36,9 @@ In this phase, njin::delta() returns **exactly one tick**. Put **physics** here:
 whether the machine runs at 30 or 144 FPS, and collisions do not tunnel through when FPS drops.
 
 If a frame is very long (for example stopped at a breakpoint), the remainder beyond 8 ticks is dropped, so the game
-does not have to run hundreds of ticks at once.
+does not have to run hundreds of ticks at once. The 8 can be set with `config::fixed_max_steps`: on a weak machine,
+2-4 avoids the "long frame, many ticks, even longer frame" spiral (the game slows down a little when FPS drops
+instead of stuttering harder and harder), see @ref quality.
 
 njin::fixed_alpha() tells you the leftover part of a tick (0..1). Use it to interpolate the position when drawing, for
 smooth motion when FPS is higher than the physics tick:
@@ -44,6 +46,10 @@ smooth motion when FPS is higher than the physics tick:
 ```cpp
 const njin::vec2 draw_pos = njin::lerp(prev_pos, pos, njin::fixed_alpha(ctx));
 ```
+
+njin::time_set_fixed_rate() makes `phase_fixed_update` run a little faster or slower than real time (1.02 is
+2% faster) without changing the length of one tick. Networked games use it to keep two machines on the same
+tick; netcode sets it automatically on the client (@ref netcode).
 
 ## Timers and tweens
 

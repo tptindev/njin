@@ -19,6 +19,10 @@ void startup(njin::context &ctx) {
   njin::debug_component<enemy_ai>(ctx, "enemy_ai", [](const enemy_ai &a) {
     return njin::json_value::make_object().set("state", a.state);
   });
+  // Text document for the "Documents" window: the inspector asks for the list, then the content when one is selected.
+  njin::debug_doc_source(
+      ctx, "Quests", [] { return std::vector<njin::debug_doc_entry>{{"1", "Find the key"}, {"2", "Return to the village"}}; },
+      [](const std::string &id) { return "# Quest " + id + "\n\n- In progress."; });
 }
 
 void update(njin::context &ctx) {

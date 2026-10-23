@@ -41,7 +41,8 @@ njin::settings_save(ctx); // when leaving the settings menu
 @endcode
 
 The file is JSON in the save-game folder (`settings.json`, see save_path()): each channel's volume and mute, the keys of every
-action and axis, fullscreen, language. Anything not in the file is left
+action and axis, fullscreen, language, and the graphics quality level if the game has set one (@ref
+quality). Anything not in the file is left
 as it is, so a game that adds a new action in an update still has the default key. The game's own data
 (difficulty, brightness) comes along under the `game` key: `settings_save(ctx, "settings.json", &data)`.
 

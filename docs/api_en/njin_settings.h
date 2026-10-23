@@ -8,7 +8,8 @@ struct context;
 /// @{
 
 /// The player's settings as JSON: volume and mute per channel, bound keys,
-/// fullscreen, vertical sync, language.
+/// fullscreen, vertical sync, language, and the graphics quality level
+/// (key `"graphics"`, present only when the game has called graphics_quality_set()).
 /// @code{.json}
 /// { "audio": { "master": 0.8, "music": 0.5, "sfx": 1, "ui": 1, "voice": 1,
 ///              "muted": ["music"] },

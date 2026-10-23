@@ -15,13 +15,55 @@ Every draw function must be called in the three draw phases. The space depends o
 |---|---|
 | njin::draw_rect() | A filled rectangle |
 | njin::draw_rect_lines() | A rectangle outline, the outline sits inside |
+| njin::draw_rect_rounded() | A filled rectangle with rounded corners, the radius in pixels |
+| njin::draw_rect_rounded_lines() | A rounded rectangle outline, the outline sits inside |
 | njin::draw_rect_rotated() | A rectangle rotated around its center |
 | njin::draw_circle() / njin::draw_circle_lines() | A filled circle / an outline |
 | njin::draw_line() | A line segment with thickness |
 | njin::draw_triangle() | A triangle. The order of the three vertices does not matter |
+| njin::draw_triangle_textured() | A triangle covered by part of an image, each vertex with its own image coordinate: for an image inside a non-rectangular shape (a pie slice, a curved strip) |
 
 Color is njin::rgba, each channel 0..1. A few colors are available in `njin::colors` (`white`, `black`,
-`red`, `green`, `blue`, `yellow`, `gray`, `transparent`).
+`red`, `green`, `blue`, `yellow`, `gray`, `transparent`). A color taken from an image editor (0..255
+channels) is written with njin::rgb8(): `njin::rgb8(196, 48, 40)`, with a fourth parameter for opacity.
+
+### Smooth-cornered shapes with SDF
+
+By default rounded shapes are drawn by raylib with a triangle fan, so the curved edge is a bit
+jagged, especially with a thin outline. njin::draw_set_smooth_shapes() turns on another way of
+drawing: each shape is a quad, and a shader computes the distance from each pixel to the shape's
+edge (a signed distance field) and anti-aliases exactly one pixel of it, so edges and corners are
+smooth at any scale. This applies to njin::draw_rect_rounded(), njin::draw_rect_rounded_lines() and
+the UI's flat-color surfaces (njin::ui_skin with no image: panels, buttons, toasts). Each shape
+costs its own extra draw call, so it is worth gating by a graphics quality setting:
+
+```cpp
+// From medium graphics quality up, draw the UI smoothly.
+njin::draw_set_smooth_shapes(ctx, quality >= 1);
+```
+
+With another shader active (njin::shader_begin(), njin::draw_dissolve_begin()), the shape still
+draws the old way under that shader.
+
+### Frosted-glass background for popups
+
+njin::draw_backdrop_blur() blurs whatever was already drawn under a screen region, clipped to its
+rounding: a popup drawn on top with a slightly transparent background then separates from what is
+behind it while still showing it faintly (a city behind a panel, a chat log behind a card). The
+region is copied out of the image being drawn, blurred at half size and put back, so it must be
+called after whatever needs blurring has been drawn, and before the popup:
+
+```cpp
+// A chat log behind a task card: blurred and dimmed, the card drawn after it, sharp.
+njin::draw_backdrop_blur(ctx, chat, 6.0f);
+njin::draw_rect(ctx, chat, njin::rgba{1.0f, 1.0f, 1.0f, 0.3f});
+```
+
+UI panels and widgets have this built in through njin::ui_skin::blur: set it on `ui_style::panel`
+and every panel blurs what is behind it, with the same rounding as its background (the background
+color should have an alpha below 1 so the blurred layer shows through). The function does nothing
+inside the world camera, while drawing into a render texture, or on a machine with a software
+renderer.
 
 ## Text
 
@@ -41,6 +83,12 @@ so centering and right-aligning match the text that gets drawn.
 
 If loading fails (file missing, unreadable), it returns a handle with id 0, so the text falls back to the default
 font instead of disappearing.
+
+For the whole game to use a different font for every piece of text that is given no font (UI,
+draw_text(), text_measure()), call njin::font_set_default() once, instead of passing a font at
+every call. The empty handle `{}` goes back to JetBrains Mono.
+
+@snippet drawing.cpp default_font
 
 ### Pixel-style text
 

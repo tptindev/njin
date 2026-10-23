@@ -132,6 +132,33 @@ struct dissolve_fx {
 /// @param edge_color Burnt edge color. `a` equal to 0 means no edge.
 void sprite_dissolve(context &ctx, entt::entity entity, f32 duration = 0.6f,
                      rgba edge_color = {1.0f, 0.55f, 0.1f, 1.0f});
+
+/// The dissolve look for draw_dissolve_begin(), like a sprite's njin::dissolve_fx.
+struct dissolve_look {
+  rgba edge_color{1.0f, 0.55f, 0.1f, 1.0f}; ///< Burnt edge color. `a` is the strength, 0 removes the edge.
+  f32 edge_width = 0.08f; ///< Edge thickness, on the 0..1 random scale. 0 removes the edge.
+  f32 grain = 2.0f;       ///< Size of each patch, in pixels of the image.
+  f32 seed = 0.0f;        ///< Changes the dissolve pattern.
+};
+
+/// Makes every image drawn afterward (texture_draw(), texture_draw_ex(), UI images, HUD
+/// icons) dissolve into patches, like sprite_dissolve() but for things the game draws itself
+/// on screen, until draw_dissolve_end(). `progress` 0 is untouched, 1 is fully
+/// dissolved; running it from 1 down to 0 makes the image appear gradually in patches. Patches are
+/// measured in pixels of each image. Cannot be nested, and no other shader can be active during it.
+/// @code
+/// // Icon appearing gradually, yellow edge, over 0.3 seconds.
+/// njin::draw_dissolve_begin(ctx, 1.0f - t / 0.3f, {.edge_color = {0.9f, 0.7f, 0.3f, 1.0f}, .grain = 3.0f});
+/// njin::texture_draw(ctx, g.icon, at);
+/// njin::draw_dissolve_end(ctx);
+/// @endcode
+/// @param ctx Engine context.
+/// @param progress How much has dissolved, 0..1.
+/// @param look Edge color, patch size, pattern.
+void draw_dissolve_begin(context &ctx, f32 progress, const dissolve_look &look = {});
+
+/// Ends draw_dissolve_begin(). @param ctx Engine context.
+void draw_dissolve_end(context &ctx);
 /// @}
 
 /// Commonly used particle presets, to pass to particles_spawn() or attach directly

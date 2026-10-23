@@ -24,6 +24,8 @@ njin::texture_draw(ctx, tex, {100.0f, 100.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
 ```
 
 - njin::texture_load() loads an image; the path is relative to the working directory when the game runs.
+- njin::texture_from_pixels() builds a texture from RGBA pixels in memory, for images the game
+  makes itself or gets from the system (no file, so no hot reload).
 - njin::texture_draw() draws with the **top-left corner** at the given position.
 - The last parameter is the **tint color** (njin::rgba, each channel 0..1). White `{1,1,1,1}` keeps
   the image as it is; `{1,0,0,1}` keeps only the red channel.
