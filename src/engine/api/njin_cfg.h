@@ -87,6 +87,17 @@ struct config {
   /// hợp và mất kênh alpha: cửa sổ thành nền đen. Game trong suốt thì đừng
   /// link `njin::gpu`, để chạy trên GPU tích hợp.
   bool transparent = false;
+  /// Mở thiết bị âm thanh lúc khởi động (mặc định bật). Game không phát tiếng
+  /// nào thì đặt `false`: không có luồng trộn âm chạy suốt, card âm thanh được
+  /// nghỉ, đỡ CPU và RAM. Khi tắt, các hàm âm thanh chỉ không làm gì (như máy
+  /// không có loa). Không đổi được lúc đang chạy.
+  bool audio = true;
+  /// Chế độ tiết kiệm, cho game chạy nền lâu (thú cưng desktop, công cụ):
+  /// giữa các frame CPU ngủ hẳn thay vì chờ vòng ở cuối mỗi frame, và không
+  /// ép cả máy dùng bộ hẹn giờ 1 ms (trên Windows nhịp frame lấy từ bộ hẹn
+  /// giờ độ phân giải cao riêng). Cho phép frame_skip_draw(). Mặc định tắt:
+  /// nhịp frame giữ như cũ. Không đổi được lúc đang chạy.
+  bool low_power = false;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).
@@ -103,6 +114,14 @@ f32 fps(const context &ctx);
 /// @param ctx Context của engine.
 /// @param target FPS mục tiêu, ít nhất là 1.
 void set_fps(context &ctx, f32 target);
+
+/// Frame này không vẽ gì: màn hình giữ nguyên hình của frame trước, chỉ cập
+/// nhật và đọc input. Gọi trong lúc update (trước phase_pre_render) khi biết
+/// chắc không có gì trên màn hình đổi, ví dụ thú cưng đang ngủ yên; đỡ hẳn
+/// công vẽ và công ghép hình của hệ điều hành. Chỉ có tác dụng với
+/// `config::low_power`, và chỉ cho frame hiện tại.
+/// @param ctx Context của engine.
+void frame_skip_draw(context &ctx);
 
 /// Trả về kích thước màn hình mà game vẽ lên, tính bằng pixel.
 ///

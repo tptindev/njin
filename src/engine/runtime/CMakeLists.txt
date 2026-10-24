@@ -33,6 +33,11 @@ if(MSVC)
   target_compile_options(njin_rt PRIVATE /bigobj)
 endif()
 
+# njin_pace.cpp: timeBeginPeriod/timeEndPeriod (config::low_power).
+if(WIN32)
+  target_link_libraries(njin_rt PRIVATE winmm)
+endif()
+
 # njin_gpu_hint.cpp checks for the NVIDIA GLX library with dlopen.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(njin_rt PRIVATE ${CMAKE_DL_LIBS})

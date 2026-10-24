@@ -57,9 +57,14 @@ window_guard::window_guard(const config &cfg) {
   SetConfigFlags(flags);
   InitWindow((i32)cfg.width, (i32)cfg.height, cfg.title);
   // Without a device (no speakers, driver problem) the game still runs; the
-  // audio calls just fail to load and say so in the log.
-  InitAudioDevice();
-  SetTargetFPS((i32)cfg.target_fps);
+  // audio calls just fail to load and say so in the log. A game that plays no
+  // sound opens none (config::audio).
+  if (cfg.audio)
+    InitAudioDevice();
+  // low_power: run() paces the frames itself, sleeping the whole wait.
+  SetTargetFPS(cfg.low_power ? 0 : (i32)cfg.target_fps);
+  if (cfg.low_power)
+    pacer_open(pacer);
   i32 exit_key = KEY_NULL;
   if (cfg.exit_key != key_none)
     to_raylib(cfg.exit_key, exit_key);
@@ -67,6 +72,7 @@ window_guard::window_guard(const config &cfg) {
 }
 
 window_guard::~window_guard() {
+  pacer_close(pacer);
   if (IsAudioDeviceReady())
     CloseAudioDevice();
   CloseWindow();
@@ -109,21 +115,33 @@ void run(context &ctx) {
   log_hold(false);
   NJIN_INFO("njin %s", version());
   // Driver shader compiles cost tens of milliseconds each: pay them here, not
-  // on the first hit, pause or explosion.
-  fx_warmup(ctx);
-  post_chain_warmup(ctx);
-  particles_gpu_available(ctx);
+  // on the first hit, pause or explosion. Not in low_power: there each is
+  // loaded on its first use, and one never used costs no memory.
+  if (!ctx.cfg.low_power) {
+    fx_warmup(ctx);
+    post_chain_warmup(ctx);
+    particles_gpu_available(ctx);
+  }
   ecs_run(ctx, phase_startup);
 
   Color clearbg = RAYWHITE;
   to_raylib(ctx.cfg.clear_bg_color, clearbg);
+  const bool low_power = ctx.cfg.low_power;
+  double frame_start = GetTime();
   while (!ctx.quit) {
     // raylib holds a close (the [x], Alt+F4, the exit key) for one frame.
     ctx.close_requested = WindowShouldClose();
     if (ctx.close_requested && !ctx.close_intercept)
       break;
     time_state &time = ctx.time;
-    time.dt_real = GetFrameTime();
+    if (low_power) {
+      // raylib runs uncapped here, so its frame time leaves out the sleep.
+      const double now = GetTime();
+      time.dt_real = (f32)(now - frame_start);
+      frame_start = now;
+    } else {
+      time.dt_real = GetFrameTime();
+    }
     time.elapsed = (f32)GetTime();
     time.dt = time.paused ? 0.0f : time.dt_real * time.scale;
     // Hitstop zeroes dt here, before any system (or fixed step) reads it.
@@ -144,6 +162,14 @@ void run(context &ctx) {
     ecs_run(ctx, phase_post_update);
     ctx.ecs.dispatcher.update();
 
+    if (low_power && ctx.skip_draw) {
+      // Nothing changed on screen: the window keeps its last image.
+      ctx.skip_draw = false;
+      PollInputEvents();
+      pacer_sleep(ctx.window.pacer, frame_start + 1.0 / ctx.cfg.target_fps - GetTime());
+      continue;
+    }
+    ctx.skip_draw = false;
     BeginDrawing();
     ClearBackground(clearbg);
     ctx.view.crisp_text = ctx.cfg.crisp_text && !gpu_is_software();
@@ -168,6 +194,8 @@ void run(context &ctx) {
     take_pending_screenshots(ctx);
     debug_record_frame(ctx);
     EndDrawing();
+    if (low_power)
+      pacer_sleep(ctx.window.pacer, frame_start + 1.0 / ctx.cfg.target_fps - GetTime());
   }
 
   ecs_run(ctx, phase_shutdown);

@@ -33,6 +33,7 @@
 #include "njin_level_impl.h"
 #include "njin_model.h"
 #include "njin_nav3d_impl.h"
+#include "njin_pace.h"
 #include "njin_network_impl.h"
 #include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
@@ -55,6 +56,7 @@ struct window_guard {
   ~window_guard();
   window_guard(const window_guard &) = delete;
   window_guard &operator=(const window_guard &) = delete;
+  frame_pacer pacer; // config::low_power only
 };
 
 // Frame timing. `dt` is what delta() returns outside phase_fixed_update:
@@ -88,6 +90,8 @@ struct context {
   // close_requested, for one frame, instead of ending the loop.
   bool close_intercept = false;
   bool close_requested = false;
+  // frame_skip_draw(): this frame updates but draws nothing (low_power only).
+  bool skip_draw = false;
   // Paths requested by screenshot() this frame, taken at its end.
   std::vector<std::string> screenshots;
   rng random;

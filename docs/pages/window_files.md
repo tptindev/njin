@@ -14,6 +14,14 @@ Ngoài tiêu đề, kích thước, FPS và màu nền, njin::config có:
 | `decorated` | `true` | Cửa sổ có thanh tiêu đề và viền. `false` là cửa sổ không viền: không có nút [x], Alt+F4 vẫn đóng (chặn bằng njin::window_set_close_intercept()) |
 | `app_name` | tiêu đề | Tên thư mục lưu game |
 | `vsync` | `false` | Đồng bộ dọc: mỗi frame chờ màn hình làm tươi, không xé hình, CPU và GPU nghỉ giữa các frame. `target_fps` vẫn là mức trần thêm |
+| `audio` | `true` | Mở thiết bị âm thanh. Game không phát tiếng nào thì đặt `false`: không có luồng trộn âm chạy suốt, đỡ CPU và RAM |
+| `low_power` | `false` | Chế độ tiết kiệm cho game chạy nền lâu: CPU ngủ hẳn giữa các frame (không chờ vòng), không ép cả máy dùng bộ hẹn giờ 1 ms, shader của hiệu ứng chỉ nạp khi dùng lần đầu, và cho phép njin::frame_skip_draw() |
+
+**Game chạy nền cả ngày** (thú cưng desktop, công cụ) nên tốn càng ít càng tốt cho máy
+của người chơi: bật `low_power`, hạ FPS bằng njin::set_fps() khi không có gì chuyển động,
+và gọi njin::frame_skip_draw() trong lúc update cho những frame mà màn hình không đổi
+(hoặc không ai thấy, ví dụ cửa sổ khác che kín): frame đó vẫn cập nhật và đọc input
+nhưng không vẽ, cửa sổ giữ nguyên hình cũ.
 
 ## Cửa sổ
 
