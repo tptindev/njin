@@ -215,6 +215,13 @@ if(TARGET glfw)
     # mentions glfw inside a list expression, which exports as plain -lglfw.
     get_target_property(_njin_raylib_links raylib INTERFACE_LINK_LIBRARIES)
     string(REPLACE ";glfw" "" _njin_raylib_links "${_njin_raylib_links}")
+    # Dropping glfw also drops what glfw links privately; on macOS that is
+    # Cocoa, IOKit and CoreFoundation, which its objects inside raylib need.
+    get_target_property(_njin_glfw_links glfw LINK_LIBRARIES)
+    list(FILTER _njin_glfw_links INCLUDE REGEX "^-framework ")
+    foreach(_njin_framework IN LISTS _njin_glfw_links)
+      list(APPEND _njin_raylib_links "$<LINK_ONLY:${_njin_framework}>")
+    endforeach()
     set_property(TARGET raylib PROPERTY INTERFACE_LINK_LIBRARIES "${_njin_raylib_links}")
   else()
     list(APPEND _njin_export_targets glfw)
