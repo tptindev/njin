@@ -30,7 +30,8 @@ set(NJIN_FEATURE_NET_SOURCES
     njin_netcode.cpp
     njin_network.cpp
     njin_network_asio.cpp)
-set(NJIN_FEATURE_SCRIPT_SOURCES feature_script.cpp njin_script.cpp njin_script_bind.cpp njin_script_bind_more.cpp)
+set(NJIN_FEATURE_SCRIPT_SOURCES feature_script.cpp njin_script.cpp njin_script_bind.cpp njin_script_bind_2d.cpp
+    njin_script_bind_io.cpp njin_script_bind_more.cpp)
 set(NJIN_FEATURE_SCRIPT_3D_SOURCES njin_script_glue_3d.cpp)
 set(NJIN_FEATURE_SCRIPT_PHYSICS3D_SOURCES njin_script_glue_physics3d.cpp)
 set(NJIN_FEATURE_SCRIPT_NAV3D_SOURCES njin_script_glue_nav3d.cpp)

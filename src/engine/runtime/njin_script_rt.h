@@ -47,6 +47,11 @@ struct script_runtime {
 
 // The njin module's 2D lighting, UI, text and spline functions.
 void script_bind_njin_more(context &ctx, script_runtime &rt, sol::table n);
+// Its input, timer, sound, scene and 2D drawing functions
+// (njin_script_bind_io.cpp) and its 2D gameplay ones (njin_script_bind_2d.cpp),
+// from script_bind_njin().
+void script_bind_njin_io(context &ctx, script_runtime &rt, sol::table n);
+void script_bind_njin_2d(context &ctx, script_runtime &rt, sol::table n);
 
 // The runtime, created with default options if no script_init() came first.
 script_runtime &script_rt(context &ctx);
