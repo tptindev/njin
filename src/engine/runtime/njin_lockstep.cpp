@@ -4,6 +4,7 @@
 #include "njin_ctx_impl.h"
 #include "njin_lockstep.h"
 #include "njin_log.h"
+#include "njin_network_impl.h"
 
 #include <algorithm>
 #include <deque>
@@ -82,7 +83,7 @@ void lockstep_state_destroy(lockstep_state *state) { delete state; }
 
 namespace {
 session *session_of(context &ctx) {
-  lockstep_state *st = ctx.network.lockstep;
+  lockstep_state *st = ctx.network->lockstep;
   return st && st->s ? st->s.get() : nullptr;
 }
 
@@ -395,9 +396,9 @@ void setup(context &ctx) {
 }
 
 bool start_session(context &ctx, lockstep_role role, const lockstep_opts &opts, u16 port) {
-  if (!ctx.network.lockstep)
-    ctx.network.lockstep = new lockstep_state();
-  lockstep_state &st = *ctx.network.lockstep;
+  if (!ctx.network->lockstep)
+    ctx.network->lockstep = new lockstep_state();
+  lockstep_state &st = *ctx.network->lockstep;
   if (st.s) {
     NJIN_WARN("lockstep: a session is already running; lockstep_stop() it first");
     return false;
@@ -456,7 +457,7 @@ void lockstep_stop(context &ctx) {
     net_peer_disconnect(ctx, s->server, lockstep_code_stopped);
   net_host_flush(ctx, s->host);
   net_host_destroy(ctx, s->host);
-  ctx.network.lockstep->s.reset();
+  ctx.network->lockstep->s.reset();
   time_set_fixed_rate(ctx, 1.0f);
 }
 

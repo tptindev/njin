@@ -76,11 +76,39 @@ Với một game trong `src/games/<tên>/`, file `CMakeLists.txt` của nó cầ
 ```cmake
 add_executable(my_game main.cpp modules/hello.cpp)
 
-# njin::rt kéo theo njin::api (và thư mục include của nó).
-target_link_libraries(my_game PRIVATE njin::rt njin_warnings)
+# Lõi engine, kèm njin::api (và thư mục include của nó).
+njin_use(my_game)
+target_link_libraries(my_game PRIVATE njin_warnings)
 ```
 
 rồi thêm `add_subdirectory(src/games/my_game)` vào `CMakeLists.txt` gốc.
+
+## Chọn phần engine game cần
+
+Engine gồm một **lõi** và vài **feature** tùy chọn, mỗi feature là một thư viện riêng.
+`njin_use()` chỉ link lõi và những feature được nêu tên, nên game 2D không phải mang theo
+3D, vật lý 3D hay Lua:
+
+| Feature | Gồm | Thư viện ngoài |
+|---|---|---|
+| (lõi) | cửa sổ, input, ECS, vẽ 2D, body 2D, tilemap và level, âm thanh, UI, particle, ánh sáng 2D, cổng debug | raylib, EnTT |
+| `3d` | model, material, lượt vẽ 3D, particle 3D, post3d, world3d (trời, địa hình, nước, cỏ), animation 3D, âm thanh 3D | meshoptimizer |
+| `physics3d` | body, nhân vật, ragdoll, xe (cần `3d`) | Jolt Physics |
+| `nav3d` | navmesh và agent (cần `3d` và `physics3d`) | Recast/Detour |
+| `video` | phát video MPEG-1 | pl_mpeg |
+| `net` | socket, multiplayer, netcode, lockstep | asio, ENet |
+| `script` | script Lua | Lua, sol2 |
+
+```cmake
+njin_use(my_game)                           # game 2D: chỉ lõi
+njin_use(my_fps FEATURES physics3d script)  # thêm 3d (physics3d cần nó) và Lua cho cả hai
+```
+
+Feature mà feature khác cần sẽ tự được thêm vào. `script` đi cùng một feature 3D thì Lua
+cũng có các hàm của feature đó. Game include header của một feature chưa bật (ví dụ
+`njin_physics3d.h`) thì dừng ngay ở bước biên dịch, kèm lời nhắc feature cần thêm.
+`njin::rt` vẫn là toàn bộ engine: `target_link_libraries(my_game PRIVATE njin::rt)` chạy như
+trước. Một game chỉ dùng một trong hai cách.
 
 ## Bước tiếp theo
 

@@ -1,4 +1,5 @@
 #include "render3d.h"
+#include "njin_world3d_impl.h"
 #include "camera.h"
 #include "fx.h"
 #include "gizmo.h"
@@ -1010,7 +1011,7 @@ void load_camera(const context &ctx, const camera3d &camera) {
   const f64 top = (f64)camera.near_plane * std::tan((f64)camera.fovy * 0.5 * (f64)DEG2RAD);
   const f64 right = top * aspect;
   // TAA's jitter: an off-axis frustum, the image moved by a fraction of a pixel.
-  const vec2 j = ctx.render3d.jitter;
+  const vec2 j = ctx.render3d->jitter;
   const f64 jx = (f64)j.x * right;
   const f64 jy = (f64)j.y * top;
   rlMatrixMode(RL_PROJECTION);
@@ -1203,7 +1204,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const Material &file = model.materials[index];
     const model_material &mm = slot->materials[(usize)index];
     // See-through parts only in the translucent pass, and never as shadow casters.
-    if ((mm.color.a < 1.0f) != ctx.render3d.translucent_pass)
+    if ((mm.color.a < 1.0f) != ctx.render3d->translucent_pass)
       continue;
     map_set maps{};
     for (usize m = 0; m < maps.size(); m++)
@@ -1227,7 +1228,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
       maps[MATERIAL_MAP_DIFFUSE].texture = default_texture();
     rgba own = mm.color;
     for (u32 r = 0; r < c.recolor_count; r++) {
-      const model_recolor &rc = ctx.render3d.recolors[c.recolor_first + r];
+      const model_recolor &rc = ctx.render3d->recolors[c.recolor_first + r];
       if (rc.material == index) {
         own = rgba{rc.color.r, rc.color.g, rc.color.b, mm.color.a};
         break;
@@ -1240,7 +1241,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const bool morphed = (usize)i < slot->morphs.size() && !slot->morphs[(usize)i].slot.empty();
     const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
     if (morphed) {
-      const f32 *w = c.morph_count > 0 ? &ctx.render3d.morphs[c.morph_first] : nullptr;
+      const f32 *w = c.morph_count > 0 ? &ctx.render3d->morphs[c.morph_first] : nullptr;
       if (lod != nullptr && lod->morph.slot.empty())
         lod = nullptr;
       if (lod != nullptr)
@@ -1248,7 +1249,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
       else
         model_morph_upload(*slot, i, w);
     }
-    const bool posed = c.bone_count > 0 && ctx.render3d.skin_ok &&
+    const bool posed = c.bone_count > 0 && ctx.render3d->skin_ok &&
                        (lod != nullptr ? lod->bone_vbo != 0
                                        : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
     if (mm.double_sided)
@@ -2208,7 +2209,7 @@ void begin_3d(context &ctx, const camera3d &camera) {
   if (!can_begin(ctx))
     return;
   rlDrawRenderBatchActive();
-  ctx.render3d.target_fbo = 0;
+  ctx.render3d->target_fbo = 0;
   audio3d_note_camera(ctx.audio, camera.position, camera.target, camera.up); // unshaken
   start_pass(ctx, camera);
 }
@@ -2396,7 +2397,7 @@ i32 mesh_kind(const render3d_state &s, const Mesh *mesh) {
 // them (njin_3d.h). The upload is kept on the CPU only while debugging.
 void capture_instances(const context &ctx, const draw3d_cmd &c, debug3d_frame &f, usize max_items) {
   const render3d_state &s = ctx.render3d;
-  const instance_slot *slot = instance_slot_of(const_cast<instance_store &>(ctx.instances), c.buffer);
+  const instance_slot *slot = instance_slot_of(const_cast<instance_store &>(*ctx.instances), c.buffer);
   if (slot == nullptr || slot->cpu.empty())
     return;
   const u32 floats = slot->floats;
@@ -2720,15 +2721,15 @@ void draw3d_motion_id(const context &ctx, u64 id) {
 }
 
 void render3d_close(context &ctx) {
-  if (!ctx.render3d.active)
+  if (!ctx.render3d->active)
     return;
   NJIN_WARN_LIMITED("3d: begin_3d without end_3d, closed at the end of phase_render");
   end_3d(ctx);
 }
 
-void light3d_set(context &ctx, const light3d &light) { ctx.render3d.light = light; }
+void light3d_set(context &ctx, const light3d &light) { ctx.render3d->light = light; }
 
-light3d light3d_get(const context &ctx) { return ctx.render3d.light; }
+light3d light3d_get(const context &ctx) { return ctx.render3d->light; }
 
 void light3d_add(context &ctx, const light3d_source &light) {
   render3d_state &s = ctx.render3d;
@@ -2741,9 +2742,9 @@ void light3d_add(context &ctx, const light3d_source &light) {
   s.lights.push_back(light);
 }
 
-void material3d_set(context &ctx, const material3d &material) { ctx.render3d.material = material; }
+void material3d_set(context &ctx, const material3d &material) { ctx.render3d->material = material; }
 
-void fx3d_set(context &ctx, const fx3d &fx) { ctx.render3d.fx = fx; }
+void fx3d_set(context &ctx, const fx3d &fx) { ctx.render3d->fx = fx; }
 
 void draw_cube3d(const context &ctx, vec3 center, vec3 size, rgba color) {
   if (const render3d_state *s = open_pass(ctx))
@@ -2883,22 +2884,22 @@ void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
 }
 
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform, rgba tint) {
-  record_model(ctx, handle, transform, nullptr, tint, ctx.render3d.fx, ctx.shader.active);
+  record_model(ctx, handle, transform, nullptr, tint, ctx.render3d->fx, ctx.shader.active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active);
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader.active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor &recolor) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active, &recolor, 1);
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader.active, &recolor, 1);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor *recolors, u32 count) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d.fx, ctx.shader.active, recolors, count);
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader.active, recolors, count);
 }
 
 namespace {

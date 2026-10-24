@@ -13,7 +13,34 @@ src/engine/
 **raylib bị giấu hoàn toàn**: header trong `api/` không include raylib. Các hàm
 `to_raylib` và `from_raylib` (file `njin2rl` và `rl2njin`) đổi qua lại giữa kiểu
 của njin (`vec2`, `rgba`...) và kiểu của raylib. Nhờ vậy game chỉ phụ thuộc vào
-`njin::api`, còn raylib là chi tiết cài đặt của `njin::rt`.
+`njin::api`, còn raylib là chi tiết cài đặt của runtime.
+
+## Lõi và các feature
+
+Runtime được chia thành thư viện lõi `njin_core` và các feature tùy chọn: `njin_3d`,
+`njin_physics3d`, `njin_nav3d`, `njin_video`, `njin_net`, `njin_script`, cùng các thư viện
+nối Lua với từng feature 3D (`njin_script_3d`, `njin_script_physics3d`,
+`njin_script_nav3d`). Game chọn feature bằng `njin_use()` (@ref getting_started), còn
+`njin::rt` là tất cả. Danh sách file của từng feature nằm trong
+`src/engine/runtime/CMakeLists.txt`. File không thuộc danh sách nào là của lõi, nên file mới
+của một feature phải được thêm vào danh sách của nó.
+
+Lõi không bao giờ gọi thẳng một feature: nếu gọi, game không dùng feature đó vẫn phải link
+nó. Có ba đường nối, đều do `feature_install_<tên>()` của feature dựng lên
+(`runtime/njin_features.h`):
+
+- **state** của feature nằm trong context dưới dạng `feature_ref<T>`: rỗng khi game không
+  dùng feature, và vẫn ở đúng chỗ member cũ, nên thứ tự hủy không đổi;
+- **hook** trong `context::hooks`: lõi gọi khi hook đã được đặt (bước vật lý trong fixed
+  update, mở và đóng lượt vẽ 3D, hot reload script, view component trong inspector...);
+- **module** của feature được chèn vào giữa các module lõi, theo thứ tự cố định
+  (`core_modules.cpp`).
+
+`create()` gọi `features_install()`. Hàm này do CMake sinh riêng cho mỗi game, chỉ gọi
+`feature_install_<tên>()` của các feature game dùng. Feature 3D cần vật lý (tia dò mặt đất,
+âm thanh bị che, collision của địa hình, vật nổi trên nước) cũng đi qua hook
+(`runtime/physics3d_bridge.h`). Không có `physics3d` thì tia không trúng gì, còn cái gì không
+thể chạy thì báo lỗi một lần.
 
 ## context
 

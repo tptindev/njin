@@ -84,7 +84,8 @@ Nhờ bước 2, game chạy bằng cách nhấp đúp file exe (thư mục làm
 
 ```cmake
 add_executable(my_game main.cpp)
-target_link_libraries(my_game PRIVATE njin::rt njin_warnings)
+njin_use(my_game)
+target_link_libraries(my_game PRIVATE njin_warnings)
 njin_add_assets(my_game assets)   # src/games/my_game/assets -> build/bin/assets
 ```
 

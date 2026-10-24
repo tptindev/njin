@@ -1,4 +1,9 @@
 #pragma once
+// Thuộc feature video: game cần bật nó bằng njin_use(<game> FEATURES video)
+// (cmake/njin.cmake), hoặc link njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_VIDEO)
+#error "njin_video.h is part of the njin feature 'video', which this game does not use: add it with njin_use(<game> FEATURES video)"
+#endif
 #include "_math.h"
 #include "_types.h"
 #include "njin_audio.h"

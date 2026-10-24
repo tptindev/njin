@@ -120,6 +120,8 @@ std::unique_ptr<script_runtime> make_runtime(context &ctx, const script_desc &de
   script_bind_njin(ctx, *rt);
   sol::table njin = rt->lua["njin"];
   script_bind_njin_more(ctx, *rt, njin);
+  for (void (*bind)(context &, script_runtime &) : ctx.script->binders)
+    bind(ctx, *rt);
   njin["log"] = &lua_print;
   njin["warn"] = &lua_warn;
   njin["error"] = &lua_error_log;
@@ -219,7 +221,7 @@ void finish(script_runtime &rt, script_instance &inst) {
 }
 
 void on_entity_destroyed(context &ctx, entt::registry &, entt::entity e) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr)
     return;
   const auto it = rt->instances.find(entt::to_integral(e));
@@ -252,7 +254,7 @@ bool start_once(script_runtime &rt, u32 id, script_class &c) {
 }
 
 void update(context &ctx) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr || rt->instances.empty())
     return;
   const f32 dt = delta(ctx);
@@ -272,7 +274,7 @@ void update(context &ctx) {
 // velocities set here move bodies in the same step. Nothing runs (no entity
 // walk) while no loaded script has the function.
 void fixed_update(context &ctx) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr || rt->instances.empty())
     return;
   bool any = false;
@@ -294,7 +296,7 @@ void fixed_update(context &ctx) {
 }
 
 void render(context &ctx) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr || rt->instances.empty())
     return;
   for (const u32 id : instance_ids(*rt)) {
@@ -312,7 +314,7 @@ void render(context &ctx) {
 // on_ui(self) in phase_post_render, screen space: where njin's immediate UI
 // (ui_begin()...) has to be called.
 void ui(context &ctx) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr || rt->instances.empty())
     return;
   bool any = false;
@@ -368,9 +370,9 @@ script_state::~script_state() = default;
 mod_desc script_module() { return mod_desc{.name = "njin.script", .setup = setup}; }
 
 script_runtime &script_rt(context &ctx) {
-  if (!ctx.script.rt)
-    ctx.script.rt = make_runtime(ctx, {});
-  return *ctx.script.rt;
+  if (!ctx.script->rt)
+    ctx.script->rt = make_runtime(ctx, {});
+  return *ctx.script->rt;
 }
 
 bool script_report(const sol::protected_function_result &r, const char *what) {
@@ -423,8 +425,8 @@ script_value script_from_lua(const sol::object &o) {
 }
 
 void script_init(context &ctx, const script_desc &desc) {
-  if (!ctx.script.rt)
-    ctx.script.rt = make_runtime(ctx, desc);
+  if (!ctx.script->rt)
+    ctx.script->rt = make_runtime(ctx, desc);
 }
 
 bool script_run_file(context &ctx, const char *path) {
@@ -535,7 +537,7 @@ bool script_attach(context &ctx, entt::entity entity, const char *path) {
 }
 
 void script_detach(context &ctx, entt::entity entity) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr)
     return;
   const auto it = rt->instances.find(entt::to_integral(entity));
@@ -550,12 +552,12 @@ void script_detach(context &ctx, entt::entity entity) {
 }
 
 bool script_attached(const context &ctx, entt::entity entity) {
-  const script_runtime *rt = ctx.script.rt.get();
+  const script_runtime *rt = ctx.script->rt.get();
   return rt != nullptr && rt->instances.contains(entt::to_integral(entity));
 }
 
 script_value script_field(context &ctx, entt::entity entity, const char *key) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr || key == nullptr)
     return {};
   const auto it = rt->instances.find(entt::to_integral(entity));
@@ -565,7 +567,7 @@ script_value script_field(context &ctx, entt::entity entity, const char *key) {
 }
 
 void script_set_field(context &ctx, entt::entity entity, const char *key, const script_value &value) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr || key == nullptr)
     return;
   const auto it = rt->instances.find(entt::to_integral(entity));
@@ -574,13 +576,13 @@ void script_set_field(context &ctx, entt::entity entity, const char *key, const 
 }
 
 i32 script_count(const context &ctx) {
-  const script_runtime *rt = ctx.script.rt.get();
+  const script_runtime *rt = ctx.script->rt.get();
   return rt == nullptr ? 0 : (i32)rt->instances.size();
 }
 
 std::vector<std::string> script_watched_files(const context &ctx) {
   std::vector<std::string> out;
-  const script_runtime *rt = ctx.script.rt.get();
+  const script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr)
     return out;
   out = rt->run_files;
@@ -591,7 +593,7 @@ std::vector<std::string> script_watched_files(const context &ctx) {
 }
 
 bool script_reload_file(context &ctx, const std::string &path) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr)
     return false;
   reported_errors().clear();
@@ -818,7 +820,7 @@ std::string save_id_of(const script_instance &inst) {
 } // namespace
 
 void script_set_save_id(context &ctx, entt::entity entity, const char *id) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr)
     return;
   const auto it = rt->instances.find(entt::to_integral(entity));
@@ -831,7 +833,7 @@ void script_set_save_id(context &ctx, entt::entity entity, const char *id) {
 }
 
 std::string script_save_id(context &ctx, entt::entity entity) {
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt == nullptr)
     return {};
   const auto it = rt->instances.find(entt::to_integral(entity));
@@ -840,7 +842,7 @@ std::string script_save_id(context &ctx, entt::entity entity) {
 
 json_value script_save_state(context &ctx) {
   json_value entities = json_value::make_object();
-  script_runtime *rt = ctx.script.rt.get();
+  script_runtime *rt = ctx.script->rt.get();
   if (rt != nullptr) {
     save_writer w;
     i32 unnamed = 0;

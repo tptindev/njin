@@ -1,7 +1,8 @@
 #include "njin_anim3d.h"
+#include "njin_anim3d_impl.h"
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
-#include "njin_physics3d.h"
+#include "physics3d_bridge.h"
 #include <raymath.h>
 #include <algorithm>
 #include <cctype>
@@ -90,14 +91,14 @@ std::vector<i32> parents_first(const context &ctx, model_handle model, i32 bones
 }
 
 spring_slot *spring_of(context &ctx, spring3d_handle h) {
-  auto &v = ctx.anim3d.springs;
+  auto &v = ctx.anim3d->springs;
   if (h.id == 0 || h.id > v.size() || !v[h.id - 1].alive)
     return nullptr;
   return &v[h.id - 1];
 }
 
 const retarget_slot *retarget_of(const context &ctx, retarget3d_handle h) {
-  const auto &v = ctx.anim3d.retargets;
+  const auto &v = ctx.anim3d->retargets;
   if (h.id == 0 || h.id > v.size() || !v[h.id - 1].alive)
     return nullptr;
   return &v[h.id - 1];
@@ -187,8 +188,8 @@ spring3d_handle spring3d_create(context &ctx, const spring3d_desc &desc) {
     slot.colliders.push_back(col);
   }
   slot.alive = true;
-  ctx.anim3d.springs.push_back(std::move(slot));
-  return spring3d_handle{.id = (u32)ctx.anim3d.springs.size()};
+  ctx.anim3d->springs.push_back(std::move(slot));
+  return spring3d_handle{.id = (u32)ctx.anim3d->springs.size()};
 }
 
 i32 spring3d_update(context &ctx, spring3d_handle handle, const model_pose &pose, const transform3d &transform, f32 dt,
@@ -516,8 +517,8 @@ retarget3d_handle retarget3d_create(context &ctx, const retarget3d_desc &desc) {
   const f32 ht = hips_height(desc.target, tb, slot.hips);
   slot.scale = hs > 1e-5f && ht > 1e-5f ? ht / hs : 1.0f;
   slot.alive = true;
-  ctx.anim3d.retargets.push_back(std::move(slot));
-  return retarget3d_handle{.id = (u32)ctx.anim3d.retargets.size()};
+  ctx.anim3d->retargets.push_back(std::move(slot));
+  return retarget3d_handle{.id = (u32)ctx.anim3d->retargets.size()};
 }
 
 i32 retarget3d_pose(const context &ctx, retarget3d_handle handle, const model_pose &pose, bone_pose3d *out,
@@ -568,21 +569,21 @@ i32 retarget3d_source_bone(const context &ctx, retarget3d_handle handle, i32 bon
 }
 
 void retarget3d_destroy(context &ctx, retarget3d_handle handle) {
-  auto &v = ctx.anim3d.retargets;
+  auto &v = ctx.anim3d->retargets;
   if (handle.id != 0 && handle.id <= v.size())
     v[handle.id - 1] = retarget_slot{};
 }
 
 namespace {
 foot_slot *foot_of(context &ctx, foot3d_handle h) {
-  auto &v = ctx.anim3d.feet;
+  auto &v = ctx.anim3d->feet;
   if (h.id == 0 || h.id > v.size() || !v[h.id - 1].alive)
     return nullptr;
   return &v[h.id - 1];
 }
 
 const foot_slot *foot_of(const context &ctx, foot3d_handle h) {
-  const auto &v = ctx.anim3d.feet;
+  const auto &v = ctx.anim3d->feet;
   if (h.id == 0 || h.id > v.size() || !v[h.id - 1].alive)
     return nullptr;
   return &v[h.id - 1];
@@ -664,7 +665,10 @@ bone_pose3d blend_pose(const bone_pose3d &a, const bone_pose3d &b, f32 k) {
 }
 
 bool physics_ground(const context &ctx, vec3 from, f32 distance, vec3 &point, vec3 &normal) {
-  const ray3d_hit hit = physics3d_raycast(ctx, ray3d{.origin = from, .direction = {0.0f, -1.0f, 0.0f}}, distance);
+  static bool said = false;
+  if (physics3d_missing(ctx, said, "foot IK without a ground function"))
+    return false;
+  const ray3d_hit hit = physics3d_ray(ctx, ray3d{.origin = from, .direction = {0.0f, -1.0f, 0.0f}}, distance);
   if (!hit.hit)
     return false;
   point = hit.point;
@@ -810,8 +814,8 @@ foot3d_handle foot3d_create(context &ctx, const foot3d_desc &desc) {
   slot.max_tilt = std::clamp(finite(desc.max_tilt, 35.0f), 0.0f, 89.0f);
   slot.smoothing = std::max(finite(desc.smoothing, 15.0f), 0.0f);
   slot.knee_forward = finite3(desc.knee_forward) ? desc.knee_forward : vec3{0.0f, 0.0f, 1.0f};
-  ctx.anim3d.feet.push_back(std::move(slot));
-  return foot3d_handle{.id = (u32)ctx.anim3d.feet.size()};
+  ctx.anim3d->feet.push_back(std::move(slot));
+  return foot3d_handle{.id = (u32)ctx.anim3d->feet.size()};
 }
 
 i32 foot3d_update(context &ctx, foot3d_handle handle, const model_pose &pose, const transform3d &transform, f32 dt,

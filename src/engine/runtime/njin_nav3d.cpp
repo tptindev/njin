@@ -4,6 +4,7 @@
 #include "njin_ecs.h"
 #include "njin_gizmo.h"
 #include "njin_log.h"
+#include "njin_model.h"
 #include "njin_physics3d.h"
 #include "njin_world3d_impl.h"
 #include <DetourCommon.h>
@@ -565,15 +566,15 @@ navmesh3d_handle navmesh3d_create(context &ctx, const navmesh3d_desc &desc) {
   nav3d_mesh_slot slot{};
   slot.alive = true;
   slot.desc = desc;
-  ctx.nav3d.meshes.push_back(std::move(slot));
-  return navmesh3d_handle{(u32)ctx.nav3d.meshes.size()};
+  ctx.nav3d->meshes.push_back(std::move(slot));
+  return navmesh3d_handle{(u32)ctx.nav3d->meshes.size()};
 }
 
 void navmesh3d_destroy(context &ctx, navmesh3d_handle handle) {
   nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
   if (s == nullptr)
     return;
-  for (nav3d_agent_slot &a : ctx.nav3d.agents)
+  for (nav3d_agent_slot &a : ctx.nav3d->agents)
     if (a.alive && a.navmesh == handle.id)
       a.alive = false;
   free_mesh(*s);
@@ -802,7 +803,7 @@ bool navmesh3d_build(context &ctx, navmesh3d_handle handle) {
   if (s == nullptr)
     return false;
   // Agents of the old navmesh go with its crowd.
-  for (nav3d_agent_slot &a : ctx.nav3d.agents)
+  for (nav3d_agent_slot &a : ctx.nav3d->agents)
     if (a.alive && a.navmesh == handle.id)
       a.alive = false;
   free_mesh(*s);
@@ -1075,8 +1076,8 @@ nav3d_agent_handle nav3d_agent_add(context &ctx, navmesh3d_handle navmesh, const
   a.arrive = desc.arrive_distance > 0.0f ? desc.arrive_distance : p.radius;
   a.character = desc.character;
   a.filter = p.queryFilterType;
-  ctx.nav3d.agents.push_back(a);
-  return nav3d_agent_handle{(u32)ctx.nav3d.agents.size()};
+  ctx.nav3d->agents.push_back(a);
+  return nav3d_agent_handle{(u32)ctx.nav3d->agents.size()};
 }
 
 void nav3d_agent_remove(context &ctx, nav3d_agent_handle agent) {
@@ -1191,7 +1192,7 @@ bool nav3d_agent_arrived(const context &ctx, nav3d_agent_handle agent) {
 i32 nav3d_agent_count(const context &ctx, navmesh3d_handle navmesh) {
   if (mesh_of(ctx.nav3d, navmesh) == nullptr)
     return 0;
-  return (i32)std::count_if(ctx.nav3d.agents.begin(), ctx.nav3d.agents.end(),
+  return (i32)std::count_if(ctx.nav3d->agents.begin(), ctx.nav3d->agents.end(),
                             [&](const nav3d_agent_slot &a) { return a.alive && a.navmesh == navmesh.id; });
 }
 

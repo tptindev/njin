@@ -14,6 +14,14 @@ endif()
 find_package(Threads REQUIRED)
 include("${NJIN_PREBUILT}/njinTargets.cmake")
 add_library(njin::rt ALIAS njin_prebuilt::njin_rt)
+# The core and the features njin_use() links (NJIN_FEATURES_ORDER in
+# njin.cmake). An engine build from before the split has none: a game built on
+# it links njin::rt.
+foreach(_njin_feature core 3d physics3d nav3d video net script script_3d script_physics3d script_nav3d)
+  if(TARGET njin_prebuilt::njin_${_njin_feature})
+    add_library(njin::${_njin_feature} ALIAS njin_prebuilt::njin_${_njin_feature})
+  endif()
+endforeach()
 add_library(njin::api ALIAS njin_prebuilt::njin_api)
 add_library(njin::gpu ALIAS njin_prebuilt::njin_gpu)
 add_library(njin_warnings ALIAS njin_prebuilt::njin_warnings)

@@ -46,7 +46,7 @@ void update(context &ctx) {
   const f32 dt = delta(ctx);
   if (dt <= 0.0f)
     return;
-  for (particle3d_burst &b : ctx.particles3d.bursts) {
+  for (particle3d_burst &b : ctx.particles3d->bursts) {
     const particle_emitter &em = b.look;
     const vec3 gravity{em.gravity.x * b.scale, -em.gravity.y * b.scale, 0.0f};
     // Same exponential drag as the 2D particles.
@@ -60,7 +60,7 @@ void update(context &ctx) {
     }
     std::erase_if(b.particles, [](const particle3d &p) { return p.age >= p.life; });
   }
-  std::erase_if(ctx.particles3d.bursts, [](const particle3d_burst &b) { return b.particles.empty(); });
+  std::erase_if(ctx.particles3d->bursts, [](const particle3d_burst &b) { return b.particles.empty(); });
 }
 
 void setup(context &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
@@ -129,7 +129,7 @@ void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, 
   s.bursts.push_back(std::move(burst));
 }
 
-void particles3d_clear(context &ctx) { ctx.particles3d.bursts.clear(); }
+void particles3d_clear(context &ctx) { ctx.particles3d->bursts.clear(); }
 
 i32 particles3d_count(const context &ctx) { return (i32)live_count(ctx.particles3d); }
 
@@ -187,7 +187,7 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       rlDrawRenderBatchActive();
       rlDisableBackfaceCulling();
     }
-    const std::array<vec4, 6> &frustum = ctx.render3d.frustum;
+    const std::array<vec4, 6> &frustum = ctx.render3d->frustum;
     for (const particle3d &p : b.particles) {
       const f32 t = p.age / p.life;
       const f32 size = lerp(em.size_start, em.size_end, t) * p.size * b.scale;

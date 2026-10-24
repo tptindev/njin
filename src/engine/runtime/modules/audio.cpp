@@ -5,7 +5,8 @@
 namespace njin {
 namespace {
 void update_audio(context &ctx) {
-  audio3d_update(ctx);
+  if (ctx.hooks.audio_update != nullptr)
+    ctx.hooks.audio_update(ctx);
   audio_store_update(ctx.audio, ctx.time.dt_real);
 }
 

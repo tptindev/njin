@@ -10,13 +10,13 @@
 namespace njin {
 namespace {
 net_service &service(context &ctx) {
-  if (!ctx.network.service)
-    ctx.network.service = net_service_create();
-  return *ctx.network.service;
+  if (!ctx.network->service)
+    ctx.network->service = net_service_create();
+  return *ctx.network->service;
 }
 
 // Queries never start the network thread: with no service, no handle is valid.
-const net_service *service_if_any(const context &ctx) { return ctx.network.service; }
+const net_service *service_if_any(const context &ctx) { return ctx.network->service; }
 
 void pump_network(context &ctx) {
   network_store &store = ctx.network;
@@ -44,12 +44,12 @@ network_store::~network_store() {
 }
 
 mp_service *mp_service_of(context &ctx, bool create) {
-  if (!ctx.network.multiplayer && create)
-    ctx.network.multiplayer = mp_service_create();
-  return ctx.network.multiplayer;
+  if (!ctx.network->multiplayer && create)
+    ctx.network->multiplayer = mp_service_create();
+  return ctx.network->multiplayer;
 }
 
-const mp_service *mp_service_of(const context &ctx) { return ctx.network.multiplayer; }
+const mp_service *mp_service_of(const context &ctx) { return ctx.network->multiplayer; }
 
 mod_desc network_module() { return mod_desc{.name = "njin.network", .setup = setup}; }
 
@@ -62,12 +62,12 @@ net_conn tcp_connect(context &ctx, const char *host, u16 port, const tcp_opts &o
 }
 
 bool tcp_send(context &ctx, net_conn conn, std::string_view data) {
-  return ctx.network.service && net_service_send(*ctx.network.service, conn, data);
+  return ctx.network->service && net_service_send(*ctx.network->service, conn, data);
 }
 
 void tcp_close(context &ctx, net_conn conn) {
-  if (ctx.network.service)
-    net_service_close(*ctx.network.service, conn);
+  if (ctx.network->service)
+    net_service_close(*ctx.network->service, conn);
 }
 
 bool tcp_connected(const context &ctx, net_conn conn) {
@@ -94,8 +94,8 @@ u16 tcp_server_port(const context &ctx, net_server server) {
 }
 
 void tcp_server_close(context &ctx, net_server server) {
-  if (ctx.network.service)
-    net_service_server_close(*ctx.network.service, server);
+  if (ctx.network->service)
+    net_service_server_close(*ctx.network->service, server);
 }
 
 net_udp udp_open(context &ctx, u16 port, const char *host) {
@@ -107,7 +107,7 @@ net_udp udp_open(context &ctx, u16 port, const char *host) {
 }
 
 bool udp_send(context &ctx, net_udp socket, const net_endpoint &to, std::string_view data) {
-  return ctx.network.service && net_service_udp_send(*ctx.network.service, socket, to, data);
+  return ctx.network->service && net_service_udp_send(*ctx.network->service, socket, to, data);
 }
 
 u16 udp_port(const context &ctx, net_udp socket) {
@@ -116,7 +116,7 @@ u16 udp_port(const context &ctx, net_udp socket) {
 }
 
 void udp_close(context &ctx, net_udp socket) {
-  if (ctx.network.service)
-    net_service_udp_close(*ctx.network.service, socket);
+  if (ctx.network->service)
+    net_service_udp_close(*ctx.network->service, socket);
 }
 } // namespace njin

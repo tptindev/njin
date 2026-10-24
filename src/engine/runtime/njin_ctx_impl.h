@@ -11,45 +11,49 @@
 #include "modules/gizmo.h"
 #include "modules/lighting.h"
 #include "modules/particles_gpu.h"
-#include "modules/particles3d.h"
 #include "modules/post_fx.h"
-#include "modules/post3d.h"
-#include "modules/render3d.h"
 #include "modules/reload.h"
 #include "modules/render_stats.h"
 #include "modules/ui.h"
 #include "modules/sprite.h"
 #include "modules/timer.h"
-#include "njin_anim3d_impl.h"
 #include "njin_anim_impl.h"
 #include "njin_audio_impl.h"
 #include "njin_backdrop.h"
 #include "njin_cfg.h"
 #include "njin_ecs.h"
+#include "njin_features.h"
 #include "njin_font.h"
 #include "njin_i18n_impl.h"
 #include "njin_input_impl.h"
-#include "njin_instance.h"
 #include "njin_level_impl.h"
-#include "njin_model.h"
-#include "njin_nav3d_impl.h"
 #include "njin_pace.h"
-#include "njin_network_impl.h"
-#include "njin_physics3d_impl.h"
 #include "njin_prefab_impl.h"
 #include "njin_quality_impl.h"
 #include "njin_scene_impl.h"
 #include "njin_sdf2d.h"
-#include "njin_script_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
-#include "njin_video_impl.h"
 #include "njin_view.h"
-#include "njin_world3d_impl.h"
 #include <string>
 #include <vector>
 
 namespace njin {
+// The optional features' states (njin_features.h): only the feature that owns
+// one sees it complete.
+struct script_state;
+struct instance_store;
+struct model_store;
+struct physics3d_state;
+struct render3d_state;
+struct post3d_state;
+struct particles3d_state;
+struct world3d_store;
+struct nav3d_store;
+struct video_store;
+struct network_store;
+struct anim3d_store;
+
 // Opens the window on construction and closes it on destruction.
 struct window_guard {
   explicit window_guard(const config &cfg);
@@ -81,8 +85,13 @@ struct time_state {
 // and the tilemap chunk cache, and the audio buffers in `audio`, are freed
 // while the GL context and the audio device are still alive. `ecs` goes
 // first, so component destructors never outlive the resources they name.
+// The features' states (feature_ref) keep those places: they are made after
+// the window opens (features_install), and freed where the member stands.
 struct context {
   explicit context(const config &config) : cfg(config), window(config) {}
+
+  // The features' hooks and modules (njin_features.h).
+  feature_hooks hooks;
 
   time_state time;
   bool quit = false;
@@ -97,18 +106,18 @@ struct context {
   rng random;
   // Early, so the Lua state outlives every store whose timers and tweens may
   // hold Lua callbacks.
-  script_state script;
+  feature_ref<script_state> script;
   config cfg;
   window_guard window;
   view_state view;
   quality_state quality;
   input_store input;
   shader_store shader;
-  instance_store instances;
+  feature_ref<instance_store> instances;
   texture_store texture;
   render_texture_store render_texture;
-  model_store model;
-  physics3d_state physics3d;
+  feature_ref<model_store> model;
+  feature_ref<physics3d_state> physics3d;
   // Mutable: atlases are baked on first draw, and drawing takes a const ctx.
   mutable font_store font;
   // Mutable too: the shape shader is loaded on first draw (njin_sdf2d.h).
@@ -121,15 +130,15 @@ struct context {
   gizmo_state gizmos;
   post_chain postfx;
   lighting_state light;
-  render3d_state render3d;
-  post3d_state post3d;
-  particles3d_state particles3d;
-  world3d_store world3d;
-  nav3d_store nav3d;
+  feature_ref<render3d_state> render3d;
+  feature_ref<post3d_state> post3d;
+  feature_ref<particles3d_state> particles3d;
+  feature_ref<world3d_store> world3d;
+  feature_ref<nav3d_store> nav3d;
   // After texture and audio: closing a video frees its stream and its texture slot.
-  video_store video;
+  feature_ref<video_store> video;
   // Stops the network thread and closes every socket.
-  network_store network;
+  feature_ref<network_store> network;
   particle_gpu_state particles_gpu;
   render_stats stats;
   reload_state reload;
@@ -143,7 +152,7 @@ struct context {
   scene_store scene;
   prefab_store prefab;
   anim_store anim;
-  anim3d_store anim3d;
+  feature_ref<anim3d_store> anim3d;
   level_store level;
   ecs_store ecs;
 };

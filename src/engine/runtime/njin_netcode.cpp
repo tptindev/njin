@@ -3,6 +3,7 @@
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
 #include "njin_netcode.h"
+#include "njin_network_impl.h"
 
 #include <algorithm>
 #include <cmath>
@@ -114,19 +115,19 @@ void netcode_state_destroy(netcode_state *state) { delete state; }
 
 namespace {
 netcode_state &state_of(context &ctx) {
-  if (!ctx.network.netcode)
-    ctx.network.netcode = new netcode_state();
-  return *ctx.network.netcode;
+  if (!ctx.network->netcode)
+    ctx.network->netcode = new netcode_state();
+  return *ctx.network->netcode;
 }
 
 session *session_of(context &ctx) {
-  netcode_state *st = ctx.network.netcode;
+  netcode_state *st = ctx.network->netcode;
   return st && st->s ? st->s.get() : nullptr;
 }
 
 const session *session_of(const context &ctx) { return session_of(const_cast<context &>(ctx)); }
 
-u32 comp_count(const context &ctx) { return ctx.network.netcode ? (u32)ctx.network.netcode->comps.size() : 0; }
+u32 comp_count(const context &ctx) { return ctx.network->netcode ? (u32)ctx.network->netcode->comps.size() : 0; }
 
 // The widest gap between snapshots seen lately (losses in a row), at least two
 // intervals, plus the jitter seen lately.
@@ -234,7 +235,7 @@ bool read_input(session &s, u32 player, std::string &out) {
 // --- server snapshots ---
 
 world_state capture(context &ctx, session &s) {
-  const netcode_state &st = *ctx.network.netcode;
+  const netcode_state &st = *ctx.network->netcode;
   entt::registry &reg = world(ctx);
   world_state out;
   for (auto it = s.replicated.begin(); it != s.replicated.end();) {
@@ -282,7 +283,7 @@ std::string encode_entity(u32 id, const ent_state &now, const ent_state *base, u
 }
 
 void send_snapshot(context &ctx, session &s, remote_client &c, const world_state &now) {
-  const netcode_state &st = *ctx.network.netcode;
+  const netcode_state &st = *ctx.network->netcode;
   const u32 comps = (u32)st.comps.size();
   // Baseline: the snapshot the client last confirmed, if still kept.
   const world_state *base = nullptr;
@@ -385,7 +386,7 @@ void destroy_local(context &ctx, session &s, u32 id) {
 }
 
 void apply(context &ctx, session &s, const world_state &ws, u32 tick) {
-  const netcode_state &st = *ctx.network.netcode;
+  const netcode_state &st = *ctx.network->netcode;
   entt::registry &reg = world(ctx);
   for (const auto &[id, es] : s.applied)
     if (!ws.count(id))
@@ -553,7 +554,7 @@ void receive_snapshot(context &ctx, session &s, std::string_view data) {
 void interpolate(context &ctx, session &s) {
   if (!s.has_offset)
     return;
-  const netcode_state &st = *ctx.network.netcode;
+  const netcode_state &st = *ctx.network->netcode;
   entt::registry &reg = world(ctx);
   const f64 dt = ctx.time.fixed_dt;
   // The delay moves toward its target by changing how fast the render time
@@ -822,7 +823,7 @@ void netcode_stop(context &ctx) {
     time_set_fixed_rate(ctx, 1.0f);
   }
   net_host_destroy(ctx, s->host);
-  ctx.network.netcode->s.reset();
+  ctx.network->netcode->s.reset();
 }
 
 netcode_role netcode_role_of(const context &ctx) {
@@ -990,7 +991,7 @@ bool netcode_confirmed_bytes(const context &ctx, entt::entity entity, u32 type, 
   if (it == s->id_of_entity.end())
     return false;
   const local_entity &le = s->entities.at(it->second);
-  const auto &comps = ctx.network.netcode->comps;
+  const auto &comps = ctx.network->netcode->comps;
   for (usize i = 0; i < comps.size(); ++i)
     if (comps[i].type == type && !le.confirmed[i].second.empty()) {
       tick = le.confirmed[i].first;

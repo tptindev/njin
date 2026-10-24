@@ -1,4 +1,9 @@
 #pragma once
+// Thuộc feature nav3d: game cần bật nó bằng njin_use(<game> FEATURES nav3d)
+// (cmake/njin.cmake), hoặc link njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_NAV3D)
+#error "njin_nav3d.h is part of the njin feature 'nav3d', which this game does not use: add it with njin_use(<game> FEATURES nav3d)"
+#endif
 #include "_math.h"
 #include "_types.h"
 #include <vector>

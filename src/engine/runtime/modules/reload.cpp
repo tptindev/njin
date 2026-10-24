@@ -3,11 +3,17 @@
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
 #include "njin_path.h"
-#include "njin_script_impl.h"
 
 namespace njin {
 namespace {
 enum class change { none, settled };
+
+// The script files to watch: none without the script feature.
+std::vector<std::string> script_files(const context &ctx) {
+  if (ctx.hooks.watched_files == nullptr)
+    return {};
+  return ctx.hooks.watched_files(ctx);
+}
 
 // Tracks one file: the first sight records its time; a new time is held
 // until a later check sees it unchanged, so a file still being written is
@@ -72,10 +78,10 @@ i32 scan(context &ctx, bool immediate) {
     dispatcher.enqueue(asset_reloaded{name, true, ok});
     reloaded += ok ? 1 : 0;
   }
-  for (const std::string &path : script_watched_files(ctx)) {
+  for (const std::string &path : script_files(ctx)) {
     if (check(state, asset_path(path.c_str()), immediate) != change::settled)
       continue;
-    const bool ok = script_reload_file(ctx, path);
+    const bool ok = ctx.hooks.reload_file(ctx, path);
     NJIN_INFO("hot reload: script %s%s", path.c_str(), ok ? "" : " (failed, old functions kept)");
     dispatcher.enqueue(asset_reloaded{.path = path, .ok = ok, .script = true});
     reloaded += ok ? 1 : 0;
@@ -118,7 +124,7 @@ void hot_reload_enable(context &ctx, bool on, f32 interval) {
       if (!slot.fs_path.empty())
         check(state, slot.fs_path, false);
     }
-    for (const std::string &path : script_watched_files(ctx))
+    for (const std::string &path : script_files(ctx))
       check(state, asset_path(path.c_str()), false);
   }
 }

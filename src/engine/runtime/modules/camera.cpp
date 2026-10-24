@@ -4,8 +4,6 @@
 #include "gizmo.h"
 #include "lighting.h"
 #include "post_fx.h"
-#include "post3d.h"
-#include "render3d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_camera.h"
@@ -82,11 +80,13 @@ bool ensure_post_target(const context &ctx, camera_post &post) {
 }
 
 void begin_world_space(context &ctx) {
-  post3d_frame_begin(ctx);
+  if (ctx.hooks.world_begin != nullptr)
+    ctx.hooks.world_begin(ctx);
   camera_post &post = ctx.post;
   const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
                       post_chain_active(ctx.postfx) || lighting_active(ctx.light) ||
-                      post3d_wanted(ctx) || quality_world_scale(ctx) < 1.0f;
+                      (ctx.hooks.world_post_wanted != nullptr && ctx.hooks.world_post_wanted(ctx)) ||
+                      quality_world_scale(ctx) < 1.0f;
   post.drawing = wanted && ensure_post_target(ctx, post);
   if (post.drawing) {
     bind_view_target(post.target, screen_size(ctx));
@@ -106,7 +106,8 @@ void begin_world_space(context &ctx) {
 void finish_world_post(context &ctx);
 
 void end_world_space(context &ctx) {
-  render3d_close(ctx);
+  if (ctx.hooks.world_end != nullptr)
+    ctx.hooks.world_end(ctx);
   EndMode2D();
   ctx.view.world_depth = std::max(0, ctx.view.world_depth - 1);
   finish_world_post(ctx);
@@ -128,10 +129,8 @@ void finish_world_post(context &ctx) {
   const Texture2D &lit = lighting_apply(ctx, post.world_camera, post.target.texture);
   // The depth of the 3D drawn this frame, for the depth of field.
   post_depth depth{};
-  if (ctx.render3d.depth_drawn && post.target.depth.id != 0)
-    depth = {post.target.depth.id, ctx.render3d.depth_near, ctx.render3d.depth_far,
-             ctx.render3d.depth_inv_view_proj};
-  ctx.render3d.depth_drawn = false;
+  if (ctx.hooks.world_depth != nullptr)
+    ctx.hooks.world_depth(ctx, post.target.depth.id, depth);
   const Texture2D &texture = post_chain_run(ctx, lit, depth);
   view_rebind(ctx.view);
   // Framebuffers are stored bottom-up: a negative source height flips it. The

@@ -924,7 +924,7 @@ void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
     return;
   // The image as it is now (with decals and occlusion), to reflect.
   blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
-  const light3d &light = ctx.render3d.light;
+  const light3d &light = ctx.render3d->light;
   Shader sh = st.ssr;
   set_view(sh, v);
   set_f(sh, "strength", clamp(p.ssr, 0.0f, 1.0f));
@@ -946,7 +946,7 @@ void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
 // in view: 1 inside the frame, fading to 0 a quarter screen outside. False
 // when it is behind the camera or below the horizon.
 bool sun_on_screen(const context &ctx, const pass_view &v, vec2 &uv, f32 &on_screen) {
-  const vec3 dir = normalize(ctx.render3d.light.direction);
+  const vec3 dir = normalize(ctx.render3d->light.direction);
   const vec3 to_sun = dir * -1.0f;
   if (to_sun.y < -0.05f)
     return false;
@@ -981,7 +981,7 @@ void run_shafts(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f3
   set_f(blur, "length", clamp(p.shafts_length, 0.0f, 1.0f));
   bind_2d(st.shafts_b.id, hw, hh);
   quad(blur, st.shafts_a.texture, hw, hh, [] {});
-  const light3d &light = ctx.render3d.light;
+  const light3d &light = ctx.render3d->light;
   const f32 k = std::max(p.shafts, 0.0f) * on_screen;
   set_v4(st.add, "tint", {p.shafts_color.r * light.color.r * k, p.shafts_color.g * light.color.g * k,
                           p.shafts_color.b * light.color.b * k, 1.0f});
@@ -1005,7 +1005,7 @@ void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32
   bind_2d(st.visible.id, 1, 1);
   quad(vis, texture_of(st.copy_depth, v.w, v.h), 1, 1, [&] { sampler(vis, "depthTex", st.copy_depth); });
   Shader sh = st.flare;
-  const light3d &light = ctx.render3d.light;
+  const light3d &light = ctx.render3d->light;
   set_v2(sh, "sun", sun);
   set_f(sh, "aspect", aspect);
   set_f(sh, "strength", std::max(p.flare, 0.0f));
@@ -1160,7 +1160,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   if (!ensure_history(st, v.w, v.h))
     return;
   const Matrix vp = unjittered(v);
-  const camera3d &cam = ctx.render3d.camera;
+  const camera3d &cam = ctx.render3d->camera;
   const vec3 dir = normalize(cam.target - cam.position);
   const f64 now = GetTime();
   // A cut (the camera jumped or turned sharply), or no resolved pass a moment
@@ -1253,8 +1253,8 @@ post3d_state::~post3d_state() {
 }
 
 void post3d_frame_begin(context &ctx) {
-  ctx.post3d.taa_claimed = false;
-  ctx.post3d.vel_claimed = false;
+  ctx.post3d->taa_claimed = false;
+  ctx.post3d->vel_claimed = false;
 }
 
 vec2 post3d_taa_jitter(context &ctx) {
@@ -1360,7 +1360,7 @@ void post3d_update(context &ctx) {
 
 void post3d_apply_quality(context &ctx) {
   const graphics_quality &q = ctx.quality.q;
-  post3d p = ctx.post3d.requested;
+  post3d p = ctx.post3d->requested;
   if (!q.ssao)
     p.ssao = 0.0f;
   if (q.ssao_samples_max > 0)
@@ -1377,15 +1377,15 @@ void post3d_apply_quality(context &ctx) {
     p.shafts = 0.0f;
     p.flare = 0.0f;
   }
-  ctx.post3d.settings = p;
+  ctx.post3d->settings = p;
 }
 
 void post3d_set(context &ctx, const post3d &fx) {
-  ctx.post3d.requested = fx;
+  ctx.post3d->requested = fx;
   post3d_apply_quality(ctx);
 }
 
-post3d post3d_get(const context &ctx) { return ctx.post3d.requested; }
+post3d post3d_get(const context &ctx) { return ctx.post3d->requested; }
 
 // The box turns z, then x, then y (decal_matrix): x by acos(n.y) takes its y
 // axis to (0, n.y, sin), and y by atan2(n.x, n.z) swings that onto n.
@@ -1441,7 +1441,7 @@ void decal3d_clear(context &ctx) {
     kill(st, d);
 }
 
-i32 decal3d_count(const context &ctx) { return ctx.post3d.live; }
+i32 decal3d_count(const context &ctx) { return ctx.post3d->live; }
 
 void decal3d_set_max(context &ctx, i32 max) {
   post3d_state &st = ctx.post3d;

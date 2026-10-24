@@ -9,19 +9,10 @@
 #include "dialog.h"
 #include "hierarchy.h"
 #include "particles.h"
-#include "particles3d.h"
-#include "render3d.h"
 #include "reload.h"
 #include "ui.h"
 #include "njin_ctx.h"
-#include "njin_nav3d_impl.h"
-#include "njin_lockstep_impl.h"
-#include "njin_multiplayer_impl.h"
-#include "njin_netcode_impl.h"
-#include "njin_network_impl.h"
-#include "njin_script_impl.h"
-#include "njin_video_impl.h"
-#include "njin_world3d_impl.h"
+#include "njin_ctx_impl.h"
 #include "sprite.h"
 #include "timer.h"
 
@@ -40,10 +31,18 @@ namespace njin {
 // sprites. Body moves characters in fixed_update, before any game module's
 // fixed systems. Script comes last: entity scripts update after the timers
 // and draw over sprites, before any game module's systems.
+//
+// The features' modules (njin_features.h) take their places in that order:
+// 3d (particles3d, render3d, world3d), nav3d, video and net (network,
+// multiplayer, netcode, lockstep) after particles, script last.
 void register_core_modules(context &ctx) {
-  mod_register(ctx, {reload_module(), debug_module(), ui_module(), dialog_module(), camera_module(),
-                          audio_module(), hierarchy_module(), camera_follow_module(),
-                          anim_module(), particles_module(), particles3d_module(), render3d_module(), world3d_module(), nav3d_module(), video_module(), network_module(), multiplayer_module(), netcode_module(), lockstep_module(), sprite_module(),
-                          collision_module(), body_module(), timer_module(), script_module()});
+  std::vector<mod_desc> mods{reload_module(), debug_module(),     ui_module(),        dialog_module(),
+                             camera_module(), audio_module(),     hierarchy_module(), camera_follow_module(),
+                             anim_module(),   particles_module()};
+  mods.insert(mods.end(), ctx.hooks.modules_mid.begin(), ctx.hooks.modules_mid.end());
+  for (const mod_desc &m : {sprite_module(), collision_module(), body_module(), timer_module()})
+    mods.push_back(m);
+  mods.insert(mods.end(), ctx.hooks.modules_last.begin(), ctx.hooks.modules_last.end());
+  mod_register(ctx, mods);
 }
 } // namespace njin

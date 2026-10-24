@@ -860,9 +860,9 @@ bool ensure_ready(world3d_gpu &g) {
 }
 
 world3d_gpu &gpu_of(context &ctx) {
-  if (!ctx.world3d.gpu)
-    ctx.world3d.gpu = std::make_unique<world3d_gpu>();
-  return *ctx.world3d.gpu;
+  if (!ctx.world3d->gpu)
+    ctx.world3d->gpu = std::make_unique<world3d_gpu>();
+  return *ctx.world3d->gpu;
 }
 
 void set_i(u32 program, const char *name, i32 v) {
@@ -926,7 +926,7 @@ void set_cover(const context &ctx, u32 program) {
     set_f(program, "coverBias", 0.15f / 600.0f);
   }
   vec4 boxes[32]{};
-  const std::vector<weather3d_cover> &covers = ctx.world3d.covers;
+  const std::vector<weather3d_cover> &covers = ctx.world3d->covers;
   for (usize i = 0; i < covers.size() && i < 16; i++) {
     boxes[i * 2] = {covers[i].center.x, covers[i].center.y, covers[i].center.z, 0.0f};
     boxes[i * 2 + 1] = {covers[i].size.x * 0.5f, covers[i].size.y * 0.5f, covers[i].size.z * 0.5f, 0.0f};
@@ -1277,7 +1277,7 @@ void draw_sky(context &ctx, const Matrix &view_proj) {
   rlEnableShader(p);
   set_m(p, "invViewProj", MatrixInvert(view_proj));
   set_v3(p, "eyePos", s.camera.position);
-  set_sky_uniforms(p, ctx.world3d.sky, ctx.world3d.time);
+  set_sky_uniforms(p, ctx.world3d->sky, ctx.world3d->time);
   rlDisableDepthMask();
   draw_mesh(g.sky_tri);
   rlEnableDepthMask();
@@ -1422,7 +1422,7 @@ void world3d_draw(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   world3d_gpu &g = gpu_of(ctx);
   if (!ensure_ready(g))
     return;
-  const bool translucent = ctx.render3d.translucent_pass;
+  const bool translucent = ctx.render3d->translucent_pass;
   rlDrawRenderBatchActive();
   world3d_store &w = ctx.world3d;
   switch (c.world) {
@@ -1462,12 +1462,12 @@ void world3d_draw_depth(context &ctx, const draw3d_cmd &c, const Matrix &view_pr
     terrain3d_slot *t = terrain_of(ctx, terrain3d_handle{c.world_id});
     if (t != nullptr && t->desc.cast_shadows)
       draw_terrain(ctx, *t, view_proj, true);
-  } else if (c.world == world3d_grass && c.world_id >= 1 && c.world_id <= ctx.world3d.grasses.size()) {
-    grass3d_slot &gr = ctx.world3d.grasses[c.world_id - 1];
+  } else if (c.world == world3d_grass && c.world_id >= 1 && c.world_id <= ctx.world3d->grasses.size()) {
+    grass3d_slot &gr = ctx.world3d->grasses[c.world_id - 1];
     if (gr.alive && gr.desc.cast_shadows)
       draw_grass(ctx, gr, view_proj, true);
   }
 }
 
-void world3d_pass_end(context &ctx) { ctx.world3d.sky_drawn = false; }
+void world3d_pass_end(context &ctx) { ctx.world3d->sky_drawn = false; }
 } // namespace njin

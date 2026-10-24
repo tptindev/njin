@@ -9,6 +9,7 @@
 #include "particles3d_looks.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "render3d.h"
 #include <raylib.h>
 #include <rlgl.h>
 
@@ -171,7 +172,7 @@ bool particle3d_look_begin(context &ctx, particle3d_looks &looks, particle3d_sty
   if (s.id == 0)
     return false;
   BeginShaderMode(s);
-  const light3d &sun = ctx.render3d.light;
+  const light3d &sun = ctx.render3d->light;
   const f32 time = elapsed(ctx);
   const vec3 toward = length_sq(sun.direction) > 0.0f ? normalize(sun.direction) * -1.0f : vec3{0.0f, 1.0f, 0.0f};
   const f32 light_dir[3] = {toward.x, toward.y, toward.z};

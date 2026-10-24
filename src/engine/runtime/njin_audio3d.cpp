@@ -4,7 +4,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
 #include "njin_log.h"
-#include "njin_physics3d.h"
+#include "physics3d_bridge.h"
 #include <algorithm>
 #include <cmath>
 #include <entt/entity/registry.hpp>
@@ -85,13 +85,14 @@ void update_listener(audio_store &a, f32 dt) {
 void update_occlusion(const context &ctx, const audio_store &a, voice3d_slot &v, f32 dt) {
   f32 target = 1.0f;
   v.mix.occluded = false;
-  if (v.desc.occlusion) {
+  static bool said = false;
+  if (v.desc.occlusion && !physics3d_missing(ctx, said, "sound3d_desc::occlusion")) {
     const vec3 to_source = v.position - a.listener.position;
     const f32 dist = length(to_source);
     const f32 margin = std::max(v.desc.occlusion_margin, 0.0f);
     if (dist > margin && dist < std::max(v.desc.max_distance, 0.0f)) {
       const ray3d ray{.origin = a.listener.position, .direction = to_source / dist};
-      const ray3d_hit hit = physics3d_raycast(ctx, ray, dist - margin);
+      const ray3d_hit hit = physics3d_ray(ctx, ray, dist - margin);
       if (hit.hit) {
         v.mix.occluded = true;
         target = clamp(v.desc.occlusion_volume, 0.0f, 1.0f);

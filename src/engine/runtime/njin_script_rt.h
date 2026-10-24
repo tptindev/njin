@@ -45,7 +45,7 @@ struct script_runtime {
   u32 next_spline = 1;
 };
 
-// The njin module's 3D, lighting, UI, spline and screen-effect functions.
+// The njin module's 2D lighting, UI, text and spline functions.
 void script_bind_njin_more(context &ctx, script_runtime &rt, sol::table n);
 
 // The runtime, created with default options if no script_init() came first.

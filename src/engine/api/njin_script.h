@@ -1,4 +1,9 @@
 #pragma once
+// Thuộc feature script: game cần bật nó bằng njin_use(<game> FEATURES script)
+// (cmake/njin.cmake), hoặc link njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_SCRIPT)
+#error "njin_script.h is part of the njin feature 'script', which this game does not use: add it with njin_use(<game> FEATURES script)"
+#endif
 #include "_math.h"
 #include "_types.h"
 #include "njin_json.h"

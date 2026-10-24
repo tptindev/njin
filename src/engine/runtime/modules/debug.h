@@ -25,6 +25,18 @@ struct debug_type_entry {
   std::function<std::size_t(const entt::registry &, entt::entity)> heap;
 };
 
+struct debug_state;
+
+// Registers the inspector's view of an engine component, as the core does for
+// its own (debug.cpp). The features add theirs this way, from a hook in
+// feature_hooks::debug_views (njin_features.h).
+void debug_register_builtin(debug_state &d, entt::id_type type, const char *name, debug_component_fn fn,
+                            std::size_t bytes);
+template <class T, class Fn> void debug_builtin(debug_state &d, const char *name, Fn fn) {
+  debug_register_builtin(d, entt::type_hash<T>::value(), name,
+                         [fn](const entt::registry &reg, entt::entity e) { return fn(reg.get<T>(e)); }, sizeof(T));
+}
+
 // The screen recording the inspector asks for: the game grabs the finished frame every 1/fps seconds, shrinks it
 // and appends it to an animated GIF in its save folder (recordings/rec_<date>_<time>.gif).
 struct debug_recorder {

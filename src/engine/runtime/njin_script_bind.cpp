@@ -257,9 +257,6 @@ void script_bind_njin(context &ctx, script_runtime &rt) {
   n["sound_load"] = [c](const std::string &path) { return (lua_Integer)sound_load(*c, path.c_str()).id; };
   n["sound_play"] = [c](lua_Integer id) { sound_play_once(*c, sound_handle{.id = (u32)id}); };
   n["sound_play_at"] = [c](lua_Integer id, vec2 at) { sound_play_at(*c, sound_handle{.id = (u32)id}, at); };
-  n["sound_play3d"] = sol::overload(
-      [c](lua_Integer id, vec3 at) { sound_play3d(*c, sound_handle{.id = (u32)id}, at); },
-      [c, ent](lua_Integer id, lua_Integer entity) { sound_play3d(*c, sound_handle{.id = (u32)id}, ent(entity)); });
   n["sound_stop"] = [c](lua_Integer id) { sound_stop(*c, sound_handle{.id = (u32)id}); };
 
   // --- scenes
@@ -288,43 +285,6 @@ void script_bind_njin(context &ctx, script_runtime &rt) {
   n["draw_text"] = [c](const std::string &text, vec2 at, f32 size, sol::optional<f32> r_, sol::optional<f32> g,
                        sol::optional<f32> b, sol::optional<f32> a) {
     draw_text(*c, text.c_str(), at, size, color_of(r_, g, b, a));
-  };
-
-  // --- 3D physics
-  n["raycast3d"] = [c, lua_id, r](vec3 origin, vec3 direction, sol::optional<f32> max_distance) -> sol::object {
-    body3d_handle body{};
-    const ray3d_hit hit = physics3d_raycast(*c, ray3d{origin, normalize(direction)}, max_distance.value_or(1000.0f), &body);
-    if (!hit.hit)
-      return sol::make_object(r->lua, sol::lua_nil);
-    sol::table t = r->lua.create_table_with("point", hit.point, "normal", hit.normal, "distance", hit.distance,
-                                            "body", (lua_Integer)body.id);
-    entt::registry &w = world(*c);
-    for (auto [e, b] : w.view<const body3d>().each())
-      if (b.handle.id == body.id) {
-        t["entity"] = lua_id(e);
-        break;
-      }
-    return t;
-  };
-  const auto body_of = [reg, ent](lua_Integer id) -> body3d_handle {
-    const body3d *b = reg().valid(ent(id)) ? reg().try_get<body3d>(ent(id)) : nullptr;
-    return b ? b->handle : body3d_handle{};
-  };
-  n["body_velocity"] = [c, body_of](lua_Integer id) { return body3d_velocity(*c, body_of(id)); };
-  n["body_set_velocity"] = [c, body_of](lua_Integer id, vec3 v) { body3d_set_velocity(*c, body_of(id), v); };
-  n["body_impulse"] = [c, body_of](lua_Integer id, vec3 v) { body3d_add_impulse(*c, body_of(id), v); };
-  const auto character_of = [reg, ent](lua_Integer id) -> character3d_handle {
-    const character3d *ch = reg().valid(ent(id)) ? reg().try_get<character3d>(ent(id)) : nullptr;
-    return ch ? ch->handle : character3d_handle{};
-  };
-  n["character_move"] = [c, character_of](lua_Integer id, vec3 v) {
-    character3d_set_velocity(*c, character_of(id), v);
-  };
-  n["character_position"] = [c, character_of](lua_Integer id) {
-    return character3d_position(*c, character_of(id));
-  };
-  n["character_grounded"] = [c, character_of](lua_Integer id) {
-    return character3d_grounded(*c, character_of(id));
   };
 
   // --- 2D bodies
@@ -486,68 +446,6 @@ void script_bind_njin(context &ctx, script_runtime &rt) {
       f.bounds = rect{{(*b)["x"].get_or(0.0f), (*b)["y"].get_or(0.0f)},
                       {(*b)["w"].get_or(0.0f), (*b)["h"].get_or(0.0f)}};
   };
-
-  // --- 3D navmesh (handles from C++: navmesh3d_handle::id, nav3d_agent_handle::id)
-  n["nav3d_path"] = [c](lua_Integer mesh, vec3 from, vec3 to,
-                        sol::optional<lua_Integer> filter) -> sol::optional<sol::as_table_t<std::vector<vec3>>> {
-    std::vector<vec3> out;
-    if (!navmesh3d_path(*c, navmesh3d_handle{(u32)mesh}, from, to, out, (i32)filter.value_or(0)))
-      return sol::nullopt;
-    return sol::as_table(std::move(out));
-  };
-  // nav3d_set_filter(mesh, index, {cost = {[area] = c, ...}, exclude = {area, ...}})
-  n["nav3d_set_filter"] = [c](lua_Integer mesh, lua_Integer index, sol::table t) {
-    nav3d_filter f{};
-    if (sol::optional<sol::table> cost = t["cost"])
-      for (const auto &[k, v] : *cost)
-        if (k.is<lua_Integer>() && v.is<f32>()) {
-          const lua_Integer a = k.as<lua_Integer>();
-          if (a >= 0 && a < nav3d_max_areas)
-            f.cost[a] = v.as<f32>();
-        }
-    if (sol::optional<sol::table> ex = t["exclude"])
-      for (const auto &[k, v] : *ex)
-        if (v.is<lua_Integer>()) {
-          const lua_Integer a = v.as<lua_Integer>();
-          if (a >= 0 && a < nav3d_max_areas)
-            f.excluded = (u16)(f.excluded | (1u << a));
-        }
-    navmesh3d_set_filter(*c, navmesh3d_handle{(u32)mesh}, (i32)index, f);
-  };
-  n["nav3d_agent_filter"] = [c](lua_Integer agent, lua_Integer filter) {
-    nav3d_agent_set_filter(*c, nav3d_agent_handle{(u32)agent}, (i32)filter);
-  };
-  n["nav3d_add_area"] = [c](lua_Integer mesh, vec3 center, vec3 size, f32 yaw, lua_Integer area) {
-    return navmesh3d_add_area(*c, navmesh3d_handle{(u32)mesh}, center, size, yaw,
-                              (u8)std::clamp<lua_Integer>(area, 0, 255));
-  };
-  n["nav3d_remove_area"] = [c](lua_Integer mesh, lua_Integer id) {
-    navmesh3d_remove_area(*c, navmesh3d_handle{(u32)mesh}, (i32)id);
-  };
-  // nav3d_add_obstacle(mesh, {position = vec3, size = vec3, yaw = 0, radius = 0})
-  n["nav3d_add_obstacle"] = [c](lua_Integer mesh, sol::table t) {
-    nav3d_obstacle_desc d{};
-    if (sol::optional<vec3> p = t["position"])
-      d.position = *p;
-    if (sol::optional<vec3> s = t["size"])
-      d.size = *s;
-    d.yaw = t["yaw"].get_or(0.0f);
-    d.radius = t["radius"].get_or(0.0f);
-    return navmesh3d_add_obstacle(*c, navmesh3d_handle{(u32)mesh}, d);
-  };
-  n["nav3d_move_obstacle"] = [c](lua_Integer mesh, lua_Integer id, vec3 position, sol::optional<f32> yaw) {
-    return navmesh3d_move_obstacle(*c, navmesh3d_handle{(u32)mesh}, (i32)id, position, yaw.value_or(0.0f));
-  };
-  n["nav3d_remove_obstacle"] = [c](lua_Integer mesh, lua_Integer id) {
-    navmesh3d_remove_obstacle(*c, navmesh3d_handle{(u32)mesh}, (i32)id);
-  };
-  n["nav3d_set_target"] = [c](lua_Integer agent, vec3 target) {
-    return nav3d_agent_set_target(*c, nav3d_agent_handle{(u32)agent}, target);
-  };
-  n["nav3d_stop"] = [c](lua_Integer agent) { nav3d_agent_stop(*c, nav3d_agent_handle{(u32)agent}); };
-  n["nav3d_position"] = [c](lua_Integer agent) { return nav3d_agent_position(*c, nav3d_agent_handle{(u32)agent}); };
-  n["nav3d_velocity"] = [c](lua_Integer agent) { return nav3d_agent_velocity(*c, nav3d_agent_handle{(u32)agent}); };
-  n["nav3d_arrived"] = [c](lua_Integer agent) { return nav3d_agent_arrived(*c, nav3d_agent_handle{(u32)agent}); };
 
   // --- tilemaps (an entity with transform and tilemap; the transform is its origin)
   struct map_ref {

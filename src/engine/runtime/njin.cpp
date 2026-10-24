@@ -8,7 +8,6 @@
 #include "njin_ctx_impl.h"
 #include "njin_log_impl.h"
 #include "njin_view.h"
-#include "njin_physics3d_impl.h"
 #include <algorithm>
 #include <chrono>
 #include <string>
@@ -32,7 +31,8 @@ void run_fixed_steps(context &ctx) {
   while (time.fixed_accum >= time.fixed_dt && steps < fixed_max_steps) {
     ecs_run(ctx, phase_fixed_update);
     // Bodies and characters move right after the game set them in this step.
-    physics3d_step(ctx, time.fixed_dt);
+    if (ctx.hooks.fixed_step != nullptr)
+      ctx.hooks.fixed_step(ctx, time.fixed_dt);
     time.fixed_accum -= time.fixed_dt;
     steps++;
   }
@@ -95,6 +95,9 @@ context *create(const config &cfg) {
     NJIN_WARN("config::render_scale %d at the window's size would need a texture "
              "bigger than any GPU guarantees; using %dx instead",
              cfg.render_scale, ctx->view.render_scale);
+  // The game's features (njin_features.h): their states, hooks and modules,
+  // before the core modules register theirs among them.
+  features_install(*ctx);
   register_core_modules(*ctx);
   return ctx;
 }

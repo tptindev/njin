@@ -16,6 +16,9 @@ struct script_runtime; // the Lua state and the scripted entities (njin_script.c
 // callbacks (timers, tweens) may hold references into the Lua state.
 struct script_state {
   std::unique_ptr<script_runtime> rt;
+  // More of the `njin` module, bound after the core's: the glue between the
+  // script and another feature adds its part here (njin_script_glue_*.cpp).
+  std::vector<void (*)(context &ctx, script_runtime &rt)> binders;
 
   script_state();
   ~script_state();

@@ -1,4 +1,9 @@
 #pragma once
+// Thuộc feature 3d: game cần bật nó bằng njin_use(<game> FEATURES 3d)
+// (cmake/njin.cmake), hoặc link njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_3D)
+#error "njin_anim3d.h is part of the njin feature '3d', which this game does not use: add it with njin_use(<game> FEATURES 3d)"
+#endif
 #include "_types.h"
 #include "njin_3d.h"
 #include <functional>

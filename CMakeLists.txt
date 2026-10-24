@@ -59,7 +59,8 @@ FetchContent_Declare(
 # for njin_physics3d.h. Its CMake project lives in Build/. Only the library:
 # no tests, samples or viewer. Built for the SSE4.2 baseline so a game runs on
 # any x86-64 PC from the last 15 years, with RTTI and exceptions left as the
-# rest of njin has them. Linked privately by njin_rt: games never see it.
+# rest of njin has them. Linked privately by the physics3d feature
+# (njin_physics3d): games never see it.
 FetchContent_Declare(
   JoltPhysics
   GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
@@ -76,14 +77,15 @@ set(CPP_RTTI_ENABLED ON CACHE BOOL "" FORCE)
 set(CPP_EXCEPTIONS_ENABLED ON CACHE BOOL "" FORCE)
 
 # meshoptimizer (MIT): simplifies meshes into the levels of detail of
-# model_lod_build(). Linked privately by njin_rt, like Jolt.
+# model_lod_build(). Linked privately by the 3d feature (njin_3d), like Jolt.
 FetchContent_Declare(
   meshoptimizer
   GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
   GIT_TAG v1.3
   SYSTEM)
 
-# Lua 5.4 (MIT) and sol2 (MIT) for njin_script.h, private to njin_rt like Jolt.
+# Lua 5.4 (MIT) and sol2 (MIT) for njin_script.h, private to the script feature
+# (njin_script) like Jolt.
 # Lua ships no CMake build, so the official release tarball is fetched
 # (checksum from lua.org) and compiled below as C++: a Lua error then unwinds
 # C++ frames with an exception instead of longjmp-ing over their destructors,
@@ -123,7 +125,8 @@ FetchContent_Declare(
 
 # Asio (Boost Software License 1.0, standalone, header-only) for njin_network.h:
 # TCP and UDP on one network thread, written as C++20 coroutines. Private to
-# njin_rt; its CMake-less repository is used for its headers only.
+# the net feature (njin_net); its CMake-less repository is used for its headers
+# only.
 FetchContent_Declare(
   asio
   URL https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-38-2.tar.gz
@@ -134,7 +137,7 @@ FetchContent_Declare(
 
 # ENet (MIT) for njin_multiplayer.h: reliable and unreliable channels over UDP
 # for realtime games. Its C sources are compiled into njin_enet below; its CMake
-# (install rules, global definitions) is skipped. Private to njin_rt.
+# (install rules, global definitions) is skipped. Private to the net feature.
 FetchContent_Declare(
   enet
   URL https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.tar.gz
@@ -207,7 +210,10 @@ add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
 # Export the engine build for standalone games. Private games are never
 # discovered or added by this project.
-set(_njin_export_targets njin_rt njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_asio njin_enet EnTT)
+set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_asio njin_enet EnTT)
+foreach(_njin_feature IN LISTS NJIN_FEATURES_ORDER)
+  list(APPEND _njin_export_targets njin_${_njin_feature})
+endforeach()
 if(TARGET glfw)
   get_target_property(_njin_glfw_type glfw TYPE)
   if(_njin_glfw_type STREQUAL "OBJECT_LIBRARY")

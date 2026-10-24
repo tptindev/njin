@@ -15,7 +15,7 @@
 #include "njin_particles.h"
 #include "njin_version.h"
 #include "gizmo.h"
-#include "render3d.h"
+#include "debug3d.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -172,53 +172,6 @@ void register_builtins(context &ctx) {
         .set("size", vec(o.size))
         .set("points", (i64)o.points.size())
         .set("props", o.props);
-  });
-  builtin<transform3d>(d, "transform3d", [](const transform3d &t) {
-    return json_value::make_object()
-        .set("position", vec3_json(t.position))
-        .set("rotation", vec3_json(t.rotation))
-        .set("scale", vec3_json(t.scale));
-  });
-  builtin<model3d>(d, "model3d", [pctx](const model3d &m) {
-    return json_value::make_object()
-        .set("model", m.model.id)
-        .set("anim", model_anim_name(*pctx, m.model, m.pose.anim))
-        .set("time", m.pose.time)
-        .set("blend_anim", model_anim_name(*pctx, m.model, m.pose.blend_anim))
-        .set("blend", m.pose.blend)
-        .set("speed", m.speed)
-        .set("tint", color(m.tint))
-        .set("visible", m.visible);
-  });
-  builtin<shape3d_render>(d, "shape3d_render", [](const shape3d_render &r) {
-    const char *kinds[] = {"sphere", "box", "capsule", "cylinder", "torus"};
-    return json_value::make_object()
-        .set("kind", kinds[std::clamp((i32)r.shape.kind, 0, 4)])
-        .set("size", vec3_json(r.shape.size))
-        .set("radius", r.shape.radius)
-        .set("height", r.shape.height)
-        .set("color", color(r.color))
-        .set("visible", r.visible);
-  });
-  builtin<light3d_source>(d, "light3d_source", [](const light3d_source &l) {
-    return json_value::make_object()
-        .set("kind", l.kind == light3d_spot ? "spot" : "point")
-        .set("color", color(l.color))
-        .set("intensity", l.intensity)
-        .set("radius", l.radius)
-        .set("shadows", l.shadows);
-  });
-  builtin<body3d>(d, "body3d", [pctx](const body3d &b) {
-    return json_value::make_object()
-        .set("body", b.handle.id)
-        .set("velocity", vec3_json(body3d_velocity(*pctx, b.handle)))
-        .set("user", (i64)body3d_user(*pctx, b.handle));
-  });
-  builtin<character3d>(d, "character3d", [pctx](const character3d &c) {
-    return json_value::make_object()
-        .set("character", c.handle.id)
-        .set("velocity", vec3_json(character3d_velocity(*pctx, c.handle)))
-        .set("grounded", character3d_grounded(*pctx, c.handle));
   });
   builtin<flash_fx>(d, "flash_fx", [](const flash_fx &f) {
     return json_value::make_object().set("color", color(f.color)).set("duration", f.duration).set("time", f.time);
@@ -642,8 +595,9 @@ void send_world(context &ctx) {
   }
   // The last 3D pass (render3d.h), while it is recent: a game that stopped
   // drawing in 3D is shown in 2D again.
-  const debug3d_frame &f3 = ctx.render3d.debug;
-  if (f3.time >= 0.0f && ctx.time.elapsed - f3.time < 0.5f) {
+  const debug3d_frame *last3d = ctx.hooks.debug_frame3d != nullptr ? ctx.hooks.debug_frame3d(ctx) : nullptr;
+  if (last3d != nullptr && last3d->time >= 0.0f && ctx.time.elapsed - last3d->time < 0.5f) {
+    const debug3d_frame &f3 = *last3d;
     std::string s3 = ",\"scene3d\":{\"cam\":[";
     const camera3d &c = f3.camera;
     const f32 cam[10] = {c.position.x, c.position.y, c.position.z, c.target.x, c.target.y,
@@ -841,6 +795,11 @@ void setup(context &ctx) {
 }
 } // namespace
 
+void debug_register_builtin(debug_state &d, entt::id_type type, const char *name, debug_component_fn fn,
+                            std::size_t bytes) {
+  register_builtin(d, type, name, std::move(fn), bytes);
+}
+
 render_info render_info_get(const context &ctx) {
   const render_stats &s = ctx.stats;
   return render_info{.sprites = s.sprites,
@@ -872,8 +831,11 @@ bool debug_server_start(context &ctx, const debug_server_desc &desc) {
   }
   d.desc = desc;
   d.running = true;
-  if (d.types.empty())
+  if (d.types.empty()) {
     register_builtins(ctx);
+    for (void (*views)(context &) : ctx.hooks.debug_views)
+      views(ctx);
+  }
   tap_target = &d;
   log_set_tap(log_tap, nullptr);
   NJIN_INFO("debug: waiting for njin_inspector on 127.0.0.1:%u", (unsigned)desc.port);

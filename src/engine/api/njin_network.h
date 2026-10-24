@@ -1,4 +1,9 @@
 #pragma once
+// Thuộc feature net: game cần bật nó bằng njin_use(<game> FEATURES net)
+// (cmake/njin.cmake), hoặc link njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_NET)
+#error "njin_network.h is part of the njin feature 'net', which this game does not use: add it with njin_use(<game> FEATURES net)"
+#endif
 #include "_types.h"
 #include <string>
 #include <string_view>

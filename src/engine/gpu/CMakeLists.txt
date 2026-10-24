@@ -2,11 +2,11 @@
 # and, on a laptop with an integrated and a discrete GPU, Windows runs the game on
 # the discrete one. Compiled into the executable itself, see gpu_preference.cpp.
 #
-# The Linux side (PRIME offload variables) is in njin_rt, njin_gpu_hint.cpp: it
+# The Linux side (PRIME offload variables) is in njin_core, njin_gpu_hint.cpp: it
 # needs no help from the linker.
 #
 # Turn both off with -DNJIN_PREFER_DISCRETE_GPU=OFF, for example to test on the
-# integrated GPU. Defined here, before njin_rt is added, because njin_rt reads it.
+# integrated GPU. Defined here, before njin_core is added, because njin_core reads it.
 option(NJIN_PREFER_DISCRETE_GPU "Run games on the discrete GPU of a hybrid laptop" ON)
 
 add_library(njin_gpu INTERFACE)

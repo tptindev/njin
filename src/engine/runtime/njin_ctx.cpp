@@ -282,59 +282,6 @@ void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
     shader_end(ctx);
 }
 
-model_handle model_load(context &ctx, const char *path) {
-  return model_store_load(ctx.model, model_load_desc{.path = path});
-}
-
-model_handle model_load(context &ctx, const model_load_desc &desc) { return model_store_load(ctx.model, desc); }
-
-void model_unload(context &ctx, model_handle handle) {
-  model_store_unload(ctx.model, handle);
-}
-
-model_handle model_create(context &ctx, const mesh3d_data &mesh) { return model_store_create(ctx.model, mesh); }
-
-model_handle model_create_skinned(context &ctx, const skinned_mesh3d_data &mesh) {
-  return model_store_create_skinned(ctx.model, mesh);
-}
-
-i32 model_material_count(const context &ctx, model_handle handle) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
-  return slot != nullptr ? (i32)slot->materials.size() : 0;
-}
-
-i32 model_material_find(const context &ctx, model_handle handle, const char *name) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
-  if (slot == nullptr || name == nullptr || name[0] == '\0')
-    return -1;
-  const usize n = std::strlen(name);
-  for (usize i = 0; i < slot->material_names.size(); i++)
-    if (slot->material_names[i].compare(0, n, name) == 0)
-      return (i32)i;
-  return -1;
-}
-
-model_material model_material_get(const context &ctx, model_handle handle, i32 index) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
-  if (slot == nullptr || index < 0 || index >= (i32)slot->materials.size())
-    return model_material{};
-  return slot->materials[(usize)index];
-}
-
-void model_material_set(context &ctx, model_handle handle, i32 index, const model_material &material) {
-  model_slot *slot = model_slot_of(ctx.model, handle);
-  if (slot == nullptr)
-    return;
-  if (index < 0) {
-    for (model_material &m : slot->materials)
-      m = material;
-  } else if (index < (i32)slot->materials.size()) {
-    slot->materials[(usize)index] = material;
-  } else {
-    NJIN_WARN("model: material %d out of range (model has %zu)", index, slot->materials.size());
-  }
-}
-
 render_texture_handle render_texture_load(context &ctx, u32 width,
                                           u32 height) {
   return render_texture_store_load(ctx.render_texture, width, height);

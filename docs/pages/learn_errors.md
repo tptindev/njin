@@ -422,7 +422,8 @@ kết engine:
 collect2.exe: error: ld returned 1 exit status
 ```
 
-Chữ `njin::` cho thấy các hàm đó thuộc engine: cần `target_link_libraries(... njin::rt)` trong CMake. Còn nếu
+Chữ `njin::` cho thấy các hàm đó thuộc engine: cần `njin_use(...)` (hoặc `target_link_libraries(... njin::rt)`)
+trong CMake. Còn nếu
 thiếu cả đường include, lỗi xảy ra sớm hơn, ở giai đoạn biên dịch:
 
 ```

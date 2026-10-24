@@ -96,7 +96,8 @@ void graphics_quality_set(context &ctx, const graphics_quality &quality) {
   q.view_distance = std::clamp(q.view_distance, 0.1f, 1.0f);
   ctx.quality.q = q;
   ctx.quality.set = true;
-  post3d_apply_quality(ctx);
+  if (ctx.hooks.quality_changed != nullptr)
+    ctx.hooks.quality_changed(ctx);
   post_fx_apply_quality(ctx);
 }
 

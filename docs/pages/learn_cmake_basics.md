@@ -200,16 +200,16 @@ target_include_directories(njin_api INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_features(njin_api INTERFACE cxx_std_20)
 target_link_libraries(njin_api INTERFACE EnTT::EnTT)
 
-# runtime: thư viện tĩnh, raylib bị giấu
-add_library(njin_rt STATIC ${NJIN_RT_SOURCES} ...)
-add_library(njin::rt ALIAS njin_rt)
-target_link_libraries(
-  njin_rt
-  PUBLIC njin::api
-  PRIVATE raylib njin_warnings)
+# runtime: lõi là thư viện tĩnh, raylib bị giấu
+add_library(njin_core STATIC ${NJIN_CORE_SOURCES} ...)
+add_library(njin::core ALIAS njin_core)
+target_link_libraries(njin_core PUBLIC njin::api)
+target_link_libraries(njin_core PRIVATE raylib njin_warnings)
 ```
 
-Một game chỉ viết `target_link_libraries(my_game PRIVATE njin::rt)`. Nó nhận `njin.h` (qua `njin::api`), nhận C++20
+Mỗi feature (`njin_3d`, `njin_physics3d`...) cũng là một thư viện tĩnh như vậy, link `PUBLIC njin::core`.
+Một game chỉ viết `njin_use(my_game)` (hàm trong `cmake/njin.cmake`, link `njin::core` và các feature được nêu tên),
+hoặc `target_link_libraries(my_game PRIVATE njin::rt)` cho cả engine. Nó nhận `njin.h` (qua `njin::api`), nhận C++20
 và EnTT, nhưng **không** thấy `raylib.h`. Đó là lý do trang chủ wiki nói "raylib được giấu hoàn toàn".
 
 **`njin::api` là `ALIAS`.** Tên có `::` luôn phải là một target có thật. Gõ sai tên có `::` thì CMake báo lỗi ngay ở

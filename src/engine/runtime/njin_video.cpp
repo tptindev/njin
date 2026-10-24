@@ -136,9 +136,9 @@ video_handle video_open(context &ctx, const video_desc &desc) {
     plm_destroy(plm);
     return {};
   }
-  ctx.video.videos.push_back(std::make_unique<video_slot>());
-  const u32 id = (u32)ctx.video.videos.size();
-  video_slot &v = *ctx.video.videos.back();
+  ctx.video->videos.push_back(std::make_unique<video_slot>());
+  const u32 id = (u32)ctx.video->videos.size();
+  video_slot &v = *ctx.video->videos.back();
   v.alive = true;
   v.plm = plm;
   v.width = plm_get_width(plm);
@@ -321,7 +321,7 @@ namespace {
 void update_videos(context &ctx) {
   const f32 dt = std::min(ctx.time.dt_real, max_step);
   std::vector<f32> chunk;
-  for (std::unique_ptr<video_slot> &boxed : ctx.video.videos) {
+  for (std::unique_ptr<video_slot> &boxed : ctx.video->videos) {
     video_slot &v = *boxed;
     if (!v.alive)
       continue;
