@@ -9,6 +9,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 add_executable(njin_lighting_demo main.cpp module.cpp common.cpp rooms_lights.cpp rooms_occluders.cpp rooms_surfaces.cpp
                                   hud.cpp)
 njin_use(njin_lighting_demo)
+njin_precompile_headers(njin_lighting_demo)
 target_link_libraries(njin_lighting_demo PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/lighting_demo/), so two games never

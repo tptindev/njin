@@ -9,6 +9,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # FPS tutorial; the gun model is theirs (assets/models/LICENSE.txt).
 add_executable(njin_fps main.cpp fps.cpp)
 njin_use(njin_fps FEATURES 3d net)
+njin_precompile_headers(njin_fps)
 target_link_libraries(njin_fps PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/fps/), so two games never share or

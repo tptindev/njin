@@ -9,6 +9,7 @@ add_executable(njin_sandbox main.cpp modules/hello.cpp)
 
 # njin::rt pulls njin::api (and its include dir) in transitively.
 njin_use(njin_sandbox)
+njin_precompile_headers(njin_sandbox)
 target_link_libraries(njin_sandbox PRIVATE njin::gpu njin_warnings)
 
 # The njin icon on the exe, its window and its taskbar button (Windows).

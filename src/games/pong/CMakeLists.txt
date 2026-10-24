@@ -9,6 +9,7 @@ add_executable(njin_pong main.cpp pong.cpp)
 
 # njin::rt pulls njin::api (and its include dir) in transitively.
 njin_use(njin_pong)
+njin_precompile_headers(njin_pong)
 target_link_libraries(njin_pong PRIVATE njin::gpu njin_warnings)
 
 # The njin icon on the exe, its window and its taskbar button (Windows).

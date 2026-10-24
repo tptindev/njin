@@ -7,6 +7,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 
 add_executable(njin_platformer main.cpp play.cpp menus.cpp ../shared/settings_menu.cpp)
 njin_use(njin_platformer)
+njin_precompile_headers(njin_platformer)
 target_link_libraries(njin_platformer PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/platformer/), so two games never share or

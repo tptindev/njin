@@ -164,6 +164,27 @@ function(njin_use target)
   set_property(TARGET ${target} PROPERTY NJIN_FEATURES "${features}")
 endfunction()
 
+# njin_precompile_headers(<target>)
+#
+# Precompiles, once per target, the standard and EnTT headers nearly every
+# njin source includes (through njin_ctx.h): with MSVC most of a source's
+# compile time is spent parsing them. Only headers that do not change go in,
+# so editing an njin header rebuilds what it rebuilt before. Off with
+# -DNJIN_PCH=OFF, e.g. to check that each file includes what it uses.
+option(NJIN_PCH "Precompile the standard and EnTT headers of njin targets" ON)
+set(NJIN_PCH_HEADERS
+    <algorithm> <array> <cmath> <cstdint> <cstring> <functional> <memory> <span>
+    <string> <string_view> <unordered_map> <utility> <vector>
+    <entt/entity/registry.hpp> <entt/signal/dispatcher.hpp>)
+function(njin_precompile_headers target)
+  if(NOT NJIN_PCH)
+    return()
+  endif()
+  foreach(header IN LISTS NJIN_PCH_HEADERS)
+    target_precompile_headers(${target} PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${header}>")
+  endforeach()
+endfunction()
+
 # njin_check_boundary()
 #
 # Runs by itself at the end of configure (deferred below). Every target that

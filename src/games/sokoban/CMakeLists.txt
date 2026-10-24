@@ -9,6 +9,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # capsule with its own shader for the player.
 add_executable(njin_sokoban main.cpp sokoban.cpp)
 njin_use(njin_sokoban FEATURES 3d)
+njin_precompile_headers(njin_sokoban)
 target_link_libraries(njin_sokoban PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/sokoban/), so two games never share or

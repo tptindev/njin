@@ -24,6 +24,14 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# MSVC: debug info inside each object (/Z7) instead of one PDB per target
+# (/Zi), which every parallel compile of the target writes through one
+# mspdbsrv process. The linker still makes the .pdb. Before the dependencies
+# are fetched, so they get it too.
+if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+endif()
+
 # Keep every binary we produce in one predictable place.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

@@ -30,6 +30,7 @@ set_target_properties(njin_inspector PROPERTIES NJIN_ENGINE_INTERNAL ON)
 # The engine first, raylib after it: njin calls raylib's PlaySound, which
 # MSVC would otherwise take from winmm.lib, found first after the engine.
 njin_use(njin_inspector)
+njin_precompile_headers(njin_inspector)
 target_link_libraries(njin_inspector PRIVATE njin_imgui raylib njin_warnings)
 # The njin icon on the exe, its window and its taskbar button (Windows).
 njin_icon(njin_inspector)

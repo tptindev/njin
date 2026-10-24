@@ -10,6 +10,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # tools/make_assets.py.
 add_executable(njin_platformer3d main.cpp platformer3d.cpp)
 njin_use(njin_platformer3d FEATURES physics3d)
+njin_precompile_headers(njin_platformer3d)
 target_link_libraries(njin_platformer3d PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/platformer3d/), so two games never share or

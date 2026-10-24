@@ -59,6 +59,10 @@ function(_njin_runtime_library name)
   # Lets runtime files in subfolders (modules/) include runtime headers directly.
   target_include_directories(${name} PRIVATE "${_njin_rt_dir}")
   target_link_libraries(${name} PRIVATE raylib njin_warnings)
+  # The script glue libraries reuse the script feature's (below).
+  if(NOT name MATCHES "^njin_script_")
+    njin_precompile_headers(${name})
+  endif()
 endfunction()
 
 add_library(njin_core STATIC ${NJIN_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp")
@@ -120,6 +124,16 @@ _njin_feature(script_nav3d NEEDS script nav3d LIBS njin_sol2)
 if(MSVC)
   foreach(name script script_3d script_physics3d script_nav3d)
     target_compile_options(njin_${name} PRIVATE /bigobj)
+  endforeach()
+endif()
+
+# sol2 is most of the compile time of the script sources: the script feature
+# precompiles it with the common headers, and its glue libraries (one source
+# each) reuse that header instead of making their own.
+if(NJIN_PCH)
+  target_precompile_headers(njin_script PRIVATE <sol/sol.hpp>)
+  foreach(name script_3d script_physics3d script_nav3d)
+    target_precompile_headers(njin_${name} REUSE_FROM njin_script)
   endforeach()
 endif()
 

@@ -11,6 +11,7 @@ target_compile_definitions(njin_anim_editor PRIVATE NJIN_ANIM_EDITOR_MOCAP_DIR="
 # The engine first, raylib after it: njin calls raylib's PlaySound, which
 # MSVC would otherwise take from winmm.lib, found first after the engine.
 njin_use(njin_anim_editor FEATURES 3d)
+njin_precompile_headers(njin_anim_editor)
 target_link_libraries(njin_anim_editor PRIVATE njin_imgui raylib njin_warnings)
 if(WIN32)
   target_link_libraries(njin_anim_editor PRIVATE ws2_32)

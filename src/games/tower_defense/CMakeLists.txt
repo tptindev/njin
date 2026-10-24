@@ -7,6 +7,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 
 add_executable(njin_tower_defense main.cpp game.cpp render.cpp effects.cpp)
 njin_use(njin_tower_defense)
+njin_precompile_headers(njin_tower_defense)
 target_link_libraries(njin_tower_defense PRIVATE njin_warnings)
 njin_add_assets(njin_tower_defense assets)
 

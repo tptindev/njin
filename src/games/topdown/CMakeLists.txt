@@ -7,6 +7,7 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 
 add_executable(njin_topdown main.cpp play.cpp menus.cpp ../shared/settings_menu.cpp)
 njin_use(njin_topdown)
+njin_precompile_headers(njin_topdown)
 target_link_libraries(njin_topdown PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/topdown/), so two games never share or
