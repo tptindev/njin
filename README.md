@@ -10,7 +10,7 @@ games. It uses EnTT for its ECS, raylib for windowing, graphics, audio and
 input, and Jolt Physics for 3D physics; a game only needs to include njin's
 API through `njin.h`.
 
-Current version: **0.5.0**. The API is still evolving and may change between
+Current version: **0.6.0**. The API is still evolving and may change between
 minor versions before 1.0. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## Features

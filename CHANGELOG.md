@@ -6,6 +6,55 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## 0.6.0
+
+Compatible with 0.5.0: existing games build and behave unchanged. A game that
+links `njin::rt` keeps every feature as before; `njin_use()` is the new,
+optional way.
+
+### Added
+
+- The engine is a core and optional features, one static library each:
+  `3d`, `physics3d`, `nav3d`, `video`, `net`, `script`. `njin_use(<game>
+  [FEATURES ...])` links the core and the features named, and what they need
+  comes with them; a 2D game no longer carries Jolt, Lua, asio, ENet, Recast,
+  pl_mpeg or the 3D renderer (pong: 10.8 MB -> 5.1 MB stripped Release). A
+  public header of a feature the game does not use stops the build with the
+  `njin_use()` line to add. The samples and tools use it.
+- `config::low_power`: `run()` paces the frames itself and sleeps the whole
+  wait, giving back the system-wide 1 ms timer; startup shader warmups are
+  skipped. `config::audio = false` opens no audio device. `frame_skip_draw()`
+  updates a frame without drawing it. (deskbot: an overlay that runs all day
+  must cost next to nothing.)
+- `njin_precompile_headers(<target>)` (cmake/njin.cmake): precompiles the
+  standard, EnTT and core component headers of a target; every game in a build
+  shares one. `-DNJIN_PCH=OFF` turns it off.
+- Builds compile through ccache 4.10 or newer when it is installed
+  (`-DNJIN_CCACHE=OFF` turns it off): a clean build from a warm cache takes a
+  fifth of the time.
+- `NJIN_EXAMPLES` picks the samples to build (all by default), and the
+  `engine` preset (`build-engine/`) builds the engine, topdown and the
+  inspector only: editing a public header there rebuilds about a tenth of what
+  it did.
+- `njin_draw.h` is now `njin_draw_shapes.h`, `njin_draw_text.h` and
+  `njin_draw_texture.h`, which it includes; including `njin_draw.h` or
+  `njin.h` gives the same functions as before.
+
+### Changed
+
+- Build times (MSVC Debug, 16 jobs): editing a runtime header and building one
+  game takes 2.5-5 s instead of 17-20 s; editing a public header and building
+  everything 15 s instead of 50 s; a clean build 45 s instead of 61 s, 12 s
+  from a warm ccache. The runtime's headers include only what they need, its
+  stores are reached through `ctx_ref<T>()` (`njin_ctx_get.h`), MSVC Debug
+  objects carry their debug info (`/Z7`) and link with `/DEBUG:FASTLINK`,
+  and Jolt builds as a unity build.
+
+### Fixed
+
+- macOS: a game linking the prebuilt engine export now gets the frameworks
+  glfw needs (Cocoa, IOKit, CoreFoundation); its link failed on IOKit symbols.
+
 ## 0.5.0
 
 Compatible with 0.4.0: existing games build and behave unchanged.
