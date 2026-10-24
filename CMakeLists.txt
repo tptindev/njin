@@ -32,6 +32,29 @@ if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
 endif()
 
+# Compile through ccache when it is installed: a source compiled before with
+# the same flags and headers (after rm -rf build, back on a branch) comes from
+# its cache instead of the compiler. 4.10 or newer caches MSVC's precompiled
+# headers, given the two sloppiness options; its config is passed on its
+# command line so the user's ccache.conf is left alone. sccache cannot be
+# used: it does not cache a source that uses a precompiled header.
+option(NJIN_CCACHE "Compile through ccache when it is found" ON)
+if(NJIN_CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+  find_program(NJIN_CCACHE_PROGRAM ccache)
+  if(NJIN_CCACHE_PROGRAM)
+    execute_process(COMMAND "${NJIN_CCACHE_PROGRAM}" --version OUTPUT_VARIABLE _njin_ccache_version)
+    string(REGEX MATCH "version ([0-9]+\\.[0-9]+)" _ "${_njin_ccache_version}")
+    if(CMAKE_MATCH_1 VERSION_GREATER_EQUAL 4.10)
+      set(_njin_launcher "${NJIN_CCACHE_PROGRAM}" sloppiness=pch_defines,time_macros depend_mode=true)
+      set(CMAKE_C_COMPILER_LAUNCHER ${_njin_launcher})
+      set(CMAKE_CXX_COMPILER_LAUNCHER ${_njin_launcher})
+      message(STATUS "njin: compiling through ccache ${CMAKE_MATCH_1}")
+    else()
+      message(STATUS "njin: ccache ${CMAKE_MATCH_1} is older than 4.10, not used")
+    endif()
+  endif()
+endif()
+
 # Keep every binary we produce in one predictable place.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
