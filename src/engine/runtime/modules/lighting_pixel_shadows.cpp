@@ -1,6 +1,9 @@
 #include "lighting_internal.h"
 #include "_comps.h"
 #include "njin_ctx_impl.h"
+#include "njin_draw.h"
+#include "njin_ecs.h"
+#include "njin_texture.h"
 #include "njin_view.h"
 #include <algorithm>
 #include <cmath>
@@ -36,7 +39,7 @@ void set_v2(const Shader &s, i32 loc, vec2 v) {
 bool build_pixel_shadows(context &ctx, lighting_state &s, const Camera2D &camera, const rect &steady, f32 texel_scale,
                          const std::vector<light_job> &lights, std::vector<pixel_light> &out) {
   const lighting_desc &d = s.desc;
-  entt::registry &registry = ctx.ecs.registry;
+  entt::registry &registry = ctx.ecs->registry;
   const f32 margin_world = std::max(d.occluder_margin, 0.0f);
   const rect region{steady.pos - vec2{margin_world, margin_world}, steady.size + vec2{2.0f * margin_world, 2.0f * margin_world}};
 

@@ -1,6 +1,8 @@
 #include "post_fx.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "render_stats.h"
+#include "njin_quality_impl.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <rlgl.h>
@@ -388,11 +390,11 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
   }
 
   if (!effects_in_uber(p)) {
-    ctx.stats.post_passes += passes;
+    ctx.stats->post_passes += passes;
     return *src;
   }
   passes++;
-  ctx.stats.post_passes += passes;
+  ctx.stats->post_passes += passes;
   const Shader &u = c.uber;
   // The uber pass writes into whichever full target is not its source.
   RenderTexture2D &dst = src == &c.full_a.texture ? c.full_b : c.full_a;
@@ -433,21 +435,21 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
 }
 
 void post_fx_apply_quality(context &ctx) {
-  const graphics_quality &q = ctx.quality.q;
-  post_fx p = ctx.postfx.requested;
+  const graphics_quality &q = ctx.quality->q;
+  post_fx p = ctx.postfx->requested;
   if (!q.bloom)
     p.bloom = 0.0f;
   if (!q.dof)
     p.dof = 0.0f;
-  ctx.postfx.settings = p;
+  ctx.postfx->settings = p;
 }
 
 void post_fx_set(context &ctx, const post_fx &fx) {
-  ctx.postfx.requested = fx;
+  ctx.postfx->requested = fx;
   post_fx_apply_quality(ctx);
 }
 
-post_fx post_fx_get(const context &ctx) { return ctx.postfx.requested; }
+post_fx post_fx_get(const context &ctx) { return ctx.postfx->requested; }
 
 post_fx post_fx_lerp(const post_fx &a, const post_fx &b, f32 t) {
   const auto mix = [t](f32 x, f32 y) { return x + (y - x) * t; };

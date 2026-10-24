@@ -2,6 +2,10 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_font.h"
+#include "njin_shader.h"
+#include "njin_texture.h"
+#include "njin_view.h"
 #include "njin_log.h"
 #include "njin_render.h"
 #include "njin_sdf2d.h"
@@ -149,7 +153,7 @@ void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color) {
   // raylib's 36: a circle a few pixels wide takes 6, not 36 (a city of trees
   // seen from far is thousands of them).
   const Matrix view = rlGetMatrixModelview();
-  const f32 px = radius * std::hypot(view.m0, view.m1) * (f32)std::max(ctx.view.render_scale, 1);
+  const f32 px = radius * std::hypot(view.m0, view.m1) * (f32)std::max(ctx.view->render_scale, 1);
   i32 sides = 36;
   if (px < 40.0f) {
     const f32 k = 1.0f - 0.5f / std::max(px, 0.75f);
@@ -322,18 +326,18 @@ void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
     const vec2 m = text_measure(ctx, text, size, font);
     // Room for the marks above and below the line and the overhang of the glyphs.
     const f32 margin = size * 0.3f;
-    ctx.view.text_layer.push_back(queued_text{
+    ctx.view->text_layer.push_back(queued_text{
         text, pos, size, color, font,
         rect{{pos.x - margin, pos.y - margin}, {m.x + 2.0f * margin, m.y + 2.0f * margin}},
-        ctx.view.clip, ctx.view.occluders.size()});
+        ctx.view->clip, ctx.view->occluders.size()});
     return;
   }
-  if (ctx.view.ui_window && ctx.view.offscreen_depth == 0 && !font_store_is_pixel(ctx.font, font)) {
-    draw_text_window(ctx, text, pos, size, color, font, ctx.view.offset, ctx.view.scale);
+  if (ctx.view->ui_window && ctx.view->offscreen_depth == 0 && !font_store_is_pixel(ctx.font, font)) {
+    draw_text_window(ctx, text, pos, size, color, font, ctx.view->offset, ctx.view->scale);
     return;
   }
-  if (ctx.view.canvas_on && !font_store_is_pixel(ctx.font, font)) {
-    draw_text_window(ctx, text, pos, size, color, font, {}, ctx.view.canvas_scale);
+  if (ctx.view->canvas_on && !font_store_is_pixel(ctx.font, font)) {
+    draw_text_window(ctx, text, pos, size, color, font, {}, ctx.view->canvas_scale);
     return;
   }
   const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
@@ -502,7 +506,7 @@ void texture_draw_ex(const context &ctx, texture_handle handle,
   const texture_slot *slot = texture_slot_of(ctx.texture, handle);
   // A material shader (texture_set_shader) auto-binds only when nothing else
   // is already bound: an explicit shader_begin() (the game's own choice) wins.
-  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader.active.id == 0;
+  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader->active.id == 0;
   if (material)
     shader_begin(ctx, slot->shader);
   texture_store_draw_ex(ctx.texture, handle, desc);
@@ -530,15 +534,15 @@ void blend_begin(const context &, blend_mode mode) {
 void blend_end(const context &) { EndBlendMode(); }
 
 void clip_begin(const context &ctx, rect area) {
-  ctx.view.clip = area;
-  if (ctx.view.canvas_on) {
+  ctx.view->clip = area;
+  if (ctx.view->canvas_on) {
     // Scissor works in window pixels: the canvas's area times its scale.
-    const f32 k = ctx.view.canvas_scale;
+    const f32 k = ctx.view->canvas_scale;
     BeginScissorMode((int)std::floor(area.pos.x * k), (int)std::floor(area.pos.y * k),
                      (int)std::ceil(area.size.x * k), (int)std::ceil(area.size.y * k));
     return;
   }
-  if (ctx.view.ui_window) {
+  if (ctx.view->ui_window) {
     // Scissor works in window pixels, whatever the transform is.
     const view_state &v = ctx.view;
     const rect image{{0.0f, 0.0f}, v.size};
@@ -553,10 +557,10 @@ void clip_begin(const context &ctx, rect area) {
 }
 
 void clip_end(const context &ctx) {
-  ctx.view.clip = {};
+  ctx.view->clip = {};
   EndScissorMode();
   // The UI pass stays inside the image.
-  if (ctx.view.ui_window) {
+  if (ctx.view->ui_window) {
     const view_state &v = ctx.view;
     BeginScissorMode((int)v.offset.x, (int)v.offset.y, (int)(v.size.x * v.scale),
                      (int)(v.size.y * v.scale));

@@ -1,7 +1,7 @@
 #pragma once
 #include "_math.h"
 #include "_types.h"
-#include "njin_draw.h"
+#include "_draw_types.h"
 #include <entt/entity/fwd.hpp>
 #include <vector>
 

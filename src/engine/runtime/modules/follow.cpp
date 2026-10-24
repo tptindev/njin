@@ -4,7 +4,6 @@
 #include "njin_camera.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
 #include "njin_level.h"
 #include <cmath>
 

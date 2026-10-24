@@ -3,7 +3,6 @@
 #include "njin_script_rt.h"
 
 #include "njin.h"
-#include "njin_ctx_impl.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>

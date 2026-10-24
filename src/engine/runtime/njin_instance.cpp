@@ -5,6 +5,10 @@
 #include "njin_instance.h"
 
 #include "njin_ctx_impl.h"
+#include "modules/debug.h"
+#include "modules/render_stats.h"
+#include "njin_shader.h"
+#include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_render.h"
 #include <raylib.h>
@@ -117,7 +121,7 @@ void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f
     slot->capacity = wanted;
   }
   rlUpdateVertexBuffer(slot->vbo, data, bytes, 0);
-  if (ctx.debug.running)
+  if (ctx.debug->running)
     slot->cpu.assign(data, data + (usize)count * slot->floats);
   else
     slot->cpu.clear();

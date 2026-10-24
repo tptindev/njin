@@ -2,6 +2,8 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "modules/fx.h"
+#include "njin_shader.h"
 #include "njin_draw.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -66,7 +68,7 @@ bool sdf2d_rounded_rect(const context &ctx, rect r, f32 radius, f32 thickness, r
   sdf2d_state &s = ctx.sdf2d;
   // Another shader on (shader_begin(), a dissolve) keeps its own: the shape
   // is drawn the usual way under it.
-  if (!s.on || ctx.shader.active.id != 0 || ctx.fx.screen_dissolve)
+  if (!s.on || ctx.shader->active.id != 0 || ctx.fx->screen_dissolve)
     return false;
   if (r.size.x <= 0.0f || r.size.y <= 0.0f || color.a <= 0.0f)
     return true; // nothing to draw
@@ -89,8 +91,8 @@ bool sdf2d_rounded_rect(const context &ctx, rect r, f32 radius, f32 thickness, r
   return true;
 }
 
-void draw_set_smooth_shapes(context &ctx, bool on) { ctx.sdf2d.on = on; }
+void draw_set_smooth_shapes(context &ctx, bool on) { ctx.sdf2d->on = on; }
 
-bool draw_smooth_shapes(const context &ctx) { return ctx.sdf2d.on; }
+bool draw_smooth_shapes(const context &ctx) { return ctx.sdf2d->on; }
 
 } // namespace njin

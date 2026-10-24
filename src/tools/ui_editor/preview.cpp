@@ -5,6 +5,9 @@
 #include "preview.h"
 #include "njin2rl.h"
 #include "njin_ctx_impl.h"
+#include "modules/ui.h"
+#include "njin_input_impl.h"
+#include "njin_view.h"
 #include "njin_draw.h"
 #include "njin_ecs.h"
 #include "njin_render.h"
@@ -95,7 +98,7 @@ void bind_textures(editor_app &app, ui_layout &layout) {
 // until the end, where it is divided back to design pixels.
 void measure_boxes(editor_app &app, const ui_layout &layout, const njin::ui_style &style, int k) {
   app.boxes.clear();
-  const auto &rects = app.ctx->ui.panels;
+  const auto &rects = app.ctx->ui->panels;
   size_t next = 0;
   const float kf = (float)k;
   auto to_design = [kf](rect r) { return rect{r.pos / kf, r.size / kf}; };
@@ -214,7 +217,7 @@ void preview_begin_frame(editor_app &app) {
   // modules' pre-update systems, which have an empty world to look at.
   njin::ecs_run(ctx, njin::phase_pre_update);
   if (!app.play_mode)
-    ctx.ui.focus = 0; // no focus highlight while editing
+    ctx.ui->focus = 0; // no focus highlight while editing
 }
 
 void preview_render(editor_app &app) {
@@ -230,15 +233,15 @@ void preview_render(editor_app &app) {
     k--;
   if (k != app.preview_k) {
     // The engine sizes a panel from its height last frame: forget the old ones.
-    ctx.ui.heights.clear();
-    ctx.ui.natural.clear();
+    ctx.ui->heights.clear();
+    ctx.ui->natural.clear();
   }
   app.preview_k = k;
   ensure_target((int)(res.x * (float)k), (int)(res.y * (float)k));
 
   // screen_size() answers the virtual size while one is set; view.drawing
   // stays off, so text is drawn at once into the texture and not queued.
-  ctx.view.size = res * (float)k;
+  ctx.view->size = res * (float)k;
 
   njin::ui_style style = layout.custom_style ? layout.style
                          : app.preview_style == 1 ? njin::ui_pixel_style()
@@ -285,7 +288,7 @@ void preview_render(editor_app &app) {
   layout.style = saved_style;
   for (size_t i = 0; i < layout.panels.size(); ++i)
     layout.panels[i].offset = saved_offsets[i];
-  ctx.view.size = {};
+  ctx.view->size = {};
 }
 
 unsigned int preview_texture_id() { return g_target.texture.id; }

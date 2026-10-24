@@ -2,6 +2,7 @@
 #include "njin_anim_impl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_texture.h"
 #include "njin_file.h"
 #include "njin_json.h"
 #include "njin_log.h"
@@ -195,8 +196,8 @@ anim_sheet_handle anim_sheet_load(context &ctx, const char *json_path) {
                                    .from = 0,
                                    .to = (i32)sheet.frames.size() - 1});
 
-  ctx.anim.sheets.push_back(std::move(sheet));
-  return anim_sheet_handle{.id = (u32)ctx.anim.sheets.size()};
+  ctx.anim->sheets.push_back(std::move(sheet));
+  return anim_sheet_handle{.id = (u32)ctx.anim->sheets.size()};
 }
 
 anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
@@ -222,8 +223,8 @@ anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
           .source = {{(f32)x * frame_size.x, (f32)y * frame_size.y}, frame_size},
           .duration = duration});
   }
-  ctx.anim.sheets.push_back(std::move(sheet));
-  return anim_sheet_handle{.id = (u32)ctx.anim.sheets.size()};
+  ctx.anim->sheets.push_back(std::move(sheet));
+  return anim_sheet_handle{.id = (u32)ctx.anim->sheets.size()};
 }
 
 bool anim_sheet_add_clip(context &ctx, anim_sheet_handle handle,
@@ -325,8 +326,8 @@ anim_graph_handle anim_graph_create(context &ctx, const anim_graph_desc &desc) {
     NJIN_WARN("anim_graph_create: no start state named '%s'", desc.start);
     return anim_graph_handle{};
   }
-  ctx.anim.graphs.push_back(std::move(graph));
-  return anim_graph_handle{.id = (u32)ctx.anim.graphs.size()};
+  ctx.anim->graphs.push_back(std::move(graph));
+  return anim_graph_handle{.id = (u32)ctx.anim->graphs.size()};
 }
 
 void animator_enter_clip(animator &anim, i32 clip, i32 repeat) {

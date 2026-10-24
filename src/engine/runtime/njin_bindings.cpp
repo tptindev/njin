@@ -226,7 +226,7 @@ void action_rebind(context &ctx, action_handle action, input_source s) {
   if (slot == nullptr || s.kind == input_source::none)
     return;
   // One source, one job: take it off every other action first.
-  for (usize i = 0; i < ctx.input.actions.size(); i++)
+  for (usize i = 0; i < ctx.input->actions.size(); i++)
     action_unbind(ctx, action_handle{(u32)(i + 1)}, s);
   // Keyboard and mouse count as one device: a key replaces a mouse button.
   if (s.kind == input_source::pad) {
@@ -240,14 +240,14 @@ void action_rebind(context &ctx, action_handle action, input_source s) {
 
 json_value input_bindings_save(const context &ctx) {
   json_value actions = json_value::make_object();
-  for (usize i = 0; i < ctx.input.actions.size(); i++) {
+  for (usize i = 0; i < ctx.input->actions.size(); i++) {
     json_value list = json_value::make_array();
     for (const input_source &s : action_sources(ctx, action_handle{(u32)(i + 1)}))
       list.push(json_value(source_id(s)));
-    actions.set(ctx.input.actions[i].name, std::move(list));
+    actions.set(ctx.input->actions[i].name, std::move(list));
   }
   json_value axes = json_value::make_object();
-  for (const axis_slot &a : ctx.input.axes) {
+  for (const axis_slot &a : ctx.input->axes) {
     json_value keys = json_value::make_array();
     for (const axis_key_pair &p : a.key_pairs) {
       const bool ok = p.negative > key_none && p.negative < key_count && p.positive > key_none &&

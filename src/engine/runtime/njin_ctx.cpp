@@ -5,6 +5,12 @@
 #include "njin_input.h"
 #include "njin_render.h"
 #include "njin_ctx_impl.h"
+#include "njin_audio_impl.h"
+#include "njin_ecs.h"
+#include "njin_input_impl.h"
+#include "njin_shader.h"
+#include "njin_texture.h"
+#include "njin_view.h"
 #include "njin_cfg.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -33,8 +39,8 @@ f32 time_fixed_rate(const context &ctx) { return ctx.time.fixed_rate; }
 
 rng &random(context &ctx) { return ctx.random; }
 
-entt::registry &world(context &ctx) { return ctx.ecs.registry; }
-entt::dispatcher &events(context &ctx) { return ctx.ecs.dispatcher; }
+entt::registry &world(context &ctx) { return ctx.ecs->registry; }
+entt::dispatcher &events(context &ctx) { return ctx.ecs->dispatcher; }
 bool key_pressed(const context &ctx, key_code key) {
   return input_key_pressed(ctx.input, key);
 }
@@ -88,12 +94,12 @@ void action_clear_binds(context &ctx, action_handle handle) {
 // In the UI canvas (ui_canvas_begin()), in its units.
 vec2 mouse_pos(const context &ctx) {
   const vec2 p = input_mouse_pos(ctx.input);
-  return view_in_canvas(ctx.view) ? p * (1.0f / ctx.view.canvas_scale) : p;
+  return view_in_canvas(ctx.view) ? p * (1.0f / ctx.view->canvas_scale) : p;
 }
 
 vec2 mouse_delta(const context &ctx) {
   const vec2 d = input_mouse_delta(ctx.input);
-  return view_in_canvas(ctx.view) ? d * (1.0f / ctx.view.canvas_scale) : d;
+  return view_in_canvas(ctx.view) ? d * (1.0f / ctx.view->canvas_scale) : d;
 }
 
 f32 mouse_wheel(const context &ctx) { return input_mouse_wheel(ctx.input); }
@@ -274,7 +280,7 @@ void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
   const texture_slot *slot = texture_slot_of(ctx.texture, handle);
   // A material shader auto-binds only when nothing else is already bound: an
   // explicit shader_begin() (the game's own choice) always wins.
-  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader.active.id == 0;
+  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader->active.id == 0;
   if (material)
     shader_begin(ctx, slot->shader);
   texture_store_draw(ctx.texture, handle, pos, tint);
@@ -298,8 +304,8 @@ vec2 render_texture_size(const context &ctx, render_texture_handle handle) {
 void render_texture_begin(const context &ctx, render_texture_handle handle) {
   view_ui_suspend(ctx.view);
   if (render_texture_store_begin(ctx.render_texture, handle))
-    ctx.view.offscreen_depth++;
-  else if (ctx.view.ui_window)
+    ctx.view->offscreen_depth++;
+  else if (ctx.view->ui_window)
     view_rebind(ctx.view);
   else
     view_canvas_sync(ctx.view);
@@ -309,9 +315,9 @@ void render_texture_begin(const context &ctx, render_texture_handle handle,
                           rgba clear) {
   view_ui_suspend(ctx.view);
   if (render_texture_store_begin(ctx.render_texture, handle)) {
-    ctx.view.offscreen_depth++;
+    ctx.view->offscreen_depth++;
     render_texture_store_clear(clear);
-  } else if (ctx.view.ui_window) {
+  } else if (ctx.view->ui_window) {
     view_rebind(ctx.view);
   } else {
     view_canvas_sync(ctx.view);
@@ -320,7 +326,7 @@ void render_texture_begin(const context &ctx, render_texture_handle handle,
 
 void render_texture_end(const context &ctx) {
   render_texture_store_end();
-  ctx.view.offscreen_depth = std::max(0, ctx.view.offscreen_depth - 1);
+  ctx.view->offscreen_depth = std::max(0, ctx.view->offscreen_depth - 1);
   view_rebind(ctx.view); // back to the virtual screen, when drawing into one
 }
 
@@ -381,7 +387,7 @@ void audio_set_bus_volume(context &ctx, audio_bus bus, f32 volume) {
 }
 
 f32 audio_bus_volume(const context &ctx, audio_bus bus) {
-  return bus >= bus_master && bus < audio_bus_count ? ctx.audio.bus_volume[bus] : 0.0f;
+  return bus >= bus_master && bus < audio_bus_count ? ctx.audio->bus_volume[bus] : 0.0f;
 }
 
 void audio_set_bus_muted(context &ctx, audio_bus bus, bool muted) {
@@ -389,7 +395,7 @@ void audio_set_bus_muted(context &ctx, audio_bus bus, bool muted) {
 }
 
 bool audio_bus_muted(const context &ctx, audio_bus bus) {
-  return bus >= bus_master && bus < audio_bus_count && ctx.audio.bus_muted[bus];
+  return bus >= bus_master && bus < audio_bus_count && ctx.audio->bus_muted[bus];
 }
 
 void sound_set_bus(context &ctx, sound_handle handle, audio_bus bus) {
@@ -409,7 +415,7 @@ void music_fade_out(context &ctx, music_handle handle, f32 seconds) {
 }
 
 void music_crossfade(context &ctx, music_handle handle, f32 seconds) {
-  for (usize i = 0; i < ctx.audio.musics.size(); i++) {
+  for (usize i = 0; i < ctx.audio->musics.size(); i++) {
     const music_handle other{(u32)(i + 1)};
     if (other.id != handle.id && music_store_playing(ctx.audio, other))
       music_store_fade(ctx.audio, other, 0.0f, seconds, false, true);
@@ -438,9 +444,9 @@ void sound_play_at(context &ctx, sound_handle handle, vec2 world_pos) {
 
 void audio_set_range(context &ctx, f32 full_until, f32 silent_from) {
   const f32 lo = full_until < 0.0f ? 0.0f : full_until;
-  ctx.audio.range_near = lo;
+  ctx.audio->range_near = lo;
   // Kept strictly above the near range so the fade never divides by zero.
-  ctx.audio.range_far = silent_from > lo ? silent_from : lo + 1e-3f;
+  ctx.audio->range_far = silent_from > lo ? silent_from : lo + 1e-3f;
 }
 
 void sound_stop(context &ctx, sound_handle handle) {

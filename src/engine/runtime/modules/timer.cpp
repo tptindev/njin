@@ -212,13 +212,13 @@ timer_handle timer_every(context &ctx, f32 interval, std::function<void(context 
 }
 
 void timer_cancel(context &ctx, timer_handle timer) {
-  for (timer_job &t : ctx.timers.timers)
+  for (timer_job &t : ctx.timers->timers)
     if (t.id == timer.id && timer.id != 0)
       t.dead = true;
 }
 
 bool timer_active(const context &ctx, timer_handle timer) {
-  for (const timer_job &t : ctx.timers.timers)
+  for (const timer_job &t : ctx.timers->timers)
     if (t.id == timer.id && timer.id != 0)
       return !t.dead;
   return false;
@@ -249,7 +249,7 @@ tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
                          const tween_desc &desc, entt::entity owner) {
   const bool owned = owner != entt::null;
   const tween_handle h = start(ctx, owner, owned, tween_prop::custom, pack(to), seconds, curve, desc);
-  for (tween_job &t : ctx.timers.tweens) {
+  for (tween_job &t : ctx.timers->tweens) {
     if (t.id == h.id) {
       t.from = pack(from);
       t.apply = std::move(apply_fn);
@@ -259,19 +259,19 @@ tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
 }
 
 void tween_cancel(context &ctx, tween_handle tween) {
-  for (tween_job &t : ctx.timers.tweens)
+  for (tween_job &t : ctx.timers->tweens)
     if (t.id == tween.id && tween.id != 0)
       t.dead = true;
 }
 
 void tween_cancel_all(context &ctx, entt::entity entity) {
-  for (tween_job &t : ctx.timers.tweens)
+  for (tween_job &t : ctx.timers->tweens)
     if (t.owned && t.owner == entity)
       t.dead = true;
 }
 
 bool tween_active(const context &ctx, tween_handle tween) {
-  for (const tween_job &t : ctx.timers.tweens)
+  for (const tween_job &t : ctx.timers->tweens)
     if (t.id == tween.id && tween.id != 0)
       return !t.dead;
   return false;

@@ -1,5 +1,6 @@
 #include "njin_shader.h"
 #include "njin_ctx_impl.h"
+#include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_path.h"
 #include <rlgl.h>

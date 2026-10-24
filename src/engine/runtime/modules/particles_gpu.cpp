@@ -1,6 +1,10 @@
 #include "particles_gpu.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_draw.h"
+#include "render_stats.h"
+#include "njin_ecs.h"
+#include "njin_texture.h"
 #include "njin_gpu_caps.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -272,24 +276,24 @@ usize particles_gpu_alive(const particle_emitter &em, const particle_gpu_buffer 
 }
 
 void particles_set_backend(context &ctx, particle_backend backend) {
-  ctx.particles_gpu.backend = backend;
+  ctx.particles_gpu->backend = backend;
 }
 
-particle_backend particles_backend(const context &ctx) { return ctx.particles_gpu.backend; }
+particle_backend particles_backend(const context &ctx) { return ctx.particles_gpu->backend; }
 
 bool particles_gpu_available(context &ctx) {
   probe(ctx.particles_gpu);
-  return ctx.particles_gpu.available;
+  return ctx.particles_gpu->available;
 }
 
 bool particles_gpu_wanted(context &ctx) {
-  return ctx.particles_gpu.backend != particle_backend_cpu && particles_gpu_available(ctx);
+  return ctx.particles_gpu->backend != particle_backend_cpu && particles_gpu_available(ctx);
 }
 
 void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
                         const particle_emitter &em) {
   particle_gpu_state &gpu = ctx.particles_gpu;
-  particle_gpu_buffer *buffer = ctx.ecs.registry.try_get<particle_gpu_buffer>(entity);
+  particle_gpu_buffer *buffer = ctx.ecs->registry.try_get<particle_gpu_buffer>(entity);
   if (!gpu.available || buffer == nullptr || em.particles.empty())
     return;
 

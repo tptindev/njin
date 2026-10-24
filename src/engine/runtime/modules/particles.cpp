@@ -2,6 +2,10 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_draw.h"
+#include "render_stats.h"
+#include "njin_quality_impl.h"
+#include "njin_texture.h"
 #include "njin_scene.h"
 #include "particles_gpu.h"
 #include "_collide.h"
@@ -78,7 +82,7 @@ void update(context &ctx) {
   const f32 dt = delta(ctx);
   entt::registry &registry = world(ctx);
   rng &random = njin::random(ctx);
-  const f32 share = std::clamp(ctx.quality.q.particles, 0.0f, 1.0f);
+  const f32 share = std::clamp(ctx.quality->q.particles, 0.0f, 1.0f);
   std::vector<entt::entity> done;
   for (auto [entity, tr, em] : registry.view<const transform, particle_emitter>().each()) {
     // The GPU keeps a clock and works out the ages itself (particles_gpu.h).

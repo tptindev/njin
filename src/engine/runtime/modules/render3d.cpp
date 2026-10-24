@@ -7,6 +7,11 @@
 #include "njin_cfg.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "debug.h"
+#include "render_stats.h"
+#include "njin_audio_impl.h"
+#include "njin_quality_impl.h"
+#include "njin_view.h"
 #include "njin_log.h"
 #include "njin_log_impl.h"
 #include "njin_instance.h"
@@ -1096,7 +1101,7 @@ void record(const context &ctx, const Mesh *mesh, model_handle model, const Matr
                               .model = model,
                               .transform = transform,
                               .color = color,
-                              .shader = ctx.shader.active,
+                              .shader = ctx.shader->active,
                               .fx = s.fx,
                               .material = s.material,
                               .buffer = {},
@@ -1409,7 +1414,7 @@ bool render_lamp_shadows(context &ctx) {
   lamp_shadows &ls = s.lamps;
   ls.row.fill(-1);
   ls.rows = 0;
-  const graphics_quality &q = ctx.quality.q;
+  const graphics_quality &q = ctx.quality->q;
   if (!q.lamp_shadows)
     return false;
   const i32 count = std::min((i32)s.lights.size(), light3d_max);
@@ -1715,7 +1720,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     if (mesh_texture(ctx, p.surface->under, p.under))
       mesh_texture(ctx, p.surface->under_normal, p.under_normal);
   if (!s.translucent_pass)
-    ctx.stats.instanced_calls++;
+    ctx.stats->instanced_calls++;
   const Matrix mvp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   const i32 floats = (i32)slot->floats;
   const i32 stride = (i32)(slot->floats * sizeof(f32));
@@ -1824,11 +1829,11 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   if (c.mesh == nullptr) {
     if (c.culled) {
       if (!s.translucent_pass)
-        ctx.stats.models3d_culled++;
+        ctx.stats->models3d_culled++;
       return;
     }
     if (!s.translucent_pass)
-      ctx.stats.models3d++;
+      ctx.stats->models3d++;
   }
   Shader custom{};
   const bool own = game_shader(ctx, c.shader, custom);
@@ -2079,7 +2084,7 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
     s.morphs.insert(s.morphs.end(), weights.begin(), weights.end());
   }
   c.motion_key = key;
-  place_model(s, *m, c, ctx.quality.q.lod_scale);
+  place_model(s, *m, c, ctx.quality->q.lod_scale);
   s.cmds.push_back(c);
 }
 
@@ -2173,7 +2178,7 @@ bool can_begin(context &ctx) {
     NJIN_WARN_LIMITED("3d: begin_3d called twice without end_3d, ignored");
     return false;
   }
-  if (ctx.view.world_depth == 0) {
+  if (ctx.view->world_depth == 0) {
     NJIN_WARN_LIMITED("3d: begin_3d outside phase_render, ignored");
     return false;
   }
@@ -2241,13 +2246,13 @@ void end_3d(context &ctx) {
   if (s.entities)
     record_entities(ctx);
   cull_boxes(s);
-  if (ctx.debug.running && !offscreen)
+  if (ctx.debug->running && !offscreen)
     render3d_capture_debug(ctx);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
   // graphics_quality caps what light3d_set() asked for, never raises it.
-  const graphics_quality &q = ctx.quality.q;
+  const graphics_quality &q = ctx.quality->q;
   i32 sun_size = std::clamp(s.light.shadow_size, 256, 8192);
   if (q.shadow_size_max > 0)
     sun_size = std::max(256, std::min(sun_size, q.shadow_size_max));
@@ -2370,7 +2375,7 @@ void end_3d(context &ctx) {
   // Back to the world pass exactly as begin_world_space left it.
   rlMatrixMode(RL_MODELVIEW);
   rlLoadIdentity();
-  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post.world_camera)));
+  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post->world_camera)));
   rlDisableDepthTest();
 }
 
@@ -2884,22 +2889,22 @@ void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
 }
 
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform, rgba tint) {
-  record_model(ctx, handle, transform, nullptr, tint, ctx.render3d->fx, ctx.shader.active);
+  record_model(ctx, handle, transform, nullptr, tint, ctx.render3d->fx, ctx.shader->active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader.active);
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader->active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor &recolor) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader.active, &recolor, 1);
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader->active, &recolor, 1);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor *recolors, u32 count) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader.active, recolors, count);
+  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader->active, recolors, count);
 }
 
 namespace {

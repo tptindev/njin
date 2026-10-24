@@ -4,6 +4,13 @@
 #include "njin_ctx.h"
 #include "njin_input.h"
 #include "njin_ctx_impl.h"
+#include "_collide.h"
+#include "njin_audio.h"
+#include "njin_font.h"
+#include "njin_input_impl.h"
+#include "njin_shader.h"
+#include "njin_texture.h"
+#include "njin_view.h"
 #include "njin_draw.h"
 #include "_tween.h"
 #include "njin_bindings.h"
@@ -122,16 +129,16 @@ void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
     shader_bind_textures(ctx, *sh);
     const f32 time = ctx.time.elapsed;
     f32 area[4] = {c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
-    if (ctx.view.ui_window) {
+    if (ctx.view->ui_window) {
       // The shader runs on window pixels in the smooth UI pass.
       const view_state &v = ctx.view;
       area[0] = v.offset.x + area[0] * v.scale;
       area[1] = v.offset.y + area[1] * v.scale;
       area[2] *= v.scale;
       area[3] *= v.scale;
-    } else if (ctx.view.canvas_on) {
+    } else if (ctx.view->canvas_on) {
       for (f32 &a : area)
-        a *= ctx.view.canvas_scale;
+        a *= ctx.view->canvas_scale;
     }
     set_uniform_quiet(*sh, "uiState", &c.state, SHADER_UNIFORM_FLOAT);
     set_uniform_quiet(*sh, "uiTime", &time, SHADER_UNIFORM_FLOAT);
@@ -404,7 +411,7 @@ void frame_begin(context &ctx) {
   // Raw input, read before anything is consumed.
   const f32 dt = ctx.time.dt_real;
   // In the canvas's units when there is one: the panels were built in them.
-  const vec2 mouse = input_mouse_pos(ctx.input) * (1.0f / ctx.view.canvas_scale);
+  const vec2 mouse = input_mouse_pos(ctx.input) * (1.0f / ctx.view->canvas_scale);
   ui.mouse_moved = mouse != ui.mouse;
   ui.mouse = mouse;
   ui.mouse_pressed = mouse_pressed(ctx, mouse_left);
@@ -784,7 +791,7 @@ ui_style ui_default_style() {
   return s;
 }
 
-void ui_style_set(context &ctx, const ui_style &style) { ctx.ui.style = style; }
+void ui_style_set(context &ctx, const ui_style &style) { ctx.ui->style = style; }
 
 void ui_canvas_set(context &ctx, const ui_canvas_desc &desc) {
   view_state &v = ctx.view;
@@ -795,19 +802,19 @@ void ui_canvas_set(context &ctx, const ui_canvas_desc &desc) {
 }
 
 void ui_canvas_begin(const context &ctx) {
-  ctx.view.canvas_depth++;
+  ctx.view->canvas_depth++;
   view_canvas_sync(ctx.view);
 }
 
 void ui_canvas_end(const context &ctx) {
-  if (ctx.view.canvas_depth <= 0)
+  if (ctx.view->canvas_depth <= 0)
     return;
-  ctx.view.canvas_depth--;
+  ctx.view->canvas_depth--;
   view_canvas_sync(ctx.view);
 }
 
-f32 ui_canvas_scale(const context &ctx) { return ctx.view.canvas_scale; }
-ui_style ui_style_get(const context &ctx) { return ctx.ui.style; }
+f32 ui_canvas_scale(const context &ctx) { return ctx.view->canvas_scale; }
+ui_style ui_style_get(const context &ctx) { return ctx.ui->style; }
 
 void ui_begin(context &ctx, const ui_panel_desc &desc) {
   ui_state &ui = ctx.ui;
@@ -1318,7 +1325,7 @@ bool ui_tabs(context &ctx, const char *id, i32 &index, std::span<const std::stri
 }
 
 rect ui_tabs_icon_rect(const context &ctx, i32 tab) {
-  const std::vector<rect> &r = ctx.ui.tab_icons;
+  const std::vector<rect> &r = ctx.ui->tab_icons;
   return tab >= 0 && tab < (i32)r.size() ? r[(size_t)tab] : rect{};
 }
 
@@ -1349,7 +1356,7 @@ void ui_text(context &ctx, const char *text, const ui_text_desc &desc) {
 
 void ui_tooltip(context &ctx, const char *text) {
   if (text != nullptr)
-    ctx.ui.tooltip = text;
+    ctx.ui->tooltip = text;
 }
 
 void ui_scroll_begin(context &ctx, const char *id, f32 height) {
@@ -1587,7 +1594,7 @@ bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad)
   return changed;
 }
 
-bool ui_keybind_listening(const context &ctx) { return ctx.ui.listening != 0; }
+bool ui_keybind_listening(const context &ctx) { return ctx.ui->listening != 0; }
 
 bool ui_input(context &ctx, const char *label, std::string &text, const ui_input_desc &desc) {
   ui_state &ui = ctx.ui;
@@ -1647,7 +1654,7 @@ bool ui_input(context &ctx, const char *label, std::string &text, const ui_input
   return changed;
 }
 
-bool ui_typing(const context &ctx) { return ctx.ui.editing != 0; }
+bool ui_typing(const context &ctx) { return ctx.ui->editing != 0; }
 
 bool ui_back(context &ctx) {
   ui_state &ui = ctx.ui;
@@ -1669,36 +1676,36 @@ void ui_focus(context &ctx, const char *label) {
     ui.focus = hash_id(ui.panel_id, label);
 }
 
-bool ui_active(const context &ctx) { return ctx.ui.navigable_last; }
+bool ui_active(const context &ctx) { return ctx.ui->navigable_last; }
 
-rect ui_last_rect(const context &ctx) { return ctx.ui.last_rect; }
+rect ui_last_rect(const context &ctx) { return ctx.ui->last_rect; }
 
-rect ui_panel_rect(const context &ctx) { return ctx.ui.panel_done; }
+rect ui_panel_rect(const context &ctx) { return ctx.ui->panel_done; }
 
 rect ui_panel_rect(const context &ctx, const char *id) {
   if (id == nullptr)
     return {};
   const u64 h = hash_id(0, id);
-  for (size_t i = ctx.ui.last_panel_ids.size(); i-- > 0;)
-    if (ctx.ui.last_panel_ids[i] == h)
-      return ctx.ui.last_panels[i];
+  for (size_t i = ctx.ui->last_panel_ids.size(); i-- > 0;)
+    if (ctx.ui->last_panel_ids[i] == h)
+      return ctx.ui->last_panels[i];
   return {};
 }
 
 void ui_let_through(context &ctx, rect area) {
-  ctx.ui.through.push_back(area);
-  ctx.ui.through_panel.push_back(ctx.ui.in_panel ? ctx.ui.panel_id : 0);
+  ctx.ui->through.push_back(area);
+  ctx.ui->through_panel.push_back(ctx.ui->in_panel ? ctx.ui->panel_id : 0);
 }
 
-bool ui_mouse_over(const context &ctx) { return ctx.ui.mouse_over; }
+bool ui_mouse_over(const context &ctx) { return ctx.ui->mouse_over; }
 
 bool ui_on_top(const context &ctx, const char *id) {
-  return id != nullptr && ctx.ui.mouse_top != 0 && ctx.ui.mouse_top == hash_id(0, id);
+  return id != nullptr && ctx.ui->mouse_top != 0 && ctx.ui->mouse_top == hash_id(0, id);
 }
 
-bool ui_pressed_on(const context &ctx, const char *id) { return ctx.ui.mouse_pressed && ui_on_top(ctx, id); }
+bool ui_pressed_on(const context &ctx, const char *id) { return ctx.ui->mouse_pressed && ui_on_top(ctx, id); }
 
-bool ui_covered(const context &ctx) { return ctx.ui.panel_covered; }
+bool ui_covered(const context &ctx) { return ctx.ui->panel_covered; }
 
 // --- popup ---
 
@@ -1792,7 +1799,7 @@ void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc) {
     ui.toasts.erase(ui.toasts.begin());
 }
 
-void ui_toast_clear(context &ctx) { ctx.ui.toasts.clear(); }
+void ui_toast_clear(context &ctx) { ctx.ui->toasts.clear(); }
 
 namespace {
 // ui_tooltip(): a small box by the mouse, in the toast's dress, kept on screen.

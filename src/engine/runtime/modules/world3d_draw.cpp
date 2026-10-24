@@ -1,6 +1,7 @@
 #include "render3d.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_quality_impl.h"
 #include "njin_log.h"
 #include "njin_texture.h"
 #include "njin_world3d_impl.h"
@@ -1098,7 +1099,7 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
       const f32 d = box_distance(eye, lo, hi);
       i32 level = 0;
       // graphics_quality::view_distance brings the coarser levels nearer.
-      const f32 lod_distance = t.desc.lod_distance * ctx.quality.q.view_distance;
+      const f32 lod_distance = t.desc.lod_distance * ctx.quality->q.view_distance;
       if (d > lod_distance && lod_distance > 0.0f)
         level = (i32)std::floor(std::log2(d / lod_distance)) + 1;
       level = std::clamp(level, 0, t.lods - 1);
@@ -1124,7 +1125,7 @@ void draw_grass(context &ctx, grass3d_slot &gr, const Matrix &view_proj, bool de
   world3d_store &w = ctx.world3d;
   const grass3d_desc &d = gr.desc;
   const vec3 eye = s.camera.position;
-  const f32 range = std::max(d.draw_distance * ctx.quality.q.view_distance, 1.0f);
+  const f32 range = std::max(d.draw_distance * ctx.quality->q.view_distance, 1.0f);
   const vec3 o = t->desc.origin;
   upload_terrain(*t);
   // Cells in range, nearest first; a few new ones per frame so walking into a

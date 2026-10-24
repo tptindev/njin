@@ -2,6 +2,7 @@
 #include "njin2rl.h"
 #include "njin_log.h"
 #include "njin_path.h"
+#include "njin_draw.h"
 #include <filesystem>
 #include <rlgl.h>
 #include <string>

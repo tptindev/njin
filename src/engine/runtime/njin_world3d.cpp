@@ -2,6 +2,7 @@
 #include "modules/render3d.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_quality_impl.h"
 #include "njin_draw.h"
 #include "njin_ecs.h"
 #include "njin_log.h"
@@ -836,7 +837,7 @@ void draw_scatter3d(const context &ctx, scatter3d_handle handle) {
     const vec3 near{clamp(eye.x, lo.x, hi.x), clamp(eye.y, lo.y, hi.y), clamp(eye.z, lo.z, hi.z)};
     const f32 d = distance(eye, near);
     // graphics_quality::view_distance shortens both distances.
-    const f32 reach = ctx.quality.q.view_distance;
+    const f32 reach = ctx.quality->q.view_distance;
     if (d > s->desc.draw_distance * reach || !render3d_box_visible(r, lo, hi))
       continue;
     const model_handle m =

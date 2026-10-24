@@ -6,6 +6,13 @@
 #include "njin_gpu_caps.h"
 #include "njin_gpu_hint.h"
 #include "njin_ctx_impl.h"
+#include "modules/debug.h"
+#include "modules/ui.h"
+#include "modules/dialog.h"
+#include "njin_scene_impl.h"
+#include "modules/post_fx.h"
+#include "njin_ecs.h"
+#include "njin_input_impl.h"
 #include "njin_log_impl.h"
 #include "njin_view.h"
 #include <algorithm>
@@ -89,12 +96,12 @@ context *create(const config &cfg) {
       (u64)std::chrono::high_resolution_clock::now().time_since_epoch().count());
   if (cfg.virtual_size.x >= 1.0f && cfg.virtual_size.y >= 1.0f)
     window_set_virtual_size(*ctx, cfg.virtual_size, cfg.integer_scale);
-  ctx->view.render_scale =
+  ctx->view->render_scale =
       view_clamp_render_scale(cfg.render_scale, {(f32)GetScreenWidth(), (f32)GetScreenHeight()});
-  if (ctx->view.render_scale != cfg.render_scale && cfg.render_scale > 1)
+  if (ctx->view->render_scale != cfg.render_scale && cfg.render_scale > 1)
     NJIN_WARN("config::render_scale %d at the window's size would need a texture "
              "bigger than any GPU guarantees; using %dx instead",
-             cfg.render_scale, ctx->view.render_scale);
+             cfg.render_scale, ctx->view->render_scale);
   // The game's features (njin_features.h): their states, hooks and modules,
   // before the core modules register theirs among them.
   features_install(*ctx);
@@ -111,10 +118,10 @@ const char *version() {
 }
 
 void run(context &ctx) {
-  if (ctx.ecs.started) {
+  if (ctx.ecs->started) {
     return;
   }
-  ctx.ecs.started = true;
+  ctx.ecs->started = true;
   log_hold(false);
   NJIN_INFO("njin %s", version());
   // Driver shader compiles cost tens of milliseconds each: pay them here, not
@@ -150,11 +157,11 @@ void run(context &ctx) {
     // Hitstop zeroes dt here, before any system (or fixed step) reads it.
     fx_frame_begin(ctx);
     gizmo_frame_begin(ctx);
-    if (ctx.ecs.profile)
+    if (ctx.ecs->profile)
       ecs_profile_roll(ctx.ecs);
     view_frame_begin(ctx.view);
     input_key_poll(ctx.input);
-    view_map_mouse(ctx.view, ctx.input.cur.mouse_pos, ctx.input.cur.mouse_delta);
+    view_map_mouse(ctx.view, ctx.input->cur.mouse_pos, ctx.input->cur.mouse_delta);
     // A scene switch requested last frame happens here, before any system
     // of the new frame runs.
     scene_store_apply(ctx);
@@ -163,7 +170,7 @@ void run(context &ctx) {
     run_fixed_steps(ctx);
     ecs_run(ctx, phase_update);
     ecs_run(ctx, phase_post_update);
-    ctx.ecs.dispatcher.update();
+    ctx.ecs->dispatcher.update();
 
     if (low_power && ctx.skip_draw) {
       // Nothing changed on screen: the window keeps its last image.
@@ -175,8 +182,8 @@ void run(context &ctx) {
     ctx.skip_draw = false;
     BeginDrawing();
     ClearBackground(clearbg);
-    ctx.view.crisp_text = ctx.cfg.crisp_text && !gpu_is_software();
-    ctx.view.smooth_ui = ctx.cfg.smooth_ui;
+    ctx.view->crisp_text = ctx.cfg.crisp_text && !gpu_is_software();
+    ctx.view->smooth_ui = ctx.cfg.smooth_ui;
     view_draw_begin(ctx.view, clearbg);
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
@@ -189,7 +196,7 @@ void run(context &ctx) {
     ui_canvas_end(ctx);
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
-    if (ctx.view.ui_window)
+    if (ctx.view->ui_window)
       view_ui_end(ctx.view);
     else
       view_draw_end(ctx.view);

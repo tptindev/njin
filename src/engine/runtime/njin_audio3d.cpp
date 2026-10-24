@@ -146,22 +146,22 @@ void audio_set_listener3d(context &ctx, const audio_listener3d &listener) {
                  finite3(listener.velocity),
              "audio_set_listener3d"))
     return;
-  ctx.audio.listener = listener;
-  ctx.audio.listener_follow = false;
+  ctx.audio->listener = listener;
+  ctx.audio->listener_follow = false;
 }
 
 void audio_listener3d_follow_camera(context &ctx, bool follow) {
-  ctx.audio.listener_follow = follow;
-  ctx.audio.listener_has_last = false; // do not read the jump to the camera as speed
+  ctx.audio->listener_follow = follow;
+  ctx.audio->listener_has_last = false; // do not read the jump to the camera as speed
   if (!follow)
-    ctx.audio.listener.velocity = {};
+    ctx.audio->listener.velocity = {};
 }
 
-audio_listener3d audio_listener3d_get(const context &ctx) { return ctx.audio.listener; }
+audio_listener3d audio_listener3d_get(const context &ctx) { return ctx.audio->listener; }
 
 void audio_set_speed_of_sound(context &ctx, f32 units_per_second) {
   if (units_per_second > 0.0f && std::isfinite(units_per_second))
-    ctx.audio.speed_of_sound = units_per_second;
+    ctx.audio->speed_of_sound = units_per_second;
 }
 
 voice3d_handle sound_play3d(context &ctx, sound_handle handle, vec3 position, const sound3d_desc &desc) {

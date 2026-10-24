@@ -1,6 +1,7 @@
 #include "njin_prefab.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_prefab_impl.h"
 #include "njin_log.h"
 #include "njin_scene.h"
 
@@ -21,16 +22,16 @@ prefab_handle prefab_register(context &ctx, const prefab_desc &desc) {
   const prefab_handle existing = prefab_find(ctx, desc.name);
   if (existing.id != 0)
     return existing;
-  ctx.prefab.prefabs.push_back(prefab_slot{
+  ctx.prefab->prefabs.push_back(prefab_slot{
       .name = desc.name, .build = desc.build, .scene_owned = desc.scene_owned});
-  return prefab_handle{.id = (u32)ctx.prefab.prefabs.size()};
+  return prefab_handle{.id = (u32)ctx.prefab->prefabs.size()};
 }
 
 prefab_handle prefab_find(const context &ctx, const char *name) {
   if (name == nullptr)
     return prefab_handle{};
-  for (usize i = 0; i < ctx.prefab.prefabs.size(); i++) {
-    if (ctx.prefab.prefabs[i].name == name)
+  for (usize i = 0; i < ctx.prefab->prefabs.size(); i++) {
+    if (ctx.prefab->prefabs[i].name == name)
       return prefab_handle{.id = (u32)(i + 1)};
   }
   return prefab_handle{};

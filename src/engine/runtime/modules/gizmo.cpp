@@ -243,7 +243,7 @@ void gizmo_text3d(context &ctx, vec3 pos, const char *text, rgba color, f32 dura
     g->marks3d.push_back({pos, text, color, std::max(duration, 0.0f)});
 }
 
-void gizmos_set_visible(context &ctx, bool visible) { ctx.gizmos.visible = visible; }
+void gizmos_set_visible(context &ctx, bool visible) { ctx.gizmos->visible = visible; }
 
-bool gizmos_visible(const context &ctx) { return ctx.gizmos.visible; }
+bool gizmos_visible(const context &ctx) { return ctx.gizmos->visible; }
 } // namespace njin

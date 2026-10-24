@@ -3,12 +3,13 @@
 
 #include "_types.h"
 #include "njin_atlas.h"
-#include "njin_draw.h"
+#include "_draw_types.h"
 #include <raylib.h>
 #include <string>
 #include <vector>
 
 namespace njin {
+struct texture_draw_desc;
 // Both stores follow shader_store (njin_shader.h): handle id 0 is "invalid",
 // id N maps to slots[N - 1], and slots are never reused, so a stale handle can
 // never alias a newer resource.

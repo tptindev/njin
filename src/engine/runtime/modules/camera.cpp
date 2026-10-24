@@ -8,6 +8,9 @@
 #include "njin_ctx.h"
 #include "njin_camera.h"
 #include "njin_ctx_impl.h"
+#include "njin_quality_impl.h"
+#include "njin_ecs.h"
+#include "njin_shader.h"
 #include "njin_cfg.h"
 #include "njin_view.h"
 #include "rl2njin.h"
@@ -61,7 +64,7 @@ RenderTexture2D load_target(i32 w, i32 h) {
 // the screen, while the UI after it keeps the screen's own resolution.
 bool ensure_post_target(const context &ctx, camera_post &post) {
   const vec2 screen = screen_size(ctx);
-  const f32 scale = (f32)ctx.view.render_scale * quality_world_scale(ctx);
+  const f32 scale = (f32)ctx.view->render_scale * quality_world_scale(ctx);
   const i32 w = std::max(1, (i32)std::lround(screen.x * scale));
   const i32 h = std::max(1, (i32)std::lround(screen.y * scale));
   if (IsRenderTextureValid(post.target) && post.target.texture.width == w &&
@@ -100,7 +103,7 @@ void begin_world_space(context &ctx) {
   fx_apply_shake(ctx, camera);
   post.world_camera = camera;
   BeginMode2D(camera);
-  ctx.view.world_depth++;
+  ctx.view->world_depth++;
 }
 
 void finish_world_post(context &ctx);
@@ -109,7 +112,7 @@ void end_world_space(context &ctx) {
   if (ctx.hooks.world_end != nullptr)
     ctx.hooks.world_end(ctx);
   EndMode2D();
-  ctx.view.world_depth = std::max(0, ctx.view.world_depth - 1);
+  ctx.view->world_depth = std::max(0, ctx.view->world_depth - 1);
   finish_world_post(ctx);
   // The world is done and on the virtual image. With smooth UI, the rest of the
   // frame (the screen-space phase and what follows) is drawn on the window.
@@ -162,10 +165,10 @@ void setup(context &ctx) {
 } // namespace
 
 void world_target_rebind(context &ctx) {
-  if (ctx.post.drawing) {
-    bind_view_target(ctx.post.target, screen_size(ctx));
-  } else if (ctx.view.drawing) {
-    bind_view_target(ctx.view.target, view_logical_size(ctx.view));
+  if (ctx.post->drawing) {
+    bind_view_target(ctx.post->target, screen_size(ctx));
+  } else if (ctx.view->drawing) {
+    bind_view_target(ctx.view->target, view_logical_size(ctx.view));
   } else {
     // The window, as BeginDrawing leaves it.
     rlDrawRenderBatchActive();
@@ -181,7 +184,7 @@ void world_target_rebind(context &ctx) {
     rlMatrixMode(RL_MODELVIEW);
     rlLoadIdentity();
   }
-  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post.world_camera)));
+  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post->world_camera)));
 }
 
 mod_desc camera_module() {
@@ -194,7 +197,7 @@ camera_post::~camera_post() {
 }
 
 void camera_set_post_shader(context &ctx, shader_handle shader) {
-  ctx.post.shader = shader;
+  ctx.post->shader = shader;
 }
 
 rect camera_bounds(const context &ctx) {
@@ -219,7 +222,7 @@ rect camera_bounds(const context &ctx) {
 
 camera_view camera_active(const context &ctx) {
   const auto cameras =
-      ctx.ecs.registry
+      ctx.ecs->registry
           .view<const camera_on, const camera_2d, const transform>();
   for (const entt::entity entity : cameras) {
     const camera_2d &cam = cameras.get<const camera_2d>(entity);

@@ -5,6 +5,11 @@
 #include "njin_ctx.h"
 #include "njin_camera.h"
 #include "njin_ctx_impl.h"
+#include "njin_draw.h"
+#include "camera.h"
+#include "render_stats.h"
+#include "njin_ecs.h"
+#include "njin_texture.h"
 #include "fx.h"
 #include "particles.h"
 #include "_collide.h"
@@ -146,8 +151,8 @@ void bake(chunk_image &image, const texture_slot &tileset, const tilemap &map,
 
 void animate(context &ctx) {
   const f32 dt = ctx.time.dt;
-  ctx.sprites.tile_time += dt;
-  auto view = ctx.ecs.registry.view<sprite, sprite_anim>();
+  ctx.sprites->tile_time += dt;
+  auto view = ctx.ecs->registry.view<sprite, sprite_anim>();
   for (auto [entity, spr, anim] : view.each()) {
     if (anim.frame_size.x <= 0.0f || anim.frame_size.y <= 0.0f ||
         anim.count <= 0)
@@ -183,9 +188,9 @@ void animate(context &ctx) {
 void bake_tilemaps(context &ctx) {
   sprite_cache &cache = ctx.sprites;
   const u32 frame = ++cache.frame;
-  ctx.stats.reset();
+  ctx.stats->reset();
   const rect view = camera_bounds(ctx);
-  entt::registry &registry = ctx.ecs.registry;
+  entt::registry &registry = ctx.ecs->registry;
 
   for (auto [entity, tr, map] : registry.view<transform, tilemap>().each()) {
     const texture_slot *tileset = texture_slot_of(ctx.texture, map.tileset);
@@ -232,7 +237,7 @@ void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
     return;
   Color tint{};
   to_raylib(map.tint, tint);
-  const auto cached = ctx.sprites.chunks.find(entity);
+  const auto cached = ctx.sprites->chunks.find(entity);
   // Chunks with animated tiles: those are drawn after every chunk image, all
   // from the tileset, so the tileset texture is one batch instead of one per chunk.
   struct animated_chunk {
@@ -248,7 +253,7 @@ void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
     if (!rects_overlap(area, view))
       continue;
     const chunk_image *image = nullptr;
-    if (cached != ctx.sprites.chunks.end()) {
+    if (cached != ctx.sprites->chunks.end()) {
       const auto it = cached->second.find(key);
       if (it != cached->second.end() && it->second.version == chunk.version &&
           it->second.texture_version == tileset->version &&
@@ -258,26 +263,26 @@ void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
     if (image == nullptr) {
       // Changed after this frame's bake, or not baked yet: draw it tile by
       // tile this once. The bake catches up next frame.
-      ctx.stats.tile_chunks++;
-      ctx.stats.note_draw(tileset->texture.id, blend_alpha);
+      ctx.stats->tile_chunks++;
+      ctx.stats->note_draw(tileset->texture.id, blend_alpha);
       draw_chunk_tiles(*tileset, map, chunk, area.pos, tint, tiles_pass::all,
-                       ctx.sprites.tile_time);
+                       ctx.sprites->tile_time);
       continue;
     }
     const Texture2D &texture = image->target.texture;
     const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
     const Rectangle dest{area.pos.x, area.pos.y, area.size.x, area.size.y};
-    ctx.stats.tile_chunks++;
-    ctx.stats.note_draw(texture.id, blend_alpha);
+    ctx.stats->tile_chunks++;
+    ctx.stats->note_draw(texture.id, blend_alpha);
     DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, tint);
     if (!image->animated_cells.empty())
       animated.push_back({&chunk, image, area.pos});
   }
   if (!animated.empty())
-    ctx.stats.note_draw(tileset->texture.id, blend_alpha);
+    ctx.stats->note_draw(tileset->texture.id, blend_alpha);
   for (const animated_chunk &a : animated)
     draw_animated_tiles(*tileset, map, *a.chunk, a.image->animated_cells, a.pos, tint,
-                        ctx.sprites.tile_time);
+                        ctx.sprites->tile_time);
 }
 
 // False when `spr` is certainly outside `view`. The box is a circle around the
@@ -312,9 +317,9 @@ struct draw_item {
 // the box round the shaken camera's view (camera.cpp keeps the camera it drew
 // the world through), which reaches a little past the steady one.
 rect frame_view(const context &ctx) {
-  if (ctx.fx.trauma <= 0.0f)
+  if (ctx.fx->trauma <= 0.0f)
     return camera_bounds(ctx);
-  const Camera2D &camera = ctx.post.world_camera;
+  const Camera2D &camera = ctx.post->world_camera;
   const vec2 screen = screen_size(ctx);
   const Vector2 corners[4] = {{0.0f, 0.0f}, {screen.x, 0.0f}, {0.0f, screen.y}, {screen.x, screen.y}};
   Vector2 lo = GetScreenToWorld2D(corners[0], camera);
@@ -328,7 +333,7 @@ rect frame_view(const context &ctx) {
 }
 
 void draw(context &ctx) {
-  entt::registry &registry = ctx.ecs.registry;
+  entt::registry &registry = ctx.ecs->registry;
   render_stats &stats = ctx.stats;
   const rect view = frame_view(ctx);
   // Kept between frames: no allocation once it has grown.
@@ -361,7 +366,7 @@ void draw(context &ctx) {
   // The y-sorted layers are looked up once per item, not per comparison, and
   // a plain sort with the list's order as the last key stands in for
   // stable_sort, which allocates a buffer every call.
-  const std::unordered_set<i32> &by_y = ctx.sprites.y_sorted;
+  const std::unordered_set<i32> &by_y = ctx.sprites->y_sorted;
   for (usize i = 0; i < items.size(); i++) {
     items[i].order = (u32)i;
     items[i].by_y = !by_y.empty() && by_y.contains(items[i].layer);
@@ -434,9 +439,9 @@ sprite_cache::~sprite_cache() {
 
 void draw_set_y_sort(context &ctx, i32 layer, bool on) {
   if (on)
-    ctx.sprites.y_sorted.insert(layer);
+    ctx.sprites->y_sorted.insert(layer);
   else
-    ctx.sprites.y_sorted.erase(layer);
+    ctx.sprites->y_sorted.erase(layer);
 }
 
 mod_desc sprite_module() {

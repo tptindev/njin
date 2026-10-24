@@ -1,6 +1,7 @@
 #include "njin_ecs.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_scene_impl.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <chrono>
@@ -128,11 +129,11 @@ void ecs_register(context &ctx, sys_phase phase, const sys_desc &desc) {
     NJIN_WARN("ecs_register: invalid phase or null system");
     return;
   }
-  if (!ctx.ecs.in_setup) {
+  if (!ctx.ecs->in_setup) {
     NJIN_WARN("ecs_register: only allowed inside a module setup callback");
     return;
   }
-  ctx.ecs.pending[phase].push_back(desc);
+  ctx.ecs->pending[phase].push_back(desc);
 }
 
 void mod_register(context &ctx, const mod_desc &desc) {
@@ -188,7 +189,7 @@ void mod_register(context &ctx, std::initializer_list<mod_desc> mods) {
 }
 
 void ecs_run(context &ctx, sys_phase phase) {
-  const u32 current = ctx.scene.current.id;
+  const u32 current = ctx.scene->current.id;
   ecs_store &ecs = ctx.ecs;
   if (!ecs.profile) {
     for (const scheduled_system &sys : ecs.schedule[phase]) {

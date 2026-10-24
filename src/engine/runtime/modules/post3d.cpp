@@ -2,6 +2,9 @@
 #include "render3d.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "camera.h"
+#include "render_stats.h"
+#include "njin_quality_impl.h"
 #include "njin_log.h"
 #include "njin_texture.h"
 #include <algorithm>
@@ -773,9 +776,9 @@ pass_view current_view(context &ctx) {
   v.inv = MatrixInvert(v.view_proj);
   v.planes = {s.camera.near_plane, s.camera.far_plane};
   v.eye = s.camera.position;
-  v.target = ctx.post.target.id;
-  v.w = ctx.post.target.texture.width;
-  v.h = ctx.post.target.texture.height;
+  v.target = ctx.post->target.id;
+  v.w = ctx.post->target.texture.width;
+  v.h = ctx.post->target.texture.height;
   return v;
 }
 
@@ -872,7 +875,7 @@ void draw_decals(context &ctx, post3d_state &st, const pass_view &v) {
   rlActiveTextureSlot(decal_depth_unit);
   rlDisableTexture();
   rlActiveTextureSlot(0);
-  ctx.stats.post_passes += 1;
+  ctx.stats->post_passes += 1;
 }
 
 void run_ssao(context &ctx, post3d_state &st, const pass_view &v) {
@@ -907,7 +910,7 @@ void run_ssao(context &ctx, post3d_state &st, const pass_view &v) {
   BeginBlendMode(BLEND_MULTIPLIED);
   quad(a, st.ao_a.texture, v.w, v.h, [&] { sampler(a, "depthTex", st.copy_depth); });
   EndBlendMode();
-  ctx.stats.post_passes += 4;
+  ctx.stats->post_passes += 4;
 }
 
 void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
@@ -939,7 +942,7 @@ void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
     sampler(sh, "maskTex", st.mask.texture.id);
   });
   EndBlendMode();
-  ctx.stats.post_passes += 2;
+  ctx.stats->post_passes += 2;
 }
 
 // Where the sun is on screen (0..1, y up as the textures), and how much it is
@@ -989,7 +992,7 @@ void run_shafts(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f3
   BeginBlendMode(BLEND_ADDITIVE);
   quad(st.add, st.shafts_b.texture, v.w, v.h, [] {});
   EndBlendMode();
-  ctx.stats.post_passes += 3;
+  ctx.stats->post_passes += 3;
 }
 
 void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32 on_screen) {
@@ -1015,7 +1018,7 @@ void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32
   BeginBlendMode(BLEND_ADDITIVE);
   quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] { sampler(sh, "visTex", st.visible.texture.id); });
   EndBlendMode();
-  ctx.stats.post_passes += 2;
+  ctx.stats->post_passes += 2;
 }
 
 void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
@@ -1037,7 +1040,7 @@ void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v, bool ve
     sampler(sh, "velTex", vel ? st.vel_tex : st.copy_depth);
   });
   EndBlendMode();
-  ctx.stats.post_passes += 1;
+  ctx.stats->post_passes += 1;
 }
 
 void free_velocity(post3d_state &st) {
@@ -1088,7 +1091,7 @@ bool run_velocity(context &ctx, post3d_state &st, const pass_view &v, const Matr
   rlDisableDepthTest();
   const bool ok = render3d_draw_velocity(ctx, st.copy_depth, {(f32)v.w, (f32)v.h}, v.planes, unjittered(v), prev_vp,
                                          has_last);
-  ctx.stats.post_passes += 1;
+  ctx.stats->post_passes += 1;
   return ok;
 }
 
@@ -1202,7 +1205,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   st.hist_dir = dir;
   st.hist_time = now;
   st.has_history = true;
-  ctx.stats.post_passes += 2;
+  ctx.stats->post_passes += 2;
 }
 
 bool effects_on(const post3d &p) {
@@ -1210,7 +1213,7 @@ bool effects_on(const post3d &p) {
 }
 
 bool usable(const context &ctx) {
-  return ctx.post.drawing && ctx.post.target.depth.id != 0 && ctx.post.target.texture.width > 0;
+  return ctx.post->drawing && ctx.post->target.depth.id != 0 && ctx.post->target.texture.width > 0;
 }
 
 void kill(post3d_state &st, post3d_decal &d) {
@@ -1277,8 +1280,8 @@ vec2 post3d_taa_jitter(context &ctx) {
   st.taa_index = st.taa_index % 8 + 1;
   const f32 px = halton(st.taa_index, 2) - 0.5f;
   const f32 py = halton(st.taa_index, 3) - 0.5f;
-  const f32 w = (f32)ctx.post.target.texture.width;
-  const f32 h = (f32)ctx.post.target.texture.height;
+  const f32 w = (f32)ctx.post->target.texture.width;
+  const f32 h = (f32)ctx.post->target.texture.height;
   return {2.0f * px / w, 2.0f * py / h};
 }
 
@@ -1359,7 +1362,7 @@ void post3d_update(context &ctx) {
 }
 
 void post3d_apply_quality(context &ctx) {
-  const graphics_quality &q = ctx.quality.q;
+  const graphics_quality &q = ctx.quality->q;
   post3d p = ctx.post3d->requested;
   if (!q.ssao)
     p.ssao = 0.0f;

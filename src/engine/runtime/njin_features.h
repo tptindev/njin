@@ -66,6 +66,11 @@ private:
   void (*free)(void *) = nullptr;
 };
 
+// A core store in the context (njin_ctx_impl.h): the same box, always made by
+// the context's constructor, so a source that does not use the store needs
+// no more than its name.
+template <class T> using store_ref = feature_ref<T>;
+
 // What the core calls of a feature. Unset (nullptr) without it.
 struct feature_hooks {
   // 3d: the world pass of the camera module opens (post3d's frame), may need

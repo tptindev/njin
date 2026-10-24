@@ -3,6 +3,18 @@
 #include "_tilemap.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "particles_gpu.h"
+#include "camera.h"
+#include "debug.h"
+#include "post_fx.h"
+#include "sprite.h"
+#include "timer.h"
+#include "njin_audio_impl.h"
+#include "njin_ecs.h"
+#include "njin_font.h"
+#include "njin_shader.h"
+#include "njin_texture.h"
+#include "njin_view.h"
 #include "njin_particles.h"
 #include <algorithm>
 #include <cmath>
@@ -57,8 +69,8 @@ json_value item(const char *kind, const std::string &name, usize bytes, bool gpu
 std::string dim(i32 w, i32 h) { return std::to_string(w) + " x " + std::to_string(h); }
 
 usize chunk_bytes_of(const context &ctx, entt::entity e) {
-  const auto it = ctx.sprites.chunks.find(e);
-  if (it == ctx.sprites.chunks.end())
+  const auto it = ctx.sprites->chunks.find(e);
+  if (it == ctx.sprites->chunks.end())
     return 0;
   usize n = 0;
   for (const auto &[key, image] : it->second)
@@ -96,7 +108,7 @@ json_value debug_build_prof(const context &ctx) {
 
 json_value debug_build_mem(const context &ctx) {
   const debug_state &d = ctx.debug;
-  const entt::registry &reg = ctx.ecs.registry;
+  const entt::registry &reg = ctx.ecs->registry;
   json_value types = json_value::make_array();
   usize total = 0;
   for (auto [id, pool] : reg.storage()) {
@@ -144,16 +156,16 @@ json_value debug_build_res(const context &ctx) {
     items.push(std::move(v));
   };
 
-  for (usize i = 0; i < ctx.texture.slots.size(); i++) {
-    const texture_slot &s = ctx.texture.slots[i];
+  for (usize i = 0; i < ctx.texture->slots.size(); i++) {
+    const texture_slot &s = ctx.texture->slots[i];
     if (!s.alive || s.packed) // a packed image is part of its atlas page, listed below
       continue;
     const std::string name = s.path.empty() ? "texture #" + std::to_string(i + 1) : s.path;
     add(item("texture", name, texture_bytes(s.texture), true,
              dim(s.texture.width, s.texture.height) + (s.texture.mipmaps > 1 ? "  mips" : "")));
   }
-  for (usize a = 0; a < ctx.texture.atlases.size(); a++) {
-    const atlas_slot &atlas = ctx.texture.atlases[a];
+  for (usize a = 0; a < ctx.texture->atlases.size(); a++) {
+    const atlas_slot &atlas = ctx.texture->atlases[a];
     if (!atlas.alive)
       continue;
     for (usize p = 0; p < atlas.pages.size(); p++) {
@@ -162,8 +174,8 @@ json_value debug_build_res(const context &ctx) {
                texture_bytes(t), true, dim(t.width, t.height)));
     }
   }
-  for (usize i = 0; i < ctx.render_texture.slots.size(); i++) {
-    const render_texture_slot &s = ctx.render_texture.slots[i];
+  for (usize i = 0; i < ctx.render_texture->slots.size(); i++) {
+    const render_texture_slot &s = ctx.render_texture->slots[i];
     if (s.alive)
       add(item("target", "render texture #" + std::to_string(i + 1), target_bytes(s.target), true,
                dim(s.target.texture.width, s.target.texture.height)));
@@ -181,25 +193,25 @@ json_value debug_build_res(const context &ctx) {
     add(item("font", name, bytes, true,
              std::to_string(s.atlases.size()) + " atlas(es) at " + sizes + " px"));
   };
-  add_font("font default", ctx.font.fallback);
-  for (usize i = 0; i < ctx.font.slots.size(); i++)
-    add_font("font #" + std::to_string(i + 1), ctx.font.slots[i]);
-  for (usize i = 0; i < ctx.shader.slots.size(); i++) {
-    const shader_slot &s = ctx.shader.slots[i];
+  add_font("font default", ctx.font->fallback);
+  for (usize i = 0; i < ctx.font->slots.size(); i++)
+    add_font("font #" + std::to_string(i + 1), ctx.font->slots[i]);
+  for (usize i = 0; i < ctx.shader->slots.size(); i++) {
+    const shader_slot &s = ctx.shader->slots[i];
     if (!s.alive)
       continue;
     std::string name = s.fs_path.empty() ? (s.vs_path.empty() ? "shader #" + std::to_string(i + 1) : s.vs_path) : s.fs_path;
     add(item("shader", name, 0, true, std::to_string(s.uniforms.size()) + " uniforms looked up"));
   }
-  for (usize i = 0; i < ctx.audio.sounds.size(); i++) {
-    const sound_slot &s = ctx.audio.sounds[i];
+  for (usize i = 0; i < ctx.audio->sounds.size(); i++) {
+    const sound_slot &s = ctx.audio->sounds[i];
     if (!s.alive)
       continue;
     add(item("sound", "sound #" + std::to_string(i + 1), audio_bytes(s.sound.stream, s.sound.frameCount), false,
              std::to_string(s.voices.size() + 1) + " voices, bus " + std::to_string((i32)s.bus)));
   }
-  for (usize i = 0; i < ctx.audio.musics.size(); i++) {
-    const music_slot &s = ctx.audio.musics[i];
+  for (usize i = 0; i < ctx.audio->musics.size(); i++) {
+    const music_slot &s = ctx.audio->musics[i];
     if (s.alive)
       add(item("music", "music #" + std::to_string(i + 1), 0, false,
                "streamed, " + std::to_string(s.music.frameCount) + " frames"));
@@ -207,27 +219,27 @@ json_value debug_build_res(const context &ctx) {
 
   // Engine-owned buffers.
   usize chunks = 0, chunk_count = 0;
-  for (const auto &[e, images] : ctx.sprites.chunks)
+  for (const auto &[e, images] : ctx.sprites->chunks)
     for (const auto &[key, image] : images) {
       chunks += target_bytes(image.target);
       chunk_count++;
     }
   if (chunk_count > 0)
     add(item("engine", "tilemap chunk images", chunks, true, std::to_string(chunk_count) + " baked chunks"));
-  if (IsRenderTextureValid(ctx.post.target))
-    add(item("engine", "world target (post shader)", target_bytes(ctx.post.target), true,
-             dim(ctx.post.target.texture.width, ctx.post.target.texture.height)));
-  if (IsRenderTextureValid(ctx.view.target))
-    add(item("engine", "virtual screen", target_bytes(ctx.view.target), true,
-             dim(ctx.view.target.texture.width, ctx.view.target.texture.height)));
-  const usize post = target_bytes(ctx.postfx.full_a) + target_bytes(ctx.postfx.full_b) +
-                     target_bytes(ctx.postfx.half_a) + target_bytes(ctx.postfx.half_b);
+  if (IsRenderTextureValid(ctx.post->target))
+    add(item("engine", "world target (post shader)", target_bytes(ctx.post->target), true,
+             dim(ctx.post->target.texture.width, ctx.post->target.texture.height)));
+  if (IsRenderTextureValid(ctx.view->target))
+    add(item("engine", "virtual screen", target_bytes(ctx.view->target), true,
+             dim(ctx.view->target.texture.width, ctx.view->target.texture.height)));
+  const usize post = target_bytes(ctx.postfx->full_a) + target_bytes(ctx.postfx->full_b) +
+                     target_bytes(ctx.postfx->half_a) + target_bytes(ctx.postfx->half_b);
   if (post > 0)
     add(item("engine", "post-processing buffers", post, true, "bloom and effect chain"));
 
   // Small engine tables, in RAM.
-  usize tables = ctx.texture.slots.capacity() * sizeof(texture_slot) + ctx.audio.sounds.capacity() * sizeof(sound_slot) +
-                 ctx.timers.timers.capacity() * sizeof(timer_job) + ctx.timers.tweens.capacity() * sizeof(tween_job);
+  usize tables = ctx.texture->slots.capacity() * sizeof(texture_slot) + ctx.audio->sounds.capacity() * sizeof(sound_slot) +
+                 ctx.timers->timers.capacity() * sizeof(timer_job) + ctx.timers->tweens.capacity() * sizeof(tween_job);
   add(item("engine", "engine tables (slots, timers, tweens)", tables, false, ""));
 
   return json_value::make_object()
@@ -239,7 +251,7 @@ json_value debug_build_res(const context &ctx) {
 
 entity_cost debug_entity_cost(const context &ctx, entt::entity entity) {
   const debug_state &d = ctx.debug;
-  const entt::registry &reg = ctx.ecs.registry;
+  const entt::registry &reg = ctx.ecs->registry;
   entity_cost cost;
   for (auto [id, pool] : reg.storage()) {
     if (pool.info().hash() == entt::type_hash<entt::entity>::value() || !pool.contains(entity))
@@ -256,7 +268,7 @@ entity_cost debug_entity_cost(const context &ctx, entt::entity entity) {
 }
 
 usize debug_entity_gpu(const context &ctx, entt::entity entity) {
-  const entt::registry &reg = ctx.ecs.registry;
+  const entt::registry &reg = ctx.ecs->registry;
   usize gpu = 0;
   if (reg.all_of<tilemap>(entity))
     gpu = chunk_bytes_of(ctx, entity);

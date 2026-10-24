@@ -1,6 +1,7 @@
 #include "audio.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_audio_impl.h"
 
 namespace njin {
 namespace {

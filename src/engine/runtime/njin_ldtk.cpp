@@ -1,5 +1,4 @@
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
 #include "njin_file.h"
 #include "njin_level_impl.h"
 #include "njin_log.h"

@@ -1,5 +1,6 @@
 #include "njin_i18n.h"
 #include "njin_ctx_impl.h"
+#include "njin_i18n_impl.h"
 #include "njin_json.h"
 #include "njin_log.h"
 #include "njin_path.h"
@@ -69,19 +70,19 @@ void i18n_set_language(context &ctx, const char *lang) {
     NJIN_WARN("i18n_set_language: language '%s' is not loaded", lang != nullptr ? lang : "");
     return;
   }
-  ctx.i18n.current = lang;
+  ctx.i18n->current = lang;
 }
 
-const char *i18n_language(const context &ctx) { return ctx.i18n.current.c_str(); }
+const char *i18n_language(const context &ctx) { return ctx.i18n->current.c_str(); }
 
 void i18n_set_fallback(context &ctx, const char *lang) {
   if (lang != nullptr)
-    ctx.i18n.fallback = lang;
+    ctx.i18n->fallback = lang;
 }
 
 std::vector<std::string> i18n_languages(const context &ctx) {
   std::vector<std::string> out;
-  for (const i18n_table &t : ctx.i18n.tables)
+  for (const i18n_table &t : ctx.i18n->tables)
     out.push_back(t.lang);
   return out;
 }
@@ -103,8 +104,8 @@ const char *tr(const context &ctx, const char *key) {
     return "";
   if (const std::string *s = lookup(ctx.i18n, key))
     return s->c_str();
-  if (!ctx.i18n.tables.empty() && ctx.i18n.missing.insert(key).second)
-    NJIN_WARN("i18n: no string for '%s' in '%s'", key, ctx.i18n.current.c_str());
+  if (!ctx.i18n->tables.empty() && ctx.i18n->missing.insert(key).second)
+    NJIN_WARN("i18n: no string for '%s' in '%s'", key, ctx.i18n->current.c_str());
   return key;
 }
 

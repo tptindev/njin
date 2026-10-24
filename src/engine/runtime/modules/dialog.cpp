@@ -4,6 +4,8 @@
 #include "njin_input.h"
 #include "njin_render.h"
 #include "njin_ctx_impl.h"
+#include "_collide.h"
+#include "njin_audio.h"
 #include "njin_draw.h"
 #include "njin_i18n.h"
 #include "njin_log.h"
@@ -222,16 +224,16 @@ dialog_style dialog_default_style() {
   return s;
 }
 
-void dialog_set_style(context &ctx, const dialog_style &style) { ctx.dialog.style = style; }
-dialog_style dialog_get_style(const context &ctx) { return ctx.dialog.style; }
+void dialog_set_style(context &ctx, const dialog_style &style) { ctx.dialog->style = style; }
+dialog_style dialog_get_style(const context &ctx) { return ctx.dialog->style; }
 
 void dialog_portrait(context &ctx, const char *name, texture_handle texture, rect source) {
   if (name != nullptr)
-    ctx.dialog.portraits[name] = dialog_portrait_rec{texture, source};
+    ctx.dialog->portraits[name] = dialog_portrait_rec{texture, source};
 }
 
 void dialog_set_condition(context &ctx, std::function<bool(context &, const std::string &)> fn) {
-  ctx.dialog.condition = std::move(fn);
+  ctx.dialog->condition = std::move(fn);
 }
 
 bool dialog_parse(const json_value &json, dialog_script &out) {
@@ -278,7 +280,7 @@ bool dialog_load(const char *path, dialog_script &out) {
 }
 
 void dialog_start(context &ctx, const dialog_script &script, const char *start) {
-  ctx.dialog.script = script;
+  ctx.dialog->script = script;
   open(ctx, start);
 }
 
@@ -293,7 +295,7 @@ void dialog_say(context &ctx, const char *speaker, const char *text, const char 
   dialog_start(ctx, s);
 }
 
-bool dialog_active(const context &ctx) { return ctx.dialog.active; }
+bool dialog_active(const context &ctx) { return ctx.dialog->active; }
 
 void dialog_stop(context &ctx) { finish(ctx); }
 

@@ -8,6 +8,11 @@
 #include "njin_collision.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "particles_gpu.h"
+#include "collision.h"
+#include "render_stats.h"
+#include "njin_ecs.h"
+#include "njin_scene_impl.h"
 #include "njin_fx.h"
 #include "njin_level.h"
 #include "njin_log.h"
@@ -133,7 +138,7 @@ void register_builtins(context &ctx) {
   // Needs the scene names, so it captures the context.
   context *pctx = &ctx;
   builtin<scene_owned>(d, "scene_owned", [pctx](const scene_owned &s) {
-    const auto &scenes = pctx->scene.scenes;
+    const auto &scenes = pctx->scene->scenes;
     const char *name = s.scene.id >= 1 && s.scene.id <= scenes.size() ? scenes[s.scene.id - 1].name.c_str() : "?";
     return json_value::make_object().set("scene", name);
   });
@@ -369,8 +374,8 @@ void send_stats(context &ctx) {
   for (const f32 ms : d.frame_ms)
     frames.push(std::round(ms * 100.0f) / 100.0f);
   d.frame_ms.clear();
-  const scene_handle s = ctx.scene.current;
-  const char *scene = s.id >= 1 && s.id <= ctx.scene.scenes.size() ? ctx.scene.scenes[s.id - 1].name.c_str() : "";
+  const scene_handle s = ctx.scene->current;
+  const char *scene = s.id >= 1 && s.id <= ctx.scene->scenes.size() ? ctx.scene->scenes[s.id - 1].name.c_str() : "";
   d.link.send(json_dump(json_value::make_object()
                             .set("t", "stats")
                             .set("frames", std::move(frames))
@@ -378,18 +383,18 @@ void send_stats(context &ctx) {
                             .set("paused", ctx.time.paused && !d.stepping)
                             .set("scale", ctx.time.scale)
                             .set("scene", scene)
-                            .set("collision_debug", ctx.collision.debug)
+                            .set("collision_debug", ctx.collision->debug)
                             .set("render", json_value::make_object()
-                                               .set("sprites", (i64)ctx.stats.sprites)
-                                               .set("sprites_culled", (i64)ctx.stats.sprites_culled)
-                                               .set("tile_chunks", (i64)ctx.stats.tile_chunks)
-                                               .set("emitters", (i64)ctx.stats.emitters)
-                                               .set("emitters_culled", (i64)ctx.stats.emitters_culled)
-                                               .set("particles", (i64)ctx.stats.particles)
-                                               .set("particles_gpu", (i64)ctx.stats.particles_gpu)
-                                               .set("instanced", (i64)ctx.stats.instanced_calls)
-                                               .set("batches", (i64)ctx.stats.batches)
-                                               .set("post_passes", (i64)ctx.stats.post_passes))
+                                               .set("sprites", (i64)ctx.stats->sprites)
+                                               .set("sprites_culled", (i64)ctx.stats->sprites_culled)
+                                               .set("tile_chunks", (i64)ctx.stats->tile_chunks)
+                                               .set("emitters", (i64)ctx.stats->emitters)
+                                               .set("emitters_culled", (i64)ctx.stats->emitters_culled)
+                                               .set("particles", (i64)ctx.stats->particles)
+                                               .set("particles_gpu", (i64)ctx.stats->particles_gpu)
+                                               .set("instanced", (i64)ctx.stats->instanced_calls)
+                                               .set("batches", (i64)ctx.stats->batches)
+                                               .set("post_passes", (i64)ctx.stats->post_passes))
                             .set("dropped", (i64)d.link.dropped),
                         false));
 }
@@ -706,11 +711,11 @@ void send_watches(context &ctx) {
 void begin_frame(context &ctx) {
   debug_state &d = ctx.debug;
   if (!d.running) {
-    ctx.ecs.profile = false;
+    ctx.ecs->profile = false;
     return;
   }
   // Time every system while (and only while) an inspector is watching.
-  ctx.ecs.profile = d.link.connected();
+  ctx.ecs->profile = d.link.connected();
   // Undo the stepped frame: pause again before anything reads the clock.
   if (d.stepping) {
     d.stepping = false;
@@ -865,7 +870,7 @@ void debug_server_stop(context &ctx) {
   d.selected = -1;
 }
 
-bool debug_server_connected(const context &ctx) { return ctx.debug.link.connected(); }
+bool debug_server_connected(const context &ctx) { return ctx.debug->link.connected(); }
 
 void debug_watch(context &ctx, const char *name, json_value value) {
   debug_state &d = ctx.debug;
@@ -900,6 +905,6 @@ void debug_component(context &ctx, entt::id_type type, const char *name, debug_c
                      std::size_t bytes) {
   if (name == nullptr || !fn)
     return;
-  ctx.debug.types[type] = debug_type_entry{name, std::move(fn), bytes, nullptr};
+  ctx.debug->types[type] = debug_type_entry{name, std::move(fn), bytes, nullptr};
 }
 } // namespace njin

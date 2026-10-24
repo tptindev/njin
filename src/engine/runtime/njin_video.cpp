@@ -1,6 +1,8 @@
 #include "njin_video_impl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_audio_impl.h"
+#include "njin_texture.h"
 #include "njin_draw.h"
 #include "njin_ecs.h"
 #include "njin_log.h"
@@ -157,8 +159,8 @@ video_handle video_open(context &ctx, const video_desc &desc) {
   UnloadImage(blank);
   tex.alive = tex.texture.id != 0;
   SetTextureFilter(tex.texture, TEXTURE_FILTER_BILINEAR);
-  ctx.texture.slots.push_back(tex);
-  v.texture = texture_handle{(u32)ctx.texture.slots.size()};
+  ctx.texture->slots.push_back(tex);
+  v.texture = texture_handle{(u32)ctx.texture->slots.size()};
 
   const i32 rate = plm_get_samplerate(plm);
   v.has_audio = desc.audio && IsAudioDeviceReady() && plm_get_num_audio_streams(plm) > 0 && rate > 0;

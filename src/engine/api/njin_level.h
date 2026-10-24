@@ -2,7 +2,7 @@
 #include "_comps.h"
 #include "_types.h"
 #include "njin_collision.h"
-#include "njin_draw.h"
+#include "_draw_types.h"
 #include "njin_json.h"
 #include <entt/entity/entity.hpp>
 #include <string>

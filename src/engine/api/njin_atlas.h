@@ -1,6 +1,6 @@
 #pragma once
 #include "_types.h"
-#include "njin_draw.h"
+#include "_draw_types.h"
 
 namespace njin {
 struct context;

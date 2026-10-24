@@ -87,26 +87,26 @@ fx_state::~fx_state() {
 }
 
 void camera_shake(context &ctx, f32 trauma) {
-  ctx.fx.trauma = clamp(ctx.fx.trauma + trauma, 0.0f, 1.0f);
+  ctx.fx->trauma = clamp(ctx.fx->trauma + trauma, 0.0f, 1.0f);
 }
 
 void camera_shake_config(context &ctx, const shake_config &config) {
-  ctx.fx.shake = config;
+  ctx.fx->shake = config;
 }
 
-f32 camera_shake_amount(const context &ctx) { return ctx.fx.trauma; }
+f32 camera_shake_amount(const context &ctx) { return ctx.fx->trauma; }
 
 void hitstop(context &ctx, f32 seconds) {
-  if (seconds > ctx.fx.hitstop)
-    ctx.fx.hitstop = seconds;
+  if (seconds > ctx.fx->hitstop)
+    ctx.fx->hitstop = seconds;
 }
 
-bool hitstop_active(const context &ctx) { return ctx.fx.hitstop > 0.0f; }
+bool hitstop_active(const context &ctx) { return ctx.fx->hitstop > 0.0f; }
 
 void screen_flash(context &ctx, rgba color, f32 duration) {
-  ctx.fx.flash_color = color;
-  ctx.fx.flash_duration = duration;
-  ctx.fx.flash_time = 0.0f;
+  ctx.fx->flash_color = color;
+  ctx.fx->flash_duration = duration;
+  ctx.fx->flash_time = 0.0f;
 }
 
 void sprite_flash(context &ctx, entt::entity entity, rgba color, f32 duration) {
@@ -264,12 +264,12 @@ void fx_sprite_shader_end() { EndShaderMode(); }
 void draw_dissolve_begin(context &ctx, f32 progress, const dissolve_look &look) {
   const dissolve_fx d{.edge_color = look.edge_color, .edge_width = look.edge_width, .grain = look.grain,
                       .seed = look.seed, .duration = 1.0f, .time = std::clamp(progress, 0.0f, 1.0f)};
-  ctx.fx.screen_dissolve = fx_dissolve_begin(ctx, d, nullptr);
+  ctx.fx->screen_dissolve = fx_dissolve_begin(ctx, d, nullptr);
 }
 
 void draw_dissolve_end(context &ctx) {
-  if (ctx.fx.screen_dissolve)
+  if (ctx.fx->screen_dissolve)
     EndShaderMode();
-  ctx.fx.screen_dissolve = false;
+  ctx.fx->screen_dissolve = false;
 }
 } // namespace njin

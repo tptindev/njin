@@ -3,42 +3,47 @@
 
 #include "_random.h"
 #include "_types.h"
-#include "modules/camera.h"
-#include "modules/collision.h"
-#include "modules/debug.h"
-#include "modules/dialog.h"
-#include "modules/fx.h"
-#include "modules/gizmo.h"
-#include "modules/lighting.h"
-#include "modules/particles_gpu.h"
-#include "modules/post_fx.h"
-#include "modules/reload.h"
-#include "modules/render_stats.h"
-#include "modules/ui.h"
-#include "modules/sprite.h"
-#include "modules/timer.h"
-#include "njin_anim_impl.h"
-#include "njin_audio_impl.h"
-#include "njin_backdrop.h"
 #include "njin_cfg.h"
-#include "njin_ecs.h"
 #include "njin_features.h"
-#include "njin_font.h"
-#include "njin_i18n_impl.h"
-#include "njin_input_impl.h"
-#include "njin_level_impl.h"
 #include "njin_pace.h"
-#include "njin_prefab_impl.h"
-#include "njin_quality_impl.h"
-#include "njin_scene_impl.h"
-#include "njin_sdf2d.h"
-#include "njin_shader.h"
-#include "njin_texture.h"
-#include "njin_view.h"
 #include <string>
 #include <vector>
 
 namespace njin {
+// The core's stores, each held in a store_ref: a source sees complete only
+// the ones it includes the header of, so editing one module's header
+// rebuilds the sources that use it instead of the whole runtime.
+struct anim_store;
+struct audio_store;
+struct backdrop_state;
+struct camera_post;
+struct collision_state;
+struct debug_state;
+struct dialog_state;
+struct ecs_store;
+struct font_store;
+struct fx_state;
+struct gizmo_state;
+struct i18n_store;
+struct input_store;
+struct level_store;
+struct lighting_state;
+struct particle_gpu_state;
+struct post_chain;
+struct prefab_store;
+struct quality_state;
+struct reload_state;
+struct render_stats;
+struct render_texture_store;
+struct scene_store;
+struct sdf2d_state;
+struct shader_store;
+struct sprite_cache;
+struct texture_store;
+struct timer_state;
+struct ui_state;
+struct view_state;
+
 // The optional features' states (njin_features.h): only the feature that owns
 // one sees it complete.
 struct script_state;
@@ -88,7 +93,9 @@ struct time_state {
 // The features' states (feature_ref) keep those places: they are made after
 // the window opens (features_install), and freed where the member stands.
 struct context {
-  explicit context(const config &config) : cfg(config), window(config) {}
+  // Makes every store, in the order they are declared (njin_ctx.cpp).
+  explicit context(const config &config);
+  ~context();
 
   // The features' hooks and modules (njin_features.h).
   feature_hooks hooks;
@@ -109,27 +116,27 @@ struct context {
   feature_ref<script_state> script;
   config cfg;
   window_guard window;
-  view_state view;
-  quality_state quality;
-  input_store input;
-  shader_store shader;
+  store_ref<view_state> view;
+  store_ref<quality_state> quality;
+  store_ref<input_store> input;
+  store_ref<shader_store> shader;
   feature_ref<instance_store> instances;
-  texture_store texture;
-  render_texture_store render_texture;
+  store_ref<texture_store> texture;
+  store_ref<render_texture_store> render_texture;
   feature_ref<model_store> model;
   feature_ref<physics3d_state> physics3d;
   // Mutable: atlases are baked on first draw, and drawing takes a const ctx.
-  mutable font_store font;
+  mutable store_ref<font_store> font;
   // Mutable too: the shape shader is loaded on first draw (njin_sdf2d.h).
-  mutable sdf2d_state sdf2d;
+  mutable store_ref<sdf2d_state> sdf2d;
   // And the backdrop blur's shaders and targets (njin_backdrop.h).
-  mutable backdrop_state backdrop;
-  audio_store audio;
-  camera_post post;
-  fx_state fx;
-  gizmo_state gizmos;
-  post_chain postfx;
-  lighting_state light;
+  mutable store_ref<backdrop_state> backdrop;
+  store_ref<audio_store> audio;
+  store_ref<camera_post> post;
+  store_ref<fx_state> fx;
+  store_ref<gizmo_state> gizmos;
+  store_ref<post_chain> postfx;
+  store_ref<lighting_state> light;
   feature_ref<render3d_state> render3d;
   feature_ref<post3d_state> post3d;
   feature_ref<particles3d_state> particles3d;
@@ -139,22 +146,22 @@ struct context {
   feature_ref<video_store> video;
   // Stops the network thread and closes every socket.
   feature_ref<network_store> network;
-  particle_gpu_state particles_gpu;
-  render_stats stats;
-  reload_state reload;
-  ui_state ui;
-  dialog_state dialog;
-  i18n_store i18n;
-  debug_state debug;
-  sprite_cache sprites;
-  timer_state timers;
-  collision_state collision;
-  scene_store scene;
-  prefab_store prefab;
-  anim_store anim;
+  store_ref<particle_gpu_state> particles_gpu;
+  store_ref<render_stats> stats;
+  store_ref<reload_state> reload;
+  store_ref<ui_state> ui;
+  store_ref<dialog_state> dialog;
+  store_ref<i18n_store> i18n;
+  store_ref<debug_state> debug;
+  store_ref<sprite_cache> sprites;
+  store_ref<timer_state> timers;
+  store_ref<collision_state> collision;
+  store_ref<scene_store> scene;
+  store_ref<prefab_store> prefab;
+  store_ref<anim_store> anim;
   feature_ref<anim3d_store> anim3d;
-  level_store level;
-  ecs_store ecs;
+  store_ref<level_store> level;
+  store_ref<ecs_store> ecs;
 };
 // Saves every screenshot requested this frame. Called after post_render and
 // before EndDrawing, while the back buffer still holds the finished frame.

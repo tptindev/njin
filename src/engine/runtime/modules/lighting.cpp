@@ -3,6 +3,12 @@
 #include "_comps.h"
 #include "njin_camera.h"
 #include "njin_ctx_impl.h"
+#include "njin_draw.h"
+#include "render_stats.h"
+#include "sprite.h"
+#include "njin_ecs.h"
+#include "njin_quality_impl.h"
+#include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_view.h"
 #include <algorithm>
@@ -329,7 +335,7 @@ struct gbuffer_map {
 template <class Pick>
 void draw_gbuffer(context &ctx, RenderTexture2D &target, const Camera2D &camera, Color background,
                   const std::vector<gbuffer_sprite> &sprites, Pick pick) {
-  entt::registry &registry = ctx.ecs.registry;
+  entt::registry &registry = ctx.ecs->registry;
   BeginTextureMode(target);
   bind_view_target(target, screen_size(ctx));
   ClearBackground(background);
@@ -359,7 +365,7 @@ void draw_gbuffer(context &ctx, RenderTexture2D &target, const Camera2D &camera,
 void draw_gbuffers(context &ctx, lighting_state &s, frame_scratch &sc, const Camera2D &camera, const rect &view,
                    i32 w, i32 h, bool &use_normals, bool &use_material, bool &use_emissive) {
   use_normals = use_material = use_emissive = false;
-  entt::registry &registry = ctx.ecs.registry;
+  entt::registry &registry = ctx.ecs->registry;
   std::vector<gbuffer_sprite> &found = sc.sprites;
   found.clear();
   bool any_normal = false, any_material = false, any_emissive = false;
@@ -392,7 +398,7 @@ void draw_gbuffers(context &ctx, lighting_state &s, frame_scratch &sc, const Cam
   }
   if (found.empty())
     return;
-  const std::unordered_set<i32> &by_y = ctx.sprites.y_sorted;
+  const std::unordered_set<i32> &by_y = ctx.sprites->y_sorted;
   std::stable_sort(found.begin(), found.end(), [&by_y](const gbuffer_sprite &a, const gbuffer_sprite &b) {
     if (a.layer != b.layer)
       return a.layer < b.layer;
@@ -527,7 +533,7 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
   // What is in view, and so which lights and occluders matter.
   const rect steady = camera_bounds(ctx);
   const rect view{steady.pos - vec2{64.0f, 64.0f}, steady.size + vec2{128.0f, 128.0f}};
-  entt::registry &registry = ctx.ecs.registry;
+  entt::registry &registry = ctx.ecs->registry;
 
   std::vector<light_job> &lights = sc.lights;
   lights.clear();
@@ -574,12 +580,12 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
     return scene;
 
   // graphics_quality::lighting_scale_max caps the game's scale.
-  const f32 scale = std::clamp(std::min(d.scale, ctx.quality.q.lighting_scale_max), 0.25f, 1.0f);
+  const f32 scale = std::clamp(std::min(d.scale, ctx.quality->q.lighting_scale_max), 0.25f, 1.0f);
   const i32 lw = std::max(1, (i32)((f32)scene.width * scale));
   const i32 lh = std::max(1, (i32)((f32)scene.height * scale));
   // The scene is not 1:1 with the screen (supersampled, or drawn smaller by
   // graphics_quality::world_scale): scale it smoothly.
-  const bool bilinear_scene = ctx.view.render_scale > 1 || quality_world_scale(ctx) < 1.0f;
+  const bool bilinear_scene = ctx.view->render_scale > 1 || quality_world_scale(ctx) < 1.0f;
   if (!ensure_float_target(s.hdr, lw, lh, s.hdr_ok) || !ensure_target(s.lit, scene.width, scene.height, bilinear_scene))
     return scene;
 
@@ -812,14 +818,14 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
   EndShaderMode();
   EndTextureMode();
 
-  ctx.stats.lights += drawn;
-  ctx.stats.post_passes += 3 + (use_normals ? 1u : 0u) + (use_material ? 1u : 0u) + (use_emissive ? 1u : 0u);
+  ctx.stats->lights += drawn;
+  ctx.stats->post_passes += 3 + (use_normals ? 1u : 0u) + (use_material ? 1u : 0u) + (use_emissive ? 1u : 0u);
   return s.lit.texture;
 }
 
-void lighting_set(context &ctx, const lighting_desc &desc) { ctx.light.desc = desc; }
+void lighting_set(context &ctx, const lighting_desc &desc) { ctx.light->desc = desc; }
 
-lighting_desc lighting_get(const context &ctx) { return ctx.light.desc; }
+lighting_desc lighting_get(const context &ctx) { return ctx.light->desc; }
 
 rgba light_color_kelvin(f32 kelvin) {
   const f64 t = std::clamp((f64)kelvin, 1000.0, 40000.0) / 100.0;

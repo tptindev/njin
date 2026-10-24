@@ -1,6 +1,8 @@
 #include "reload.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "njin_shader.h"
+#include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_path.h"
 
@@ -46,8 +48,8 @@ i32 scan(context &ctx, bool immediate) {
   reload_state &state = ctx.reload;
   entt::dispatcher &dispatcher = events(ctx);
   i32 reloaded = 0;
-  for (usize i = 0; i < ctx.texture.slots.size(); i++) {
-    const texture_slot &slot = ctx.texture.slots[i];
+  for (usize i = 0; i < ctx.texture->slots.size(); i++) {
+    const texture_slot &slot = ctx.texture->slots[i];
     if (!slot.alive || slot.path.empty())
       continue;
     const std::string path = slot.path;
@@ -58,8 +60,8 @@ i32 scan(context &ctx, bool immediate) {
     dispatcher.enqueue(asset_reloaded{path, false, ok});
     reloaded += ok ? 1 : 0;
   }
-  for (usize i = 0; i < ctx.shader.slots.size(); i++) {
-    const shader_slot &slot = ctx.shader.slots[i];
+  for (usize i = 0; i < ctx.shader->slots.size(); i++) {
+    const shader_slot &slot = ctx.shader->slots[i];
     if (!slot.alive)
       continue;
     // Check both stages every time, so each keeps its own record.
@@ -113,10 +115,10 @@ void hot_reload_enable(context &ctx, bool on, f32 interval) {
   if (on) {
     // Record current times now, so files edited before enabling do not all
     // reload at once, and the first real edit is noticed promptly.
-    for (const texture_slot &slot : ctx.texture.slots)
+    for (const texture_slot &slot : ctx.texture->slots)
       if (slot.alive && !slot.path.empty())
         check(state, slot.path, false);
-    for (const shader_slot &slot : ctx.shader.slots) {
+    for (const shader_slot &slot : ctx.shader->slots) {
       if (!slot.alive)
         continue;
       if (!slot.vs_path.empty())
@@ -129,7 +131,7 @@ void hot_reload_enable(context &ctx, bool on, f32 interval) {
   }
 }
 
-bool hot_reload_enabled(const context &ctx) { return ctx.reload.enabled; }
+bool hot_reload_enabled(const context &ctx) { return ctx.reload->enabled; }
 
 i32 hot_reload_now(context &ctx) { return scan(ctx, true); }
 } // namespace njin

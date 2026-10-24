@@ -3,6 +3,8 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_impl.h"
+#include "render_stats.h"
+#include "njin_quality_impl.h"
 #include "njin_draw.h"
 #include "njin_render.h"
 #include "njin_texture.h"
@@ -96,7 +98,7 @@ void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, 
   particles3d_state &s = ctx.particles3d;
   // graphics_quality::particles keeps that share of the burst, at least one
   // particle of a burst that asked for some (unless the share is 0).
-  const f32 share = std::clamp(ctx.quality.q.particles, 0.0f, 1.0f);
+  const f32 share = std::clamp(ctx.quality->q.particles, 0.0f, 1.0f);
   if (share < 1.0f && count > 0)
     count = share > 0.0f ? std::max(1, (i32)std::lround((f32)count * share)) : 0;
   const usize room = max_particles - std::min(max_particles, live_count(s));
