@@ -8,7 +8,8 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # A gallery of the 2D lighting: twelve rooms, one case in each. Read main.cpp for the rooms and the keys.
 add_executable(njin_lighting_demo main.cpp module.cpp common.cpp rooms_lights.cpp rooms_occluders.cpp rooms_surfaces.cpp
                                   hud.cpp)
-target_link_libraries(njin_lighting_demo PRIVATE njin::rt njin::gpu njin_warnings)
+njin_use(njin_lighting_demo)
+target_link_libraries(njin_lighting_demo PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/lighting_demo/), so two games never
 # share or overwrite each other's assets.

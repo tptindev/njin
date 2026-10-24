@@ -6,7 +6,8 @@ set(NJIN_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." CACHE PATH "njin source check
 include("${NJIN_ROOT}/cmake/njin_game.cmake")
 
 add_executable(njin_platformer main.cpp play.cpp menus.cpp ../shared/settings_menu.cpp)
-target_link_libraries(njin_platformer PRIVATE njin::rt njin::gpu njin_warnings)
+njin_use(njin_platformer)
+target_link_libraries(njin_platformer PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/platformer/), so two games never share or
 # overwrite each other's assets.

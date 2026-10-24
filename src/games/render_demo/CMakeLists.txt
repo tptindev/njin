@@ -8,7 +8,8 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # A sample for the rendering features: GPU particles, atlas, culling, post
 # effects, vsync. Read main.cpp for the keys.
 add_executable(njin_render_demo main.cpp module.cpp world.cpp emitters.cpp lights.cpp frame_pass.cpp input.cpp hud.cpp)
-target_link_libraries(njin_render_demo PRIVATE njin::rt njin::gpu njin_warnings)
+njin_use(njin_render_demo)
+target_link_libraries(njin_render_demo PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/render_demo/), so two games never
 # share or overwrite each other's assets.

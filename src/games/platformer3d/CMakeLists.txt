@@ -9,7 +9,8 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # an animated robot, floating platforms. The two models in assets/ are built by
 # tools/make_assets.py.
 add_executable(njin_platformer3d main.cpp platformer3d.cpp)
-target_link_libraries(njin_platformer3d PRIVATE njin::rt njin::gpu njin_warnings)
+njin_use(njin_platformer3d FEATURES physics3d)
+target_link_libraries(njin_platformer3d PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/platformer3d/), so two games never share or
 # overwrite each other's assets.

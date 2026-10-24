@@ -8,7 +8,8 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # Box pushing in 2.5D on the 3D API (njin_3d.h): boxes for walls and crates, a
 # capsule with its own shader for the player.
 add_executable(njin_sokoban main.cpp sokoban.cpp)
-target_link_libraries(njin_sokoban PRIVATE njin::rt njin::gpu njin_warnings)
+njin_use(njin_sokoban FEATURES 3d)
+target_link_libraries(njin_sokoban PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/sokoban/), so two games never share or
 # overwrite each other's assets.

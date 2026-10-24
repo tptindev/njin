@@ -19,7 +19,10 @@ add_executable(njin_ui_editor
 
 target_include_directories(njin_ui_editor PRIVATE ${PROJECT_SOURCE_DIR}/src/engine/runtime)
 set_target_properties(njin_ui_editor PROPERTIES NJIN_ENGINE_INTERNAL ON)
-target_link_libraries(njin_ui_editor PRIVATE njin::rt njin_imgui raylib njin_warnings)
+# The engine first, raylib after it: njin calls raylib's PlaySound, which
+# MSVC would otherwise take from winmm.lib, found first after the engine.
+njin_use(njin_ui_editor)
+target_link_libraries(njin_ui_editor PRIVATE njin_imgui raylib njin_warnings)
 njin_icon(njin_ui_editor)
 if(WIN32)
   target_link_libraries(njin_ui_editor PRIVATE comdlg32)

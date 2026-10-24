@@ -8,7 +8,8 @@ include("${NJIN_ROOT}/cmake/njin_game.cmake")
 # First-person aim trainer on the 3D API (njin_3d.h), after Biped-Potato's Bevy
 # FPS tutorial; the gun model is theirs (assets/models/LICENSE.txt).
 add_executable(njin_fps main.cpp fps.cpp)
-target_link_libraries(njin_fps PRIVATE njin::rt njin::gpu njin_warnings)
+njin_use(njin_fps FEATURES 3d net)
+target_link_libraries(njin_fps PRIVATE njin::gpu njin_warnings)
 
 # Each game runs from its own folder (build/bin/fps/), so two games never share or
 # overwrite each other's assets.
