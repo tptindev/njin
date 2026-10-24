@@ -155,6 +155,24 @@ không. Rồi chạy:
 Một cửa sổ Pong mở ra là môi trường đã đủ. Bỏ `--target njin_pong` để build mọi thứ (các game mẫu và
 njin_inspector). Preset `release` build vào `build-release/` với tối ưu, xem @ref getting_started.
 
+### Build nhanh khi sửa engine {#setup_engine_build}
+
+Mọi game mẫu đều include `njin.h`, nên sửa một header công khai thì cả 11 game mẫu và các tool đều phải build lại.
+Khi đang sửa engine, preset `engine` chỉ build engine, một game mẫu (`topdown`) và njin_inspector, vào thư mục
+riêng `build-engine/`:
+
+```
+cmake --preset engine
+cmake --build --preset engine
+```
+
+Muốn game mẫu khác thì đặt `NJIN_EXAMPLES` (danh sách cách nhau bằng `;`), ví dụ
+`cmake --preset engine -DNJIN_EXAMPLES="topdown;platformer3d"`. Mặc định của `NJIN_EXAMPLES` là mọi game mẫu,
+nên preset `debug` vẫn build như cũ.
+
+Nếu máy có [ccache](https://ccache.dev) 4.10 trở lên, njin tự biên dịch qua nó (tắt bằng `-DNJIN_CCACHE=OFF`):
+build lại sau `rm -rf build` hay khi đổi nhánh thì lấy kết quả từ cache thay vì biên dịch lại.
+
 ## Gặp lỗi
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |

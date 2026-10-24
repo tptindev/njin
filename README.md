@@ -116,6 +116,12 @@ cmake --preset release
 cmake --build --preset release
 ```
 
+Working on the engine itself, the `engine` preset builds only the engine, one
+sample (`topdown`) and the inspector into `build-engine/`, so editing a public
+header does not rebuild every sample. Pick other samples with
+`-DNJIN_EXAMPLES="topdown;platformer3d"`. With ccache 4.10 or newer installed,
+njin compiles through it (`-DNJIN_CCACHE=OFF` turns it off).
+
 ## Documentation
 
 The guide and reference documentation, in Vietnamese, lives in

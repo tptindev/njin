@@ -279,9 +279,17 @@ export(TARGETS ${_njin_export_targets}
   NAMESPACE njin_prebuilt:: FILE "${CMAKE_BINARY_DIR}/njinTargets.cmake")
 
 option(NJIN_BUILD_EXAMPLES "Build the small examples shipped with njin" ON)
+# Which of them: all by default. Working on the engine, one or two are enough,
+# and editing a public header then rebuilds only those (the engine preset).
+set(NJIN_ALL_EXAMPLES sandbox pong platformer topdown debug_demo render_demo
+                      tower_defense lighting_demo fps sokoban platformer3d)
+set(NJIN_EXAMPLES "${NJIN_ALL_EXAMPLES}" CACHE STRING "The examples to build (NJIN_BUILD_EXAMPLES), ;-separated")
 if(NJIN_BUILD_EXAMPLES)
-  foreach(example sandbox pong platformer topdown debug_demo render_demo
-                  tower_defense lighting_demo fps sokoban platformer3d)
+  foreach(example IN LISTS NJIN_EXAMPLES)
+    if(NOT example IN_LIST NJIN_ALL_EXAMPLES)
+      list(JOIN NJIN_ALL_EXAMPLES ", " known)
+      message(FATAL_ERROR "NJIN_EXAMPLES: unknown example '${example}' (known: ${known})")
+    endif()
     add_subdirectory(src/games/${example})
   endforeach()
 endif()

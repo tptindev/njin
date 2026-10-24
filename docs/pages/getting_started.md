@@ -110,6 +110,21 @@ cũng có các hàm của feature đó. Game include header của một feature 
 `njin::rt` vẫn là toàn bộ engine: `target_link_libraries(my_game PRIVATE njin::rt)` chạy như
 trước. Một game chỉ dùng một trong hai cách.
 
+## Build game nhanh hơn
+
+Gọi thêm `njin_precompile_headers()` sau `njin_use()`:
+
+```cmake
+njin_use(my_game)
+njin_precompile_headers(my_game)
+```
+
+Header chuẩn của C++, EnTT và các component của lõi (`transform`, `sprite`, `collider`...) được biên dịch sẵn
+một lần, rồi mọi file của game dùng lại thay vì tự đọc lại từ đầu. Chỉ có những header ít khi đổi được đưa vào,
+nên sửa một header của game vẫn chỉ build lại các file cần build lại. Mọi game trong cùng một build dùng chung
+một header biên dịch sẵn. Tắt cả engine lẫn game bằng `-DNJIN_PCH=OFF`, ví dụ để kiểm tra mỗi file tự include đủ
+những gì nó dùng. Xem thêm @ref setup_engine_build.
+
 ## Bước tiếp theo
 
 - @ref first_jump : một nhân vật nhảy được trên bản đồ, trong 50 dòng (platformer)

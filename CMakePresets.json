@@ -23,10 +23,24 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "engine",
+      "displayName": "Engine work (Debug)",
+      "description": "Debug build in build-engine/ of the engine, one sample (topdown) and the inspector: editing a public header rebuilds only those. Set NJIN_EXAMPLES for other samples.",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-engine",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NJIN_EXAMPLES": "topdown",
+        "NJIN_BUILD_UI_EDITOR": "OFF",
+        "NJIN_BUILD_ANIM_EDITOR": "OFF"
+      }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
-    { "name": "release", "configurePreset": "release" }
+    { "name": "release", "configurePreset": "release" },
+    { "name": "engine", "configurePreset": "engine" }
   ]
 }
