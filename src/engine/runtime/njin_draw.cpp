@@ -1,4 +1,6 @@
-#include "njin_draw.h"
+#include "njin_draw_shapes.h"
+#include "njin_draw_text.h"
+#include "njin_draw_texture.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"

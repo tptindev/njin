@@ -3,7 +3,7 @@
 #include "_comps.h"
 #include "njin_camera.h"
 #include "njin_ctx_get.h"
-#include "njin_draw.h"
+#include "njin_draw_texture.h"
 #include "render_stats.h"
 #include "sprite.h"
 #include "njin_ecs.h"

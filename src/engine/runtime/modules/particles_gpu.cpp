@@ -1,7 +1,7 @@
 #include "particles_gpu.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
-#include "njin_draw.h"
+#include "njin_draw_shapes.h"
 #include "render_stats.h"
 #include "njin_ecs.h"
 #include "njin_texture.h"

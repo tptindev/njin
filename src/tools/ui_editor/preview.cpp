@@ -9,7 +9,7 @@
 #include "modules/ui.h"
 #include "njin_input_impl.h"
 #include "njin_view.h"
-#include "njin_draw.h"
+#include "njin_draw_text.h"
 #include "njin_ecs.h"
 #include "njin_render.h"
 #include <algorithm>

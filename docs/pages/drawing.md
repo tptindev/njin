@@ -9,6 +9,10 @@ Mọi hàm vẽ phải gọi trong ba phase vẽ. Không gian phụ thuộc phas
 
 @include drawing.cpp
 
+Mọi hàm ở trang này nằm trong `njin_draw.h`, header gồm ba phần: `njin_draw_shapes.h` (hình, trộn màu, làm mờ,
+cắt vùng vẽ), `njin_draw_text.h` (font và chữ) và `njin_draw_texture.h` (texture). Game include `njin.h` là có
+đủ cả ba.
+
 ## Hình khối
 
 | Hàm | Vẽ |

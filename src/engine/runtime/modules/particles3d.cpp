@@ -5,7 +5,7 @@
 #include "njin_ctx_get.h"
 #include "render_stats.h"
 #include "njin_quality_impl.h"
-#include "njin_draw.h"
+#include "njin_draw_shapes.h"
 #include "njin_render.h"
 #include "njin_texture.h"
 #include <algorithm>

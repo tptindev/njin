@@ -3,7 +3,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
 #include "njin_quality_impl.h"
-#include "njin_draw.h"
+#include "njin_draw_texture.h"
 #include "njin_ecs.h"
 #include "njin_log.h"
 #include "njin_path.h"

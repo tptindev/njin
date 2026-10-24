@@ -5,7 +5,7 @@
 #include "njin_frame_impl.h"
 #include "njin_ecs.h"
 #include "njin_scene_impl.h"
-#include "njin_draw.h"
+#include "njin_draw_shapes.h"
 #include "njin_cfg.h"
 #include "njin_level_impl.h"
 #include "njin_log.h"

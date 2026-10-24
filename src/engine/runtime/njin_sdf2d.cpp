@@ -4,7 +4,7 @@
 #include "njin_ctx_get.h"
 #include "modules/fx.h"
 #include "njin_shader.h"
-#include "njin_draw.h"
+#include "njin_draw_shapes.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <rlgl.h>

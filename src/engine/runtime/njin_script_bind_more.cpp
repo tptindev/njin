@@ -8,7 +8,7 @@
 #include "_tilemap.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
-#include "njin_draw.h"
+#include "njin_draw_text.h"
 #include "njin_i18n.h"
 #include "njin_json.h"
 #include "njin_light.h"
