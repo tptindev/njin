@@ -1,6 +1,7 @@
 #include "njin_netcode_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_log.h"
 #include "njin_netcode.h"
 #include "njin_network_impl.h"
@@ -115,19 +116,19 @@ void netcode_state_destroy(netcode_state *state) { delete state; }
 
 namespace {
 netcode_state &state_of(context &ctx) {
-  if (!ctx.network->netcode)
-    ctx.network->netcode = new netcode_state();
-  return *ctx.network->netcode;
+  if (!ctx_ref<network_store>(ctx)->netcode)
+    ctx_ref<network_store>(ctx)->netcode = new netcode_state();
+  return *ctx_ref<network_store>(ctx)->netcode;
 }
 
 session *session_of(context &ctx) {
-  netcode_state *st = ctx.network->netcode;
+  netcode_state *st = ctx_ref<network_store>(ctx)->netcode;
   return st && st->s ? st->s.get() : nullptr;
 }
 
 const session *session_of(const context &ctx) { return session_of(const_cast<context &>(ctx)); }
 
-u32 comp_count(const context &ctx) { return ctx.network->netcode ? (u32)ctx.network->netcode->comps.size() : 0; }
+u32 comp_count(const context &ctx) { return ctx_ref<network_store>(ctx)->netcode ? (u32)ctx_ref<network_store>(ctx)->netcode->comps.size() : 0; }
 
 // The widest gap between snapshots seen lately (losses in a row), at least two
 // intervals, plus the jitter seen lately.
@@ -137,7 +138,7 @@ f64 interp_target(const context &ctx, const session &s, f64 spread) {
   u32 gap = s.opts.snapshot_interval * 2;
   for (usize i = 1; i < s.arrival_ticks.size(); ++i)
     gap = std::max(gap, s.arrival_ticks[i] - s.arrival_ticks[i - 1]);
-  return (f64)gap * ctx.time.fixed_dt + spread + 0.015;
+  return (f64)gap * ctx_ref<time_state>(ctx).fixed_dt + spread + 0.015;
 }
 
 // --- inputs ---
@@ -235,7 +236,7 @@ bool read_input(session &s, u32 player, std::string &out) {
 // --- server snapshots ---
 
 world_state capture(context &ctx, session &s) {
-  const netcode_state &st = *ctx.network->netcode;
+  const netcode_state &st = *ctx_ref<network_store>(ctx)->netcode;
   entt::registry &reg = world(ctx);
   world_state out;
   for (auto it = s.replicated.begin(); it != s.replicated.end();) {
@@ -283,7 +284,7 @@ std::string encode_entity(u32 id, const ent_state &now, const ent_state *base, u
 }
 
 void send_snapshot(context &ctx, session &s, remote_client &c, const world_state &now) {
-  const netcode_state &st = *ctx.network->netcode;
+  const netcode_state &st = *ctx_ref<network_store>(ctx)->netcode;
   const u32 comps = (u32)st.comps.size();
   // Baseline: the snapshot the client last confirmed, if still kept.
   const world_state *base = nullptr;
@@ -386,7 +387,7 @@ void destroy_local(context &ctx, session &s, u32 id) {
 }
 
 void apply(context &ctx, session &s, const world_state &ws, u32 tick) {
-  const netcode_state &st = *ctx.network->netcode;
+  const netcode_state &st = *ctx_ref<network_store>(ctx)->netcode;
   entt::registry &reg = world(ctx);
   for (const auto &[id, es] : s.applied)
     if (!ws.count(id))
@@ -530,7 +531,7 @@ void receive_snapshot(context &ctx, session &s, std::string_view data) {
   // Server time for interpolation follows the least delayed snapshots; the
   // delay grows at once with the jitter and shrinks slowly, so a late
   // snapshot is waited for instead of snapped to.
-  s.arrivals.push_back((f64)tick * ctx.time.fixed_dt - net_clock(ctx));
+  s.arrivals.push_back((f64)tick * ctx_ref<time_state>(ctx).fixed_dt - net_clock(ctx));
   s.arrival_ticks.push_back(tick);
   if (s.arrivals.size() > arrival_window) {
     s.arrivals.pop_front();
@@ -554,12 +555,12 @@ void receive_snapshot(context &ctx, session &s, std::string_view data) {
 void interpolate(context &ctx, session &s) {
   if (!s.has_offset)
     return;
-  const netcode_state &st = *ctx.network->netcode;
+  const netcode_state &st = *ctx_ref<network_store>(ctx)->netcode;
   entt::registry &reg = world(ctx);
-  const f64 dt = ctx.time.fixed_dt;
+  const f64 dt = ctx_ref<time_state>(ctx).fixed_dt;
   // The delay moves toward its target by changing how fast the render time
   // runs, by at most 10% (growing) or 2% (shrinking), never by a jump.
-  const f64 step = (f64)ctx.time.dt_real;
+  const f64 step = (f64)ctx_ref<time_state>(ctx).dt_real;
   if (s.delay < s.delay_target)
     s.delay = std::min(s.delay_target, s.delay + step * 0.1);
   else
@@ -609,7 +610,7 @@ void on_server_event(context &ctx, session &s, net_host_event &e) {
     w.write_u8(msg_welcome);
     w.write_varint(e.peer.id);
     w.write_u32(s.tick);
-    w.write_f32(ctx.time.fixed_dt);
+    w.write_f32(ctx_ref<time_state>(ctx).fixed_dt);
     net_peer_send(ctx, e.peer, w.data(), net_delivery::reliable, ch_control);
     netcode_event ev;
     ev.kind = netcode_event_kind::joined;
@@ -676,9 +677,9 @@ void on_client_event(context &ctx, session &s, net_host_event &e) {
       const f32 server_dt = r.read_f32();
       if (!r.ok())
         return;
-      if (std::fabs(server_dt - ctx.time.fixed_dt) > 1e-6f)
+      if (std::fabs(server_dt - ctx_ref<time_state>(ctx).fixed_dt) > 1e-6f)
         NJIN_WARN("netcode: server ticks at %.1f Hz, this game at %.1f Hz; set the same config::fixed_hz",
-                  1.0 / server_dt, 1.0 / ctx.time.fixed_dt);
+                  1.0 / server_dt, 1.0 / ctx_ref<time_state>(ctx).fixed_dt);
       s.self = self;
       // A first guess; the server's reports on our inputs correct it.
       s.tick = server_tick + s.opts.input_margin + 2;
@@ -823,7 +824,7 @@ void netcode_stop(context &ctx) {
     time_set_fixed_rate(ctx, 1.0f);
   }
   net_host_destroy(ctx, s->host);
-  ctx.network->netcode->s.reset();
+  ctx_ref<network_store>(ctx)->netcode->s.reset();
 }
 
 netcode_role netcode_role_of(const context &ctx) {
@@ -974,7 +975,7 @@ netcode_stats netcode_info(const context &ctx) {
   out.tick = s->tick;
   out.render_tick = s->render_tick;
   out.input_margin = s->margin;
-  out.fixed_rate = ctx.time.fixed_rate;
+  out.fixed_rate = ctx_ref<time_state>(ctx).fixed_rate;
   out.missing_inputs = s->missing_inputs;
   out.snapshot_bytes = s->snapshot_bytes;
   out.entities = (u32)(s->role == netcode_role::server ? s->replicated.size() : s->entities.size());
@@ -991,7 +992,7 @@ bool netcode_confirmed_bytes(const context &ctx, entt::entity entity, u32 type, 
   if (it == s->id_of_entity.end())
     return false;
   const local_entity &le = s->entities.at(it->second);
-  const auto &comps = ctx.network->netcode->comps;
+  const auto &comps = ctx_ref<network_store>(ctx)->netcode->comps;
   for (usize i = 0; i < comps.size(); ++i)
     if (comps[i].type == type && !le.confirmed[i].second.empty()) {
       tick = le.confirmed[i].first;

@@ -1,5 +1,6 @@
 #include "debug.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_file.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -37,7 +38,7 @@ void shrink(const u8 *src, i32 sw, i32 sh, u8 *dst, i32 dw, i32 dh) {
 }
 
 void finish(context &ctx, const char *why) {
-  debug_recorder &r = ctx.debug->rec;
+  debug_recorder &r = ctx_ref<debug_state>(ctx)->rec;
   if (!r.active)
     return;
   r.active = false;
@@ -54,7 +55,7 @@ void finish(context &ctx, const char *why) {
 } // namespace
 
 bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds) {
-  debug_recorder &r = ctx.debug->rec;
+  debug_recorder &r = ctx_ref<debug_state>(ctx)->rec;
   if (r.active)
     return true;
   r.dirty = true;
@@ -95,10 +96,10 @@ bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds) {
 void debug_record_stop(context &ctx) { finish(ctx, "stopped"); }
 
 void debug_record_frame(context &ctx) {
-  debug_recorder &r = ctx.debug->rec;
+  debug_recorder &r = ctx_ref<debug_state>(ctx)->rec;
   if (!r.active)
     return;
-  const f32 dt = ctx.time.dt_real;
+  const f32 dt = ctx_ref<time_state>(ctx).dt_real;
   r.since_last += dt;
   if (r.since_last < 1.0f / r.fps - 0.0005f)
     return;
@@ -134,7 +135,7 @@ void debug_record_frame(context &ctx) {
 }
 
 json_value debug_record_status(const context &ctx) {
-  const debug_recorder &r = ctx.debug->rec;
+  const debug_recorder &r = ctx_ref<debug_state>(ctx)->rec;
   json_value m = json_value::make_object();
   m.set("t", "rec").set("on", r.active).set("frames", r.frames).set("secs", r.elapsed).set("bytes", (i64)r.gif.bytes());
   m.set("w", r.width).set("h", r.height).set("fps", r.fps).set("max", r.max_seconds).set("file", r.path).set("err", r.error);

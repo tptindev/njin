@@ -10,7 +10,7 @@
 #include "njin_3d.h"
 #include "njin_anim3d_impl.h"
 #include "njin_audio_impl.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_instance.h"
 #include "njin_json.h"
 #include "njin_log.h"
@@ -23,19 +23,19 @@ namespace njin {
 namespace {
 // The depth the last pass left in the world target, for the depth of field.
 void world_depth(context &ctx, u32 depth_texture, post_depth &out) {
-  render3d_state &r = ctx.render3d;
+  render3d_state &r = ctx_ref<render3d_state>(ctx);
   if (r.depth_drawn && depth_texture != 0)
     out = {depth_texture, r.depth_near, r.depth_far, r.depth_inv_view_proj};
   r.depth_drawn = false;
 }
 
-const debug3d_frame *debug_frame3d(const context &ctx) { return &ctx.render3d->debug; }
+const debug3d_frame *debug_frame3d(const context &ctx) { return &ctx_ref<render3d_state>(ctx)->debug; }
 
 json_value vec3_json(vec3 v) { return json_value::make_array().push(v.x).push(v.y).push(v.z); }
 json_value color_json(rgba c) { return json_value::make_array().push(c.r).push(c.g).push(c.b).push(c.a); }
 
 void debug_views(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   const context *pctx = &ctx;
   debug_builtin<transform3d>(d, "transform3d", [](const transform3d &t) {
     return json_value::make_object()
@@ -76,14 +76,14 @@ void debug_views(context &ctx) {
 } // namespace
 
 void feature_install_3d(context &ctx) {
-  ctx.instances.emplace();
-  ctx.model.emplace();
-  ctx.render3d.emplace();
-  ctx.post3d.emplace();
-  ctx.particles3d.emplace();
-  ctx.world3d.emplace();
-  ctx.anim3d.emplace();
-  feature_hooks &h = ctx.hooks;
+  ctx_ref<instance_store>(ctx).emplace();
+  ctx_ref<model_store>(ctx).emplace();
+  ctx_ref<render3d_state>(ctx).emplace();
+  ctx_ref<post3d_state>(ctx).emplace();
+  ctx_ref<particles3d_state>(ctx).emplace();
+  ctx_ref<world3d_store>(ctx).emplace();
+  ctx_ref<anim3d_store>(ctx).emplace();
+  feature_hooks &h = ctx_ref<feature_hooks>(ctx);
   h.world_begin = post3d_frame_begin;
   h.world_post_wanted = post3d_wanted;
   h.world_end = render3d_close;
@@ -97,28 +97,28 @@ void feature_install_3d(context &ctx) {
 }
 
 model_handle model_load(context &ctx, const char *path) {
-  return model_store_load(ctx.model, model_load_desc{.path = path});
+  return model_store_load(ctx_ref<model_store>(ctx), model_load_desc{.path = path});
 }
 
-model_handle model_load(context &ctx, const model_load_desc &desc) { return model_store_load(ctx.model, desc); }
+model_handle model_load(context &ctx, const model_load_desc &desc) { return model_store_load(ctx_ref<model_store>(ctx), desc); }
 
 void model_unload(context &ctx, model_handle handle) {
-  model_store_unload(ctx.model, handle);
+  model_store_unload(ctx_ref<model_store>(ctx), handle);
 }
 
-model_handle model_create(context &ctx, const mesh3d_data &mesh) { return model_store_create(ctx.model, mesh); }
+model_handle model_create(context &ctx, const mesh3d_data &mesh) { return model_store_create(ctx_ref<model_store>(ctx), mesh); }
 
 model_handle model_create_skinned(context &ctx, const skinned_mesh3d_data &mesh) {
-  return model_store_create_skinned(ctx.model, mesh);
+  return model_store_create_skinned(ctx_ref<model_store>(ctx), mesh);
 }
 
 i32 model_material_count(const context &ctx, model_handle handle) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   return slot != nullptr ? (i32)slot->materials.size() : 0;
 }
 
 i32 model_material_find(const context &ctx, model_handle handle, const char *name) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr || name == nullptr || name[0] == '\0')
     return -1;
   const usize n = std::strlen(name);
@@ -129,14 +129,14 @@ i32 model_material_find(const context &ctx, model_handle handle, const char *nam
 }
 
 model_material model_material_get(const context &ctx, model_handle handle, i32 index) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr || index < 0 || index >= (i32)slot->materials.size())
     return model_material{};
   return slot->materials[(usize)index];
 }
 
 void model_material_set(context &ctx, model_handle handle, i32 index, const model_material &material) {
-  model_slot *slot = model_slot_of(ctx.model, handle);
+  model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr)
     return;
   if (index < 0) {

@@ -1,6 +1,7 @@
 #include "reload.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
 #include "njin_log.h"
@@ -12,9 +13,9 @@ enum class change { none, settled };
 
 // The script files to watch: none without the script feature.
 std::vector<std::string> script_files(const context &ctx) {
-  if (ctx.hooks.watched_files == nullptr)
+  if (ctx_ref<feature_hooks>(ctx).watched_files == nullptr)
     return {};
-  return ctx.hooks.watched_files(ctx);
+  return ctx_ref<feature_hooks>(ctx).watched_files(ctx);
 }
 
 // Tracks one file: the first sight records its time; a new time is held
@@ -45,23 +46,23 @@ change check(reload_state &state, const std::string &path, bool immediate) {
 }
 
 i32 scan(context &ctx, bool immediate) {
-  reload_state &state = ctx.reload;
+  reload_state &state = ctx_ref<reload_state>(ctx);
   entt::dispatcher &dispatcher = events(ctx);
   i32 reloaded = 0;
-  for (usize i = 0; i < ctx.texture->slots.size(); i++) {
-    const texture_slot &slot = ctx.texture->slots[i];
+  for (usize i = 0; i < ctx_ref<texture_store>(ctx)->slots.size(); i++) {
+    const texture_slot &slot = ctx_ref<texture_store>(ctx)->slots[i];
     if (!slot.alive || slot.path.empty())
       continue;
     const std::string path = slot.path;
     if (check(state, path, immediate) != change::settled)
       continue;
-    const bool ok = texture_store_reload(ctx.texture, texture_handle{.id = (u32)(i + 1)});
+    const bool ok = texture_store_reload(ctx_ref<texture_store>(ctx), texture_handle{.id = (u32)(i + 1)});
     NJIN_INFO("hot reload: texture %s%s", path.c_str(), ok ? "" : " (failed)");
     dispatcher.enqueue(asset_reloaded{path, false, ok});
     reloaded += ok ? 1 : 0;
   }
-  for (usize i = 0; i < ctx.shader->slots.size(); i++) {
-    const shader_slot &slot = ctx.shader->slots[i];
+  for (usize i = 0; i < ctx_ref<shader_store>(ctx)->slots.size(); i++) {
+    const shader_slot &slot = ctx_ref<shader_store>(ctx)->slots[i];
     if (!slot.alive)
       continue;
     // Check both stages every time, so each keeps its own record.
@@ -74,7 +75,7 @@ i32 scan(context &ctx, bool immediate) {
       changed = check(state, fs_path, immediate) == change::settled || changed;
     if (!changed)
       continue;
-    const bool ok = shader_store_reload(ctx.shader, shader_handle{.id = (u32)(i + 1)});
+    const bool ok = shader_store_reload(ctx_ref<shader_store>(ctx), shader_handle{.id = (u32)(i + 1)});
     const std::string &name = fs_path.empty() ? vs : fs_path;
     NJIN_INFO("hot reload: shader %s%s", name.c_str(), ok ? "" : " (failed, old shader kept)");
     dispatcher.enqueue(asset_reloaded{name, true, ok});
@@ -83,7 +84,7 @@ i32 scan(context &ctx, bool immediate) {
   for (const std::string &path : script_files(ctx)) {
     if (check(state, asset_path(path.c_str()), immediate) != change::settled)
       continue;
-    const bool ok = ctx.hooks.reload_file(ctx, path);
+    const bool ok = ctx_ref<feature_hooks>(ctx).reload_file(ctx, path);
     NJIN_INFO("hot reload: script %s%s", path.c_str(), ok ? "" : " (failed, old functions kept)");
     dispatcher.enqueue(asset_reloaded{.path = path, .ok = ok, .script = true});
     reloaded += ok ? 1 : 0;
@@ -92,10 +93,10 @@ i32 scan(context &ctx, bool immediate) {
 }
 
 void poll(context &ctx) {
-  reload_state &state = ctx.reload;
+  reload_state &state = ctx_ref<reload_state>(ctx);
   if (!state.enabled)
     return;
-  state.timer += ctx.time.dt_real;
+  state.timer += ctx_ref<time_state>(ctx).dt_real;
   if (state.timer < state.interval)
     return;
   state.timer = 0.0f;
@@ -108,17 +109,17 @@ void setup(context &ctx) { ecs_register(ctx, phase_pre_update, poll, "poll"); }
 mod_desc reload_module() { return mod_desc{.name = "njin.reload", .setup = setup}; }
 
 void hot_reload_enable(context &ctx, bool on, f32 interval) {
-  reload_state &state = ctx.reload;
+  reload_state &state = ctx_ref<reload_state>(ctx);
   state.enabled = on;
   state.interval = interval > 0.0f ? interval : 0.25f;
   state.timer = 0.0f;
   if (on) {
     // Record current times now, so files edited before enabling do not all
     // reload at once, and the first real edit is noticed promptly.
-    for (const texture_slot &slot : ctx.texture->slots)
+    for (const texture_slot &slot : ctx_ref<texture_store>(ctx)->slots)
       if (slot.alive && !slot.path.empty())
         check(state, slot.path, false);
-    for (const shader_slot &slot : ctx.shader->slots) {
+    for (const shader_slot &slot : ctx_ref<shader_store>(ctx)->slots) {
       if (!slot.alive)
         continue;
       if (!slot.vs_path.empty())
@@ -131,7 +132,7 @@ void hot_reload_enable(context &ctx, bool on, f32 interval) {
   }
 }
 
-bool hot_reload_enabled(const context &ctx) { return ctx.reload->enabled; }
+bool hot_reload_enabled(const context &ctx) { return ctx_ref<reload_state>(ctx)->enabled; }
 
 i32 hot_reload_now(context &ctx) { return scan(ctx, true); }
 } // namespace njin

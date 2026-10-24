@@ -2,7 +2,7 @@
 #include "_comps.h"
 #include "njin_anim_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include <algorithm>
 
 namespace njin {
@@ -87,9 +87,9 @@ void advance(const anim_sheet &sheet, animator &anim, f32 dt) {
 void update(context &ctx) {
   const f32 dt = delta(ctx);
   for (auto [entity, anim, spr] : world(ctx).view<animator, sprite>().each()) {
-    const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph);
+    const anim_graph *graph = anim_graph_of(ctx_ref<anim_store>(ctx), anim.graph);
     const anim_sheet *sheet =
-        anim_sheet_of(ctx.anim, graph != nullptr ? graph->sheet : anim.sheet);
+        anim_sheet_of(ctx_ref<anim_store>(ctx), graph != nullptr ? graph->sheet : anim.sheet);
     if (sheet == nullptr)
       continue;
     if (graph != nullptr) {

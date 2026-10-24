@@ -1,7 +1,7 @@
 // The physics3d feature (njin_features.h): bodies, characters, ragdolls, soft
 // bodies and vehicles on Jolt Physics, stepped after the game's fixed systems.
 #include "modules/debug.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_json.h"
 #include "njin_physics3d_impl.h"
 
@@ -10,7 +10,7 @@ namespace {
 json_value vec3_json(vec3 v) { return json_value::make_array().push(v.x).push(v.y).push(v.z); }
 
 void debug_views(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   const context *pctx = &ctx;
   debug_builtin<body3d>(d, "body3d", [pctx](const body3d &b) {
     return json_value::make_object()
@@ -28,8 +28,8 @@ void debug_views(context &ctx) {
 } // namespace
 
 void feature_install_physics3d(context &ctx) {
-  ctx.physics3d.emplace();
-  feature_hooks &h = ctx.hooks;
+  ctx_ref<physics3d_state>(ctx).emplace();
+  feature_hooks &h = ctx_ref<feature_hooks>(ctx);
   h.fixed_step = physics3d_step;
   h.raycast = static_cast<ray3d_hit (*)(const context &, const ray3d &, f32, body3d_handle *)>(physics3d_raycast);
   h.heightfield_create = physics3d_heightfield_create;

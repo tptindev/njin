@@ -7,7 +7,7 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_camera.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_quality_impl.h"
 #include "njin_ecs.h"
 #include "njin_shader.h"
@@ -64,7 +64,7 @@ RenderTexture2D load_target(i32 w, i32 h) {
 // the screen, while the UI after it keeps the screen's own resolution.
 bool ensure_post_target(const context &ctx, camera_post &post) {
   const vec2 screen = screen_size(ctx);
-  const f32 scale = (f32)ctx.view->render_scale * quality_world_scale(ctx);
+  const f32 scale = (f32)ctx_ref<view_state>(ctx)->render_scale * quality_world_scale(ctx);
   const i32 w = std::max(1, (i32)std::lround(screen.x * scale));
   const i32 h = std::max(1, (i32)std::lround(screen.y * scale));
   if (IsRenderTextureValid(post.target) && post.target.texture.width == w &&
@@ -83,18 +83,18 @@ bool ensure_post_target(const context &ctx, camera_post &post) {
 }
 
 void begin_world_space(context &ctx) {
-  if (ctx.hooks.world_begin != nullptr)
-    ctx.hooks.world_begin(ctx);
-  camera_post &post = ctx.post;
-  const bool wanted = shader_slot_of(ctx.shader, post.shader) != nullptr ||
-                      post_chain_active(ctx.postfx) || lighting_active(ctx.light) ||
-                      (ctx.hooks.world_post_wanted != nullptr && ctx.hooks.world_post_wanted(ctx)) ||
+  if (ctx_ref<feature_hooks>(ctx).world_begin != nullptr)
+    ctx_ref<feature_hooks>(ctx).world_begin(ctx);
+  camera_post &post = ctx_ref<camera_post>(ctx);
+  const bool wanted = shader_slot_of(ctx_ref<shader_store>(ctx), post.shader) != nullptr ||
+                      post_chain_active(ctx_ref<post_chain>(ctx)) || lighting_active(ctx_ref<lighting_state>(ctx)) ||
+                      (ctx_ref<feature_hooks>(ctx).world_post_wanted != nullptr && ctx_ref<feature_hooks>(ctx).world_post_wanted(ctx)) ||
                       quality_world_scale(ctx) < 1.0f;
   post.drawing = wanted && ensure_post_target(ctx, post);
   if (post.drawing) {
     bind_view_target(post.target, screen_size(ctx));
     Color clear{};
-    to_raylib(ctx.cfg.clear_bg_color, clear);
+    to_raylib(ctx_ref<config>(ctx).clear_bg_color, clear);
     ClearBackground(clear);
   }
   // The shake only moves what is drawn; camera_active, w2scr and scr2w keep
@@ -103,26 +103,26 @@ void begin_world_space(context &ctx) {
   fx_apply_shake(ctx, camera);
   post.world_camera = camera;
   BeginMode2D(camera);
-  ctx.view->world_depth++;
+  ctx_ref<view_state>(ctx)->world_depth++;
 }
 
 void finish_world_post(context &ctx);
 
 void end_world_space(context &ctx) {
-  if (ctx.hooks.world_end != nullptr)
-    ctx.hooks.world_end(ctx);
+  if (ctx_ref<feature_hooks>(ctx).world_end != nullptr)
+    ctx_ref<feature_hooks>(ctx).world_end(ctx);
   EndMode2D();
-  ctx.view->world_depth = std::max(0, ctx.view->world_depth - 1);
+  ctx_ref<view_state>(ctx)->world_depth = std::max(0, ctx_ref<view_state>(ctx)->world_depth - 1);
   finish_world_post(ctx);
   // The world is done and on the virtual image. With smooth UI, the rest of the
   // frame (the screen-space phase and what follows) is drawn on the window.
-  view_ui_begin(ctx.view);
+  view_ui_begin(ctx_ref<view_state>(ctx));
   // Debug gizmos over the finished world, under the game's UI.
   gizmo_draw_screen(ctx);
 }
 
 void finish_world_post(context &ctx) {
-  camera_post &post = ctx.post;
+  camera_post &post = ctx_ref<camera_post>(ctx);
   if (!post.drawing)
     return;
   post.drawing = false;
@@ -132,10 +132,10 @@ void finish_world_post(context &ctx) {
   const Texture2D &lit = lighting_apply(ctx, post.world_camera, post.target.texture);
   // The depth of the 3D drawn this frame, for the depth of field.
   post_depth depth{};
-  if (ctx.hooks.world_depth != nullptr)
-    ctx.hooks.world_depth(ctx, post.target.depth.id, depth);
+  if (ctx_ref<feature_hooks>(ctx).world_depth != nullptr)
+    ctx_ref<feature_hooks>(ctx).world_depth(ctx, post.target.depth.id, depth);
   const Texture2D &texture = post_chain_run(ctx, lit, depth);
-  view_rebind(ctx.view);
+  view_rebind(ctx_ref<view_state>(ctx));
   // Framebuffers are stored bottom-up: a negative source height flips it. The
   // dest is the logical size, not the texture's own (render_scale times
   // bigger) pixel size: DrawTextureRec draws 1:1 by texture pixel, which would
@@ -143,7 +143,7 @@ void finish_world_post(context &ctx) {
   const vec2 screen = screen_size(ctx);
   const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
   const Rectangle dest{0.0f, 0.0f, screen.x, screen.y};
-  const shader_slot *slot = shader_slot_of(ctx.shader, post.shader);
+  const shader_slot *slot = shader_slot_of(ctx_ref<shader_store>(ctx), post.shader);
   if (slot != nullptr) {
     BeginShaderMode(slot->shader);
     shader_bind_textures(ctx, *slot);
@@ -165,10 +165,10 @@ void setup(context &ctx) {
 } // namespace
 
 void world_target_rebind(context &ctx) {
-  if (ctx.post->drawing) {
-    bind_view_target(ctx.post->target, screen_size(ctx));
-  } else if (ctx.view->drawing) {
-    bind_view_target(ctx.view->target, view_logical_size(ctx.view));
+  if (ctx_ref<camera_post>(ctx)->drawing) {
+    bind_view_target(ctx_ref<camera_post>(ctx)->target, screen_size(ctx));
+  } else if (ctx_ref<view_state>(ctx)->drawing) {
+    bind_view_target(ctx_ref<view_state>(ctx)->target, view_logical_size(ctx_ref<view_state>(ctx)));
   } else {
     // The window, as BeginDrawing leaves it.
     rlDrawRenderBatchActive();
@@ -184,7 +184,7 @@ void world_target_rebind(context &ctx) {
     rlMatrixMode(RL_MODELVIEW);
     rlLoadIdentity();
   }
-  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post->world_camera)));
+  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx_ref<camera_post>(ctx)->world_camera)));
 }
 
 mod_desc camera_module() {
@@ -197,7 +197,7 @@ camera_post::~camera_post() {
 }
 
 void camera_set_post_shader(context &ctx, shader_handle shader) {
-  ctx.post->shader = shader;
+  ctx_ref<camera_post>(ctx)->shader = shader;
 }
 
 rect camera_bounds(const context &ctx) {
@@ -222,7 +222,7 @@ rect camera_bounds(const context &ctx) {
 
 camera_view camera_active(const context &ctx) {
   const auto cameras =
-      ctx.ecs->registry
+      ctx_ref<ecs_store>(ctx)->registry
           .view<const camera_on, const camera_2d, const transform>();
   for (const entt::entity entity : cameras) {
     const camera_2d &cam = cameras.get<const camera_2d>(entity);

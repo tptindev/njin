@@ -1,6 +1,6 @@
 #include "njin_ecs.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_scene_impl.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -129,15 +129,15 @@ void ecs_register(context &ctx, sys_phase phase, const sys_desc &desc) {
     NJIN_WARN("ecs_register: invalid phase or null system");
     return;
   }
-  if (!ctx.ecs->in_setup) {
+  if (!ctx_ref<ecs_store>(ctx)->in_setup) {
     NJIN_WARN("ecs_register: only allowed inside a module setup callback");
     return;
   }
-  ctx.ecs->pending[phase].push_back(desc);
+  ctx_ref<ecs_store>(ctx)->pending[phase].push_back(desc);
 }
 
 void mod_register(context &ctx, const mod_desc &desc) {
-  ecs_store &ecs = ctx.ecs;
+  ecs_store &ecs = ctx_ref<ecs_store>(ctx);
   const char *label = module_label(desc);
   if (ecs.started) {
     NJIN_WARN("module %s: cannot register after run", label);
@@ -189,8 +189,8 @@ void mod_register(context &ctx, std::initializer_list<mod_desc> mods) {
 }
 
 void ecs_run(context &ctx, sys_phase phase) {
-  const u32 current = ctx.scene->current.id;
-  ecs_store &ecs = ctx.ecs;
+  const u32 current = ctx_ref<scene_store>(ctx)->current.id;
+  ecs_store &ecs = ctx_ref<ecs_store>(ctx);
   if (!ecs.profile) {
     for (const scheduled_system &sys : ecs.schedule[phase]) {
       if (sys.scene.id == 0 || sys.scene.id == current)

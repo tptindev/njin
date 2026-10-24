@@ -3,7 +3,8 @@
 #include "njin_camera.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_draw.h"
 #include <algorithm>
 #include <cmath>
@@ -24,7 +25,7 @@ Color rl(rgba c) {
 }
 
 gizmo_state *live(context &ctx) {
-  gizmo_state &g = ctx.gizmos;
+  gizmo_state &g = ctx_ref<gizmo_state>(ctx);
   return g.visible ? &g : nullptr;
 }
 
@@ -65,8 +66,8 @@ void draw_mark(const context &ctx, vec2 p, const std::string &text, rgba color) 
 } // namespace
 
 void gizmo_frame_begin(context &ctx) {
-  gizmo_state &g = ctx.gizmos;
-  const f32 dt = ctx.time.dt_real;
+  gizmo_state &g = ctx_ref<gizmo_state>(ctx);
+  const f32 dt = ctx_ref<time_state>(ctx).dt_real;
   age(g.lines, dt);
   age(g.marks, dt);
   age(g.lines3d, dt);
@@ -75,7 +76,7 @@ void gizmo_frame_begin(context &ctx) {
 }
 
 void gizmo_draw_3d(context &ctx, const camera3d &view) {
-  gizmo_state &g = ctx.gizmos;
+  gizmo_state &g = ctx_ref<gizmo_state>(ctx);
   if (!g.visible)
     return;
   if (!g.lines3d.empty()) {
@@ -108,7 +109,7 @@ void gizmo_draw_3d(context &ctx, const camera3d &view) {
 }
 
 void gizmo_draw_screen(context &ctx) {
-  const gizmo_state &g = ctx.gizmos;
+  const gizmo_state &g = ctx_ref<gizmo_state>(ctx);
   if (!g.visible)
     return;
   // The 2D lines too: in screen space they stay one pixel at any zoom, and
@@ -243,7 +244,7 @@ void gizmo_text3d(context &ctx, vec3 pos, const char *text, rgba color, f32 dura
     g->marks3d.push_back({pos, text, color, std::max(duration, 0.0f)});
 }
 
-void gizmos_set_visible(context &ctx, bool visible) { ctx.gizmos->visible = visible; }
+void gizmos_set_visible(context &ctx, bool visible) { ctx_ref<gizmo_state>(ctx)->visible = visible; }
 
-bool gizmos_visible(const context &ctx) { return ctx.gizmos->visible; }
+bool gizmos_visible(const context &ctx) { return ctx_ref<gizmo_state>(ctx)->visible; }
 } // namespace njin

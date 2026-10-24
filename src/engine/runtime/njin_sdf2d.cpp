@@ -1,7 +1,7 @@
 #include "njin_sdf2d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "modules/fx.h"
 #include "njin_shader.h"
 #include "njin_draw.h"
@@ -65,10 +65,10 @@ sdf2d_state::~sdf2d_state() {
 }
 
 bool sdf2d_rounded_rect(const context &ctx, rect r, f32 radius, f32 thickness, rgba color) {
-  sdf2d_state &s = ctx.sdf2d;
+  sdf2d_state &s = ctx_mut<sdf2d_state>(ctx);
   // Another shader on (shader_begin(), a dissolve) keeps its own: the shape
   // is drawn the usual way under it.
-  if (!s.on || ctx.shader->active.id != 0 || ctx.fx->screen_dissolve)
+  if (!s.on || ctx_ref<shader_store>(ctx)->active.id != 0 || ctx_ref<fx_state>(ctx)->screen_dissolve)
     return false;
   if (r.size.x <= 0.0f || r.size.y <= 0.0f || color.a <= 0.0f)
     return true; // nothing to draw
@@ -91,8 +91,8 @@ bool sdf2d_rounded_rect(const context &ctx, rect r, f32 radius, f32 thickness, r
   return true;
 }
 
-void draw_set_smooth_shapes(context &ctx, bool on) { ctx.sdf2d->on = on; }
+void draw_set_smooth_shapes(context &ctx, bool on) { ctx_mut<sdf2d_state>(ctx)->on = on; }
 
-bool draw_smooth_shapes(const context &ctx) { return ctx.sdf2d->on; }
+bool draw_smooth_shapes(const context &ctx) { return ctx_mut<sdf2d_state>(ctx)->on; }
 
 } // namespace njin

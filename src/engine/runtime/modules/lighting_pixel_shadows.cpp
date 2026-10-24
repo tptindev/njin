@@ -1,10 +1,11 @@
 #include "lighting_internal.h"
 #include "_comps.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_draw.h"
 #include "njin_ecs.h"
 #include "njin_texture.h"
 #include "njin_view.h"
+#include "njin_cfg.h"
 #include <algorithm>
 #include <cmath>
 #include <raylib.h>
@@ -39,7 +40,7 @@ void set_v2(const Shader &s, i32 loc, vec2 v) {
 bool build_pixel_shadows(context &ctx, lighting_state &s, const Camera2D &camera, const rect &steady, f32 texel_scale,
                          const std::vector<light_job> &lights, std::vector<pixel_light> &out) {
   const lighting_desc &d = s.desc;
-  entt::registry &registry = ctx.ecs->registry;
+  entt::registry &registry = ctx_ref<ecs_store>(ctx)->registry;
   const f32 margin_world = std::max(d.occluder_margin, 0.0f);
   const rect region{steady.pos - vec2{margin_world, margin_world}, steady.size + vec2{2.0f * margin_world, 2.0f * margin_world}};
 
@@ -104,11 +105,11 @@ bool build_pixel_shadows(context &ctx, lighting_state &s, const Camera2D &camera
     const sprite &spr = registry.get<sprite>(e);
     const light_occluder_pixels &occ = registry.get<light_occluder_pixels>(e);
     const texture_handle mask = occ.mask.id != 0 ? occ.mask : spr.texture;
-    if (const texture_slot *slot = texture_slot_of(ctx.texture, mask)) {
+    if (const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), mask)) {
       if (s.clamped.insert(slot->texture.id).second)
         SetTextureWrap(slot->texture, TEXTURE_WRAP_CLAMP);
     }
-    texture_store_draw_ex(ctx.texture, mask,
+    texture_store_draw_ex(ctx_ref<texture_store>(ctx), mask,
                           texture_draw_desc{.pos = tr.pos,
                                             .source = spr.source,
                                             .scale = {tr.scale, tr.scale},

@@ -2,7 +2,8 @@
 #include "njin_3d.h"
 #include "njin_audio_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_log.h"
 #include "physics3d_bridge.h"
 #include <algorithm>
@@ -53,7 +54,7 @@ voice3d_handle start(context &ctx, sound_handle sound, vec3 position, const soun
                      const char *what) {
   if (refuse(finite3(position), what))
     return voice3d_handle{};
-  return voice3d_store_start(ctx.audio, sound, position, desc, looping);
+  return voice3d_store_start(ctx_ref<audio_store>(ctx), sound, position, desc, looping);
 }
 
 voice3d_handle start_on(context &ctx, sound_handle sound, entt::entity e, const sound3d_desc &desc, bool looping) {
@@ -62,8 +63,8 @@ voice3d_handle start_on(context &ctx, sound_handle sound, entt::entity e, const 
     NJIN_WARN("audio: a 3D sound on an entity that is gone or has no transform3d is not played");
     return voice3d_handle{};
   }
-  const voice3d_handle h = voice3d_store_start(ctx.audio, sound, position, desc, looping);
-  if (voice3d_slot *v = voice3d_slot_of(ctx.audio, h)) {
+  const voice3d_handle h = voice3d_store_start(ctx_ref<audio_store>(ctx), sound, position, desc, looping);
+  if (voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), h)) {
     v->attached = true;
     v->entity = e;
   }
@@ -107,8 +108,8 @@ void update_occlusion(const context &ctx, const audio_store &a, voice3d_slot &v,
 } // namespace
 
 void audio3d_update(context &ctx) {
-  audio_store &a = ctx.audio;
-  const f32 dt = ctx.time.dt_real;
+  audio_store &a = ctx_ref<audio_store>(ctx);
+  const f32 dt = ctx_ref<time_state>(ctx).dt_real;
   update_listener(a, dt);
   for (voice3d_slot &v : a.voices3d) {
     if (!v.alive)
@@ -146,22 +147,22 @@ void audio_set_listener3d(context &ctx, const audio_listener3d &listener) {
                  finite3(listener.velocity),
              "audio_set_listener3d"))
     return;
-  ctx.audio->listener = listener;
-  ctx.audio->listener_follow = false;
+  ctx_ref<audio_store>(ctx)->listener = listener;
+  ctx_ref<audio_store>(ctx)->listener_follow = false;
 }
 
 void audio_listener3d_follow_camera(context &ctx, bool follow) {
-  ctx.audio->listener_follow = follow;
-  ctx.audio->listener_has_last = false; // do not read the jump to the camera as speed
+  ctx_ref<audio_store>(ctx)->listener_follow = follow;
+  ctx_ref<audio_store>(ctx)->listener_has_last = false; // do not read the jump to the camera as speed
   if (!follow)
-    ctx.audio->listener.velocity = {};
+    ctx_ref<audio_store>(ctx)->listener.velocity = {};
 }
 
-audio_listener3d audio_listener3d_get(const context &ctx) { return ctx.audio->listener; }
+audio_listener3d audio_listener3d_get(const context &ctx) { return ctx_ref<audio_store>(ctx)->listener; }
 
 void audio_set_speed_of_sound(context &ctx, f32 units_per_second) {
   if (units_per_second > 0.0f && std::isfinite(units_per_second))
-    ctx.audio->speed_of_sound = units_per_second;
+    ctx_ref<audio_store>(ctx)->speed_of_sound = units_per_second;
 }
 
 voice3d_handle sound_play3d(context &ctx, sound_handle handle, vec3 position, const sound3d_desc &desc) {
@@ -181,7 +182,7 @@ voice3d_handle sound_loop3d(context &ctx, sound_handle handle, entt::entity enti
 }
 
 void voice3d_set_position(context &ctx, voice3d_handle voice, vec3 position) {
-  voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   if (v == nullptr || refuse(finite3(position), "voice3d_set_position"))
     return;
   v->attached = false;
@@ -189,7 +190,7 @@ void voice3d_set_position(context &ctx, voice3d_handle voice, vec3 position) {
 }
 
 void voice3d_attach(context &ctx, voice3d_handle voice, entt::entity entity, vec3 offset) {
-  voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   if (v == nullptr || refuse(finite3(offset), "voice3d_attach"))
     return;
   vec3 p{};
@@ -204,7 +205,7 @@ void voice3d_attach(context &ctx, voice3d_handle voice, entt::entity entity, vec
 }
 
 void voice3d_set_velocity(context &ctx, voice3d_handle voice, vec3 velocity) {
-  voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   if (v == nullptr || refuse(finite3(velocity), "voice3d_set_velocity"))
     return;
   v->velocity = velocity;
@@ -212,30 +213,30 @@ void voice3d_set_velocity(context &ctx, voice3d_handle voice, vec3 velocity) {
 }
 
 void voice3d_set_desc(context &ctx, voice3d_handle voice, const sound3d_desc &desc) {
-  voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   if (v == nullptr || refuse(finite3(desc.cone_direction), "voice3d_set_desc"))
     return;
   v->desc = desc;
-  voice3d_store_apply(ctx.audio, *v);
+  voice3d_store_apply(ctx_ref<audio_store>(ctx), *v);
 }
 
 sound3d_desc voice3d_desc(const context &ctx, voice3d_handle voice) {
-  const voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  const voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   return v != nullptr ? v->desc : sound3d_desc{};
 }
 
 void voice3d_stop(context &ctx, voice3d_handle voice) {
-  if (voice3d_slot *v = voice3d_slot_of(ctx.audio, voice))
+  if (voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice))
     voice3d_store_release(*v);
 }
 
 bool voice3d_playing(const context &ctx, voice3d_handle voice) {
-  const voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  const voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   return v != nullptr && (v->looping || IsSoundPlaying(v->alias));
 }
 
 voice3d_mix voice3d_state(const context &ctx, voice3d_handle voice) {
-  const voice3d_slot *v = voice3d_slot_of(ctx.audio, voice);
+  const voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
   return v != nullptr ? v->mix : voice3d_mix{};
 }
 } // namespace njin

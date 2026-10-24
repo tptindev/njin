@@ -60,6 +60,10 @@ function(_njin_runtime_library name)
   # Lets runtime files in subfolders (modules/) include runtime headers directly.
   target_include_directories(${name} PRIVATE "${_njin_rt_dir}")
   target_link_libraries(${name} PRIVATE raylib njin_warnings)
+  # ctx_ref() (njin_ctx_get.h) is a call in Debug, so a source does not see
+  # the context's definition and editing it rebuilds one source; inline in
+  # every other configuration, as plain member access was.
+  target_compile_definitions(${name} PRIVATE $<$<NOT:$<CONFIG:Debug>>:NJIN_CTX_INLINE>)
   # The script glue libraries reuse the script feature's (below).
   if(NOT name MATCHES "^njin_script_")
     njin_precompile_headers(${name})

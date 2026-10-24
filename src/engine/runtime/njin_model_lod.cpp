@@ -1,5 +1,5 @@
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_log.h"
 #include "njin_model.h"
 #include <meshoptimizer.h>
@@ -213,7 +213,7 @@ void model_lod_free(model_slot &slot) {
 }
 
 i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &desc) {
-  model_slot *slot = model_slot_of(ctx.model, handle);
+  model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr)
     return 0;
   model_lod_free(*slot);

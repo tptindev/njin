@@ -3,7 +3,8 @@
 #include "njin_ctx.h"
 #include "njin_input.h"
 #include "njin_render.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "_collide.h"
 #include "njin_audio.h"
 #include "njin_draw.h"
@@ -57,7 +58,7 @@ i32 find_node(const dialog_script &script, const std::string &id) {
 }
 
 void finish(context &ctx) {
-  dialog_state &d = ctx.dialog;
+  dialog_state &d = ctx_ref<dialog_state>(ctx);
   if (!d.active)
     return;
   d.active = false;
@@ -71,7 +72,7 @@ void finish(context &ctx) {
 
 // Shows node `id`, skipping those whose condition is false. Empty id ends.
 void go_to(context &ctx, std::string id) {
-  dialog_state &d = ctx.dialog;
+  dialog_state &d = ctx_ref<dialog_state>(ctx);
   for (i32 guard = 0; guard < 256; guard++) {
     if (id.empty()) {
       finish(ctx);
@@ -114,7 +115,7 @@ void go_to(context &ctx, std::string id) {
 }
 
 void open(context &ctx, const char *start) {
-  dialog_state &d = ctx.dialog;
+  dialog_state &d = ctx_ref<dialog_state>(ctx);
   const bool was_active = d.active;
   d.active = true;
   if (!was_active && d.style.pause_game && !time_paused(ctx)) {
@@ -140,7 +141,7 @@ bool any_pad(const context &ctx, gamepad_button b) {
 }
 
 void update(context &ctx) {
-  dialog_state &d = ctx.dialog;
+  dialog_state &d = ctx_ref<dialog_state>(ctx);
   if (!d.active || d.node < 0)
     return;
   const dialog_node &n = d.script.nodes[(usize)d.node];
@@ -178,7 +179,7 @@ void update(context &ctx) {
       key_consume(ctx, k);
 
   if (typing) {
-    d.shown = std::min(d.shown + d.style.chars_per_second * ctx.time.dt_real, (f32)d.total);
+    d.shown = std::min(d.shown + d.style.chars_per_second * ctx_ref<time_state>(ctx).dt_real, (f32)d.total);
     const i32 due = (i32)d.shown / 3;
     if (due > d.blips) {
       d.blips = due;
@@ -224,16 +225,16 @@ dialog_style dialog_default_style() {
   return s;
 }
 
-void dialog_set_style(context &ctx, const dialog_style &style) { ctx.dialog->style = style; }
-dialog_style dialog_get_style(const context &ctx) { return ctx.dialog->style; }
+void dialog_set_style(context &ctx, const dialog_style &style) { ctx_ref<dialog_state>(ctx)->style = style; }
+dialog_style dialog_get_style(const context &ctx) { return ctx_ref<dialog_state>(ctx)->style; }
 
 void dialog_portrait(context &ctx, const char *name, texture_handle texture, rect source) {
   if (name != nullptr)
-    ctx.dialog->portraits[name] = dialog_portrait_rec{texture, source};
+    ctx_ref<dialog_state>(ctx)->portraits[name] = dialog_portrait_rec{texture, source};
 }
 
 void dialog_set_condition(context &ctx, std::function<bool(context &, const std::string &)> fn) {
-  ctx.dialog->condition = std::move(fn);
+  ctx_ref<dialog_state>(ctx)->condition = std::move(fn);
 }
 
 bool dialog_parse(const json_value &json, dialog_script &out) {
@@ -280,7 +281,7 @@ bool dialog_load(const char *path, dialog_script &out) {
 }
 
 void dialog_start(context &ctx, const dialog_script &script, const char *start) {
-  ctx.dialog->script = script;
+  ctx_ref<dialog_state>(ctx)->script = script;
   open(ctx, start);
 }
 
@@ -295,12 +296,12 @@ void dialog_say(context &ctx, const char *speaker, const char *text, const char 
   dialog_start(ctx, s);
 }
 
-bool dialog_active(const context &ctx) { return ctx.dialog->active; }
+bool dialog_active(const context &ctx) { return ctx_ref<dialog_state>(ctx)->active; }
 
 void dialog_stop(context &ctx) { finish(ctx); }
 
 void dialog_draw(context &ctx) {
-  dialog_state &d = ctx.dialog;
+  dialog_state &d = ctx_ref<dialog_state>(ctx);
   if (!d.active || d.node < 0)
     return;
   const dialog_style &st = d.style;
@@ -380,7 +381,7 @@ void dialog_draw(context &ctx) {
     }
   } else if (!typing) {
     // "More" marker, bobbing, bottom right.
-    const f32 t = ctx.time.elapsed;
+    const f32 t = ctx_ref<time_state>(ctx).elapsed;
     const f32 k = size * 0.35f;
     const vec2 c{pos.x + width - pad - k, pos.y + height - pad - k + std::sin(t * 6.0f) * 2.0f * s};
     draw_triangle(ctx, c + vec2{-k, -k * 0.6f}, c + vec2{k, -k * 0.6f}, c + vec2{0.0f, k * 0.6f},

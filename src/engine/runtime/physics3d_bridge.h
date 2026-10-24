@@ -2,7 +2,7 @@
 #include "njin_internal_only.h"
 
 #include "njin_3d.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_log.h"
 
 // What the 3d feature asks of physics3d: ground and sound occlusion rays,
@@ -10,7 +10,7 @@
 // (feature_physics3d.cpp); a game that leaves it out gets no hit, and what
 // cannot work without it says so once.
 namespace njin {
-inline bool physics3d_present(const context &ctx) { return ctx.hooks.raycast != nullptr; }
+inline bool physics3d_present(const context &ctx) { return ctx_ref<feature_hooks>(ctx).raycast != nullptr; }
 
 // Says once per `what` that it needs physics3d, which this game does not use;
 // true when it is missing. `also` is appended to the message.
@@ -28,6 +28,6 @@ inline bool physics3d_missing(const context &ctx, bool &said, const char *what, 
 }
 
 inline ray3d_hit physics3d_ray(const context &ctx, const ray3d &ray, f32 max_distance) {
-  return ctx.hooks.raycast != nullptr ? ctx.hooks.raycast(ctx, ray, max_distance, nullptr) : ray3d_hit{};
+  return ctx_ref<feature_hooks>(ctx).raycast != nullptr ? ctx_ref<feature_hooks>(ctx).raycast(ctx, ray, max_distance, nullptr) : ray3d_hit{};
 }
 } // namespace njin

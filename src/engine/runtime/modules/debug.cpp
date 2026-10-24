@@ -7,7 +7,8 @@
 #include "njin_camera.h"
 #include "njin_collision.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "particles_gpu.h"
 #include "collision.h"
 #include "render_stats.h"
@@ -91,7 +92,7 @@ template <class T> void builtin_tag(debug_state &d, const char *name) {
 }
 
 void register_builtins(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   builtin<transform>(d, "transform", [](const transform &t) {
     return json_value::make_object().set("pos", vec(t.pos)).set("rot", t.rot).set("scale", t.scale);
   });
@@ -138,7 +139,7 @@ void register_builtins(context &ctx) {
   // Needs the scene names, so it captures the context.
   context *pctx = &ctx;
   builtin<scene_owned>(d, "scene_owned", [pctx](const scene_owned &s) {
-    const auto &scenes = pctx->scene->scenes;
+    const auto &scenes = ctx_ref<scene_store>(*pctx)->scenes;
     const char *name = s.scene.id >= 1 && s.scene.id <= scenes.size() ? scenes[s.scene.id - 1].name.c_str() : "?";
     return json_value::make_object().set("scene", name);
   });
@@ -298,16 +299,16 @@ void apply_set(entt::registry &reg, const json_value &cmd) {
 }
 
 void apply(context &ctx, const json_value &cmd) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   entt::registry &reg = world(ctx);
   const std::string c = cmd["cmd"].string_or("");
   if (c == "pause") {
-    ctx.time.paused = cmd["value"].bool_or(ctx.time.paused);
+    ctx_ref<time_state>(ctx).paused = cmd["value"].bool_or(ctx_ref<time_state>(ctx).paused);
     d.step_pending = d.stepping = false;
   } else if (c == "step") {
     d.step_pending = true;
   } else if (c == "scale") {
-    ctx.time.scale = std::max(0.0f, cmd["value"].f32_or(ctx.time.scale));
+    ctx_ref<time_state>(ctx).scale = std::max(0.0f, cmd["value"].f32_or(ctx_ref<time_state>(ctx).scale));
   } else if (c == "select") {
     d.selected = (i64)cmd["id"].number_or(-1.0);
     d.snapshot_timer = d.desc.snapshot_hz > 0.0f ? 1.0f / d.desc.snapshot_hz : 0.0f; // show it now
@@ -351,12 +352,12 @@ void apply(context &ctx, const json_value &cmd) {
 // --- snapshots ---
 
 void send_hello(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   d.link.send(json_dump(json_value::make_object()
                             .set("t", "hello")
                             .set("v", protocol_version)
-                            .set("title", ctx.cfg.title != nullptr ? ctx.cfg.title : "njin")
-                            .set("fixed_hz", ctx.time.fixed_dt > 0.0f ? 1.0f / ctx.time.fixed_dt : 0.0f)
+                            .set("title", ctx_ref<config>(ctx).title != nullptr ? ctx_ref<config>(ctx).title : "njin")
+                            .set("fixed_hz", ctx_ref<time_state>(ctx).fixed_dt > 0.0f ? 1.0f / ctx_ref<time_state>(ctx).fixed_dt : 0.0f)
                             .set("pid", (i64)net_process_id())
                             .set("engine", version())
                             .set("docs", [&d] {
@@ -369,38 +370,38 @@ void send_hello(context &ctx) {
 }
 
 void send_stats(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   json_value frames = json_value::make_array();
   for (const f32 ms : d.frame_ms)
     frames.push(std::round(ms * 100.0f) / 100.0f);
   d.frame_ms.clear();
-  const scene_handle s = ctx.scene->current;
-  const char *scene = s.id >= 1 && s.id <= ctx.scene->scenes.size() ? ctx.scene->scenes[s.id - 1].name.c_str() : "";
+  const scene_handle s = ctx_ref<scene_store>(ctx)->current;
+  const char *scene = s.id >= 1 && s.id <= ctx_ref<scene_store>(ctx)->scenes.size() ? ctx_ref<scene_store>(ctx)->scenes[s.id - 1].name.c_str() : "";
   d.link.send(json_dump(json_value::make_object()
                             .set("t", "stats")
                             .set("frames", std::move(frames))
                             .set("entities", (i64)world(ctx).view<entt::entity>().size())
-                            .set("paused", ctx.time.paused && !d.stepping)
-                            .set("scale", ctx.time.scale)
+                            .set("paused", ctx_ref<time_state>(ctx).paused && !d.stepping)
+                            .set("scale", ctx_ref<time_state>(ctx).scale)
                             .set("scene", scene)
-                            .set("collision_debug", ctx.collision->debug)
+                            .set("collision_debug", ctx_ref<collision_state>(ctx)->debug)
                             .set("render", json_value::make_object()
-                                               .set("sprites", (i64)ctx.stats->sprites)
-                                               .set("sprites_culled", (i64)ctx.stats->sprites_culled)
-                                               .set("tile_chunks", (i64)ctx.stats->tile_chunks)
-                                               .set("emitters", (i64)ctx.stats->emitters)
-                                               .set("emitters_culled", (i64)ctx.stats->emitters_culled)
-                                               .set("particles", (i64)ctx.stats->particles)
-                                               .set("particles_gpu", (i64)ctx.stats->particles_gpu)
-                                               .set("instanced", (i64)ctx.stats->instanced_calls)
-                                               .set("batches", (i64)ctx.stats->batches)
-                                               .set("post_passes", (i64)ctx.stats->post_passes))
+                                               .set("sprites", (i64)ctx_ref<render_stats>(ctx)->sprites)
+                                               .set("sprites_culled", (i64)ctx_ref<render_stats>(ctx)->sprites_culled)
+                                               .set("tile_chunks", (i64)ctx_ref<render_stats>(ctx)->tile_chunks)
+                                               .set("emitters", (i64)ctx_ref<render_stats>(ctx)->emitters)
+                                               .set("emitters_culled", (i64)ctx_ref<render_stats>(ctx)->emitters_culled)
+                                               .set("particles", (i64)ctx_ref<render_stats>(ctx)->particles)
+                                               .set("particles_gpu", (i64)ctx_ref<render_stats>(ctx)->particles_gpu)
+                                               .set("instanced", (i64)ctx_ref<render_stats>(ctx)->instanced_calls)
+                                               .set("batches", (i64)ctx_ref<render_stats>(ctx)->batches)
+                                               .set("post_passes", (i64)ctx_ref<render_stats>(ctx)->post_passes))
                             .set("dropped", (i64)d.link.dropped),
                         false));
 }
 
 void send_world(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   const entt::registry &reg = world(ctx);
   // Type table: each entity lists indexes into it instead of repeating names.
   std::vector<std::pair<const entt::basic_sparse_set<entt::entity> *, i32>> pools;
@@ -570,7 +571,7 @@ void send_world(context &ctx) {
   msg += ",\"tilemaps\":" + json_dump(maps, false);
   // Debug gizmos (gizmo.h), capped so a flood of them cannot choke the link.
   constexpr usize max_sent = 4096;
-  const gizmo_state &gz = ctx.gizmos;
+  const gizmo_state &gz = ctx_ref<gizmo_state>(ctx);
   const auto put = [&](std::string &out, const f32 *v, i32 n) {
     for (i32 k = 0; k < n; k++) {
       if (k > 0)
@@ -600,8 +601,8 @@ void send_world(context &ctx) {
   }
   // The last 3D pass (render3d.h), while it is recent: a game that stopped
   // drawing in 3D is shown in 2D again.
-  const debug3d_frame *last3d = ctx.hooks.debug_frame3d != nullptr ? ctx.hooks.debug_frame3d(ctx) : nullptr;
-  if (last3d != nullptr && last3d->time >= 0.0f && ctx.time.elapsed - last3d->time < 0.5f) {
+  const debug3d_frame *last3d = ctx_ref<feature_hooks>(ctx).debug_frame3d != nullptr ? ctx_ref<feature_hooks>(ctx).debug_frame3d(ctx) : nullptr;
+  if (last3d != nullptr && last3d->time >= 0.0f && ctx_ref<time_state>(ctx).elapsed - last3d->time < 0.5f) {
     const debug3d_frame &f3 = *last3d;
     std::string s3 = ",\"scene3d\":{\"cam\":[";
     const camera3d &c = f3.camera;
@@ -673,7 +674,7 @@ void send_world(context &ctx) {
 }
 
 void send_entity(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (d.selected < 0)
     return;
   const entt::registry &reg = world(ctx);
@@ -697,7 +698,7 @@ void send_entity(context &ctx) {
 }
 
 void send_watches(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (d.watches.empty())
     return;
   json_value values = json_value::make_object();
@@ -709,18 +710,18 @@ void send_watches(context &ctx) {
 // --- systems ---
 
 void begin_frame(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (!d.running) {
-    ctx.ecs->profile = false;
+    ctx_ref<ecs_store>(ctx)->profile = false;
     return;
   }
   // Time every system while (and only while) an inspector is watching.
-  ctx.ecs->profile = d.link.connected();
+  ctx_ref<ecs_store>(ctx)->profile = d.link.connected();
   // Undo the stepped frame: pause again before anything reads the clock.
   if (d.stepping) {
     d.stepping = false;
-    ctx.time.paused = true;
-    ctx.time.dt = 0.0f;
+    ctx_ref<time_state>(ctx).paused = true;
+    ctx_ref<time_state>(ctx).dt = 0.0f;
   }
   if (!d.link.connected()) {
     if (net_socket s = net_accept(d.listener); s.valid()) {
@@ -752,23 +753,23 @@ void begin_frame(context &ctx) {
   // next frame pauses again (above).
   if (d.step_pending) {
     d.step_pending = false;
-    if (ctx.time.paused) {
-      ctx.time.paused = false;
-      ctx.time.dt = ctx.time.fixed_dt;
+    if (ctx_ref<time_state>(ctx).paused) {
+      ctx_ref<time_state>(ctx).paused = false;
+      ctx_ref<time_state>(ctx).dt = ctx_ref<time_state>(ctx).fixed_dt;
       d.stepping = true;
     }
   }
 }
 
 void end_frame(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (!d.running || !d.link.connected())
     return;
-  d.frame_ms.push_back(ctx.time.dt_real * 1000.0f);
+  d.frame_ms.push_back(ctx_ref<time_state>(ctx).dt_real * 1000.0f);
   for (const std::string &l : d.log_lines)
     d.link.send(l);
   d.log_lines.clear();
-  d.snapshot_timer += ctx.time.dt_real;
+  d.snapshot_timer += ctx_ref<time_state>(ctx).dt_real;
   const f32 period = d.desc.snapshot_hz > 0.0f ? 1.0f / d.desc.snapshot_hz : 0.1f;
   if (d.snapshot_timer >= period) {
     d.snapshot_timer = 0.0f;
@@ -784,7 +785,7 @@ void end_frame(context &ctx) {
     d.link.send(json_dump(debug_record_status(ctx), false));
   }
   // The memory and asset tables walk every component and resource: once a second.
-  d.slow_timer += ctx.time.dt_real;
+  d.slow_timer += ctx_ref<time_state>(ctx).dt_real;
   if (d.slow_timer >= 1.0f) {
     d.slow_timer = 0.0f;
     d.link.send(json_dump(debug_build_mem(ctx), false));
@@ -806,7 +807,7 @@ void debug_register_builtin(debug_state &d, entt::id_type type, const char *name
 }
 
 render_info render_info_get(const context &ctx) {
-  const render_stats &s = ctx.stats;
+  const render_stats &s = ctx_ref<render_stats>(ctx);
   return render_info{.sprites = s.sprites,
                      .sprites_culled = s.sprites_culled,
                      .tile_chunks = s.tile_chunks,
@@ -825,7 +826,7 @@ render_info render_info_get(const context &ctx) {
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }
 
 bool debug_server_start(context &ctx, const debug_server_desc &desc) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (d.running)
     debug_server_stop(ctx);
   d.listener = net_listen(desc.port);
@@ -838,7 +839,7 @@ bool debug_server_start(context &ctx, const debug_server_desc &desc) {
   d.running = true;
   if (d.types.empty()) {
     register_builtins(ctx);
-    for (void (*views)(context &) : ctx.hooks.debug_views)
+    for (void (*views)(context &) : ctx_ref<feature_hooks>(ctx).debug_views)
       views(ctx);
   }
   tap_target = &d;
@@ -856,7 +857,7 @@ debug_state::~debug_state() {
 }
 
 void debug_server_stop(context &ctx) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (tap_target == &d) {
     log_set_tap(nullptr, nullptr);
     log_set_console(true);
@@ -870,10 +871,10 @@ void debug_server_stop(context &ctx) {
   d.selected = -1;
 }
 
-bool debug_server_connected(const context &ctx) { return ctx.debug->link.connected(); }
+bool debug_server_connected(const context &ctx) { return ctx_ref<debug_state>(ctx)->link.connected(); }
 
 void debug_watch(context &ctx, const char *name, json_value value) {
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   if (!d.running || name == nullptr)
     return;
   for (auto &[n, v] : d.watches) {
@@ -891,7 +892,7 @@ void debug_doc_source(context &ctx, const char *name, std::function<std::vector<
                       std::function<std::string(const std::string &id)> get) {
   if (name == nullptr)
     return;
-  debug_state &d = ctx.debug;
+  debug_state &d = ctx_ref<debug_state>(ctx);
   for (debug_doc_source_entry &s : d.docs)
     if (s.name == name) {
       s.list = std::move(list);
@@ -905,6 +906,6 @@ void debug_component(context &ctx, entt::id_type type, const char *name, debug_c
                      std::size_t bytes) {
   if (name == nullptr || !fn)
     return;
-  ctx.debug->types[type] = debug_type_entry{name, std::move(fn), bytes, nullptr};
+  ctx_ref<debug_state>(ctx)->types[type] = debug_type_entry{name, std::move(fn), bytes, nullptr};
 }
 } // namespace njin

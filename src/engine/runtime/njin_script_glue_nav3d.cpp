@@ -5,7 +5,7 @@
 #include "_math.h"
 #include "njin_cfg.h"
 #include "njin_nav3d.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include <algorithm>
 #include <vector>
 
@@ -79,5 +79,5 @@ void script_bind_nav3d(context &ctx, script_runtime &rt) {
 }
 } // namespace
 
-void feature_install_script_nav3d(context &ctx) { ctx.script->binders.push_back(script_bind_nav3d); }
+void feature_install_script_nav3d(context &ctx) { ctx_ref<script_state>(ctx)->binders.push_back(script_bind_nav3d); }
 } // namespace njin

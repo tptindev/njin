@@ -14,7 +14,7 @@
 #include "njin_3d.h"
 #include "njin_post3d.h"
 #include "njin_world3d.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_model.h"
 #include <algorithm>
 #include <cmath>
@@ -106,7 +106,7 @@ camera3d camera_of(const sol::table &t) {
 
 model_handle model_checked(context &ctx, lua_State *L, lua_Integer id, const char *fn) {
   const model_handle h{(u32)id};
-  if (id <= 0 || model_slot_of(ctx.model, h) == nullptr)
+  if (id <= 0 || model_slot_of(ctx_ref<model_store>(ctx), h) == nullptr)
     fail(L, "njin.%s: %lld is not a loaded model", fn, (long long)id);
   return h;
 }
@@ -269,7 +269,7 @@ void script_bind_3d(context &ctx, script_runtime &rt) {
     r->models[path] = h.id;
     return (lua_Integer)h.id;
   };
-  n["model_valid"] = [c](lua_Integer id) { return id > 0 && model_slot_of(c->model, model_handle{(u32)id}) != nullptr; };
+  n["model_valid"] = [c](lua_Integer id) { return id > 0 && model_slot_of(ctx_ref<model_store>(*c), model_handle{(u32)id}) != nullptr; };
   n["model_anim_count"] = [c](sol::this_state s, lua_Integer m) {
     return model_anim_count(*c, model_checked(*c, s, m, "model_anim_count"));
   };
@@ -460,5 +460,5 @@ void script_bind_3d(context &ctx, script_runtime &rt) {
 }
 } // namespace
 
-void feature_install_script_3d(context &ctx) { ctx.script->binders.push_back(script_bind_3d); }
+void feature_install_script_3d(context &ctx) { ctx_ref<script_state>(ctx)->binders.push_back(script_bind_3d); }
 } // namespace njin

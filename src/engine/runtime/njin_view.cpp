@@ -1,7 +1,7 @@
 #include "njin_view.h"
 #include "njin2rl.h"
 #include "njin_cfg.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_window.h"
 #include <algorithm>
 #include <cmath>
@@ -232,27 +232,27 @@ void view_draw_end(view_state &view) {
 // Public API (njin_window.h / njin_cfg.h).
 
 void window_set_virtual_size(context &ctx, vec2 size, bool integer_scale) {
-  ctx.view->size = size.x >= 1.0f && size.y >= 1.0f ? vec2{std::floor(size.x), std::floor(size.y)}
+  ctx_ref<view_state>(ctx)->size = size.x >= 1.0f && size.y >= 1.0f ? vec2{std::floor(size.x), std::floor(size.y)}
                                                    : vec2{};
-  ctx.view->integer_scale = integer_scale;
-  view_frame_begin(ctx.view);
+  ctx_ref<view_state>(ctx)->integer_scale = integer_scale;
+  view_frame_begin(ctx_ref<view_state>(ctx));
 }
 
-void window_set_bar_color(context &ctx, rgba color) { ctx.view->bars = color; }
+void window_set_bar_color(context &ctx, rgba color) { ctx_ref<view_state>(ctx)->bars = color; }
 
 vec2 window_size(const context &) { return {(f32)GetScreenWidth(), (f32)GetScreenHeight()}; }
 
 rect window_viewport(const context &ctx) {
-  if (!view_active(ctx.view))
+  if (!view_active(ctx_ref<view_state>(ctx)))
     return rect{{0.0f, 0.0f}, window_size(ctx)};
-  return rect{ctx.view->offset, view_logical_size(ctx.view) * ctx.view->scale};
+  return rect{ctx_ref<view_state>(ctx)->offset, view_logical_size(ctx_ref<view_state>(ctx)) * ctx_ref<view_state>(ctx)->scale};
 }
 
 vec2 screen_size(const context &ctx) {
-  if (view_in_canvas(ctx.view))
-    return vec2{(f32)GetScreenWidth(), (f32)GetScreenHeight()} * (1.0f / ctx.view->canvas_scale);
-  if (view_active(ctx.view))
-    return view_logical_size(ctx.view);
+  if (view_in_canvas(ctx_ref<view_state>(ctx)))
+    return vec2{(f32)GetScreenWidth(), (f32)GetScreenHeight()} * (1.0f / ctx_ref<view_state>(ctx)->canvas_scale);
+  if (view_active(ctx_ref<view_state>(ctx)))
+    return view_logical_size(ctx_ref<view_state>(ctx));
   return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};
 }
 } // namespace njin

@@ -3,7 +3,7 @@
 #include "_comps.h"
 #include "_tilemap.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_ecs.h"
 #include "njin_draw.h"
 #include "njin_body.h"
@@ -114,7 +114,7 @@ void each_tile_in(const tilemap &map, vec2 origin, rect area, Fnc &&fnc) {
 
 void detect(context &ctx) {
   entt::registry &registry = world(ctx);
-  collision_state &state = ctx.collision;
+  collision_state &state = ctx_ref<collision_state>(ctx);
   const f32 cell = state.cell_size;
 
   // Kept between frames: no allocation once it has grown.
@@ -217,7 +217,7 @@ void detect(context &ctx) {
 }
 
 void draw_debug(context &ctx) {
-  if (!ctx.collision->debug)
+  if (!ctx_ref<collision_state>(ctx)->debug)
     return;
   const rgba solid{0.2f, 1.0f, 0.3f, 0.9f};
   const rgba trig{1.0f, 0.85f, 0.1f, 0.9f};
@@ -306,11 +306,11 @@ mod_desc collision_module() {
   return mod_desc{.name = "njin.collision", .setup = setup};
 }
 
-void collision_set_debug(context &ctx, bool on) { ctx.collision->debug = on; }
+void collision_set_debug(context &ctx, bool on) { ctx_ref<collision_state>(ctx)->debug = on; }
 
 void collision_set_cell_size(context &ctx, f32 size) {
   if (size > 0.0f)
-    ctx.collision->cell_size = size;
+    ctx_ref<collision_state>(ctx)->cell_size = size;
   else
     NJIN_WARN("collision_set_cell_size: size must be > 0");
 }
@@ -620,7 +620,7 @@ namespace {
 template <class Test, class TileTest>
 i32 overlap_query(const context &ctx, rect area, std::vector<entt::entity> *out,
                   u32 mask, bool include_triggers, Test &&test, TileTest &&tile_test) {
-  const entt::registry &registry = ctx.ecs->registry;
+  const entt::registry &registry = ctx_ref<ecs_store>(ctx)->registry;
   i32 count = 0;
   for (auto [entity, tr, col] : registry.view<const transform, const collider>().each()) {
     if (!col.enabled || (col.layer & mask) == 0 || (col.trigger && !include_triggers))
@@ -675,7 +675,7 @@ i32 collision_overlap_point(const context &ctx, vec2 point, std::vector<entt::en
 
 raycast_hit collision_raycast(const context &ctx, vec2 from, vec2 to, u32 mask,
                               bool include_triggers, entt::entity ignore) {
-  const entt::registry &registry = ctx.ecs->registry;
+  const entt::registry &registry = ctx_ref<ecs_store>(ctx)->registry;
   const vec2 d = to - from;
   raycast_hit best{};
   f32 best_t = std::numeric_limits<f32>::max();

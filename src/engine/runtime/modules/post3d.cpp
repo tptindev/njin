@@ -1,7 +1,8 @@
 #include "post3d.h"
 #include "render3d.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "camera.h"
 #include "render_stats.h"
 #include "njin_quality_impl.h"
@@ -768,7 +769,7 @@ void bind_3d(const pass_view &v) {
 }
 
 pass_view current_view(context &ctx) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   pass_view v;
   v.view = rlGetMatrixModelview();
   v.proj = rlGetMatrixProjection();
@@ -776,9 +777,9 @@ pass_view current_view(context &ctx) {
   v.inv = MatrixInvert(v.view_proj);
   v.planes = {s.camera.near_plane, s.camera.far_plane};
   v.eye = s.camera.position;
-  v.target = ctx.post->target.id;
-  v.w = ctx.post->target.texture.width;
-  v.h = ctx.post->target.texture.height;
+  v.target = ctx_ref<camera_post>(ctx)->target.id;
+  v.w = ctx_ref<camera_post>(ctx)->target.texture.width;
+  v.h = ctx_ref<camera_post>(ctx)->target.texture.height;
   return v;
 }
 
@@ -801,7 +802,7 @@ f32 decal_fade(const post3d_decal &d) {
 void draw_decals(context &ctx, post3d_state &st, const pass_view &v) {
   if (st.live == 0)
     return;
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   bind_3d(v);
   rlDisableDepthTest();
   rlDisableDepthMask();
@@ -837,7 +838,7 @@ void draw_decals(context &ctx, post3d_state &st, const pass_view &v) {
     Texture2D image{.id = rlGetTextureIdDefault(), .width = 1, .height = 1, .mipmaps = 1,
                     .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
     bool has_image = false;
-    const texture_slot *slot = texture_slot_of(ctx.texture, desc.texture);
+    const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), desc.texture);
     if (slot != nullptr && !slot->packed && slot->texture.id != 0) {
       image = slot->texture;
       has_image = true;
@@ -875,7 +876,7 @@ void draw_decals(context &ctx, post3d_state &st, const pass_view &v) {
   rlActiveTextureSlot(decal_depth_unit);
   rlDisableTexture();
   rlActiveTextureSlot(0);
-  ctx.stats->post_passes += 1;
+  ctx_ref<render_stats>(ctx)->post_passes += 1;
 }
 
 void run_ssao(context &ctx, post3d_state &st, const pass_view &v) {
@@ -910,7 +911,7 @@ void run_ssao(context &ctx, post3d_state &st, const pass_view &v) {
   BeginBlendMode(BLEND_MULTIPLIED);
   quad(a, st.ao_a.texture, v.w, v.h, [&] { sampler(a, "depthTex", st.copy_depth); });
   EndBlendMode();
-  ctx.stats->post_passes += 4;
+  ctx_ref<render_stats>(ctx)->post_passes += 4;
 }
 
 void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
@@ -927,7 +928,7 @@ void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
     return;
   // The image as it is now (with decals and occlusion), to reflect.
   blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
-  const light3d &light = ctx.render3d->light;
+  const light3d &light = ctx_ref<render3d_state>(ctx)->light;
   Shader sh = st.ssr;
   set_view(sh, v);
   set_f(sh, "strength", clamp(p.ssr, 0.0f, 1.0f));
@@ -942,14 +943,14 @@ void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
     sampler(sh, "maskTex", st.mask.texture.id);
   });
   EndBlendMode();
-  ctx.stats->post_passes += 2;
+  ctx_ref<render_stats>(ctx)->post_passes += 2;
 }
 
 // Where the sun is on screen (0..1, y up as the textures), and how much it is
 // in view: 1 inside the frame, fading to 0 a quarter screen outside. False
 // when it is behind the camera or below the horizon.
 bool sun_on_screen(const context &ctx, const pass_view &v, vec2 &uv, f32 &on_screen) {
-  const vec3 dir = normalize(ctx.render3d->light.direction);
+  const vec3 dir = normalize(ctx_ref<render3d_state>(ctx)->light.direction);
   const vec3 to_sun = dir * -1.0f;
   if (to_sun.y < -0.05f)
     return false;
@@ -984,7 +985,7 @@ void run_shafts(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f3
   set_f(blur, "length", clamp(p.shafts_length, 0.0f, 1.0f));
   bind_2d(st.shafts_b.id, hw, hh);
   quad(blur, st.shafts_a.texture, hw, hh, [] {});
-  const light3d &light = ctx.render3d->light;
+  const light3d &light = ctx_ref<render3d_state>(ctx)->light;
   const f32 k = std::max(p.shafts, 0.0f) * on_screen;
   set_v4(st.add, "tint", {p.shafts_color.r * light.color.r * k, p.shafts_color.g * light.color.g * k,
                           p.shafts_color.b * light.color.b * k, 1.0f});
@@ -992,7 +993,7 @@ void run_shafts(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f3
   BeginBlendMode(BLEND_ADDITIVE);
   quad(st.add, st.shafts_b.texture, v.w, v.h, [] {});
   EndBlendMode();
-  ctx.stats->post_passes += 3;
+  ctx_ref<render_stats>(ctx)->post_passes += 3;
 }
 
 void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32 on_screen) {
@@ -1008,7 +1009,7 @@ void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32
   bind_2d(st.visible.id, 1, 1);
   quad(vis, texture_of(st.copy_depth, v.w, v.h), 1, 1, [&] { sampler(vis, "depthTex", st.copy_depth); });
   Shader sh = st.flare;
-  const light3d &light = ctx.render3d->light;
+  const light3d &light = ctx_ref<render3d_state>(ctx)->light;
   set_v2(sh, "sun", sun);
   set_f(sh, "aspect", aspect);
   set_f(sh, "strength", std::max(p.flare, 0.0f));
@@ -1018,7 +1019,7 @@ void run_flare(context &ctx, post3d_state &st, const pass_view &v, vec2 sun, f32
   BeginBlendMode(BLEND_ADDITIVE);
   quad(sh, texture_of(st.copy_color, v.w, v.h), v.w, v.h, [&] { sampler(sh, "visTex", st.visible.texture.id); });
   EndBlendMode();
-  ctx.stats->post_passes += 2;
+  ctx_ref<render_stats>(ctx)->post_passes += 2;
 }
 
 void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
@@ -1040,7 +1041,7 @@ void run_motion_blur(context &ctx, post3d_state &st, const pass_view &v, bool ve
     sampler(sh, "velTex", vel ? st.vel_tex : st.copy_depth);
   });
   EndBlendMode();
-  ctx.stats->post_passes += 1;
+  ctx_ref<render_stats>(ctx)->post_passes += 1;
 }
 
 void free_velocity(post3d_state &st) {
@@ -1083,7 +1084,7 @@ Matrix unjittered(const pass_view &v);
 bool run_velocity(context &ctx, post3d_state &st, const pass_view &v, const Matrix &prev_vp) {
   if (st.vel_failed || !ensure_velocity_target(st, v.w, v.h))
     return false;
-  const bool has_last = st.motion_time >= 0.0f && ctx.time.elapsed - st.motion_time < 0.25f;
+  const bool has_last = st.motion_time >= 0.0f && ctx_ref<time_state>(ctx).elapsed - st.motion_time < 0.25f;
   bind_3d(v);
   rlEnableFramebuffer(st.vel_fbo);
   rlClearColor(0, 0, 0, 0);
@@ -1091,7 +1092,7 @@ bool run_velocity(context &ctx, post3d_state &st, const pass_view &v, const Matr
   rlDisableDepthTest();
   const bool ok = render3d_draw_velocity(ctx, st.copy_depth, {(f32)v.w, (f32)v.h}, v.planes, unjittered(v), prev_vp,
                                          has_last);
-  ctx.stats->post_passes += 1;
+  ctx_ref<render_stats>(ctx)->post_passes += 1;
   return ok;
 }
 
@@ -1163,7 +1164,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   if (!ensure_history(st, v.w, v.h))
     return;
   const Matrix vp = unjittered(v);
-  const camera3d &cam = ctx.render3d->camera;
+  const camera3d &cam = ctx_ref<render3d_state>(ctx)->camera;
   const vec3 dir = normalize(cam.target - cam.position);
   const f64 now = GetTime();
   // A cut (the camera jumped or turned sharply), or no resolved pass a moment
@@ -1205,7 +1206,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   st.hist_dir = dir;
   st.hist_time = now;
   st.has_history = true;
-  ctx.stats->post_passes += 2;
+  ctx_ref<render_stats>(ctx)->post_passes += 2;
 }
 
 bool effects_on(const post3d &p) {
@@ -1213,7 +1214,7 @@ bool effects_on(const post3d &p) {
 }
 
 bool usable(const context &ctx) {
-  return ctx.post->drawing && ctx.post->target.depth.id != 0 && ctx.post->target.texture.width > 0;
+  return ctx_ref<camera_post>(ctx)->drawing && ctx_ref<camera_post>(ctx)->target.depth.id != 0 && ctx_ref<camera_post>(ctx)->target.texture.width > 0;
 }
 
 void kill(post3d_state &st, post3d_decal &d) {
@@ -1256,12 +1257,12 @@ post3d_state::~post3d_state() {
 }
 
 void post3d_frame_begin(context &ctx) {
-  ctx.post3d->taa_claimed = false;
-  ctx.post3d->vel_claimed = false;
+  ctx_ref<post3d_state>(ctx)->taa_claimed = false;
+  ctx_ref<post3d_state>(ctx)->vel_claimed = false;
 }
 
 vec2 post3d_taa_jitter(context &ctx) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   st.taa_pass = false;
   if (!st.settings.taa || st.failed || st.taa_claimed || !usable(ctx))
     return {};
@@ -1280,18 +1281,18 @@ vec2 post3d_taa_jitter(context &ctx) {
   st.taa_index = st.taa_index % 8 + 1;
   const f32 px = halton(st.taa_index, 2) - 0.5f;
   const f32 py = halton(st.taa_index, 3) - 0.5f;
-  const f32 w = (f32)ctx.post->target.texture.width;
-  const f32 h = (f32)ctx.post->target.texture.height;
+  const f32 w = (f32)ctx_ref<camera_post>(ctx)->target.texture.width;
+  const f32 h = (f32)ctx_ref<camera_post>(ctx)->target.texture.height;
   return {2.0f * px / w, 2.0f * py / h};
 }
 
 bool post3d_wanted(const context &ctx) {
-  const post3d_state &st = ctx.post3d;
+  const post3d_state &st = ctx_ref<post3d_state>(ctx);
   return !st.failed && (effects_on(st.settings) || st.live > 0);
 }
 
 void post3d_after_opaque(context &ctx) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   if (!usable(ctx) || !load(st))
     return;
   const pass_view v = current_view(ctx);
@@ -1306,7 +1307,7 @@ void post3d_after_opaque(context &ctx) {
 }
 
 void post3d_after_pass(context &ctx) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   const bool taa = st.taa_pass;
   st.taa_pass = false;
   if (!usable(ctx) || !st.loaded || st.copy_fbo == 0)
@@ -1317,7 +1318,7 @@ void post3d_after_pass(context &ctx) {
   const post3d &p = st.settings;
   // Last pass's view, if it was a moment ago (not a pass from before a pause
   // of the effect or a stall).
-  const bool recent = st.has_prev && ctx.time.elapsed - st.prev_time < 0.25f;
+  const bool recent = st.has_prev && ctx_ref<time_state>(ctx).elapsed - st.prev_time < 0.25f;
   const bool blur = p.motion_blur > 0.0f && recent;
   // Motion vectors once a frame, for the pass TAA resolves or else the first
   // one motion blur smears; kept to compare with next frame's.
@@ -1340,18 +1341,18 @@ void post3d_after_pass(context &ctx) {
     run_motion_blur(ctx, st, v, vel);
   if (motion) {
     render3d_motion_commit(ctx);
-    st.motion_time = ctx.time.elapsed;
+    st.motion_time = ctx_ref<time_state>(ctx).elapsed;
   }
   st.prev_view_proj = unjittered(v);
-  st.prev_time = ctx.time.elapsed;
+  st.prev_time = ctx_ref<time_state>(ctx).elapsed;
   st.has_prev = true;
 }
 
 void post3d_update(context &ctx) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   if (st.live == 0)
     return;
-  const f32 dt = ctx.time.dt;
+  const f32 dt = ctx_ref<time_state>(ctx).dt;
   for (post3d_decal &d : st.decals) {
     if (!d.alive)
       continue;
@@ -1362,8 +1363,8 @@ void post3d_update(context &ctx) {
 }
 
 void post3d_apply_quality(context &ctx) {
-  const graphics_quality &q = ctx.quality->q;
-  post3d p = ctx.post3d->requested;
+  const graphics_quality &q = ctx_ref<quality_state>(ctx)->q;
+  post3d p = ctx_ref<post3d_state>(ctx)->requested;
   if (!q.ssao)
     p.ssao = 0.0f;
   if (q.ssao_samples_max > 0)
@@ -1380,15 +1381,15 @@ void post3d_apply_quality(context &ctx) {
     p.shafts = 0.0f;
     p.flare = 0.0f;
   }
-  ctx.post3d->settings = p;
+  ctx_ref<post3d_state>(ctx)->settings = p;
 }
 
 void post3d_set(context &ctx, const post3d &fx) {
-  ctx.post3d->requested = fx;
+  ctx_ref<post3d_state>(ctx)->requested = fx;
   post3d_apply_quality(ctx);
 }
 
-post3d post3d_get(const context &ctx) { return ctx.post3d->requested; }
+post3d post3d_get(const context &ctx) { return ctx_ref<post3d_state>(ctx)->requested; }
 
 // The box turns z, then x, then y (decal_matrix): x by acos(n.y) takes its y
 // axis to (0, n.y, sin), and y by atan2(n.x, n.z) swings that onto n.
@@ -1407,7 +1408,7 @@ decal3d_handle decal3d_add(context &ctx, const decal3d_desc &desc) {
     NJIN_WARN("decal3d_add: position, rotation or size is not finite, ignored");
     return {};
   }
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   if (st.live >= st.max_decals)
     remove_oldest(st);
   usize slot = st.decals.size();
@@ -1433,21 +1434,21 @@ decal3d_handle decal3d_add(context &ctx, const decal3d_desc &desc) {
 }
 
 void decal3d_remove(context &ctx, decal3d_handle handle) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   if (post3d_decal *d = decal_of(st, handle))
     kill(st, *d);
 }
 
 void decal3d_clear(context &ctx) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   for (post3d_decal &d : st.decals)
     kill(st, d);
 }
 
-i32 decal3d_count(const context &ctx) { return ctx.post3d->live; }
+i32 decal3d_count(const context &ctx) { return ctx_ref<post3d_state>(ctx)->live; }
 
 void decal3d_set_max(context &ctx, i32 max) {
-  post3d_state &st = ctx.post3d;
+  post3d_state &st = ctx_ref<post3d_state>(ctx);
   st.max_decals = std::clamp(max, 1, 4096);
   while (st.live > st.max_decals)
     remove_oldest(st);

@@ -3,7 +3,8 @@
 #include "njin_cfg.h"
 #include "njin_ctx.h"
 #include "njin_input.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "_collide.h"
 #include "njin_audio.h"
 #include "njin_font.h"
@@ -116,29 +117,29 @@ void set_uniform_quiet(shader_slot &slot, const char *name, const void *value,
 
 void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
   // What is under a flat skin blurred first (ui_skin::blur), cut to its corners.
-  if (c.look.blur > 0.0f && texture_slot_of(ctx.texture, c.look.texture) == nullptr) {
+  if (c.look.blur > 0.0f && texture_slot_of(ctx_ref<texture_store>(ctx), c.look.texture) == nullptr) {
     const f32 shorter = std::min(c.area.size.x, c.area.size.y);
     const f32 round = c.look.radius > 0.0f && shorter > 0.0f
                           ? std::min(1.0f, 2.0f * c.look.radius * scale / shorter)
                           : c.look.roundness;
     draw_backdrop_blur(ctx, c.area, c.look.blur * scale, round * shorter * 0.5f);
   }
-  shader_slot *sh = shader_slot_of(ctx.shader, c.shader);
+  shader_slot *sh = shader_slot_of(ctx_ref<shader_store>(ctx), c.shader);
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
     shader_bind_textures(ctx, *sh);
-    const f32 time = ctx.time.elapsed;
+    const f32 time = ctx_ref<time_state>(ctx).elapsed;
     f32 area[4] = {c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
-    if (ctx.view->ui_window) {
+    if (ctx_ref<view_state>(ctx)->ui_window) {
       // The shader runs on window pixels in the smooth UI pass.
-      const view_state &v = ctx.view;
+      const view_state &v = ctx_ref<view_state>(ctx);
       area[0] = v.offset.x + area[0] * v.scale;
       area[1] = v.offset.y + area[1] * v.scale;
       area[2] *= v.scale;
       area[3] *= v.scale;
-    } else if (ctx.view->canvas_on) {
+    } else if (ctx_ref<view_state>(ctx)->canvas_on) {
       for (f32 &a : area)
-        a *= ctx.view->canvas_scale;
+        a *= ctx_ref<view_state>(ctx)->canvas_scale;
     }
     set_uniform_quiet(*sh, "uiState", &c.state, SHADER_UNIFORM_FLOAT);
     set_uniform_quiet(*sh, "uiTime", &time, SHADER_UNIFORM_FLOAT);
@@ -149,7 +150,7 @@ void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
   Color color{};
   to_raylib(s.color, color);
   const Rectangle dest{c.area.pos.x, c.area.pos.y, c.area.size.x, c.area.size.y};
-  if (const texture_slot *tex = texture_slot_of(ctx.texture, s.texture)) {
+  if (const texture_slot *tex = texture_slot_of(ctx_ref<texture_store>(ctx), s.texture)) {
     const bool whole = s.source.size.x <= 0.0f || s.source.size.y <= 0.0f;
     const Rectangle area = texture_area(*tex);
     const Rectangle src{area.x + (whole ? 0.0f : s.source.pos.x),
@@ -210,7 +211,7 @@ void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
   // image skin has colours of its own, so it hides what is under it. A skin with
   // a shader draws whatever the shader decides, so it is left alone.
   if (sh == nullptr)
-    view_text_occlude(ctx.view, c.area, s.color, texture_slot_of(ctx.texture, s.texture) != nullptr);
+    view_text_occlude(ctx_ref<view_state>(ctx), c.area, s.color, texture_slot_of(ctx_ref<texture_store>(ctx), s.texture) != nullptr);
 }
 
 // A ring (circular progress bar). Our angles start at 12 o'clock and run
@@ -369,7 +370,7 @@ void play(context &ctx, sound_handle s) {
 }
 
 void frame_begin(context &ctx) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   ui.last = std::move(ui.current);
   ui.current.clear();
   ui.last_panels = std::move(ui.panels);
@@ -409,9 +410,9 @@ void frame_begin(context &ctx) {
     ui.listening = 0;
 
   // Raw input, read before anything is consumed.
-  const f32 dt = ctx.time.dt_real;
+  const f32 dt = ctx_ref<time_state>(ctx).dt_real;
   // In the canvas's units when there is one: the panels were built in them.
-  const vec2 mouse = input_mouse_pos(ctx.input) * (1.0f / ctx.view->canvas_scale);
+  const vec2 mouse = input_mouse_pos(ctx_ref<input_store>(ctx)) * (1.0f / ctx_ref<view_state>(ctx)->canvas_scale);
   ui.mouse_moved = mouse != ui.mouse;
   ui.mouse = mouse;
   ui.mouse_pressed = mouse_pressed(ctx, mouse_left);
@@ -473,7 +474,7 @@ void frame_begin(context &ctx) {
     for (i32 i = 0; i < text_count(ctx); i++)
       if (const i32 c = text_char(ctx, i); c >= 32)
         append_utf8(ui.edit_typed, c);
-    ui.edit_back = input_backspaces(ctx.input);
+    ui.edit_back = input_backspaces(ctx_ref<input_store>(ctx));
     ui.edit_enter = key_pressed(ctx, key_enter) || key_pressed(ctx, key_kp_enter);
     ui.edit_escape = key_pressed(ctx, key_escape);
     for (i32 k = key_none + 1; k < key_count; k++)
@@ -688,7 +689,7 @@ struct interaction {
 // Places a focusable widget (`h` pixels high, 0 a widget's height) and works
 // out its state from the input.
 interaction interact(context &ctx, const char *label, bool enabled, bool adjustable, f32 h = 0.0f) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   interaction it;
   it.id = hash_id(ui.panel_id, label);
   it.area = place(ui, h > 0.0f ? h : sc(ui, ui.style.widget_height));
@@ -791,10 +792,10 @@ ui_style ui_default_style() {
   return s;
 }
 
-void ui_style_set(context &ctx, const ui_style &style) { ctx.ui->style = style; }
+void ui_style_set(context &ctx, const ui_style &style) { ctx_ref<ui_state>(ctx)->style = style; }
 
 void ui_canvas_set(context &ctx, const ui_canvas_desc &desc) {
-  view_state &v = ctx.view;
+  view_state &v = ctx_ref<view_state>(ctx);
   v.canvas_height = std::max(0.0f, desc.height);
   v.canvas_min_width = std::max(0.0f, desc.min_width);
   v.canvas_min = std::max(0.05f, desc.min_scale);
@@ -802,22 +803,22 @@ void ui_canvas_set(context &ctx, const ui_canvas_desc &desc) {
 }
 
 void ui_canvas_begin(const context &ctx) {
-  ctx.view->canvas_depth++;
-  view_canvas_sync(ctx.view);
+  ctx_ref<view_state>(ctx)->canvas_depth++;
+  view_canvas_sync(ctx_ref<view_state>(ctx));
 }
 
 void ui_canvas_end(const context &ctx) {
-  if (ctx.view->canvas_depth <= 0)
+  if (ctx_ref<view_state>(ctx)->canvas_depth <= 0)
     return;
-  ctx.view->canvas_depth--;
-  view_canvas_sync(ctx.view);
+  ctx_ref<view_state>(ctx)->canvas_depth--;
+  view_canvas_sync(ctx_ref<view_state>(ctx));
 }
 
-f32 ui_canvas_scale(const context &ctx) { return ctx.view->canvas_scale; }
-ui_style ui_style_get(const context &ctx) { return ctx.ui->style; }
+f32 ui_canvas_scale(const context &ctx) { return ctx_ref<view_state>(ctx)->canvas_scale; }
+ui_style ui_style_get(const context &ctx) { return ctx_ref<ui_state>(ctx)->style; }
 
 void ui_begin(context &ctx, const ui_panel_desc &desc) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   if (ui.in_panel) {
     NJIN_WARN("ui_begin: panel '%s' opened inside another; close it with ui_end first",
               desc.id != nullptr ? desc.id : "");
@@ -874,7 +875,7 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
       ui.enter_age[ui.panel_id] = 0.0f;
       t = 0.0f;
     } else if (age != ui.enter_age.end()) {
-      age->second += ctx.time.dt_real;
+      age->second += ctx_ref<time_state>(ctx).dt_real;
       t = std::min(1.0f, age->second / desc.enter_seconds);
       if (t >= 1.0f)
         ui.enter_age.erase(age);
@@ -919,7 +920,7 @@ void ui_begin(context &ctx, const ui_panel_desc &desc) {
 }
 
 void ui_end(context &ctx) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   if (!ui.in_panel) {
     NJIN_WARN("ui_end without ui_begin");
     return;
@@ -966,7 +967,7 @@ void ui_end(context &ctx) {
 }
 
 void ui_row(context &ctx, i32 columns) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_row");
   if (columns <= 0)
     return;
@@ -1008,7 +1009,7 @@ void text_slot(context &ctx, ui_state &ui, const char *text, f32 size, rgba colo
 } // namespace
 
 void ui_label(context &ctx, const char *text) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_label");
   if (text == nullptr)
     return;
@@ -1016,7 +1017,7 @@ void ui_label(context &ctx, const char *text) {
 }
 
 void ui_space(context &ctx, f32 height) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_space");
   const f32 pad = sc(ui, ui.style.padding);
   ui.last_rect = rect{{ui.panel.pos.x + pad, ui.cursor},
@@ -1025,7 +1026,7 @@ void ui_space(context &ctx, f32 height) {
 }
 
 bool ui_button(context &ctx, const char *label, bool enabled, bool selected) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_button");
   if (label == nullptr)
     return false;
@@ -1045,7 +1046,7 @@ bool ui_button(context &ctx, const char *label, bool enabled, bool selected) {
     const f32 to = face == state_focused ? 1.0f : 0.0f;
     const auto at = ui.hover_amount.find(it.id);
     f32 h = at != ui.hover_amount.end() ? at->second : 0.0f;
-    const f32 step = ctx.time.dt_real / ui.style.hover_seconds;
+    const f32 step = ctx_ref<time_state>(ctx).dt_real / ui.style.hover_seconds;
     h = to > h ? std::min(to, h + step) : std::max(to, h - step);
     if (h <= 0.0f) {
       if (at != ui.hover_amount.end())
@@ -1079,7 +1080,7 @@ bool ui_button(context &ctx, const char *label, bool enabled, bool selected) {
 }
 
 bool ui_toggle(context &ctx, const char *label, bool &value) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_toggle");
   if (label == nullptr)
     return false;
@@ -1114,7 +1115,7 @@ bool ui_toggle(context &ctx, const char *label, bool &value) {
 
 bool ui_slider(context &ctx, const char *label, f32 &value, f32 min, f32 max, f32 step,
                bool percent) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_slider");
   if (label == nullptr || max <= min)
     return false;
@@ -1165,7 +1166,7 @@ bool ui_slider(context &ctx, const char *label, f32 &value, f32 min, f32 max, f3
 namespace {
 template <typename F>
 bool ui_choice_impl(context &ctx, const char *label, i32 &index, i32 count, F &&get_option) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_choice");
   if (label == nullptr || count == 0)
     return false;
@@ -1222,7 +1223,7 @@ void push_face(ui_state &ui, const ui_skin &skin, shader_handle shader, widget_s
 
 template <typename F>
 bool ui_tabs_impl(context &ctx, const char *id, i32 &index, i32 count, F &&label_of, const ui_tabs_desc &desc) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_tabs");
   ui.tab_icons.clear();
   if (id == nullptr || count <= 0)
@@ -1263,7 +1264,7 @@ bool ui_tabs_impl(context &ctx, const char *id, i32 &index, i32 count, F &&label
   // The open face slides to the open tab.
   f32 &at = ui.tab_slide.try_emplace(it.id, (f32)open).first->second;
   if (st.tab_slide_seconds > 0.0f) {
-    at += ((f32)open - at) * (1.0f - std::exp(-ctx.time.dt_real * 5.0f / st.tab_slide_seconds));
+    at += ((f32)open - at) * (1.0f - std::exp(-ctx_ref<time_state>(ctx).dt_real * 5.0f / st.tab_slide_seconds));
     if (std::abs((f32)open - at) < 0.002f)
       at = (f32)open;
   } else {
@@ -1325,12 +1326,12 @@ bool ui_tabs(context &ctx, const char *id, i32 &index, std::span<const std::stri
 }
 
 rect ui_tabs_icon_rect(const context &ctx, i32 tab) {
-  const std::vector<rect> &r = ctx.ui->tab_icons;
+  const std::vector<rect> &r = ctx_ref<ui_state>(ctx)->tab_icons;
   return tab >= 0 && tab < (i32)r.size() ? r[(size_t)tab] : rect{};
 }
 
 void ui_progress(context &ctx, f32 value, const char *text, rgba fill) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_progress");
   const f32 t = clamp(value, 0.0f, 1.0f);
   const rect r = place(ui, sc(ui, ui.style.widget_height) * 0.6f);
@@ -1345,7 +1346,7 @@ void ui_progress(context &ctx, f32 value, const char *text, rgba fill) {
 }
 
 void ui_text(context &ctx, const char *text, const ui_text_desc &desc) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_text");
   if (text == nullptr)
     return;
@@ -1356,11 +1357,11 @@ void ui_text(context &ctx, const char *text, const ui_text_desc &desc) {
 
 void ui_tooltip(context &ctx, const char *text) {
   if (text != nullptr)
-    ctx.ui->tooltip = text;
+    ctx_ref<ui_state>(ctx)->tooltip = text;
 }
 
 void ui_scroll_begin(context &ctx, const char *id, f32 height) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_scroll_begin");
   if (ui.in_scroll) {
     NJIN_WARN("ui_scroll_begin: '%s' opened inside another scroll area", id != nullptr ? id : "");
@@ -1421,7 +1422,7 @@ void ui_scroll_begin(context &ctx, const char *id, f32 height) {
 }
 
 void ui_scroll_begin_fit(context &ctx, const char *id, f32 max_height) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_scroll_begin_fit");
   // What it held last frame, from its top's half gap to its last widget's
   // gap, back in pixels before the scale.
@@ -1433,7 +1434,7 @@ void ui_scroll_begin_fit(context &ctx, const char *id, f32 max_height) {
 }
 
 void ui_scroll_end(context &ctx) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   if (!ui.in_scroll) {
     NJIN_WARN("ui_scroll_end without ui_scroll_begin");
     return;
@@ -1476,13 +1477,13 @@ void ui_scroll_end(context &ctx) {
 }
 
 void ui_scroll_to_end(context &ctx, const char *id) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_scroll_to_end");
   ui.scroll_to_end.insert(hash_id(ui.panel_id, id != nullptr ? id : "scroll"));
 }
 
 void ui_progress_circle(context &ctx, const ui_circle_desc &d) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_progress_circle");
   const f32 diameter = std::max(sc(ui, d.diameter), 1.0f);
   const rect slot = place(ui, diameter);
@@ -1515,7 +1516,7 @@ void ui_progress_circle(context &ctx, const ui_circle_desc &d) {
 }
 
 void ui_image(context &ctx, texture_handle texture, vec2 size, rect source) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_image");
   const vec2 s = size * ui.style.scale;
   const rect slot = place(ui, s.y);
@@ -1525,7 +1526,7 @@ void ui_image(context &ctx, texture_handle texture, vec2 size, rect source) {
   c.color = {1.0f, 1.0f, 1.0f, 1.0f};
   c.area = rect{{rect_center(slot).x - s.x * 0.5f, slot.pos.y}, s};
   // texture_draw_ex scales from the source size; express the target size.
-  const texture_slot *tex = texture_slot_of(ctx.texture, texture);
+  const texture_slot *tex = texture_slot_of(ctx_ref<texture_store>(ctx), texture);
   const vec2 src = source.size.x > 0.0f && source.size.y > 0.0f
                        ? source.size
                        : (tex != nullptr ? vec2{texture_area(*tex).width, texture_area(*tex).height} : s);
@@ -1542,11 +1543,11 @@ void ui_draw_look(context &ctx, const ui_look &look, i32 state, rect area, f32 v
   c.shader = look.shader;
   c.state = (f32)state;
   c.value = value;
-  flush(ctx, ctx.ui, {c});
+  flush(ctx, ctx_ref<ui_state>(ctx), {c});
 }
 
 bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_keybind");
   if (label == nullptr)
     return false;
@@ -1594,10 +1595,10 @@ bool ui_keybind(context &ctx, const char *label, action_handle action, bool pad)
   return changed;
 }
 
-bool ui_keybind_listening(const context &ctx) { return ctx.ui->listening != 0; }
+bool ui_keybind_listening(const context &ctx) { return ctx_ref<ui_state>(ctx)->listening != 0; }
 
 bool ui_input(context &ctx, const char *label, std::string &text, const ui_input_desc &desc) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   require_panel(ui, "ui_input");
   if (label == nullptr)
     return false;
@@ -1654,10 +1655,10 @@ bool ui_input(context &ctx, const char *label, std::string &text, const ui_input
   return changed;
 }
 
-bool ui_typing(const context &ctx) { return ctx.ui->editing != 0; }
+bool ui_typing(const context &ctx) { return ctx_ref<ui_state>(ctx)->editing != 0; }
 
 bool ui_back(context &ctx) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   if (!ui.back || ui.last_panels.empty())
     return false;
   // With a popup up, back belongs to the popup alone.
@@ -1671,41 +1672,41 @@ bool ui_back(context &ctx) {
 }
 
 void ui_focus(context &ctx, const char *label) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   if (label != nullptr)
     ui.focus = hash_id(ui.panel_id, label);
 }
 
-bool ui_active(const context &ctx) { return ctx.ui->navigable_last; }
+bool ui_active(const context &ctx) { return ctx_ref<ui_state>(ctx)->navigable_last; }
 
-rect ui_last_rect(const context &ctx) { return ctx.ui->last_rect; }
+rect ui_last_rect(const context &ctx) { return ctx_ref<ui_state>(ctx)->last_rect; }
 
-rect ui_panel_rect(const context &ctx) { return ctx.ui->panel_done; }
+rect ui_panel_rect(const context &ctx) { return ctx_ref<ui_state>(ctx)->panel_done; }
 
 rect ui_panel_rect(const context &ctx, const char *id) {
   if (id == nullptr)
     return {};
   const u64 h = hash_id(0, id);
-  for (size_t i = ctx.ui->last_panel_ids.size(); i-- > 0;)
-    if (ctx.ui->last_panel_ids[i] == h)
-      return ctx.ui->last_panels[i];
+  for (size_t i = ctx_ref<ui_state>(ctx)->last_panel_ids.size(); i-- > 0;)
+    if (ctx_ref<ui_state>(ctx)->last_panel_ids[i] == h)
+      return ctx_ref<ui_state>(ctx)->last_panels[i];
   return {};
 }
 
 void ui_let_through(context &ctx, rect area) {
-  ctx.ui->through.push_back(area);
-  ctx.ui->through_panel.push_back(ctx.ui->in_panel ? ctx.ui->panel_id : 0);
+  ctx_ref<ui_state>(ctx)->through.push_back(area);
+  ctx_ref<ui_state>(ctx)->through_panel.push_back(ctx_ref<ui_state>(ctx)->in_panel ? ctx_ref<ui_state>(ctx)->panel_id : 0);
 }
 
-bool ui_mouse_over(const context &ctx) { return ctx.ui->mouse_over; }
+bool ui_mouse_over(const context &ctx) { return ctx_ref<ui_state>(ctx)->mouse_over; }
 
 bool ui_on_top(const context &ctx, const char *id) {
-  return id != nullptr && ctx.ui->mouse_top != 0 && ctx.ui->mouse_top == hash_id(0, id);
+  return id != nullptr && ctx_ref<ui_state>(ctx)->mouse_top != 0 && ctx_ref<ui_state>(ctx)->mouse_top == hash_id(0, id);
 }
 
-bool ui_pressed_on(const context &ctx, const char *id) { return ctx.ui->mouse_pressed && ui_on_top(ctx, id); }
+bool ui_pressed_on(const context &ctx, const char *id) { return ctx_ref<ui_state>(ctx)->mouse_pressed && ui_on_top(ctx, id); }
 
-bool ui_covered(const context &ctx) { return ctx.ui->panel_covered; }
+bool ui_covered(const context &ctx) { return ctx_ref<ui_state>(ctx)->panel_covered; }
 
 // --- popup ---
 
@@ -1720,7 +1721,7 @@ std::vector<std::string> wrap_lines(const context &ctx, const ui_state &ui, cons
 } // namespace
 
 void ui_popup_begin(context &ctx, const ui_popup_desc &desc) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   const char *name = desc.id != nullptr ? desc.id : "popup";
   const u64 id = hash_id(0, name);
   // First frame of this popup: remember where the focus was, to give it back.
@@ -1736,7 +1737,7 @@ void ui_popup_end(context &ctx) { ui_end(ctx); }
 i32 ui_popup(context &ctx, const ui_popup_desc &desc, bool &open) {
   if (!open)
     return -1;
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   const u64 id = hash_id(0, desc.id != nullptr ? desc.id : "popup");
   const bool first = ui.modal_last != id;
   ui_popup_begin(ctx, desc);
@@ -1789,7 +1790,7 @@ i32 ui_popup(context &ctx, const ui_popup_desc &desc, bool &open) {
 void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc) {
   if (text == nullptr || *text == '\0')
     return;
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   ui.toasts.push_back(ui_toast_rec{.text = text,
                                    .kind = desc.kind,
                                    .age = 0.0f,
@@ -1799,7 +1800,7 @@ void ui_toast(context &ctx, const char *text, const ui_toast_desc &desc) {
     ui.toasts.erase(ui.toasts.begin());
 }
 
-void ui_toast_clear(context &ctx) { ctx.ui->toasts.clear(); }
+void ui_toast_clear(context &ctx) { ctx_ref<ui_state>(ctx)->toasts.clear(); }
 
 namespace {
 // ui_tooltip(): a small box by the mouse, in the toast's dress, kept on screen.
@@ -1831,11 +1832,11 @@ void draw_tooltip(context &ctx, ui_state &ui) {
 } // namespace
 
 void ui_draw_toasts(context &ctx) {
-  ui_state &ui = ctx.ui;
+  ui_state &ui = ctx_ref<ui_state>(ctx);
   draw_tooltip(ctx, ui);
   if (ui.toasts.empty())
     return;
-  const f32 dt = ctx.time.dt_real; // real time: toasts run while the game is paused
+  const f32 dt = ctx_ref<time_state>(ctx).dt_real; // real time: toasts run while the game is paused
   for (ui_toast_rec &t : ui.toasts)
     t.age += dt;
   std::erase_if(ui.toasts, [](const ui_toast_rec &t) { return t.age >= t.life; });

@@ -14,7 +14,8 @@
 #include "njin2rl.h"
 #include "njin_gpu_caps.h"
 #include "njin_gpu_hint.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "modules/debug.h"
 #include "modules/ui.h"
 #include "modules/dialog.h"
@@ -24,6 +25,7 @@
 #include "njin_input_impl.h"
 #include "njin_log_impl.h"
 #include "njin_view.h"
+#include "njin_ctx_impl.h"
 #include <algorithm>
 #include <chrono>
 #include <string>
@@ -35,8 +37,8 @@ namespace {
 // breakpoint, dragging the window) the backlog is dropped instead of being
 // simulated in one frame, which would only make the next frame longer still.
 void run_fixed_steps(context &ctx) {
-  const i32 fixed_max_steps = std::max(ctx.cfg.fixed_max_steps, 1);
-  time_state &time = ctx.time;
+  const i32 fixed_max_steps = std::max(ctx_ref<config>(ctx).fixed_max_steps, 1);
+  time_state &time = ctx_ref<time_state>(ctx);
   if (time.paused) {
     time.fixed_alpha = time.fixed_dt > 0.0f ? time.fixed_accum / time.fixed_dt : 0.0f;
     return;
@@ -47,8 +49,8 @@ void run_fixed_steps(context &ctx) {
   while (time.fixed_accum >= time.fixed_dt && steps < fixed_max_steps) {
     ecs_run(ctx, phase_fixed_update);
     // Bodies and characters move right after the game set them in this step.
-    if (ctx.hooks.fixed_step != nullptr)
-      ctx.hooks.fixed_step(ctx, time.fixed_dt);
+    if (ctx_ref<feature_hooks>(ctx).fixed_step != nullptr)
+      ctx_ref<feature_hooks>(ctx).fixed_step(ctx, time.fixed_dt);
     time.fixed_accum -= time.fixed_dt;
     steps++;
   }
@@ -100,17 +102,17 @@ context *create(const config &cfg) {
   // inspector that a game may attach before run; run lets go of them.
   log_hold(true);
   context *ctx = new context(cfg);
-  ctx->time.fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
-  ctx->random.reseed(
+  ctx_ref<time_state>(*ctx).fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
+  ctx_ref<rng>(*ctx).reseed(
       (u64)std::chrono::high_resolution_clock::now().time_since_epoch().count());
   if (cfg.virtual_size.x >= 1.0f && cfg.virtual_size.y >= 1.0f)
     window_set_virtual_size(*ctx, cfg.virtual_size, cfg.integer_scale);
-  ctx->view->render_scale =
+  ctx_ref<view_state>(*ctx)->render_scale =
       view_clamp_render_scale(cfg.render_scale, {(f32)GetScreenWidth(), (f32)GetScreenHeight()});
-  if (ctx->view->render_scale != cfg.render_scale && cfg.render_scale > 1)
+  if (ctx_ref<view_state>(*ctx)->render_scale != cfg.render_scale && cfg.render_scale > 1)
     NJIN_WARN("config::render_scale %d at the window's size would need a texture "
              "bigger than any GPU guarantees; using %dx instead",
-             cfg.render_scale, ctx->view->render_scale);
+             cfg.render_scale, ctx_ref<view_state>(*ctx)->render_scale);
   // The game's features (njin_features.h): their states, hooks and modules,
   // before the core modules register theirs among them.
   features_install(*ctx);
@@ -127,16 +129,16 @@ const char *version() {
 }
 
 void run(context &ctx) {
-  if (ctx.ecs->started) {
+  if (ctx_ref<ecs_store>(ctx)->started) {
     return;
   }
-  ctx.ecs->started = true;
+  ctx_ref<ecs_store>(ctx)->started = true;
   log_hold(false);
   NJIN_INFO("njin %s", version());
   // Driver shader compiles cost tens of milliseconds each: pay them here, not
   // on the first hit, pause or explosion. Not in low_power: there each is
   // loaded on its first use, and one never used costs no memory.
-  if (!ctx.cfg.low_power) {
+  if (!ctx_ref<config>(ctx).low_power) {
     fx_warmup(ctx);
     post_chain_warmup(ctx);
     particles_gpu_available(ctx);
@@ -144,15 +146,15 @@ void run(context &ctx) {
   ecs_run(ctx, phase_startup);
 
   Color clearbg = RAYWHITE;
-  to_raylib(ctx.cfg.clear_bg_color, clearbg);
-  const bool low_power = ctx.cfg.low_power;
+  to_raylib(ctx_ref<config>(ctx).clear_bg_color, clearbg);
+  const bool low_power = ctx_ref<config>(ctx).low_power;
   double frame_start = GetTime();
-  while (!ctx.quit) {
+  while (!ctx_ref<frame_state>(ctx).quit) {
     // raylib holds a close (the [x], Alt+F4, the exit key) for one frame.
-    ctx.close_requested = WindowShouldClose();
-    if (ctx.close_requested && !ctx.close_intercept)
+    ctx_ref<frame_state>(ctx).close_requested = WindowShouldClose();
+    if (ctx_ref<frame_state>(ctx).close_requested && !ctx_ref<frame_state>(ctx).close_intercept)
       break;
-    time_state &time = ctx.time;
+    time_state &time = ctx_ref<time_state>(ctx);
     if (low_power) {
       // raylib runs uncapped here, so its frame time leaves out the sleep.
       const double now = GetTime();
@@ -166,11 +168,11 @@ void run(context &ctx) {
     // Hitstop zeroes dt here, before any system (or fixed step) reads it.
     fx_frame_begin(ctx);
     gizmo_frame_begin(ctx);
-    if (ctx.ecs->profile)
-      ecs_profile_roll(ctx.ecs);
-    view_frame_begin(ctx.view);
-    input_key_poll(ctx.input);
-    view_map_mouse(ctx.view, ctx.input->cur.mouse_pos, ctx.input->cur.mouse_delta);
+    if (ctx_ref<ecs_store>(ctx)->profile)
+      ecs_profile_roll(ctx_ref<ecs_store>(ctx));
+    view_frame_begin(ctx_ref<view_state>(ctx));
+    input_key_poll(ctx_ref<input_store>(ctx));
+    view_map_mouse(ctx_ref<view_state>(ctx), ctx_ref<input_store>(ctx)->cur.mouse_pos, ctx_ref<input_store>(ctx)->cur.mouse_delta);
     // A scene switch requested last frame happens here, before any system
     // of the new frame runs.
     scene_store_apply(ctx);
@@ -179,21 +181,21 @@ void run(context &ctx) {
     run_fixed_steps(ctx);
     ecs_run(ctx, phase_update);
     ecs_run(ctx, phase_post_update);
-    ctx.ecs->dispatcher.update();
+    ctx_ref<ecs_store>(ctx)->dispatcher.update();
 
-    if (low_power && ctx.skip_draw) {
+    if (low_power && ctx_ref<frame_state>(ctx).skip_draw) {
       // Nothing changed on screen: the window keeps its last image.
-      ctx.skip_draw = false;
+      ctx_ref<frame_state>(ctx).skip_draw = false;
       PollInputEvents();
-      pacer_sleep(ctx.window.pacer, frame_start + 1.0 / ctx.cfg.target_fps - GetTime());
+      pacer_sleep(ctx_ref<window_guard>(ctx).pacer, frame_start + 1.0 / ctx_ref<config>(ctx).target_fps - GetTime());
       continue;
     }
-    ctx.skip_draw = false;
+    ctx_ref<frame_state>(ctx).skip_draw = false;
     BeginDrawing();
     ClearBackground(clearbg);
-    ctx.view->crisp_text = ctx.cfg.crisp_text && !gpu_is_software();
-    ctx.view->smooth_ui = ctx.cfg.smooth_ui;
-    view_draw_begin(ctx.view, clearbg);
+    ctx_ref<view_state>(ctx)->crisp_text = ctx_ref<config>(ctx).crisp_text && !gpu_is_software();
+    ctx_ref<view_state>(ctx)->smooth_ui = ctx_ref<config>(ctx).smooth_ui;
+    view_draw_begin(ctx_ref<view_state>(ctx), clearbg);
     ecs_run(ctx, phase_pre_render);
     ecs_run(ctx, phase_render);
     ecs_run(ctx, phase_post_render);
@@ -205,16 +207,16 @@ void run(context &ctx) {
     ui_canvas_end(ctx);
     fx_draw_screen_flash(ctx);
     scene_fade_draw(ctx);
-    if (ctx.view->ui_window)
-      view_ui_end(ctx.view);
+    if (ctx_ref<view_state>(ctx)->ui_window)
+      view_ui_end(ctx_ref<view_state>(ctx));
     else
-      view_draw_end(ctx.view);
+      view_draw_end(ctx_ref<view_state>(ctx));
     text_layer_flush(ctx);
     take_pending_screenshots(ctx);
     debug_record_frame(ctx);
     EndDrawing();
     if (low_power)
-      pacer_sleep(ctx.window.pacer, frame_start + 1.0 / ctx.cfg.target_fps - GetTime());
+      pacer_sleep(ctx_ref<window_guard>(ctx).pacer, frame_start + 1.0 / ctx_ref<config>(ctx).target_fps - GetTime());
   }
 
   ecs_run(ctx, phase_shutdown);

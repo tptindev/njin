@@ -4,10 +4,9 @@
 #include "_random.h"
 #include "_types.h"
 #include "njin_cfg.h"
+#include "njin_ctx_get.h"
 #include "njin_features.h"
-#include "njin_pace.h"
-#include <string>
-#include <vector>
+#include "njin_frame_impl.h"
 
 namespace njin {
 // The core's stores, each held in a store_ref: a source sees complete only
@@ -59,30 +58,6 @@ struct video_store;
 struct network_store;
 struct anim3d_store;
 
-// Opens the window on construction and closes it on destruction.
-struct window_guard {
-  explicit window_guard(const config &cfg);
-  ~window_guard();
-  window_guard(const window_guard &) = delete;
-  window_guard &operator=(const window_guard &) = delete;
-  frame_pacer pacer; // config::low_power only
-};
-
-// Frame timing. `dt` is what delta() returns outside phase_fixed_update:
-// dt_real scaled by `scale`, or 0 while paused.
-struct time_state {
-  f32 dt = 0.0f;
-  f32 dt_real = 0.0f;
-  f32 elapsed = 0.0f;
-  f32 scale = 1.0f;
-  bool paused = false;
-  f32 fixed_dt = 1.0f / 60.0f;
-  f32 fixed_accum = 0.0f;
-  f32 fixed_alpha = 0.0f;
-  f32 fixed_rate = 1.0f; // time_set_fixed_rate: fixed steps run this much faster than time
-  bool in_fixed = false; // delta() answers fixed_dt while this is set
-};
-
 // Definition of the opaque context handle. Only the runtime sees this.
 //
 // Members are destroyed in reverse order, so `window` (declared before the
@@ -101,15 +76,7 @@ struct context {
   feature_hooks hooks;
 
   time_state time;
-  bool quit = false;
-  // window_set_close_intercept(): closing the window only sets
-  // close_requested, for one frame, instead of ending the loop.
-  bool close_intercept = false;
-  bool close_requested = false;
-  // frame_skip_draw(): this frame updates but draws nothing (low_power only).
-  bool skip_draw = false;
-  // Paths requested by screenshot() this frame, taken at its end.
-  std::vector<std::string> screenshots;
+  frame_state frame;
   rng random;
   // Early, so the Lua state outlives every store whose timers and tweens may
   // hold Lua callbacks.
@@ -163,10 +130,160 @@ struct context {
   store_ref<level_store> level;
   store_ref<ecs_store> ecs;
 };
-// Saves every screenshot requested this frame. Called after post_render and
-// before EndDrawing, while the back buffer still holds the finished frame.
-void take_pending_screenshots(context &ctx);
-// Draws the text queued for window resolution (view_state::text_layer) onto the
-// window, over the scaled virtual image. Called right after view_draw_end.
-void text_layer_flush(context &ctx);
+// Which member holds a T, for ctx_ref (njin_ctx_get.h).
+template <class T> struct ctx_member;
+template <> struct ctx_member<feature_hooks> {
+  static constexpr auto ptr = &context::hooks;
+};
+template <> struct ctx_member<time_state> {
+  static constexpr auto ptr = &context::time;
+};
+template <> struct ctx_member<frame_state> {
+  static constexpr auto ptr = &context::frame;
+};
+template <> struct ctx_member<rng> {
+  static constexpr auto ptr = &context::random;
+};
+template <> struct ctx_member<config> {
+  static constexpr auto ptr = &context::cfg;
+};
+template <> struct ctx_member<window_guard> {
+  static constexpr auto ptr = &context::window;
+};
+template <> struct ctx_member<script_state> {
+  static constexpr auto ptr = &context::script;
+};
+template <> struct ctx_member<view_state> {
+  static constexpr auto ptr = &context::view;
+};
+template <> struct ctx_member<quality_state> {
+  static constexpr auto ptr = &context::quality;
+};
+template <> struct ctx_member<input_store> {
+  static constexpr auto ptr = &context::input;
+};
+template <> struct ctx_member<shader_store> {
+  static constexpr auto ptr = &context::shader;
+};
+template <> struct ctx_member<instance_store> {
+  static constexpr auto ptr = &context::instances;
+};
+template <> struct ctx_member<texture_store> {
+  static constexpr auto ptr = &context::texture;
+};
+template <> struct ctx_member<render_texture_store> {
+  static constexpr auto ptr = &context::render_texture;
+};
+template <> struct ctx_member<model_store> {
+  static constexpr auto ptr = &context::model;
+};
+template <> struct ctx_member<physics3d_state> {
+  static constexpr auto ptr = &context::physics3d;
+};
+template <> struct ctx_member<font_store> {
+  static constexpr auto ptr = &context::font;
+};
+template <> struct ctx_member<sdf2d_state> {
+  static constexpr auto ptr = &context::sdf2d;
+};
+template <> struct ctx_member<backdrop_state> {
+  static constexpr auto ptr = &context::backdrop;
+};
+template <> struct ctx_member<audio_store> {
+  static constexpr auto ptr = &context::audio;
+};
+template <> struct ctx_member<camera_post> {
+  static constexpr auto ptr = &context::post;
+};
+template <> struct ctx_member<fx_state> {
+  static constexpr auto ptr = &context::fx;
+};
+template <> struct ctx_member<gizmo_state> {
+  static constexpr auto ptr = &context::gizmos;
+};
+template <> struct ctx_member<post_chain> {
+  static constexpr auto ptr = &context::postfx;
+};
+template <> struct ctx_member<lighting_state> {
+  static constexpr auto ptr = &context::light;
+};
+template <> struct ctx_member<render3d_state> {
+  static constexpr auto ptr = &context::render3d;
+};
+template <> struct ctx_member<post3d_state> {
+  static constexpr auto ptr = &context::post3d;
+};
+template <> struct ctx_member<particles3d_state> {
+  static constexpr auto ptr = &context::particles3d;
+};
+template <> struct ctx_member<world3d_store> {
+  static constexpr auto ptr = &context::world3d;
+};
+template <> struct ctx_member<nav3d_store> {
+  static constexpr auto ptr = &context::nav3d;
+};
+template <> struct ctx_member<video_store> {
+  static constexpr auto ptr = &context::video;
+};
+template <> struct ctx_member<network_store> {
+  static constexpr auto ptr = &context::network;
+};
+template <> struct ctx_member<particle_gpu_state> {
+  static constexpr auto ptr = &context::particles_gpu;
+};
+template <> struct ctx_member<render_stats> {
+  static constexpr auto ptr = &context::stats;
+};
+template <> struct ctx_member<reload_state> {
+  static constexpr auto ptr = &context::reload;
+};
+template <> struct ctx_member<ui_state> {
+  static constexpr auto ptr = &context::ui;
+};
+template <> struct ctx_member<dialog_state> {
+  static constexpr auto ptr = &context::dialog;
+};
+template <> struct ctx_member<i18n_store> {
+  static constexpr auto ptr = &context::i18n;
+};
+template <> struct ctx_member<debug_state> {
+  static constexpr auto ptr = &context::debug;
+};
+template <> struct ctx_member<sprite_cache> {
+  static constexpr auto ptr = &context::sprites;
+};
+template <> struct ctx_member<timer_state> {
+  static constexpr auto ptr = &context::timers;
+};
+template <> struct ctx_member<collision_state> {
+  static constexpr auto ptr = &context::collision;
+};
+template <> struct ctx_member<scene_store> {
+  static constexpr auto ptr = &context::scene;
+};
+template <> struct ctx_member<prefab_store> {
+  static constexpr auto ptr = &context::prefab;
+};
+template <> struct ctx_member<anim_store> {
+  static constexpr auto ptr = &context::anim;
+};
+template <> struct ctx_member<anim3d_store> {
+  static constexpr auto ptr = &context::anim3d;
+};
+template <> struct ctx_member<level_store> {
+  static constexpr auto ptr = &context::level;
+};
+template <> struct ctx_member<ecs_store> {
+  static constexpr auto ptr = &context::ecs;
+};
+
+// ctx_ref's definitions: inline in every source (NJIN_CTX_INLINE), or made once
+// in njin_ctx_impl.cpp.
+#if defined(NJIN_CTX_INLINE) || defined(NJIN_CTX_DEFINE)
+template <class T> NJIN_CTX_FN ctx_slot_t<T> &ctx_ref(context &ctx) { return ctx.*ctx_member<T>::ptr; }
+template <class T> NJIN_CTX_FN const ctx_slot_t<T> &ctx_ref(const context &ctx) { return ctx.*ctx_member<T>::ptr; }
+template <class T> NJIN_CTX_FN ctx_slot_t<T> &ctx_mut(const context &ctx) {
+  return const_cast<context &>(ctx).*ctx_member<T>::ptr;
+}
+#endif
 } // namespace njin

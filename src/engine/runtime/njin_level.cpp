@@ -1,6 +1,6 @@
 #include "njin_level_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_texture.h"
 #include "njin_file.h"
 #include "njin_log.h"
@@ -697,9 +697,9 @@ texture_handle level_builder::texture(const std::string &relative, const std::st
   const std::string path = (base.empty() ? dir : base) + relative;
   if (const auto it = loaded.find(path); it != loaded.end())
     return it->second;
-  const texture_handle tex = texture_store_load(ctx.texture, path.c_str());
+  const texture_handle tex = texture_store_load(ctx_ref<texture_store>(ctx), path.c_str());
   if (tex.id != 0) {
-    texture_store_set_filter(ctx.texture, tex, desc.filter);
+    texture_store_set_filter(ctx_ref<texture_store>(ctx), tex, desc.filter);
     slot.textures.push_back(tex);
   }
   loaded[path] = tex;
@@ -837,14 +837,14 @@ level_handle level_begin(context &ctx) {
   level_slot slot{};
   slot.alive = true;
   slot.scene = scene_current(ctx);
-  ctx.level->levels.push_back(std::move(slot));
-  return level_handle{.id = (u32)ctx.level->levels.size()};
+  ctx_ref<level_store>(ctx)->levels.push_back(std::move(slot));
+  return level_handle{.id = (u32)ctx_ref<level_store>(ctx)->levels.size()};
 }
 
 level_slot *level_slot_of(context &ctx, level_handle level) {
-  if (level.id == 0 || level.id > ctx.level->levels.size())
+  if (level.id == 0 || level.id > ctx_ref<level_store>(ctx)->levels.size())
     return nullptr;
-  level_slot &slot = ctx.level->levels[level.id - 1];
+  level_slot &slot = ctx_ref<level_store>(ctx)->levels[level.id - 1];
   return slot.alive ? &slot : nullptr;
 }
 
@@ -866,13 +866,13 @@ void level_unload(context &ctx, level_handle level) {
       reg.destroy(e);
   }
   for (const texture_handle tex : slot->textures)
-    texture_store_unload(ctx.texture, tex);
+    texture_store_unload(ctx_ref<texture_store>(ctx), tex);
   *slot = level_slot{};
 }
 
 void level_store_scene_exit(context &ctx, scene_handle scene) {
-  for (usize i = 0; i < ctx.level->levels.size(); i++) {
-    const level_slot &slot = ctx.level->levels[i];
+  for (usize i = 0; i < ctx_ref<level_store>(ctx)->levels.size(); i++) {
+    const level_slot &slot = ctx_ref<level_store>(ctx)->levels[i];
     if (slot.alive && slot.scene.id == scene.id && scene.id != 0)
       level_unload(ctx, level_handle{.id = (u32)(i + 1)});
   }
@@ -893,7 +893,7 @@ level_handle level_load(context &ctx, const char *path, const level_desc &desc) 
   const level_handle handle = load_tiled(ctx, resolved, desc);
   if (handle.id != 0)
     NJIN_INFO("level: loaded %s (%zu entities)", path,
-              ctx.level->levels[handle.id - 1].entities.size());
+              ctx_ref<level_store>(ctx)->levels[handle.id - 1].entities.size());
   return handle;
 }
 

@@ -1,5 +1,6 @@
 #include "njin_window.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_file.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -9,15 +10,15 @@
 #include <rlgl.h>
 
 namespace njin {
-void quit(context &ctx) { ctx.quit = true; }
+void quit(context &ctx) { ctx_ref<frame_state>(ctx).quit = true; }
 
-void window_set_close_intercept(context &ctx, bool on) { ctx.close_intercept = on; }
+void window_set_close_intercept(context &ctx, bool on) { ctx_ref<frame_state>(ctx).close_intercept = on; }
 
-bool window_close_requested(const context &ctx) { return ctx.close_requested; }
+bool window_close_requested(const context &ctx) { return ctx_ref<frame_state>(ctx).close_requested; }
 
 void screenshot(context &ctx, const char *path) {
   if (path != nullptr) {
-    ctx.screenshots.emplace_back(path);
+    ctx_ref<frame_state>(ctx).screenshots.emplace_back(path);
     return;
   }
   const std::time_t now = std::time(nullptr);
@@ -27,22 +28,22 @@ void screenshot(context &ctx, const char *path) {
   // milliseconds, then a counter if the same name is already queued.
   const std::string base = std::string("screenshots/screenshot_") + stamp +
                            "_" +
-                           std::to_string((u64)(ctx.time.elapsed * 1000.0f) % 1000);
+                           std::to_string((u64)(ctx_ref<time_state>(ctx).elapsed * 1000.0f) % 1000);
   std::string full = save_path(ctx, (base + ".png").c_str());
-  for (i32 n = 2; std::find(ctx.screenshots.begin(), ctx.screenshots.end(),
-                            full) != ctx.screenshots.end();
+  for (i32 n = 2; std::find(ctx_ref<frame_state>(ctx).screenshots.begin(), ctx_ref<frame_state>(ctx).screenshots.end(),
+                            full) != ctx_ref<frame_state>(ctx).screenshots.end();
        n++)
     full = save_path(ctx, (base + "_" + std::to_string(n) + ".png").c_str());
-  ctx.screenshots.push_back(full);
+  ctx_ref<frame_state>(ctx).screenshots.push_back(full);
 }
 
 void take_pending_screenshots(context &ctx) {
-  if (ctx.screenshots.empty())
+  if (ctx_ref<frame_state>(ctx).screenshots.empty())
     return;
   // Draw calls are batched: flush them, or the image misses the last ones.
   rlDrawRenderBatchActive();
   Image image = LoadImageFromScreen();
-  for (const std::string &path : ctx.screenshots) {
+  for (const std::string &path : ctx_ref<frame_state>(ctx).screenshots) {
     std::error_code ec;
     const std::filesystem::path p(reinterpret_cast<const char8_t *>(path.c_str()));
     if (p.has_parent_path())
@@ -54,7 +55,7 @@ void take_pending_screenshots(context &ctx) {
                 path.c_str());
   }
   UnloadImage(image);
-  ctx.screenshots.clear();
+  ctx_ref<frame_state>(ctx).screenshots.clear();
 }
 
 void window_set_size(context &, vec2 size) {
@@ -105,7 +106,7 @@ void window_set_fullscreen(context &ctx, bool fullscreen) {
     return;
   ToggleBorderlessWindowed();
   // Out of it raylib puts the title bar back: not on a window made without one.
-  if (!fullscreen && !ctx.cfg.decorated)
+  if (!fullscreen && !ctx_ref<config>(ctx).decorated)
     SetWindowState(FLAG_WINDOW_UNDECORATED);
 }
 

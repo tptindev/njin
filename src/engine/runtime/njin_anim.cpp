@@ -1,7 +1,7 @@
 #include "njin_anim.h"
 #include "njin_anim_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_texture.h"
 #include "njin_file.h"
 #include "njin_json.h"
@@ -174,7 +174,7 @@ anim_sheet_handle anim_sheet_load(context &ctx, const char *json_path) {
       json_fs.parent_path() / std::filesystem::path(reinterpret_cast<const char8_t *>(image));
   const std::u8string image_u8 = image_fs.generic_u8string();
   const std::string image_path(image_u8.begin(), image_u8.end());
-  sheet.texture = texture_store_load(ctx.texture, image_path.c_str());
+  sheet.texture = texture_store_load(ctx_ref<texture_store>(ctx), image_path.c_str());
   if (sheet.texture.id == 0)
     return anim_sheet_handle{};
   sheet.owns_texture = true;
@@ -196,13 +196,13 @@ anim_sheet_handle anim_sheet_load(context &ctx, const char *json_path) {
                                    .from = 0,
                                    .to = (i32)sheet.frames.size() - 1});
 
-  ctx.anim->sheets.push_back(std::move(sheet));
-  return anim_sheet_handle{.id = (u32)ctx.anim->sheets.size()};
+  ctx_ref<anim_store>(ctx)->sheets.push_back(std::move(sheet));
+  return anim_sheet_handle{.id = (u32)ctx_ref<anim_store>(ctx)->sheets.size()};
 }
 
 anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
                                   vec2 frame_size, f32 fps) {
-  const vec2 size = texture_store_size(ctx.texture, texture);
+  const vec2 size = texture_store_size(ctx_ref<texture_store>(ctx), texture);
   if (size.x <= 0.0f || frame_size.x <= 0.0f || frame_size.y <= 0.0f) {
     NJIN_WARN("anim_sheet_grid: invalid texture or frame size");
     return anim_sheet_handle{};
@@ -223,13 +223,13 @@ anim_sheet_handle anim_sheet_grid(context &ctx, texture_handle texture,
           .source = {{(f32)x * frame_size.x, (f32)y * frame_size.y}, frame_size},
           .duration = duration});
   }
-  ctx.anim->sheets.push_back(std::move(sheet));
-  return anim_sheet_handle{.id = (u32)ctx.anim->sheets.size()};
+  ctx_ref<anim_store>(ctx)->sheets.push_back(std::move(sheet));
+  return anim_sheet_handle{.id = (u32)ctx_ref<anim_store>(ctx)->sheets.size()};
 }
 
 bool anim_sheet_add_clip(context &ctx, anim_sheet_handle handle,
                          const anim_clip_desc &desc) {
-  anim_sheet *sheet = sheet_of(ctx.anim, handle);
+  anim_sheet *sheet = sheet_of(ctx_ref<anim_store>(ctx), handle);
   if (sheet == nullptr) {
     NJIN_WARN("anim_sheet_add_clip: invalid sheet handle %u", handle.id);
     return false;
@@ -238,23 +238,23 @@ bool anim_sheet_add_clip(context &ctx, anim_sheet_handle handle,
 }
 
 void anim_sheet_unload(context &ctx, anim_sheet_handle handle) {
-  anim_sheet *sheet = sheet_of(ctx.anim, handle);
+  anim_sheet *sheet = sheet_of(ctx_ref<anim_store>(ctx), handle);
   if (sheet == nullptr)
     return;
   if (sheet->owns_texture)
-    texture_store_unload(ctx.texture, sheet->texture);
+    texture_store_unload(ctx_ref<texture_store>(ctx), sheet->texture);
   *sheet = anim_sheet{};
 }
 
 i32 anim_clip_find(const context &ctx, anim_sheet_handle handle,
                    const char *name) {
-  const anim_sheet *sheet = anim_sheet_of(ctx.anim, handle);
+  const anim_sheet *sheet = anim_sheet_of(ctx_ref<anim_store>(ctx), handle);
   return sheet != nullptr ? clip_index(*sheet, name) : -1;
 }
 
 f32 anim_clip_duration(const context &ctx, anim_sheet_handle handle,
                        const char *name) {
-  const anim_sheet *sheet = anim_sheet_of(ctx.anim, handle);
+  const anim_sheet *sheet = anim_sheet_of(ctx_ref<anim_store>(ctx), handle);
   const i32 clip = sheet != nullptr ? clip_index(*sheet, name) : -1;
   if (clip < 0)
     return 0.0f;
@@ -265,7 +265,7 @@ f32 anim_clip_duration(const context &ctx, anim_sheet_handle handle,
 }
 
 anim_graph_handle anim_graph_create(context &ctx, const anim_graph_desc &desc) {
-  const anim_sheet *sheet = anim_sheet_of(ctx.anim, desc.sheet);
+  const anim_sheet *sheet = anim_sheet_of(ctx_ref<anim_store>(ctx), desc.sheet);
   if (sheet == nullptr) {
     NJIN_WARN("anim_graph_create: invalid sheet handle %u", desc.sheet.id);
     return anim_graph_handle{};
@@ -326,8 +326,8 @@ anim_graph_handle anim_graph_create(context &ctx, const anim_graph_desc &desc) {
     NJIN_WARN("anim_graph_create: no start state named '%s'", desc.start);
     return anim_graph_handle{};
   }
-  ctx.anim->graphs.push_back(std::move(graph));
-  return anim_graph_handle{.id = (u32)ctx.anim->graphs.size()};
+  ctx_ref<anim_store>(ctx)->graphs.push_back(std::move(graph));
+  return anim_graph_handle{.id = (u32)ctx_ref<anim_store>(ctx)->graphs.size()};
 }
 
 void animator_enter_clip(animator &anim, i32 clip, i32 repeat) {
@@ -350,8 +350,8 @@ void animator_enter_state(const anim_graph &graph, const anim_sheet &sheet,
 
 bool animator_play(const context &ctx, animator &anim, const char *name,
                    bool restart) {
-  if (const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph)) {
-    const anim_sheet *sheet = anim_sheet_of(ctx.anim, graph->sheet);
+  if (const anim_graph *graph = anim_graph_of(ctx_ref<anim_store>(ctx), anim.graph)) {
+    const anim_sheet *sheet = anim_sheet_of(ctx_ref<anim_store>(ctx), graph->sheet);
     const i32 state = state_index(*graph, name);
     if (sheet == nullptr || state < 0)
       return false;
@@ -360,7 +360,7 @@ bool animator_play(const context &ctx, animator &anim, const char *name,
     animator_enter_state(*graph, *sheet, anim, state);
     return true;
   }
-  const anim_sheet *sheet = anim_sheet_of(ctx.anim, anim.sheet);
+  const anim_sheet *sheet = anim_sheet_of(ctx_ref<anim_store>(ctx), anim.sheet);
   const i32 clip = sheet != nullptr ? clip_index(*sheet, name) : -1;
   if (clip < 0)
     return false;
@@ -372,7 +372,7 @@ bool animator_play(const context &ctx, animator &anim, const char *name,
 
 void animator_set(const context &ctx, animator &anim, const char *param,
                   f32 value) {
-  const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph);
+  const anim_graph *graph = anim_graph_of(ctx_ref<anim_store>(ctx), anim.graph);
   const i32 index = graph != nullptr ? param_index(*graph, param) : -1;
   if (index >= 0)
     anim.params[(usize)index] = value;
@@ -392,12 +392,12 @@ bool animator_in(const context &ctx, const animator &anim, const char *name) {
 }
 
 const char *animator_current(const context &ctx, const animator &anim) {
-  if (const anim_graph *graph = anim_graph_of(ctx.anim, anim.graph)) {
+  if (const anim_graph *graph = anim_graph_of(ctx_ref<anim_store>(ctx), anim.graph)) {
     if (anim.state >= 0 && anim.state < (i32)graph->states.size())
       return graph->states[(usize)anim.state].name.c_str();
     return "";
   }
-  const anim_sheet *sheet = anim_sheet_of(ctx.anim, anim.sheet);
+  const anim_sheet *sheet = anim_sheet_of(ctx_ref<anim_store>(ctx), anim.sheet);
   if (sheet != nullptr && anim.clip >= 0 && anim.clip < (i32)sheet->clips.size())
     return sheet->clips[(usize)anim.clip].name.c_str();
   return "";

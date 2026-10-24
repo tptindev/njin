@@ -2,7 +2,8 @@
 #include "_comps.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_draw.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -87,26 +88,26 @@ fx_state::~fx_state() {
 }
 
 void camera_shake(context &ctx, f32 trauma) {
-  ctx.fx->trauma = clamp(ctx.fx->trauma + trauma, 0.0f, 1.0f);
+  ctx_ref<fx_state>(ctx)->trauma = clamp(ctx_ref<fx_state>(ctx)->trauma + trauma, 0.0f, 1.0f);
 }
 
 void camera_shake_config(context &ctx, const shake_config &config) {
-  ctx.fx->shake = config;
+  ctx_ref<fx_state>(ctx)->shake = config;
 }
 
-f32 camera_shake_amount(const context &ctx) { return ctx.fx->trauma; }
+f32 camera_shake_amount(const context &ctx) { return ctx_ref<fx_state>(ctx)->trauma; }
 
 void hitstop(context &ctx, f32 seconds) {
-  if (seconds > ctx.fx->hitstop)
-    ctx.fx->hitstop = seconds;
+  if (seconds > ctx_ref<fx_state>(ctx)->hitstop)
+    ctx_ref<fx_state>(ctx)->hitstop = seconds;
 }
 
-bool hitstop_active(const context &ctx) { return ctx.fx->hitstop > 0.0f; }
+bool hitstop_active(const context &ctx) { return ctx_ref<fx_state>(ctx)->hitstop > 0.0f; }
 
 void screen_flash(context &ctx, rgba color, f32 duration) {
-  ctx.fx->flash_color = color;
-  ctx.fx->flash_duration = duration;
-  ctx.fx->flash_time = 0.0f;
+  ctx_ref<fx_state>(ctx)->flash_color = color;
+  ctx_ref<fx_state>(ctx)->flash_duration = duration;
+  ctx_ref<fx_state>(ctx)->flash_time = 0.0f;
 }
 
 void sprite_flash(context &ctx, entt::entity entity, rgba color, f32 duration) {
@@ -125,8 +126,8 @@ void sprite_dissolve(context &ctx, entt::entity entity, f32 duration, rgba edge_
 }
 
 void fx_frame_begin(context &ctx) {
-  fx_state &fx = ctx.fx;
-  time_state &time = ctx.time;
+  fx_state &fx = ctx_ref<fx_state>(ctx);
+  time_state &time = ctx_ref<time_state>(ctx);
   const f32 real = time.dt_real;
   if (fx.hitstop > 0.0f) {
     fx.hitstop -= real;
@@ -142,7 +143,7 @@ void fx_frame_begin(context &ctx) {
 }
 
 bool fx_shake_sample(const context &ctx, vec2 &offset, f32 &angle) {
-  const fx_state &fx = ctx.fx;
+  const fx_state &fx = ctx_ref<fx_state>(ctx);
   if (fx.trauma <= 0.0f)
     return false;
   const f32 power = fx.trauma * fx.trauma;
@@ -163,7 +164,7 @@ void fx_apply_shake(const context &ctx, Camera2D &camera) {
 }
 
 void fx_draw_screen_flash(context &ctx) {
-  const fx_state &fx = ctx.fx;
+  const fx_state &fx = ctx_ref<fx_state>(ctx);
   if (fx.flash_duration <= 0.0f)
     return;
   rgba color = fx.flash_color;
@@ -205,7 +206,7 @@ void fx_update_sprite_dissolves(context &ctx) {
 }
 
 void fx_warmup(context &ctx) {
-  fx_state &fx = ctx.fx;
+  fx_state &fx = ctx_ref<fx_state>(ctx);
   if (fx.flash_loaded)
     return;
   fx.flash_loaded = true;
@@ -225,7 +226,7 @@ void fx_warmup(context &ctx) {
 }
 
 bool fx_flash_begin(context &ctx, const flash_fx &flash) {
-  fx_state &fx = ctx.fx;
+  fx_state &fx = ctx_ref<fx_state>(ctx);
   const f32 amount = flash_amount(flash);
   if (amount <= 0.0f)
     return false;
@@ -241,7 +242,7 @@ bool fx_flash_begin(context &ctx, const flash_fx &flash) {
 bool fx_dissolve_hidden(const dissolve_fx &dissolve) { return dissolve_progress(dissolve) >= 1.0f; }
 
 bool fx_dissolve_begin(context &ctx, const dissolve_fx &dissolve, const flash_fx *flash) {
-  fx_state &fx = ctx.fx;
+  fx_state &fx = ctx_ref<fx_state>(ctx);
   fx_warmup(ctx);
   if (!IsShaderValid(fx.dissolve_shader))
     return false;
@@ -264,12 +265,12 @@ void fx_sprite_shader_end() { EndShaderMode(); }
 void draw_dissolve_begin(context &ctx, f32 progress, const dissolve_look &look) {
   const dissolve_fx d{.edge_color = look.edge_color, .edge_width = look.edge_width, .grain = look.grain,
                       .seed = look.seed, .duration = 1.0f, .time = std::clamp(progress, 0.0f, 1.0f)};
-  ctx.fx->screen_dissolve = fx_dissolve_begin(ctx, d, nullptr);
+  ctx_ref<fx_state>(ctx)->screen_dissolve = fx_dissolve_begin(ctx, d, nullptr);
 }
 
 void draw_dissolve_end(context &ctx) {
-  if (ctx.fx->screen_dissolve)
+  if (ctx_ref<fx_state>(ctx)->screen_dissolve)
     EndShaderMode();
-  ctx.fx->screen_dissolve = false;
+  ctx_ref<fx_state>(ctx)->screen_dissolve = false;
 }
 } // namespace njin

@@ -1,7 +1,7 @@
 #include "njin_backdrop.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_view.h"
 #include "njin_draw.h"
 #include "njin_gpu_caps.h"
@@ -135,12 +135,12 @@ backdrop_state::~backdrop_state() {
 }
 
 void draw_backdrop_blur(const context &ctx, rect r, f32 blur, f32 radius, rgba tint) {
-  const view_state &view = ctx.view;
+  const view_state &view = ctx_ref<view_state>(ctx);
   if (blur <= 0.0f || r.size.x <= 0.0f || r.size.y <= 0.0f || tint.a <= 0.0f)
     return;
   if (view.world_depth > 0 || view.offscreen_depth > 0 || gpu_is_software())
     return;
-  backdrop_state &s = ctx.backdrop;
+  backdrop_state &s = ctx_mut<backdrop_state>(ctx);
   if (!ready(s))
     return;
   // The framebuffer drawn into, and where `r` is on it: through the transform

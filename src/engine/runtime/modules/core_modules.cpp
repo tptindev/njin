@@ -12,7 +12,7 @@
 #include "reload.h"
 #include "ui.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "sprite.h"
 #include "timer.h"
 
@@ -39,10 +39,10 @@ void register_core_modules(context &ctx) {
   std::vector<mod_desc> mods{reload_module(), debug_module(),     ui_module(),        dialog_module(),
                              camera_module(), audio_module(),     hierarchy_module(), camera_follow_module(),
                              anim_module(),   particles_module()};
-  mods.insert(mods.end(), ctx.hooks.modules_mid.begin(), ctx.hooks.modules_mid.end());
+  mods.insert(mods.end(), ctx_ref<feature_hooks>(ctx).modules_mid.begin(), ctx_ref<feature_hooks>(ctx).modules_mid.end());
   for (const mod_desc &m : {sprite_module(), collision_module(), body_module(), timer_module()})
     mods.push_back(m);
-  mods.insert(mods.end(), ctx.hooks.modules_last.begin(), ctx.hooks.modules_last.end());
+  mods.insert(mods.end(), ctx_ref<feature_hooks>(ctx).modules_last.begin(), ctx_ref<feature_hooks>(ctx).modules_last.end());
   mod_register(ctx, mods);
 }
 } // namespace njin

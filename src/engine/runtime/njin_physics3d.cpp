@@ -16,7 +16,7 @@
 // body.
 #include "njin_physics3d_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_log.h"
 #include "njin_model.h"
 
@@ -365,7 +365,7 @@ JPH::RefConst<JPH::Shape> make_shape(const body3d_desc &d) {
 // body, the convex hull of the vertices for a dynamic one (Jolt cannot
 // simulate a moving triangle mesh).
 JPH::RefConst<JPH::Shape> make_model_shape(const context &ctx, const body3d_desc &d) {
-  const model_slot *slot = model_slot_of(ctx.model, d.model);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), d.model);
   if (slot == nullptr) {
     NJIN_WARN("physics3d: body3d_desc::model is not a loaded model");
     return nullptr;
@@ -813,7 +813,7 @@ void on_character_destroyed(context &ctx, entt::registry &reg, entt::entity e) {
 
 // Jolt's globals come before the world and go after it.
 physics3d_world &world_of(context &ctx) {
-  physics3d_state &s = ctx.physics3d;
+  physics3d_state &s = ctx_ref<physics3d_state>(ctx);
   if (!s.world) {
     jolt_acquire();
     s.world = std::make_unique<physics3d_world>();
@@ -868,7 +868,7 @@ void character_contacts(physics3d_world &w, character_slot &c, u32 handle) {
 }
 
 body_slot *body_of(const context &ctx, body3d_handle h) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->bodies.size())
     return nullptr;
   body_slot &b = w->bodies[h.id - 1];
@@ -876,7 +876,7 @@ body_slot *body_of(const context &ctx, body3d_handle h) {
 }
 
 character_slot *character_of(const context &ctx, character3d_handle h) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->characters.size())
     return nullptr;
   character_slot &c = w->characters[h.id - 1];
@@ -938,7 +938,7 @@ void carry_load(physics3d_world &w, JPH::BodyID id, f32 mass, JPH::RVec3 at, JPH
 }
 
 soft_slot *soft_of(const context &ctx, softbody3d_handle h) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->softs.size())
     return nullptr;
   soft_slot &s = w->softs[h.id - 1];
@@ -946,7 +946,7 @@ soft_slot *soft_of(const context &ctx, softbody3d_handle h) {
 }
 
 vehicle_slot *vehicle_of(const context &ctx, vehicle3d_handle h) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->vehicles.size())
     return nullptr;
   vehicle_slot &v = w->vehicles[h.id - 1];
@@ -1205,7 +1205,7 @@ void refresh_soft_models(context &ctx, physics3d_world &w) {
     if (!refresh)
       continue;
     soft_frame(w, s, pos, nrm, s.cloth);
-    model_store_update_vertices(ctx.model, s.model, pos.data(), nrm.data(), (u32)pos.size());
+    model_store_update_vertices(ctx_ref<model_store>(ctx), s.model, pos.data(), nrm.data(), (u32)pos.size());
   }
 }
 
@@ -1680,7 +1680,7 @@ physics3d_state::~physics3d_state() {
 }
 
 void physics3d_step(context &ctx, f32 dt) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || dt <= 0.0f)
     return;
   w->contacts.clear();
@@ -1717,7 +1717,7 @@ void physics3d_step(context &ctx, f32 dt) {
     w->system.OptimizeBroadPhase();
     w->static_added = 0;
   }
-  const JPH::Vec3 gravity = jv(ctx.physics3d->gravity);
+  const JPH::Vec3 gravity = jv(ctx_ref<physics3d_state>(ctx)->gravity);
   steer_soft_bodies(*w, dt);
   w->crowd.rebuild(dt);
   rigid_only rigid;
@@ -1907,7 +1907,7 @@ void body3d_destroy(context &ctx, body3d_handle handle) {
     NJIN_WARN("physics3d: body3d_destroy on the body of a vehicle: use vehicle3d_destroy");
     return;
   }
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   forget_body(ctx, w, handle);
   w.heightfields.erase(handle.id);
   std::erase_if(w.floaters, [&](const physics3d_world::floater &f) { return f.body == handle.id; });
@@ -1973,7 +1973,7 @@ void physics3d_heightfield_set(context &ctx, body3d_handle body, const f32 *heig
   body_slot *b = body_of(ctx, body);
   if (b == nullptr || heights == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   const auto it = w.heightfields.find(body.id);
   if (it == w.heightfields.end())
     return;
@@ -2058,7 +2058,7 @@ void physics3d_float(context &ctx, body3d_handle body, u32 water, f32 buoyancy, 
                      vec3 flow, water_surface_fn surface) {
   if (body_of(ctx, body) == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   w.surface = surface;
   for (physics3d_world::floater &f : w.floaters)
     if (f.body == body.id && f.water == water) {
@@ -2072,7 +2072,7 @@ void physics3d_float(context &ctx, body3d_handle body, u32 water, f32 buoyancy, 
 }
 
 void physics3d_unfloat(context &ctx, body3d_handle body, u32 water) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr)
     return;
   std::erase_if(w->floaters, [&](const physics3d_world::floater &f) {
@@ -2084,7 +2084,7 @@ transform3d body3d_transform(const context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return transform3d{};
-  const JPH::BodyInterface &bi = ctx.physics3d->world->system.GetBodyInterface();
+  const JPH::BodyInterface &bi = ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface();
   JPH::RVec3 p;
   JPH::Quat q;
   bi.GetPositionAndRotation(b->id, p, q);
@@ -2095,7 +2095,7 @@ void body3d_set_position(context &ctx, body3d_handle handle, vec3 position, vec3
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr || refuse(finite3(position) && finite3(rotation), "body3d_set_position"))
     return;
-  ctx.physics3d->world->system.GetBodyInterface().SetPositionAndRotation(
+  ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().SetPositionAndRotation(
       b->id, JPH::RVec3(position.x, position.y, position.z), quat_of(rotation), JPH::EActivation::Activate);
   b->has_target = false;
 }
@@ -2117,13 +2117,13 @@ vec3 body3d_velocity(const context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return vec3{};
-  return nv(ctx.physics3d->world->system.GetBodyInterface().GetLinearVelocity(b->id));
+  return nv(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().GetLinearVelocity(b->id));
 }
 
 void body3d_set_velocity(context &ctx, body3d_handle handle, vec3 velocity) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && !refuse(finite3(velocity), "body3d_set_velocity")) {
-    ctx.physics3d->world->system.GetBodyInterface().SetLinearVelocity(b->id, jv(velocity));
+    ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().SetLinearVelocity(b->id, jv(velocity));
     b->moving_to = false; // a velocity the game set is kept
   }
 }
@@ -2136,7 +2136,7 @@ void body3d_set_group(context &ctx, body3d_handle handle, u32 group) {
     NJIN_WARN("physics3d: body3d_set_group on a part of a ragdoll: its parts keep the ragdoll's groups");
     return;
   }
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   JPH::BodyLockWrite lock(w.system.GetBodyLockInterface(), b->id);
   if (!lock.Succeeded())
     return;
@@ -2148,40 +2148,40 @@ void body3d_set_group(context &ctx, body3d_handle handle, u32 group) {
 void body3d_add_impulse(context &ctx, body3d_handle handle, vec3 impulse) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && !refuse(finite3(impulse), "body3d_add_impulse"))
-    ctx.physics3d->world->system.GetBodyInterface().AddImpulse(b->id, jv(impulse));
+    ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().AddImpulse(b->id, jv(impulse));
 }
 
 // Jolt keeps a force or torque until the end of the next step, then clears it.
 void body3d_add_force(context &ctx, body3d_handle handle, vec3 force) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && b->dynamic && !refuse(finite3(force), "body3d_add_force"))
-    ctx.physics3d->world->system.GetBodyInterface().AddForce(b->id, jv(force));
+    ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().AddForce(b->id, jv(force));
 }
 
 void body3d_add_force(context &ctx, body3d_handle handle, vec3 force, vec3 point) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && b->dynamic && !refuse(finite3(force) && finite3(point), "body3d_add_force"))
-    ctx.physics3d->world->system.GetBodyInterface().AddForce(b->id, jv(force),
+    ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().AddForce(b->id, jv(force),
                                                             JPH::RVec3(point.x, point.y, point.z));
 }
 
 void body3d_add_torque(context &ctx, body3d_handle handle, vec3 torque) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && b->dynamic && !refuse(finite3(torque), "body3d_add_torque"))
-    ctx.physics3d->world->system.GetBodyInterface().AddTorque(b->id, jv(torque));
+    ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().AddTorque(b->id, jv(torque));
 }
 
 vec3 body3d_angular_velocity(const context &ctx, body3d_handle handle) {
   body_slot *b = body_of(ctx, handle);
   if (b == nullptr)
     return vec3{};
-  return nv(ctx.physics3d->world->system.GetBodyInterface().GetAngularVelocity(b->id)) * (180.0f / pi);
+  return nv(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().GetAngularVelocity(b->id)) * (180.0f / pi);
 }
 
 void body3d_carry(context &ctx, body3d_handle handle, f32 mass, vec3 point) {
   body_slot *b = body_of(ctx, handle);
   if (b != nullptr && mass > 0.0f)
-    ctx.physics3d->world->loads.push_back({b->id, mass, jv(point)});
+    ctx_ref<physics3d_state>(ctx)->world->loads.push_back({b->id, mass, jv(point)});
 }
 
 namespace {
@@ -2195,7 +2195,7 @@ struct pull_state {
   JPH::Vec3 position, velocity, spin;
 };
 bool pull_state_of(context &ctx, const body_slot &b, f32 extra, f32 extra_inertia, pull_state &out) {
-  JPH::BodyLockRead lock(ctx.physics3d->world->system.GetBodyLockInterface(), b.id);
+  JPH::BodyLockRead lock(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyLockInterface(), b.id);
   if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
     return false;
   const JPH::Body &body = lock.GetBody();
@@ -2230,7 +2230,7 @@ void body3d_pull(context &ctx, body3d_handle handle, vec3 position, vec3 rotatio
   if (b == nullptr || refuse(finite3(position) && finite3(rotation), "body3d_pull") ||
       !pull_state_of(ctx, *b, how.extra_mass, how.extra_inertia, p))
     return;
-  JPH::PhysicsSystem &system = ctx.physics3d->world->system;
+  JPH::PhysicsSystem &system = ctx_ref<physics3d_state>(ctx)->world->system;
   const f32 w = 2.0f * pi * std::max(how.hz, 0.0f);
   JPH::Vec3 force = ((jv(position) - p.position) * (w * w) - p.velocity * (2.0f * w)) * p.mass;
   if (how.hold_weight)
@@ -2266,7 +2266,7 @@ void body3d_keep_upright(context &ctx, body3d_handle handle, vec3 axis, f32 hz, 
   const JPH::Vec3 error = s > 1e-6f ? tilt / s * angle : JPH::Vec3::sZero();
   JPH::Vec3 spin = p.spin;
   spin.SetY(0.0f); // turning about the vertical is left alone
-  ctx.physics3d->world->system.GetBodyInterface().AddTorque(b->id, spring_torque(p, error, spin, hz));
+  ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().AddTorque(b->id, spring_torque(p, error, spin, hz));
 }
 
 u64 body3d_user(const context &ctx, body3d_handle handle) {
@@ -2315,11 +2315,11 @@ void character3d_destroy(context &ctx, character3d_handle handle) {
   character_slot *c = character_of(ctx, handle);
   if (c != nullptr) {
     if (!c->proxy.IsInvalid()) {
-      JPH::BodyInterface &bi = ctx.physics3d->world->system.GetBodyInterface();
+      JPH::BodyInterface &bi = ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface();
       bi.RemoveBody(c->proxy);
       bi.DestroyBody(c->proxy);
     }
-    ctx.physics3d->world->crowd.forget(c->character.GetPtr());
+    ctx_ref<physics3d_state>(ctx)->world->crowd.forget(c->character.GetPtr());
     *c = character_slot{};
   }
 }
@@ -2329,7 +2329,7 @@ void character3d_set_active(context &ctx, character3d_handle handle, bool active
   if (c == nullptr || c->active == active)
     return;
   c->active = active;
-  ctx.physics3d->world->crowd.set_active(c->character.GetPtr(), active);
+  ctx_ref<physics3d_state>(ctx)->world->crowd.set_active(c->character.GetPtr(), active);
   c->touching.clear();
 }
 
@@ -2384,7 +2384,7 @@ body3d_handle character3d_ground_body(const context &ctx, character3d_handle han
   character_slot *c = character_of(ctx, handle);
   if (c == nullptr || c->character->GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
     return body3d_handle{};
-  return handle_of(*ctx.physics3d->world, c->character->GetGroundBodyID());
+  return handle_of(*ctx_ref<physics3d_state>(ctx)->world, c->character->GetGroundBodyID());
 }
 
 softbody3d_handle character3d_ground_soft(const context &ctx, character3d_handle handle) {
@@ -2446,7 +2446,7 @@ soft3d_hit soft_hit_of(const physics3d_world &w, const JPH::Body &body, const JP
 // out of the bodies it overlaps: out of the deepest overlap, then look again
 // from there, as a corner takes two.
 vec3 push_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg turn, vec3 centre, body3d_handle ignore) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   not_sensor_or filter;
   if (const body_slot *s = body_of(ctx, ignore))
     filter.skip = s->id;
@@ -2473,7 +2473,7 @@ vec3 push_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg turn, ve
 } // namespace
 
 vec3 physics3d_capsule_push(const context &ctx, vec3 a, vec3 b, f32 radius, body3d_handle ignore) {
-  if (ctx.physics3d->world == nullptr || radius <= 0.0f)
+  if (ctx_ref<physics3d_state>(ctx)->world == nullptr || radius <= 0.0f)
     return {};
   const vec3 axis = b - a;
   const f32 len = length(axis);
@@ -2486,7 +2486,7 @@ vec3 physics3d_capsule_push(const context &ctx, vec3 a, vec3 b, f32 radius, body
 }
 
 vec3 physics3d_box_push(const context &ctx, vec3 center, vec3 rotation, vec3 size, body3d_handle ignore) {
-  if (ctx.physics3d->world == nullptr)
+  if (ctx_ref<physics3d_state>(ctx)->world == nullptr)
     return {};
   const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
   JPH::ShapeSettings::ShapeResult made =
@@ -2505,7 +2505,7 @@ ray3d_hit cast_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg tur
     *body = body3d_handle{};
   if (soft != nullptr)
     *soft = soft3d_hit{};
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   const f32 reach = length(motion);
   if (w == nullptr || reach < 1e-6f)
     return ray3d_hit{};
@@ -2543,7 +2543,7 @@ ray3d_hit cast_out(const context &ctx, const JPH::Shape *shape, JPH::QuatArg tur
 }
 
 const JPH::Shape *hull_of(const context &ctx, hull3d_handle h) {
-  const physics3d_world *w = ctx.physics3d->world.get();
+  const physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->hulls.size())
     return nullptr;
   return w->hulls[h.id - 1].GetPtr();
@@ -2554,7 +2554,7 @@ ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec
                              body3d_handle ignore, body3d_handle *body) {
   if (body != nullptr)
     *body = body3d_handle{};
-  if (ctx.physics3d->world == nullptr || length(motion) < 1e-6f)
+  if (ctx_ref<physics3d_state>(ctx)->world == nullptr || length(motion) < 1e-6f)
     return ray3d_hit{};
   const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
   JPH::ShapeSettings::ShapeResult made =
@@ -2571,7 +2571,7 @@ ray3d_hit physics3d_box_cast(const context &ctx, vec3 center, vec3 rotation, vec
   *soft = soft3d_hit{};
   if (body != nullptr)
     *body = body3d_handle{};
-  if (ctx.physics3d->world == nullptr || length(motion) < 1e-6f)
+  if (ctx_ref<physics3d_state>(ctx)->world == nullptr || length(motion) < 1e-6f)
     return ray3d_hit{};
   const JPH::Vec3 half = JPH::Vec3::sMax(jv(size * 0.5f), JPH::Vec3::sReplicate(0.005f));
   JPH::ShapeSettings::ShapeResult made =
@@ -2602,7 +2602,7 @@ hull3d_handle physics3d_hull_create(context &ctx, const vec3 *points, i32 count)
 }
 
 void physics3d_hull_destroy(context &ctx, hull3d_handle hull) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w != nullptr && hull.id > 0 && hull.id <= w->hulls.size())
     w->hulls[hull.id - 1] = nullptr;
 }
@@ -2666,7 +2666,7 @@ i32 physics3d_hull_lines(const context &ctx, hull3d_handle hull, vec3 *out, i32 
 ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distance, body3d_handle *body) {
   if (body != nullptr)
     *body = body3d_handle{};
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || max_distance <= 0.0f)
     return ray3d_hit{};
   const vec3 dir = normalize(ray.direction);
@@ -2697,7 +2697,7 @@ ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distan
   *soft = soft3d_hit{};
   if (body != nullptr)
     *body = body3d_handle{};
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || max_distance <= 0.0f)
     return ray3d_hit{};
   const vec3 dir = normalize(ray.direction);
@@ -2730,12 +2730,12 @@ ray3d_hit physics3d_raycast(const context &ctx, const ray3d &ray, f32 max_distan
 }
 
 i32 physics3d_contact_count(const context &ctx) {
-  const physics3d_world *w = ctx.physics3d->world.get();
+  const physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   return w != nullptr ? (i32)w->contacts.size() : 0;
 }
 
 contact3d physics3d_contact(const context &ctx, i32 index) {
-  const physics3d_world *w = ctx.physics3d->world.get();
+  const physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || index < 0 || index >= (i32)w->contacts.size())
     return contact3d{};
   return w->contacts[(usize)index];
@@ -2743,7 +2743,7 @@ contact3d physics3d_contact(const context &ctx, i32 index) {
 
 namespace {
 joint_slot *joint_of(const context &ctx, joint3d_handle h) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->joints.size())
     return nullptr;
   joint_slot &j = w->joints[h.id - 1];
@@ -2908,7 +2908,7 @@ JPH::TwoBodyConstraint *gear_settings::Create(JPH::Body &body1, JPH::Body &body2
 // the axes given to Jolt are flipped, so that its drift correction, which reads
 // those angles, agrees.
 joint3d_handle gear_create(context &ctx, const joint3d_desc &desc) {
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   const bool rack = desc.kind == joint3d_rack;
   const joint_slot *ja = joint_of(ctx, desc.joint_a);
   const joint_slot *jb = joint_of(ctx, desc.joint_b);
@@ -2953,14 +2953,14 @@ joint3d_handle gear_create(context &ctx, const joint3d_desc &desc) {
 
 joint3d_handle joint3d_create(context &ctx, const joint3d_desc &desc) {
   if (desc.kind == joint3d_gear || desc.kind == joint3d_rack)
-    return ctx.physics3d->world != nullptr ? gear_create(ctx, desc) : joint3d_handle{};
+    return ctx_ref<physics3d_state>(ctx)->world != nullptr ? gear_create(ctx, desc) : joint3d_handle{};
   body_slot *a = body_of(ctx, desc.a);
   if (a == nullptr) {
     NJIN_WARN("physics3d: joint3d_create needs a valid body a");
     return joint3d_handle{};
   }
   body_slot *b = body_of(ctx, desc.b);
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   const JPH::Vec3 axis = jv(length_sq(desc.axis) > 1e-12f ? normalize(desc.axis) : vec3{0.0f, 1.0f, 0.0f});
   JPH::Ref<JPH::TwoBodyConstraintSettings> settings;
   switch (desc.kind) {
@@ -3065,7 +3065,7 @@ void joint3d_destroy(context &ctx, joint3d_handle handle) {
   joint_slot *j = joint_of(ctx, handle);
   if (j == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   // A gear or rack on this joint holds a pointer to it: it goes first.
   for (usize i = 0; i < w.joints.size(); i++)
     if (w.joints[i].alive && (w.joints[i].on_a.id == handle.id || w.joints[i].on_b.id == handle.id))
@@ -3092,7 +3092,7 @@ void joint3d_set_motor(context &ctx, joint3d_handle handle, f32 speed) {
   } else {
     return;
   }
-  ctx.physics3d->world->system.GetBodyInterface().ActivateConstraint(j->constraint);
+  ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().ActivateConstraint(j->constraint);
 }
 
 f32 joint3d_position(const context &ctx, joint3d_handle handle) {
@@ -3123,14 +3123,14 @@ void joint3d_set_motor_force(context &ctx, joint3d_handle handle, f32 force) {
   } else {
     return;
   }
-  ctx.physics3d->world->system.GetBodyInterface().ActivateConstraint(j->constraint);
+  ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface().ActivateConstraint(j->constraint);
 }
 
 f32 joint3d_speed(const context &ctx, joint3d_handle handle) {
   const joint_slot *j = joint_of(ctx, handle);
   if (j == nullptr || (j->kind != joint3d_hinge && j->kind != joint3d_slider))
     return 0.0f;
-  const physics3d_world &w = *ctx.physics3d->world;
+  const physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   const JPH::BodyInterface &bi = w.system.GetBodyInterface();
   const JPH::BodyID a = body_of_id(w, j->a);
   const bool has_b = j->b.id != 0;
@@ -3193,7 +3193,7 @@ void joint_impulses(const joint_slot &j, f32 &linear, f32 &angular) {
 
 f32 joint3d_force(const context &ctx, joint3d_handle handle) {
   const joint_slot *j = joint_of(ctx, handle);
-  const f32 dt = j != nullptr ? ctx.physics3d->world->last_dt : 0.0f;
+  const f32 dt = j != nullptr ? ctx_ref<physics3d_state>(ctx)->world->last_dt : 0.0f;
   if (dt <= 0.0f)
     return 0.0f;
   f32 linear = 0.0f, angular = 0.0f;
@@ -3203,7 +3203,7 @@ f32 joint3d_force(const context &ctx, joint3d_handle handle) {
 
 f32 joint3d_torque(const context &ctx, joint3d_handle handle) {
   const joint_slot *j = joint_of(ctx, handle);
-  const f32 dt = j != nullptr ? ctx.physics3d->world->last_dt : 0.0f;
+  const f32 dt = j != nullptr ? ctx_ref<physics3d_state>(ctx)->world->last_dt : 0.0f;
   if (dt <= 0.0f)
     return 0.0f;
   f32 linear = 0.0f, angular = 0.0f;
@@ -3213,7 +3213,7 @@ f32 joint3d_torque(const context &ctx, joint3d_handle handle) {
 
 namespace {
 ragdoll_slot *ragdoll_of(const context &ctx, ragdoll3d_handle h) {
-  physics3d_world *w = ctx.physics3d->world.get();
+  physics3d_world *w = ctx_ref<physics3d_state>(ctx)->world.get();
   if (w == nullptr || h.id == 0 || h.id > w->ragdolls.size())
     return nullptr;
   ragdoll_slot &r = w->ragdolls[h.id - 1];
@@ -3242,7 +3242,7 @@ JPH::Mat44 unscaled(JPH::Mat44Arg m) {
 
 ragdoll3d_handle ragdoll3d_create(context &ctx, const ragdoll3d_desc &desc) {
   physics3d_world &w = world_of(ctx);
-  const model_slot *m = model_slot_of(ctx.model, desc.model);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), desc.model);
   if (m == nullptr || m->model.skeleton.boneCount == 0) {
     NJIN_WARN("physics3d: ragdoll3d_create needs a loaded model with bones");
     return ragdoll3d_handle{};
@@ -3511,7 +3511,7 @@ void ragdoll3d_destroy(context &ctx, ragdoll3d_handle handle) {
   ragdoll_slot *r = ragdoll_of(ctx, handle);
   if (r == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   for (u32 h : r->parts)
     forget_body(ctx, w, body3d_handle{h});
   r->ragdoll->RemoveFromPhysicsSystem();
@@ -3531,8 +3531,8 @@ shape3d ragdoll3d_shape(const context &ctx, ragdoll3d_handle handle, i32 part) {
   const ragdoll_slot *r = ragdoll_of(ctx, handle);
   if (r == nullptr || part < 0 || part >= (i32)r->parts.size())
     return shape3d{.radius = 0.0f};
-  const JPH::BodyInterface &bi = ctx.physics3d->world->system.GetBodyInterface();
-  const JPH::BodyID id = ctx.physics3d->world->bodies[r->parts[(usize)part] - 1].id;
+  const JPH::BodyInterface &bi = ctx_ref<physics3d_state>(ctx)->world->system.GetBodyInterface();
+  const JPH::BodyID id = ctx_ref<physics3d_state>(ctx)->world->bodies[r->parts[(usize)part] - 1].id;
   const JPH::Quat q = bi.GetRotation(id);
   shape3d s = r->shapes[(usize)part];
   s.position = world_vec(bi.GetPosition(id)) + nv(q * jv(s.position));
@@ -3546,7 +3546,7 @@ i32 ragdoll3d_bones(const context &ctx, ragdoll3d_handle handle, const transform
   const i32 bones = r != nullptr ? (i32)r->anchor.size() : 0;
   if (r == nullptr || out == nullptr || count < bones)
     return 0;
-  const physics3d_world &w = *ctx.physics3d->world;
+  const physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   const JPH::BodyInterface &bi = w.system.GetBodyInterface();
   const JPH::Mat44 from_world = draw_mat(transform).Inversed();
   std::vector<JPH::Mat44> part(r->parts.size());
@@ -3851,7 +3851,7 @@ softbody3d_handle softbody3d_create(context &ctx, const softbody3d_desc &desc) {
     std::vector<JPH::Float3> in;
     std::vector<u32> tris;
     if (desc.model.id != 0) {
-      const model_slot *slot = model_slot_of(ctx.model, desc.model);
+      const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), desc.model);
       if (slot == nullptr) {
         NJIN_WARN("physics3d: softbody3d_desc::model is not a loaded model");
         return softbody3d_handle{};
@@ -3962,7 +3962,7 @@ void softbody3d_destroy(context &ctx, softbody3d_handle handle) {
   soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   w.soft_by_body.erase(s->id.GetIndexAndSequenceNumber());
   for (character_slot &c : w.characters)
     if (c.ground_soft == handle.id)
@@ -3971,7 +3971,7 @@ void softbody3d_destroy(context &ctx, softbody3d_handle handle) {
   bi.RemoveBody(s->id);
   bi.DestroyBody(s->id);
   if (s->model.id != 0)
-    model_store_unload(ctx.model, s->model);
+    model_store_unload(ctx_ref<model_store>(ctx), s->model);
   *s = soft_slot{};
 }
 
@@ -3979,7 +3979,7 @@ i32 softbody3d_vertex_count(const context &ctx, softbody3d_handle handle) {
   const soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr)
     return 0;
-  JPH::BodyLockRead lock(ctx.physics3d->world->system.GetBodyLockInterface(), s->id);
+  JPH::BodyLockRead lock(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyLockInterface(), s->id);
   return lock.Succeeded() ? (i32)vertices_of(lock.GetBody()).size() : 0;
 }
 
@@ -3987,7 +3987,7 @@ i32 softbody3d_vertices(const context &ctx, softbody3d_handle handle, vec3 *out,
   const soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr)
     return 0;
-  JPH::BodyLockRead lock(ctx.physics3d->world->system.GetBodyLockInterface(), s->id);
+  JPH::BodyLockRead lock(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyLockInterface(), s->id);
   if (!lock.Succeeded())
     return 0;
   const JPH::RMat44 xf = lock.GetBody().GetCenterOfMassTransform();
@@ -4003,7 +4003,7 @@ i32 softbody3d_normals(const context &ctx, softbody3d_handle handle, vec3 *out, 
   if (s == nullptr)
     return 0;
   std::vector<vec3> pos, nrm;
-  soft_frame(*ctx.physics3d->world, *s, pos, nrm, false);
+  soft_frame(*ctx_ref<physics3d_state>(ctx)->world, *s, pos, nrm, false);
   if (out != nullptr)
     for (i32 i = 0; i < count && i < (i32)nrm.size(); i++)
       out[i] = nrm[(usize)i];
@@ -4027,7 +4027,7 @@ model_handle softbody3d_model(context &ctx, softbody3d_handle handle) {
   if (s->model.id != 0)
     return s->model;
   std::vector<vec3> pos, nrm;
-  soft_frame(*ctx.physics3d->world, *s, pos, nrm, s->cloth);
+  soft_frame(*ctx_ref<physics3d_state>(ctx)->world, *s, pos, nrm, s->cloth);
   if (pos.empty())
     return model_handle{};
   std::vector<u32> indices = s->indices;
@@ -4038,7 +4038,7 @@ model_handle softbody3d_model(context &ctx, softbody3d_handle handle) {
   }
   // raylib's indices are 16 bits: a bigger surface is several meshes of one model.
   if (pos.size() > 65535)
-    s->model = model_store_create_split(ctx.model, pos.data(), nrm.data(), (u32)pos.size(), indices.data(),
+    s->model = model_store_create_split(ctx_ref<model_store>(ctx), pos.data(), nrm.data(), (u32)pos.size(), indices.data(),
                                         (u32)indices.size());
   else
     s->model = model_create(ctx, mesh3d_data{.positions = pos.data(),
@@ -4053,7 +4053,7 @@ i32 softbody3d_nearest(const context &ctx, softbody3d_handle handle, vec3 point)
   const soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr)
     return -1;
-  JPH::BodyLockRead lock(ctx.physics3d->world->system.GetBodyLockInterface(), s->id);
+  JPH::BodyLockRead lock(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyLockInterface(), s->id);
   if (!lock.Succeeded())
     return -1;
   const JPH::Vec3 local(lock.GetBody().GetInverseCenterOfMassTransform() * JPH::RVec3(point.x, point.y, point.z));
@@ -4074,7 +4074,7 @@ void softbody3d_pin(context &ctx, softbody3d_handle handle, i32 vertex, bool pin
   soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr || vertex < 0)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   {
     JPH::BodyLockWrite lock(w.system.GetBodyLockInterface(), s->id);
     if (!lock.Succeeded())
@@ -4111,7 +4111,7 @@ void softbody3d_add_impulse(context &ctx, softbody3d_handle handle, vec3 impulse
   soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr || refuse(finite3(impulse), "softbody3d_add_impulse"))
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   {
     JPH::BodyLockWrite lock(w.system.GetBodyLockInterface(), s->id);
     if (!lock.Succeeded())
@@ -4135,7 +4135,7 @@ vec3 softbody3d_position(const context &ctx, softbody3d_handle handle) {
   const soft_slot *s = soft_of(ctx, handle);
   if (s == nullptr)
     return vec3{};
-  JPH::BodyLockRead lock(ctx.physics3d->world->system.GetBodyLockInterface(), s->id);
+  JPH::BodyLockRead lock(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyLockInterface(), s->id);
   if (!lock.Succeeded())
     return vec3{};
   const JPH::RMat44 xf = lock.GetBody().GetCenterOfMassTransform();
@@ -4158,7 +4158,7 @@ void softbody3d_draw_debug(context &ctx, softbody3d_handle handle, rgba color) {
   std::vector<vec3> pos;
   std::vector<bool> pinned;
   {
-    JPH::BodyLockRead lock(ctx.physics3d->world->system.GetBodyLockInterface(), s->id);
+    JPH::BodyLockRead lock(ctx_ref<physics3d_state>(ctx)->world->system.GetBodyLockInterface(), s->id);
     if (!lock.Succeeded())
       return;
     const JPH::RMat44 xf = lock.GetBody().GetCenterOfMassTransform();
@@ -4483,7 +4483,7 @@ void vehicle3d_destroy(context &ctx, vehicle3d_handle handle) {
   vehicle_slot *v = vehicle_of(ctx, handle);
   if (v == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   w.system.RemoveStepListener(v->constraint);
   w.system.RemoveConstraint(v->constraint);
   const body3d_handle body = v->body;
@@ -4581,7 +4581,7 @@ void vehicle3d_draw_debug(context &ctx, vehicle3d_handle handle, rgba color) {
   const vehicle_slot *v = vehicle_of(ctx, handle);
   if (v == nullptr)
     return;
-  physics3d_world &w = *ctx.physics3d->world;
+  physics3d_world &w = *ctx_ref<physics3d_state>(ctx)->world;
   JPH::RMat44 body_xf, com_xf;
   JPH::AABox box;
   {
@@ -4625,10 +4625,10 @@ void vehicle3d_draw_debug(context &ctx, vehicle3d_handle handle, rgba color) {
 }
 
 void physics3d_set_gravity(context &ctx, vec3 gravity) {
-  ctx.physics3d->gravity = gravity;
-  if (ctx.physics3d->world)
-    ctx.physics3d->world->system.SetGravity(jv(gravity));
+  ctx_ref<physics3d_state>(ctx)->gravity = gravity;
+  if (ctx_ref<physics3d_state>(ctx)->world)
+    ctx_ref<physics3d_state>(ctx)->world->system.SetGravity(jv(gravity));
 }
 
-vec3 physics3d_gravity(const context &ctx) { return ctx.physics3d->gravity; }
+vec3 physics3d_gravity(const context &ctx) { return ctx_ref<physics3d_state>(ctx)->gravity; }
 } // namespace njin

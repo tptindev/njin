@@ -1,7 +1,7 @@
 #include "njin_bindings.h"
 #include "njin_ctx.h"
 #include "njin_input.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_input_impl.h"
 #include "njin_log.h"
 #include <algorithm>
@@ -162,7 +162,7 @@ const char *input_source_name(input_source s) {
 bool input_any_pressed(const context &ctx, input_source &out) {
   // Raw edges, before any consume: a rebind screen sits inside the UI, which
   // swallows Enter, Esc and the arrows for the game.
-  const input_store &in = ctx.input;
+  const input_store &in = ctx_ref<input_store>(ctx);
   for (i32 k = key_none + 1; k < key_count; k++)
     if (!in.prev.keys[k] && in.cur.keys[k]) {
       out = {input_source::key, k};
@@ -184,7 +184,7 @@ bool input_any_pressed(const context &ctx, input_source &out) {
 
 std::vector<input_source> action_sources(const context &ctx, action_handle action) {
   std::vector<input_source> out;
-  const action_slot *slot = action_slot_of(ctx.input, action);
+  const action_slot *slot = action_slot_of(ctx_ref<input_store>(ctx), action);
   if (slot == nullptr)
     return out;
   for (const key_code k : slot->keys)
@@ -210,7 +210,7 @@ void action_bind(context &ctx, action_handle action, input_source s) {
 }
 
 void action_unbind(context &ctx, action_handle action, input_source s) {
-  action_slot *slot = action_slot_of(ctx.input, action);
+  action_slot *slot = action_slot_of(ctx_ref<input_store>(ctx), action);
   if (slot == nullptr)
     return;
   switch (s.kind) {
@@ -222,11 +222,11 @@ void action_unbind(context &ctx, action_handle action, input_source s) {
 }
 
 void action_rebind(context &ctx, action_handle action, input_source s) {
-  action_slot *slot = action_slot_of(ctx.input, action);
+  action_slot *slot = action_slot_of(ctx_ref<input_store>(ctx), action);
   if (slot == nullptr || s.kind == input_source::none)
     return;
   // One source, one job: take it off every other action first.
-  for (usize i = 0; i < ctx.input->actions.size(); i++)
+  for (usize i = 0; i < ctx_ref<input_store>(ctx)->actions.size(); i++)
     action_unbind(ctx, action_handle{(u32)(i + 1)}, s);
   // Keyboard and mouse count as one device: a key replaces a mouse button.
   if (s.kind == input_source::pad) {
@@ -240,14 +240,14 @@ void action_rebind(context &ctx, action_handle action, input_source s) {
 
 json_value input_bindings_save(const context &ctx) {
   json_value actions = json_value::make_object();
-  for (usize i = 0; i < ctx.input->actions.size(); i++) {
+  for (usize i = 0; i < ctx_ref<input_store>(ctx)->actions.size(); i++) {
     json_value list = json_value::make_array();
     for (const input_source &s : action_sources(ctx, action_handle{(u32)(i + 1)}))
       list.push(json_value(source_id(s)));
-    actions.set(ctx.input->actions[i].name, std::move(list));
+    actions.set(ctx_ref<input_store>(ctx)->actions[i].name, std::move(list));
   }
   json_value axes = json_value::make_object();
-  for (const axis_slot &a : ctx.input->axes) {
+  for (const axis_slot &a : ctx_ref<input_store>(ctx)->axes) {
     json_value keys = json_value::make_array();
     for (const axis_key_pair &p : a.key_pairs) {
       const bool ok = p.negative > key_none && p.negative < key_count && p.positive > key_none &&

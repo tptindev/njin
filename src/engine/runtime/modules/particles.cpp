@@ -1,7 +1,7 @@
 #include "particles.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_draw.h"
 #include "render_stats.h"
 #include "njin_quality_impl.h"
@@ -82,7 +82,7 @@ void update(context &ctx) {
   const f32 dt = delta(ctx);
   entt::registry &registry = world(ctx);
   rng &random = njin::random(ctx);
-  const f32 share = std::clamp(ctx.quality->q.particles, 0.0f, 1.0f);
+  const f32 share = std::clamp(ctx_ref<quality_state>(ctx)->q.particles, 0.0f, 1.0f);
   std::vector<entt::entity> done;
   for (auto [entity, tr, em] : registry.view<const transform, particle_emitter>().each()) {
     // The GPU keeps a clock and works out the ages itself (particles_gpu.h).
@@ -162,7 +162,7 @@ void particles_draw(context &ctx, entt::entity entity, const transform &tr,
     particles_gpu_draw(ctx, entity, tr, em);
     return;
   }
-  const texture_slot *slot = texture_slot_of(ctx.texture, em.texture);
+  const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), em.texture);
   vec2 source_size{};
   if (slot != nullptr) {
     const bool whole = em.source.size.x == 0.0f || em.source.size.y == 0.0f;
@@ -172,7 +172,7 @@ void particles_draw(context &ctx, entt::entity entity, const transform &tr,
   const f32 longest = std::max(source_size.x, source_size.y);
 
   blend_begin(ctx, em.blend);
-  render_stats &stats = ctx.stats;
+  render_stats &stats = ctx_ref<render_stats>(ctx);
   stats.emitters++;
   stats.note_draw(slot != nullptr ? slot->texture.id : rlGetTextureIdDefault(), (i32)em.blend);
   for (const particle &p : em.particles) {
@@ -189,7 +189,7 @@ void particles_draw(context &ctx, entt::entity entity, const transform &tr,
     stats.particles++;
     if (slot != nullptr && longest > 0.0f) {
       const f32 scale = size / longest;
-      texture_store_draw_ex(ctx.texture, em.texture,
+      texture_store_draw_ex(ctx_ref<texture_store>(ctx), em.texture,
                             texture_draw_desc{.pos = pos,
                                               .source = em.source,
                                               .scale = {scale, scale},

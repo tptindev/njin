@@ -1,6 +1,8 @@
 #pragma once
 #include "../njin_internal_only.h"
 #include "njin_post3d.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include <raylib.h>
 #include <array>
 #include <vector>
@@ -95,7 +97,7 @@ struct post3d_state {
   i32 vel_w = 0, vel_h = 0;
   bool vel_claimed = false; // this frame's motion pass was drawn
   bool vel_failed = false;
-  f32 motion_time = -1.0f;  // ctx.time.elapsed of the last motion pass; -1 none
+  f32 motion_time = -1.0f;  // ctx_ref<time_state>(ctx).elapsed of the last motion pass; -1 none
 
   post3d_state() = default;
   ~post3d_state();

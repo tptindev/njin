@@ -1,5 +1,5 @@
 #include "njin_i18n.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_i18n_impl.h"
 #include "njin_json.h"
 #include "njin_log.h"
@@ -51,7 +51,7 @@ bool i18n_load(context &ctx, const char *lang, const char *path) {
     NJIN_WARN("i18n: cannot read %s (a JSON object is expected)", path);
     return false;
   }
-  i18n_store &store = ctx.i18n;
+  i18n_store &store = ctx_ref<i18n_store>(ctx);
   i18n_table *t = find_table(store, lang);
   if (t == nullptr) {
     store.tables.push_back(i18n_table{.lang = lang, .strings = {}});
@@ -66,23 +66,23 @@ bool i18n_load(context &ctx, const char *lang, const char *path) {
 }
 
 void i18n_set_language(context &ctx, const char *lang) {
-  if (lang == nullptr || find_table(ctx.i18n, lang) == nullptr) {
+  if (lang == nullptr || find_table(ctx_ref<i18n_store>(ctx), lang) == nullptr) {
     NJIN_WARN("i18n_set_language: language '%s' is not loaded", lang != nullptr ? lang : "");
     return;
   }
-  ctx.i18n->current = lang;
+  ctx_ref<i18n_store>(ctx)->current = lang;
 }
 
-const char *i18n_language(const context &ctx) { return ctx.i18n->current.c_str(); }
+const char *i18n_language(const context &ctx) { return ctx_ref<i18n_store>(ctx)->current.c_str(); }
 
 void i18n_set_fallback(context &ctx, const char *lang) {
   if (lang != nullptr)
-    ctx.i18n->fallback = lang;
+    ctx_ref<i18n_store>(ctx)->fallback = lang;
 }
 
 std::vector<std::string> i18n_languages(const context &ctx) {
   std::vector<std::string> out;
-  for (const i18n_table &t : ctx.i18n->tables)
+  for (const i18n_table &t : ctx_ref<i18n_store>(ctx)->tables)
     out.push_back(t.lang);
   return out;
 }
@@ -90,7 +90,7 @@ std::vector<std::string> i18n_languages(const context &ctx) {
 const char *i18n_language_name(const context &ctx, const char *lang) {
   if (lang == nullptr)
     return "";
-  if (const i18n_table *t = find_table(ctx.i18n, lang)) {
+  if (const i18n_table *t = find_table(ctx_ref<i18n_store>(ctx), lang)) {
     const auto it = t->strings.find("_name");
     if (it != t->strings.end())
       return it->second.c_str();
@@ -102,10 +102,10 @@ const char *i18n_language_name(const context &ctx, const char *lang) {
 const char *tr(const context &ctx, const char *key) {
   if (key == nullptr)
     return "";
-  if (const std::string *s = lookup(ctx.i18n, key))
+  if (const std::string *s = lookup(ctx_ref<i18n_store>(ctx), key))
     return s->c_str();
-  if (!ctx.i18n->tables.empty() && ctx.i18n->missing.insert(key).second)
-    NJIN_WARN("i18n: no string for '%s' in '%s'", key, ctx.i18n->current.c_str());
+  if (!ctx_ref<i18n_store>(ctx)->tables.empty() && ctx_ref<i18n_store>(ctx)->missing.insert(key).second)
+    NJIN_WARN("i18n: no string for '%s' in '%s'", key, ctx_ref<i18n_store>(ctx)->current.c_str());
   return key;
 }
 
@@ -134,6 +134,6 @@ std::string trf(const context &ctx, const char *key, std::initializer_list<std::
 }
 
 bool i18n_has(const context &ctx, const char *key) {
-  return key != nullptr && lookup(ctx.i18n, key) != nullptr;
+  return key != nullptr && lookup(ctx_ref<i18n_store>(ctx), key) != nullptr;
 }
 } // namespace njin

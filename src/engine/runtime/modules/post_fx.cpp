@@ -1,6 +1,7 @@
 #include "post_fx.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "render_stats.h"
 #include "njin_quality_impl.h"
 #include "njin_log.h"
@@ -302,7 +303,7 @@ post_chain::~post_chain() {
   }
 }
 
-void post_chain_warmup(context &ctx) { load(ctx.postfx); }
+void post_chain_warmup(context &ctx) { load(ctx_ref<post_chain>(ctx)); }
 
 bool post_chain_active(const post_chain &chain) {
   return !chain.failed &&
@@ -310,7 +311,7 @@ bool post_chain_active(const post_chain &chain) {
 }
 
 const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post_depth &depth) {
-  post_chain &c = ctx.postfx;
+  post_chain &c = ctx_ref<post_chain>(ctx);
   const post_fx &p = c.settings;
   if (!post_chain_active(c) || !load(c))
     return scene;
@@ -390,11 +391,11 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
   }
 
   if (!effects_in_uber(p)) {
-    ctx.stats->post_passes += passes;
+    ctx_ref<render_stats>(ctx)->post_passes += passes;
     return *src;
   }
   passes++;
-  ctx.stats->post_passes += passes;
+  ctx_ref<render_stats>(ctx)->post_passes += passes;
   const Shader &u = c.uber;
   // The uber pass writes into whichever full target is not its source.
   RenderTexture2D &dst = src == &c.full_a.texture ? c.full_b : c.full_a;
@@ -406,7 +407,7 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
   rlEnableShader(u.id);
   uniform_writer set{c};
   set.xy(c.u_resolution, (f32)w, (f32)h);
-  set.f(c.u_time, ctx.time.elapsed);
+  set.f(c.u_time, ctx_ref<time_state>(ctx).elapsed);
   set.f(c.u_bloom, bloom ? p.bloom : 0.0f);
   rlSetUniformSampler(c.u_bloom_tex, (bloom ? c.half_a.texture : *src).id);
   set.f(c.u_brightness, p.brightness);
@@ -435,21 +436,21 @@ const Texture2D &post_chain_run(context &ctx, const Texture2D &scene, const post
 }
 
 void post_fx_apply_quality(context &ctx) {
-  const graphics_quality &q = ctx.quality->q;
-  post_fx p = ctx.postfx->requested;
+  const graphics_quality &q = ctx_ref<quality_state>(ctx)->q;
+  post_fx p = ctx_ref<post_chain>(ctx)->requested;
   if (!q.bloom)
     p.bloom = 0.0f;
   if (!q.dof)
     p.dof = 0.0f;
-  ctx.postfx->settings = p;
+  ctx_ref<post_chain>(ctx)->settings = p;
 }
 
 void post_fx_set(context &ctx, const post_fx &fx) {
-  ctx.postfx->requested = fx;
+  ctx_ref<post_chain>(ctx)->requested = fx;
   post_fx_apply_quality(ctx);
 }
 
-post_fx post_fx_get(const context &ctx) { return ctx.postfx->requested; }
+post_fx post_fx_get(const context &ctx) { return ctx_ref<post_chain>(ctx)->requested; }
 
 post_fx post_fx_lerp(const post_fx &a, const post_fx &b, f32 t) {
   const auto mix = [t](f32 x, f32 y) { return x + (y - x) * t; };

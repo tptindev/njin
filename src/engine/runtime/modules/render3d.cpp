@@ -6,7 +6,8 @@
 #include "njin2rl.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "debug.h"
 #include "render_stats.h"
 #include "njin_audio_impl.h"
@@ -989,13 +990,13 @@ camera3d shaken(const context &ctx, camera3d camera) {
 // The size of what the open pass draws into: its render texture, or the
 // logical screen.
 vec2 pass_size(const context &ctx) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   return s.target_fbo != 0 ? s.target_size : screen_size(ctx);
 }
 
 // Binds what the open pass draws into again (after the shadow passes).
 void bind_pass_target(context &ctx) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (s.target_fbo == 0) {
     world_target_rebind(ctx);
     return;
@@ -1016,7 +1017,7 @@ void load_camera(const context &ctx, const camera3d &camera) {
   const f64 top = (f64)camera.near_plane * std::tan((f64)camera.fovy * 0.5 * (f64)DEG2RAD);
   const f64 right = top * aspect;
   // TAA's jitter: an off-axis frustum, the image moved by a fraction of a pixel.
-  const vec2 j = ctx.render3d->jitter;
+  const vec2 j = ctx_ref<render3d_state>(ctx)->jitter;
   const f64 jx = (f64)j.x * right;
   const f64 jy = (f64)j.y * top;
   rlMatrixMode(RL_PROJECTION);
@@ -1065,7 +1066,7 @@ void place_box(draw3d_cmd &c, const Matrix &t, vec3 mid, vec3 half) {
 
 // Pass state for a draw call: only inside begin_3d/end_3d.
 const render3d_state *open_pass(const context &ctx) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   return s.active ? &s : nullptr;
 }
 
@@ -1093,7 +1094,7 @@ u64 next_motion_key(const render3d_state &s, u64 base) {
 }
 
 void record(const context &ctx, const Mesh *mesh, model_handle model, const Matrix &transform, rgba color) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   const u64 key = next_motion_key(s, mix_key(3, (u64)(uintptr_t)mesh));
   s.cmds.push_back(draw3d_cmd{.is_shape = false,
                               .shape = {},
@@ -1101,7 +1102,7 @@ void record(const context &ctx, const Mesh *mesh, model_handle model, const Matr
                               .model = model,
                               .transform = transform,
                               .color = color,
-                              .shader = ctx.shader->active,
+                              .shader = ctx_ref<shader_store>(ctx)->active,
                               .fx = s.fx,
                               .material = s.material,
                               .buffer = {},
@@ -1139,7 +1140,7 @@ Matrix scale_then_move(vec3 scale, vec3 pos) {
 // A texture of the store usable on a mesh: whole images only, an atlas page
 // would put the wrong UVs on it.
 bool mesh_texture(const context &ctx, texture_handle handle, Texture2D &out) {
-  const texture_slot *slot = texture_slot_of(ctx.texture, handle);
+  const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), handle);
   if (slot == nullptr || slot->packed)
     return false;
   out = slot->texture;
@@ -1171,10 +1172,10 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
 // The shader for a draw recorded with `handle` bound: the game's, given the
 // sun under the built-in names, or false for the built-in one.
 bool game_shader(const context &ctx, shader_handle handle, Shader &out) {
-  const shader_slot *slot = shader_slot_of(ctx.shader, handle);
+  const shader_slot *slot = shader_slot_of(ctx_ref<shader_store>(ctx), handle);
   if (slot == nullptr)
     return false;
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   shader_slot_set_optional_vec3(*slot, "lightDir", normalize(s.light.direction));
   shader_slot_set_optional_vec3(*slot, "lightColor", rgb(s.light.color));
   shader_slot_set_optional_vec3(*slot, "ambient", rgb(s.light.ambient));
@@ -1199,7 +1200,7 @@ using map_set = std::array<MaterialMap, 12>;
 // `fn` also gets whether the mesh is drawn posed: the draw has a pose, the
 // mesh has bone buffers and the skinning shaders work.
 template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d_cmd &c, Fn &&fn) {
-  const model_slot *slot = model_slot_of(ctx.model, c.model);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), c.model);
   if (slot == nullptr)
     return;
   const Model &model = slot->model;
@@ -1209,7 +1210,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const Material &file = model.materials[index];
     const model_material &mm = slot->materials[(usize)index];
     // See-through parts only in the translucent pass, and never as shadow casters.
-    if ((mm.color.a < 1.0f) != ctx.render3d->translucent_pass)
+    if ((mm.color.a < 1.0f) != ctx_ref<render3d_state>(ctx)->translucent_pass)
       continue;
     map_set maps{};
     for (usize m = 0; m < maps.size(); m++)
@@ -1233,7 +1234,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
       maps[MATERIAL_MAP_DIFFUSE].texture = default_texture();
     rgba own = mm.color;
     for (u32 r = 0; r < c.recolor_count; r++) {
-      const model_recolor &rc = ctx.render3d->recolors[c.recolor_first + r];
+      const model_recolor &rc = ctx_ref<render3d_state>(ctx)->recolors[c.recolor_first + r];
       if (rc.material == index) {
         own = rgba{rc.color.r, rc.color.g, rc.color.b, mm.color.a};
         break;
@@ -1246,7 +1247,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const bool morphed = (usize)i < slot->morphs.size() && !slot->morphs[(usize)i].slot.empty();
     const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
     if (morphed) {
-      const f32 *w = c.morph_count > 0 ? &ctx.render3d->morphs[c.morph_first] : nullptr;
+      const f32 *w = c.morph_count > 0 ? &ctx_ref<render3d_state>(ctx)->morphs[c.morph_first] : nullptr;
       if (lod != nullptr && lod->morph.slot.empty())
         lod = nullptr;
       if (lod != nullptr)
@@ -1254,7 +1255,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
       else
         model_morph_upload(*slot, i, w);
     }
-    const bool posed = c.bone_count > 0 && ctx.render3d->skin_ok &&
+    const bool posed = c.bone_count > 0 && ctx_ref<render3d_state>(ctx)->skin_ok &&
                        (lod != nullptr ? lod->bone_vbo != 0
                                        : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
     if (mm.double_sided)
@@ -1280,7 +1281,7 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
 // current matrices (`view_proj`): along `dir` for the sun (orthographic), from
 // the SDF shader's viewPos for a lamp.
 void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   map_set maps = s.maps;
   Material depth{};
   depth.shader = s.depth;
@@ -1332,7 +1333,7 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
 // Depth of every opaque shadow caster, seen from the sun, into the shadow map.
 // Returns the sun's view-projection, for the lit shader to look up.
 Matrix render_shadow(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   const light3d &sun = s.light;
   const f32 range = std::max(sun.shadow_range, 0.1f);
   const vec3 dir = normalize(sun.direction);
@@ -1375,12 +1376,12 @@ constexpr f32 cover_half = 18.0f; // metres each side of the camera: the rain bo
 // the depth of every opaque caster seen straight down, round the camera, so
 // drops under a roof are hidden and the ground under it stays dry.
 bool cover_wanted(const context &ctx) {
-  const world3d_store &w = ctx.world3d;
+  const world3d_store &w = ctx_ref<world3d_store>(ctx);
   return w.sky_drawn && w.cover_auto && (w.sky.rain > 0.0f || w.sky.snow > 0.0f);
 }
 
 Matrix render_cover(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   const f32 texel = 2.0f * cover_half / (f32)cover_size;
   // Snapped to whole texels, so roof edges do not shimmer as the camera moves.
   const f32 cx = std::floor(s.camera.position.x / texel) * texel;
@@ -1410,11 +1411,11 @@ Matrix render_cover(context &ctx) {
 // row per light, a 90 degree face per cube side for a point light, one face
 // covering the cone for a spot light. Fills s.lamps; false when none casts.
 bool render_lamp_shadows(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   lamp_shadows &ls = s.lamps;
   ls.row.fill(-1);
   ls.rows = 0;
-  const graphics_quality &q = ctx.quality->q;
+  const graphics_quality &q = ctx_ref<quality_state>(ctx)->q;
   if (!q.lamp_shadows)
     return false;
   const i32 count = std::min((i32)s.lights.size(), light3d_max);
@@ -1664,8 +1665,8 @@ void restore_mesh_attribute(const Mesh &mesh, i32 loc) {
 // The mesh vertex arrays are shared, so the instance attributes are turned off
 // again after each draw. `depth_only` is the shadow pass.
 void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
-  render3d_state &s = ctx.render3d;
-  instance_slot *slot = instance_slot_of(ctx.instances, c.buffer);
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  instance_slot *slot = instance_slot_of(ctx_ref<instance_store>(ctx), c.buffer);
   if (slot == nullptr || slot->vbo == 0 || c.first >= slot->count)
     return;
   const u32 count = std::min(c.count, slot->count - c.first);
@@ -1697,7 +1698,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     mesh_texture(ctx, c.material.texture, texture);
     parts.push_back({c.mesh, texture, colors::white, &c.material});
     mesh_texture(ctx, c.material.normal, parts.back().normal);
-  } else if (const model_slot *m = model_slot_of(ctx.model, c.model)) {
+  } else if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model)) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const i32 index = m->model.meshMaterial[i];
       const model_material &mm = m->materials[(usize)index];
@@ -1720,7 +1721,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     if (mesh_texture(ctx, p.surface->under, p.under))
       mesh_texture(ctx, p.surface->under_normal, p.under_normal);
   if (!s.translucent_pass)
-    ctx.stats->instanced_calls++;
+    ctx_ref<render_stats>(ctx)->instanced_calls++;
   const Matrix mvp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   const i32 floats = (i32)slot->floats;
   const i32 stride = (i32)(slot->floats * sizeof(f32));
@@ -1809,7 +1810,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
 }
 
 void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (c.world != world3d_none) {
     world3d_draw(ctx, c, view_proj);
     return;
@@ -1829,11 +1830,11 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   if (c.mesh == nullptr) {
     if (c.culled) {
       if (!s.translucent_pass)
-        ctx.stats->models3d_culled++;
+        ctx_ref<render_stats>(ctx)->models3d_culled++;
       return;
     }
     if (!s.translucent_pass)
-      ctx.stats->models3d++;
+      ctx_ref<render_stats>(ctx)->models3d++;
   }
   Shader custom{};
   const bool own = game_shader(ctx, c.shader, custom);
@@ -2050,8 +2051,8 @@ void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c, f3
 void record_model(const context &ctx, model_handle handle, const transform3d &transform, const model_pose *pose,
                   rgba tint, const fx3d &fx, shader_handle shader, const model_recolor *recolors = nullptr,
                   u32 recolor_count = 0, u64 entity = 0) {
-  const render3d_state &s = ctx.render3d;
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (!s.active || m == nullptr)
     return;
   const u64 key = entity != 0 ? mix_key(2, entity) : next_motion_key(s, mix_key(4, handle.id));
@@ -2075,23 +2076,23 @@ void record_model(const context &ctx, model_handle handle, const transform3d &tr
     s.recolors.insert(s.recolors.end(), recolors, recolors + recolor_count);
   }
   if (pose != nullptr && s.skin_ok)
-    pose_bones(s, *m, model_anim_owner(ctx.model, *m), *pose, c.bone_first, c.bone_count);
+    pose_bones(s, *m, model_anim_owner(ctx_ref<model_store>(ctx), *m), *pose, c.bone_first, c.bone_count);
   if (!m->morphs.empty()) {
     thread_local std::vector<f32> weights;
-    model_morph_eval(ctx.model, *m, pose, weights);
+    model_morph_eval(ctx_ref<model_store>(ctx), *m, pose, weights);
     c.morph_first = (u32)s.morphs.size();
     c.morph_count = (u32)weights.size();
     s.morphs.insert(s.morphs.end(), weights.begin(), weights.end());
   }
   c.motion_key = key;
-  place_model(s, *m, c, ctx.quality->q.lod_scale);
+  place_model(s, *m, c, ctx_ref<quality_state>(ctx)->q.lod_scale);
   s.cmds.push_back(c);
 }
 
 // The 3D components (njin_3d.h) into the open pass: models, SDF shapes and
 // lights, each at its entity's transform3d.
 void record_entities(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   entt::registry &reg = world(ctx);
   for (auto [e, t, m] : reg.view<const transform3d, const model3d>().each())
     if (m.visible)
@@ -2173,12 +2174,12 @@ render3d_state::~render3d_state() {
 
 namespace {
 bool can_begin(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (s.active) {
     NJIN_WARN_LIMITED("3d: begin_3d called twice without end_3d, ignored");
     return false;
   }
-  if (ctx.view->world_depth == 0) {
+  if (ctx_ref<view_state>(ctx)->world_depth == 0) {
     NJIN_WARN_LIMITED("3d: begin_3d outside phase_render, ignored");
     return false;
   }
@@ -2186,7 +2187,7 @@ bool can_begin(context &ctx) {
 }
 
 void start_pass(context &ctx, const camera3d &camera) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   // The world pass's projection comes back at end_3d.
   rlMatrixMode(RL_PROJECTION);
   rlPushMatrix();
@@ -2214,20 +2215,20 @@ void begin_3d(context &ctx, const camera3d &camera) {
   if (!can_begin(ctx))
     return;
   rlDrawRenderBatchActive();
-  ctx.render3d->target_fbo = 0;
-  audio3d_note_camera(ctx.audio, camera.position, camera.target, camera.up); // unshaken
+  ctx_ref<render3d_state>(ctx)->target_fbo = 0;
+  audio3d_note_camera(ctx_ref<audio_store>(ctx), camera.position, camera.target, camera.up); // unshaken
   start_pass(ctx, camera);
 }
 
 void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target, rgba clear) {
-  const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, target);
+  const render_texture_slot *slot = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), target);
   if (slot == nullptr) {
     NJIN_WARN_LIMITED("3d: begin_3d into an invalid render texture, ignored");
     return;
   }
   if (!can_begin(ctx))
     return;
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   rlDrawRenderBatchActive();
   s.target_fbo = slot->target.id;
   s.target_size = {(f32)slot->target.texture.width, (f32)slot->target.texture.height};
@@ -2238,7 +2239,7 @@ void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target
 }
 
 void end_3d(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
     return;
   rlDrawRenderBatchActive();
@@ -2246,13 +2247,13 @@ void end_3d(context &ctx) {
   if (s.entities)
     record_entities(ctx);
   cull_boxes(s);
-  if (ctx.debug->running && !offscreen)
+  if (ctx_ref<debug_state>(ctx)->running && !offscreen)
     render3d_capture_debug(ctx);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
   // graphics_quality caps what light3d_set() asked for, never raises it.
-  const graphics_quality &q = ctx.quality->q;
+  const graphics_quality &q = ctx_ref<quality_state>(ctx)->q;
   i32 sun_size = std::clamp(s.light.shadow_size, 256, 8192);
   if (q.shadow_size_max > 0)
     sun_size = std::max(256, std::min(sun_size, q.shadow_size_max));
@@ -2375,7 +2376,7 @@ void end_3d(context &ctx) {
   // Back to the world pass exactly as begin_world_space left it.
   rlMatrixMode(RL_MODELVIEW);
   rlLoadIdentity();
-  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx.post->world_camera)));
+  rlMultMatrixf(MatrixToFloat(GetCameraMatrix2D(ctx_ref<camera_post>(ctx)->world_camera)));
   rlDisableDepthTest();
 }
 
@@ -2401,8 +2402,8 @@ i32 mesh_kind(const render3d_state &s, const Mesh *mesh) {
 // The instances of a draw_instanced3d call, at the position instance0 gives
 // them (njin_3d.h). The upload is kept on the CPU only while debugging.
 void capture_instances(const context &ctx, const draw3d_cmd &c, debug3d_frame &f, usize max_items) {
-  const render3d_state &s = ctx.render3d;
-  const instance_slot *slot = instance_slot_of(const_cast<instance_store &>(*ctx.instances), c.buffer);
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const instance_slot *slot = instance_slot_of(const_cast<instance_store &>(*ctx_ref<instance_store>(ctx)), c.buffer);
   if (slot == nullptr || slot->cpu.empty())
     return;
   const u32 floats = slot->floats;
@@ -2420,9 +2421,9 @@ void render3d_capture_debug(context &ctx) {
   // A frame with thousands of draws is cut: the inspector only needs to see
   // where things are.
   constexpr usize max_items = 8192;
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   debug3d_frame &f = s.debug;
-  f.time = ctx.time.elapsed;
+  f.time = ctx_ref<time_state>(ctx).elapsed;
   f.camera = s.camera;
   f.sun = normalize(s.light.direction);
   f.lights = s.lights;
@@ -2441,7 +2442,7 @@ void render3d_capture_debug(context &ctx) {
       f.items.push_back({debug3d_shape + (i32)c.shape.kind, c.shape.position, c.color});
     } else if (c.mesh != nullptr) {
       f.items.push_back({mesh_kind(s, c.mesh), translation(c.transform), c.color});
-    } else if (const model_slot *m = model_slot_of(ctx.model, c.model)) {
+    } else if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model)) {
       f.items.push_back({debug3d_model, model_center(*m, c.transform), c.color});
     }
   }
@@ -2463,7 +2464,7 @@ void render3d_set_draw_uniforms(Shader sh, const render3d_locations &l, const ma
 }
 
 void render3d_record_world(const context &ctx, u8 kind, u32 id) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
     return;
   draw3d_cmd c;
@@ -2519,7 +2520,7 @@ void set_mask_uniforms(Shader sh, vec2 size, vec2 planes) {
 void set_mask_value(Shader sh, f32 v) { set_f32(sh, GetShaderLocation(sh, "maskValue"), clamp(v, 0.0f, 1.0f)); }
 
 bool model_reflects(const context &ctx, model_handle handle) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr)
     return false;
   for (const model_material &mm : m->materials)
@@ -2530,7 +2531,7 @@ bool model_reflects(const context &ctx, model_handle handle) {
 } // namespace
 
 bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!ensure_mask(s))
     return false;
   for (Shader sh : {s.mask, s.mask_instanced, s.mask_skinned})
@@ -2635,7 +2636,7 @@ bool has_motion(const draw3d_cmd &c) {
 
 bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, const Matrix &cur_vp,
                             const Matrix &prev_vp, bool has_last) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!ensure_velocity(s))
     return false;
   const bool skinned_ok = IsShaderValid(s.velocity_skinned);
@@ -2678,7 +2679,7 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
       DrawMesh(*c.mesh, mesh_mat, c.transform);
       continue;
     }
-    const model_slot *slot = model_slot_of(ctx.model, c.model);
+    const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), c.model);
     if (c.culled || slot == nullptr)
       continue;
     const Matrix prev_mesh = MatrixMultiply(slot->model.transform, prev_transform);
@@ -2706,7 +2707,7 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
 }
 
 void render3d_motion_commit(context &ctx) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   s.motion_last.clear();
   s.motion_bones.clear();
   for (const draw3d_cmd &c : s.cmds) {
@@ -2726,18 +2727,18 @@ void draw3d_motion_id(const context &ctx, u64 id) {
 }
 
 void render3d_close(context &ctx) {
-  if (!ctx.render3d->active)
+  if (!ctx_ref<render3d_state>(ctx)->active)
     return;
   NJIN_WARN_LIMITED("3d: begin_3d without end_3d, closed at the end of phase_render");
   end_3d(ctx);
 }
 
-void light3d_set(context &ctx, const light3d &light) { ctx.render3d->light = light; }
+void light3d_set(context &ctx, const light3d &light) { ctx_ref<render3d_state>(ctx)->light = light; }
 
-light3d light3d_get(const context &ctx) { return ctx.render3d->light; }
+light3d light3d_get(const context &ctx) { return ctx_ref<render3d_state>(ctx)->light; }
 
 void light3d_add(context &ctx, const light3d_source &light) {
-  render3d_state &s = ctx.render3d;
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
     return;
   if ((i32)s.lights.size() >= light3d_max) {
@@ -2747,9 +2748,9 @@ void light3d_add(context &ctx, const light3d_source &light) {
   s.lights.push_back(light);
 }
 
-void material3d_set(context &ctx, const material3d &material) { ctx.render3d->material = material; }
+void material3d_set(context &ctx, const material3d &material) { ctx_ref<render3d_state>(ctx)->material = material; }
 
-void fx3d_set(context &ctx, const fx3d &fx) { ctx.render3d->fx = fx; }
+void fx3d_set(context &ctx, const fx3d &fx) { ctx_ref<render3d_state>(ctx)->fx = fx; }
 
 void draw_cube3d(const context &ctx, vec3 center, vec3 size, rgba color) {
   if (const render3d_state *s = open_pass(ctx))
@@ -2784,7 +2785,7 @@ void draw_capsule3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba col
 namespace {
 void record_instanced(const context &ctx, const Mesh *mesh, model_handle model, instance_buffer_handle buffer,
                       u32 first, u32 count, shader_handle shader) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   s.cmds.push_back(draw3d_cmd{.is_shape = false,
                               .shape = {},
                               .mesh = mesh,
@@ -2815,7 +2816,7 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader) {
-  if (open_pass(ctx) == nullptr || buffer.id == 0 || model_slot_of(ctx.model, model) == nullptr)
+  if (open_pass(ctx) == nullptr || buffer.id == 0 || model_slot_of(ctx_ref<model_store>(ctx), model) == nullptr)
     return;
   record_instanced(ctx, nullptr, model, buffer, first, count, shader);
 }
@@ -2823,14 +2824,14 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       const model_pose &pose, shader_handle shader) {
   const render3d_state *s = open_pass(ctx);
-  const model_slot *m = model_slot_of(ctx.model, model);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), model);
   if (s == nullptr || buffer.id == 0 || m == nullptr)
     return;
   record_instanced(ctx, nullptr, model, buffer, first, count, shader);
   if (m->morphs.empty())
     return;
   thread_local std::vector<f32> weights;
-  model_morph_eval(ctx.model, *m, &pose, weights);
+  model_morph_eval(ctx_ref<model_store>(ctx), *m, &pose, weights);
   draw3d_cmd &c = s->cmds.back();
   c.morph_first = (u32)s->morphs.size();
   c.morph_count = (u32)weights.size();
@@ -2889,29 +2890,29 @@ void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
 }
 
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform, rgba tint) {
-  record_model(ctx, handle, transform, nullptr, tint, ctx.render3d->fx, ctx.shader->active);
+  record_model(ctx, handle, transform, nullptr, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader->active);
+  record_model(ctx, handle, transform, &pose, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor &recolor) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader->active, &recolor, 1);
+  record_model(ctx, handle, transform, &pose, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active, &recolor, 1);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor *recolors, u32 count) {
-  record_model(ctx, handle, transform, &pose, tint, ctx.render3d->fx, ctx.shader->active, recolors, count);
+  record_model(ctx, handle, transform, &pose, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active, recolors, count);
 }
 
 namespace {
 // The slot whose clips `handle` plays (model_create_skinned borrows them).
 const model_slot *clips_of(const context &ctx, model_handle handle) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
-  return m != nullptr ? &model_anim_owner(ctx.model, *m) : nullptr;
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
+  return m != nullptr ? &model_anim_owner(ctx_ref<model_store>(ctx), *m) : nullptr;
 }
 } // namespace
 
@@ -2953,19 +2954,19 @@ f32 model_anim_duration(const context &ctx, model_handle handle, i32 index) {
 }
 
 i32 model_morph_count(const context &ctx, model_handle handle) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   return m != nullptr ? (i32)m->morph_names.size() : 0;
 }
 
 const char *model_morph_name(const context &ctx, model_handle handle, i32 morph) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr || morph < 0 || morph >= (i32)m->morph_names.size())
     return "";
   return m->morph_names[(usize)morph].c_str();
 }
 
 i32 model_morph_find(const context &ctx, model_handle handle, const char *name) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr || name == nullptr)
     return -1;
   for (usize i = 0; i < m->morph_names.size(); i++)
@@ -2975,30 +2976,30 @@ i32 model_morph_find(const context &ctx, model_handle handle, const char *name) 
 }
 
 i32 model_morph_weights(const context &ctx, model_handle handle, const model_pose &pose, f32 *out, i32 count) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr)
     return 0;
   std::vector<f32> weights;
-  model_morph_eval(ctx.model, *m, &pose, weights);
+  model_morph_eval(ctx_ref<model_store>(ctx), *m, &pose, weights);
   if (out != nullptr)
     std::copy_n(weights.begin(), std::min<usize>(weights.size(), (usize)std::max(count, 0)), out);
   return (i32)weights.size();
 }
 
 i32 model_bone_count(const context &ctx, model_handle handle) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   return m != nullptr ? m->model.skeleton.boneCount : 0;
 }
 
 const char *model_bone_name(const context &ctx, model_handle handle, i32 bone) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
     return "";
   return m->model.skeleton.bones[bone].name;
 }
 
 i32 model_bone_find(const context &ctx, model_handle handle, const char *name) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr || name == nullptr)
     return -1;
   for (i32 b = 0; b < m->model.skeleton.boneCount; b++)
@@ -3008,7 +3009,7 @@ i32 model_bone_find(const context &ctx, model_handle handle, const char *name) {
 }
 
 i32 model_bone_parent(const context &ctx, model_handle handle, i32 bone) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
     return -1;
   return m->model.skeleton.bones[bone].parent;
@@ -3020,7 +3021,7 @@ namespace {
 // Calls `use` with each skin vertex that `bone` (or, with `children`, a bone
 // below it) pulls hardest, along the model's axes from the bone's rest origin.
 template <class F> void each_bone_vertex(const context &ctx, model_handle handle, i32 bone, bool children, F use) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   const i32 bones = m != nullptr ? m->model.skeleton.boneCount : 0;
   if (m == nullptr || bone < 0 || bone >= bones)
     return;
@@ -3054,7 +3055,7 @@ template <class F> void each_bone_vertex(const context &ctx, model_handle handle
 } // namespace
 
 f32 model_volume(const context &ctx, model_handle handle) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr)
     return 0.0f;
   // Each triangle with the origin makes a tetrahedron; their signed volumes
@@ -3105,12 +3106,12 @@ i32 model_bone_points(const context &ctx, model_handle handle, i32 bone, bool ch
 }
 
 bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model_pose &pose, i32 bone) {
-  const model_slot *m = model_slot_of(ctx.model, handle);
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (m == nullptr || bone < 0 || bone >= m->model.skeleton.boneCount)
     return {};
   if (pose.bones != nullptr)
     return pose.bones[bone];
-  const Transform t = posed_bone(model_anim_owner(ctx.model, *m), pose, bone);
+  const Transform t = posed_bone(model_anim_owner(ctx_ref<model_store>(ctx), *m), pose, bone);
   // The model's own transform (a file's root), as the draw applies it.
   const Matrix k = MatrixMultiply(pose_matrix(t), m->model.transform);
   const auto axis = [](f32 x, f32 y, f32 z) {

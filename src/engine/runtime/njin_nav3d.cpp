@@ -1,6 +1,6 @@
 #include "njin_nav3d_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_ecs.h"
 #include "njin_gizmo.h"
 #include "njin_log.h"
@@ -146,7 +146,7 @@ void gather(const context &ctx, const nav3d_mesh_slot &s, vec2 lo, vec2 hi, soup
       out.tri(a, b, c, t / 3 < s.tri_areas.size() ? s.tri_areas[t / 3] : 0);
   }
   for (const nav3d_model_ref &r : s.models) {
-    const model_slot *m = model_slot_of(ctx.model, r.model);
+    const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), r.model);
     if (m == nullptr)
       continue;
     const Matrix xf = MatrixMultiply(m->model.transform, place(r.position, r.rotation, r.scale));
@@ -566,15 +566,15 @@ navmesh3d_handle navmesh3d_create(context &ctx, const navmesh3d_desc &desc) {
   nav3d_mesh_slot slot{};
   slot.alive = true;
   slot.desc = desc;
-  ctx.nav3d->meshes.push_back(std::move(slot));
-  return navmesh3d_handle{(u32)ctx.nav3d->meshes.size()};
+  ctx_ref<nav3d_store>(ctx)->meshes.push_back(std::move(slot));
+  return navmesh3d_handle{(u32)ctx_ref<nav3d_store>(ctx)->meshes.size()};
 }
 
 void navmesh3d_destroy(context &ctx, navmesh3d_handle handle) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return;
-  for (nav3d_agent_slot &a : ctx.nav3d->agents)
+  for (nav3d_agent_slot &a : ctx_ref<nav3d_store>(ctx)->agents)
     if (a.alive && a.navmesh == handle.id)
       a.alive = false;
   free_mesh(*s);
@@ -583,7 +583,7 @@ void navmesh3d_destroy(context &ctx, navmesh3d_handle handle) {
 
 void navmesh3d_add_mesh(context &ctx, navmesh3d_handle handle, const vec3 *positions, u32 vertex_count,
                         const u32 *indices, u32 index_count, u8 area) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || positions == nullptr || vertex_count == 0)
     return;
   for (u32 i = 0; i < vertex_count; i++)
@@ -606,10 +606,10 @@ void navmesh3d_add_mesh(context &ctx, navmesh3d_handle handle, const vec3 *posit
 
 void navmesh3d_add_model(context &ctx, navmesh3d_handle handle, model_handle model, vec3 position, vec3 rotation,
                          vec3 scale, u8 area) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || refuse(finite3(position) && finite3(rotation) && finite3(scale), "navmesh3d_add_model"))
     return;
-  if (model_slot_of(ctx.model, model) == nullptr) {
+  if (model_slot_of(ctx_ref<model_store>(ctx), model) == nullptr) {
     NJIN_WARN("navmesh3d_add_model: not a loaded model");
     return;
   }
@@ -617,7 +617,7 @@ void navmesh3d_add_model(context &ctx, navmesh3d_handle handle, model_handle mod
 }
 
 void navmesh3d_add_box(context &ctx, navmesh3d_handle handle, vec3 center, vec3 size, vec3 rotation, u8 area) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || refuse(finite3(center) && finite3(size) && finite3(rotation), "navmesh3d_add_box"))
     return;
   const Matrix m = place(center, rotation, size * 0.5f);
@@ -641,7 +641,7 @@ void navmesh3d_add_box(context &ctx, navmesh3d_handle handle, vec3 center, vec3 
 }
 
 void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_handle terrain, u8 area) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return;
   if (terrain_of(ctx, terrain) == nullptr) {
@@ -654,14 +654,14 @@ void navmesh3d_add_terrain(context &ctx, navmesh3d_handle handle, terrain3d_hand
 
 void navmesh3d_add_link(context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, bool both_ways, f32 radius,
                         u8 area) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || refuse(finite3(from) && finite3(to) && std::isfinite(radius), "navmesh3d_add_link"))
     return;
   s->links.push_back({from, to, both_ways, std::max(radius, 0.05f), area});
 }
 
 i32 navmesh3d_add_area(context &ctx, navmesh3d_handle handle, vec3 center, vec3 size, f32 yaw, u8 area) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || refuse(finite3(center) && finite3(size) && std::isfinite(yaw), "navmesh3d_add_area"))
     return 0;
   if (area >= nav3d_max_areas) {
@@ -680,7 +680,7 @@ i32 navmesh3d_add_area(context &ctx, navmesh3d_handle handle, vec3 center, vec3 
 }
 
 void navmesh3d_remove_area(context &ctx, navmesh3d_handle handle, i32 id) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return;
   const auto it = std::find_if(s->areas.begin(), s->areas.end(), [&](const nav3d_volume &v) { return v.id == id; });
@@ -692,7 +692,7 @@ void navmesh3d_remove_area(context &ctx, navmesh3d_handle handle, i32 id) {
 }
 
 i32 navmesh3d_add_obstacle(context &ctx, navmesh3d_handle handle, const nav3d_obstacle_desc &desc) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || refuse(finite3(desc.position) && finite3(desc.size) && std::isfinite(desc.yaw) &&
                                  std::isfinite(desc.radius),
                              "navmesh3d_add_obstacle"))
@@ -709,7 +709,7 @@ i32 navmesh3d_add_obstacle(context &ctx, navmesh3d_handle handle, const nav3d_ob
 }
 
 bool navmesh3d_move_obstacle(context &ctx, navmesh3d_handle handle, i32 id, vec3 position, f32 yaw) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || refuse(finite3(position) && std::isfinite(yaw), "navmesh3d_move_obstacle"))
     return false;
   for (nav3d_volume &v : s->obstacles)
@@ -724,7 +724,7 @@ bool navmesh3d_move_obstacle(context &ctx, navmesh3d_handle handle, i32 id, vec3
 }
 
 void navmesh3d_remove_obstacle(context &ctx, navmesh3d_handle handle, i32 id) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return;
   const auto it =
@@ -736,12 +736,12 @@ void navmesh3d_remove_obstacle(context &ctx, navmesh3d_handle handle, i32 id) {
 }
 
 i32 navmesh3d_pending_tiles(const context &ctx, navmesh3d_handle handle) {
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   return s == nullptr ? 0 : (i32)s->dirty.size();
 }
 
 void navmesh3d_set_filter(context &ctx, navmesh3d_handle handle, i32 index, const nav3d_filter &filter) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return;
   if (index < 0 || index >= nav3d_max_areas) {
@@ -752,25 +752,25 @@ void navmesh3d_set_filter(context &ctx, navmesh3d_handle handle, i32 index, cons
   if (!s->built)
     return;
   *s->crowd->getEditableFilter(index) = make_filter(filter);
-  replan(ctx.nav3d, handle.id, *s, index);
+  replan(ctx_ref<nav3d_store>(ctx), handle.id, *s, index);
 }
 
 nav3d_filter navmesh3d_filter(const context &ctx, navmesh3d_handle handle, i32 index) {
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || index < 0 || index >= nav3d_max_areas)
     return {};
   return s->filters[index];
 }
 
 navmesh3d_handle navmesh3d_clone(context &ctx, navmesh3d_handle source, const navmesh3d_desc &desc) {
-  if (mesh_of(ctx.nav3d, source) == nullptr)
+  if (mesh_of(ctx_ref<nav3d_store>(ctx), source) == nullptr)
     return {};
   const navmesh3d_handle h = navmesh3d_create(ctx, desc);
   if (h.id == 0)
     return {};
   // navmesh3d_create may have grown the vector: look the source up again.
-  const nav3d_mesh_slot &src = *mesh_of(ctx.nav3d, source);
-  nav3d_mesh_slot &dst = *mesh_of(ctx.nav3d, h);
+  const nav3d_mesh_slot &src = *mesh_of(ctx_ref<nav3d_store>(ctx), source);
+  nav3d_mesh_slot &dst = *mesh_of(ctx_ref<nav3d_store>(ctx), h);
   dst.verts = src.verts;
   dst.tris = src.tris;
   dst.tri_areas = src.tri_areas;
@@ -786,7 +786,7 @@ navmesh3d_handle navmesh3d_clone(context &ctx, navmesh3d_handle source, const na
 }
 
 void navmesh3d_clear_geometry(context &ctx, navmesh3d_handle handle) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return;
   s->verts.clear();
@@ -799,11 +799,11 @@ void navmesh3d_clear_geometry(context &ctx, navmesh3d_handle handle) {
 }
 
 bool navmesh3d_build(context &ctx, navmesh3d_handle handle) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr)
     return false;
   // Agents of the old navmesh go with its crowd.
-  for (nav3d_agent_slot &a : ctx.nav3d->agents)
+  for (nav3d_agent_slot &a : ctx_ref<nav3d_store>(ctx)->agents)
     if (a.alive && a.navmesh == handle.id)
       a.alive = false;
   free_mesh(*s);
@@ -868,7 +868,7 @@ bool navmesh3d_build(context &ctx, navmesh3d_handle handle) {
 }
 
 i32 navmesh3d_rebuild(context &ctx, navmesh3d_handle handle, vec3 min, vec3 max) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built || refuse(finite3(min) && finite3(max), "navmesh3d_rebuild"))
     return 0;
   const f32 x0 = std::min(min.x, max.x), x1 = std::max(min.x, max.x);
@@ -886,7 +886,7 @@ bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3
 bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3 to, std::vector<vec3> &out,
                     i32 filter_index) {
   out.clear();
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built || refuse(finite3(from) && finite3(to), "navmesh3d_path"))
     return false;
   if (filter_index < 0 || filter_index >= nav3d_max_areas) {
@@ -923,7 +923,7 @@ bool navmesh3d_path(const context &ctx, navmesh3d_handle handle, vec3 from, vec3
 }
 
 bool navmesh3d_nearest(const context &ctx, navmesh3d_handle handle, vec3 p, vec3 &out, vec3 extents) {
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built || refuse(finite3(p) && finite3(extents), "navmesh3d_nearest"))
     return false;
   dtPolyRef ref = 0;
@@ -933,7 +933,7 @@ bool navmesh3d_nearest(const context &ctx, navmesh3d_handle handle, vec3 p, vec3
 nav3d_ray navmesh3d_raycast(const context &ctx, navmesh3d_handle handle, vec3 from, vec3 to) {
   nav3d_ray r{};
   r.point = to;
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built || refuse(finite3(from) && finite3(to), "navmesh3d_raycast"))
     return r;
   dtPolyRef start = 0;
@@ -958,13 +958,13 @@ nav3d_ray navmesh3d_raycast(const context &ctx, navmesh3d_handle handle, vec3 fr
 }
 
 bool navmesh3d_random_point(context &ctx, navmesh3d_handle handle, vec3 &out) {
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built)
     return false;
   const dtQueryFilter filter = make_filter(s->filters[0]);
   dtPolyRef ref = 0;
   f32 q[3];
-  random_source = &ctx.random;
+  random_source = &ctx_ref<rng>(ctx);
   const bool ok = dtStatusSucceed(s->query->findRandomPoint(&filter, random01, &ref, q)) && ref != 0;
   random_source = nullptr;
   if (ok)
@@ -973,7 +973,7 @@ bool navmesh3d_random_point(context &ctx, navmesh3d_handle handle, vec3 &out) {
 }
 
 bool navmesh3d_random_point_near(context &ctx, navmesh3d_handle handle, vec3 center, f32 radius, vec3 &out) {
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built ||
       refuse(finite3(center) && std::isfinite(radius), "navmesh3d_random_point_near"))
     return false;
@@ -991,8 +991,8 @@ bool navmesh3d_random_point_near(context &ctx, navmesh3d_handle handle, vec3 cen
   i32 nreach = 0;
   s->query->findPolysAroundCircle(start, fv(sp), radius, &filter, reach, nullptr, nullptr, &nreach, max_polys);
   for (i32 attempt = 0; attempt < 32 && nreach > 0; attempt++) {
-    const f32 a = ctx.random.range(0.0f, 2.0f * pi);
-    const f32 r = radius * std::sqrt(ctx.random.unit());
+    const f32 a = ctx_ref<rng>(ctx).range(0.0f, 2.0f * pi);
+    const f32 r = radius * std::sqrt(ctx_ref<rng>(ctx).unit());
     const vec3 p{sp.x + std::cos(a) * r, sp.y, sp.z + std::sin(a) * r};
     dtPolyRef ref = 0;
     f32 q[3];
@@ -1012,7 +1012,7 @@ bool navmesh3d_random_point_near(context &ctx, navmesh3d_handle handle, vec3 cen
 }
 
 void navmesh3d_draw_debug(context &ctx, navmesh3d_handle handle, rgba color) {
-  const nav3d_mesh_slot *s = mesh_of(ctx.nav3d, handle);
+  const nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), handle);
   if (s == nullptr || !s->built)
     return;
   const dtNavMesh &mesh = *s->mesh;
@@ -1040,7 +1040,7 @@ void navmesh3d_draw_debug(context &ctx, navmesh3d_handle handle, rgba color) {
 }
 
 nav3d_agent_handle nav3d_agent_add(context &ctx, navmesh3d_handle navmesh, const nav3d_agent_desc &desc) {
-  nav3d_mesh_slot *s = mesh_of(ctx.nav3d, navmesh);
+  nav3d_mesh_slot *s = mesh_of(ctx_ref<nav3d_store>(ctx), navmesh);
   if (s == nullptr || !s->built || refuse(finite3(desc.position), "nav3d_agent_add"))
     return {};
   vec3 at;
@@ -1076,23 +1076,23 @@ nav3d_agent_handle nav3d_agent_add(context &ctx, navmesh3d_handle navmesh, const
   a.arrive = desc.arrive_distance > 0.0f ? desc.arrive_distance : p.radius;
   a.character = desc.character;
   a.filter = p.queryFilterType;
-  ctx.nav3d->agents.push_back(a);
-  return nav3d_agent_handle{(u32)ctx.nav3d->agents.size()};
+  ctx_ref<nav3d_store>(ctx)->agents.push_back(a);
+  return nav3d_agent_handle{(u32)ctx_ref<nav3d_store>(ctx)->agents.size()};
 }
 
 void nav3d_agent_remove(context &ctx, nav3d_agent_handle agent) {
-  nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr)
     return;
-  mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh})->crowd->removeAgent(a->index);
+  mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh})->crowd->removeAgent(a->index);
   a->alive = false;
 }
 
 bool nav3d_agent_set_target(context &ctx, nav3d_agent_handle agent, vec3 target) {
-  nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr || refuse(finite3(target), "nav3d_agent_set_target"))
     return false;
-  const nav3d_mesh_slot &s = *mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh});
+  const nav3d_mesh_slot &s = *mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh});
   dtPolyRef ref = 0;
   f32 q[3];
   if (dtStatusFailed(s.query->findNearestPoly(fv(target), s.crowd->getQueryHalfExtents(), s.crowd->getFilter(a->filter),
@@ -1110,14 +1110,14 @@ bool nav3d_agent_set_target(context &ctx, nav3d_agent_handle agent, vec3 target)
 }
 
 void nav3d_agent_set_filter(context &ctx, nav3d_agent_handle agent, i32 filter) {
-  nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr)
     return;
   if (filter < 0 || filter >= nav3d_max_areas) {
     NJIN_WARN("nav3d_agent_set_filter: filter %d is not 0..%d", filter, nav3d_max_areas - 1);
     return;
   }
-  nav3d_mesh_slot &s = *mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh});
+  nav3d_mesh_slot &s = *mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh});
   dtCrowdAgentParams p = s.crowd->getAgent(a->index)->params;
   p.queryFilterType = (unsigned char)filter;
   s.crowd->updateAgentParameters(a->index, &p);
@@ -1133,18 +1133,18 @@ void nav3d_agent_set_filter(context &ctx, nav3d_agent_handle agent, i32 filter) 
 }
 
 void nav3d_agent_stop(context &ctx, nav3d_agent_handle agent) {
-  nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr)
     return;
-  mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh})->crowd->resetMoveTarget(a->index);
+  mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh})->crowd->resetMoveTarget(a->index);
   a->has_target = false;
 }
 
 bool nav3d_agent_teleport(context &ctx, nav3d_agent_handle agent, vec3 position) {
-  nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr || refuse(finite3(position), "nav3d_agent_teleport"))
     return false;
-  nav3d_mesh_slot &s = *mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh});
+  nav3d_mesh_slot &s = *mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh});
   vec3 at;
   dtPolyRef ref = 0;
   if (!nearest_ref(s, position, {2.0f, 4.0f, 2.0f}, ref, at))
@@ -1165,23 +1165,23 @@ bool nav3d_agent_teleport(context &ctx, nav3d_agent_handle agent, vec3 position)
 }
 
 vec3 nav3d_agent_position(const context &ctx, nav3d_agent_handle agent) {
-  const nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  const nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr)
     return {};
-  const nav3d_mesh_slot &s = *mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh});
+  const nav3d_mesh_slot &s = *mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh});
   const dtCrowdAgent *ag = s.crowd->getAgent(a->index);
   return on_ground(ctx, s, vf(ag->npos), ag->corridor.getFirstPoly());
 }
 
 vec3 nav3d_agent_velocity(const context &ctx, nav3d_agent_handle agent) {
-  const nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  const nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr)
     return {};
-  return vf(mesh_of(ctx.nav3d, navmesh3d_handle{a->navmesh})->crowd->getAgent(a->index)->vel);
+  return vf(mesh_of(ctx_ref<nav3d_store>(ctx), navmesh3d_handle{a->navmesh})->crowd->getAgent(a->index)->vel);
 }
 
 bool nav3d_agent_arrived(const context &ctx, nav3d_agent_handle agent) {
-  const nav3d_agent_slot *a = agent_of(ctx.nav3d, agent);
+  const nav3d_agent_slot *a = agent_of(ctx_ref<nav3d_store>(ctx), agent);
   if (a == nullptr || !a->has_target)
     return false;
   const vec3 p = nav3d_agent_position(ctx, agent);
@@ -1190,9 +1190,9 @@ bool nav3d_agent_arrived(const context &ctx, nav3d_agent_handle agent) {
 }
 
 i32 nav3d_agent_count(const context &ctx, navmesh3d_handle navmesh) {
-  if (mesh_of(ctx.nav3d, navmesh) == nullptr)
+  if (mesh_of(ctx_ref<nav3d_store>(ctx), navmesh) == nullptr)
     return 0;
-  return (i32)std::count_if(ctx.nav3d->agents.begin(), ctx.nav3d->agents.end(),
+  return (i32)std::count_if(ctx_ref<nav3d_store>(ctx)->agents.begin(), ctx_ref<nav3d_store>(ctx)->agents.end(),
                             [&](const nav3d_agent_slot &a) { return a.alive && a.navmesh == navmesh.id; });
 }
 
@@ -1201,7 +1201,7 @@ void update_crowds(context &ctx) {
   const f32 dt = delta(ctx);
   if (dt <= 0.0f)
     return;
-  nav3d_store &store = ctx.nav3d;
+  nav3d_store &store = ctx_ref<nav3d_store>(ctx);
   for (usize m = 0; m < store.meshes.size(); m++) {
     nav3d_mesh_slot &s = store.meshes[m];
     if (!s.alive || !s.built)

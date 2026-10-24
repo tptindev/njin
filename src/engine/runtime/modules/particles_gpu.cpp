@@ -1,6 +1,6 @@
 #include "particles_gpu.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_draw.h"
 #include "render_stats.h"
 #include "njin_ecs.h"
@@ -276,28 +276,28 @@ usize particles_gpu_alive(const particle_emitter &em, const particle_gpu_buffer 
 }
 
 void particles_set_backend(context &ctx, particle_backend backend) {
-  ctx.particles_gpu->backend = backend;
+  ctx_ref<particle_gpu_state>(ctx)->backend = backend;
 }
 
-particle_backend particles_backend(const context &ctx) { return ctx.particles_gpu->backend; }
+particle_backend particles_backend(const context &ctx) { return ctx_ref<particle_gpu_state>(ctx)->backend; }
 
 bool particles_gpu_available(context &ctx) {
-  probe(ctx.particles_gpu);
-  return ctx.particles_gpu->available;
+  probe(ctx_ref<particle_gpu_state>(ctx));
+  return ctx_ref<particle_gpu_state>(ctx)->available;
 }
 
 bool particles_gpu_wanted(context &ctx) {
-  return ctx.particles_gpu->backend != particle_backend_cpu && particles_gpu_available(ctx);
+  return ctx_ref<particle_gpu_state>(ctx)->backend != particle_backend_cpu && particles_gpu_available(ctx);
 }
 
 void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
                         const particle_emitter &em) {
-  particle_gpu_state &gpu = ctx.particles_gpu;
-  particle_gpu_buffer *buffer = ctx.ecs->registry.try_get<particle_gpu_buffer>(entity);
+  particle_gpu_state &gpu = ctx_ref<particle_gpu_state>(ctx);
+  particle_gpu_buffer *buffer = ctx_ref<ecs_store>(ctx)->registry.try_get<particle_gpu_buffer>(entity);
   if (!gpu.available || buffer == nullptr || em.particles.empty())
     return;
 
-  const texture_slot *slot = texture_slot_of(ctx.texture, em.texture);
+  const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), em.texture);
   int mode = em.shape == particle_square ? mode_square : mode_circle;
   vec2 aspect{1.0f, 1.0f};
   f32 source[4] = {0.0f, 0.0f, 1.0f, 1.0f};
@@ -336,7 +336,7 @@ void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
   const int bytes = (int)(em.particles.size() * sizeof(particle));
   const int count = (int)em.particles.size();
 
-  render_stats &stats = ctx.stats;
+  render_stats &stats = ctx_ref<render_stats>(ctx);
   stats.emitters++;
   stats.particles += (u32)count;
   stats.particles_gpu += (u32)count;

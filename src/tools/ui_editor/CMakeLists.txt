@@ -19,6 +19,8 @@ add_executable(njin_ui_editor
 
 target_include_directories(njin_ui_editor PRIVATE ${PROJECT_SOURCE_DIR}/src/engine/runtime)
 set_target_properties(njin_ui_editor PROPERTIES NJIN_ENGINE_INTERNAL ON)
+# preview.cpp reaches the context's members as the runtime does (njin_ctx_get.h).
+target_compile_definitions(njin_ui_editor PRIVATE $<$<NOT:$<CONFIG:Debug>>:NJIN_CTX_INLINE>)
 # The engine first, raylib after it: njin calls raylib's PlaySound, which
 # MSVC would otherwise take from winmm.lib, found first after the engine.
 njin_use(njin_ui_editor)

@@ -1,6 +1,7 @@
 #include "njin_video_impl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_audio_impl.h"
 #include "njin_texture.h"
 #include "njin_draw.h"
@@ -87,7 +88,7 @@ void feed_stream(video_slot &v, std::vector<f32> &chunk) {
 void upload(context &ctx, video_slot &v) {
   if (!v.fresh)
     return;
-  const texture_slot *t = texture_slot_of(ctx.texture, v.texture);
+  const texture_slot *t = texture_slot_of(ctx_ref<texture_store>(ctx), v.texture);
   if (t != nullptr)
     UpdateTexture(t->texture, v.pixels.data());
   v.fresh = false;
@@ -138,9 +139,9 @@ video_handle video_open(context &ctx, const video_desc &desc) {
     plm_destroy(plm);
     return {};
   }
-  ctx.video->videos.push_back(std::make_unique<video_slot>());
-  const u32 id = (u32)ctx.video->videos.size();
-  video_slot &v = *ctx.video->videos.back();
+  ctx_ref<video_store>(ctx)->videos.push_back(std::make_unique<video_slot>());
+  const u32 id = (u32)ctx_ref<video_store>(ctx)->videos.size();
+  video_slot &v = *ctx_ref<video_store>(ctx)->videos.back();
   v.alive = true;
   v.plm = plm;
   v.width = plm_get_width(plm);
@@ -159,8 +160,8 @@ video_handle video_open(context &ctx, const video_desc &desc) {
   UnloadImage(blank);
   tex.alive = tex.texture.id != 0;
   SetTextureFilter(tex.texture, TEXTURE_FILTER_BILINEAR);
-  ctx.texture->slots.push_back(tex);
-  v.texture = texture_handle{(u32)ctx.texture->slots.size()};
+  ctx_ref<texture_store>(ctx)->slots.push_back(tex);
+  v.texture = texture_handle{(u32)ctx_ref<texture_store>(ctx)->slots.size()};
 
   const i32 rate = plm_get_samplerate(plm);
   v.has_audio = desc.audio && IsAudioDeviceReady() && plm_get_num_audio_streams(plm) > 0 && rate > 0;
@@ -187,18 +188,18 @@ video_handle video_open(context &ctx, const video_desc &desc) {
 }
 
 void video_close(context &ctx, video_handle handle) {
-  video_slot *v = video_of(ctx.video, handle);
+  video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr)
     return;
   free_video(*v);
-  texture_store_unload(ctx.texture, v->texture);
+  texture_store_unload(ctx_ref<texture_store>(ctx), v->texture);
   v->alive = false;
   v->pixels = {};
   v->ring = {};
 }
 
 void video_play(context &ctx, video_handle handle) {
-  video_slot *v = video_of(ctx.video, handle);
+  video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr)
     return;
   if (v->finished) {
@@ -212,7 +213,7 @@ void video_play(context &ctx, video_handle handle) {
 }
 
 void video_pause(context &ctx, video_handle handle) {
-  video_slot *v = video_of(ctx.video, handle);
+  video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr)
     return;
   v->playing = false;
@@ -220,17 +221,17 @@ void video_pause(context &ctx, video_handle handle) {
 }
 
 bool video_playing(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr && v->playing;
 }
 
 bool video_finished(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr && v->finished;
 }
 
 void video_seek(context &ctx, video_handle handle, f32 seconds) {
-  video_slot *v = video_of(ctx.video, handle);
+  video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr || !std::isfinite(seconds))
     return;
   clear_ring(*v);
@@ -240,17 +241,17 @@ void video_seek(context &ctx, video_handle handle, f32 seconds) {
 }
 
 f32 video_time(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr ? (f32)plm_get_time(v->plm) : 0.0f;
 }
 
 f32 video_duration(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr ? (f32)plm_get_duration(v->plm) : 0.0f;
 }
 
 void video_set_loop(context &ctx, video_handle handle, bool loop) {
-  video_slot *v = video_of(ctx.video, handle);
+  video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr)
     return;
   v->loop = loop;
@@ -258,38 +259,38 @@ void video_set_loop(context &ctx, video_handle handle, bool loop) {
 }
 
 void video_set_volume(context &ctx, video_handle handle, f32 volume) {
-  video_slot *v = video_of(ctx.video, handle);
+  video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v != nullptr && std::isfinite(volume))
     v->volume = clamp(volume, 0.0f, 1.0f);
 }
 
 vec2 video_size(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr ? vec2{(f32)v->width, (f32)v->height} : vec2{};
 }
 
 f32 video_framerate(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr ? (f32)plm_get_framerate(v->plm) : 0.0f;
 }
 
 bool video_has_audio(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr && v->has_audio;
 }
 
 i32 video_frame_count(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr ? v->frames : 0;
 }
 
 texture_handle video_texture(const context &ctx, video_handle handle) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   return v != nullptr ? v->texture : texture_handle{};
 }
 
 void video_draw(const context &ctx, video_handle handle, rect dest, rgba tint) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr || v->width == 0 || v->height == 0)
     return;
   texture_draw_desc d{};
@@ -300,7 +301,7 @@ void video_draw(const context &ctx, video_handle handle, rect dest, rgba tint) {
 }
 
 void video_draw_fit(const context &ctx, video_handle handle, rect area, rgba bars) {
-  const video_slot *v = video_of(ctx.video, handle);
+  const video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr || v->width == 0 || v->height == 0)
     return;
   const f32 s = std::min(area.size.x / (f32)v->width, area.size.y / (f32)v->height);
@@ -321,9 +322,9 @@ void video_draw_fit(const context &ctx, video_handle handle, rect area, rgba bar
 
 namespace {
 void update_videos(context &ctx) {
-  const f32 dt = std::min(ctx.time.dt_real, max_step);
+  const f32 dt = std::min(ctx_ref<time_state>(ctx).dt_real, max_step);
   std::vector<f32> chunk;
-  for (std::unique_ptr<video_slot> &boxed : ctx.video->videos) {
+  for (std::unique_ptr<video_slot> &boxed : ctx_ref<video_store>(ctx)->videos) {
     video_slot &v = *boxed;
     if (!v.alive)
       continue;
@@ -336,7 +337,7 @@ void update_videos(context &ctx) {
     }
     upload(ctx, v);
     if (v.has_audio) {
-      SetAudioStreamVolume(v.stream, v.volume * bus_factor(ctx.audio, v.bus));
+      SetAudioStreamVolume(v.stream, v.volume * bus_factor(ctx_ref<audio_store>(ctx), v.bus));
       // A finished video still plays out the sound it decoded ahead.
       if (v.playing || v.finished)
         feed_stream(v, chunk);

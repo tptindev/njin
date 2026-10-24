@@ -1,6 +1,6 @@
 #include "lighting_internal.h"
 #include "_comps.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_ecs.h"
 #include "njin_texture.h"
 #include <algorithm>
@@ -210,7 +210,7 @@ bool inside_owner(const std::vector<occluder_edge> &edges, const occluder_edge &
 // outlines of light_occluder_sprite frames.
 void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &edges, const std::vector<rect> &areas,
                   f32 lod) {
-  entt::registry &registry = ctx.ecs->registry;
+  entt::registry &registry = ctx_ref<ecs_store>(ctx)->registry;
   edge_builder builder{edges, areas, {}};
 
   // Reused for every shape.
@@ -247,7 +247,7 @@ void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &e
   for (auto [entity, tr, spr, occ] : registry.view<const transform, const sprite, const light_occluder_sprite>().each()) {
     if (!spr.visible)
       continue;
-    const texture_slot *slot = texture_slot_of(ctx.texture, spr.texture);
+    const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), spr.texture);
     if (slot == nullptr)
       continue;
     const Rectangle area = texture_area(*slot);

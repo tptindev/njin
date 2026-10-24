@@ -6,7 +6,7 @@
 #include "modules/render3d.h"
 #include "njin2rl.h"
 #include "njin_cfg.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_model.h"
 #include <algorithm>
 #include <cmath>
@@ -188,19 +188,19 @@ ray3d_hit ray_model(const model_slot &slot, const ray3d &ray, const transform3d 
 } // namespace
 
 ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle, const transform3d &transform) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   return slot != nullptr ? ray_model(*slot, ray, transform, nullptr) : ray3d_hit{};
 }
 
 ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle, const transform3d &transform,
                       const model_pose &pose) {
-  const model_slot *slot = model_slot_of(ctx.model, handle);
+  const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr)
     return ray3d_hit{};
   if (slot->morphs.empty())
     return ray_model(*slot, ray, transform, nullptr);
   std::vector<f32> weights;
-  model_morph_eval(ctx.model, *slot, &pose, weights);
+  model_morph_eval(ctx_ref<model_store>(ctx), *slot, &pose, weights);
   return ray_model(*slot, ray, transform, weights.data());
 }
 } // namespace njin

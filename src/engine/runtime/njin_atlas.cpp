@@ -1,5 +1,5 @@
 #include "njin_atlas.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_log.h"
 #include "njin_path.h"
 #include "njin_texture.h"
@@ -161,12 +161,12 @@ void atlas_store_destroy(texture_store &store, atlas_handle handle) {
 }
 
 atlas_handle atlas_create(context &ctx, const atlas_desc &desc) {
-  return atlas_store_create(ctx.texture, desc);
+  return atlas_store_create(ctx_ref<texture_store>(ctx), desc);
 }
 
 texture_handle atlas_load(context &ctx, atlas_handle atlas, const char *path) {
-  return atlas_store_load(ctx.texture, atlas, path);
+  return atlas_store_load(ctx_ref<texture_store>(ctx), atlas, path);
 }
 
-void atlas_destroy(context &ctx, atlas_handle atlas) { atlas_store_destroy(ctx.texture, atlas); }
+void atlas_destroy(context &ctx, atlas_handle atlas) { atlas_store_destroy(ctx_ref<texture_store>(ctx), atlas); }
 } // namespace njin

@@ -1,7 +1,7 @@
 #include "njin_nav.h"
 #include "njin_collision.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_ecs.h"
 #include <algorithm>
 #include <cmath>
@@ -47,7 +47,7 @@ nav_grid nav_grid_from_world(const context &ctx, rect area, vec2 cell_size, u32 
   const i32 w = cell_size.x > 0.0f ? (i32)std::ceil(area.size.x / cell_size.x) : 0;
   const i32 h = cell_size.y > 0.0f ? (i32)std::ceil(area.size.y / cell_size.y) : 0;
   nav_grid g = nav_grid_make(area.pos, cell_size, w, h, 1);
-  const entt::registry &reg = ctx.ecs->registry;
+  const entt::registry &reg = ctx_ref<ecs_store>(ctx)->registry;
   for (auto [e, tr, col] : reg.view<const transform, const collider>().each()) {
     if (!col.enabled || col.trigger || (col.layer & mask) == 0)
       continue;

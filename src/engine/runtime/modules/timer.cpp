@@ -1,7 +1,8 @@
 #include "timer.h"
 #include "_comps.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_log.h"
 #include "njin_scene.h"
 #include <algorithm>
@@ -78,7 +79,7 @@ bool capture(context &ctx, tween_job &t) {
 }
 
 void run(context &ctx) {
-  timer_state &st = ctx.timers;
+  timer_state &st = ctx_ref<timer_state>(ctx);
   const entt::registry &reg = world(ctx);
   // Timers. New ones made by a callback are appended; they start next frame.
   const usize timer_count = st.timers.size();
@@ -91,7 +92,7 @@ void run(context &ctx) {
       t.dead = true;
       continue;
     }
-    t.left -= t.desc.real_time ? ctx.time.dt_real : ctx.time.dt;
+    t.left -= t.desc.real_time ? ctx_ref<time_state>(ctx).dt_real : ctx_ref<time_state>(ctx).dt;
     if (t.left > 0.0f)
       continue;
     if (t.remaining > 0)
@@ -115,7 +116,7 @@ void run(context &ctx) {
       t->dead = true;
       continue;
     }
-    f32 dt = t->desc.real_time ? ctx.time.dt_real : ctx.time.dt;
+    f32 dt = t->desc.real_time ? ctx_ref<time_state>(ctx).dt_real : ctx_ref<time_state>(ctx).dt;
     if (t->wait > 0.0f) {
       t->wait -= dt;
       if (t->wait > 0.0f)
@@ -157,7 +158,7 @@ void setup(context &ctx) { ecs_register(ctx, phase_update, run, "run"); }
 
 tween_handle start(context &ctx, entt::entity owner, bool owned, tween_prop prop, vec4 to,
                    f32 seconds, ease curve, const tween_desc &desc) {
-  timer_state &st = ctx.timers;
+  timer_state &st = ctx_ref<timer_state>(ctx);
   if (owned) {
     if (!world(ctx).valid(owner)) {
       NJIN_WARN("tween: entity is not valid");
@@ -197,7 +198,7 @@ timer_handle timer_every(context &ctx, f32 interval, std::function<void(context 
                          const timer_desc &desc) {
   if (!fn || count == 0)
     return {};
-  timer_state &st = ctx.timers;
+  timer_state &st = ctx_ref<timer_state>(ctx);
   timer_job t;
   t.id = st.next_id++;
   t.left = std::max(interval, 0.0f);
@@ -212,13 +213,13 @@ timer_handle timer_every(context &ctx, f32 interval, std::function<void(context 
 }
 
 void timer_cancel(context &ctx, timer_handle timer) {
-  for (timer_job &t : ctx.timers->timers)
+  for (timer_job &t : ctx_ref<timer_state>(ctx)->timers)
     if (t.id == timer.id && timer.id != 0)
       t.dead = true;
 }
 
 bool timer_active(const context &ctx, timer_handle timer) {
-  for (const timer_job &t : ctx.timers->timers)
+  for (const timer_job &t : ctx_ref<timer_state>(ctx)->timers)
     if (t.id == timer.id && timer.id != 0)
       return !t.dead;
   return false;
@@ -249,7 +250,7 @@ tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
                          const tween_desc &desc, entt::entity owner) {
   const bool owned = owner != entt::null;
   const tween_handle h = start(ctx, owner, owned, tween_prop::custom, pack(to), seconds, curve, desc);
-  for (tween_job &t : ctx.timers->tweens) {
+  for (tween_job &t : ctx_ref<timer_state>(ctx)->tweens) {
     if (t.id == h.id) {
       t.from = pack(from);
       t.apply = std::move(apply_fn);
@@ -259,19 +260,19 @@ tween_handle tween_value(context &ctx, f32 from, f32 to, f32 seconds,
 }
 
 void tween_cancel(context &ctx, tween_handle tween) {
-  for (tween_job &t : ctx.timers->tweens)
+  for (tween_job &t : ctx_ref<timer_state>(ctx)->tweens)
     if (t.id == tween.id && tween.id != 0)
       t.dead = true;
 }
 
 void tween_cancel_all(context &ctx, entt::entity entity) {
-  for (tween_job &t : ctx.timers->tweens)
+  for (tween_job &t : ctx_ref<timer_state>(ctx)->tweens)
     if (t.owned && t.owner == entity)
       t.dead = true;
 }
 
 bool tween_active(const context &ctx, tween_handle tween) {
-  for (const tween_job &t : ctx.timers->tweens)
+  for (const tween_job &t : ctx_ref<timer_state>(ctx)->tweens)
     if (t.id == tween.id && tween.id != 0)
       return !t.dead;
   return false;

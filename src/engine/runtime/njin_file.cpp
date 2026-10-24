@@ -1,6 +1,7 @@
 #include "njin_file.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_log.h"
+#include "njin_cfg.h"
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -106,7 +107,7 @@ bool file_write(const char *path, std::string_view data) {
 }
 
 std::string save_path(const context &ctx, const char *file_name) {
-  const char *app = ctx.cfg.app_name != nullptr ? ctx.cfg.app_name : ctx.cfg.title;
+  const char *app = ctx_ref<config>(ctx).app_name != nullptr ? ctx_ref<config>(ctx).app_name : ctx_ref<config>(ctx).title;
   const fs::path dir = user_data_dir() / to_path(folder_name(app).c_str());
   std::error_code ec;
   fs::create_directories(dir, ec);

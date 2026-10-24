@@ -1,5 +1,5 @@
 #include "njin_shader.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_path.h"
@@ -47,10 +47,10 @@ void set_uniform(shader_store &store, shader_handle handle, const char *name,
 // names an image packed into an atlas.
 u32 gl_id_of(const context &ctx, const shader_texture_binding &b) {
   if (b.is_render) {
-    const render_texture_slot *rt = render_texture_slot_of(ctx.render_texture, render_texture_handle{.id = b.id});
+    const render_texture_slot *rt = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), render_texture_handle{.id = b.id});
     return rt != nullptr ? rt->target.texture.id : 0;
   }
-  const texture_slot *t = texture_slot_of(ctx.texture, texture_handle{.id = b.id});
+  const texture_slot *t = texture_slot_of(ctx_ref<texture_store>(ctx), texture_handle{.id = b.id});
   return t != nullptr && !t->packed ? t->texture.id : 0;
 }
 } // namespace

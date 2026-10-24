@@ -1,5 +1,5 @@
 #include "njin_quality.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "modules/post_fx.h"
 #include "njin_quality_impl.h"
 #include "njin_view.h"
@@ -97,14 +97,14 @@ void graphics_quality_set(context &ctx, const graphics_quality &quality) {
   q.particles = std::clamp(q.particles, 0.0f, 1.0f);
   q.lod_scale = std::max(q.lod_scale, 0.0f);
   q.view_distance = std::clamp(q.view_distance, 0.1f, 1.0f);
-  ctx.quality->q = q;
-  ctx.quality->set = true;
-  if (ctx.hooks.quality_changed != nullptr)
-    ctx.hooks.quality_changed(ctx);
+  ctx_ref<quality_state>(ctx)->q = q;
+  ctx_ref<quality_state>(ctx)->set = true;
+  if (ctx_ref<feature_hooks>(ctx).quality_changed != nullptr)
+    ctx_ref<feature_hooks>(ctx).quality_changed(ctx);
   post_fx_apply_quality(ctx);
 }
 
-graphics_quality graphics_quality_get(const context &ctx) { return ctx.quality->q; }
+graphics_quality graphics_quality_get(const context &ctx) { return ctx_ref<quality_state>(ctx)->q; }
 
 quality_level graphics_quality_suggest(const context &) {
   // ES 2.0 sorts after 3.3 in rlgl's enum, so name the old ones.
@@ -155,7 +155,7 @@ constexpr bool_field bool_fields[] = {
 };
 } // namespace
 
-bool quality_was_set(const context &ctx) { return ctx.quality->set; }
+bool quality_was_set(const context &ctx) { return ctx_ref<quality_state>(ctx)->set; }
 
 json_value quality_to_json(const graphics_quality &q) {
   json_value out = json_value::make_object();
@@ -179,8 +179,8 @@ graphics_quality quality_from_json(const json_value &json, graphics_quality base
 }
 
 f32 quality_world_scale(const context &ctx) {
-  if (view_has_virtual_size(ctx.view))
+  if (view_has_virtual_size(ctx_ref<view_state>(ctx)))
     return 1.0f;
-  return std::clamp(ctx.quality->q.world_scale, 0.25f, 1.0f);
+  return std::clamp(ctx_ref<quality_state>(ctx)->q.world_scale, 0.25f, 1.0f);
 }
 } // namespace njin

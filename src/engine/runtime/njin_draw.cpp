@@ -1,7 +1,8 @@
 #include "njin_draw.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "njin_font.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
@@ -103,7 +104,7 @@ std::vector<text_piece> visible_pieces(const view_state &view, const queued_text
 
 void draw_rect(const context &ctx, rect r, rgba color) {
   DrawRectangleRec(rect_of(r), color_of(color));
-  view_text_occlude(ctx.view, r, color);
+  view_text_occlude(ctx_ref<view_state>(ctx), r, color);
 }
 
 void draw_rect_lines(const context &, rect r, f32 thickness, rgba color) {
@@ -125,7 +126,7 @@ void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color) {
     else
       DrawRectangleRounded(rect_of(r), roundness_of(r, radius), 0, color_of(color));
   }
-  view_text_occlude(ctx.view, r, color);
+  view_text_occlude(ctx_ref<view_state>(ctx), r, color);
 }
 
 void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickness, rgba color) {
@@ -153,7 +154,7 @@ void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color) {
   // raylib's 36: a circle a few pixels wide takes 6, not 36 (a city of trees
   // seen from far is thousands of them).
   const Matrix view = rlGetMatrixModelview();
-  const f32 px = radius * std::hypot(view.m0, view.m1) * (f32)std::max(ctx.view->render_scale, 1);
+  const f32 px = radius * std::hypot(view.m0, view.m1) * (f32)std::max(ctx_ref<view_state>(ctx)->render_scale, 1);
   i32 sides = 36;
   if (px < 40.0f) {
     const f32 k = 1.0f - 0.5f / std::max(px, 0.75f);
@@ -237,7 +238,7 @@ void textured_triangle(u32 id, vec2 a, vec2 b, vec2 c, vec2 uv_a, vec2 uv_b, vec
 
 void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, vec2 b, vec2 c, vec2 uv_a,
                             vec2 uv_b, vec2 uv_c, rgba tint) {
-  const texture_slot *slot = texture_slot_of(ctx.texture, texture);
+  const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), texture);
   if (slot == nullptr || slot->texture.width <= 0 || slot->texture.height <= 0)
     return;
   // The image's own 0..1 into the texture's (a packed image is a part of its page).
@@ -250,7 +251,7 @@ void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, 
 
 void draw_triangle_textured(const context &ctx, render_texture_handle texture, vec2 a, vec2 b, vec2 c,
                             vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint) {
-  const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, texture);
+  const render_texture_slot *slot = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), texture);
   if (slot == nullptr)
     return;
   // A render texture is stored upside down.
@@ -261,23 +262,23 @@ void draw_triangle_textured(const context &ctx, render_texture_handle texture, v
 // Text
 
 font_handle font_load(context &ctx, const char *path, i32 size, font_style style) {
-  return font_store_load(ctx.font, path, size, style == font_pixel);
+  return font_store_load(ctx_mut<font_store>(ctx), path, size, style == font_pixel);
 }
 
 void font_set_style(context &ctx, font_handle font, font_style style) {
-  font_store_set_pixel(ctx.font, font, style == font_pixel);
+  font_store_set_pixel(ctx_mut<font_store>(ctx), font, style == font_pixel);
 }
 
 void font_unload(context &ctx, font_handle font) {
-  font_store_unload(ctx.font, font);
+  font_store_unload(ctx_mut<font_store>(ctx), font);
 }
 
 void font_set_default(context &ctx, font_handle font) {
-  font_store_set_default(ctx.font, font);
+  font_store_set_default(ctx_mut<font_store>(ctx), font);
 }
 
 void font_add_chars(context &ctx, font_handle font, const char *text) {
-  font_store_add_chars(ctx.font, font, text);
+  font_store_add_chars(ctx_mut<font_store>(ctx), font, text);
 }
 
 namespace {
@@ -291,8 +292,8 @@ namespace {
 // the UI canvas's), baked at its size on the window and drawn without it.
 void draw_text_window(const context &ctx, const char *text, vec2 pos, f32 size, rgba color,
                       font_handle font, vec2 offset, f32 scale) {
-  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size * scale));
-  const Font *layout = font_store_atlas(ctx.font, font, font_px(size));
+  const Font *atlas = font_store_atlas(ctx_mut<font_store>(ctx), font, font_px(size * scale));
+  const Font *layout = font_store_atlas(ctx_mut<font_store>(ctx), font, font_px(size));
   if (atlas == nullptr || layout == nullptr)
     return;
   f32 spacing = 0.0f;
@@ -322,25 +323,25 @@ void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
     return;
   // The pixel style is meant to be scaled with the rest of the pixels, by the
   // same nearest filter, so it stays in the virtual image.
-  if (view_text_deferred(ctx.view) && !font_store_is_pixel(ctx.font, font)) {
+  if (view_text_deferred(ctx_ref<view_state>(ctx)) && !font_store_is_pixel(ctx_mut<font_store>(ctx), font)) {
     const vec2 m = text_measure(ctx, text, size, font);
     // Room for the marks above and below the line and the overhang of the glyphs.
     const f32 margin = size * 0.3f;
-    ctx.view->text_layer.push_back(queued_text{
+    ctx_ref<view_state>(ctx)->text_layer.push_back(queued_text{
         text, pos, size, color, font,
         rect{{pos.x - margin, pos.y - margin}, {m.x + 2.0f * margin, m.y + 2.0f * margin}},
-        ctx.view->clip, ctx.view->occluders.size()});
+        ctx_ref<view_state>(ctx)->clip, ctx_ref<view_state>(ctx)->occluders.size()});
     return;
   }
-  if (ctx.view->ui_window && ctx.view->offscreen_depth == 0 && !font_store_is_pixel(ctx.font, font)) {
-    draw_text_window(ctx, text, pos, size, color, font, ctx.view->offset, ctx.view->scale);
+  if (ctx_ref<view_state>(ctx)->ui_window && ctx_ref<view_state>(ctx)->offscreen_depth == 0 && !font_store_is_pixel(ctx_mut<font_store>(ctx), font)) {
+    draw_text_window(ctx, text, pos, size, color, font, ctx_ref<view_state>(ctx)->offset, ctx_ref<view_state>(ctx)->scale);
     return;
   }
-  if (ctx.view->canvas_on && !font_store_is_pixel(ctx.font, font)) {
-    draw_text_window(ctx, text, pos, size, color, font, {}, ctx.view->canvas_scale);
+  if (ctx_ref<view_state>(ctx)->canvas_on && !font_store_is_pixel(ctx_mut<font_store>(ctx), font)) {
+    draw_text_window(ctx, text, pos, size, color, font, {}, ctx_ref<view_state>(ctx)->canvas_scale);
     return;
   }
-  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
+  const Font *atlas = font_store_atlas(ctx_mut<font_store>(ctx), font, font_px(size));
   if (atlas == nullptr)
     return;
   // Rounded to the pixel grid: half a pixel of offset is half a pixel of blur
@@ -355,7 +356,7 @@ vec2 text_measure(const context &ctx, const char *text, f32 size,
     return vec2{0.0f, 0.0f};
   // Through the atlas draw_text will use, or a centred line would be centred
   // on a width nothing renders at.
-  const Font *atlas = font_store_atlas(ctx.font, font, font_px(size));
+  const Font *atlas = font_store_atlas(ctx_mut<font_store>(ctx), font, font_px(size));
   if (atlas == nullptr)
     return vec2{0.0f, 0.0f};
   const Vector2 m = MeasureTextEx(*atlas, text, (f32)atlas->baseSize, 0.0f);
@@ -363,7 +364,7 @@ vec2 text_measure(const context &ctx, const char *text, f32 size,
 }
 
 void text_layer_flush(context &ctx) {
-  view_state &view = ctx.view;
+  view_state &view = ctx_ref<view_state>(ctx);
   // Swapped, not moved out, so both buffers keep their room between frames.
   thread_local std::vector<queued_text> queue;
   queue.clear();
@@ -373,8 +374,8 @@ void text_layer_flush(context &ctx) {
     return;
   }
   for (const queued_text &q : queue) {
-    const Font *atlas = font_store_atlas(ctx.font, q.font, font_px(q.size * view.scale));
-    const Font *layout = font_store_atlas(ctx.font, q.font, font_px(q.size));
+    const Font *atlas = font_store_atlas(ctx_mut<font_store>(ctx), q.font, font_px(q.size * view.scale));
+    const Font *layout = font_store_atlas(ctx_mut<font_store>(ctx), q.font, font_px(q.size));
     if (atlas == nullptr || layout == nullptr)
       continue;
     // A glyph advance is a whole number of pixels, so the same line is a little
@@ -498,18 +499,18 @@ vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
 
 void texture_set_filter(context &ctx, texture_handle handle,
                         texture_filter filter) {
-  texture_store_set_filter(ctx.texture, handle, filter);
+  texture_store_set_filter(ctx_ref<texture_store>(ctx), handle, filter);
 }
 
 void texture_draw_ex(const context &ctx, texture_handle handle,
                      const texture_draw_desc &desc) {
-  const texture_slot *slot = texture_slot_of(ctx.texture, handle);
+  const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), handle);
   // A material shader (texture_set_shader) auto-binds only when nothing else
   // is already bound: an explicit shader_begin() (the game's own choice) wins.
-  const bool material = slot != nullptr && slot->shader.id != 0 && ctx.shader->active.id == 0;
+  const bool material = slot != nullptr && slot->shader.id != 0 && ctx_ref<shader_store>(ctx)->active.id == 0;
   if (material)
     shader_begin(ctx, slot->shader);
-  texture_store_draw_ex(ctx.texture, handle, desc);
+  texture_store_draw_ex(ctx_ref<texture_store>(ctx), handle, desc);
   if (material)
     shader_end(ctx);
 }
@@ -534,17 +535,17 @@ void blend_begin(const context &, blend_mode mode) {
 void blend_end(const context &) { EndBlendMode(); }
 
 void clip_begin(const context &ctx, rect area) {
-  ctx.view->clip = area;
-  if (ctx.view->canvas_on) {
+  ctx_ref<view_state>(ctx)->clip = area;
+  if (ctx_ref<view_state>(ctx)->canvas_on) {
     // Scissor works in window pixels: the canvas's area times its scale.
-    const f32 k = ctx.view->canvas_scale;
+    const f32 k = ctx_ref<view_state>(ctx)->canvas_scale;
     BeginScissorMode((int)std::floor(area.pos.x * k), (int)std::floor(area.pos.y * k),
                      (int)std::ceil(area.size.x * k), (int)std::ceil(area.size.y * k));
     return;
   }
-  if (ctx.view->ui_window) {
+  if (ctx_ref<view_state>(ctx)->ui_window) {
     // Scissor works in window pixels, whatever the transform is.
-    const view_state &v = ctx.view;
+    const view_state &v = ctx_ref<view_state>(ctx);
     const rect image{{0.0f, 0.0f}, v.size};
     const rect in = intersect(area, image);
     BeginScissorMode((int)std::floor(v.offset.x + in.pos.x * v.scale),
@@ -557,11 +558,11 @@ void clip_begin(const context &ctx, rect area) {
 }
 
 void clip_end(const context &ctx) {
-  ctx.view->clip = {};
+  ctx_ref<view_state>(ctx)->clip = {};
   EndScissorMode();
   // The UI pass stays inside the image.
-  if (ctx.view->ui_window) {
-    const view_state &v = ctx.view;
+  if (ctx_ref<view_state>(ctx)->ui_window) {
+    const view_state &v = ctx_ref<view_state>(ctx);
     BeginScissorMode((int)v.offset.x, (int)v.offset.y, (int)(v.size.x * v.scale),
                      (int)(v.size.y * v.scale));
   }

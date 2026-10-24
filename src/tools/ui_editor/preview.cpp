@@ -4,7 +4,8 @@
 // selection and drag gizmos on top are ImGui.
 #include "preview.h"
 #include "njin2rl.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
 #include "modules/ui.h"
 #include "njin_input_impl.h"
 #include "njin_view.h"
@@ -43,7 +44,7 @@ void ensure_target(int w, int h) {
 // input_key_poll is not used: it drains raylib's character queue, which ImGui
 // needs for text fields.
 void feed_input(editor_app &app, int k) {
-  njin::input_store &input = app.ctx->input;
+  njin::input_store &input = njin::ctx_ref<njin::input_store>(*app.ctx);
   input.prev = input.cur;
   input.cur = njin::input_frame{};
   std::fill(std::begin(input.key_hidden), std::end(input.key_hidden), false);
@@ -98,7 +99,7 @@ void bind_textures(editor_app &app, ui_layout &layout) {
 // until the end, where it is divided back to design pixels.
 void measure_boxes(editor_app &app, const ui_layout &layout, const njin::ui_style &style, int k) {
   app.boxes.clear();
-  const auto &rects = app.ctx->ui->panels;
+  const auto &rects = njin::ctx_ref<njin::ui_state>(*app.ctx)->panels;
   size_t next = 0;
   const float kf = (float)k;
   auto to_design = [kf](rect r) { return rect{r.pos / kf, r.size / kf}; };
@@ -209,15 +210,15 @@ void measure_boxes(editor_app &app, const ui_layout &layout, const njin::ui_styl
 
 void preview_begin_frame(editor_app &app) {
   njin::context &ctx = *app.ctx;
-  ctx.time.dt_real = GetFrameTime();
-  ctx.time.dt = ctx.time.dt_real;
-  ctx.time.elapsed = (float)GetTime();
+  njin::ctx_ref<njin::time_state>(ctx).dt_real = GetFrameTime();
+  njin::ctx_ref<njin::time_state>(ctx).dt = njin::ctx_ref<njin::time_state>(ctx).dt_real;
+  njin::ctx_ref<njin::time_state>(ctx).elapsed = (float)GetTime();
   feed_input(app, app.preview_k);
   // njin.ui's frame_begin (focus, navigation, mouse edges) and the other
   // modules' pre-update systems, which have an empty world to look at.
   njin::ecs_run(ctx, njin::phase_pre_update);
   if (!app.play_mode)
-    ctx.ui->focus = 0; // no focus highlight while editing
+    njin::ctx_ref<njin::ui_state>(ctx)->focus = 0; // no focus highlight while editing
 }
 
 void preview_render(editor_app &app) {
@@ -233,15 +234,15 @@ void preview_render(editor_app &app) {
     k--;
   if (k != app.preview_k) {
     // The engine sizes a panel from its height last frame: forget the old ones.
-    ctx.ui->heights.clear();
-    ctx.ui->natural.clear();
+    njin::ctx_ref<njin::ui_state>(ctx)->heights.clear();
+    njin::ctx_ref<njin::ui_state>(ctx)->natural.clear();
   }
   app.preview_k = k;
   ensure_target((int)(res.x * (float)k), (int)(res.y * (float)k));
 
   // screen_size() answers the virtual size while one is set; view.drawing
   // stays off, so text is drawn at once into the texture and not queued.
-  ctx.view->size = res * (float)k;
+  njin::ctx_ref<njin::view_state>(ctx)->size = res * (float)k;
 
   njin::ui_style style = layout.custom_style ? layout.style
                          : app.preview_style == 1 ? njin::ui_pixel_style()
@@ -288,7 +289,7 @@ void preview_render(editor_app &app) {
   layout.style = saved_style;
   for (size_t i = 0; i < layout.panels.size(); ++i)
     layout.panels[i].offset = saved_offsets[i];
-  ctx.view->size = {};
+  njin::ctx_ref<njin::view_state>(ctx)->size = {};
 }
 
 unsigned int preview_texture_id() { return g_target.texture.id; }

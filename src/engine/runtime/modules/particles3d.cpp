@@ -2,7 +2,7 @@
 #include "render3d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "render_stats.h"
 #include "njin_quality_impl.h"
 #include "njin_draw.h"
@@ -48,7 +48,7 @@ void update(context &ctx) {
   const f32 dt = delta(ctx);
   if (dt <= 0.0f)
     return;
-  for (particle3d_burst &b : ctx.particles3d->bursts) {
+  for (particle3d_burst &b : ctx_ref<particles3d_state>(ctx)->bursts) {
     const particle_emitter &em = b.look;
     const vec3 gravity{em.gravity.x * b.scale, -em.gravity.y * b.scale, 0.0f};
     // Same exponential drag as the 2D particles.
@@ -62,7 +62,7 @@ void update(context &ctx) {
     }
     std::erase_if(b.particles, [](const particle3d &p) { return p.age >= p.life; });
   }
-  std::erase_if(ctx.particles3d->bursts, [](const particle3d_burst &b) { return b.particles.empty(); });
+  std::erase_if(ctx_ref<particles3d_state>(ctx)->bursts, [](const particle3d_burst &b) { return b.particles.empty(); });
 }
 
 void setup(context &ctx) { ecs_register(ctx, phase_post_update, update, "update"); }
@@ -95,10 +95,10 @@ particles3d_state::~particles3d_state() {
 
 void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
                        const particles3d_desc &desc) {
-  particles3d_state &s = ctx.particles3d;
+  particles3d_state &s = ctx_ref<particles3d_state>(ctx);
   // graphics_quality::particles keeps that share of the burst, at least one
   // particle of a burst that asked for some (unless the share is 0).
-  const f32 share = std::clamp(ctx.quality->q.particles, 0.0f, 1.0f);
+  const f32 share = std::clamp(ctx_ref<quality_state>(ctx)->q.particles, 0.0f, 1.0f);
   if (share < 1.0f && count > 0)
     count = share > 0.0f ? std::max(1, (i32)std::lround((f32)count * share)) : 0;
   const usize room = max_particles - std::min(max_particles, live_count(s));
@@ -131,12 +131,12 @@ void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, 
   s.bursts.push_back(std::move(burst));
 }
 
-void particles3d_clear(context &ctx) { ctx.particles3d->bursts.clear(); }
+void particles3d_clear(context &ctx) { ctx_ref<particles3d_state>(ctx)->bursts.clear(); }
 
-i32 particles3d_count(const context &ctx) { return (i32)live_count(ctx.particles3d); }
+i32 particles3d_count(const context &ctx) { return (i32)live_count(ctx_ref<particles3d_state>(ctx)); }
 
 void particles3d_draw(context &ctx, const camera3d &view) {
-  particles3d_state &s = ctx.particles3d;
+  particles3d_state &s = ctx_ref<particles3d_state>(ctx);
   if (s.bursts.empty())
     return;
   if (!IsTextureValid(s.disc))
@@ -154,10 +154,10 @@ void particles3d_draw(context &ctx, const camera3d &view) {
   // do not hide each other, so their order does not matter.
   rlDrawRenderBatchActive();
   rlDisableDepthMask();
-  render_stats &stats = ctx.stats;
+  render_stats &stats = ctx_ref<render_stats>(ctx);
   for (const particle3d_burst &b : s.bursts) {
     const particle_emitter &em = b.look;
-    const texture_slot *slot = texture_slot_of(ctx.texture, em.texture);
+    const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), em.texture);
     Texture2D texture = em.shape == particle_square ? white : s.disc;
     Rectangle source{0.0f, 0.0f, (f32)texture.width, (f32)texture.height};
     if (slot != nullptr) {
@@ -189,7 +189,7 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       rlDrawRenderBatchActive();
       rlDisableBackfaceCulling();
     }
-    const std::array<vec4, 6> &frustum = ctx.render3d->frustum;
+    const std::array<vec4, 6> &frustum = ctx_ref<render3d_state>(ctx)->frustum;
     for (const particle3d &p : b.particles) {
       const f32 t = p.age / p.life;
       const f32 size = lerp(em.size_start, em.size_end, t) * p.size * b.scale;

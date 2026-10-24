@@ -1,6 +1,5 @@
 #include "lighting_internal.h"
 #include "_comps.h"
-#include "njin_ctx_impl.h"
 #include <algorithm>
 #include <cmath>
 #include <unordered_set>

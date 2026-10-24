@@ -1,7 +1,7 @@
 #include "njin_world3d_impl.h"
 #include "modules/render3d.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_quality_impl.h"
 #include "njin_draw.h"
 #include "njin_ecs.h"
@@ -254,10 +254,10 @@ void drop_grass(context &ctx, u32 terrain, f32 x0, f32 z0, f32 x1, f32 z1);
 // ---------------------------------------------------------------------------
 
 const terrain3d_slot *terrain_of(const context &ctx, terrain3d_handle handle) {
-  return slot_in(ctx.world3d->terrains, handle.id);
+  return slot_in(ctx_ref<world3d_store>(ctx)->terrains, handle.id);
 }
 
-terrain3d_slot *terrain_of(context &ctx, terrain3d_handle handle) { return slot_in(ctx.world3d->terrains, handle.id); }
+terrain3d_slot *terrain_of(context &ctx, terrain3d_handle handle) { return slot_in(ctx_ref<world3d_store>(ctx)->terrains, handle.id); }
 
 vec3 terrain_sample_normal(const terrain3d_slot &t, i32 i, i32 j) {
   const f32 dx = (sample_h(t, i + 1, j) - sample_h(t, i - 1, j)) /
@@ -395,10 +395,10 @@ terrain3d_handle terrain3d_create(context &ctx, const terrain3d_desc &desc) {
   // On by default: without physics3d the terrain is still drawn, so this only warns.
   if (desc.collision && !physics3d_missing(ctx, said_collision, "terrain3d_desc::collision", log_warn,
                                            "; or set collision = false. The terrain has no collision"))
-    t.body = ctx.hooks.heightfield_create(ctx, t.heights.data(), t.res, desc.origin, t.spacing, t.min_h, t.max_h,
+    t.body = ctx_ref<feature_hooks>(ctx).heightfield_create(ctx, t.heights.data(), t.res, desc.origin, t.spacing, t.min_h, t.max_h,
                                           desc.friction, desc.user);
-  ctx.world3d->terrains.push_back(std::move(t));
-  return terrain3d_handle{(u32)ctx.world3d->terrains.size()};
+  ctx_ref<world3d_store>(ctx)->terrains.push_back(std::move(t));
+  return terrain3d_handle{(u32)ctx_ref<world3d_store>(ctx)->terrains.size()};
 }
 
 void terrain3d_destroy(context &ctx, terrain3d_handle handle) {
@@ -406,11 +406,11 @@ void terrain3d_destroy(context &ctx, terrain3d_handle handle) {
   if (t == nullptr)
     return;
   if (t->body.id != 0)
-    ctx.hooks.body_destroy(ctx, t->body);
+    ctx_ref<feature_hooks>(ctx).body_destroy(ctx, t->body);
   world3d_free_terrain(*t);
   *t = terrain3d_slot{};
   // What grew on it goes too.
-  for (grass3d_slot &g : ctx.world3d->grasses)
+  for (grass3d_slot &g : ctx_ref<world3d_store>(ctx)->grasses)
     if (g.alive && g.desc.terrain.id == handle.id)
       world3d_free_grass(g);
 }
@@ -533,7 +533,7 @@ void terrain3d_edit(context &ctx, terrain3d_handle handle, const terrain3d_brush
   mix_splat(*t, a0, b0, a1, b1);
   mark_dirty(*t, a0, b0, a1, b1);
   if (t->body.id != 0)
-    ctx.hooks.heightfield_set(ctx, t->body, t->heights.data(), t->res, i0, j0, i1, j1);
+    ctx_ref<feature_hooks>(ctx).heightfield_set(ctx, t->body, t->heights.data(), t->res, i0, j0, i1, j1);
   const vec3 o = t->desc.origin;
   const f32 x0 = o.x + (f32)a0 * t->spacing, z0 = o.z + (f32)b0 * t->spacing;
   const f32 x1 = o.x + (f32)a1 * t->spacing, z1 = o.z + (f32)b1 * t->spacing;
@@ -626,10 +626,10 @@ void grass_cell_blades(const terrain3d_slot &t, const grass3d_slot &g, i32 cx, i
 namespace {
 // Cells under a change grow again on their next draw.
 void drop_grass(context &ctx, u32 terrain, f32 x0, f32 z0, f32 x1, f32 z1) {
-  const terrain3d_slot *t = slot_in(ctx.world3d->terrains, terrain);
+  const terrain3d_slot *t = slot_in(ctx_ref<world3d_store>(ctx)->terrains, terrain);
   if (t == nullptr)
     return;
-  for (grass3d_slot &g : ctx.world3d->grasses) {
+  for (grass3d_slot &g : ctx_ref<world3d_store>(ctx)->grasses) {
     if (!g.alive || g.desc.terrain.id != terrain)
       continue;
     for (grass_cell &c : g.cells) {
@@ -652,12 +652,12 @@ grass3d_handle grass3d_create(context &ctx, const grass3d_desc &desc) {
   g.desc = desc;
   // Few enough blades per cell that one is quick to make as the camera moves.
   g.cell = desc.density * 16.0f * 16.0f > 6000.0f ? 8.0f : 16.0f;
-  ctx.world3d->grasses.push_back(std::move(g));
-  return grass3d_handle{(u32)ctx.world3d->grasses.size()};
+  ctx_ref<world3d_store>(ctx)->grasses.push_back(std::move(g));
+  return grass3d_handle{(u32)ctx_ref<world3d_store>(ctx)->grasses.size()};
 }
 
 void grass3d_destroy(context &ctx, grass3d_handle handle) {
-  grass3d_slot *g = slot_in(ctx.world3d->grasses, handle.id);
+  grass3d_slot *g = slot_in(ctx_ref<world3d_store>(ctx)->grasses, handle.id);
   if (g == nullptr)
     return;
   world3d_free_grass(*g);
@@ -665,22 +665,22 @@ void grass3d_destroy(context &ctx, grass3d_handle handle) {
 }
 
 void draw_grass3d(const context &ctx, grass3d_handle handle) {
-  const grass3d_slot *g = slot_in(ctx.world3d->grasses, handle.id);
+  const grass3d_slot *g = slot_in(ctx_ref<world3d_store>(ctx)->grasses, handle.id);
   if (g != nullptr && terrain_of(ctx, g->desc.terrain) != nullptr)
     render3d_record_world(ctx, world3d_grass, handle.id);
 }
 
 i32 grass3d_drawn(const context &ctx, grass3d_handle handle) {
-  const grass3d_slot *g = slot_in(ctx.world3d->grasses, handle.id);
+  const grass3d_slot *g = slot_in(ctx_ref<world3d_store>(ctx)->grasses, handle.id);
   return g != nullptr ? g->drawn : 0;
 }
 
 void wind3d_set(context &ctx, vec2 wind) {
   if (!refuse(std::isfinite(wind.x) && std::isfinite(wind.y), "wind3d_set"))
-    ctx.world3d->wind = wind;
+    ctx_ref<world3d_store>(ctx)->wind = wind;
 }
 
-vec2 wind3d_get(const context &ctx) { return ctx.world3d->wind; }
+vec2 wind3d_get(const context &ctx) { return ctx_ref<world3d_store>(ctx)->wind; }
 
 // ---------------------------------------------------------------------------
 // Scatter
@@ -725,7 +725,7 @@ void upload_cell(context &ctx, const terrain3d_slot &t, const scatter3d_desc &d,
 }
 
 void reground_scatter(context &ctx, const terrain3d_slot &t, u32 terrain, f32 x0, f32 z0, f32 x1, f32 z1) {
-  for (scatter3d_slot &s : ctx.world3d->scatters) {
+  for (scatter3d_slot &s : ctx_ref<world3d_store>(ctx)->scatters) {
     if (!s.alive || s.desc.terrain.id != terrain)
       continue;
     for (scatter_cell &c : s.cells) {
@@ -808,12 +808,12 @@ scatter3d_handle scatter3d_create(context &ctx, const scatter3d_desc &desc) {
   s.total = (i32)placed.size();
   for (scatter_cell &c : s.cells)
     upload_cell(ctx, *t, s.desc, c);
-  ctx.world3d->scatters.push_back(std::move(s));
-  return scatter3d_handle{(u32)ctx.world3d->scatters.size()};
+  ctx_ref<world3d_store>(ctx)->scatters.push_back(std::move(s));
+  return scatter3d_handle{(u32)ctx_ref<world3d_store>(ctx)->scatters.size()};
 }
 
 void scatter3d_destroy(context &ctx, scatter3d_handle handle) {
-  scatter3d_slot *s = slot_in(ctx.world3d->scatters, handle.id);
+  scatter3d_slot *s = slot_in(ctx_ref<world3d_store>(ctx)->scatters, handle.id);
   if (s == nullptr)
     return;
   for (scatter_cell &c : s->cells)
@@ -823,8 +823,8 @@ void scatter3d_destroy(context &ctx, scatter3d_handle handle) {
 }
 
 void draw_scatter3d(const context &ctx, scatter3d_handle handle) {
-  const scatter3d_slot *s = slot_in(ctx.world3d->scatters, handle.id);
-  const render3d_state &r = ctx.render3d;
+  const scatter3d_slot *s = slot_in(ctx_ref<world3d_store>(ctx)->scatters, handle.id);
+  const render3d_state &r = ctx_ref<render3d_state>(ctx);
   if (s == nullptr || !r.active || terrain_of(ctx, s->desc.terrain) == nullptr)
     return;
   const vec3 eye = r.camera.position;
@@ -837,7 +837,7 @@ void draw_scatter3d(const context &ctx, scatter3d_handle handle) {
     const vec3 near{clamp(eye.x, lo.x, hi.x), clamp(eye.y, lo.y, hi.y), clamp(eye.z, lo.z, hi.z)};
     const f32 d = distance(eye, near);
     // graphics_quality::view_distance shortens both distances.
-    const f32 reach = ctx.quality->q.view_distance;
+    const f32 reach = ctx_ref<quality_state>(ctx)->q.view_distance;
     if (d > s->desc.draw_distance * reach || !render3d_box_visible(r, lo, hi))
       continue;
     const model_handle m =
@@ -847,12 +847,12 @@ void draw_scatter3d(const context &ctx, scatter3d_handle handle) {
 }
 
 i32 scatter3d_count(const context &ctx, scatter3d_handle handle) {
-  const scatter3d_slot *s = slot_in(ctx.world3d->scatters, handle.id);
+  const scatter3d_slot *s = slot_in(ctx_ref<world3d_store>(ctx)->scatters, handle.id);
   return s != nullptr ? s->total : 0;
 }
 
 i32 scatter3d_transforms(const context &ctx, scatter3d_handle handle, transform3d *out, i32 count) {
-  const scatter3d_slot *s = slot_in(ctx.world3d->scatters, handle.id);
+  const scatter3d_slot *s = slot_in(ctx_ref<world3d_store>(ctx)->scatters, handle.id);
   const terrain3d_slot *t = s != nullptr ? terrain_of(ctx, s->desc.terrain) : nullptr;
   if (s == nullptr || t == nullptr)
     return 0;
@@ -899,7 +899,7 @@ void water_displace(const water3d_desc &w, f32 x, f32 z, f32 t, vec3 &offset, ve
 }
 
 namespace {
-const water3d_slot *water_of(const context &ctx, u32 id) { return slot_in(ctx.world3d->waters, id); }
+const water3d_slot *water_of(const context &ctx, u32 id) { return slot_in(ctx_ref<world3d_store>(ctx)->waters, id); }
 
 bool on_lake(const water3d_desc &w, f32 x, f32 z) {
   if (w.size.x <= 0.0f || w.size.y <= 0.0f)
@@ -928,21 +928,21 @@ water3d_handle water3d_create(context &ctx, const water3d_desc &desc) {
   if (refuse(std::isfinite(desc.level) && std::isfinite(desc.center.x) && std::isfinite(desc.center.y),
              "water3d_create"))
     w.desc.level = 0.0f, w.desc.center = {};
-  ctx.world3d->waters.push_back(w);
-  return water3d_handle{(u32)ctx.world3d->waters.size()};
+  ctx_ref<world3d_store>(ctx)->waters.push_back(w);
+  return water3d_handle{(u32)ctx_ref<world3d_store>(ctx)->waters.size()};
 }
 
 void water3d_destroy(context &ctx, water3d_handle handle) {
-  water3d_slot *w = slot_in(ctx.world3d->waters, handle.id);
+  water3d_slot *w = slot_in(ctx_ref<world3d_store>(ctx)->waters, handle.id);
   if (w == nullptr)
     return;
-  if (ctx.hooks.body_unfloat != nullptr)
-    ctx.hooks.body_unfloat(ctx, body3d_handle{}, handle.id);
+  if (ctx_ref<feature_hooks>(ctx).body_unfloat != nullptr)
+    ctx_ref<feature_hooks>(ctx).body_unfloat(ctx, body3d_handle{}, handle.id);
   *w = water3d_slot{};
 }
 
 void water3d_set(context &ctx, water3d_handle handle, const water3d_desc &desc) {
-  water3d_slot *w = slot_in(ctx.world3d->waters, handle.id);
+  water3d_slot *w = slot_in(ctx_ref<world3d_store>(ctx)->waters, handle.id);
   if (w != nullptr && !refuse(std::isfinite(desc.level), "water3d_set"))
     w->desc = desc;
 }
@@ -964,7 +964,7 @@ f32 water3d_height(const context &ctx, water3d_handle handle, f32 x, f32 z) {
   if (!on_lake(w->desc, x, z))
     return w->desc.level;
   vec3 offset{}, normal{};
-  surface_at(w->desc, x, z, ctx.world3d->time, offset, normal);
+  surface_at(w->desc, x, z, ctx_ref<world3d_store>(ctx)->time, offset, normal);
   return w->desc.level + offset.y;
 }
 
@@ -973,18 +973,18 @@ vec3 water3d_normal(const context &ctx, water3d_handle handle, f32 x, f32 z) {
   if (w == nullptr || !std::isfinite(x) || !std::isfinite(z) || !on_lake(w->desc, x, z))
     return {0.0f, 1.0f, 0.0f};
   vec3 offset{}, normal{};
-  surface_at(w->desc, x, z, ctx.world3d->time, offset, normal);
+  surface_at(w->desc, x, z, ctx_ref<world3d_store>(ctx)->time, offset, normal);
   return normal;
 }
 
-f32 water3d_time(const context &ctx) { return ctx.world3d->time; }
+f32 water3d_time(const context &ctx) { return ctx_ref<world3d_store>(ctx)->time; }
 
 bool world3d_water_surface(const context &ctx, u32 water, vec3 at, vec3 &point, vec3 &normal) {
   const water3d_slot *w = water_of(ctx, water);
   if (w == nullptr || !on_lake(w->desc, at.x, at.z))
     return false;
   vec3 offset{};
-  surface_at(w->desc, at.x, at.z, ctx.world3d->time, offset, normal);
+  surface_at(w->desc, at.x, at.z, ctx_ref<world3d_store>(ctx)->time, offset, normal);
   point = {at.x, w->desc.level + offset.y, at.z};
   return true;
 }
@@ -998,13 +998,13 @@ void water3d_float(context &ctx, water3d_handle water, body3d_handle body, const
   static bool said_float = false;
   if (physics3d_missing(ctx, said_float, "water3d_float"))
     return;
-  ctx.hooks.body_float(ctx, body, water.id, std::max(b.buoyancy, 0.0f), std::max(b.linear_drag, 0.0f),
+  ctx_ref<feature_hooks>(ctx).body_float(ctx, body, water.id, std::max(b.buoyancy, 0.0f), std::max(b.linear_drag, 0.0f),
                   std::max(b.angular_drag, 0.0f), b.flow, world3d_water_surface);
 }
 
 void water3d_unfloat(context &ctx, water3d_handle water, body3d_handle body) {
-  if (water.id != 0 && body.id != 0 && ctx.hooks.body_unfloat != nullptr)
-    ctx.hooks.body_unfloat(ctx, body, water.id);
+  if (water.id != 0 && body.id != 0 && ctx_ref<feature_hooks>(ctx).body_unfloat != nullptr)
+    ctx_ref<feature_hooks>(ctx).body_unfloat(ctx, body, water.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -1113,7 +1113,7 @@ sky_params sky_params_of(const sky3d &sky) {
 }
 
 sky_params sky_params_from_light(const context &ctx) {
-  const light3d &l = ctx.render3d->light;
+  const light3d &l = ctx_ref<render3d_state>(ctx)->light;
   sky_params p;
   const vec3 d = length_sq(l.direction) > 0.0f ? normalize(l.direction) : vec3{0.0f, -1.0f, 0.0f};
   p.sun = -d;
@@ -1125,7 +1125,7 @@ sky_params sky_params_from_light(const context &ctx) {
   p.day = 1.0f;
   p.clouds = 0.0f;
   p.stars = 0.0f;
-  p.wind = ctx.world3d->wind;
+  p.wind = ctx_ref<world3d_store>(ctx)->wind;
   p.fog = l.fog_density;
   p.fog_color = p.horizon;
   return p;
@@ -1193,10 +1193,10 @@ light3d sky3d_light(const sky3d &sky, const light3d &base) {
 }
 
 void draw_sky3d(context &ctx, const sky3d &sky) {
-  render3d_state &r = ctx.render3d;
+  render3d_state &r = ctx_ref<render3d_state>(ctx);
   if (!r.active)
     return;
-  world3d_store &w = ctx.world3d;
+  world3d_store &w = ctx_ref<world3d_store>(ctx);
   w.sky = sky_params_of(sky);
   w.sky_drawn = true;
   w.wind = std::isfinite(sky.weather.wind.x) && std::isfinite(sky.weather.wind.y) ? sky.weather.wind : vec2{};
@@ -1215,8 +1215,8 @@ void draw_sky3d(context &ctx, const sky3d &sky) {
 
 namespace {
 void advance(context &ctx) {
-  ctx.world3d->time += delta(ctx);
-  ctx.world3d->frame++;
+  ctx_ref<world3d_store>(ctx)->time += delta(ctx);
+  ctx_ref<world3d_store>(ctx)->frame++;
 }
 
 void setup(context &ctx) { ecs_register(ctx, phase_update, advance, "clock"); }
@@ -1224,7 +1224,7 @@ void setup(context &ctx) { ecs_register(ctx, phase_update, advance, "clock"); }
 
 mod_desc world3d_module() { return mod_desc{.name = "njin.world3d", .setup = setup}; }
 void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count) {
-  std::vector<weather3d_cover> &out = ctx.world3d->covers;
+  std::vector<weather3d_cover> &out = ctx_ref<world3d_store>(ctx)->covers;
   out.clear();
   for (i32 i = 0; covers != nullptr && i < count && out.size() < 16; i++) {
     const weather3d_cover &c = covers[i];
@@ -1240,5 +1240,5 @@ void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count)
     NJIN_WARN("weather3d_cover_set: %d boxes, only the first 16 are kept", count);
 }
 
-i32 weather3d_cover_count(const context &ctx) { return (i32)ctx.world3d->covers.size(); }
+i32 weather3d_cover_count(const context &ctx) { return (i32)ctx_ref<world3d_store>(ctx)->covers.size(); }
 } // namespace njin

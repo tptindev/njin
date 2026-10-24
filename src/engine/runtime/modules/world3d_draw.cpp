@@ -1,6 +1,6 @@
 #include "render3d.h"
 #include "njin_ctx.h"
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "njin_quality_impl.h"
 #include "njin_log.h"
 #include "njin_texture.h"
@@ -861,9 +861,9 @@ bool ensure_ready(world3d_gpu &g) {
 }
 
 world3d_gpu &gpu_of(context &ctx) {
-  if (!ctx.world3d->gpu)
-    ctx.world3d->gpu = std::make_unique<world3d_gpu>();
-  return *ctx.world3d->gpu;
+  if (!ctx_ref<world3d_store>(ctx)->gpu)
+    ctx_ref<world3d_store>(ctx)->gpu = std::make_unique<world3d_gpu>();
+  return *ctx_ref<world3d_store>(ctx)->gpu;
 }
 
 void set_i(u32 program, const char *name, i32 v) {
@@ -918,7 +918,7 @@ void unbind_units(i32 first, i32 last) {
 // cover_glsl's uniforms: the top-down map when render3d drew it this pass, and
 // the game's cover boxes. Unbind unit_cover after the draw.
 void set_cover(const context &ctx, u32 program) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   const bool on = s.cover_drawn && s.cover.depth != 0;
   set_i(program, "coverOn", on ? 1 : 0);
   bind(program, "coverMap", unit_cover, on ? s.cover.depth : 0);
@@ -927,7 +927,7 @@ void set_cover(const context &ctx, u32 program) {
     set_f(program, "coverBias", 0.15f / 600.0f);
   }
   vec4 boxes[32]{};
-  const std::vector<weather3d_cover> &covers = ctx.world3d->covers;
+  const std::vector<weather3d_cover> &covers = ctx_ref<world3d_store>(ctx)->covers;
   for (usize i = 0; i < covers.size() && i < 16; i++) {
     boxes[i * 2] = {covers[i].center.x, covers[i].center.y, covers[i].center.z, 0.0f};
     boxes[i * 2 + 1] = {covers[i].size.x * 0.5f, covers[i].size.y * 0.5f, covers[i].size.z * 0.5f, 0.0f};
@@ -1043,7 +1043,7 @@ void upload_terrain(terrain3d_slot &t) {
 
 void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool depth) {
   world3d_gpu &g = gpu_of(ctx);
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   upload_terrain(t);
   const Shader shader = depth ? g.terrain_depth : g.terrain;
   const u32 p = shader.id;
@@ -1052,7 +1052,7 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
   set_iv2(p, "sampleLast", t.res - 1, t.res - 1);
   bind(p, "heightMap", unit_height, t.height_tex);
   if (!depth) {
-    const world3d_store &w = ctx.world3d;
+    const world3d_store &w = ctx_ref<world3d_store>(ctx);
     bind(p, "normalMap", unit_normal, t.normal_tex);
     bind(p, "splatMap", unit_splat, t.splat_tex);
     vec4 tiles{};
@@ -1062,8 +1062,8 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
     static const char *const normal_names[4] = {"layerNormal0", "layerNormal1", "layerNormal2", "layerNormal3"};
     for (i32 l = 0; l < 4; l++) {
       const terrain3d_layer &L = t.desc.layers[l];
-      const texture_slot *albedo = texture_slot_of(ctx.texture, L.albedo);
-      const texture_slot *normal = texture_slot_of(ctx.texture, L.normal);
+      const texture_slot *albedo = texture_slot_of(ctx_ref<texture_store>(ctx), L.albedo);
+      const texture_slot *normal = texture_slot_of(ctx_ref<texture_store>(ctx), L.normal);
       bind(p, layer_names[l], unit_layer + l, albedo != nullptr && !albedo->packed ? albedo->texture.id : 0);
       bind(p, normal_names[l], unit_layer_normal + l,
            normal != nullptr && !normal->packed ? normal->texture.id : 0);
@@ -1099,7 +1099,7 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
       const f32 d = box_distance(eye, lo, hi);
       i32 level = 0;
       // graphics_quality::view_distance brings the coarser levels nearer.
-      const f32 lod_distance = t.desc.lod_distance * ctx.quality->q.view_distance;
+      const f32 lod_distance = t.desc.lod_distance * ctx_ref<quality_state>(ctx)->q.view_distance;
       if (d > lod_distance && lod_distance > 0.0f)
         level = (i32)std::floor(std::log2(d / lod_distance)) + 1;
       level = std::clamp(level, 0, t.lods - 1);
@@ -1121,11 +1121,11 @@ void draw_grass(context &ctx, grass3d_slot &gr, const Matrix &view_proj, bool de
   if (t == nullptr)
     return;
   world3d_gpu &g = gpu_of(ctx);
-  const render3d_state &s = ctx.render3d;
-  world3d_store &w = ctx.world3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  world3d_store &w = ctx_ref<world3d_store>(ctx);
   const grass3d_desc &d = gr.desc;
   const vec3 eye = s.camera.position;
-  const f32 range = std::max(d.draw_distance * ctx.quality->q.view_distance, 1.0f);
+  const f32 range = std::max(d.draw_distance * ctx_ref<quality_state>(ctx)->q.view_distance, 1.0f);
   const vec3 o = t->desc.origin;
   upload_terrain(*t);
   // Cells in range, nearest first; a few new ones per frame so walking into a
@@ -1273,12 +1273,12 @@ void set_sky_uniforms(u32 p, const sky_params &k, f32 time) {
 
 void draw_sky(context &ctx, const Matrix &view_proj) {
   world3d_gpu &g = gpu_of(ctx);
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   const u32 p = g.sky.id;
   rlEnableShader(p);
   set_m(p, "invViewProj", MatrixInvert(view_proj));
   set_v3(p, "eyePos", s.camera.position);
-  set_sky_uniforms(p, ctx.world3d->sky, ctx.world3d->time);
+  set_sky_uniforms(p, ctx_ref<world3d_store>(ctx)->sky, ctx_ref<world3d_store>(ctx)->time);
   rlDisableDepthMask();
   draw_mesh(g.sky_tri);
   rlEnableDepthMask();
@@ -1287,8 +1287,8 @@ void draw_sky(context &ctx, const Matrix &view_proj) {
 
 void draw_water(context &ctx, const water3d_slot &wslot, u32 id, const Matrix &view_proj) {
   world3d_gpu &g = gpu_of(ctx);
-  const render3d_state &s = ctx.render3d;
-  const world3d_store &w = ctx.world3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const world3d_store &w = ctx_ref<world3d_store>(ctx);
   const water3d_desc &d = wslot.desc;
   const bool ocean = d.size.x <= 0.0f || d.size.y <= 0.0f;
   const gpu_mesh *mesh = nullptr;
@@ -1369,8 +1369,8 @@ void draw_water(context &ctx, const water3d_slot &wslot, u32 id, const Matrix &v
 
 void draw_precip(context &ctx, const Matrix &view_proj) {
   world3d_gpu &g = gpu_of(ctx);
-  const render3d_state &s = ctx.render3d;
-  const world3d_store &w = ctx.world3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const world3d_store &w = ctx_ref<world3d_store>(ctx);
   const u32 p = g.precip.id;
   rlEnableShader(p);
   set_m(p, "mvp", view_proj);
@@ -1408,7 +1408,7 @@ bool has_world(const render3d_state &s) {
 } // namespace
 
 void world3d_pass_uniforms(context &ctx, bool shadows, const Matrix &light_vp, bool lamps) {
-  const render3d_state &s = ctx.render3d;
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!has_world(s))
     return;
   world3d_gpu &g = gpu_of(ctx);
@@ -1423,9 +1423,9 @@ void world3d_draw(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   world3d_gpu &g = gpu_of(ctx);
   if (!ensure_ready(g))
     return;
-  const bool translucent = ctx.render3d->translucent_pass;
+  const bool translucent = ctx_ref<render3d_state>(ctx)->translucent_pass;
   rlDrawRenderBatchActive();
-  world3d_store &w = ctx.world3d;
+  world3d_store &w = ctx_ref<world3d_store>(ctx);
   switch (c.world) {
   case world3d_terrain: {
     terrain3d_slot *t = terrain_of(ctx, terrain3d_handle{c.world_id});
@@ -1463,12 +1463,12 @@ void world3d_draw_depth(context &ctx, const draw3d_cmd &c, const Matrix &view_pr
     terrain3d_slot *t = terrain_of(ctx, terrain3d_handle{c.world_id});
     if (t != nullptr && t->desc.cast_shadows)
       draw_terrain(ctx, *t, view_proj, true);
-  } else if (c.world == world3d_grass && c.world_id >= 1 && c.world_id <= ctx.world3d->grasses.size()) {
-    grass3d_slot &gr = ctx.world3d->grasses[c.world_id - 1];
+  } else if (c.world == world3d_grass && c.world_id >= 1 && c.world_id <= ctx_ref<world3d_store>(ctx)->grasses.size()) {
+    grass3d_slot &gr = ctx_ref<world3d_store>(ctx)->grasses[c.world_id - 1];
     if (gr.alive && gr.desc.cast_shadows)
       draw_grass(ctx, gr, view_proj, true);
   }
 }
 
-void world3d_pass_end(context &ctx) { ctx.world3d->sky_drawn = false; }
+void world3d_pass_end(context &ctx) { ctx_ref<world3d_store>(ctx)->sky_drawn = false; }
 } // namespace njin

@@ -4,7 +4,7 @@
 // do the same with a fixed shader; this is the general form.
 #include "njin_instance.h"
 
-#include "njin_ctx_impl.h"
+#include "njin_ctx_get.h"
 #include "modules/debug.h"
 #include "modules/render_stats.h"
 #include "njin_shader.h"
@@ -66,11 +66,11 @@ instance_store::~instance_store() {
 
 bool instancing_available(const context &ctx) {
   // Probing only reads the GL version and makes the shared quad once.
-  return probe(const_cast<context &>(ctx).instances);
+  return probe(ctx_ref<instance_store>(const_cast<context &>(ctx)));
 }
 
 instance_buffer_handle instance_buffer_create(context &ctx, u32 floats_per_instance) {
-  instance_store &store = ctx.instances;
+  instance_store &store = ctx_ref<instance_store>(ctx);
   if (floats_per_instance == 0 || floats_per_instance > 16 || floats_per_instance % 4 != 0) {
     NJIN_WARN("instance_buffer_create: floats_per_instance must be 4, 8, 12 or 16, not %u",
               floats_per_instance);
@@ -92,7 +92,7 @@ instance_buffer_handle instance_buffer_create(context &ctx, u32 floats_per_insta
 }
 
 void instance_buffer_destroy(context &ctx, instance_buffer_handle handle) {
-  instance_slot *slot = instance_slot_of(ctx.instances, handle);
+  instance_slot *slot = instance_slot_of(ctx_ref<instance_store>(ctx), handle);
   if (slot == nullptr)
     return;
   if (slot->vbo != 0)
@@ -104,7 +104,7 @@ void instance_buffer_destroy(context &ctx, instance_buffer_handle handle) {
 
 void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f32 *data,
                             u32 count) {
-  instance_slot *slot = instance_slot_of(ctx.instances, handle);
+  instance_slot *slot = instance_slot_of(ctx_ref<instance_store>(ctx), handle);
   if (slot == nullptr)
     return;
   slot->count = data != nullptr ? count : 0;
@@ -121,7 +121,7 @@ void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f
     slot->capacity = wanted;
   }
   rlUpdateVertexBuffer(slot->vbo, data, bytes, 0);
-  if (ctx.debug->running)
+  if (ctx_ref<debug_state>(ctx)->running)
     slot->cpu.assign(data, data + (usize)count * slot->floats);
   else
     slot->cpu.clear();
@@ -131,16 +131,16 @@ namespace {
 // `texture_id` is bound to texture0 when not 0.
 void draw_instanced_impl(context &ctx, instance_buffer_handle handle, shader_handle shader,
                          u32 first, u32 count, unsigned int texture_id) {
-  instance_store &store = ctx.instances;
+  instance_store &store = ctx_ref<instance_store>(ctx);
   instance_slot *slot = instance_slot_of(store, handle);
-  const shader_slot *program = shader_slot_of(ctx.shader, shader);
+  const shader_slot *program = shader_slot_of(ctx_ref<shader_store>(ctx), shader);
   if (slot == nullptr || program == nullptr || slot->vbo == 0 || first >= slot->count)
     return;
   count = std::min(count, slot->count - first);
   if (count == 0)
     return;
 
-  render_stats &stats = ctx.stats;
+  render_stats &stats = ctx_ref<render_stats>(ctx);
   stats.instanced_calls++;
   stats.batches++; // the instanced call itself, and it ends the batch before it
   stats.note_flush();
@@ -197,14 +197,14 @@ void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle s
 
 void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, texture_handle texture) {
-  const texture_slot *slot = texture_slot_of(ctx.texture, texture);
+  const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), texture);
   if (slot != nullptr)
     draw_instanced_impl(ctx, handle, shader, first, count, slot->texture.id);
 }
 
 void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, render_texture_handle texture) {
-  const render_texture_slot *slot = render_texture_slot_of(ctx.render_texture, texture);
+  const render_texture_slot *slot = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), texture);
   if (slot != nullptr)
     draw_instanced_impl(ctx, handle, shader, first, count, slot->target.texture.id);
 }
