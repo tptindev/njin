@@ -31,6 +31,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
 endif()
+# MSVC Debug links write a PDB that points into the objects instead of copying
+# their debug info (/DEBUG:FASTLINK): with /Z7 every link would merge the
+# STL and EnTT types of each object again (1.45 s -> 0.62 s CPU per game
+# link). The debugger reads the objects in the build folder; RelWithDebInfo
+# keeps a full PDB, which a crash report from another machine needs.
+if(MSVC)
+  add_link_options($<$<CONFIG:Debug>:/DEBUG:FASTLINK>)
+endif()
 
 # Compile through ccache when it is installed: a source compiled before with
 # the same flags and headers (after rm -rf build, back on a branch) comes from
@@ -178,6 +186,9 @@ FetchContent_Declare(
   SYSTEM)
 
 FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg asio enet)
+# Jolt is 154 sources sharing most of their headers: compiled 16 to a file
+# (unity build) it takes half the time. It is only rebuilt with a new tag.
+set_target_properties(Jolt PROPERTIES UNITY_BUILD ON UNITY_BUILD_BATCH_SIZE 16)
 
 file(GLOB _njin_recast_sources "${recastnavigation_SOURCE_DIR}/Recast/Source/*.cpp"
      "${recastnavigation_SOURCE_DIR}/Detour/Source/*.cpp" "${recastnavigation_SOURCE_DIR}/DetourCrowd/Source/*.cpp")
