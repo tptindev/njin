@@ -3,7 +3,18 @@
 // public API, split from njin_script_bind.cpp so the parts compile in parallel.
 #include "njin_script_rt.h"
 
-#include "njin.h"
+#include "_collide.h"
+#include "_comps.h"
+#include "_math.h"
+#include "_tilemap.h"
+#include "njin_cfg.h"
+#include "njin_collision.h"
+#include "njin_anim.h"
+#include "njin_body.h"
+#include "njin_camera.h"
+#include "njin_ctx.h"
+#include "njin_json.h"
+#include "njin_particles.h"
 
 namespace njin {
 void script_bind_njin_2d(context &ctx, script_runtime &rt, sol::table n) {

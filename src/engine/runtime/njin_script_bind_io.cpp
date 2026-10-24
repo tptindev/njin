@@ -3,7 +3,16 @@
 // so the parts compile in parallel.
 #include "njin_script_rt.h"
 
-#include "njin.h"
+#include "_collide.h"
+#include "_math.h"
+#include "_tilemap.h"
+#include "_tween.h"
+#include "njin_cfg.h"
+#include "njin_audio.h"
+#include "njin_draw.h"
+#include "njin_input.h"
+#include "njin_scene.h"
+#include "njin_timer.h"
 
 namespace njin {
 namespace {

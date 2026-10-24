@@ -3,7 +3,12 @@
 // njin_script_bind_2d.cpp and njin_script_bind_more.cpp.
 #include "njin_script_rt.h"
 
-#include "njin.h"
+#include "_comps.h"
+#include "_math.h"
+#include "njin_cfg.h"
+#include "njin_ctx.h"
+#include "njin_scene.h"
+#include "njin_3d.h"
 #include <cstring>
 
 namespace njin {

@@ -2,7 +2,9 @@
 // features (njin_features.h). Thin bindings over the public API.
 #include "njin_script_rt.h"
 
-#include "njin.h"
+#include "_math.h"
+#include "njin_cfg.h"
+#include "njin_nav3d.h"
 #include "njin_ctx_impl.h"
 #include <algorithm>
 #include <vector>

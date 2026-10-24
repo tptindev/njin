@@ -3,7 +3,17 @@
 // screen effects and decals. Thin bindings over the public API.
 #include "njin_script_rt.h"
 
-#include "njin.h"
+#include "_collide.h"
+#include "_comps.h"
+#include "_math.h"
+#include "_tilemap.h"
+#include "njin_cfg.h"
+#include "njin_audio.h"
+#include "njin_ctx.h"
+#include "njin_fx.h"
+#include "njin_3d.h"
+#include "njin_post3d.h"
+#include "njin_world3d.h"
 #include "njin_ctx_impl.h"
 #include "njin_model.h"
 #include <algorithm>

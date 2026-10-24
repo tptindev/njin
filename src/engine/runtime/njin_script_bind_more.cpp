@@ -2,7 +2,18 @@
 // splines. Thin bindings over the public API. The 3D part is njin_script_glue_3d.cpp.
 #include "njin_script_rt.h"
 
-#include "njin.h"
+#include "_collide.h"
+#include "_comps.h"
+#include "_math.h"
+#include "_tilemap.h"
+#include "njin_cfg.h"
+#include "njin_ctx.h"
+#include "njin_draw.h"
+#include "njin_i18n.h"
+#include "njin_json.h"
+#include "njin_light.h"
+#include "njin_spline.h"
+#include "njin_ui.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
