@@ -14,7 +14,7 @@ không bao giờ lộ ra ngoài bản đồ.
 ## Chuẩn bị
 
 Cần một ảnh tileset gồm các ô 16 x 16 tại `assets/tiles.png`. Dùng luôn ảnh của game mẫu:
-`src/games/topdown/assets/tiles.png` (ô 0 là cỏ, ô 7 là tường đá). Thư mục `assets` phải nằm cạnh
+`examples/topdown/assets/tiles.png` (ô 0 là cỏ, ô 7 là tường đá). Thư mục `assets` phải nằm cạnh
 file exe: gọi `njin_add_assets(my_game assets)` trong CMake (xem @ref getting_started).
 
 ## Từng bước

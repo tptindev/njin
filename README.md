@@ -56,7 +56,7 @@ choose. See the [Animation Editor guide](src/tools/anim_editor/README.md).
 | `njin_platformer3d` | A third-person 3D platformer on Jolt physics: double jump, moving platforms, pushable crates |
 
 The samples can be built standalone, reusing an already-built engine; see the
-[game project guide](src/games/README.md). Use `-DNJIN_BUILD_EXAMPLES=OFF`
+[game project guide](examples/README.md). Use `-DNJIN_BUILD_EXAMPLES=OFF`
 to configure only the engine and tools. Serious games are managed in their own
 repository; new game folders are ignored by default.
 
@@ -74,7 +74,31 @@ sudo apt install build-essential cmake ninja-build git pkg-config \
   libgl1-mesa-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev
 ```
 
-## Build and run
+## Create your own game
+
+Keep your game in its own repository outside njin. Build the engine once,
+then copy [`templates/game`](templates/game) to your game folder:
+
+```sh
+cmake --preset release -DNJIN_BUILD_EXAMPLES=OFF -DNJIN_BUILD_INSPECTOR=OFF -DNJIN_BUILD_UI_EDITOR=OFF -DNJIN_BUILD_ANIM_EDITOR=OFF
+cmake --build --preset release --target njin_engine
+cmake -E copy_directory templates/game /path/to/njin-proj/my-game
+cmake -S /path/to/njin-proj/my-game -B /path/to/njin-proj/my-game/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNJIN_ROOT=/path/to/njin
+cmake --build /path/to/njin-proj/my-game/build
+```
+
+Replace the paths with your engine and game workspace locations (for example,
+`D:/projects/njin` and `D:/projects/njin-proj/my-game`). From the game folder, run `build/bin/my_game`
+(`build\bin\my_game.exe` on Windows). Edit the game's own `src/`, `assets/`
+and `CMakeLists.txt`; the engine's source and root CMake need no changes.
+
+Use matching compilers, architectures and build configurations for engine and
+game. `NJIN_PREBUILT` selects the engine build folder (default:
+`NJIN_ROOT/build-release`). This export needs the engine checkout and build
+tree to remain available; it is not a relocatable installed SDK. See the
+[template guide](templates/game/README.md) for Debug, Visual Studio and packaging.
+
+## Build and run the samples
 
 Clone the repository, then configure and build the Pong game:
 
@@ -135,8 +159,9 @@ The guide and reference documentation, in Vietnamese, lives in
 ```text
 src/engine/api/       Public API headers; games include njin.h
 src/engine/runtime/   Engine implementation
-src/games/            Sample games and shared code
+examples/            Sample games and shared code
 src/tools/inspector/  The debug tool
+templates/game/       Starting point for a game in its own repository
 docs/pages/           Documentation in Vietnamese
 ```
 

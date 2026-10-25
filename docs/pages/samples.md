@@ -1,6 +1,6 @@
 # Game mẫu và đóng gói {#samples}
 
-Bảy chương trình trong `src/games` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
+Bảy chương trình trong `examples` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
 @ref first_walk (top-down) trước: mỗi bài dưới 50 dòng, rồi quay lại đây xem một game đầy đủ.
 
 | Game | Là gì | Đọc để học |
@@ -53,14 +53,14 @@ bản đồ bằng WASD hoặc phím mũi tên, đọc phím ở dòng cuối c�
 
 Cả hai game đầu có menu chính, tạm dừng, cài đặt (âm lượng, toàn màn hình, ngôn ngữ, đổi phím cho bàn
 phím và tay cầm), hai ngôn ngữ (Việt, Anh), nhạc và tiếng, và màn hình ảo 640 x 360. Phần dùng chung
-nằm ở `src/games/shared` (menu cài đặt); mọi hình, tiếng, bản đồ đều sinh ra từ script Python
+nằm ở `examples/shared` (menu cài đặt); mọi hình, tiếng, bản đồ đều sinh ra từ script Python
 `tools/make_assets.py` của từng game, nên không có file nhị phân không rõ nguồn.
 `topdown` dùng font Be Vietnam Pro (giấy phép SIL OFL, kèm `OFL.txt`) cho chữ tiếng Việt.
 `platformer` là pixel art đến tận UI: font VT323 (SIL OFL, kèm `OFL-VT323.txt`, font pixel có đủ
 tiếng Việt) vẽ bằng njin::font_pixel ở cỡ 16 và 32, panel và nút vuông góc, màn hình ảo 640 x 360
 phóng theo số nguyên với lọc nearest, và `crisp_text` tắt.
 
-**Mọi game trong `src/games` đều mở cổng cho njin_inspector khi build bản debug** (bảy game ở bảng trên
+**Mọi game trong `examples` đều mở cổng cho njin_inspector khi build bản debug** (bảy game ở bảng trên
 cùng `njin_pong` và `njin_sandbox`; `njin_debug_demo` và `njin_render_demo` luôn mở), nên
 `run_inspected.bat <tên game>` chạy game kèm inspector cho bất kỳ game nào. Khi inspector đang nối, log của
 game hiện ở inspector thay vì console.

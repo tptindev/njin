@@ -96,15 +96,21 @@ assets/hello.txt: xin chao v1
 (Các dòng `Scanning ... for CXX dependencies` bị lược bớt: chúng do bước quét C++20 module, xem
 @ref learn_cmake_basics.)
 
-njin bố trí y hệt: `CMakeLists.txt` gốc gọi `add_subdirectory` cho `src/engine/api`, `src/engine/runtime` và từng game
-trong `src/games/`; mỗi game có `RUNTIME_OUTPUT_DIRECTORY` riêng, ví dụ `build/bin/platformer/`.
+Các ví dụ đi kèm njin bố trí y hệt: `CMakeLists.txt` gốc gọi `add_subdirectory` cho
+`src/engine/api`, `src/engine/runtime` và các game mẫu trong `examples/`;
+mỗi game mẫu có thể có `RUNTIME_OUTPUT_DIRECTORY` riêng, ví dụ `build/bin/platformer/`.
+Game mới nằm trong project riêng bên ngoài checkout engine, dùng `templates/game`
+và import engine đã build qua `cmake/njin_game.cmake`, xem @ref getting_started.
 
 ## `include` khác `add_subdirectory` thế nào
 
 `include(cmake/assets.cmake)` chạy file đó **ngay trong thư mục hiện tại**, như thể bạn dán nội dung vào chỗ đó. Vì thế
 hàm `add_assets` định nghĩa trong đó dùng được ở mọi thư mục con gọi sau. `add_subdirectory` thì mở một phạm vi mới
-cho `CMakeLists.txt` của thư mục con. njin làm đúng như vậy: `include(cmake/njin.cmake)` để mọi game gọi được
-`njin_add_assets` và `njin_package`, rồi mới `add_subdirectory(src/games/...)`.
+cho `CMakeLists.txt` của thư mục con. Trong build các ví dụ, njin gọi
+`include(cmake/njin.cmake)` để game mẫu dùng được `njin_add_assets` và `njin_package`,
+rồi mới `add_subdirectory(examples/...)`. Project game độc lập chỉ cần include
+`cmake/njin_game.cmake`: file này import thư viện engine và nạp các helper đó,
+không thêm game vào build của engine.
 
 ## Liệt kê file nguồn bằng `file(GLOB)`
 

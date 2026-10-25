@@ -59,7 +59,7 @@ Hàm `run` chạy vòng lặp đến khi cửa sổ đóng. Mọi logic của ga
 
 ## Một game hoàn chỉnh
 
-`src/games/pong` là một game Pong đầy đủ viết trên njin: menu, chơi với máy hoặc hai
+`examples/pong` là một game Pong đầy đủ viết trên njin: menu, chơi với máy hoặc hai
 người, tạm dừng, slow motion ở điểm quyết định, âm thanh tự sinh, lưu kỷ lục, cửa sổ
 đổi kích thước được. Đọc từ trên xuống như một chuyến tham quan engine. Build target
 `njin_pong` rồi chạy `build\bin\njin_pong.exe`.

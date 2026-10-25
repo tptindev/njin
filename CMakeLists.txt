@@ -250,6 +250,12 @@ include(cmake/njin.cmake)
 add_subdirectory(src/engine/api)
 add_subdirectory(src/engine/gpu)
 add_subdirectory(src/engine/runtime)
+# A buildable aggregate for standalone consumers. njin_rt is an INTERFACE
+# library, so it has no build rule of its own.
+add_custom_target(njin_engine DEPENDS njin_core)
+foreach(_njin_feature IN LISTS NJIN_FEATURES_ORDER)
+  add_dependencies(njin_engine njin_${_njin_feature})
+endforeach()
 # Export the engine build for standalone games. Private games are never
 # discovered or added by this project.
 set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_asio njin_enet EnTT)
@@ -290,7 +296,7 @@ if(NJIN_BUILD_EXAMPLES)
       list(JOIN NJIN_ALL_EXAMPLES ", " known)
       message(FATAL_ERROR "NJIN_EXAMPLES: unknown example '${example}' (known: ${known})")
     endif()
-    add_subdirectory(src/games/${example})
+    add_subdirectory(examples/${example})
   endforeach()
 endif()
 

@@ -9,7 +9,7 @@ set(NJIN_PREBUILT "${NJIN_ROOT}/build-release" CACHE PATH "Engine build with mat
 if(NOT EXISTS "${NJIN_PREBUILT}/njinTargets.cmake")
   message(FATAL_ERROR
     "Engine export missing: ${NJIN_PREBUILT}/njinTargets.cmake. "
-    "Configure njin and build target njin_rt first, using the same toolchain/configuration as the game.")
+    "Configure njin and build target njin_engine first, using the same toolchain/configuration as the game.")
 endif()
 find_package(Threads REQUIRED)
 include("${NJIN_PREBUILT}/njinTargets.cmake")

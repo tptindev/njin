@@ -18,7 +18,7 @@ Space thì nhân vật không lên nổi bục cao 32 pixel.
 ## Chuẩn bị
 
 Cần một ảnh tileset gồm các ô 16 x 16 tại `assets/tiles.png`. Dùng luôn ảnh của game mẫu:
-`src/games/platformer/assets/tiles.png` (ô 0 là đất có cỏ, ô 1 là đất, ô 3 là bục). Thư mục `assets`
+`examples/platformer/assets/tiles.png` (ô 0 là đất có cỏ, ô 1 là đất, ô 3 là bục). Thư mục `assets`
 phải nằm cạnh file exe: gọi `njin_add_assets(my_game assets)` trong CMake để nó được copy mỗi lần
 build (xem @ref getting_started và @ref window_files).
 

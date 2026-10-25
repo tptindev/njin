@@ -21,4 +21,4 @@ Không đọc từ đầu tới cuối: đây là chỗ để **tra** khi đang 
 |---|---|
 | [`CHANGELOG.md`](https://github.com/tptindev/njin/blob/main/CHANGELOG.md) | Lịch sử phiên bản: mỗi bản thêm gì, sửa gì, có phá API cũ không |
 | [Issues](https://github.com/tptindev/njin/issues) | Báo lỗi và góp ý |
-| `src/games/` | Mã nguồn các game mẫu, xem @ref samples |
+| `examples/` | Mã nguồn các game mẫu, xem @ref samples |

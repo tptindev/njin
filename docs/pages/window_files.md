@@ -79,6 +79,11 @@ Nhờ bước 2, game chạy bằng cách nhấp đúp file exe (thư mục làm
 
 ### Đưa assets vào cạnh exe
 
+Template game độc lập mặc định đọc `assets/` ngay trong thư mục project:
+chạy executable với thư mục game làm thư mục làm việc. `njin_package()` chỉ
+copy assets khi tạo bản phát hành, xem @ref getting_started. Nếu muốn chạy
+bản development từ bất kỳ thư mục nào, có thể dùng cách copy dưới đây.
+
 Đặt tài nguyên của game vào một thư mục cạnh `CMakeLists.txt` của game, rồi gọi
 `njin_add_assets()` (khai báo trong `cmake/njin.cmake`):
 
@@ -86,7 +91,7 @@ Nhờ bước 2, game chạy bằng cách nhấp đúp file exe (thư mục làm
 add_executable(my_game main.cpp)
 njin_use(my_game)
 target_link_libraries(my_game PRIVATE njin_warnings)
-njin_add_assets(my_game assets)   # src/games/my_game/assets -> build/bin/assets
+njin_add_assets(my_game assets)   # my-game/assets -> thư mục chứa exe/assets
 ```
 
 Mỗi lần build `my_game`, thư mục được copy cạnh exe, chỉ những file đã đổi, nên sửa một

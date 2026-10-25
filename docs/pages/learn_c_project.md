@@ -80,7 +80,7 @@ njin dùng `#pragma once` ở đầu mọi header (cả 40 header trong `src/eng
 - **`extern`**: "biến này có thật, nhưng được định nghĩa ở file khác". `extern int vec2_calls;` trong header khai báo; `int vec2_calls = 0;` trong `.c` định nghĩa.
 
 Vì sao không viết luôn `int vec2_calls = 0;` trong header? Vì mỗi file `.c` include nó sẽ tự định nghĩa một bản, và liên kết
-báo lỗi (xem mục lỗi bên dưới). njin có đúng mẫu này trong game mẫu platformer: `src/games/platformer/game.h` có
+báo lỗi (xem mục lỗi bên dưới). njin có đúng mẫu này trong game mẫu platformer: `examples/platformer/game.h` có
 `extern game_state g;`, còn `main.cpp` có `game_state g;`, định nghĩa duy nhất.
 
 ## Preprocessor: chỉnh code trước khi biên dịch

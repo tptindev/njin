@@ -1,6 +1,6 @@
 # Bắt đầu {#getting_started}
 
-Trang này hướng dẫn build njin, chạy game mẫu và viết chương trình đầu tiên. Chưa cài trình biên dịch,
+Trang này hướng dẫn build njin, tạo project game độc lập và viết chương trình đầu tiên. Chưa cài trình biên dịch,
 CMake hay Ninja? Làm theo @ref setup trước, có hướng dẫn cho từng hệ điều hành. Chưa quen C++, CMake
 hay shader? Nhóm bài @ref learn dạy từ đầu, và không cần njin.
 
@@ -21,7 +21,62 @@ git clone https://github.com/tptindev/njin.git
 cd njin
 ```
 
-## Build và chạy
+## Tạo project game riêng
+
+Game có repository, mã nguồn, assets và thư mục build riêng, nằm ngoài checkout njin:
+
+```text
+D:/
+  projects/njin/             # engine và tools
+    examples/               # các game mẫu đi kèm engine
+  projects/njin-proj/
+    my-game/                # repository riêng của game
+      CMakeLists.txt
+      src/main.cpp
+      assets/
+      build/
+```
+
+Trong thư mục njin, build engine một lần bằng preset Release:
+
+```sh
+cmake --preset release -DNJIN_BUILD_EXAMPLES=OFF -DNJIN_BUILD_INSPECTOR=OFF -DNJIN_BUILD_UI_EDITOR=OFF -DNJIN_BUILD_ANIM_EDITOR=OFF
+cmake --build --preset release --target njin_engine
+cmake -E copy_directory templates/game D:/projects/njin-proj/my-game
+```
+
+Chỉ copy vào thư mục game mới. Sau đó chuyển sang `my-game` và cấu hình
+bằng đường dẫn tuyệt đối tới checkout njin (thay `D:/projects/njin` cho đúng máy):
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNJIN_ROOT=D:/projects/njin
+cmake --build build
+```
+
+Từ thư mục game, chạy `build\bin\my_game.exe` trên Windows hoặc
+`./build/bin/my_game` trên Linux/macOS. Template đọc trực tiếp `assets/` từ
+thư mục làm việc; khi phát hành, lệnh dưới gom executable và assets vào
+`build/dist/my_game-0.1.0.zip`:
+
+```sh
+cmake --build build --target my_game_dist
+```
+
+Game dùng `cmake/njin_game.cmake` để import engine đã build. `NJIN_PREBUILT`
+mặc định là `NJIN_ROOT/build-release`; truyền `-DNJIN_PREBUILT=/path/to/build`
+để chọn build khác. Engine và game phải cùng compiler, kiến trúc và cấu hình.
+Muốn Debug, build engine bằng preset `debug`, rồi cấu hình game với
+`-DCMAKE_BUILD_TYPE=Debug` và `NJIN_PREBUILT` trỏ tới thư mục `build` của engine.
+Với Visual Studio, dùng cùng generator cho cả hai, build bằng `--config Release`;
+executable game nằm trong `build/bin/Release/`.
+
+Sửa `src/`, `assets/` và CMake của game; không cần thêm game vào CMake gốc
+hay viết gameplay trong mã engine. `examples/` chỉ chứa ví dụ đi kèm njin.
+Xem `templates/game/README.md` để biết chi tiết. Cách import hiện tại cần giữ
+checkout engine, mã nguồn dependency và thư mục build; chưa phải SDK cài đặt
+có thể di chuyển độc lập. Bản zip phát hành không cần checkout engine.
+
+## Build và chạy game mẫu
 
 Trên Windows, hai script ở thư mục gốc lo hết:
 
@@ -71,17 +126,19 @@ Tạo module trong một file `.cpp`, đăng ký nó trong `main` trước run()
 
 @include hello_module.cpp
 
-Với một game trong `src/games/<tên>/`, file `CMakeLists.txt` của nó cần:
+Trong project riêng vừa tạo, thêm file module vào `add_executable()` của game.
+Ví dụ khi tách phần module khỏi `main` thành `src/modules/hello.cpp`:
 
 ```cmake
-add_executable(my_game main.cpp modules/hello.cpp)
+add_executable(my_game src/main.cpp src/modules/hello.cpp)
 
 # Lõi engine, kèm njin::api (và thư mục include của nó).
 njin_use(my_game)
 target_link_libraries(my_game PRIVATE njin_warnings)
 ```
 
-rồi thêm `add_subdirectory(src/games/my_game)` vào `CMakeLists.txt` gốc.
+Giữ phần `NJIN_ROOT` và `include(.../cmake/njin_game.cmake)` có sẵn trong
+template, rồi build lại project game. Không cần sửa CMake của engine.
 
 ## Chọn phần engine game cần
 
@@ -133,4 +190,4 @@ những gì nó dùng. Xem thêm @ref setup_engine_build.
 - @ref cheatsheet : muốn làm X thì dùng hàm nào
 - @ref game_loop : biết một frame chạy theo thứ tự nào
 - @ref ecs : tạo entity và component
-- `src/games/pong`: một game hoàn chỉnh để đọc và sửa thử
+- `examples/pong`: một game hoàn chỉnh để đọc và sửa thử

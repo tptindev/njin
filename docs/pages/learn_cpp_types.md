@@ -373,7 +373,7 @@ trong chữ ký** hàm (`last_event(const Ctx &)` nói nó đọc context, khôn
 cho mỗi bài thử.
 
 Đây là đánh đổi chứ không phải luật: với game nhỏ, biến toàn cục đơn giản hơn. Game của njin cũng dùng biến toàn cục cho trạng
-thái **riêng của game** (`game_state g;` trong `src/games/pong/pong.cpp`), còn những gì **engine** sở hữu thì nằm trong
+thái **riêng của game** (`game_state g;` trong `examples/pong/pong.cpp`), còn những gì **engine** sở hữu thì nằm trong
 `context`, cái giá là viết thêm `ctx` ở đầu mỗi hàm. Để ý thêm: `context` được khai báo mà không định nghĩa trong header công khai
 ("opaque"). Game không thể tự tạo hay đọc trường bên trong, chỉ dùng được các hàm engine cho, nên engine đổi cách lưu mà
 không phá game.

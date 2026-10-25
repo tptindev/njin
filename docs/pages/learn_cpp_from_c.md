@@ -151,7 +151,7 @@ const char *title() { return "Menu"; }
 mục `[3]`).
 
 **Trong njin**, mọi thứ của engine ở `njin::`. Game viết `using namespace njin;` ở **đầu file `.cpp`, trong
-namespace vô danh** (mục 8), để khỏi gõ `njin::` trước mỗi tên. Ví dụ ở `src/games/pong/pong.cpp`:
+namespace vô danh** (mục 8), để khỏi gõ `njin::` trước mỗi tên. Ví dụ ở `examples/pong/pong.cpp`:
 
 ```cpp
 namespace pong {
@@ -401,9 +401,9 @@ Mọi thứ trong namespace vô danh **chỉ thấy trong file chứa nó**, m�
 cũng chạy trong C++; C++ ưa namespace vô danh hơn.) Nếu một hàm trong đó không ai gọi, GCC cảnh báo
 `defined but not used`, một lợi ích nữa.
 
-**Trong njin**, các file game dùng nó ở khắp nơi. `src/games/pong/pong.cpp` bọc gần cả file (từ dòng 18 đến dòng
+**Trong njin**, các file game dùng nó ở khắp nơi. `examples/pong/pong.cpp` bọc gần cả file (từ dòng 18 đến dòng
 398) trong `namespace { ... }`: biến trạng thái `game_state g`, các hàm phụ như `make_blip` và `serve`. Còn
-`src/games/platformer/play.cpp` bọc `build_player` và các hàm dựng entity khác. Nhờ vậy những tên đó không đụng nhau
+`examples/platformer/play.cpp` bọc `build_player` và các hàm dựng entity khác. Nhờ vậy những tên đó không đụng nhau
 giữa các file và không lộ ra ngoài file chứa chúng.
 
 ## Tự kiểm tra

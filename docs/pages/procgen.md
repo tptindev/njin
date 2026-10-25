@@ -286,7 +286,7 @@ Vài điều nên biết:
 - **Ngoài lưới.** Mặc định ngoài lưới là đất chạy tiếp, nên mép bản đồ không bo. Bỏ `side_up` khỏi `outside` cho mặt đất
   platformer, như ví dụ; đặt `outside = 0` cho hòn đảo, như ví dụ top-down.
 - **Tự vẽ bộ ô.** Bộ 47 ô là quy ước phổ biến (còn gọi "blob tileset"). Dùng ảnh của bạn thì xếp các ô theo đúng thứ tự
-  của njin::autotile_index(); script `src/games/shared/tools/make_terrain.py` là ví dụ cách dựng chúng từ mặt nạ.
+  của njin::autotile_index(); script `examples/shared/tools/make_terrain.py` là ví dụ cách dựng chúng từ mặt nạ.
 
 ## Wave Function Collapse
 

@@ -1,5 +1,5 @@
-# Build helpers for games made with njin. Included by the top-level
-# CMakeLists.txt, so every game under src/games can call them.
+# Build helpers for games made with njin. Included by standalone games through
+# njin_game.cmake, and by the engine build for its bundled examples.
 
 # njin_add_assets(<target> <dir>)
 #

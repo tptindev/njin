@@ -66,4 +66,4 @@ flowchart LR
 
 Menu tạm dừng thường **không** nên là một scene riêng: chuyển scene sẽ hủy thế giới đang
 chơi. Hãy giữ scene "play" và dùng njin::time_set_paused() (xem @ref time), rồi vẽ menu
-khi đang dừng. Game Pong trong `src/games/pong` làm theo cách này.
+khi đang dừng. Game Pong trong `examples/pong` làm theo cách này.

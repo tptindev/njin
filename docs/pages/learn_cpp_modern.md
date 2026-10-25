@@ -78,7 +78,7 @@ for (const auto &[name, value] : hp)            // hp là std::map<std::string, 
   std::printf("%s has %d hp\n", name.c_str(), value);
 ```
 
-**Trong njin**, đây là cách duyệt entity (`src/games/pong/pong.cpp`):
+**Trong njin**, đây là cách duyệt entity (`examples/pong/pong.cpp`):
 
 ```cpp
 for (auto [e, tr, b] : reg.view<transform, ball>().each()) {
@@ -233,7 +233,7 @@ desig_order.cpp:8:61: error: designator order for field 'Cfg::width' does not ma
 
 Chỉ áp dụng cho `struct` đơn giản (aggregate): không có hàm khởi tạo do bạn viết.
 
-**Trong njin**, đây là cách mở game (`src/games/pong/main.cpp`). `config` có nhiều trường với giá trị mặc định, nên game
+**Trong njin**, đây là cách mở game (`examples/pong/main.cpp`). `config` có nhiều trường với giá trị mặc định, nên game
 chỉ ghi những trường muốn đổi:
 
 ```cpp
@@ -277,7 +277,7 @@ struct binding {
   binding(gamepad_button button) : source{input_source::pad, (i32)button} {}
 };
 
-// src/games/platformer/main.cpp
+// examples/platformer/main.cpp
 g.jump = action_define(ctx, "jump", {key_space, key_w, key_up, pad_face_down});
 g.move = axis_define(ctx, "move", {{key_left, key_right}, {key_a, key_d}}, {pad_axis_left_x});
 ```

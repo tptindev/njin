@@ -28,6 +28,14 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      - name: Build and package an external game
+        shell: pwsh
+        run: >-
+          cmake "-DNJIN_ROOT=$env:GITHUB_WORKSPACE"
+          "-DNJIN_PREBUILT=$env:GITHUB_WORKSPACE/build"
+          "-DTEST_ROOT=$env:RUNNER_TEMP/njin-standalone"
+          -P cmake/check_standalone.cmake
+
   linux-gcc:
     runs-on: ubuntu-latest
     steps:
@@ -46,3 +54,10 @@ jobs:
 
       - name: Build
         run: cmake --build --preset release --parallel
+
+      - name: Build and package an external game
+        run: >-
+          cmake -DNJIN_ROOT="$GITHUB_WORKSPACE"
+          -DNJIN_PREBUILT="$GITHUB_WORKSPACE/build-release"
+          -DTEST_ROOT="$RUNNER_TEMP/njin-standalone"
+          -P cmake/check_standalone.cmake
