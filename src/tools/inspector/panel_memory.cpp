@@ -1,11 +1,12 @@
-// "Memory": how much RAM the game's data takes, by component type and by
-// entity. These are the sizes the game reports for its own components, not the
-// allocator's view: the Process window shows what the OS sees.
+// "Memory": the allocator (limits, live blocks), then how much RAM the game's data takes, by component type and by
+// entity. Components: sizes the game reports for its own components. Allocator:
+// what njin's allocator counts. The Process window shows what the OS sees.
 #include "imgui.h"
 #include "implot.h"
 #include "panels.h"
 #include "util.h"
 #include <algorithm>
+#include <cfloat>
 #include <cstdio>
 
 namespace inspector {
@@ -87,6 +88,104 @@ void components_tab(app &a) {
   }
 }
 
+// The game's allocator: what it holds, the limits it runs under (editable), and
+// a few ways to push on it.
+void allocator_tab(app &a) {
+  const alloc_state &al = a.alloc;
+  if (!al.valid) {
+    ImGui::TextDisabled("Waiting for the game...");
+    return;
+  }
+  constexpr double mb = 1024.0 * 1024.0;
+  const double scale = al.hard > 0 ? al.hard : (al.soft > 0 ? al.soft : std::max(al.peak, 1.0));
+  char text[128];
+  std::snprintf(text, sizeof text, "%s of %s", fmt_bytes(al.used).c_str(),
+                al.hard > 0 ? fmt_bytes(al.hard).c_str() : "no hard limit");
+  ImGui::TextUnformatted("used");
+  ImGui::SameLine(80);
+  const bool over_soft = al.soft > 0 && al.used > al.soft;
+  ImGui::PushStyleColor(ImGuiCol_PlotHistogram, over_soft ? ImVec4(0.95f, 0.55f, 0.25f, 1) : ImVec4(0.45f, 0.85f, 0.5f, 1));
+  ImGui::ProgressBar((float)std::clamp(al.used / scale, 0.0, 1.0), {-1, 16}, text);
+  ImGui::PopStyleColor();
+  ImGui::Text("peak %s   soft %s   hard %s   allocs %.0f   frees %.0f   live blocks %.0f   refused %.0f",
+              fmt_bytes(al.peak).c_str(), al.soft > 0 ? fmt_bytes(al.soft).c_str() : "-",
+              al.hard > 0 ? fmt_bytes(al.hard).c_str() : "-", al.allocs, al.frees, al.allocs - al.frees, al.refused);
+  ImGui::TextDisabled("C++ new/delete %s   raylib (images, audio, meshes on the CPU) %s. GPU memory, Jolt and Lua "
+                      "are not counted.",
+                      fmt_bytes(al.by_new).c_str(), fmt_bytes(al.by_raylib).c_str());
+
+  if (!al.history.empty()) {
+    std::vector<float> h(al.history.begin(), al.history.end());
+    for (float &v : h)
+      v = (float)(v / mb);
+    ImGui::PlotLines("##allochist", h.data(), (int)h.size(), 0, "used (MB)", 0.0f, FLT_MAX, {-1, 70});
+  }
+
+  ImGui::SeparatorText("Limits");
+  alloc_state &edit = a.alloc;
+  ImGui::SetNextItemWidth(110);
+  ImGui::InputFloat("soft MB##memsoft", &edit.soft_mb, 8.0f, 64.0f, "%.0f");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(110);
+  ImGui::InputFloat("hard MB##memhard", &edit.hard_mb, 8.0f, 64.0f, "%.0f");
+  edit.soft_mb = std::max(edit.soft_mb, 0.0f);
+  edit.hard_mb = std::max(edit.hard_mb, 0.0f);
+  ImGui::SameLine();
+  if (ImGui::Button("Apply"))
+    send_cmd(a, json_value::make_object().set("cmd", "mem_limit").set("soft_mb", edit.soft_mb).set("hard_mb", edit.hard_mb));
+  ImGui::SameLine();
+  if (ImGui::Button("No limits")) {
+    edit.soft_mb = edit.hard_mb = 0;
+    send_cmd(a, json_value::make_object().set("cmd", "mem_limit").set("soft_mb", 0).set("hard_mb", 0));
+  }
+  ImGui::TextDisabled("0 is off. Soft: the game's mem_on_pressure() callbacks run. Hard: an allocation past it "
+                      "is refused (new throws, raylib stops the game with a message).");
+
+  ImGui::SeparatorText("Try it");
+  if (ImGui::Button("Run pressure callbacks"))
+    send_cmd(a, json_value::make_object().set("cmd", "mem_pressure"));
+  ImGui::SameLine();
+  if (ImGui::Button("Reset peak"))
+    send_cmd(a, json_value::make_object().set("cmd", "mem_peak_reset"));
+  static float ballast_mb = 64;
+  ImGui::SetNextItemWidth(110);
+  ImGui::InputFloat("ballast MB##memballast", &ballast_mb, 16.0f, 128.0f, "%.0f");
+  ballast_mb = std::max(ballast_mb, 0.0f);
+  ImGui::SameLine();
+  if (ImGui::Button("Hold"))
+    send_cmd(a, json_value::make_object().set("cmd", "mem_ballast").set("mb", ballast_mb));
+  ImGui::SameLine();
+  if (ImGui::Button("Give back"))
+    send_cmd(a, json_value::make_object().set("cmd", "mem_ballast").set("mb", 0));
+  ImGui::TextDisabled("Ballast: the game holds that much RAM on purpose, to watch the limits and callbacks work.");
+
+  ImGui::SeparatorText("Live blocks by size");
+  if (ImGui::BeginTable("alloc_buckets", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
+    ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed, 90);
+    ImGui::TableSetupColumn("blocks", ImGuiTableColumnFlags_WidthFixed, 80);
+    ImGui::TableSetupColumn("bytes", ImGuiTableColumnFlags_WidthFixed, 80);
+    ImGui::TableSetupColumn("share", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableHeadersRow();
+    for (int i = 0; i < 16; i++) {
+      if (al.bucket_count[i] <= 0)
+        continue;
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      if (i == 15)
+        ImGui::Text("> %s", fmt_bytes(16.0 * (double)(1 << 14)).c_str());
+      else
+        ImGui::Text("<= %s", fmt_bytes(16.0 * (double)(1 << i)).c_str());
+      ImGui::TableNextColumn();
+      ImGui::Text("%.0f", al.bucket_count[i]);
+      ImGui::TableNextColumn();
+      ImGui::Text("%s", fmt_bytes(al.bucket_bytes[i]).c_str());
+      ImGui::TableNextColumn();
+      ImGui::ProgressBar(al.used > 0 ? (float)(al.bucket_bytes[i] / al.used) : 0.0f, {-1, 12}, "");
+    }
+    ImGui::EndTable();
+  }
+}
+
 void entities_tab(app &a) {
   ImGui::SetNextItemWidth(220);
   ImGui::InputTextWithHint("##entfilter", "filter: name or component", a.entity_filter, sizeof a.entity_filter);
@@ -148,12 +247,16 @@ void entities_tab(app &a) {
 void memory_window(app &a) {
   if (!begin_panel(a, "Memory"))
     return;
-  if (a.mem_types.empty()) {
+  if (a.mem_types.empty() && !a.alloc.valid) {
     ImGui::TextDisabled("Waiting for the game...");
     ImGui::End();
     return;
   }
   if (ImGui::BeginTabBar("memtabs")) {
+    if (ImGui::BeginTabItem("Allocator")) {
+      allocator_tab(a);
+      ImGui::EndTabItem();
+    }
     if (ImGui::BeginTabItem("Components")) {
       components_tab(a);
       ImGui::EndTabItem();

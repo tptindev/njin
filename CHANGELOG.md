@@ -6,6 +6,21 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## Unreleased
+
+### Added
+
+- Memory manager. Every C++ `new`/`delete` and every raylib allocation goes
+  through one counting allocator (`src/engine/mem`, built into the raylib
+  target). `config::mem_budget_mb` (soft limit: warning, then the
+  `mem_on_pressure()` callbacks) and `config::mem_limit_mb` (hard limit: the
+  allocation is refused), `mem_set_limit()`, `mem_info()`, `mem_pressure()`,
+  `mem_reset_peak()` in `njin_mem.h`. Existing games behave the same: both
+  limits default to off.
+- njin_inspector: an Allocator tab in the Memory window (used, peak, history,
+  live blocks by size, editable limits, run the callbacks, hold a ballast).
+  Protocol 7: a game and an inspector built before it must be rebuilt together.
+
 ## 0.6.0
 
 Compatible with 0.5.0: existing games build and behave unchanged. A game that

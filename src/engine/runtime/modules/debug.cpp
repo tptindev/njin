@@ -17,6 +17,8 @@
 #include "njin_fx.h"
 #include "njin_level.h"
 #include "njin_log.h"
+#include "njin_mem.h"
+#include "njin_memcore.h"
 #include "njin_log_impl.h"
 #include "njin_particles.h"
 #include "njin_version.h"
@@ -29,7 +31,7 @@
 namespace njin {
 namespace {
 // The inspector speaks this version; it refuses a game with another one.
-constexpr i32 protocol_version = 6; // 6: the game's text documents (doc_list, doc_get)
+constexpr i32 protocol_version = 7; // 7: the allocator (alloc, mem_limit, mem_pressure, mem_peak_reset); 6: the game's text documents (doc_list, doc_get)
 // Log lines held while no inspector is connected, or between sends.
 constexpr usize max_log_lines = 2000;
 
@@ -337,6 +339,27 @@ void apply(context &ctx, const json_value &cmd) {
       }
       break;
     }
+  } else if (c == "mem_limit") {
+    // Megabytes from the inspector; 0 turns a limit off.
+    const double mb = 1024.0 * 1024.0;
+    mem_set_limit((usize)(std::max(0.0, cmd["soft_mb"].number_or(0.0)) * mb),
+                  (usize)(std::max(0.0, cmd["hard_mb"].number_or(0.0)) * mb));
+  } else if (c == "mem_ballast") {
+    // A block of RAM held on purpose, for trying the limits and the callbacks
+    // from the inspector. 0 gives it back.
+    static std::vector<unsigned char> ballast;
+    const std::size_t n = (std::size_t)(std::max(0.0, cmd["mb"].number_or(0.0)) * 1024.0 * 1024.0);
+    try {
+      std::vector<unsigned char>().swap(ballast);
+      if (n > 0)
+        ballast.assign(n, 1); // written, so the pages are really taken
+    } catch (const std::bad_alloc &) {
+      NJIN_WARN("memory: the ballast of %.0f MB was refused (past the hard limit?)", (double)n / (1024.0 * 1024.0));
+    }
+  } else if (c == "mem_pressure") {
+    mem_pressure(ctx);
+  } else if (c == "mem_peak_reset") {
+    mem_reset_peak();
   } else if (c == "collision_debug") {
     collision_set_debug(ctx, cmd["value"].bool_or(false));
   } else if (c == "rec") {
@@ -367,6 +390,36 @@ void send_hello(context &ctx) {
                               return names;
                             }()),
                         false));
+}
+
+// The allocator (njin_mem.h): totals, who holds them and how the live blocks
+// split by size, for the inspector's Allocator tab.
+void send_alloc(context &ctx) {
+  njin_mem_snapshot s;
+  njin_mem_get(&s);
+  json_value groups = json_value::make_array();
+  for (const size_t g : s.group_used)
+    groups.push((double)g);
+  json_value counts = json_value::make_array();
+  json_value bytes = json_value::make_array();
+  for (int i = 0; i < NJIN_MEM_BUCKETS; i++) {
+    counts.push((double)s.bucket_count[i]);
+    bytes.push((double)s.bucket_bytes[i]);
+  }
+  debug_state &d = ctx_ref<debug_state>(ctx);
+  d.link.send(json_dump(json_value::make_object()
+                                                    .set("t", "alloc")
+                                                    .set("used", (double)s.used)
+                                                    .set("peak", (double)s.peak)
+                                                    .set("soft", (double)s.soft)
+                                                    .set("hard", (double)s.hard)
+                                                    .set("groups", std::move(groups))
+                                                    .set("allocs", (double)s.allocs)
+                                                    .set("frees", (double)s.frees)
+                                                    .set("refused", (double)s.refused)
+                                                    .set("bucket_count", std::move(counts))
+                                                    .set("bucket_bytes", std::move(bytes)),
+                                                false));
 }
 
 void send_stats(context &ctx) {
@@ -774,6 +827,7 @@ void end_frame(context &ctx) {
   if (d.snapshot_timer >= period) {
     d.snapshot_timer = 0.0f;
     send_stats(ctx);
+    send_alloc(ctx);
     send_world(ctx);
     send_entity(ctx);
     send_watches(ctx);

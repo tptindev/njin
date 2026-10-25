@@ -143,6 +143,7 @@ void on_message(app &a, const std::string &line) {
     return;
   const std::string t = m["t"].string_or("");
   if (t == "hello") {
+    a.alloc = alloc_state{};
     if (m["v"].int_or(0) != protocol_version) {
       char buf[128];
       std::snprintf(buf, sizeof buf, "game speaks protocol %d, this inspector %d: rebuild one of them",
@@ -202,6 +203,30 @@ void on_message(app &a, const std::string &line) {
     for (const json_value &s : m["systems"].items)
       a.systems.push_back({s["p"].int_or(0), s["n"].string_or(""), s["ms"].f32_or(0), s["avg"].f32_or(0),
                            s["peak"].f32_or(0), s["calls"].int_or(0)});
+  } else if (t == "alloc") {
+    alloc_state &al = a.alloc;
+    al.valid = true;
+    al.used = m["used"].number_or(0);
+    al.peak = m["peak"].number_or(0);
+    al.soft = m["soft"].number_or(0);
+    al.hard = m["hard"].number_or(0);
+    al.by_new = m["groups"].items.size() > 0 ? m["groups"].items[0].number_or(0) : 0;
+    al.by_raylib = m["groups"].items.size() > 1 ? m["groups"].items[1].number_or(0) : 0;
+    al.allocs = m["allocs"].number_or(0);
+    al.frees = m["frees"].number_or(0);
+    al.refused = m["refused"].number_or(0);
+    for (size_t i = 0; i < 16; i++) {
+      al.bucket_count[i] = i < m["bucket_count"].items.size() ? m["bucket_count"].items[i].number_or(0) : 0;
+      al.bucket_bytes[i] = i < m["bucket_bytes"].items.size() ? m["bucket_bytes"].items[i].number_or(0) : 0;
+    }
+    al.history.push_back(al.used);
+    if (al.history.size() > 240)
+      al.history.erase(al.history.begin(), al.history.begin() + (long)(al.history.size() - 240));
+    if (!al.limits_synced) { // the edit boxes start at what the game runs with
+      al.limits_synced = true;
+      al.soft_mb = (float)(al.soft / (1024.0 * 1024.0));
+      al.hard_mb = (float)(al.hard / (1024.0 * 1024.0));
+    }
   } else if (t == "mem") {
     a.mem_types.clear();
     for (const json_value &r : m["types"].items)

@@ -27,6 +27,7 @@
 #include "njin_light.h"
 #include "njin_level.h"
 #include "njin_log.h"
+#include "njin_mem.h"
 #include "njin_nav.h"
 #include "njin_particles.h"
 #include "njin_post.h"

@@ -23,6 +23,7 @@
 #include "modules/post_fx.h"
 #include "njin_ecs.h"
 #include "njin_input_impl.h"
+#include "njin_mem_impl.h"
 #include "njin_log_impl.h"
 #include "njin_view.h"
 #include "njin_ctx_impl.h"
@@ -101,6 +102,7 @@ context *create(const config &cfg) {
   // Keep the log lines from here (the window's own GL and audio messages) for an
   // inspector that a game may attach before run; run lets go of them.
   log_hold(true);
+  mem_apply_config(cfg);
   context *ctx = new context(cfg);
   ctx_ref<time_state>(*ctx).fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
   ctx_ref<rng>(*ctx).reseed(
@@ -167,6 +169,7 @@ void run(context &ctx) {
     time.dt = time.paused ? 0.0f : time.dt_real * time.scale;
     // Hitstop zeroes dt here, before any system (or fixed step) reads it.
     fx_frame_begin(ctx);
+    mem_frame(ctx);
     gizmo_frame_begin(ctx);
     if (ctx_ref<ecs_store>(ctx)->profile)
       ecs_profile_roll(ctx_ref<ecs_store>(ctx));

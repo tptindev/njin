@@ -93,7 +93,7 @@ Nút **Consumption** trên thanh trên cùng đổi sang bố cục các cửa s
 |---|---|
 | **Process** | CPU (% cả máy và % một lõi), RAM (đang dùng, riêng, đỉnh), GPU (% của engine bận nhất, 3D, copy), VRAM (chuyên dụng và dùng chung). Đồ thị hai phút gần nhất |
 | **Systems** | Thanh phân bổ frame theo phase (phần còn lại là chờ vsync và trình chiếu). Bảng **từng system**: ms trung bình, frame vừa rồi, đỉnh, số lần gọi; lọc, sắp xếp |
-| **Memory** | Từng loại component: số lượng, `sizeof`, heap nó giữ, tổng, biểu đồ tròn. Tab **Entities**: bộ nhớ và GPU của **từng entity**, sắp xếp được, bấm để chọn |
+| **Memory** | Tab **Allocator**: số byte game đang giữ (theo bộ cấp phát của njin), đỉnh, biểu đồ, số block theo cỡ, đặt ngưỡng mềm và trần cứng ngay lúc chạy, nút chạy các hàm `mem_on_pressure()`, và "ballast" để thử giới hạn (xem @ref debug_memory). Tab **Components**: từng loại component: số lượng, `sizeof`, heap nó giữ, tổng, biểu đồ tròn. Tab **Entities**: bộ nhớ và GPU của **từng entity**, sắp xếp được, bấm để chọn |
 | **Assets** | Từng texture, render target, font, shader, sound, music, kèm dung lượng và nằm ở GPU hay RAM. Cộng thêm ảnh chunk tilemap, buffer post-processing, màn hình ảo |
 | **Entities** | Thêm hai cột RAM và GPU. Cửa sổ **Inspector** ghi entity đang chọn giữ bao nhiêu |
 
@@ -126,6 +126,22 @@ và ngừng ngay khi inspector đóng.
 Game thử inspector: `njin_debug_demo` (xem @ref samples). Mỗi phím của nó cố ý tốn một thứ:
 thêm bóng (entity, va chạm), `H` đốt 3 ms CPU trong một system, `M` giữ 64 MB RAM, `G` tạo một
 render texture 32 MB trên GPU. Bấm rồi xem con số nhảy.
+
+## Giới hạn RAM của game {#debug_memory}
+
+Mọi `new`/`delete` của C++ và mọi cấp phát của raylib (ảnh, âm thanh, mesh phía CPU) đi qua một
+bộ cấp phát của njin, nên engine biết game giữ bao nhiêu byte và chặn được khi vượt mức. Không gồm
+bộ nhớ GPU và các thư viện cấp phát riêng (Jolt, Lua).
+
+@snippet debug_memory.cpp memory
+
+- **Ngưỡng mềm** (`mem_budget_mb`): vượt qua thì đầu frame sau engine ghi cảnh báo và gọi các hàm
+  của njin::mem_on_pressure(): bỏ cache, hạ chất lượng, dỡ phần level đã qua. Hàm chỉ gọi lại khi
+  mức dùng đã xuống dưới 90% ngưỡng rồi lại vượt lên.
+- **Trần cứng** (`mem_limit_mb`): cấp phát nào vượt trần bị từ chối. `new` ném `std::bad_alloc`,
+  raylib thì dừng game kèm một dòng giải thích, thay vì ăn hết RAM của máy. Đặt ngưỡng mềm thấp hơn
+  trần, ví dụ 80%, để hàm giải phóng kịp chạy.
+- Hai giá trị đổi được lúc chạy bằng njin::mem_set_limit() hoặc từ tab **Allocator** của njin_inspector.
 
 ## Điều khiển thời gian
 

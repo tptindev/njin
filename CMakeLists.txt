@@ -244,6 +244,20 @@ target_compile_definitions(raylib PRIVATE SUPPORT_SCREEN_CAPTURE=0)
 # JPEG images, off in raylib by default: glTF models carry them (external
 # or embedded), and a texture_load() of a .jpg is as common as a .png.
 target_compile_definitions(raylib PRIVATE SUPPORT_FILEFORMAT_JPG=1)
+# Memory manager: raylib's allocations go through njin's counting allocator
+# (src/engine/mem), which also replaces C++ new/delete. It is built into the
+# raylib target, so every program that links raylib has it.
+target_sources(raylib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/mem/njin_memcore.cpp")
+target_compile_features(raylib PRIVATE cxx_std_17)
+# Object-like macros: raylib writes RL_MALLOC(sz), which then reads njin_rl_malloc(sz).
+target_compile_definitions(raylib PRIVATE
+  RL_MALLOC=njin_rl_malloc RL_CALLOC=njin_rl_calloc RL_REALLOC=njin_rl_realloc RL_FREE=njin_rl_free)
+if(MSVC)
+  target_compile_options(raylib PRIVATE "$<$<COMPILE_LANGUAGE:C>:/FI${CMAKE_CURRENT_SOURCE_DIR}/src/engine/mem/njin_memcore.h>")
+else()
+  target_compile_options(raylib PRIVATE "$<$<COMPILE_LANGUAGE:C>:SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/src/engine/mem/njin_memcore.h>")
+endif()
+target_include_directories(raylib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/mem")
 
 include(cmake/njin.cmake)
 

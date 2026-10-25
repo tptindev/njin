@@ -98,6 +98,14 @@ struct config {
   /// giờ độ phân giải cao riêng). Cho phép frame_skip_draw(). Mặc định tắt:
   /// nhịp frame giữ như cũ. Không đổi được lúc đang chạy.
   bool low_power = false;
+  /// Ngưỡng mềm của vùng RAM game, megabyte (0 là tắt). Vượt qua thì engine ghi
+  /// cảnh báo và gọi các hàm đăng ký bằng mem_on_pressure() để game bỏ cache. Xem
+  /// mem_set_limit().
+  usize mem_budget_mb = 0;
+  /// Trần cứng của vùng RAM game, megabyte (0 là tắt). Cấp phát nào vượt trần thì
+  /// bị từ chối, game dừng kèm lời giải thích thay vì ăn hết RAM của máy. Nên đặt
+  /// cao hơn `mem_budget_mb`. Xem mem_set_limit().
+  usize mem_limit_mb = 0;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).

@@ -58,7 +58,7 @@ njin_embed_file("${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp"
 function(_njin_runtime_library name)
   set_target_properties(${name} PROPERTIES NJIN_ENGINE_INTERNAL ON)
   # Lets runtime files in subfolders (modules/) include runtime headers directly.
-  target_include_directories(${name} PRIVATE "${_njin_rt_dir}")
+  target_include_directories(${name} PRIVATE "${_njin_rt_dir}" "${PROJECT_SOURCE_DIR}/src/engine/mem")
   target_link_libraries(${name} PRIVATE raylib njin_warnings)
   # ctx_ref() (njin_ctx_get.h) is a call in Debug, so a source does not see
   # the context's definition and editing it rebuilds one source; inline in

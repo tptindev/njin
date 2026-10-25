@@ -14,7 +14,7 @@ namespace inspector {
 using njin::json_value;
 
 // Must match the game's debug module (modules/debug.cpp).
-constexpr int protocol_version = 6; // 6: the game's text documents (doc_list, doc_get)
+constexpr int protocol_version = 7; // 7: the allocator (alloc); 6: the game's text documents (doc_list, doc_get)
 constexpr size_t frame_history = 600;
 constexpr size_t log_history = 5000;
 
@@ -41,6 +41,18 @@ struct mem_type_row {
   std::string name;
   long long count = 0, size = 0, heap = 0, bytes = 0;
   bool known = false; // its size is known (registered)
+};
+// The game's allocator (njin_mem.h): totals, who holds them, live blocks by
+// size class (16 B, 32 B ... 256 KB, and bigger).
+struct alloc_state {
+  bool valid = false;
+  double used = 0, peak = 0, soft = 0, hard = 0;
+  double by_new = 0, by_raylib = 0;
+  double allocs = 0, frees = 0, refused = 0;
+  double bucket_count[16] = {}, bucket_bytes[16] = {};
+  std::vector<double> history; // used, one per message
+  float soft_mb = 0, hard_mb = 0; // the edit boxes
+  bool limits_synced = false;
 };
 struct res_row {
   std::string kind, name, info;
@@ -186,6 +198,7 @@ struct app {
   std::vector<phase_row> phases;
   std::vector<system_row> systems;
   float prof_frame = 0; // ms
+  alloc_state alloc;
   std::vector<mem_type_row> mem_types;
   long long mem_components = 0, mem_registry = 0, mem_entities = 0;
   std::vector<res_row> resources;
