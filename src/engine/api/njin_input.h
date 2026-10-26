@@ -128,6 +128,78 @@ bool mouse_held(const context &ctx, mouse_button button);
 /// @return `true` ở frame nút vừa được thả.
 bool mouse_released(const context &ctx, mouse_button button);
 
+/// Số ngón tay njin theo dõi cùng lúc.
+constexpr i32 touch_max = 10;
+
+/// Một ngón tay trên màn hình cảm ứng, xem touch_get().
+struct touch_point {
+  /// Số của ngón này, giữ nguyên từ lúc chạm tới lúc nhấc. Ngón sau có số mới.
+  i32 id = 0;
+  vec2 pos{};      ///< Vị trí, cùng đơn vị với mouse_pos().
+  vec2 delta{};    ///< Độ dời so với frame trước; ở frame chạm là so với chỗ chạm xuống.
+  vec2 start{};    ///< Chỗ ngón chạm xuống.
+  f32 duration = 0.0f; ///< Đã chạm bao lâu, giây (theo giờ thật, không theo tốc độ thời gian).
+  bool pressed = false;  ///< Vừa chạm xuống ở frame này.
+  bool released = false; ///< Vừa nhấc lên ở frame này (frame cuối nó còn trong danh sách).
+};
+
+/// Số ngón tay đang chạm, kể cả ngón vừa nhấc ở frame này.
+///
+/// Màn hình cảm ứng trên Windows 8 trở lên, nhiều ngón cùng lúc. Ngón đầu tiên
+/// cũng điều khiển chuột như Windows vẫn làm (mouse_pos(), mouse_pressed() với
+/// `mouse_left`), nên game và UI chỉ dùng chuột vẫn chạm được; hàm này và
+/// gestures() dành cho thứ cần nhiều ngón (pinch, xoay) hay cần biết đó là ngón
+/// tay. Nền tảng khác chưa đọc được cảm ứng: luôn trả về 0.
+/// @param ctx Context của engine.
+/// @return Số ngón, 0..touch_max.
+i32 touch_count(const context &ctx);
+
+/// Ngón thứ `index` (0..touch_count() - 1), theo thứ tự chạm xuống.
+/// @code
+/// for (njin::i32 i = 0; i < njin::touch_count(ctx); i++) {
+///   const njin::touch_point t = njin::touch_get(ctx, i);
+///   if (t.pressed) spawn_ripple(t.pos);
+/// }
+/// @endcode
+/// @param ctx Context của engine.
+/// @param index Thứ tự ngón.
+/// @return Ngón đó; `index` ngoài khoảng thì là touch_point mặc định (`id` 0).
+touch_point touch_get(const context &ctx, i32 index);
+
+/// Cử chỉ của frame này, tính từ các ngón tay (touch_get()).
+struct gesture_state {
+  i32 fingers = 0;       ///< Số ngón đang chạm (không kể ngón vừa nhấc).
+  /// Chạm nhanh rồi nhấc: dưới 0.3 giây, không trượt quá vài pixel. Đúng ở
+  /// frame nhấc ngón.
+  bool tap = false;
+  vec2 tap_pos{};        ///< Chỗ chạm nhanh.
+  /// Giữ yên một ngón 0.5 giây: đúng một lần, ở frame đủ giờ (menu ngữ cảnh,
+  /// chọn để kéo). Ngón đó nhấc ra sau đó không thành `tap`.
+  bool long_press = false;
+  vec2 long_press_pos{}; ///< Chỗ giữ.
+  /// Độ dời trung bình của các ngón đang chạm so với frame trước: một ngón kéo
+  /// bản đồ, hai ngón kéo cùng nhau.
+  vec2 pan{};
+  /// Khi có từ hai ngón: khoảng cách giữa hai ngón đầu chia cho của frame trước.
+  /// Lớn hơn 1 là đang dang ra (phóng to), 1 là không đổi.
+  f32 pinch = 1.0f;
+  /// Khi có từ hai ngón: góc xoay của đường nối hai ngón đầu so với frame trước,
+  /// độ, theo chiều kim đồng hồ trên màn hình.
+  f32 rotate = 0.0f;
+  vec2 center{};         ///< Trung điểm hai ngón đầu (hay chỗ một ngón), để phóng quanh đó.
+};
+
+/// Cử chỉ chạm của frame này.
+/// @code
+/// const njin::gesture_state g = njin::gestures(ctx);
+/// cam.zoom *= g.pinch;                  // dang hai ngón là phóng to
+/// cam_pos -= g.pan / cam.zoom;          // kéo bản đồ theo ngón tay
+/// if (g.tap) select_at(njin::scr2w(ctx, g.tap_pos));
+/// @endcode
+/// @param ctx Context của engine.
+/// @return Cử chỉ.
+gesture_state gestures(const context &ctx);
+
 /// Tay cầm số `pad` có đang được cắm không.
 ///
 /// Chưa cắm thì mọi hàm pad_* đọc như không nhấn, không báo lỗi.

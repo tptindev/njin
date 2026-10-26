@@ -84,6 +84,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Hỏi "nút nhảy có bấm không" (không hỏi phím cụ thể) | njin::action_define(), njin::action_pressed() | @ref input |
 | Trục ngang/dọc từ hai phím hoặc cần analog | njin::axis_define(), njin::axis_value() | @ref input |
 | Đọc thẳng phím, chuột, tay cầm | njin::key_pressed(), njin::mouse_pos(), njin::pad_axis() | @ref input |
+| Màn hình cảm ứng: nhiều ngón, chạm, giữ, kéo, dang hai ngón, xoay | njin::touch_get(), njin::gestures() | @ref input |
 | Gõ chữ | njin::text_char() | @ref input |
 | Cho người chơi đổi phím | njin::action_rebind(), njin::input_bindings_save() | @ref settings |
 | Rung tay cầm | njin::pad_rumble() | @ref settings |

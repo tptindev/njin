@@ -15,7 +15,7 @@
 /// The active camera and converting coordinates between world and screen.
 
 /// @defgroup grp_input Input
-/// Keyboard keys and actions.
+/// Keyboard keys, mouse, gamepad, touch and actions.
 
 /// @defgroup grp_shader Shader
 /// Load shaders, set uniforms (arrays included), attach extra images, turn shaders on and off while drawing.

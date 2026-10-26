@@ -15,7 +15,7 @@
 /// Camera đang dùng và đổi tọa độ giữa thế giới và màn hình.
 
 /// @defgroup grp_input Nhập liệu
-/// Phím bàn phím và action.
+/// Phím bàn phím, chuột, tay cầm, cảm ứng và action.
 
 /// @defgroup grp_shader Shader
 /// Nạp shader, đặt uniform (kể cả mảng), gắn ảnh phụ, bật và tắt shader khi vẽ.

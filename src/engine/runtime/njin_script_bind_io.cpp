@@ -102,6 +102,19 @@ void script_bind_njin_io(context &ctx, script_runtime &rt, sol::table n) {
   n["mouse_released"] = [c](sol::optional<std::string> b) {
     return mouse_released(*c, mouse_of(b.value_or("left")));
   };
+  // Fingers numbered from 0 like the C++ form; tables of the struct fields.
+  n["touch_count"] = [c] { return touch_count(*c); };
+  n["touch_get"] = [c, r](i32 index) {
+    const touch_point t = touch_get(*c, index);
+    return r->lua.create_table_with("id", t.id, "pos", t.pos, "delta", t.delta, "start", t.start, "duration",
+                                    t.duration, "pressed", t.pressed, "released", t.released);
+  };
+  n["gestures"] = [c, r] {
+    const gesture_state g = gestures(*c);
+    return r->lua.create_table_with("fingers", g.fingers, "tap", g.tap, "tap_pos", g.tap_pos, "long_press",
+                                    g.long_press, "long_press_pos", g.long_press_pos, "pan", g.pan, "pinch",
+                                    g.pinch, "rotate", g.rotate, "center", g.center);
+  };
   n["action_pressed"] = [c](const std::string &a) { return action_pressed(*c, action_find(*c, a.c_str())); };
   n["action_held"] = [c](const std::string &a) { return action_held(*c, action_find(*c, a.c_str())); };
   n["action_released"] = [c](const std::string &a) { return action_released(*c, action_find(*c, a.c_str())); };

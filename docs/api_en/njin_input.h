@@ -128,6 +128,79 @@ bool mouse_held(const context &ctx, mouse_button button);
 /// @return `true` on the frame the button was just released.
 bool mouse_released(const context &ctx, mouse_button button);
 
+/// How many fingers njin tracks at once.
+constexpr i32 touch_max = 10;
+
+/// One finger on a touch screen, see touch_get().
+struct touch_point {
+  /// This finger's number, the same from touching down to lifting. A later finger gets a new one.
+  i32 id = 0;
+  vec2 pos{};      ///< Position, in the same units as mouse_pos().
+  vec2 delta{};    ///< Movement since the previous frame; on the touch frame, since where it landed.
+  vec2 start{};    ///< Where the finger touched down.
+  f32 duration = 0.0f; ///< How long it has been touching, seconds (real time, not the time scale).
+  bool pressed = false;  ///< Touched down this frame.
+  bool released = false; ///< Lifted this frame (its last frame in the list).
+};
+
+/// Number of fingers touching, including one lifted this frame.
+///
+/// Touch screens on Windows 8 and later, several fingers at once. The first
+/// finger also drives the mouse, as Windows always does (mouse_pos(),
+/// mouse_pressed() with `mouse_left`), so games and UI that only use the mouse
+/// can be touched; this function and gestures() are for what needs several
+/// fingers (pinch, rotate) or needs to know it is a finger. Other platforms do
+/// not read touch yet: always 0.
+/// @param ctx Engine context.
+/// @return Number of fingers, 0..touch_max.
+i32 touch_count(const context &ctx);
+
+/// Finger number `index` (0..touch_count() - 1), in the order they touched down.
+/// @code
+/// for (njin::i32 i = 0; i < njin::touch_count(ctx); i++) {
+///   const njin::touch_point t = njin::touch_get(ctx, i);
+///   if (t.pressed) spawn_ripple(t.pos);
+/// }
+/// @endcode
+/// @param ctx Engine context.
+/// @param index Finger's place.
+/// @return That finger; for an `index` out of range a default touch_point (`id` 0).
+touch_point touch_get(const context &ctx, i32 index);
+
+/// This frame's gestures, worked out from the fingers (touch_get()).
+struct gesture_state {
+  i32 fingers = 0;       ///< Fingers touching (not counting one just lifted).
+  /// A quick touch and lift: under 0.3 seconds, sliding no more than a few
+  /// pixels. True on the frame the finger lifts.
+  bool tap = false;
+  vec2 tap_pos{};        ///< Where the tap was.
+  /// One finger held still for 0.5 seconds: true once, on the frame the time is
+  /// up (context menus, pick up to drag). That finger lifting afterwards is no `tap`.
+  bool long_press = false;
+  vec2 long_press_pos{}; ///< Where it is held.
+  /// Average movement of the fingers touching since the previous frame: one
+  /// finger drags the map, two drag together.
+  vec2 pan{};
+  /// With two fingers or more: the first two fingers' distance over last
+  /// frame's. Above 1 is spreading (zoom in), 1 is unchanged.
+  f32 pinch = 1.0f;
+  /// With two fingers or more: how far the line through the first two fingers
+  /// turned since the previous frame, degrees, clockwise on the screen.
+  f32 rotate = 0.0f;
+  vec2 center{};         ///< Midpoint of the first two fingers (or where one is), to zoom around.
+};
+
+/// This frame's touch gestures.
+/// @code
+/// const njin::gesture_state g = njin::gestures(ctx);
+/// cam.zoom *= g.pinch;                  // spreading two fingers zooms in
+/// cam_pos -= g.pan / cam.zoom;          // drag the map with the finger
+/// if (g.tap) select_at(njin::scr2w(ctx, g.tap_pos));
+/// @endcode
+/// @param ctx Engine context.
+/// @return Gestures.
+gesture_state gestures(const context &ctx);
+
 /// Whether gamepad number `pad` is connected.
 ///
 /// While it is not connected, every pad_* function reads as not pressed, without

@@ -84,6 +84,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Ask "is the jump button pressed" (without asking about a specific key) | njin::action_define(), njin::action_pressed() | @ref input |
 | A horizontal/vertical axis from two keys or an analog stick | njin::axis_define(), njin::axis_value() | @ref input |
 | Read keys, mouse, gamepad directly | njin::key_pressed(), njin::mouse_pos(), njin::pad_axis() | @ref input |
+| Touch screens: several fingers, tap, hold, drag, pinch, rotate | njin::touch_get(), njin::gestures() | @ref input |
 | Type text | njin::text_char() | @ref input |
 | Let the player rebind keys | njin::action_rebind(), njin::input_bindings_save() | @ref settings |
 | Rumble the gamepad | njin::pad_rumble() | @ref settings |

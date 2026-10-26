@@ -86,7 +86,7 @@ positions are `vec2` or `vec3` (add, subtract, multiply by a number, `:length()`
 | Random | `random`, `random_range(lo, hi)`, `random_int(lo, hi)` |
 | Entities | `entity_create`, `entity_destroy`, `entity_valid` |
 | Transforms | `position`, `set_position`, `rotation`, `set_rotation`, `scale`, `set_scale`; the 3D ones add `3d`: `position3d`... |
-| Input | `key_pressed("space")`, `key_held`, `key_released`, `mouse_pos`, `mouse_delta`, `mouse_wheel`, `mouse_pressed("left")`, `action_pressed("jump")`, `action_held`, `action_released`, `axis("move")` |
+| Input | `key_pressed("space")`, `key_held`, `key_released`, `mouse_pos`, `mouse_delta`, `mouse_wheel`, `mouse_pressed("left")`, `touch_count`, `touch_get(i)` (from 0), `gestures`, `action_pressed("jump")`, `action_held`, `action_released`, `axis("move")` |
 | Timers | `after(seconds, fn)`, `every(seconds, fn, count)`, `cancel(id)`, `tween_move`, `tween_scale`, `tween_rotate`, `tween_value(from, to, seconds, fn)`, `tween_cancel` |
 | Sound | `sound_load`, `sound_play`, `sound_play_at(id, vec2)`, `sound_play3d(id, vec3 or entity)`, `sound_stop` |
 | Scenes | `scene_set(name)`, `scene_fade(name)` |

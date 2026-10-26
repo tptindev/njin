@@ -16,6 +16,12 @@ To release: edit that header, add a section here, commit, then
   `camera3d_ray()` / `camera3d_to_screen()` and `camera_shake()` follow it.
   Also in Lua (`ortho`, `ortho_height`). Cameras that do not set it are
   unchanged.
+- Touch screens on Windows 8 and later: `touch_count()`, `touch_get()`
+  (`touch_point`: id, position, movement, start, duration, pressed, released)
+  and `gestures()` (`gesture_state`: tap, long press, pan, pinch, rotate,
+  centre). GLFW has no multi-touch, so the runtime reads the window's
+  WM_POINTER messages and passes them on; the first finger still drives the
+  mouse as before. Also in Lua.
 - Memory manager. Every C++ `new`/`delete` and every raylib allocation goes
   through one counting allocator (`src/engine/mem`, built into the raylib
   target). `config::mem_budget_mb` (soft limit: warning, then the

@@ -2,6 +2,7 @@
 #include "njin_internal_only.h"
 
 #include "_types.h"
+#include "njin_touch.h"
 #include <cmath>
 #include <string>
 #include <unordered_set>
@@ -83,6 +84,7 @@ struct input_store {
   i32 backspaces = 0;
   std::vector<action_slot> actions;
   std::vector<axis_slot> axes;
+  touch_state touch; // fingers and gestures (njin_touch.cpp)
 };
 
 inline bool key_valid(key_code key) {

@@ -84,7 +84,7 @@ Mọi hàm của module chỉ gọi thẳng API C++ cùng tên, không thêm hà
 | Ngẫu nhiên | `random`, `random_range(lo, hi)`, `random_int(lo, hi)` |
 | Entity | `entity_create`, `entity_destroy`, `entity_valid` |
 | Transform | `position`, `set_position`, `rotation`, `set_rotation`, `scale`, `set_scale`; bản 3D thêm `3d`: `position3d`... |
-| Nhập liệu | `key_pressed("space")`, `key_held`, `key_released`, `mouse_pos`, `mouse_delta`, `mouse_wheel`, `mouse_pressed("left")`, `action_pressed("jump")`, `action_held`, `action_released`, `axis("move")` |
+| Nhập liệu | `key_pressed("space")`, `key_held`, `key_released`, `mouse_pos`, `mouse_delta`, `mouse_wheel`, `mouse_pressed("left")`, `touch_count`, `touch_get(i)` (từ 0), `gestures`, `action_pressed("jump")`, `action_held`, `action_released`, `axis("move")` |
 | Hẹn giờ | `after(giây, hàm)`, `every(giây, hàm, số_lần)`, `cancel(id)`, `tween_move`, `tween_scale`, `tween_rotate`, `tween_value(từ, đến, giây, hàm)`, `tween_cancel` |
 | Âm thanh | `sound_load`, `sound_play`, `sound_play_at(id, vec2)`, `sound_play3d(id, vec3 hay entity)`, `sound_stop` |
 | Scene | `scene_set(tên)`, `scene_fade(tên)` |

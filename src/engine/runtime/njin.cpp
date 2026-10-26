@@ -176,6 +176,7 @@ void run(context &ctx) {
     view_frame_begin(ctx_ref<view_state>(ctx));
     input_key_poll(ctx_ref<input_store>(ctx));
     view_map_mouse(ctx_ref<view_state>(ctx), ctx_ref<input_store>(ctx)->cur.mouse_pos, ctx_ref<input_store>(ctx)->cur.mouse_delta);
+    touch_poll(ctx_ref<input_store>(ctx)->touch, ctx_ref<view_state>(ctx), GetWindowHandle(), GetTime());
     // A scene switch requested last frame happens here, before any system
     // of the new frame runs.
     scene_store_apply(ctx);

@@ -57,6 +57,39 @@ Ctrl, Alt, Windows) và bàn phím số.
 @note njin::mouse_pos() là pixel **màn hình**, không qua camera. Đổi sang vị trí
 trong thế giới bằng njin::scr2w(): xem @ref camera.
 
+## Cảm ứng
+
+Màn hình cảm ứng trên Windows 8 trở lên, nhiều ngón cùng lúc. Ngón đầu tiên cũng điều khiển chuột như
+Windows vẫn làm, nên game và UI chỉ dùng chuột vẫn chạm được mà không cần sửa. Các hàm dưới đây dành
+cho thứ cần nhiều ngón hay cần biết đó là ngón tay. Nền tảng khác chưa đọc được cảm ứng: không có ngón
+nào.
+
+| Hàm | Trả về |
+|---|---|
+| njin::touch_count() | Số ngón đang chạm, kể cả ngón vừa nhấc ở frame này |
+| njin::touch_get() | Một ngón (njin::touch_point): `id`, `pos`, `delta`, `start`, `duration`, `pressed`, `released` |
+| njin::gestures() | Cử chỉ của frame (njin::gesture_state): `tap`, `long_press`, `pan`, `pinch`, `rotate`, `center`, `fingers` |
+
+Vị trí cùng đơn vị với njin::mouse_pos(), kể cả khi có màn hình ảo. Cử chỉ được tính từ các ngón:
+
+| Cử chỉ | Khi nào |
+|---|---|
+| `tap` | Chạm rồi nhấc trong 0.3 giây, không trượt quá vài pixel; đúng ở frame nhấc |
+| `long_press` | Giữ yên một ngón 0.5 giây; đúng một lần, ngón đó nhấc ra sau không thành `tap` |
+| `pan` | Độ dời trung bình của các ngón đang chạm so với frame trước |
+| `pinch` | Khoảng cách hai ngón đầu chia cho của frame trước: lớn hơn 1 là dang ra |
+| `rotate` | Góc xoay của hai ngón đầu so với frame trước, độ, theo chiều kim đồng hồ |
+
+@code
+// Bản đồ kéo bằng một ngón, phóng bằng hai ngón quanh chỗ hai ngón đặt.
+const njin::gesture_state g = njin::gestures(ctx);
+if (g.fingers >= 2)
+  zoom_around(njin::scr2w(ctx, g.center), g.pinch);
+cam_pos -= g.pan / cam_zoom;
+if (g.tap)
+  select_at(njin::scr2w(ctx, g.tap_pos));
+@endcode
+
 ## Tay cầm
 
 Tay cầm được đánh số từ 0 đến njin::gamepad_max - 1. Tay cầm chưa cắm không gây

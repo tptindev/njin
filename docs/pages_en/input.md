@@ -57,6 +57,40 @@ Ctrl, Alt, Windows) and the numeric keypad.
 @note njin::mouse_pos() is in **screen** pixels, not through the camera. Convert it to a position
 in the world with njin::scr2w(): see @ref camera.
 
+## Touch
+
+Touch screens on Windows 8 and later, several fingers at once. The first finger also drives the mouse,
+as Windows always does, so games and UI that only use the mouse already work with a finger, unchanged.
+The functions below are for what needs several fingers or needs to know it is a finger. Other
+platforms do not read touch yet: there are no fingers.
+
+| Function | Returns |
+|---|---|
+| njin::touch_count() | Number of fingers touching, including one lifted this frame |
+| njin::touch_get() | One finger (njin::touch_point): `id`, `pos`, `delta`, `start`, `duration`, `pressed`, `released` |
+| njin::gestures() | This frame's gestures (njin::gesture_state): `tap`, `long_press`, `pan`, `pinch`, `rotate`, `center`, `fingers` |
+
+Positions are in the same units as njin::mouse_pos(), virtual screen included. Gestures come from the
+fingers:
+
+| Gesture | When |
+|---|---|
+| `tap` | Touch and lift within 0.3 seconds, sliding no more than a few pixels; true on the frame it lifts |
+| `long_press` | One finger held still for 0.5 seconds; true once, and that finger lifting later is no `tap` |
+| `pan` | Average movement of the fingers touching since the previous frame |
+| `pinch` | The first two fingers' distance over last frame's: above 1 is spreading |
+| `rotate` | How far the first two fingers turned since the previous frame, degrees, clockwise |
+
+@code
+// A map dragged with one finger, zoomed with two around where they are.
+const njin::gesture_state g = njin::gestures(ctx);
+if (g.fingers >= 2)
+  zoom_around(njin::scr2w(ctx, g.center), g.pinch);
+cam_pos -= g.pan / cam_zoom;
+if (g.tap)
+  select_at(njin::scr2w(ctx, g.tap_pos));
+@endcode
+
 ## Gamepad
 
 Gamepads are numbered from 0 to njin::gamepad_max - 1. A gamepad that is not plugged in does not cause
