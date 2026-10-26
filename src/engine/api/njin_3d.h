@@ -13,7 +13,16 @@ struct context;
 /// @addtogroup grp_3d
 /// @{
 
-/// Camera phối cảnh cho begin_3d().
+/// Phép chiếu của camera3d.
+enum camera3d_projection {
+  camera3d_perspective,  ///< Phối cảnh: vật xa nhỏ đi, theo `fovy` (mặc định).
+  /// Song song (orthographic): vật giữ cỡ dù xa hay gần, theo `ortho_height`.
+  /// `position` vẫn là chỗ đặt mắt (cho bóng đổ, sương, âm thanh): đặt nó lùi về
+  /// sau, đủ xa để thấy cả cảnh trong `near_plane`..`far_plane`.
+  camera3d_orthographic,
+};
+
+/// Camera cho begin_3d(): phối cảnh (mặc định) hay song song, xem `projection`.
 ///
 /// Trục y hướng lên, hệ tay phải (giống glTF và raylib): nhìn theo `-z` thì `+x`
 /// ở bên phải.
@@ -28,6 +37,13 @@ struct camera3d {
   /// trong lần vẽ này. Tắt cho một cảnh phụ (ví dụ model xoay trong menu) chỉ vẽ
   /// những gì game gọi.
   bool entities = true;
+  /// Phép chiếu. camera3d_orthographic là nhìn song song: vật xa không nhỏ đi,
+  /// cho game chiến thuật, xây thành phố, puzzle nhìn nghiêng và góc isometric
+  /// dựng bằng 3D. Khi đó `fovy` bị bỏ qua và `ortho_height` là chiều cao vùng nhìn.
+  camera3d_projection projection = camera3d_perspective;
+  /// Chiều cao vùng nhìn của camera3d_orthographic, đơn vị thế giới (chiều rộng
+  /// theo tỉ lệ khung hình). Nhỏ đi là phóng to.
+  f32 ortho_height = 10.0f;
 };
 
 /// Bắt đầu vẽ 3D qua `camera`. Kết thúc bằng end_3d().

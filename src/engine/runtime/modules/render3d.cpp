@@ -693,6 +693,9 @@ uniform vec2 planes;
 uniform float maskValue;
 out vec4 finalColor;
 float linear_depth(float d) {
+  // A negative near plane marks an orthographic camera, whose depth is linear.
+  if (planes.x < 0.0)
+    return -planes.x + d * (planes.y + planes.x);
   float z = d * 2.0 - 1.0;
   return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
 }
@@ -777,6 +780,9 @@ uniform vec2 sceneSize;
 uniform vec2 planes;
 out vec4 finalColor;
 float linear_depth(float d) {
+  // A negative near plane marks an orthographic camera, whose depth is linear.
+  if (planes.x < 0.0)
+    return -planes.x + d * (planes.y + planes.x);
   float z = d * 2.0 - 1.0;
   return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
 }
@@ -973,10 +979,20 @@ camera3d shaken(const context &ctx, camera3d camera) {
   if (!fx_shake_sample(ctx, offset, roll))
     return camera;
   const vec2 screen = screen_size(ctx);
-  const f32 per_pixel = screen.y > 0.0f ? camera.fovy / screen.y : 0.0f;
   const vec3 forward = normalize(camera.target - camera.position);
   const vec3 right = normalize(cross(forward, camera.up));
   const vec3 up = cross(right, forward);
+  if (camera.projection == camera3d_orthographic) {
+    // Parallel rays: the view slides by the same share of the screen.
+    const f32 units = screen.y > 0.0f ? camera.ortho_height / screen.y : 0.0f;
+    const vec3 move = right * (-offset.x * units) + up * (offset.y * units);
+    const Vector3 u = Vector3RotateByAxisAngle(rl3(up), rl3(forward), roll * DEG2RAD);
+    camera.position = camera.position + move;
+    camera.target = camera.target + move;
+    camera.up = {u.x, u.y, u.z};
+    return camera;
+  }
+  const f32 per_pixel = screen.y > 0.0f ? camera.fovy / screen.y : 0.0f;
   Vector3 f = rl3(forward);
   f = Vector3RotateByAxisAngle(f, rl3(up), -offset.x * per_pixel * DEG2RAD);
   f = Vector3RotateByAxisAngle(f, rl3(right), -offset.y * per_pixel * DEG2RAD);
@@ -1014,7 +1030,9 @@ void load_camera(const context &ctx, const camera3d &camera) {
   // on the virtual image; the logical screen size is the right one.
   const vec2 screen = pass_size(ctx);
   const f64 aspect = screen.y > 0.0f ? (f64)screen.x / (f64)screen.y : 1.0;
-  const f64 top = (f64)camera.near_plane * std::tan((f64)camera.fovy * 0.5 * (f64)DEG2RAD);
+  const bool ortho = camera.projection == camera3d_orthographic;
+  const f64 top = ortho ? (f64)std::max(camera.ortho_height, 1e-4f) * 0.5
+                        : (f64)camera.near_plane * std::tan((f64)camera.fovy * 0.5 * (f64)DEG2RAD);
   const f64 right = top * aspect;
   // TAA's jitter: an off-axis frustum, the image moved by a fraction of a pixel.
   const vec2 j = ctx_ref<render3d_state>(ctx)->jitter;
@@ -1022,12 +1040,30 @@ void load_camera(const context &ctx, const camera3d &camera) {
   const f64 jy = (f64)j.y * top;
   rlMatrixMode(RL_PROJECTION);
   rlLoadIdentity();
-  rlFrustum(-right + jx, right + jx, -top + jy, top + jy, camera.near_plane, camera.far_plane);
+  if (ortho)
+    rlOrtho(-right + jx, right + jx, -top + jy, top + jy, camera.near_plane, camera.far_plane);
+  else
+    rlFrustum(-right + jx, right + jx, -top + jy, top + jy, camera.near_plane, camera.far_plane);
   rlMatrixMode(RL_MODELVIEW);
   rlLoadIdentity();
   rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(camera.position), rl3(camera.target), rl3(camera.up))));
 }
 
+} // namespace
+
+vec2 render3d_depth_planes(const camera3d &camera) {
+  const bool ortho = camera.projection == camera3d_orthographic;
+  return {ortho ? -camera.near_plane : camera.near_plane, camera.far_plane};
+}
+
+vec3 render3d_post_eye(const camera3d &camera) {
+  if (camera.projection != camera3d_orthographic)
+    return camera.position;
+  const vec3 forward = normalize(camera.target - camera.position);
+  return camera.target - forward * (1000.0f * std::max({camera.far_plane, camera.ortho_height, 1.0f}));
+}
+
+namespace {
 // The frustum of the matrices load_camera() set, as six planes. Row i of the
 // view-projection is (m[i], m[i + 4], m[i + 8], m[i + 12]) in raylib's layout.
 std::array<vec4, 6> frustum_planes(const Matrix &m) {
@@ -1338,7 +1374,10 @@ Matrix render_shadow(context &ctx) {
   const f32 range = std::max(sun.shadow_range, 0.1f);
   const vec3 dir = normalize(sun.direction);
   const vec3 forward = normalize(s.camera.target - s.camera.position);
-  vec3 focus = s.camera.position + forward * (range * 0.5f);
+  // An orthographic eye usually sits far back; the shadow goes round what it
+  // looks at.
+  vec3 focus = s.camera.projection == camera3d_orthographic ? s.camera.target
+                                                            : s.camera.position + forward * (range * 0.5f);
   // Snap the box to whole shadow texels across the light, so moving the
   // camera does not make the shadow edges crawl.
   const vec3 helper = std::fabs(dir.y) < 0.99f ? vec3{0.0f, 1.0f, 0.0f} : vec3{0.0f, 0.0f, 1.0f};
@@ -1820,7 +1859,8 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   if (c.culled && (c.is_shape || c.mesh != nullptr))
     return;
   if (c.is_shape) {
-    draw_shape(s, c, view_proj, false, {}, false);
+    const bool ortho = s.camera.projection == camera3d_orthographic;
+    draw_shape(s, c, view_proj, ortho, ortho ? normalize(s.camera.target - s.camera.position) : vec3{}, false);
     return;
   }
   if (c.buffer.id != 0) {
@@ -2040,7 +2080,9 @@ void place_model(const render3d_state &s, const model_slot &m, draw3d_cmd &c, f3
   const f32 dist = length(center - s.camera.position);
   if (dist <= radius)
     return;
-  const f32 share = radius / (dist * s.tan_half_fovy);
+  const f32 share = s.camera.projection == camera3d_orthographic
+                        ? radius / std::max(s.camera.ortho_height * 0.5f, 1e-4f)
+                        : radius / (dist * s.tan_half_fovy);
   f32 below = m.lod_screen * lod_scale;
   while (c.lod < m.lods.size() && share < below) {
     c.lod++;
@@ -2290,8 +2332,9 @@ void end_3d(context &ctx) {
   rlEnableDepthTest();
   // Only the world target's depth feeds post_fx (depth of field).
   if (!offscreen) {
-    s.depth_near = s.camera.near_plane;
-    s.depth_far = s.camera.far_plane;
+    const vec2 planes = render3d_depth_planes(s.camera);
+    s.depth_near = planes.x;
+    s.depth_far = planes.y;
     s.depth_inv_view_proj = MatrixInvert(MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
     s.depth_drawn = true;
   }

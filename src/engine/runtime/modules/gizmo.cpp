@@ -95,8 +95,9 @@ void gizmo_draw_3d(context &ctx, const camera3d &view) {
   to_raylib(view.position, camera.position);
   to_raylib(view.target, camera.target);
   to_raylib(view.up, camera.up);
-  camera.fovy = view.fovy;
-  camera.projection = CAMERA_PERSPECTIVE;
+  const bool ortho = view.projection == camera3d_orthographic;
+  camera.fovy = ortho ? view.ortho_height : view.fovy;
+  camera.projection = ortho ? CAMERA_ORTHOGRAPHIC : CAMERA_PERSPECTIVE;
   const vec2 screen = screen_size(ctx);
   const vec3 forward = view.target - view.position;
   for (const gizmo_mark3d &m : g.marks3d) {

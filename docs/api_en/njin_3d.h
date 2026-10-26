@@ -13,7 +13,16 @@ struct context;
 /// @addtogroup grp_3d
 /// @{
 
-/// Perspective camera for begin_3d().
+/// Projection of a camera3d.
+enum camera3d_projection {
+  camera3d_perspective,  ///< Perspective: far things look smaller, by `fovy` (the default).
+  /// Parallel (orthographic): things keep their size near or far, by `ortho_height`.
+  /// `position` is still where the eye sits (for shadows, fog, sound): put it
+  /// back far enough to see the whole scene within `near_plane`..`far_plane`.
+  camera3d_orthographic,
+};
+
+/// Camera for begin_3d(): perspective (the default) or parallel, see `projection`.
 ///
 /// Y axis up, right-handed (like glTF and raylib): looking down `-z`, `+x` is
 /// to the right.
@@ -28,6 +37,13 @@ struct camera3d {
   /// lights) in this draw. Turn it off for a secondary scene (e.g. a model spinning in a
   /// menu) that draws only what the game calls.
   bool entities = true;
+  /// Projection. camera3d_orthographic looks along parallel rays: far things do
+  /// not shrink, for strategy, city builders, tilted puzzles and isometric views
+  /// built in 3D. Then `fovy` is ignored and `ortho_height` is the height of the view.
+  camera3d_projection projection = camera3d_perspective;
+  /// Height of the view of camera3d_orthographic, in world units (the width
+  /// follows the aspect ratio). Smaller zooms in.
+  f32 ortho_height = 10.0f;
 };
 
 /// Starts 3D drawing through `camera`. Ends with end_3d().

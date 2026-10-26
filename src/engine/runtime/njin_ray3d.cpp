@@ -63,10 +63,15 @@ ray3d camera3d_ray(const context &ctx, const camera3d &camera, vec2 screen) {
   const vec2 size = screen_size(ctx);
   vec3 f, r, u;
   basis(camera, f, r, u);
-  const f32 h = std::tan(camera.fovy * 0.5f * DEG2RAD);
   const f32 aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
   const f32 x = size.x > 0.0f ? 2.0f * screen.x / size.x - 1.0f : 0.0f;
   const f32 y = size.y > 0.0f ? 1.0f - 2.0f * screen.y / size.y : 0.0f;
+  if (camera.projection == camera3d_orthographic) {
+    // Parallel rays, each from the eye's plane at the pixel's place on it.
+    const f32 half = camera.ortho_height * 0.5f;
+    return ray3d{.origin = camera.position + r * (x * half * aspect) + u * (y * half), .direction = f};
+  }
+  const f32 h = std::tan(camera.fovy * 0.5f * DEG2RAD);
   return ray3d{.origin = camera.position, .direction = normalize(f + r * (x * h * aspect) + u * (y * h))};
 }
 
@@ -80,8 +85,10 @@ vec2 camera3d_to_screen(const context &ctx, const camera3d &camera, vec3 point, 
     *visible = depth > 0.0f;
   if (depth <= 0.0f)
     return vec2{0.0f, 0.0f};
-  const f32 h = std::tan(camera.fovy * 0.5f * DEG2RAD);
   const f32 aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
+  // How far from the middle of the screen one unit across is at that depth.
+  const f32 h = camera.projection == camera3d_orthographic ? camera.ortho_height * 0.5f / depth
+                                                           : std::tan(camera.fovy * 0.5f * DEG2RAD);
   const f32 x = dot(d, r) / (depth * h * aspect);
   const f32 y = dot(d, u) / (depth * h);
   return vec2{(x + 1.0f) * 0.5f * size.x, (1.0f - y) * 0.5f * size.y};

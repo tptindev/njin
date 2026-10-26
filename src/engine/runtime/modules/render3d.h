@@ -252,6 +252,15 @@ struct shape_frame {
 };
 shape_frame shape3d_frame(const shape3d &shape);
 
+// The near and far planes as the depth shaders read them (`planes`): the near
+// plane is negated for an orthographic camera, whose depth is linear.
+vec2 render3d_depth_planes(const camera3d &camera);
+
+// Where the full-screen passes put the eye: the camera's position, or for an
+// orthographic camera a point far back along the view, so the direction from
+// the eye to any point is the camera's forward.
+vec3 render3d_post_eye(const camera3d &camera);
+
 // Closes a 3D pass the game left open. Called at the end of the world pass.
 void render3d_close(context &ctx);
 

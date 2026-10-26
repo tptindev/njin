@@ -10,6 +10,12 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Orthographic 3D camera: `camera3d::projection = camera3d_orthographic` and
+  `camera3d::ortho_height`. Shadows, SDF shapes, the depth-based effects
+  (SSAO, reflections, depth of field, decals, TAA), model LOD, gizmo labels,
+  `camera3d_ray()` / `camera3d_to_screen()` and `camera_shake()` follow it.
+  Also in Lua (`ortho`, `ortho_height`). Cameras that do not set it are
+  unchanged.
 - Memory manager. Every C++ `new`/`delete` and every raylib allocation goes
   through one counting allocator (`src/engine/mem`, built into the raylib
   target). `config::mem_budget_mb` (soft limit: warning, then the

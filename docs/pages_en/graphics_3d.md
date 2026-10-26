@@ -16,9 +16,21 @@ everything below in a real game.
 ## One 3D draw
 
 Every 3D draw call sits between begin_3d() and end_3d(), inside `phase_render`. njin::camera3d is a
-perspective camera: `position`, `target`, `up` and the vertical field of view `fovy`. Y axis up,
-right-handed like glTF: looking down `-z`, `+x` is to the right. The aspect ratio comes from
+perspective camera by default: `position`, `target`, `up` and the vertical field of view `fovy`. Y axis
+up, right-handed like glTF: looking down `-z`, `+x` is to the right. The aspect ratio comes from
 screen_size(), so a virtual screen size still works.
+
+`projection = camera3d_orthographic` looks along parallel rays: far things do not shrink, which suits
+strategy games, city builders, tilted puzzles and isometric views built in 3D. Then `ortho_height` is
+the height of the view in world units (smaller zooms in) and `fovy` is ignored. Shadows, SDF shapes,
+depth-based effects, picking and camera_shake() (sliding instead of turning) all follow it.
+
+@code
+// An isometric view: tilted down, turned 45 degrees, the eye far enough back to see the whole scene.
+const njin::camera3d iso{.position = focus + njin::vec3{20, 16, 20}, .target = focus, .far_plane = 100,
+                         .projection = njin::camera3d_orthographic, .ortho_height = 12};
+njin::begin_3d(ctx, iso);
+@endcode
 
 Draw calls are **recorded** and actually drawn at end_3d(), in the order they were called: the
 engine first computes shadows from everything, then draws each shape. So the order of
@@ -799,7 +811,7 @@ reg.emplace<njin::model3d>(hero, njin::model3d{.model = robot, .pose = {.anim = 
 
 | Function | What it does |
 |---|---|
-| camera3d_ray() | A ray from the camera through a screen point, e.g. mouse_pos() |
+| camera3d_ray() | A ray from the camera through a screen point, e.g. mouse_pos(); with a parallel camera every ray has the view's direction and starts on the eye's plane |
 | camera3d_to_screen() | A 3D point projected to the screen, to place a label or a health bar |
 | ray3d_box(), ray3d_sphere(), ray3d_plane() | A ray against a box, sphere, plane |
 | ray3d_shape() | A ray against an SDF shape, exactly as draw_shape3d() draws it |

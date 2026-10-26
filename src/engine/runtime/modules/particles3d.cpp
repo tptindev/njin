@@ -290,7 +290,8 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       if (b.stretch > 0.0f && length_sq(p.velocity) > 1e-8f) {
         // A streak: along the flight as the camera sees it, from where the
         // particle was `stretch` seconds ago to a little past where it is.
-        const vec3 eye = normalize(p.pos - view.position);
+        const vec3 eye = view.projection == camera3d_orthographic ? normalize(view.target - view.position)
+                                                                  : normalize(p.pos - view.position);
         vec3 along = p.velocity - eye * dot(p.velocity, eye);
         const f32 run = length(along);
         if (run > 1e-6f) {

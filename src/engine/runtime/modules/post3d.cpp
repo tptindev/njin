@@ -40,6 +40,9 @@ vec3 world_at(vec2 uv, float d) {
   return w.xyz / w.w;
 }
 float linear_depth(float d) {
+  // A negative near plane marks an orthographic camera, whose depth is linear.
+  if (planes.x < 0.0)
+    return -planes.x + d * (planes.y + planes.x);
   float z = d * 2.0 - 1.0;
   return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
 }
@@ -775,8 +778,8 @@ pass_view current_view(context &ctx) {
   v.proj = rlGetMatrixProjection();
   v.view_proj = MatrixMultiply(v.view, v.proj);
   v.inv = MatrixInvert(v.view_proj);
-  v.planes = {s.camera.near_plane, s.camera.far_plane};
-  v.eye = s.camera.position;
+  v.planes = render3d_depth_planes(s.camera);
+  v.eye = render3d_post_eye(s.camera);
   v.target = ctx_ref<camera_post>(ctx)->target.id;
   v.w = ctx_ref<camera_post>(ctx)->target.texture.width;
   v.h = ctx_ref<camera_post>(ctx)->target.texture.height;

@@ -15,9 +15,21 @@ thứ dưới đây trong một game thật.
 
 ## Một lần vẽ 3D
 
-Mọi lệnh vẽ 3D nằm giữa begin_3d() và end_3d(), trong `phase_render`. njin::camera3d là camera phối
-cảnh: `position`, `target`, `up` và góc nhìn dọc `fovy`. Trục y hướng lên, hệ tay phải như glTF: nhìn
+Mọi lệnh vẽ 3D nằm giữa begin_3d() và end_3d(), trong `phase_render`. njin::camera3d mặc định là camera
+phối cảnh: `position`, `target`, `up` và góc nhìn dọc `fovy`. Trục y hướng lên, hệ tay phải như glTF: nhìn
 theo `-z` thì `+x` ở bên phải. Tỉ lệ khung hình lấy theo screen_size(), nên màn hình ảo vẫn đúng.
+
+`projection = camera3d_orthographic` là nhìn song song: vật xa không nhỏ đi, hợp với game chiến thuật,
+xây thành phố, puzzle nhìn nghiêng và góc isometric dựng bằng 3D. Khi đó `ortho_height` là chiều cao vùng
+nhìn theo đơn vị thế giới (nhỏ đi là phóng to) và `fovy` bị bỏ qua. Bóng đổ, hình SDF, hiệu ứng theo độ
+sâu, chọn vật và camera_shake() (trượt thay vì xoay) đều theo phép chiếu này.
+
+@code
+// Góc nhìn isometric: chếch xuống, xoay 45 độ, mắt lùi đủ xa để thấy cả cảnh.
+const njin::camera3d iso{.position = focus + njin::vec3{20, 16, 20}, .target = focus, .far_plane = 100,
+                         .projection = njin::camera3d_orthographic, .ortho_height = 12};
+njin::begin_3d(ctx, iso);
+@endcode
 
 Lệnh vẽ được **ghi lại** và vẽ thật ở end_3d(), theo đúng thứ tự gọi: trước hết engine tính bóng đổ
 từ tất cả, rồi mới vẽ từng hình. Vì vậy thứ tự material3d_set(), fx3d_set() và lệnh vẽ vẫn có ý nghĩa
@@ -769,7 +781,7 @@ reg.emplace<njin::model3d>(hero, njin::model3d{.model = robot, .pose = {.anim = 
 
 | Hàm | Làm gì |
 |---|---|
-| camera3d_ray() | Tia từ camera qua một điểm trên màn hình, ví dụ mouse_pos() |
+| camera3d_ray() | Tia từ camera qua một điểm trên màn hình, ví dụ mouse_pos(); với camera song song, mọi tia cùng hướng nhìn, bắt đầu từ mặt phẳng của mắt |
 | camera3d_to_screen() | Điểm 3D ra màn hình, để đặt nhãn hay thanh máu |
 | ray3d_box(), ray3d_sphere(), ray3d_plane() | Tia với hộp, cầu, mặt phẳng |
 | ray3d_shape() | Tia với hình SDF, đúng như draw_shape3d() vẽ |

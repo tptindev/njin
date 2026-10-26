@@ -74,7 +74,8 @@ void main() {
     k = smoothstep(center.w, center.w + max(focus.z, 1e-4), r);
   } else {
     float n = planes.x, f = planes.y;
-    float z = 2.0 * n * f / (f + n - d * (f - n));
+    // A negative near plane marks an orthographic camera, whose depth is linear.
+    float z = n < 0.0 ? -n + (d * 0.5 + 0.5) * (f + n) : 2.0 * n * f / (f + n - d * (f - n));
     k = smoothstep(focus.y, focus.y + max(focus.z, 1e-4), abs(z - focus.x));
   }
   vec3 col = mix(sharp, soft, k);

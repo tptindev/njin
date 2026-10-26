@@ -101,6 +101,8 @@ camera3d camera_of(const sol::table &t) {
   c.near_plane = num(t, "near", c.near_plane);
   c.far_plane = num(t, "far", c.far_plane);
   c.entities = flag(t, "entities", c.entities);
+  c.projection = flag(t, "ortho", false) ? camera3d_orthographic : camera3d_perspective;
+  c.ortho_height = num(t, "ortho_height", c.ortho_height);
   return c;
 }
 
