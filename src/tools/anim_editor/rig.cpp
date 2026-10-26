@@ -95,7 +95,8 @@ void sample_channel(const cgltf_animation_sampler &s, int width, float time, flo
       out[c] = a[c] + (b[c] - a[c]) * u;
 }
 
-AnimationClip import_clip(const cgltf_data *data, const cgltf_animation &anim, const Rig &rig, int index) {
+// `cut` is set when the clip had more keys than max_keys (the rest are left out).
+AnimationClip import_clip(const cgltf_data *data, const cgltf_animation &anim, const Rig &rig, int index, bool &cut) {
   AnimationClip clip;
   clip.name = anim.name && anim.name[0] ? std::string(anim.name).substr(0, 127) : "Animation " + std::to_string(index + 1);
   float duration = 0;
@@ -147,8 +148,10 @@ AnimationClip import_clip(const cgltf_data *data, const cgltf_animation &anim, c
       Matrix local = MatrixMultiply(MatrixMultiply(MatrixScale(b.rest_scale.x, b.rest_scale.y, b.rest_scale.z),
                                                    QuaternionToMatrix({rv[0], rv[1], rv[2], rv[3]})),
                                     MatrixTranslate(tv[0], tv[1], tv[2]));
-      if (!set_key(clip, key_from_local(rig, bone, time, local)))
+      if (!set_key(clip, key_from_local(rig, bone, time, local))) {
+        cut = true;
         break;
+      }
     }
   }
   return clip;
@@ -227,11 +230,18 @@ bool load_rig(const std::string &path, Rig &rig, std::vector<AnimationClip> &cli
   }
   out.bounds = {lo, hi};
   std::vector<AnimationClip> imported;
-  for (cgltf_size a = 0; a < data->animations_count && imported.size() < max_clips; ++a)
-    imported.push_back(import_clip(data, data->animations[a], out, (int)a));
+  std::string cut_names;
+  for (cgltf_size a = 0; a < data->animations_count && imported.size() < max_clips; ++a) {
+    bool cut = false;
+    imported.push_back(import_clip(data, data->animations[a], out, (int)a, cut));
+    if (cut)
+      cut_names += (cut_names.empty() ? "" : ", ") + imported.back().name;
+  }
   rig = std::move(out);
   clips = std::move(imported);
   error.clear();
+  if (!cut_names.empty())
+    error = "Clips cut short at " + std::to_string(max_keys) + " keys (later bones have none): " + cut_names;
   return true;
 }
 

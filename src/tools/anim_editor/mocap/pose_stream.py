@@ -35,9 +35,12 @@ View packet (little-endian, version 1), one UDP datagram per frame, at most VIEW
   u16      width, u16 height of the JPEG
   u32      JPEG size in bytes, then the JPEG
 
-Hands are given as the person's left/right, matched to the pose wrists in the
-image, not MediaPipe's handedness label (which assumes a mirrored selfie image).
---mirror flips the image first, so the character moves like a mirror image.
+Hands are tracked in a square cut around each pose wrist (one Hand Landmarker
+per side), so that a hand stays large enough for every finger joint even when
+the whole body is in view; they are given as the person's left/right by the
+wrist they were cut around, not MediaPipe's handedness label (which assumes a
+mirrored selfie image). --mirror flips the image first, so the character moves
+like a mirror image.
 
 MediaPipe is Apache-2.0 (https://github.com/google-ai-edge/mediapipe).
 """
@@ -52,6 +55,7 @@ import time
 
 import cv2
 import mediapipe as mp
+import numpy as np
 from mediapipe.tasks.python import BaseOptions, vision
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -62,6 +66,10 @@ VIEW_MAX = 60000  # bytes in one datagram, header included
 POSE_EDGES = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16), (11, 23), (12, 24), (23, 24), (23, 25), (25, 27),
               (24, 26), (26, 28), (27, 29), (29, 31), (27, 31), (28, 30), (30, 32), (28, 32),
               (15, 17), (15, 19), (17, 19), (16, 18), (16, 20), (18, 20), (2, 7), (5, 8), (2, 5)]
+HAND_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (5, 9), (9, 10), (10, 11), (11, 12),
+              (9, 13), (13, 14), (14, 15), (15, 16), (13, 17), (0, 17), (17, 18), (18, 19), (19, 20)]
+# Pose points of each side: wrist, elbow, pinky and index knuckles.
+HAND_POSE = ((15, 13, 17, 19), (16, 14, 18, 20))
 
 
 def packet(frame_no, t, pose_world, vis, left, right, mirrored):
@@ -81,7 +89,36 @@ def packet(frame_no, t, pose_world, vis, left, right, mirrored):
     return bytes(out)
 
 
-def view_packet(img, img_pts, frame_no, tracking, width):
+def hand_box(img_pts, vis, side, w, h):
+    """The square (x, y, size) in pixels around one hand, from the pose; None if the wrist is not seen."""
+    wrist, elbow, pinky, index = HAND_POSE[side]
+    if min(vis[wrist], vis[pinky], vis[index]) < 0.3:
+        return None
+    px = lambda i: (img_pts[i][0] * w, img_pts[i][1] * h)
+    wx, wy = px(wrist)
+    kx = (px(pinky)[0] + px(index)[0]) / 2 - wx
+    ky = (px(pinky)[1] + px(index)[1]) / 2 - wy
+    reach = (kx * kx + ky * ky) ** 0.5
+    forearm = ((px(elbow)[0] - wx) ** 2 + (px(elbow)[1] - wy) ** 2) ** 0.5
+    # The pose's knuckles are near the wrist; fingers reach about three times
+    # as far. The forearm keeps the box large when the hand is seen end on.
+    size = max(4.0 * reach, 0.9 * forearm, 48.0)
+    cx, cy = (wx + kx / reach * 0.35 * size, wy + ky / reach * 0.35 * size) if reach > 1e-3 else (wx, wy)
+    return int(cx - size / 2), int(cy - size / 2), int(size)
+
+
+def crop(rgb, box):
+    """The box cut from the image, black where it leaves the image."""
+    x, y, s = box
+    h, w = rgb.shape[:2]
+    out = np.zeros((s, s, 3), dtype=rgb.dtype)
+    x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + s, w), min(y + s, h)
+    if x1 > x0 and y1 > y0:
+        out[y0 - y:y1 - y, x0 - x:x1 - x] = rgb[y0:y1, x0:x1]
+    return out
+
+
+def view_packet(img, img_pts, hand_pts, frame_no, tracking, width):
     """The image scaled to `width` with the skeleton on it, as JPEG in one datagram; None if it cannot fit."""
     h, w = img.shape[:2]
     for scale in (1.0, 0.75, 0.5):
@@ -89,7 +126,7 @@ def view_packet(img, img_pts, frame_no, tracking, width):
         vh = max(16, int(h * vw / w))
         small = cv2.resize(img, (vw, vh), interpolation=cv2.INTER_AREA)
         if img_pts is not None:
-            draw_skeleton(small, img_pts)  # after scaling, so the lines stay 2 px wide
+            draw_skeleton(small, img_pts, hand_pts)  # after scaling, so the lines stay 2 px wide
         for quality in (70, 55, 40):
             ok, jpeg = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, quality])
             if not ok:
@@ -100,12 +137,16 @@ def view_packet(img, img_pts, frame_no, tracking, width):
     return None
 
 
-def draw_skeleton(img, img_pts):
+def draw_skeleton(img, img_pts, hand_pts=()):
     h, w = img.shape[:2]
     thick = max(2, w // 400)
     for a, b in POSE_EDGES:
         cv2.line(img, (int(img_pts[a][0] * w), int(img_pts[a][1] * h)),
                  (int(img_pts[b][0] * w), int(img_pts[b][1] * h)), (80, 220, 255), thick)
+    for pts in hand_pts:
+        for a, b in HAND_EDGES:
+            cv2.line(img, (int(pts[a][0] * w), int(pts[a][1] * h)), (int(pts[b][0] * w), int(pts[b][1] * h)),
+                     (120, 255, 120), max(1, thick // 2))
 
 
 def frames_from(args):
@@ -171,9 +212,11 @@ def main():
         hand_model = os.path.join(HERE, "hand_landmarker.task")
         if not os.path.exists(hand_model):
             sys.exit("missing %s: run setup.bat" % hand_model)
-        hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+        # One per side: each sees only the cut around its own wrist.
+        hands = [vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=hand_model), running_mode=vision.RunningMode.VIDEO,
-            num_hands=2))
+            num_hands=1, min_hand_detection_confidence=0.4, min_hand_presence_confidence=0.4,
+            min_tracking_confidence=0.4)) for _ in range(2)]
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dump = open(args.dump, "wb") if args.dump else None
@@ -201,31 +244,35 @@ def main():
             world = [(p.x, p.y, p.z) for p in res.pose_world_landmarks[0]]
             vis = [p.visibility if p.visibility is not None else 1.0 for p in res.pose_world_landmarks[0]]
             img_pts = [(p.x, p.y) for p in res.pose_landmarks[0]]
-        left = right = None
+        found = [None, None]
+        hand_pts = []
         if hands is not None and img_pts is not None:
-            hr = hands.detect_for_video(image, ms)
-            for norm, w in zip(hr.hand_landmarks, hr.hand_world_landmarks):
-                wx, wy = norm[0].x, norm[0].y
-                dl = (wx - img_pts[15][0]) ** 2 + (wy - img_pts[15][1]) ** 2
-                dr = (wx - img_pts[16][0]) ** 2 + (wy - img_pts[16][1]) ** 2
-                pts = [(p.x, p.y, p.z) for p in w]
-                if dl < dr and left is None:
-                    left = pts
-                elif right is None:
-                    right = pts
+            h, w = rgb.shape[:2]
+            for side in (0, 1):
+                box = hand_box(img_pts, vis, side, w, h)
+                if box is None:
+                    continue
+                cut = mp.Image(image_format=mp.ImageFormat.SRGB, data=crop(rgb, box))
+                hr = hands[side].detect_for_video(cut, ms)
+                if hr.hand_world_landmarks:
+                    # World landmarks do not change with the cut: it is only moved and scaled.
+                    found[side] = [(p.x, p.y, p.z) for p in hr.hand_world_landmarks[0]]
+                    x, y, s = box
+                    hand_pts.append([((x + p.x * s) / w, (y + p.y * s) / h) for p in hr.hand_landmarks[0]])
+        left, right = found
         data = packet(frame_no, t, world, vis, left, right, args.mirror)
         sock.sendto(data, ("127.0.0.1", args.port))
         if dump:
             dump.write(struct.pack("<I", len(data)) + data)
         if args.view and time.monotonic() - view_at >= 1.0 / max(args.view_fps, 1.0):
             view_at = time.monotonic()
-            data = view_packet(img, img_pts, frame_no, world is not None, args.view_width)
+            data = view_packet(img, img_pts, hand_pts, frame_no, world is not None, args.view_width)
             if data:
                 sock.sendto(data, ("127.0.0.1", view_port))
         frame_no += 1
         if args.preview:
             if img_pts is not None:
-                draw_skeleton(img, img_pts)
+                draw_skeleton(img, img_pts, hand_pts)
             now = time.monotonic()
             cv2.putText(img, "%.0f fps  %s" % (1.0 / max(now - shown, 1e-3), "tracking" if world else "no body"),
                         (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)

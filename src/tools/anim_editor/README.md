@@ -76,7 +76,9 @@ njin::draw_model_anim(ctx, hero, {.position = pos}, {.anim = walk, .time = t});
 
 **Giới hạn hiện tại:** chỉ skin đầu tiên của file; không key scale; không sửa rig, tên xương hay
 trọng số skin; clip CUBICSPLINE/STEP thành key theo từng khung; không có IK trong editor. Viewport
-dùng skin CPU của raylib và vẽ không chiếu sáng. Tối đa 64 clip và 10000 key mỗi clip.
+dùng skin CPU của raylib và vẽ không chiếu sáng. Tối đa 64 clip và 200000 key mỗi clip (khoảng 90 giây
+cho 73 xương, tính cả ngón tay, ở 30 FPS). Clip trong file glTF dài hơn thế bị cắt và editor báo tên
+clip đó khi mở model (xương nằm sau trong cây, thường là ngón tay, sẽ không có key).
 ImGuizmo (MIT) nằm trong `third_party/ImGuizmo`, cgltf_write (MIT) trong `third_party/cgltf`.
 
 ## Bắt chuyển động bằng webcam (Mocap)
@@ -139,6 +141,13 @@ xương được trỏ theo đoạn khớp tương ứng (vai → khuỷu, khu�
 - Bàn tay: lòng bàn tay (cổ tay, gốc ngón trỏ, gốc ngón út) từ model bàn tay khi bật **Hands**; khi
   tắt, từ hai điểm đốt ngón trỏ và ngón út của model cơ thể (kém chính xác hơn). Từng đốt ngón quay
   theo góc ngắn nhất.
+- Ngón tay: model bàn tay không chạy trên cả khung hình mà trên một ô vuông cắt quanh từng cổ tay
+  (theo cổ tay, khuỷu và hai đốt ngón của model cơ thể), mỗi bên một model. Khi đứng xa để thấy cả
+  người, bàn tay chỉ còn vài chục điểm ảnh, quá nhỏ cho MediaPipe. Thử với một ảnh toàn thân đặt
+  trong khung 1280×720 ở ba cỡ (bàn tay rộng khoảng 50, 38 và 25 điểm ảnh): chạy trên cả khung
+  hình không thấy bàn tay nào, còn trên ô cắt thì thấy cả hai bàn tay ở cả ba cỡ. Các khớp ngón tay
+  được vẽ màu xanh lá trong cửa sổ Camera. Bàn tay mất dấu không quá 0,25 giây thì giữ nguyên ngón
+  tay của lần thấy cuối, để ngón tay không giật về tư thế của clip.
 
 Thử trên 10 clip có sẵn của một rig (khớp tạo từ chính clip, không qua camera), so với cách cũ chỉ
 quay theo góc ngắn nhất: độ lệch góc xoay đầy đủ trung bình của ống chân giảm từ 17,7° xuống 2,3°,
@@ -154,8 +163,8 @@ bị che dễ sai (thử với hình dựng từ clip có sẵn: lệch trung v�
 có dịch chuyển gốc (đi khắp phòng không làm nhân vật đi), không khóa chân xuống sàn, không có xương
 vai (xương đòn: nhún vai không hiện). Độ xoắn của cánh tay khi duỗi thẳng không đọc được (không có mặt
 phẳng khuỷu). Mắt nằm cao hơn tai một chút ở người thật, nên đầu có thể hơi ngẩng lên khi nhìn thẳng:
-cách tính đầu mới chưa được thử với camera thật. Bật bàn tay làm MediaPipe chậm hẳn (khoảng 8
-khung/giây so với 30 trên CPU thử).
+cách tính đầu mới chưa được thử với camera thật. Bật bàn tay làm MediaPipe chậm hẳn: hai bàn tay thêm
+khoảng 48 ms mỗi khung, cả thảy chừng 11 khung/giây trên CPU thử (khoảng 25 khi không bật).
 
 ## Kiểm tra
 

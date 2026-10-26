@@ -48,6 +48,11 @@ struct OneEuro {
 struct MocapSmoother {
   std::array<OneEuro, 33> pose;
   std::array<std::array<OneEuro, 21>, 2> hand;
+  // A hand MediaPipe misses for at most `hold` seconds keeps its last fingers,
+  // instead of the fingers jumping back to the clip's pose for a frame.
+  float hold = 0.25f;
+  std::array<std::array<Vector3, 21>, 2> held{};
+  std::array<double, 2> seen{-1, -1}; // capture time a hand was last found; -1 none
   void set(float min_cutoff, float beta);
   void reset();
   MocapFrame filter(const MocapFrame &f);

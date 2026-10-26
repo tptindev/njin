@@ -302,6 +302,7 @@ void MocapSmoother::reset() {
   for (auto &h : hand)
     for (auto &f : h)
       f.started = false;
+  seen = {-1, -1};
 }
 MocapFrame MocapSmoother::filter(const MocapFrame &in) {
   MocapFrame f = in;
@@ -310,12 +311,20 @@ MocapFrame MocapSmoother::filter(const MocapFrame &in) {
       f.points[i] = pose[i].filter(in.points[i], in.time);
   for (int h = 0; h < 2; ++h) {
     if (!f.hands[h]) {
+      if (seen[h] >= 0 && in.time >= seen[h] && in.time - seen[h] <= hold) {
+        f.hands[h] = true;
+        f.hand[h] = held[h];
+        continue;
+      }
       for (auto &e : hand[h])
         e.started = false;
+      seen[h] = -1;
       continue;
     }
     for (int i = 0; i < 21; ++i)
       f.hand[h][i] = hand[h][i].filter(in.hand[h][i], in.time);
+    held[h] = f.hand[h];
+    seen[h] = in.time;
   }
   return f;
 }
@@ -644,16 +653,25 @@ MocapFrame frame_from_pose(const Rig &rig, const MocapRig &m, const std::vector<
 }
 
 int reduce_keys(AnimationClip &clip, const std::vector<char> &bones, float from, float to, float degrees) {
+  // Keys are sorted by bone, then time: each bone's range is found by search
+  // and the dropped keys go in one pass, so long takes stay quick.
+  std::vector<char> drop_at(clip.keys.size(), 0);
   int removed = 0;
   for (int b = 0; b < (int)bones.size(); ++b) {
     if (!bones[b])
       continue;
-    std::vector<Keyframe> keys;
-    for (const auto &k : clip.keys)
-      if (k.bone == b && k.time >= from - 1e-5f && k.time <= to + 1e-5f)
-        keys.push_back(k);
-    if (keys.size() < 3)
+    const auto first = std::lower_bound(clip.keys.begin(), clip.keys.end(), std::pair{b, from - 1e-5f},
+                                        [](const Keyframe &k, std::pair<int, float> v) {
+                                          return k.bone < v.first || (k.bone == v.first && k.time < v.second);
+                                        });
+    std::vector<size_t> at;
+    for (auto it = first; it != clip.keys.end() && it->bone == b && it->time <= to + 1e-5f; ++it)
+      at.push_back((size_t)(it - clip.keys.begin()));
+    if (at.size() < 3)
       continue;
+    std::vector<Keyframe> keys;
+    for (size_t i : at)
+      keys.push_back(clip.keys[i]);
     auto fits = [&](size_t a, size_t c) {
       const Quaternion qa = euler_quaternion(keys[a].rotation), qc = euler_quaternion(keys[c].rotation);
       for (size_t j = a + 1; j < c; ++j) {
@@ -676,8 +694,14 @@ int reduce_keys(AnimationClip &clip, const std::vector<char> &bones, float from,
         last = i;
     }
     for (size_t i = 0; i < keys.size(); ++i)
-      if (drop[i] && remove_key(clip, b, keys[i].time))
+      if (drop[i]) {
+        drop_at[at[i]] = 1;
         ++removed;
+      }
+  }
+  if (removed) {
+    size_t i = 0;
+    std::erase_if(clip.keys, [&](const Keyframe &) { return drop_at[i++] != 0; });
   }
   return removed;
 }
@@ -780,8 +804,46 @@ int mocap_unit_test() {
       corner = corner || std::fabs(k.time - 0.5f) < 1e-4f;
     check(corner, "key reduction keeps the corner key");
   }
+  // Merging keys: same bone and time replaced, order kept, the limit respected.
+  {
+    AnimationClip c;
+    c.duration = 2;
+    set_key(c, {1, 0, {}, {10, 0, 0}});
+    set_key(c, {1, 1, {}, {20, 0, 0}});
+    set_key(c, {3, 0.5f, {}, {}});
+    check(merge_keys(c, {{1, 1, {}, {99, 0, 0}}, {0, 0.5f, {}, {}}, {1, 0.5f, {}, {}}, {1, 1.00005f, {}, {77, 0, 0}}}),
+          "merge keys");
+    bool sorted = std::is_sorted(c.keys.begin(), c.keys.end(), [](const Keyframe &a, const Keyframe &b) {
+      return a.bone == b.bone ? a.time < b.time : a.bone < b.bone;
+    });
+    check(c.keys.size() == 5 && sorted, "merged keys sorted, without duplicates");
+    check(c.keys[3].bone == 1 && c.keys[3].rotation.x == 77, "a merged key replaces the one at its bone and time");
+    std::vector<Keyframe> many((size_t)max_keys, Keyframe{});
+    for (size_t i = 0; i < many.size(); ++i)
+      many[i] = {(int)(i % 100) + 100, (float)(i / 100) * 0.0005f, {}, {}};
+    AnimationClip d = c;
+    d.duration = 600;
+    check(!merge_keys(d, many) && d.keys.size() == c.keys.size(), "merge past the key limit leaves the clip");
+  }
+  // A hand missed for a moment keeps its fingers; missed longer, it is let go.
+  {
+    MocapSmoother s;
+    MocapFrame f;
+    f.pose = true;
+    f.hands[1] = true;
+    f.hand[1][8] = {0.1f, 0.2f, 0.3f};
+    s.filter(f);
+    MocapFrame gap = f;
+    gap.hands[1] = false;
+    gap.hand[1] = {};
+    gap.time = 0.1;
+    const MocapFrame held = s.filter(gap);
+    check(held.hands[1] && Vector3Distance(held.hand[1][8], {0.1f, 0.2f, 0.3f}) < 1e-6f, "a missed hand is held");
+    gap.time = 0.5;
+    check(!s.filter(gap).hands[1], "a hand missed too long is let go");
+  }
   if (failures == 0)
-    std::printf("PASS: mocap packet, mirror, One Euro filter, key reduction\n");
+    std::printf("PASS: mocap packet, mirror, One Euro filter, key reduction, key merge, hand hold\n");
   return failures == 0 ? 0 : 1;
 }
 } // namespace anim_editor

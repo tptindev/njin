@@ -19,6 +19,40 @@ bool set_key(AnimationClip &clip, Keyframe key) {
   clip.keys.insert(std::lower_bound(clip.keys.begin(), clip.keys.end(), key, key_less), key);
   return true;
 }
+bool merge_keys(AnimationClip &clip, std::vector<Keyframe> keys) {
+  auto same = [](const Keyframe &a, const Keyframe &b) { return a.bone == b.bone && std::abs(a.time - b.time) < 0.0001f; };
+  for (auto &k : keys)
+    k.time = std::clamp(k.time, 0.0f, clip.duration);
+  std::stable_sort(keys.begin(), keys.end(), key_less);
+  // Of new keys at one bone and time, the last given wins.
+  std::vector<Keyframe> add;
+  for (const auto &k : keys)
+    if (!add.empty() && same(add.back(), k))
+      add.back() = k;
+    else
+      add.push_back(k);
+  std::vector<Keyframe> out;
+  out.reserve(clip.keys.size() + add.size());
+  size_t i = 0, j = 0;
+  bool last_new = false;
+  while (i < clip.keys.size() || j < add.size()) {
+    if (i < clip.keys.size() && j < add.size() && same(clip.keys[i], add[j]))
+      ++i; // replaced
+    else if (j == add.size() || (i < clip.keys.size() && key_less(clip.keys[i], add[j]))) {
+      if (!(last_new && same(out.back(), clip.keys[i]))) // replaced by the new key just before it
+        out.push_back(clip.keys[i]);
+      ++i;
+      last_new = false;
+    } else {
+      out.push_back(add[j++]);
+      last_new = true;
+    }
+  }
+  if (out.size() > (size_t)max_keys)
+    return false;
+  clip.keys = std::move(out);
+  return true;
+}
 bool remove_key(AnimationClip &clip, int bone, float time) {
   return std::erase_if(clip.keys, [&](const Keyframe &k) { return k.bone == bone && std::abs(k.time - time) < 0.0001f; }) > 0;
 }

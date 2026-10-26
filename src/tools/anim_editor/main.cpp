@@ -149,7 +149,7 @@ struct App {
     if (!clip_active() || bone < 0)
       return;
     if (!set_key(doc.clips[active_clip], current_key(bone)))
-      status = "Clip key limit reached (10000).";
+      status = "Clip key limit reached (" + std::to_string(max_keys) + ").";
   }
   void commit() {
     if (!has_rig)
@@ -227,6 +227,8 @@ struct App {
     saved_path.clear();
     status = "Opened " + file + ": " + std::to_string(rig.bones.size()) + " bones, " + std::to_string(count) +
              " clip(s). Save a project to keep edits, Export to write a .glb.";
+    if (!error.empty())
+      status += " Warning: " + error;
     return true;
   }
   bool open_project(const std::string &file) {
@@ -857,6 +859,8 @@ struct Mocap {
   double record_wall = 0, reduced_at = 0;
   float record_from = 0, next_key = 0;
   int removed = 0;
+  std::vector<Keyframe> pending; // recorded keys not yet merged into the clip
+  bool full = false;
   std::string status = "Stopped.";
   std::string folder = NJIN_ANIM_EDITOR_MOCAP_DIR;
 
@@ -946,8 +950,18 @@ struct Mocap {
   std::vector<char> mask(const App &a) const {
     return mocap_mask(a.rig, rig_map, (MaskPreset)preset, a.selected_bone);
   }
+  // Merges the recorded keys into the clip in one pass: inserting them one
+  // by one into a long clip moves every key behind each of them.
+  void flush(App &a) {
+    if (!pending.empty() && a.clip_active())
+      full |= !merge_keys(a.doc.clips[a.active_clip], std::move(pending));
+    pending.clear();
+  }
   void end_recording(App &a, const char *why = nullptr) {
     if (state == recording) {
+      flush(a);
+      if (full && !why)
+        why = "Stopped at the clip's key limit after";
       char text[200];
       if (reduce && a.clip_active())
         removed += reduce_keys(a.doc.clips[a.active_clip], mask(a), record_from, a.playhead, tolerance);
@@ -1019,6 +1033,8 @@ struct Mocap {
       next_key = a.playhead;
       reduced_at = now;
       removed = 0;
+      pending.clear();
+      full = false;
       status = "Recording...";
     }
     if (state == recording && a.clip_active()) {
@@ -1031,20 +1047,21 @@ struct Mocap {
       }
       clip.duration = std::max(clip.duration, t);
       a.playhead = t;
-      bool full = false;
       if (a.live)
         for (; next_key <= t; next_key += 1.0f / clip.fps)
           for (size_t b = 0; b < a.live_mask.size(); ++b)
             if (a.live_mask[b])
-              full |= !set_key(clip, {(int)b, std::round(next_key * clip.fps) / clip.fps, a.live_pose[b].translation,
-                                      matrix_euler(QuaternionToMatrix(a.live_pose[b].rotation))});
-      // Reduce as it goes (all but the last frames), so long takes stay under the clip's key limit.
-      if (reduce && now - reduced_at > 0.5) {
-        removed += reduce_keys(clip, a.live_mask, record_from, next_key - 3.0f / clip.fps, tolerance);
+              pending.push_back({(int)b, std::round(next_key * clip.fps) / clip.fps, a.live_pose[b].translation,
+                                 matrix_euler(QuaternionToMatrix(a.live_pose[b].rotation))});
+      // Merge and reduce as it goes (all but the last frames), so long takes stay under the clip's key limit.
+      if (now - reduced_at > 0.5) {
+        flush(a);
+        if (reduce)
+          removed += reduce_keys(clip, a.live_mask, record_from, next_key - 3.0f / clip.fps, tolerance);
         reduced_at = now;
       }
       if (full)
-        end_recording(a, "Stopped at the clip's key limit (10000) after");
+        end_recording(a);
     }
   }
 };

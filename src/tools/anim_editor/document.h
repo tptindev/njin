@@ -50,11 +50,14 @@ struct Document {
 };
 
 constexpr int max_clips = 64;
-constexpr int max_keys = 10000;
+constexpr int max_keys = 200000; // 90 s of 73 bones (fingers included) at 30 fps, before key reduction.
 
 Vector3 matrix_euler(Matrix matrix);
 Quaternion euler_quaternion(Vector3 degrees);
 bool set_key(AnimationClip &clip, Keyframe key);
+// Adds many keys in one pass (a key at the same bone and time is replaced).
+// False, and the clip unchanged, when they would pass max_keys.
+bool merge_keys(AnimationClip &clip, std::vector<Keyframe> keys);
 bool remove_key(AnimationClip &clip, int bone, float time);
 std::vector<BonePose> sample_animation(int bones, const AnimationClip &clip, float time);
 float advance_animation(float time, float delta, const AnimationClip &clip, bool &playing);
@@ -70,7 +73,8 @@ bool deserialize(const njin::json_value &json, const Rig &rig, Document &out, st
 // Reads only the model path of a project, to load the rig before the clips.
 bool project_model(const njin::json_value &json, std::string &model, std::string &error);
 
-// rig.cpp: glTF through cgltf.
+// rig.cpp: glTF through cgltf. On success `error` is empty, or says which
+// clips were cut short at max_keys.
 bool load_rig(const std::string &path, Rig &rig, std::vector<AnimationClip> &clips, std::string &error);
 bool export_glb(const std::string &source, const Rig &rig, const std::vector<AnimationClip> &clips,
                 const std::string &out, std::string &error);

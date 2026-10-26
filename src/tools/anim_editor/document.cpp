@@ -148,7 +148,7 @@ bool deserialize(const J &j, const Rig &rig, Document &out, std::string &error) 
         throw std::runtime_error("Expected loop boolean");
       c.loop = v["loop"].b;
       total_keys += v["keys"].size();
-      if (!v["keys"].is(J::array) || v["keys"].size() > max_keys || total_keys > 640000)
+      if (!v["keys"].is(J::array) || v["keys"].size() > max_keys || total_keys > 2000000)
         throw std::runtime_error("Too many animation keys");
       for (const auto &k : v["keys"].items) {
         const std::string bone = name(k["bone"]);
