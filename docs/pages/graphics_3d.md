@@ -345,6 +345,43 @@ njin::particles3d_spawn(ctx, flame, nozzle, 6,
                         {.direction = dir, .stretch = 0.025f, .style = njin::particle3d_flame});
 @endcode
 
+### Phát liên tục
+
+Hạt 3D không phải entity, nên muốn phát đều (lửa trại, khói, sương) thì game giữ một bản
+njin::particle_emitter như giữ trạng thái và gọi particles3d_emit() mỗi frame. Engine phát
+`rate` hạt mỗi giây và giữ phần lẻ trong `emit_accum`, nên tốc độ thấp vẫn đều và `rate` đổi được
+mỗi frame. Vùng sinh là njin::particle3d_area:
+
+| `kind` | Hạt sinh ở |
+|---|---|
+| `particle3d_area_point` | Đúng `center` |
+| `particle3d_area_ring` | Rải đều trên đường tròn bán kính `radius` quanh `center`, vuông góc với `normal` |
+| `particle3d_area_disc` | Rải đều trên cả mặt tròn đó |
+
+`outward` nghiêng hướng phát của vòng và đĩa ra ngoài theo bán kính: nước toả ra từ đài phun, lửa
+toả ra từ vòng phép. Khi game tự chọn chỗ cho từng hạt (một điểm trên bề mặt model tìm bằng tia,
+một trong vài điểm cho trước), particles3d_due() cho biết frame này cần bao nhiêu hạt, rồi game gọi
+particles3d_spawn() cho mỗi hạt.
+particles3d_area_point() lấy một chỗ ngẫu nhiên trong vùng, cho các chùm hạt sinh cùng một chỗ.
+
+@code
+// Giữ trong state của game, giữa các frame.
+njin::particle_emitter flames = njin::fx::fire(), sparks = njin::fx::sparks();
+flames.rate = 200.0f; // hạt mỗi giây
+sparks.rate = 2.0f;   // chùm mỗi giây
+
+// Mỗi frame: lửa trại trên cả mặt đống củi.
+const njin::particle3d_area logs{.kind = njin::particle3d_area_disc, .center = campfire, .radius = 0.4f};
+njin::particles3d_emit(ctx, flames, logs, {.style = njin::particle3d_fire});
+// Tia lửa bắn từng nhúm 1–4 hạt từ một chỗ trong đống củi, khi củi nổ lách tách.
+for (int n = njin::particles3d_due(ctx, sparks); n > 0; n--)
+  njin::particles3d_spawn(ctx, sparks, njin::particles3d_area_point(ctx, logs), 1 + rand() % 4,
+                          {.stretch = 0.03f, .style = njin::particle3d_spark});
+@endcode
+
+Khói, hơi nước và sương nhẹ thì dùng `shape = particle_soft`: đốm tròn mờ dần ra mép, không cần
+tự làm ảnh.
+
 Hiệu ứng tính trên ảnh 3D theo độ sâu (góc tường tối đi, sàn bóng phản chiếu, vết đạn dán lên bề mặt, mờ
 chuyển động, tia nắng, lóa ống kính) ở trang riêng: @ref post_3d.
 

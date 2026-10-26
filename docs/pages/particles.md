@@ -32,6 +32,9 @@ Entity do njin::particles_spawn() tạo thuộc scene đang chạy, nên rời s
 | Chuyển động | `life`, `speed` (khoảng min–max), `angle` + `spread` (hướng và độ tỏa, độ), `gravity`, `drag`, `spin`, `local_space` |
 | Hình ảnh | `size_start` → `size_end`, `size_jitter`, `color_start` → `color_end`, `shape` hoặc `texture` + `source`, `blend`, `layer` |
 
+`shape` là hình khi không có `texture`: `particle_circle` (mặc định), `particle_square` (xoay theo `spin`)
+hay `particle_soft`, đốm tròn mờ dần ra mép cho khói, hơi nước, sương mà không cần tự làm ảnh.
+
 Hướng: 0 độ là sang phải, 90 là **xuống** (trục y hướng xuống), -90 là lên. Góc xoay của
 transform được cộng vào `angle`, nên xoay entity là xoay luôn hướng phát.
 

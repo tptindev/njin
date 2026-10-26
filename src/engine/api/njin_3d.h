@@ -1122,7 +1122,7 @@ struct particles3d_desc {
 /// trong hitstop) và vẽ ở end_3d(), sau các hình khác của lần vẽ đó: tường vẫn che
 /// được hạt, còn hạt không che nhau. Dùng hình tròn, hình vuông hay texture, màu,
 /// kích thước, trọng lực, lực cản, xoay và cách trộn màu của emitter. Chỉ phát
-/// theo loạt: muốn phát liên tục (khói ống khói) thì gọi mỗi frame với vài hạt.
+/// theo loạt; muốn phát liên tục (khói ống khói) thì dùng particles3d_emit().
 /// @param ctx Context của engine.
 /// @param emitter Cấu hình hạt.
 /// @param pos Vị trí phát.
@@ -1130,6 +1130,78 @@ struct particles3d_desc {
 /// @param desc Hướng phát và tỉ lệ đơn vị.
 void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
                        const particles3d_desc &desc = {});
+
+/// Dạng của particle3d_area.
+enum particle3d_area_kind {
+  particle3d_area_point, ///< Một điểm, `center`.
+  particle3d_area_ring,  ///< Đường tròn bán kính `radius` quanh `center` (vòng lửa, vòng phép thuật).
+  particle3d_area_disc,  ///< Cả mặt tròn bán kính `radius`, rải đều (đống lửa, mặt nước).
+};
+
+/// Vùng sinh hạt của particles3d_emit(): một điểm, một vòng hay một đĩa nằm
+/// vuông góc với `normal`. Cộng thêm `area` của emitter như particles3d_spawn().
+struct particle3d_area {
+  particle3d_area_kind kind = particle3d_area_point; ///< Dạng vùng.
+  vec3 center{};                    ///< Tâm, đơn vị thế giới 3D.
+  vec3 normal{0.0f, 1.0f, 0.0f};    ///< Pháp tuyến của mặt phẳng chứa vòng hay đĩa.
+  f32 radius = 0.0f;                ///< Bán kính, đơn vị thế giới 3D.
+  /// Nghiêng hướng phát ra ngoài theo bán kính, ở vòng và đĩa: mỗi hạt phát
+  /// quanh `particles3d_desc::direction` cộng `outward` lần hướng từ tâm ra chỗ nó
+  /// sinh. 0 là không nghiêng; 1 là chéo 45 độ, như nước toả ra từ đài phun.
+  f32 outward = 0.0f;
+};
+
+/// Số hạt cần sinh ở frame này để phát đều `emitter.rate` hạt mỗi giây.
+///
+/// Phần lẻ được giữ trong `emitter.emit_accum` sang frame sau, nên tốc độ thấp
+/// (vài hạt mỗi giây) vẫn đều, và `rate` đổi được mỗi frame (khói xe dày theo ga).
+/// Trả 0 khi `emitting` là false hay `rate` bằng 0. Đã tính
+/// njin::graphics_quality::particles và theo delta() (nên dừng trong hitstop).
+///
+/// Dùng khi game tự chọn chỗ sinh từng hạt (một điểm ngẫu nhiên trên bề mặt
+/// model tìm bằng tia, một trong vài điểm cho trước) rồi gọi particles3d_spawn()
+/// cho mỗi hạt. Vùng là điểm, vòng hay đĩa thì particles3d_emit() làm cả hai việc.
+/// @code
+/// // Khói từ một trong các ống khói, dày theo số người trong nhà.
+/// smoke.rate = 2.0f + 0.5f * people;
+/// for (njin::i32 n = njin::particles3d_due(ctx, smoke); n > 0; n--)
+///   njin::particles3d_spawn(ctx, smoke, chimneys[rng.range(0, chimney_count - 1)], 1, {.scale = 1.0f});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param emitter Emitter do game giữ giữa các frame; dùng `rate`, `emitting` và `emit_accum`.
+/// @return Số hạt.
+i32 particles3d_due(context &ctx, particle_emitter &emitter);
+
+/// Phát liên tục: mỗi frame sinh các hạt đến hạn theo `emitter.rate` (như
+/// particles3d_due()), mỗi hạt ở một chỗ ngẫu nhiên trong `area`, tất cả trong
+/// một loạt. Gọi mỗi frame; ngừng gọi (hoặc `emitting = false`) là ngừng phát,
+/// hạt đã bay vẫn sống hết tuổi.
+///
+/// Hạt 3D không phải entity, nên game giữ `emitter` (một bản sao chép, không phải
+/// hằng số) như giữ trạng thái: engine ghi phần lẻ vào `emit_accum`. Mọi trường
+/// đổi được giữa hai lần gọi, kể cả `rate` và `area`.
+/// @code
+/// // Một vòng lửa quanh cổng dịch chuyển: 300 hạt mỗi giây, toả ra ngoài một chút.
+/// njin::particle_emitter ring = njin::fx::fire(); // giữ trong state của game
+/// ring.rate = 300.0f;
+/// njin::particles3d_emit(ctx, ring,
+///                        {.kind = njin::particle3d_area_ring, .center = portal, .radius = 1.5f, .outward = 0.3f},
+///                        {.style = njin::particle3d_fire});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param emitter Cấu hình hạt và trạng thái phát.
+/// @param area Vùng sinh.
+/// @param desc Hướng phát, tỉ lệ đơn vị và kiểu vẽ, như particles3d_spawn().
+void particles3d_emit(context &ctx, particle_emitter &emitter, const particle3d_area &area,
+                      const particles3d_desc &desc = {});
+
+/// Một chỗ ngẫu nhiên trong `area`, rải như particles3d_emit() rải hạt (đều trên
+/// vòng, đều trên mặt đĩa). Cho các chùm hạt sinh cùng một chỗ: tia lửa bắn ra
+/// từng nhúm khi củi nổ lách tách.
+/// @param ctx Context của engine (lấy random()).
+/// @param area Vùng.
+/// @return Vị trí, đơn vị thế giới 3D.
+vec3 particles3d_area_point(context &ctx, const particle3d_area &area);
 
 /// Xóa mọi hạt 3D đang bay, ví dụ khi đổi màn.
 /// @param ctx Context của engine.

@@ -32,6 +32,10 @@ Entities created by njin::particles_spawn() belong to the running scene, so they
 | Motion | `life`, `speed` (a min–max range), `angle` + `spread` (direction and spread, in degrees), `gravity`, `drag`, `spin`, `local_space` |
 | Visuals | `size_start` → `size_end`, `size_jitter`, `color_start` → `color_end`, `shape` or `texture` + `source`, `blend`, `layer` |
 
+`shape` is the shape when there is no `texture`: `particle_circle` (the default), `particle_square`
+(rotated by `spin`) or `particle_soft`, a round dot fading out to its edge for smoke, steam and mist,
+with no image of your own.
+
 Direction: 0 degrees is right, 90 is **down** (the y axis points down), -90 is up. The transform's rotation is
 added to `angle`, so rotating the entity also rotates the emission direction.
 

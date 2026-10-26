@@ -1,4 +1,9 @@
 #pragma once
+// Part of the feature 3d: the game has to turn it on with njin_use(<game> FEATURES 3d)
+// (cmake/njin.cmake), or link njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_3D)
+#error "njin_3d.h is part of the njin feature '3d', which this game does not use: add it with njin_use(<game> FEATURES 3d)"
+#endif
 #include "_math.h"
 #include "njin_particles.h"
 
@@ -813,6 +818,21 @@ bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool c
 /// @return The volume; approximate for an open mesh. 0 if the handle is invalid.
 f32 model_volume(const context &ctx, model_handle handle);
 
+/// The model's bounding box in its rest pose, in world units, before the draw's
+/// transform: to know the real size of a model loaded from a file (put it on
+/// the ground, scale it to size, build a collision box).
+/// @code
+/// njin::vec3 lo, hi;
+/// njin::model_bounds(ctx, crate, &lo, &hi);
+/// const float scale = 0.6f / (hi.y - lo.y); // a crate 0.6 m tall
+/// @endcode
+/// @param ctx Engine context.
+/// @param handle Model from model_load() or model_create().
+/// @param min Receives the smallest corner. May be nullptr.
+/// @param max Receives the largest corner. May be nullptr.
+/// @return false if the handle is not valid (then `min` and `max` are unchanged).
+bool model_bounds(const context &ctx, model_handle handle, vec3 *min, vec3 *max);
+
 /// The vertices of that skin (as model_bone_bounds()), in the same axes: along the
 /// model's axes in the rest pose, from the bone's origin. To build a convex hull
 /// that fits the real shape (physics3d_hull_create()).
@@ -1175,9 +1195,8 @@ struct particles3d_desc {
 /// (so they stop during hitstop) and draw at end_3d(), after the other
 /// shapes of that draw: a wall still hides particles, but particles do not
 /// hide each other. Uses the emitter's circle, square or texture shape,
-/// colour, size, gravity, drag, spin and blend mode. Bursts only: for
-/// continuous emission (chimney smoke), call it every frame with a few
-/// particles.
+/// colour, size, gravity, drag, spin and blend mode. Bursts only; for
+/// continuous emission (chimney smoke) use particles3d_emit().
 /// @param ctx Engine context.
 /// @param emitter Particle configuration.
 /// @param pos Spawn position.
@@ -1185,6 +1204,84 @@ struct particles3d_desc {
 /// @param desc Emission direction and the unit scale.
 void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
                        const particles3d_desc &desc = {});
+
+/// Shape of a particle3d_area.
+enum particle3d_area_kind {
+  particle3d_area_point, ///< One point, `center`.
+  particle3d_area_ring,  ///< A circle of radius `radius` around `center` (a ring of fire, a magic circle).
+  particle3d_area_disc,  ///< The whole disc of radius `radius`, evenly (a campfire, a water surface).
+};
+
+/// Where particles3d_emit() spawns: a point, or a ring or disc lying
+/// perpendicular to `normal`. The emitter's `area` is added on top, as with
+/// particles3d_spawn().
+struct particle3d_area {
+  particle3d_area_kind kind = particle3d_area_point; ///< Shape of the area.
+  vec3 center{};                    ///< Centre, in 3D world units.
+  vec3 normal{0.0f, 1.0f, 0.0f};    ///< Normal of the plane the ring or disc lies in.
+  f32 radius = 0.0f;                ///< Radius, in 3D world units.
+  /// Tilts the emission outwards along the radius, for rings and discs: each
+  /// particle is emitted around `particles3d_desc::direction` plus `outward`
+  /// times the direction from the centre to where it spawns. 0 is no tilt; 1 is
+  /// 45 degrees, like water spreading from a fountain.
+  f32 outward = 0.0f;
+};
+
+/// How many particles to spawn this frame to emit `emitter.rate` particles a
+/// second evenly.
+///
+/// The fraction is kept in `emitter.emit_accum` for the next frame, so low
+/// rates (a few particles a second) stay even, and `rate` can change every
+/// frame (exhaust thickening with the throttle). Returns 0 when `emitting` is
+/// false or `rate` is 0. Takes njin::graphics_quality::particles into account
+/// and follows delta() (so it stops during hitstop).
+///
+/// Use it when the game picks each particle's spawn point itself (a random
+/// spot on a model's surface found with a ray, one of a few given points) and
+/// then calls particles3d_spawn() for each. For a point, ring or disc,
+/// particles3d_emit() does both.
+/// @code
+/// // Smoke from one of the chimneys, thicker with the number of people inside.
+/// smoke.rate = 2.0f + 0.5f * people;
+/// for (njin::i32 n = njin::particles3d_due(ctx, smoke); n > 0; n--)
+///   njin::particles3d_spawn(ctx, smoke, chimneys[rng.range(0, chimney_count - 1)], 1, {.scale = 1.0f});
+/// @endcode
+/// @param ctx Engine context.
+/// @param emitter Emitter the game keeps between frames; uses `rate`, `emitting` and `emit_accum`.
+/// @return Number of particles.
+i32 particles3d_due(context &ctx, particle_emitter &emitter);
+
+/// Continuous emission: every frame spawns the particles due at
+/// `emitter.rate` (as particles3d_due()), each at a random spot in `area`, all
+/// in one burst. Call it every frame; stop calling it (or set
+/// `emitting = false`) to stop, and the particles in flight live out their
+/// life.
+///
+/// 3D particles are not entities, so the game keeps `emitter` (a copy, not a
+/// constant) as state: the engine writes the fraction into `emit_accum`. Every
+/// field can change between calls, `rate` and `area` included.
+/// @code
+/// // A ring of fire around a portal: 300 particles a second, spreading out a little.
+/// njin::particle_emitter ring = njin::fx::fire(); // kept in the game's state
+/// ring.rate = 300.0f;
+/// njin::particles3d_emit(ctx, ring,
+///                        {.kind = njin::particle3d_area_ring, .center = portal, .radius = 1.5f, .outward = 0.3f},
+///                        {.style = njin::particle3d_fire});
+/// @endcode
+/// @param ctx Engine context.
+/// @param emitter Particle configuration and emission state.
+/// @param area Spawn area.
+/// @param desc Direction, unit scale and look, as particles3d_spawn().
+void particles3d_emit(context &ctx, particle_emitter &emitter, const particle3d_area &area,
+                      const particles3d_desc &desc = {});
+
+/// A random spot in `area`, spread as particles3d_emit() spreads particles
+/// (evenly along a ring, evenly over a disc). For clusters of particles born
+/// at one spot: sparks bursting in a handful when a log crackles.
+/// @param ctx Engine context (for random()).
+/// @param area Area.
+/// @return Position, in 3D world units.
+vec3 particles3d_area_point(context &ctx, const particle3d_area &area);
 
 /// Clears every flying 3D particle, e.g. on a scene change.
 /// @param ctx Engine context.

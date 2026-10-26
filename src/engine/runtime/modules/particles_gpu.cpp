@@ -93,6 +93,10 @@ out vec4 finalColor;
 void main() {
   if (mode == 2) {
     finalColor = texture(texture0, mix(source.xy, source.zw, vUV)) * vColor;
+  } else if (mode == 3) {
+    vec2 q = vUV * 2.0 - 1.0;
+    float fall = max(1.0 - dot(q, q), 0.0);
+    finalColor = vec4(vColor.rgb, vColor.a * fall * fall);
   } else if (mode == 0) {
     float d = length(vUV * 2.0 - 1.0);
     float edge = fwidth(d);
@@ -114,7 +118,7 @@ static_assert(offsetof(particle, pos) == 0 && offsetof(particle, velocity) == 8 
                   offsetof(particle, age) == 16 && offsetof(particle, size) == 32,
               "particle is uploaded as is");
 
-enum : int { mode_circle = 0, mode_square = 1, mode_texture = 2 };
+enum : int { mode_circle = 0, mode_square = 1, mode_texture = 2, mode_soft = 3 };
 
 // Points attributes 1..3 of the bound vertex array at `vbo`, one instance per
 // particle.
@@ -210,6 +214,8 @@ void set_vec4(int loc, f32 a, f32 b, f32 c, f32 d) {
 } // namespace
 
 particle_gpu_state::~particle_gpu_state() {
+  if (IsTextureValid(soft))
+    UnloadTexture(soft);
   if (!available)
     return;
   UnloadShader(shader);
@@ -279,6 +285,25 @@ void particles_set_backend(context &ctx, particle_backend backend) {
   ctx_ref<particle_gpu_state>(ctx)->backend = backend;
 }
 
+Texture2D particle_soft_texture(context &ctx) {
+  particle_gpu_state &gpu = ctx_ref<particle_gpu_state>(ctx);
+  if (IsTextureValid(gpu.soft))
+    return gpu.soft;
+  constexpr i32 side = 64;
+  Image image = GenImageColor(side, side, BLANK);
+  for (i32 y = 0; y < side; y++) {
+    for (i32 x = 0; x < side; x++) {
+      const f32 dx = ((f32)x + 0.5f) / side * 2.0f - 1.0f, dy = ((f32)y + 0.5f) / side * 2.0f - 1.0f;
+      const f32 fall = std::max(0.0f, 1.0f - (dx * dx + dy * dy));
+      ImageDrawPixel(&image, x, y, Color{255, 255, 255, (unsigned char)(255.0f * fall * fall)});
+    }
+  }
+  gpu.soft = LoadTextureFromImage(image);
+  UnloadImage(image);
+  SetTextureFilter(gpu.soft, TEXTURE_FILTER_BILINEAR);
+  return gpu.soft;
+}
+
 particle_backend particles_backend(const context &ctx) { return ctx_ref<particle_gpu_state>(ctx)->backend; }
 
 bool particles_gpu_available(context &ctx) {
@@ -298,7 +323,7 @@ void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
     return;
 
   const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), em.texture);
-  int mode = em.shape == particle_square ? mode_square : mode_circle;
+  int mode = em.shape == particle_square ? mode_square : em.shape == particle_soft ? mode_soft : mode_circle;
   vec2 aspect{1.0f, 1.0f};
   f32 source[4] = {0.0f, 0.0f, 1.0f, 1.0f};
   if (slot != nullptr) {

@@ -1,4 +1,5 @@
 #include "particles3d.h"
+#include "particles_gpu.h"
 #include "render3d.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
@@ -23,6 +24,13 @@ f32 pick(rng &random, f32_range range) {
   return range.max > range.min ? random.range(range.min, range.max) : range.min;
 }
 
+// Any two unit vectors that, with `axis`, make a right-handed basis.
+void basis(vec3 axis, vec3 &u, vec3 &v) {
+  const vec3 helper = std::fabs(axis.y) < 0.99f ? vec3{0.0f, 1.0f, 0.0f} : vec3{1.0f, 0.0f, 0.0f};
+  u = normalize(cross(helper, axis));
+  v = cross(axis, u);
+}
+
 // A unit vector inside the cone of half angle `half` (radians) around `axis`,
 // uniform over the cap of the sphere it cuts.
 vec3 in_cone(rng &random, vec3 axis, f32 half) {
@@ -31,9 +39,8 @@ vec3 in_cone(rng &random, vec3 axis, f32 half) {
   const f32 r = std::sqrt(std::max(0.0f, 1.0f - z * z));
   const vec3 local{r * std::cos(a), r * std::sin(a), z};
   // Any basis with `axis` as its third vector.
-  const vec3 helper = std::fabs(axis.y) < 0.99f ? vec3{0.0f, 1.0f, 0.0f} : vec3{1.0f, 0.0f, 0.0f};
-  const vec3 u = normalize(cross(helper, axis));
-  const vec3 v = cross(axis, u);
+  vec3 u, v;
+  basis(axis, u, v);
   return u * local.x + v * local.y + axis * local.z;
 }
 
@@ -93,16 +100,31 @@ particles3d_state::~particles3d_state() {
     UnloadTexture(disc);
 }
 
-void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
-                       const particles3d_desc &desc) {
+namespace {
+// A spot of `area` and the unit direction from its centre out to it (zero at
+// the centre and for a point).
+vec3 area_spot(rng &random, const particle3d_area &area, vec3 &out) {
+  out = {};
+  if (area.kind == particle3d_area_point || area.radius <= 0.0f)
+    return area.center;
+  const vec3 normal = length_sq(area.normal) > 0.0f ? normalize(area.normal) : vec3{0.0f, 1.0f, 0.0f};
+  vec3 u, v;
+  basis(normal, u, v);
+  const f32 t = random.range(0.0f, 2.0f * pi);
+  // Uniform over the disc: the share of it within d grows as d squared.
+  const f32 d = area.kind == particle3d_area_ring ? area.radius : area.radius * std::sqrt(random.range(0.0f, 1.0f));
+  out = u * std::cos(t) + v * std::sin(t);
+  return area.center + out * d;
+}
+
+// Adds a burst of `n` particles of `emitter`, the i-th spawned where `place`
+// says (position and the axis of its cone of flight). `n` is already cut to
+// the quality share.
+template <class Place>
+void add_burst(context &ctx, const particle_emitter &emitter, usize n, const particles3d_desc &desc, Place place) {
   particles3d_state &s = ctx_ref<particles3d_state>(ctx);
-  // graphics_quality::particles keeps that share of the burst, at least one
-  // particle of a burst that asked for some (unless the share is 0).
-  const f32 share = std::clamp(ctx_ref<quality_state>(ctx)->q.particles, 0.0f, 1.0f);
-  if (share < 1.0f && count > 0)
-    count = share > 0.0f ? std::max(1, (i32)std::lround((f32)count * share)) : 0;
   const usize room = max_particles - std::min(max_particles, live_count(s));
-  const usize n = std::min(room, (usize)std::max(count, 0));
+  n = std::min(room, n);
   if (n == 0)
     return;
   particle3d_burst burst;
@@ -114,10 +136,11 @@ void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, 
   burst.style = desc.style;
   burst.particles.reserve(n);
   rng &random = njin::random(ctx);
-  const vec3 axis = length_sq(desc.direction) > 0.0f ? normalize(desc.direction) : vec3{0.0f, 1.0f, 0.0f};
   const f32 half = clamp(emitter.spread, 0.0f, 360.0f) * 0.5f * (pi / 180.0f);
   const vec3 area{emitter.area.x * desc.scale, emitter.area.y * desc.scale, emitter.area.x * desc.scale};
   for (usize i = 0; i < n; i++) {
+    vec3 pos, axis;
+    place(random, pos, axis);
     particle3d p;
     p.pos = pos + vec3{random.range(-0.5f, 0.5f) * area.x, random.range(-0.5f, 0.5f) * area.y,
                        random.range(-0.5f, 0.5f) * area.z};
@@ -129,6 +152,59 @@ void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, 
     burst.particles.push_back(p);
   }
   s.bursts.push_back(std::move(burst));
+}
+
+vec3 axis_of(const particles3d_desc &desc) {
+  return length_sq(desc.direction) > 0.0f ? normalize(desc.direction) : vec3{0.0f, 1.0f, 0.0f};
+}
+} // namespace
+
+void particles3d_spawn(context &ctx, const particle_emitter &emitter, vec3 pos, i32 count,
+                       const particles3d_desc &desc) {
+  // graphics_quality::particles keeps that share of the burst, at least one
+  // particle of a burst that asked for some (unless the share is 0).
+  const f32 share = std::clamp(ctx_ref<quality_state>(ctx)->q.particles, 0.0f, 1.0f);
+  if (share < 1.0f && count > 0)
+    count = share > 0.0f ? std::max(1, (i32)std::lround((f32)count * share)) : 0;
+  const vec3 axis = axis_of(desc);
+  add_burst(ctx, emitter, (usize)std::max(count, 0), desc, [&](rng &, vec3 &at, vec3 &dir) {
+    at = pos;
+    dir = axis;
+  });
+}
+
+i32 particles3d_due(context &ctx, particle_emitter &emitter) {
+  if (!emitter.emitting || emitter.rate <= 0.0f) {
+    emitter.emit_accum = 0.0f;
+    return 0;
+  }
+  // graphics_quality::particles thins the stream itself: a share of every
+  // frame's particles would round back up to one each frame.
+  const f32 share = std::clamp(ctx_ref<quality_state>(ctx)->q.particles, 0.0f, 1.0f);
+  emitter.emit_accum += emitter.rate * share * delta(ctx);
+  // A long stall (breakpoint, window drag) would spawn one huge clump.
+  emitter.emit_accum = std::min(emitter.emit_accum, (f32)max_particles);
+  const i32 n = (i32)emitter.emit_accum;
+  emitter.emit_accum -= (f32)n;
+  return n;
+}
+
+void particles3d_emit(context &ctx, particle_emitter &emitter, const particle3d_area &area,
+                      const particles3d_desc &desc) {
+  const i32 n = particles3d_due(ctx, emitter);
+  if (n <= 0)
+    return;
+  const vec3 axis = axis_of(desc);
+  add_burst(ctx, emitter, (usize)n, desc, [&](rng &random, vec3 &at, vec3 &dir) {
+    vec3 out;
+    at = area_spot(random, area, out);
+    dir = area.outward != 0.0f && length_sq(out) > 0.0f ? normalize(axis + out * area.outward) : axis;
+  });
+}
+
+vec3 particles3d_area_point(context &ctx, const particle3d_area &area) {
+  vec3 out;
+  return area_spot(njin::random(ctx), area, out);
 }
 
 void particles3d_clear(context &ctx) { ctx_ref<particles3d_state>(ctx)->bursts.clear(); }
@@ -158,7 +234,9 @@ void particles3d_draw(context &ctx, const camera3d &view) {
   for (const particle3d_burst &b : s.bursts) {
     const particle_emitter &em = b.look;
     const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), em.texture);
-    Texture2D texture = em.shape == particle_square ? white : s.disc;
+    Texture2D texture = em.shape == particle_square ? white
+                        : em.shape == particle_soft ? particle_soft_texture(ctx)
+                                                    : s.disc;
     Rectangle source{0.0f, 0.0f, (f32)texture.width, (f32)texture.height};
     if (slot != nullptr) {
       texture = slot->texture;

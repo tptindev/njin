@@ -1,7 +1,7 @@
 #pragma once
 #include "_math.h"
 #include "_types.h"
-#include "njin_draw.h"
+#include "_draw_types.h"
 #include <entt/entity/fwd.hpp>
 #include <vector>
 
@@ -22,6 +22,10 @@ struct f32_range {
 enum particle_shape {
   particle_circle, ///< Circle, `size` is the diameter.
   particle_square, ///< Square, rotated by `spin`.
+  /// Soft dot: round, solid in the middle and fading to nothing at the edge
+  /// (alpha `(1 - r²)²`, `r` the distance to the centre, 1 at the edge), for
+  /// smoke, steam, mist. `size` is the diameter.
+  particle_soft,
 };
 
 /// A live particle. Created and updated by the engine; the game only needs to read it if it wants to.

@@ -41,6 +41,10 @@ struct particle_gpu_state {
   int loc_source = -1;
   int loc_texture = -1;
 
+  // The image of particle_soft where it is drawn as a texture (the CPU path, 3D
+  // particles), made on first use by particle_soft_texture().
+  Texture2D soft{};
+
   particle_gpu_state() = default;
   ~particle_gpu_state();
   // Copying would free the same GL objects twice.
@@ -86,6 +90,10 @@ usize particles_gpu_alive(const particle_emitter &emitter, const particle_gpu_bu
 // circle on the CPU about 4 (a textured quad far less), so even a 20-particle
 // burst of circles is cheaper here.
 bool particles_gpu_wanted(context &ctx);
+
+// The white disc particle_soft is drawn with off the GPU path: alpha
+// (1 - r^2)^2, r 0 at the centre and 1 at the edge. Made on first use.
+Texture2D particle_soft_texture(context &ctx);
 
 // Draws the particles of one emitter with a single instanced draw call.
 void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,

@@ -22,6 +22,10 @@ struct f32_range {
 enum particle_shape {
   particle_circle, ///< Hình tròn, `size` là đường kính.
   particle_square, ///< Hình vuông, xoay theo `spin`.
+  /// Đốm mềm: tròn, đặc ở giữa rồi mờ dần tới không ở mép (độ trong suốt
+  /// `(1 - r²)²`, `r` là khoảng cách tới tâm, 1 ở mép), cho khói, hơi nước, sương.
+  /// `size` là đường kính.
+  particle_soft,
 };
 
 /// Một hạt đang sống. Do engine tạo và cập nhật; game chỉ cần đọc nếu muốn.

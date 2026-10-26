@@ -359,6 +359,43 @@ njin::particles3d_spawn(ctx, flame, nozzle, 6,
                         {.direction = dir, .stretch = 0.025f, .style = njin::particle3d_flame});
 @endcode
 
+### Continuous emission
+
+3D particles are not entities, so to emit steadily (a campfire, smoke, mist) the game keeps a copy of
+njin::particle_emitter as state and calls particles3d_emit() every frame. The engine emits `rate`
+particles a second and keeps the fraction in `emit_accum`, so low rates stay even and `rate` can change
+every frame. The spawn area is a njin::particle3d_area:
+
+| `kind` | Particles spawn |
+|---|---|
+| `particle3d_area_point` | Exactly at `center` |
+| `particle3d_area_ring` | Evenly along the circle of radius `radius` around `center`, perpendicular to `normal` |
+| `particle3d_area_disc` | Evenly over that whole disc |
+
+`outward` tilts the emission of rings and discs outwards along the radius: water spreading from a
+fountain, fire spreading from a magic circle. When the game picks each particle's spot itself (a spot on
+a model's surface found with a ray, one of a few given points), particles3d_due() says how many
+particles this frame needs, and the game calls particles3d_spawn() for each.
+particles3d_area_point() gives a random spot in an area, for clusters of particles born at one spot.
+
+@code
+// Kept in the game's state, between frames.
+njin::particle_emitter flames = njin::fx::fire(), sparks = njin::fx::sparks();
+flames.rate = 200.0f; // particles a second
+sparks.rate = 2.0f;   // clusters a second
+
+// Every frame: a campfire over the whole pile of logs.
+const njin::particle3d_area logs{.kind = njin::particle3d_area_disc, .center = campfire, .radius = 0.4f};
+njin::particles3d_emit(ctx, flames, logs, {.style = njin::particle3d_fire});
+// Sparks burst in handfuls of 1-4 from one spot in the pile, as the logs crackle.
+for (int n = njin::particles3d_due(ctx, sparks); n > 0; n--)
+  njin::particles3d_spawn(ctx, sparks, njin::particles3d_area_point(ctx, logs), 1 + rand() % 4,
+                          {.stretch = 0.03f, .style = njin::particle3d_spark});
+@endcode
+
+For smoke, steam and light mist use `shape = particle_soft`: a round dot fading out to its edge, no
+image of your own needed.
+
 Effects worked out on the 3D image from its depth (wall corners that darken, polished floors that reflect,
 bullet holes stuck to surfaces, motion blur, light shafts, lens flare) have a page of their own: @ref post_3d.
 

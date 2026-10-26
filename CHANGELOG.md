@@ -22,6 +22,14 @@ To release: edit that header, add a section here, commit, then
   Protocol 7: a game and an inspector built before it must be rebuilt together.
 - `model_bounds()`: a model's bounding box in its rest pose, to size and place
   models loaded from files.
+- Continuous 3D particles: `particles3d_emit()` spawns `particle_emitter::rate`
+  particles a second over a `particle3d_area` (point, ring or disc, with an
+  optional lean outwards), keeping the fraction in `emit_accum` between frames;
+  `particles3d_due()` gives the count for games that pick each spawn point
+  themselves, `particles3d_area_point()` a random spot of an area. The quality
+  setting thins the stream itself. `particles3d_spawn()` is unchanged.
+- `particle_soft`: a round particle that fades out to its edge (alpha
+  `(1 - r^2)^2`), for smoke, steam and mist, in 2D (GPU and CPU) and 3D.
 
 ### Fixed
 

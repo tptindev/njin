@@ -175,7 +175,9 @@ void particles_draw(context &ctx, entt::entity entity, const transform &tr,
   blend_begin(ctx, em.blend);
   render_stats &stats = ctx_ref<render_stats>(ctx);
   stats.emitters++;
-  stats.note_draw(slot != nullptr ? slot->texture.id : rlGetTextureIdDefault(), (i32)em.blend);
+  const unsigned int shape_texture =
+      em.shape == particle_soft ? particle_soft_texture(ctx).id : rlGetTextureIdDefault();
+  stats.note_draw(slot != nullptr ? slot->texture.id : shape_texture, (i32)em.blend);
   for (const particle &p : em.particles) {
     const f32 t = p.age / p.life;
     const f32 size = lerp(em.size_start, em.size_end, t) * p.size;
@@ -197,6 +199,10 @@ void particles_draw(context &ctx, entt::entity entity, const transform &tr,
                                               .origin = {0.5f, 0.5f},
                                               .rotation = p.rot,
                                               .tint = tint});
+    } else if (em.shape == particle_soft) {
+      const Texture2D soft = particle_soft_texture(ctx);
+      DrawTexturePro(soft, Rectangle{0.0f, 0.0f, (f32)soft.width, (f32)soft.height},
+                     Rectangle{pos.x, pos.y, size, size}, Vector2{size * 0.5f, size * 0.5f}, p.rot, color);
     } else if (em.shape == particle_square) {
       DrawRectanglePro(Rectangle{pos.x, pos.y, size, size},
                        Vector2{size * 0.5f, size * 0.5f}, p.rot, color);
