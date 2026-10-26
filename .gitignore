@@ -35,3 +35,8 @@ compile_commands.json
 !/examples/platformer3d/
 **/build/
 **/build-*/
+
+# anim_editor default outputs (src/tools/anim_editor/main.cpp), saved in the
+# working folder: project files of whatever game is being animated.
+/character.anim.json
+/character.glb
