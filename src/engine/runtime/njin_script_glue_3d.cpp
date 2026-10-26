@@ -172,7 +172,13 @@ void apply_material(material3d &m, const sol::table &t) {
   m.cast_shadows = flag(t, "cast_shadows", m.cast_shadows);
   m.reflect = num(t, "reflect", m.reflect);
   m.world_uv = num(t, "world_uv", m.world_uv);
+  m.pbr = flag(t, "pbr", m.pbr);
+  m.metallic = num(t, "metallic", m.metallic);
+  m.roughness = num(t, "roughness", m.roughness);
 }
+
+// light3d::tonemap by name ("none", "linear", "aces", "agx", "neutral").
+const char *const tonemap_names[] = {"none", "linear", "aces", "agx", "neutral"};
 
 void apply_light3d(light3d &l, const sol::table &t) {
   l.direction = vec3_of(t["direction"], l.direction);
@@ -183,13 +189,19 @@ void apply_light3d(light3d &l, const sol::table &t) {
   l.shadow_softness = num(t, "shadow_softness", l.shadow_softness);
   l.fog_color = color_of(t["fog_color"], l.fog_color);
   l.fog_density = num(t, "fog_density", l.fog_density);
+  if (sol::optional<std::string> name = t["tonemap"])
+    for (i32 i = 0; i < 5; i++)
+      if (*name == tonemap_names[i])
+        l.tonemap = (tonemap3d)i;
+  l.exposure = num(t, "exposure", l.exposure);
 }
 
 sol::table light3d_table(sol::state_view lua, const light3d &l) {
   const auto col = [&](rgba c) { return lua.create_table_with("r", c.r, "g", c.g, "b", c.b, "a", c.a); };
   return lua.create_table_with("direction", l.direction, "color", col(l.color), "ambient", col(l.ambient), "shadows",
                                l.shadows, "shadow_range", l.shadow_range, "fog_color", col(l.fog_color),
-                               "fog_density", l.fog_density);
+                               "fog_density", l.fog_density, "tonemap", tonemap_names[std::clamp((i32)l.tonemap, 0, 4)],
+                               "exposure", l.exposure);
 }
 
 bool weather_kind_of(const std::string &name, weather3d_kind &out) {

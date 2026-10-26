@@ -5,6 +5,7 @@
 #include "njin_3d.h"
 #include <raylib.h>
 #include <algorithm>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -95,7 +96,28 @@ struct model_slot {
   // vertices, and how many source vertices there are. Empty otherwise.
   std::vector<std::vector<u32>> split_source;
   u32 split_count = 0;
+  // The PBR maps of the file's materials (glTF metallic-roughness, occlusion),
+  // per material [0] and [1]: where the image is, read on the first draw of a
+  // PBR material (model_file_pbr_map). raylib never loads them
+  // (load_gltf_without_unused_maps), so a game that does not use PBR does
+  // not pay for them. Mutable: draws see a const slot.
+  struct file_map {
+    std::string path;          // an image file, or
+    std::vector<u8> bytes;     // an image inside the file (.glb, data URI)
+    std::string ext;           // of `bytes` (".png", ".jpg")
+    Texture2D texture{};
+    bool tried = false;
+    bool second_uv = false; // read through the mesh's second texture coordinates
+  };
+  mutable std::vector<std::array<file_map, 2>> pbr_maps;
 };
+
+// The file's metallic-roughness (`occlusion` false) or occlusion map of
+// material `index`, loaded on first use; an empty texture when it has none.
+Texture2D model_file_pbr_map(const model_slot &slot, i32 index, bool occlusion);
+
+// Whether that map reads the mesh's second texture coordinates.
+bool model_file_pbr_map_uv2(const model_slot &slot, i32 index, bool occlusion);
 
 // Clips the game sees (model_anim_count): the skin's, or the weight-only
 // clips of a model without a skin.

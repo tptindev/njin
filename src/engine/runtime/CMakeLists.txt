@@ -19,6 +19,7 @@ set(NJIN_FEATURE_3D_SOURCES
     modules/particles3d_looks.cpp
     modules/post3d.cpp
     modules/render3d.cpp
+    modules/render3d_env.cpp
     modules/world3d_draw.cpp)
 set(NJIN_FEATURE_PHYSICS3D_SOURCES feature_physics3d.cpp njin_physics3d.cpp)
 set(NJIN_FEATURE_NAV3D_SOURCES feature_nav3d.cpp njin_nav3d.cpp)

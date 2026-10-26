@@ -301,7 +301,8 @@ at most, with no toe in the ground; on a flat floor the pose is exactly the anim
 | Fog | `light3d::fog_color`, `fog_density` | By distance to the camera |
 | Point, spot lights | light3d_add() with njin::light3d_source per draw, or an entity (@ref entities_3d) | Up to njin::light3d_max (16) |
 | Point and spot light shadows | `light3d_source::shadows`, `light3d::source_shadow_size` | Up to njin::light3d_shadow_max (4) per draw; later lights light without casting shadows |
-| Surface | material3d_set() with njin::material3d | Shininess, emission, rim light, `unlit`, `texture`, `cast_shadows` |
+| Surface | material3d_set() with njin::material3d | Shininess, emission, rim light, `unlit`, `texture`, `cast_shadows`; PBR: `pbr`, `metallic`, `roughness` (@ref pbr3d) |
+| Tone mapping, environment image | `light3d::tonemap`, `exposure`, `environment` | @ref pbr3d |
 
 Lighting is Lambert plus a Blinn-Phong specular highlight, plus ambient light. `emission` adds colour
 after lighting: turn on bloom (post_fx_set()) so a self-lit shape glows into its surroundings.
@@ -316,6 +317,63 @@ in the middle of a room); the light's `radius` is also the shadow's range.
 njin::light3d_add(ctx, {.kind = njin::light3d_spot, .position = eye, .direction = forward,
                         .intensity = 2.0f, .radius = 25.0f, .cone = 40.0f, .shadows = true});
 @endcode
+
+## Tone mapping and PBR materials {#pbr3d}
+
+By default njin shades with Blinn-Phong and writes the colour it works out as is: anything brighter than 1
+burns to white. The three parts below are each turned on separately; a game that turns none on draws
+exactly as before.
+
+**Tone mapping** (`light3d::tonemap`, `exposure`): lighting is worked out in linear space (colours, lights
+and images taken as sRGB and converted), the highlights compressed to fit the screen and converted back to
+sRGB, inside the 3D shaders. Lights brighter than 1 no longer burn white, and PBR materials come out with
+the right colours.
+
+| `tonemap` | Suits |
+|---|---|
+| `tonemap3d_none` | As always (the default) |
+| `tonemap3d_linear` | Only times `exposure` and clipped at 1, in linear space |
+| `tonemap3d_aces` | As three.js's ACESFilmic: high contrast, a film look |
+| `tonemap3d_agx` | As Blender's default: soft, very bright parts fade to white instead of shifting hue |
+| `tonemap3d_neutral` | Khronos PBR Neutral: keeps material colours almost as they are, for products and objects |
+
+`unlit` things, 3D particles, the background and the fog colour keep the colours given (fog is mixed in
+after compression, so it still matches the background). Bloom reads the compressed image.
+
+**PBR materials** (`material3d::pbr`, `metallic`, `roughness`): the Cook-Torrance GGX BRDF, the shading of
+glTF, Blender and three.js, instead of `specular` and `shininess`. Lighting keeps Blinn-Phong's scale: a
+white light straight onto a white rough face still gives the light's colour. `metal_rough` (green is
+roughness, blue metallic, as glTF) and `occlusion` (red) images for primitives and instancing. A glTF model
+loaded with `model_load_desc::pbr = true` shades every material of the file as PBR, with the file's
+metallic, roughness, metallic/roughness and occlusion images (read only on the first PBR draw, on the second
+texture coordinates too) and `KHR_materials_emissive_strength`.
+
+**Environment** (`light3d::environment`): a 2:1 equirectangular panorama (`.hdr` or png/jpg) that lights
+and is reflected by PBR materials, instead of `ambient` for them; metals reflect it, sharp or blurred by
+roughness. The first time it sees an image njin builds its diffuse light (spherical harmonics) and six
+reflection levels by roughness, a few tens of milliseconds; a new image is built again.
+`environment_visible` draws the image as the sky, `environment_intensity` and `environment_rotation` set its
+brightness and direction.
+
+@code
+const njin::texture_handle sky = njin::texture_load(ctx, "assets/sky/venice_sunset_1k.hdr");
+const njin::model_handle helmet = njin::model_load(ctx, {.path = "assets/helmet.glb", .pbr = true});
+
+njin::light3d_set(ctx, {.direction = {-0.5f, -0.7f, -0.6f}, .shadows = true,
+                        .tonemap = njin::tonemap3d_agx, .environment = sky, .environment_visible = true});
+njin::begin_3d(ctx, cam);
+njin::draw_model(ctx, helmet, {});
+njin::material3d_set(ctx, {.pbr = true, .metallic = 1.0f, .roughness = 0.3f});
+njin::draw_sphere3d(ctx, {2, 1, 0}, 0.8f, {0.95f, 0.64f, 0.54f, 1}); // copper
+njin::material3d_set(ctx, {});
+njin::end_3d(ctx);
+@endcode
+
+Environment reflections give back the energy rough surfaces lose (multiple scattering, as three.js does),
+so a very rough white metal sphere in even white light stays white. Without an `environment` PBR
+materials take `ambient` as an evenly coloured sky: metals then only reflect that colour, so set an
+environment image when the scene has metal. world3d's generated sky (draw_sky3d()) does not become an
+environment by itself yet.
 
 ## Effects
 
@@ -433,6 +491,36 @@ shader_begin() before a 3D draw call makes that shape draw with the game's shade
 `vec3` uniforms `lightDir`, `lightColor`, `ambient`, `viewPos` when the shader declares them, plus
 `mvp`, `matModel`, `matNormal`, `colDiffuse` under raylib's standard names. An SDF shape always uses
 the engine's own shader.
+
+With `light3d::tonemap` on, the game's shader also gets `int toneMap`, `float exposure`, `vec3
+lightColorLinear`, `ambientLinear` (the lights in linear space) when it declares them: light with the
+linear colours, then put the result through the same curve so things drawn with the game's shader match
+the scene.
+
+@code
+// njin's GLSL, copied into the game's shader (the engine sets the uniforms).
+uniform int toneMap;     // 0 off, 1 linear, 2 ACES, 3 AgX, 4 Neutral
+uniform float exposure;
+vec3 linear_to_srgb(vec3 c) {
+  c = max(c, vec3(0.0));
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+vec3 tone_aces(vec3 c) {
+  const mat3 into = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+  const mat3 outof = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
+  c = into * (c / 0.6);
+  vec3 a = c * (c + 0.0245786) - 0.000090537;
+  vec3 b = c * (0.983729 * c + 0.4329510) + 0.238081;
+  return clamp(outof * (a / b), 0.0, 1.0);
+}
+// tone_agx, tone_neutral: as in src/engine/runtime/modules/render3d.cpp.
+vec3 tone_out(vec3 linear) {
+  vec3 c = linear * exposure;
+  if (toneMap == 2)
+    c = tone_aces(c);
+  return linear_to_srgb(clamp(c, 0.0, 1.0));
+}
+@endcode
 
 ## Physics and collision {#physics3d}
 

@@ -87,6 +87,23 @@ void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target
 /// @param ctx Engine context.
 void end_3d(context &ctx);
 
+/// How strong light is compressed into what a screen can show (light3d::tonemap).
+enum tonemap3d {
+  /// Off (the default): the colour worked out is written as is, above 1 burns
+  /// to white, as always. Colours, lights and images are used as given, with
+  /// no colour space conversion.
+  tonemap3d_none,
+  /// Only multiplied by `exposure` and clipped at 1, but worked out in linear space.
+  tonemap3d_linear,
+  /// ACES (as three.js's ACESFilmic): high contrast, very bright parts turn slightly yellow.
+  tonemap3d_aces,
+  /// AgX (Blender's default): soft, keeps hue when very bright, burns towards white.
+  tonemap3d_agx,
+  /// Khronos PBR Neutral: keeps material colours almost as they are, only
+  /// compresses the highlights. For products and objects whose colour must be right.
+  tonemap3d_neutral,
+};
+
 /// The 3D scene's shared lighting: the sun (directional light), ambient
 /// light, the sun's shadow and fog. Point and spot lights are added with
 /// light3d_add().
@@ -94,6 +111,8 @@ void end_3d(context &ctx);
 /// Each face is lit by the angle between its normal and the direction to the
 /// light (Lambert), plus a Blinn-Phong specular highlight per
 /// njin::material3d, plus `ambient` so a face in shadow is not fully black.
+/// `pbr` materials replace Blinn-Phong with metallic/roughness, and
+/// `environment` gives them light and reflections from an environment image.
 struct light3d {
   vec3 direction{-0.4f, -1.0f, -0.3f};  ///< Direction the sun shines from (need not have length 1).
   rgba color{1.0f, 1.0f, 1.0f, 1.0f};   ///< Colour and intensity of the sun. Black turns it off.
@@ -115,6 +134,35 @@ struct light3d {
   /// Fog density by distance to the camera: transparency left is
   /// `exp(-(density * d)^2)`. 0 is no fog.
   f32 fog_density = 0.0f;
+
+  /// @name Tone mapping and environment (PBR)
+  /// @{
+
+  /// Compresses strong light to fit the screen. Other than tonemap3d_none, njin
+  /// works lighting out in linear space (colours, lights and images taken as
+  /// sRGB and converted), compresses it the chosen way and converts back to
+  /// sRGB, inside the 3D shaders: lights brighter than 1 no longer burn white,
+  /// `pbr` materials come out right. Applies to everything lit (primitives,
+  /// models, SDF shapes, instancing, terrain); `unlit` things, particles, the
+  /// background and the fog colour keep the colours given. Bloom
+  /// (post_fx_set()) still reads the compressed image.
+  tonemap3d tonemap = tonemap3d_none;
+  /// Exposure, multiplied into the light before compression: 2 is twice as
+  /// bright. Only when `tonemap` is not tonemap3d_none.
+  f32 exposure = 1.0f;
+  /// An image of the surroundings (a 2:1 equirectangular panorama, `.hdr` or
+  /// png/jpg) that lights and is reflected by `pbr` materials: it replaces
+  /// `ambient` for them, metals reflect it. The first time it sees an image
+  /// njin builds its diffuse light (spherical harmonics) and the reflection
+  /// levels by roughness, a few milliseconds; a new image is built again.
+  /// Invalid is none (`ambient` is used). Best with `tonemap`: `.hdr` images
+  /// are much brighter than 1.
+  texture_handle environment{};
+  f32 environment_intensity = 1.0f; ///< Brightness of the environment image.
+  f32 environment_rotation = 0.0f;  ///< Turns the environment image around the y axis, degrees.
+  /// Draws the environment image as the sky, behind everything of the pass (with the same tone mapping).
+  bool environment_visible = false;
+  /// @}
 };
 
 /// Sets the shared lighting. Takes effect from the next begin_3d().
@@ -169,6 +217,11 @@ inline constexpr i32 light3d_shadow_max = 4;
 void light3d_add(context &ctx, const light3d_source &light);
 
 /// The surface of 3D shapes drawn after material3d_set().
+///
+/// Shaded with Blinn-Phong by default (`specular`, `shininess`). `pbr` switches
+/// to the metallic/roughness shading of glTF, Blender and three.js: best with
+/// light3d::tonemap, and with a light3d::environment so metals have something
+/// to reflect.
 struct material3d {
   f32 specular = 0.25f;  ///< Strength of the specular highlight. 0 is a matte surface (wood, cloth).
   f32 shininess = 32.0f; ///< Sharpness of the specular highlight: higher is a smoother surface (plastic, metal).
@@ -219,6 +272,26 @@ struct material3d {
   /// (polished floors, water). Only takes effect when `post3d::ssr` > 0. SDF shapes
   /// (draw_shape3d()) do not reflect.
   f32 reflect = 0.0f;
+
+  /// @name PBR (metallic/roughness)
+  /// @{
+
+  /// Shaded as a PBR material (the Cook-Torrance GGX BRDF) instead of
+  /// Blinn-Phong: `specular` and `shininess` are ignored, `metallic` and
+  /// `roughness` replace them. Lighting keeps Blinn-Phong's scale: a white
+  /// light straight onto a white rough face still gives the light's colour.
+  bool pbr = false;
+  f32 metallic = 0.0f;  ///< 0 is a dielectric (plastic, wood, stone), 1 a metal: its colour becomes the reflection's.
+  f32 roughness = 0.5f; ///< Roughness, 0 (mirror) to 1 (fully matte).
+  /// A metallic/roughness image as glTF has: green multiplies `roughness`,
+  /// blue `metallic`. For primitives and draw_instanced3d(); for a model set
+  /// `model_material::metal_rough` (a glTF file's own image is used already).
+  texture_handle metal_rough{};
+  /// An ambient occlusion image, red channel: darker places get less ambient
+  /// and environment light. As `metal_rough` for models.
+  texture_handle occlusion{};
+  f32 occlusion_strength = 1.0f; ///< Strength of `occlusion`, 0..1.
+  /// @}
 };
 
 /// Sets the surface for 3D shapes drawn after this call, until the next call
@@ -237,8 +310,11 @@ void material3d_set(context &ctx, const material3d &material);
 /// its own shader with shader_begin(), the shape draws with it; the engine
 /// sets the `vec3` uniforms `lightDir`, `lightColor`, `ambient`, `viewPos`
 /// (camera position), `fogColor`, the `float` uniform `fogDensity` (the fog
-/// as light3d_set()) and the `int` uniform `instanceFloats` (0 when not drawn
-/// instanced) when the shader declares them, and binds the extra images set
+/// as light3d_set()), the `int` uniform `instanceFloats` (0 when not drawn
+/// instanced), and for light3d::tonemap: `int` `toneMap` (0 off, 1 linear,
+/// 2 ACES, 3 AgX, 4 Neutral), `float` `exposure`, `vec3` `lightColorLinear`
+/// and `ambientLinear` (the lights' colours in linear space) when the shader
+/// declares them, and binds the extra images set
 /// with shader_set_texture(). Attributes and the `mvp`, `matModel`,
 /// `matNormal`, `colDiffuse` uniforms follow raylib's standard names. Because
 /// the shape draws at end_3d(), a uniform the game sets with `shader_set_*`
@@ -403,6 +479,10 @@ struct model_load_desc {
   /// drop their bone data: the model is drawn in the file's rest pose, as a
   /// still object. Morph targets are kept.
   bool merge = false;
+  /// Turns `surface.pbr` on for every material of the file: shaded with the
+  /// glTF metallic/roughness, with the file's metallic/roughness and occlusion
+  /// images (loaded on the first draw).
+  bool pbr = false;
 };
 
 /// Loads a model like model_load(), with the node filter and mesh merging of `desc`.
@@ -581,13 +661,22 @@ struct model_material {
   texture_handle normal{};   ///< Normal map (tangent space, green pointing up, as in glTF).
   texture_handle emission{}; ///< Self-lit image, multiplied by `emission_color`.
   rgba emission_color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Colour multiplied into the emission image (the file's, or `emission`).
+  /// A metallic/roughness image (as material3d::metal_rough) instead of the
+  /// file's, when `surface.pbr` is on. Invalid is the glTF file's own, if any.
+  texture_handle metal_rough{};
+  /// An ambient occlusion image (as material3d::occlusion) instead of the file's.
+  texture_handle occlusion{};
   /// This part's own shader, like shader_begin() for a primitive, also when
   /// the model is drawn with draw_instanced3d() (the shader reads
   /// `instanceFloats` to know which way it is drawn). Invalid means the
   /// engine's built-in shader.
   shader_handle shader{};
-  /// Shininess, emission, unlit, shadow casting, `world_uv`. `surface.texture`
-  /// and `surface.normal` are unused here (`albedo`, `normal` are).
+  /// Shininess, emission, unlit, shadow casting, `world_uv`, PBR.
+  /// `surface.texture`, `surface.normal`, `surface.metal_rough` and
+  /// `surface.occlusion` are unused here (`albedo`, `normal`, `metal_rough`,
+  /// `occlusion` are). For a glTF file, `surface.metallic`, `surface.roughness`
+  /// and `surface.occlusion_strength` come from the file's material;
+  /// `surface.pbr` is off unless model_load_desc::pbr.
   material3d surface{};
   /// Draw both faces of every triangle (no back-face culling), for leaves,
   /// paper, single-layer cloth. Defaults to the glTF material's `doubleSided`.

@@ -517,6 +517,79 @@ void apply_texcoord_sets(Model &model, const cgltf_data *data) {
   }
 }
 
+// The glTF PBR values of each material (metallic, roughness, occlusion
+// strength), and where its metallic-roughness and occlusion images are, for
+// model_file_pbr_map. `pbr` turns material3d::pbr on (model_load_desc::pbr).
+void apply_pbr(model_slot &slot, cgltf_data *data, const char *resolved, bool pbr) {
+  // The texture coordinates the base colour uses are the mesh's first ones
+  // (apply_texcoord_sets swaps them in); a map on the other set reads the second.
+  if ((usize)slot.model.materialCount != data->materials_count + 1)
+    return;
+  slot.pbr_maps.assign(slot.materials.size(), {});
+  const std::string dir = GetDirectoryPath(resolved);
+  bool buffers = false;
+  for (cgltf_size i = 0; i < data->materials_count; i++) {
+    const cgltf_material &m = data->materials[i];
+    model_material &mm = slot.materials[i + 1]; // raylib's default material is first
+    mm.surface.pbr = pbr;
+    if (m.has_pbr_metallic_roughness) {
+      mm.surface.metallic = m.pbr_metallic_roughness.metallic_factor;
+      mm.surface.roughness = m.pbr_metallic_roughness.roughness_factor;
+    }
+    mm.surface.occlusion_strength = m.occlusion_texture.texture != nullptr ? m.occlusion_texture.scale : 1.0f;
+    // KHR_materials_emissive_strength, only for a file loaded as PBR: a game
+    // drawing it the classic way keeps the colours it always had.
+    if (pbr && m.has_emissive_strength && m.emissive_strength.emissive_strength > 0.0f) {
+      const f32 k = m.emissive_strength.emissive_strength;
+      mm.emission_color = {mm.emission_color.r * k, mm.emission_color.g * k, mm.emission_color.b * k,
+                           mm.emission_color.a};
+    }
+    const cgltf_int base_set = m.has_pbr_metallic_roughness &&
+                                       m.pbr_metallic_roughness.base_color_texture.texture != nullptr
+                                   ? m.pbr_metallic_roughness.base_color_texture.texcoord
+                                   : 0;
+    const cgltf_int sets[2] = {m.has_pbr_metallic_roughness ? m.pbr_metallic_roughness.metallic_roughness_texture.texcoord : 0,
+                               m.occlusion_texture.texcoord};
+    const cgltf_texture *maps[2] = {
+        m.has_pbr_metallic_roughness ? m.pbr_metallic_roughness.metallic_roughness_texture.texture : nullptr,
+        m.occlusion_texture.texture};
+    for (i32 k = 0; k < 2; k++) {
+      const cgltf_image *image = maps[k] != nullptr ? maps[k]->image : nullptr;
+      if (image == nullptr)
+        continue;
+      model_slot::file_map &f = slot.pbr_maps[i + 1][(usize)k];
+      f.second_uv = sets[k] != base_set;
+      const char *mime = image->mime_type != nullptr ? image->mime_type : "";
+      f.ext = std::strstr(mime, "jpeg") != nullptr ? ".jpg" : ".png";
+      if (image->buffer_view != nullptr) {
+        // Inside a .glb: the bytes are copied out, the buffers freed with the rest.
+        if (!buffers) {
+          cgltf_options options{};
+          buffers = cgltf_load_buffers(&options, data, resolved) == cgltf_result_success;
+        }
+        const u8 *at = buffers ? (const u8 *)cgltf_buffer_view_data(image->buffer_view) : nullptr;
+        if (at != nullptr)
+          f.bytes.assign(at, at + image->buffer_view->size);
+      } else if (image->uri != nullptr && std::strncmp(image->uri, "data:", 5) == 0) {
+        const char *b64 = std::strstr(image->uri, ";base64,");
+        int size = 0;
+        u8 *decoded = b64 != nullptr ? DecodeDataBase64(b64 + 8, &size) : nullptr;
+        if (decoded != nullptr) {
+          f.bytes.assign(decoded, decoded + size);
+          MemFree(decoded);
+        }
+        if (std::strncmp(image->uri, "data:image/jpeg", 15) == 0)
+          f.ext = ".jpg";
+      } else if (image->uri != nullptr) {
+        std::string uri = image->uri;
+        cgltf_decode_uri(uri.data());
+        uri.resize(std::strlen(uri.c_str()));
+        f.path = dir + "/" + uri;
+      }
+    }
+  }
+}
+
 // KHR_materials_transmission: raylib reads no such thing, so a pane of clear
 // glass would be an opaque sheet of its base colour. Drawn see-through
 // instead (render3d's translucent pass), lit like glass, casting no shadow.
@@ -895,6 +968,7 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
   }
   slot.material_names.assign(slot.materials.size(), std::string());
   if (gltf != nullptr) {
+    apply_pbr(slot, gltf, resolved.c_str(), desc.pbr);
     apply_transmission(slot, gltf);
     // raylib's default material is first, then the file's in order. raylib
     // reads neither the names nor doubleSided.
@@ -1431,8 +1505,45 @@ void model_store_unload(model_store &store, model_handle handle) {
   if (slot->anims != nullptr)
     UnloadModelAnimations(slot->anims, slot->anim_count);
   model_lod_free(*slot);
+  for (auto &maps : slot->pbr_maps)
+    for (model_slot::file_map &f : maps)
+      if (f.texture.id != 0)
+        UnloadTexture(f.texture);
   UnloadModel(slot->model);
   *slot = model_slot{};
+}
+
+bool model_file_pbr_map_uv2(const model_slot &slot, i32 index, bool occlusion) {
+  return index >= 0 && (usize)index < slot.pbr_maps.size() && slot.pbr_maps[(usize)index][occlusion ? 1 : 0].second_uv;
+}
+
+Texture2D model_file_pbr_map(const model_slot &slot, i32 index, bool occlusion) {
+  if (index < 0 || (usize)index >= slot.pbr_maps.size())
+    return {};
+  model_slot::file_map &f = slot.pbr_maps[(usize)index][occlusion ? 1 : 0];
+  if (f.tried)
+    return f.texture;
+  f.tried = true;
+  Image image{};
+  if (!f.bytes.empty())
+    image = LoadImageFromMemory(f.ext.c_str(), f.bytes.data(), (int)f.bytes.size());
+  else if (!f.path.empty())
+    image = LoadImage(f.path.c_str());
+  else
+    return {};
+  if (image.data == nullptr) {
+    NJIN_WARN("model: could not read a %s map (%s)", occlusion ? "occlusion" : "metallic-roughness",
+              f.path.empty() ? "inside the file" : f.path.c_str());
+    return {};
+  }
+  f.bytes.clear();
+  f.bytes.shrink_to_fit();
+  f.texture = LoadTextureFromImage(image);
+  UnloadImage(image);
+  GenTextureMipmaps(&f.texture);
+  SetTextureFilter(f.texture, TEXTURE_FILTER_TRILINEAR);
+  SetTextureWrap(f.texture, TEXTURE_WRAP_REPEAT);
+  return f.texture;
 }
 
 model_store::~model_store() {

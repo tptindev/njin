@@ -84,12 +84,29 @@ void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target
 /// @param ctx Context của engine.
 void end_3d(context &ctx);
 
+/// Cách nén ánh sáng mạnh vào khoảng màn hình hiển thị được (light3d::tonemap).
+enum tonemap3d {
+  /// Tắt (mặc định): màu tính ra được ghi thẳng, quá 1 thì cháy trắng, như trước
+  /// giờ. Màu, ánh sáng và ảnh dùng như nhập vào, không đổi không gian màu.
+  tonemap3d_none,
+  /// Chỉ nhân `exposure` rồi cắt ở 1, nhưng tính trong không gian tuyến tính.
+  tonemap3d_linear,
+  /// ACES (như three.js ACESFilmic): tương phản cao, chỗ rất sáng ngả vàng nhẹ.
+  tonemap3d_aces,
+  /// AgX (mặc định của Blender): mềm, giữ màu khi rất sáng, chỗ cháy về trắng.
+  tonemap3d_agx,
+  /// Khronos PBR Neutral: giữ màu vật liệu gần như nguyên, chỉ nén chỗ sáng.
+  /// Hợp với sản phẩm, đồ vật, khi màu phải đúng như ảnh.
+  tonemap3d_neutral,
+};
+
 /// Ánh sáng chung của cảnh 3D: mặt trời (ánh sáng hướng), ánh sáng nền, bóng đổ
 /// của mặt trời và sương mù. Đèn điểm và đèn nón thêm bằng light3d_add().
 ///
 /// Mỗi mặt sáng theo góc giữa pháp tuyến của nó và hướng tới đèn (Lambert), cộng
 /// điểm sáng bóng Blinn-Phong theo njin::material3d, cộng `ambient` để mặt khuất
-/// không đen hẳn.
+/// không đen hẳn. Vật liệu `pbr` thay Blinn-Phong bằng metallic/roughness, và
+/// `environment` cho chúng ánh sáng và phản chiếu từ một ảnh môi trường.
 struct light3d {
   vec3 direction{-0.4f, -1.0f, -0.3f};  ///< Hướng nắng chiếu tới (không cần độ dài 1).
   rgba color{1.0f, 1.0f, 1.0f, 1.0f};   ///< Màu và cường độ của nắng. Đen là tắt mặt trời.
@@ -109,6 +126,32 @@ struct light3d {
   /// Mật độ sương theo khoảng cách tới camera: độ trong còn `exp(-(density * d)^2)`.
   /// 0 là không sương.
   f32 fog_density = 0.0f;
+
+  /// @name Tone mapping và môi trường (PBR)
+  /// @{
+
+  /// Nén ánh sáng mạnh cho vừa màn hình. Khác tonemap3d_none thì njin tính ánh
+  /// sáng trong không gian tuyến tính (màu, đèn và ảnh coi như sRGB rồi đổi ra),
+  /// nén theo cách chọn rồi đổi lại sRGB, ngay trong shader 3D: đèn mạnh hơn 1
+  /// không còn cháy trắng, vật liệu `pbr` ra đúng màu. Áp cho mọi hình được chiếu
+  /// sáng (hình khối, model, hình SDF, instanced, địa hình); vật `unlit`, hạt, nền
+  /// và màu sương giữ nguyên như nhập. Bloom (post_fx_set()) vẫn đọc ảnh đã nén.
+  tonemap3d tonemap = tonemap3d_none;
+  /// Độ phơi sáng, nhân vào ánh sáng trước khi nén: 2 là sáng gấp đôi. Chỉ khi
+  /// `tonemap` khác tonemap3d_none.
+  f32 exposure = 1.0f;
+  /// Ảnh môi trường bao quanh cảnh (ảnh toàn cảnh equirectangular 2:1, `.hdr`
+  /// hay png/jpg) chiếu sáng và phản chiếu lên vật liệu `pbr`: thay cho `ambient`
+  /// với chúng, kim loại phản chiếu nó. Lần đầu gặp một ảnh, njin dựng sẵn ánh
+  /// sáng khuếch tán (spherical harmonics) và các mức phản chiếu theo độ nhám, tốn
+  /// vài mili giây; đổi ảnh thì dựng lại. Không hợp lệ là không có (dùng `ambient`).
+  /// Nên dùng cùng `tonemap`: ảnh `.hdr` sáng hơn 1 nhiều.
+  texture_handle environment{};
+  f32 environment_intensity = 1.0f; ///< Độ sáng của ảnh môi trường.
+  f32 environment_rotation = 0.0f;  ///< Xoay ảnh môi trường quanh trục y, độ.
+  /// Vẽ ảnh môi trường làm nền trời, sau mọi thứ của lần vẽ (cùng tone mapping).
+  bool environment_visible = false;
+  /// @}
 };
 
 /// Đặt ánh sáng chung. Có hiệu lực từ begin_3d() tiếp theo.
@@ -161,6 +204,10 @@ inline constexpr i32 light3d_shadow_max = 4;
 void light3d_add(context &ctx, const light3d_source &light);
 
 /// Bề mặt của các hình 3D vẽ sau material3d_set().
+///
+/// Mặc định tô theo Blinn-Phong (`specular`, `shininess`). `pbr` đổi sang cách
+/// tô metallic/roughness của glTF, Blender và three.js: nên bật cùng
+/// light3d::tonemap, và đặt light3d::environment để kim loại có thứ phản chiếu.
 struct material3d {
   f32 specular = 0.25f;  ///< Độ mạnh của điểm sáng bóng. 0 là mặt mờ (gỗ, vải).
   f32 shininess = 32.0f; ///< Độ nhọn của điểm sáng bóng: lớn là mặt nhẵn (nhựa, kim loại).
@@ -205,6 +252,26 @@ struct material3d {
   /// mọi góc nhìn, nhỏ hơn thì chỉ phản chiếu rõ khi nhìn xiên (sàn bóng, mặt nước).
   /// Chỉ có tác dụng khi `post3d::ssr` > 0. Hình SDF (draw_shape3d()) không phản chiếu.
   f32 reflect = 0.0f;
+
+  /// @name PBR (metallic/roughness)
+  /// @{
+
+  /// Tô theo vật liệu PBR (BRDF Cook-Torrance GGX) thay cho Blinn-Phong:
+  /// `specular` và `shininess` bị bỏ qua, `metallic` và `roughness` thay chúng.
+  /// Ánh sáng giữ cùng thang với Blinn-Phong: đèn trắng chiếu thẳng vào mặt trắng
+  /// nhám vẫn ra màu của đèn.
+  bool pbr = false;
+  f32 metallic = 0.0f;  ///< 0 là phi kim (nhựa, gỗ, đá), 1 là kim loại: màu thành màu phản chiếu.
+  f32 roughness = 0.5f; ///< Độ nhám, 0 (gương) đến 1 (mờ hẳn).
+  /// Ảnh metallic/roughness như glTF: kênh xanh lá nhân vào `roughness`, kênh
+  /// xanh dương nhân vào `metallic`. Cho hình khối và draw_instanced3d(); với
+  /// model, đặt `model_material::metal_rough` (ảnh trong file glTF được dùng sẵn).
+  texture_handle metal_rough{};
+  /// Ảnh che khuất môi trường (ambient occlusion), kênh đỏ: chỗ tối nhận ít ánh
+  /// sáng nền và môi trường. Như `metal_rough` với model.
+  texture_handle occlusion{};
+  f32 occlusion_strength = 1.0f; ///< Độ mạnh của `occlusion`, 0..1.
+  /// @}
 };
 
 /// Đặt bề mặt cho các hình 3D vẽ sau lệnh này, đến lần gọi tiếp theo hoặc
@@ -221,8 +288,11 @@ void material3d_set(context &ctx, const material3d &material);
 /// được chiếu sáng theo light3d_set(), light3d_add() và material3d_set(). Nếu game đã bật shader của mình bằng
 /// shader_begin(), hình vẽ bằng shader đó; engine đặt sẵn các uniform `vec3`
 /// `lightDir`, `lightColor`, `ambient`, `viewPos` (vị trí camera), `fogColor`,
-/// uniform `float` `fogDensity` (sương như light3d_set()) và uniform `int`
-/// `instanceFloats` (0 khi không vẽ instanced) nếu shader khai báo chúng, và gắn
+/// uniform `float` `fogDensity` (sương như light3d_set()), uniform `int`
+/// `instanceFloats` (0 khi không vẽ instanced), và cho light3d::tonemap: `int`
+/// `toneMap` (0 tắt, 1 linear, 2 ACES, 3 AgX, 4 Neutral), `float` `exposure`,
+/// `vec3` `lightColorLinear` và `ambientLinear` (màu đèn trong không gian tuyến
+/// tính) nếu shader khai báo chúng, và gắn
 /// các ảnh phụ đặt bằng shader_set_texture(). Attribute và các uniform `mvp`,
 /// `matModel`, `matNormal`, `colDiffuse` theo tên chuẩn của raylib. Vì hình vẽ ở
 /// end_3d(), uniform mà game đặt bằng `shader_set_*` lấy giá trị cuối cùng trước
@@ -374,6 +444,9 @@ struct model_load_desc {
   /// để draw_instanced3d() vẽ ít lệnh hơn. Mesh gộp bỏ dữ liệu xương: model vẽ ở
   /// tư thế gốc trong file, như đồ vật đứng yên. Morph target được giữ.
   bool merge = false;
+  /// Bật `surface.pbr` cho mọi vật liệu của file: tô theo metallic/roughness của
+  /// glTF, với ảnh metallic/roughness và occlusion trong file (nạp lần đầu vẽ).
+  bool pbr = false;
 };
 
 /// Nạp model như model_load(), với bộ lọc node và gộp mesh của `desc`.
@@ -540,12 +613,20 @@ struct model_material {
   texture_handle normal{};   ///< Normal map (tangent space, xanh lá hướng lên như glTF).
   texture_handle emission{}; ///< Ảnh phát sáng, nhân với `emission_color`.
   rgba emission_color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu nhân vào ảnh phát sáng (của file hay `emission`).
+  /// Ảnh metallic/roughness (như material3d::metal_rough) thay cho ảnh của file,
+  /// khi `surface.pbr` bật. Không hợp lệ là ảnh trong file glTF nếu có.
+  texture_handle metal_rough{};
+  /// Ảnh che khuất môi trường (như material3d::occlusion) thay cho ảnh của file.
+  texture_handle occlusion{};
   /// Shader riêng cho phần này, như shader_begin() với hình khối, cả khi model
   /// vẽ bằng draw_instanced3d() (shader đọc `instanceFloats` để biết mình đang
   /// vẽ kiểu nào). Không hợp lệ là shader có sẵn của engine.
   shader_handle shader{};
-  /// Độ bóng, phát sáng, unlit, đổ bóng, `world_uv`. `surface.texture` và
-  /// `surface.normal` không dùng ở đây (đã có `albedo`, `normal`).
+  /// Độ bóng, phát sáng, unlit, đổ bóng, `world_uv`, PBR. `surface.texture`,
+  /// `surface.normal`, `surface.metal_rough` và `surface.occlusion` không dùng ở
+  /// đây (đã có `albedo`, `normal`, `metal_rough`, `occlusion`). Với file glTF,
+  /// `surface.metallic`, `surface.roughness` và `surface.occlusion_strength` lấy
+  /// theo vật liệu trong file; `surface.pbr` tắt trừ khi model_load_desc::pbr.
   material3d surface{};
   /// Vẽ cả hai mặt của mỗi tam giác (không bỏ mặt sau), cho lá cây, giấy, vải
   /// mỏng một lớp. Mặc định theo `doubleSided` của vật liệu trong file glTF.

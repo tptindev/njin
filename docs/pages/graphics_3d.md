@@ -290,7 +290,8 @@ giống hệt animation.
 | Sương mù | `light3d::fog_color`, `fog_density` | Theo khoảng cách tới camera |
 | Đèn điểm, đèn nón | light3d_add() với njin::light3d_source mỗi lần vẽ, hoặc entity (@ref entities_3d) | Tối đa njin::light3d_max (16) |
 | Bóng đổ của đèn điểm, đèn nón | `light3d_source::shadows`, `light3d::source_shadow_size` | Tối đa njin::light3d_shadow_max (4) mỗi lần vẽ; đèn sau đó chiếu sáng mà không đổ bóng |
-| Bề mặt | material3d_set() với njin::material3d | Độ bóng, phát sáng, viền sáng (`rim`), `unlit`, `texture`, `cast_shadows` |
+| Bề mặt | material3d_set() với njin::material3d | Độ bóng, phát sáng, viền sáng (`rim`), `unlit`, `texture`, `cast_shadows`; PBR: `pbr`, `metallic`, `roughness` (@ref pbr3d) |
+| Tone mapping, ảnh môi trường | `light3d::tonemap`, `exposure`, `environment` | @ref pbr3d |
 
 Ánh sáng là Lambert cộng điểm sáng bóng Blinn-Phong, cộng ánh sáng nền. `emission` cộng màu sau khi
 chiếu sáng: bật bloom (post_fx_set()) để vật phát sáng lan sáng ra xung quanh.
@@ -304,6 +305,59 @@ Chỉ bật cho vài đèn quan trọng (đèn pin, đèn treo giữa phòng); `
 njin::light3d_add(ctx, {.kind = njin::light3d_spot, .position = eye, .direction = forward,
                         .intensity = 2.0f, .radius = 25.0f, .cone = 40.0f, .shadows = true});
 @endcode
+
+## Tone mapping và vật liệu PBR {#pbr3d}
+
+Mặc định njin tô theo Blinn-Phong và ghi thẳng màu tính ra: chỗ sáng quá 1 thì cháy trắng. Ba phần
+dưới đây bật riêng từng phần, game không bật thì vẫn vẽ y như cũ.
+
+**Tone mapping** (`light3d::tonemap`, `exposure`): ánh sáng được tính trong không gian tuyến tính (màu,
+đèn và ảnh coi như sRGB rồi đổi ra), nén chỗ sáng cho vừa màn hình rồi đổi lại sRGB, ngay trong shader
+3D. Đèn mạnh hơn 1 không còn cháy trắng, và vật liệu PBR ra đúng màu.
+
+| `tonemap` | Hợp với |
+|---|---|
+| `tonemap3d_none` | Như trước giờ (mặc định) |
+| `tonemap3d_linear` | Chỉ nhân `exposure` rồi cắt ở 1, trong không gian tuyến tính |
+| `tonemap3d_aces` | Như ACESFilmic của three.js: tương phản cao, kiểu điện ảnh |
+| `tonemap3d_agx` | Như mặc định của Blender: mềm, chỗ rất sáng nhạt dần về trắng thay vì đổi màu |
+| `tonemap3d_neutral` | Khronos PBR Neutral: giữ màu vật liệu gần như nguyên, cho sản phẩm, đồ vật |
+
+Vật `unlit`, hạt 3D, nền và màu sương giữ nguyên màu nhập vào (sương trộn sau khi nén, nên vẫn khớp màu
+nền). Bloom đọc ảnh đã nén.
+
+**Vật liệu PBR** (`material3d::pbr`, `metallic`, `roughness`): BRDF Cook-Torrance GGX, cách tô của glTF,
+Blender và three.js, thay cho `specular` và `shininess`. Ánh sáng giữ cùng thang với Blinn-Phong: đèn
+trắng chiếu thẳng vào mặt trắng nhám vẫn ra màu của đèn. Ảnh `metal_rough` (kênh xanh lá là độ nhám,
+xanh dương là kim loại, như glTF) và `occlusion` (kênh đỏ) cho hình khối và instanced. Model glTF nạp
+bằng `model_load_desc::pbr = true` thì mọi vật liệu của file tô PBR, với metallic, roughness, ảnh
+metallic/roughness và occlusion trong file (ảnh chỉ được đọc lần đầu vẽ PBR, kể cả khi nằm ở bộ UV thứ
+hai) và `KHR_materials_emissive_strength`.
+
+**Môi trường** (`light3d::environment`): một ảnh toàn cảnh equirectangular 2:1 (`.hdr` hay png/jpg) chiếu
+sáng và phản chiếu lên vật liệu PBR, thay cho `ambient` với chúng; kim loại phản chiếu nó, rõ hay mờ theo
+độ nhám. Lần đầu gặp một ảnh, njin dựng sẵn ánh sáng khuếch tán (spherical harmonics) và sáu mức phản
+chiếu theo độ nhám, tốn vài chục mili giây; đổi ảnh thì dựng lại. `environment_visible` vẽ ảnh làm nền
+trời, `environment_intensity` và `environment_rotation` chỉnh độ sáng và hướng.
+
+@code
+const njin::texture_handle sky = njin::texture_load(ctx, "assets/sky/venice_sunset_1k.hdr");
+const njin::model_handle helmet = njin::model_load(ctx, {.path = "assets/helmet.glb", .pbr = true});
+
+njin::light3d_set(ctx, {.direction = {-0.5f, -0.7f, -0.6f}, .shadows = true,
+                        .tonemap = njin::tonemap3d_agx, .environment = sky, .environment_visible = true});
+njin::begin_3d(ctx, cam);
+njin::draw_model(ctx, helmet, {});
+njin::material3d_set(ctx, {.pbr = true, .metallic = 1.0f, .roughness = 0.3f});
+njin::draw_sphere3d(ctx, {2, 1, 0}, 0.8f, {0.95f, 0.64f, 0.54f, 1}); // đồng
+njin::material3d_set(ctx, {});
+njin::end_3d(ctx);
+@endcode
+
+Phần phản chiếu môi trường bù lại năng lượng mà mặt nhám mất đi (multiple scattering, như three.js),
+nên một quả cầu kim loại trắng thật nhám trong ánh sáng trắng đều vẫn trắng. Không có `environment` thì
+vật liệu PBR nhận `ambient` như một bầu trời đều màu: kim loại khi đó chỉ phản chiếu màu ấy, nên đặt một
+ảnh môi trường khi cảnh có kim loại. Bầu trời tự sinh của world3d (draw_sky3d()) chưa tự thành môi trường.
 
 ## Hiệu ứng
 
@@ -417,6 +471,35 @@ thấy: @ref spatial_batch.
 shader_begin() trước một lệnh vẽ 3D thì hình đó vẽ bằng shader của game. Engine đặt sẵn các uniform
 `vec3` `lightDir`, `lightColor`, `ambient`, `viewPos` nếu shader khai báo chúng, cùng `mvp`, `matModel`,
 `matNormal`, `colDiffuse` theo tên chuẩn của raylib. Hình SDF luôn dùng shader của engine.
+
+Khi bật `light3d::tonemap`, shader của game nhận thêm `int toneMap`, `float exposure`, `vec3
+lightColorLinear`, `ambientLinear` (đèn trong không gian tuyến tính) nếu khai báo chúng: tính ánh sáng
+bằng các màu tuyến tính rồi đưa qua cùng đường cong để vật vẽ bằng shader riêng khớp màu với cảnh.
+
+@code
+// Đoạn GLSL của njin, chép vào shader của game (uniform do engine đặt sẵn).
+uniform int toneMap;     // 0 tắt, 1 linear, 2 ACES, 3 AgX, 4 Neutral
+uniform float exposure;
+vec3 linear_to_srgb(vec3 c) {
+  c = max(c, vec3(0.0));
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+vec3 tone_aces(vec3 c) {
+  const mat3 into = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+  const mat3 outof = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
+  c = into * (c / 0.6);
+  vec3 a = c * (c + 0.0245786) - 0.000090537;
+  vec3 b = c * (0.983729 * c + 0.4329510) + 0.238081;
+  return clamp(outof * (a / b), 0.0, 1.0);
+}
+// tone_agx, tone_neutral: như trong src/engine/runtime/modules/render3d.cpp.
+vec3 tone_out(vec3 linear) {
+  vec3 c = linear * exposure;
+  if (toneMap == 2)
+    c = tone_aces(c);
+  return linear_to_srgb(clamp(c, 0.0, 1.0));
+}
+@endcode
 
 ## Vật lý và va chạm {#physics3d}
 

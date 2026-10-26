@@ -6,6 +6,27 @@ change between MINOR versions. The number lives in `src/engine/api/njin_version.
 To release: edit that header, add a section here, commit, then
 `git tag -a vX.Y.Z -m "njin X.Y.Z"` and push the tag.
 
+## Unreleased
+
+### Added
+
+- PBR, all opt-in (games that set none of it draw exactly as before):
+  `light3d::tonemap` (`tonemap3d_linear`, `_aces` as three.js's ACESFilmic,
+  `_agx` as Blender's, `_neutral` as Khronos PBR Neutral) with `exposure`:
+  lighting in linear space, tone mapped and encoded to sRGB in the 3D shaders;
+  `material3d::pbr` with `metallic`, `roughness`, `metal_rough` and
+  `occlusion` maps (Cook-Torrance GGX, multiple-scattering compensation for
+  ambient and environment light); glTF metallic/roughness, occlusion (also on
+  the second UV set) and `KHR_materials_emissive_strength` with
+  `model_load_desc::pbr` (the maps read on the first PBR draw only);
+  `light3d::environment` (an equirectangular `.hdr`/png/jpg) for image-based
+  lighting: spherical-harmonics irradiance and a GGX-prefiltered reflection
+  atlas, `environment_intensity`, `environment_rotation`, and
+  `environment_visible` to draw it as the sky. raylib now reads `.hdr`
+  images. Game shaders get `toneMap`, `exposure`, `lightColorLinear`,
+  `ambientLinear`. Lua: `tonemap`, `exposure`, `pbr`, `metallic`,
+  `roughness`.
+
 ## 0.7.0
 
 Compatible with 0.6.0: existing games build and behave unchanged. One

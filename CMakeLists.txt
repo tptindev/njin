@@ -244,6 +244,8 @@ target_compile_definitions(raylib PRIVATE SUPPORT_SCREEN_CAPTURE=0)
 # JPEG images, off in raylib by default: glTF models carry them (external
 # or embedded), and a texture_load() of a .jpg is as common as a .png.
 target_compile_definitions(raylib PRIVATE SUPPORT_FILEFORMAT_JPG=1)
+# Radiance .hdr images, as float textures: light3d::environment's usual format.
+target_compile_definitions(raylib PRIVATE SUPPORT_FILEFORMAT_HDR=1)
 # Memory manager: raylib's allocations go through njin's counting allocator
 # (src/engine/mem), which also replaces C++ new/delete. It is built into the
 # raylib target, so every program that links raylib has it.

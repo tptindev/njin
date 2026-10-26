@@ -48,17 +48,20 @@ constexpr i32 lamp_faces = 6;
 const char *const lit_vs = R"(#version 330
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec2 vertexTexCoord2;
 in vec3 vertexNormal;
 in vec4 vertexColor;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 matNormal;
 out vec2 fragTexCoord;
+out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
 void main() {
   fragTexCoord = vertexTexCoord;
+  fragTexCoord2 = vertexTexCoord2;
   fragColor = vertexColor;
   fragNormal = (matNormal * vec4(vertexNormal, 0.0)).xyz;
   fragPos = (matModel * vec4(vertexPosition, 1.0)).xyz;
@@ -101,7 +104,100 @@ uniform int lightShadow[16];
 uniform mat4 lampVP[24];
 uniform vec4 lampParams[4];
 uniform float lampRows;   // rows in the atlas: the lamps that cast, so far
+// Tone mapping (light3d::tonemap): 0 off, the colours as authored; else the
+// lighting is worked out in linear space from the linear copies of the
+// lights below (the sRGB ones above are left as they are for game shaders
+// and the water), then exposed, tone mapped and encoded back to sRGB.
+uniform int toneMap;          // 1 linear, 2 ACES, 3 AgX, 4 Neutral
+uniform float exposure;
+uniform vec3 lightColorLinear;
+uniform vec3 ambientLinear;
+uniform vec4 lightColorsLinear[16];
+uniform vec4 emissionLinear;
+// PBR (material3d::pbr): x 1 = on, y metallic, z roughness, w occlusion strength.
+uniform vec4 pbrParams;
+// The environment (light3d::environment): its irradiance as spherical
+// harmonics (linear, already times the intensity), and its radiance prefiltered
+// for `envLevels` roughnesses, one equirectangular image per level, stacked
+// top (roughness 0) to bottom (roughness 1).
+uniform int envOn;
+uniform vec3 envSH[9];
+uniform sampler2D envMap;
+uniform vec4 envParams;       // x levels, y intensity, z rotation (radians), w texel height of a level
+// The maps of a PBR material, read by the main shader: multiplied into the
+// factors. Negative when the shader has none (the SDF shapes, the outdoor world).
+float surfMetal = -1.0;
+float surfRough = -1.0;
+float surfOcclusion = 1.0;
 out vec4 finalColor;
+
+const float PI = 3.14159265;
+
+vec3 srgb_to_linear(vec3 c) {
+  c = max(c, vec3(0.0));
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
+vec3 linear_to_srgb(vec3 c) {
+  c = max(c, vec3(0.0));
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+
+// ACES filmic, Stephen Hill's fit of the RRT and ODT, as three.js uses it (its
+// exposure divided by 0.6 too, so the same exposure looks the same).
+vec3 tone_aces(vec3 c) {
+  const mat3 into = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+  const mat3 outof = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
+  c = into * (c / 0.6);
+  vec3 a = c * (c + 0.0245786) - 0.000090537;
+  vec3 b = c * (0.983729 * c + 0.4329510) + 0.238081;
+  return clamp(outof * (a / b), 0.0, 1.0);
+}
+
+// AgX: log encoding between -12.47 and +4.03 stops around mid grey, a sigmoid
+// fitted to Blender's, and back to linear.
+vec3 tone_agx(vec3 c) {
+  const mat3 inset = mat3(0.842479062253094, 0.0423282422610123, 0.0423756549057051,
+                          0.0784335999999992, 0.878468636469772, 0.0784336,
+                          0.0792237451477643, 0.0791661274605434, 0.879142973793104);
+  const mat3 outset = mat3(1.19687900512017, -0.0528968517574562, -0.0529716355144438,
+                           -0.0980208811401368, 1.15190312990417, -0.0980434501171241,
+                           -0.0990297440797205, -0.0989611768448433, 1.15107367264116);
+  const float lo = -12.47393, hi = 4.026069;
+  c = inset * max(c, vec3(1e-10));
+  c = clamp((log2(c) - lo) / (hi - lo), 0.0, 1.0);
+  vec3 x2 = c * c, x4 = x2 * x2;
+  c = 15.5 * x4 * x2 - 40.14 * x4 * c + 31.96 * x4 - 6.868 * x2 * c + 0.4298 * x2 + 0.1191 * c - 0.00232;
+  return clamp(pow(max(outset * c, vec3(0.0)), vec3(2.2)), 0.0, 1.0);
+}
+
+// Khronos PBR Neutral.
+vec3 tone_neutral(vec3 c) {
+  const float start = 0.76, desaturation = 0.15;
+  float x = min(c.r, min(c.g, c.b));
+  float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+  c -= offset;
+  float peak = max(c.r, max(c.g, c.b));
+  if (peak < start)
+    return c;
+  float d = 1.0 - start;
+  float top = 1.0 - d * d / (peak + d - start);
+  c *= top / peak;
+  float g = 1.0 - 1.0 / (desaturation * (peak - top) + 1.0);
+  return mix(c, vec3(top), g);
+}
+
+// Linear light to what the screen shows (sRGB), by light3d::tonemap.
+vec3 tone_out(vec3 c) {
+  c *= exposure;
+  if (toneMap == 2)
+    c = tone_aces(c);
+  else if (toneMap == 3)
+    c = tone_agx(c);
+  else if (toneMap == 4)
+    c = tone_neutral(c);
+  return linear_to_srgb(clamp(c, 0.0, 1.0));
+}
 
 float hash(vec3 p) {
   p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
@@ -202,44 +298,177 @@ float lamplight(int row, bool point, vec3 lpos, vec3 pos, vec3 n, vec3 l) {
   return lit / 9.0;
 }
 
+// Share of point/spot light `i` reaching `pos` (cone, fall-off, shadow), and
+// the direction to it; 0 when out of reach.
+float lamp_share(int i, vec3 pos, vec3 n, out vec3 li) {
+  vec3 d = lightPos[i].xyz - pos;
+  float dist = length(d);
+  float reach = lightPos[i].w;
+  li = d / max(dist, 1e-5);
+  if (dist >= reach)
+    return 0.0;
+  float fall = 1.0 - dist / reach;
+  float att = fall * fall;
+  if (lightSpot[i].w > -1.5) {
+    float co = lightSpot[i].w;
+    float ci = lightColors[i].w;
+    att *= clamp((dot(-li, lightSpot[i].xyz) - co) / max(ci - co, 1e-4), 0.0, 1.0);
+  }
+  float nli = max(dot(n, li), 0.0);
+  if (nli > 0.0 && att > 0.0 && lightShadow[i] >= 0)
+    att *= lamplight(lightShadow[i], lightSpot[i].w < -1.5, lightPos[i].xyz, pos, n, li);
+  return att;
+}
+
+// Blinn-Phong: the sun, the lamps, ambient and rim, with the lights' colours
+// as given (`lin`: their linear copies).
+vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
+  vec3 diffuse = lin ? ambientLinear : ambient;
+  vec3 spec = vec3(0.0);
+  vec3 sunColor = lin ? lightColorLinear : lightColor;
+  vec3 l = -lightDir;
+  float nl = max(dot(n, l), 0.0);
+  if (nl > 0.0) {
+    float sun = shadowOn == 1 ? sunlight(pos, n, l) : 1.0;
+    diffuse += sunColor * nl * sun;
+    spec += sunColor * pow(max(dot(n, normalize(l + v)), 0.0), surface.y) * sun;
+  }
+  for (int i = 0; i < lightCount; i++) {
+    vec3 li;
+    float att = lamp_share(i, pos, n, li);
+    if (att <= 0.0)
+      continue;
+    vec3 c = lin ? lightColorsLinear[i].rgb : lightColors[i].rgb;
+    float nli = max(dot(n, li), 0.0);
+    diffuse += c * nli * att;
+    if (nli > 0.0)
+      spec += c * pow(max(dot(n, normalize(li + v)), 0.0), surface.y) * att;
+  }
+  vec3 rimColor = lin ? srgb_to_linear(rim.rgb) : rim.rgb;
+  return base * diffuse + spec * surface.x + rimColor * rim.a * pow(1.0 - max(dot(n, v), 0.0), 3.0);
+}
+
+// Cook-Torrance with GGX for one light of colour `c` from `l`. In njin's scale
+// a white light straight onto a white rough face gives the light's colour
+// (the colours carry the pi a radiance would be divided by), as Blinn-Phong.
+vec3 pbr_direct(vec3 albedo, float metal, float rough, vec3 f0, vec3 n, vec3 v, vec3 l, vec3 c) {
+  float nl = max(dot(n, l), 0.0);
+  if (nl <= 0.0)
+    return vec3(0.0);
+  vec3 h = normalize(l + v);
+  float nv = max(dot(n, v), 1e-4), nh = max(dot(n, h), 0.0), vh = max(dot(v, h), 0.0);
+  float a = rough * rough, a2 = a * a;
+  float q = nh * nh * (a2 - 1.0) + 1.0;
+  float D = a2 / (PI * q * q);
+  float k = (rough + 1.0) * (rough + 1.0) / 8.0;
+  float G = nv / (nv * (1.0 - k) + k) * nl / (nl * (1.0 - k) + k);
+  vec3 F = f0 + (1.0 - f0) * pow(1.0 - vh, 5.0);
+  vec3 spec = D * G * F / (4.0 * nv * nl);
+  vec3 kd = (1.0 - F) * (1.0 - metal);
+  return (kd * albedo + spec * PI) * c * nl;
+}
+
+// Scale and bias of F0 for light from all around, an analytic fit of the
+// split-sum lookup (Karis, "Physically Based Shading on Mobile").
+vec2 env_brdf(float rough, float nv) {
+  const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+  const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+  vec4 r = rough * c0 + c1;
+  float a = min(r.x * r.x, exp2(-9.28 * nv)) * r.x + r.y;
+  return vec2(-1.04, 1.04) * a + r.zw;
+}
+
+// A direction turned by the environment's rotation, as the maps were made.
+vec3 env_dir(vec3 d) {
+  float c = cos(envParams.z), s = sin(envParams.z);
+  return vec3(c * d.x - s * d.z, d.y, s * d.x + c * d.z);
+}
+
+// Irradiance from the spherical harmonics (Ramamoorthi and Hanrahan).
+vec3 env_irradiance(vec3 n) {
+  n = env_dir(n);
+  return envSH[0] * 0.886227 + envSH[1] * (1.023328 * n.y) + envSH[2] * (1.023328 * n.z) +
+         envSH[3] * (1.023328 * n.x) + envSH[4] * (0.858086 * n.x * n.y) + envSH[5] * (0.858086 * n.y * n.z) +
+         envSH[6] * (0.247708 * (3.0 * n.z * n.z - 1.0)) + envSH[7] * (0.858086 * n.x * n.z) +
+         envSH[8] * (0.429043 * (n.x * n.x - n.y * n.y));
+}
+
+// The environment's light from direction `d` blurred for `rough`, between the
+// two nearest prefiltered levels.
+vec3 env_radiance(vec3 d, float rough) {
+  d = env_dir(d);
+  vec2 uv = vec2(atan(d.z, d.x) / (2.0 * PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
+  float levels = envParams.x;
+  float at = clamp(rough, 0.0, 1.0) * (levels - 1.0);
+  float k0 = floor(at);
+  float k1 = min(k0 + 1.0, levels - 1.0);
+  // Kept half a texel inside its level, so a lookup never bleeds into the next.
+  float v = clamp(uv.y, envParams.w, 1.0 - envParams.w);
+  vec3 a = textureLod(envMap, vec2(uv.x, (k0 + v) / levels), 0.0).rgb;
+  vec3 b = textureLod(envMap, vec2(uv.x, (k1 + v) / levels), 0.0).rgb;
+  return mix(a, b, at - k0) * envParams.y;
+}
+
+// The PBR material: the sun, the lamps, and the ambient light or the
+// environment, with the lights' colours as given (`lin`: their linear copies).
+vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
+  float metal = clamp(surfMetal >= 0.0 ? surfMetal : pbrParams.y, 0.0, 1.0);
+  float rough = clamp(surfRough >= 0.0 ? surfRough : pbrParams.z, 0.045, 1.0);
+  vec3 f0 = mix(vec3(0.04), albedo, metal);
+  vec3 color = vec3(0.0);
+  vec3 l = -lightDir;
+  if (dot(n, l) > 0.0) {
+    float sun = shadowOn == 1 ? sunlight(pos, n, l) : 1.0;
+    color += pbr_direct(albedo, metal, rough, f0, n, v, l, (lin ? lightColorLinear : lightColor) * sun);
+  }
+  for (int i = 0; i < lightCount; i++) {
+    vec3 li;
+    float att = lamp_share(i, pos, n, li);
+    if (att > 0.0)
+      color += pbr_direct(albedo, metal, rough, f0, n, v, li, (lin ? lightColorsLinear[i].rgb : lightColors[i].rgb) * att);
+  }
+  // Light from all around: the environment, or the ambient colour as an even
+  // sky. With the energy single scattering loses on rough surfaces given back
+  // as multiple scattering (Fdez-Aguera, "A Multiple-Scattering Microfacet
+  // Model for Real-Time Image-Based Lighting", as three.js does), so a rough
+  // metal in an even white light stays white.
+  float nv = max(dot(n, v), 1e-4);
+  vec2 ab = env_brdf(rough, nv);
+  vec3 single = f0 * ab.x + ab.y;
+  float ess = ab.x + ab.y;
+  vec3 favg = f0 + (1.0 - f0) * 0.047619;
+  vec3 multi = single * favg / (1.0 - (1.0 - ess) * favg) * (1.0 - ess);
+  vec3 diffuseLight, specLight;
+  if (envOn == 1) {
+    diffuseLight = env_irradiance(n) / PI;
+    specLight = env_radiance(reflect(-v, n), rough);
+  } else {
+    diffuseLight = lin ? ambientLinear : ambient;
+    specLight = diffuseLight;
+  }
+  vec3 total = single + multi;
+  vec3 kd = albedo * (1.0 - metal) * (1.0 - max(total.r, max(total.g, total.b)));
+  float occlusion = mix(1.0, surfOcclusion, clamp(pbrParams.w, 0.0, 1.0));
+  color += (kd * diffuseLight + single * specLight + multi * diffuseLight) * occlusion;
+  vec3 rimColor = lin ? srgb_to_linear(rim.rgb) : rim.rgb;
+  return color + rimColor * rim.a * pow(1.0 - nv, 3.0);
+}
+
 vec3 shade(vec3 base, vec3 n, vec3 pos, float cut, vec3 glow) {
   vec3 color = base;
   vec3 v = normalize(viewPos - pos);
-  if (unlit == 0) {
-    vec3 diffuse = ambient;
-    vec3 spec = vec3(0.0);
-    vec3 l = -lightDir;
-    float nl = max(dot(n, l), 0.0);
-    if (nl > 0.0) {
-      float sun = shadowOn == 1 ? sunlight(pos, n, l) : 1.0;
-      diffuse += lightColor * nl * sun;
-      spec += lightColor * pow(max(dot(n, normalize(l + v)), 0.0), surface.y) * sun;
-    }
-    for (int i = 0; i < lightCount; i++) {
-      vec3 d = lightPos[i].xyz - pos;
-      float dist = length(d);
-      float reach = lightPos[i].w;
-      if (dist >= reach)
-        continue;
-      vec3 li = d / max(dist, 1e-5);
-      float fall = 1.0 - dist / reach;
-      float att = fall * fall;
-      if (lightSpot[i].w > -1.5) {
-        float co = lightSpot[i].w;
-        float ci = lightColors[i].w;
-        att *= clamp((dot(-li, lightSpot[i].xyz) - co) / max(ci - co, 1e-4), 0.0, 1.0);
-      }
-      float nli = max(dot(n, li), 0.0);
-      if (nli > 0.0 && att > 0.0 && lightShadow[i] >= 0)
-        att *= lamplight(lightShadow[i], lightSpot[i].w < -1.5, lightPos[i].xyz, pos, n, li);
-      diffuse += lightColors[i].rgb * nli * att;
-      if (nli > 0.0)
-        spec += lightColors[i].rgb * pow(max(dot(n, normalize(li + v)), 0.0), surface.y) * att;
-    }
-    color = base * diffuse + spec * surface.x;
-    color += rim.rgb * rim.a * pow(1.0 - max(dot(n, v), 0.0), 3.0);
+  if (unlit == 0 && toneMap > 0) {
+    // In linear light, emission included, then to the screen.
+    vec3 albedo = srgb_to_linear(base);
+    vec3 lit = pbrParams.x > 0.5 ? pbr_light(albedo, n, pos, v, true) : classic_light(albedo, n, pos, v, true);
+    lit += emissionLinear.rgb * emissionLinear.a + srgb_to_linear(glow);
+    color = tone_out(lit);
+  } else {
+    // Without tone mapping, as njin always drew it (PBR or not).
+    if (unlit == 0)
+      color = pbrParams.x > 0.5 ? pbr_light(base, n, pos, v, false) : classic_light(base, n, pos, v, false);
+    color += emission.rgb * emission.a + glow;
   }
-  color += emission.rgb * emission.a + glow;
   color = mix(color, flash.rgb, flash.a);
   if (dissolve.x > 0.0 && cut < dissolve.x + dissolve.y)
     color = mix(color, edgeColor.rgb, edgeColor.a);
@@ -253,6 +482,7 @@ vec3 shade(vec3 base, vec3 n, vec3 pos, float cut, vec3 glow) {
 
 const char *const lit_fs_main = R"(
 in vec2 fragTexCoord;
+in vec2 fragTexCoord2;
 in vec4 fragColor;
 in vec3 fragNormal;
 in vec3 fragPos;
@@ -267,6 +497,9 @@ uniform sampler2D underMap;    // material3d::under, under the albedo where it h
 uniform sampler2D underNormalMap;
 uniform float underAmount;     // 0 none of it shows (or no under layer)
 uniform int useUnderNormal;
+uniform sampler2D metalRoughMap; // material3d::metal_rough: g roughness, b metallic
+uniform sampler2D occlusionMap;  // material3d::occlusion: r
+uniform int usePbrMaps;          // 1 metal_rough, 2 occlusion; 4, 8: that map on the second texture coordinates
 
 // Normal mapping without tangents: the frame comes from screen derivatives
 // (Christian Schueler, "Normal Mapping Without Precomputed Tangents").
@@ -380,6 +613,15 @@ void main() {
     }
   }
   vec3 glow = useEmissionMap == 1 ? texture(emissionMap, uv).rgb * emissionColor.rgb : vec3(0.0);
+  if (pbrParams.x > 0.5) {
+    if ((usePbrMaps & 1) != 0) {
+      vec4 mr = texture(metalRoughMap, (usePbrMaps & 4) != 0 ? fragTexCoord2 : uv);
+      surfMetal = pbrParams.y * mr.b;
+      surfRough = pbrParams.z * mr.g;
+    }
+    if ((usePbrMaps & 2) != 0)
+      surfOcclusion = texture(occlusionMap, (usePbrMaps & 8) != 0 ? fragTexCoord2 : uv).r;
+  }
   finalColor = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
 }
 )";
@@ -599,10 +841,12 @@ vec3 instance_scale() {
 const char *const lit_instanced_vs_main = R"(
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec2 vertexTexCoord2;
 in vec3 vertexNormal;
 in vec4 vertexColor;
 uniform mat4 mvp;
 out vec2 fragTexCoord;
+out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
@@ -611,6 +855,7 @@ void main() {
   vec3 k = instance_scale();
   vec3 world = r * (vertexPosition * k) + instance0.xyz;
   fragTexCoord = vertexTexCoord;
+  fragTexCoord2 = vertexTexCoord2;
   fragColor = vertexColor * (instanceFloats >= 8 ? instance1 : vec4(1.0));
   fragNormal = r * (vertexNormal / k);
   fragPos = world;
@@ -647,12 +892,14 @@ mat4 skin_matrix() {
 const char *const lit_skinned_vs_main = R"(
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec2 vertexTexCoord2;
 in vec3 vertexNormal;
 in vec4 vertexColor;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 matNormal;
 out vec2 fragTexCoord;
+out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
@@ -660,6 +907,7 @@ void main() {
   mat4 k = skin_matrix();
   vec4 p = k * vec4(vertexPosition, 1.0);
   fragTexCoord = vertexTexCoord;
+  fragTexCoord2 = vertexTexCoord2;
   fragColor = vertexColor;
   fragNormal = (matNormal * vec4(mat3(k) * vertexNormal, 0.0)).xyz;
   fragPos = (matModel * p).xyz;
@@ -877,6 +1125,18 @@ render3d_locations find_locations(Shader shader) {
   l.lamp_rows = loc("lampRows");
   l.lamp_map = loc("lampShadowMap");
   l.bones = loc("boneMatrices");
+  l.tone_map = loc("toneMap");
+  l.exposure = loc("exposure");
+  l.light_color_linear = loc("lightColorLinear");
+  l.ambient_linear = loc("ambientLinear");
+  l.light_colors_linear = loc("lightColorsLinear");
+  l.emission_linear = loc("emissionLinear");
+  l.pbr_params = loc("pbrParams");
+  l.use_pbr_maps = loc("usePbrMaps");
+  l.env_on = loc("envOn");
+  l.env_sh = loc("envSH");
+  l.env_map = loc("envMap");
+  l.env_params = loc("envParams");
   return l;
 }
 
@@ -917,6 +1177,8 @@ bool ensure_ready(render3d_state &s) {
     s.lit_skinned.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(s.lit_skinned, "emissionMap");
     s.lit_skinned.locs[SHADER_LOC_MAP_ROUGHNESS] = GetShaderLocation(s.lit_skinned, "underMap");
     s.lit_skinned.locs[SHADER_LOC_MAP_OCCLUSION] = GetShaderLocation(s.lit_skinned, "underNormalMap");
+    s.lit_skinned.locs[SHADER_LOC_MAP_METALNESS] = GetShaderLocation(s.lit_skinned, "metalRoughMap");
+    s.lit_skinned.locs[SHADER_LOC_MAP_HEIGHT] = GetShaderLocation(s.lit_skinned, "occlusionMap");
   } else {
     NJIN_WARN("3d: the skinning shader failed to compile, animated models are drawn in their rest pose");
   }
@@ -926,6 +1188,9 @@ bool ensure_ready(render3d_state &s) {
   s.lit.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(s.lit, "emissionMap");
   s.lit.locs[SHADER_LOC_MAP_ROUGHNESS] = GetShaderLocation(s.lit, "underMap");
   s.lit.locs[SHADER_LOC_MAP_OCCLUSION] = GetShaderLocation(s.lit, "underNormalMap");
+  // And the PBR maps through the metalness and height slots.
+  s.lit.locs[SHADER_LOC_MAP_METALNESS] = GetShaderLocation(s.lit, "metalRoughMap");
+  s.lit.locs[SHADER_LOC_MAP_HEIGHT] = GetShaderLocation(s.lit, "occlusionMap");
   // Enough segments that a sphere or capsule filling a good part of the
   // screen still reads as round.
   s.cube = GenMeshCube(1.0f, 1.0f, 1.0f);
@@ -1183,10 +1448,15 @@ bool mesh_texture(const context &ctx, texture_handle handle, Texture2D &out) {
   return true;
 }
 
+// Which PBR maps a draw has, as the shader's usePbrMaps bits.
+i32 pbr_map_bits(const Texture2D &metal_rough, const Texture2D &occlusion) {
+  return (metal_rough.id > 0 ? 1 : 0) | (occlusion.id > 0 ? 2 : 0);
+}
+
 // Uniforms of the built-in shader for one draw.
 void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, const material3d &m,
                        rgba emission_color, bool normal_map, bool emission_map, bool under_map = false,
-                       bool under_normal = false) {
+                       bool under_normal = false, i32 pbr_maps = 0) {
   set_vec4(sh, l.flash, v4(fx.flash));
   set_vec4(sh, l.dissolve,
            {clamp(fx.dissolve, 0.0f, 1.0f), fx.edge_width, fx.grain > 0.0f ? fx.grain : 0.1f, fx.seed});
@@ -1203,6 +1473,11 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
   set_f32(sh, l.world_uv, std::max(m.world_uv, 0.0f));
   set_f32(sh, l.under_amount, under_map && m.world_uv > 0.0f ? std::clamp(m.under_amount, 0.0f, 1.0f) : 0.0f);
   set_i32(sh, l.use_under_normal, under_normal ? 1 : 0);
+  set_vec4(sh, l.pbr_params, {m.pbr ? 1.0f : 0.0f, clamp(m.metallic, 0.0f, 1.0f), clamp(m.roughness, 0.0f, 1.0f),
+                              clamp(m.occlusion_strength, 0.0f, 1.0f)});
+  set_i32(sh, l.use_pbr_maps, m.pbr ? pbr_maps : 0);
+  const rgb_linear e = linear_of(m.emission);
+  set_vec4(sh, l.emission_linear, {e.r, e.g, e.b, m.emission.a});
 }
 
 // The shader for a draw recorded with `handle` bound: the game's, given the
@@ -1218,6 +1493,12 @@ bool game_shader(const context &ctx, shader_handle handle, Shader &out) {
   shader_slot_set_optional_vec3(*slot, "viewPos", s.camera.position);
   shader_slot_set_optional_vec3(*slot, "fogColor", rgb(s.light.fog_color));
   shader_slot_set_optional_f32(*slot, "fogDensity", std::max(s.light.fog_density, 0.0f));
+  // Tone mapping, for a game shader that matches the scene (njin_3d.h).
+  shader_slot_set_optional_i32(*slot, "toneMap", s.light.tonemap == tonemap3d_none ? 0 : (i32)s.light.tonemap);
+  shader_slot_set_optional_f32(*slot, "exposure", std::max(s.light.exposure, 0.0f));
+  const rgb_linear sun = linear_of(s.light.color), amb = linear_of(s.light.ambient);
+  shader_slot_set_optional_vec3(*slot, "lightColorLinear", {sun.r, sun.g, sun.b});
+  shader_slot_set_optional_vec3(*slot, "ambientLinear", {amb.r, amb.g, amb.b});
   // Not drawn instanced, unless draw_instanced_cmd() says otherwise: one
   // shader can then serve a model drawn both ways.
   shader_slot_set_optional_i32(*slot, "instanceFloats", 0);
@@ -1268,6 +1549,25 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
       maps[MATERIAL_MAP_OCCLUSION].texture = texture;
     if (maps[MATERIAL_MAP_DIFFUSE].texture.id == 0)
       maps[MATERIAL_MAP_DIFFUSE].texture = default_texture();
+    // The PBR maps, only for a PBR material: the game's, else the file's
+    // (loaded on this first use).
+    maps[MATERIAL_MAP_METALNESS].texture = Texture2D{};
+    maps[MATERIAL_MAP_HEIGHT].texture = Texture2D{};
+    i32 uv2 = 0; // usePbrMaps bits of the file's maps on the second texture coordinates
+    if (mm.surface.pbr) {
+      if (!mesh_texture(ctx, mm.metal_rough, texture)) {
+        texture = model_file_pbr_map(*slot, index, false);
+        uv2 |= model_file_pbr_map_uv2(*slot, index, false) ? 4 : 0;
+      }
+      maps[MATERIAL_MAP_METALNESS].texture = texture;
+      if (!mesh_texture(ctx, mm.occlusion, texture)) {
+        texture = model_file_pbr_map(*slot, index, true);
+        uv2 |= model_file_pbr_map_uv2(*slot, index, true) ? 8 : 0;
+      }
+      maps[MATERIAL_MAP_HEIGHT].texture = texture;
+    }
+    // Carried to the draw in the metalness slot's unused value.
+    maps[MATERIAL_MAP_METALNESS].value = (f32)uv2;
     rgba own = mm.color;
     for (u32 r = 0; r < c.recolor_count; r++) {
       const model_recolor &rc = ctx_ref<render3d_state>(ctx)->recolors[c.recolor_first + r];
@@ -1536,8 +1836,18 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   set_vec3(sh, l.view_pos, s.camera.position);
   set_vec3(sh, l.fog_color, rgb(sun.fog_color));
   set_f32(sh, l.fog_density, std::max(sun.fog_density, 0.0f));
+  // Tone mapping works on linear copies of the lights; the sRGB ones above
+  // stay for game shaders and the water, which read them as they are.
+  const i32 tone = sun.tonemap == tonemap3d_none ? 0 : (i32)sun.tonemap;
+  set_i32(sh, l.tone_map, tone);
+  set_f32(sh, l.exposure, std::max(sun.exposure, 0.0f));
+  const rgb_linear sc = linear_of(sun.color), ac = linear_of(sun.ambient);
+  set_vec3(sh, l.light_color_linear, {sc.r, sc.g, sc.b});
+  set_vec3(sh, l.ambient_linear, {ac.r, ac.g, ac.b});
+  env_set_uniforms(s.env, sun, sh, l.env_on, l.env_sh, l.env_map, l.env_params);
 
   vec4 pos[light3d_max]{};
+  vec4 colors_linear[light3d_max]{};
   vec4 colors[light3d_max]{};
   vec4 spot[light3d_max]{};
   const i32 count = std::min((i32)s.lights.size(), light3d_max);
@@ -1549,6 +1859,8 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
     const vec3 d = normalize(src.direction);
     pos[i] = {src.position.x, src.position.y, src.position.z, std::max(src.radius, 0.001f)};
     colors[i] = {src.color.r * k, src.color.g * k, src.color.b * k, std::cos(inner)};
+    const rgb_linear lc = linear_of(src.color);
+    colors_linear[i] = {lc.r * k, lc.g * k, lc.b * k, std::cos(inner)};
     spot[i] = {d.x, d.y, d.z, src.kind == light3d_spot ? std::cos(half) : -2.0f};
   }
   set_i32(sh, l.light_count, count);
@@ -1556,6 +1868,7 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
     SetShaderValueV(sh, l.light_pos, pos, SHADER_UNIFORM_VEC4, count);
     SetShaderValueV(sh, l.light_colors, colors, SHADER_UNIFORM_VEC4, count);
     SetShaderValueV(sh, l.light_spot, spot, SHADER_UNIFORM_VEC4, count);
+    SetShaderValueV(sh, l.light_colors_linear, colors_linear, SHADER_UNIFORM_VEC4, count);
   }
 
   const lamp_shadows &ls = s.lamps;
@@ -1726,6 +2039,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     Texture2D normal{};
     Texture2D under{}, under_normal{};
     shader_handle shader{}; // the part's own (model_material::shader)
+    Texture2D metal_rough{}, occlusion{}; // PBR maps, for a PBR material
+    i32 uv2 = 0;                          // usePbrMaps bits of those on the second texture coordinates
   };
   // Kept between calls: no allocation per instanced draw once it has grown.
   thread_local std::vector<part> parts;
@@ -1737,6 +2052,10 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     mesh_texture(ctx, c.material.texture, texture);
     parts.push_back({c.mesh, texture, colors::white, &c.material});
     mesh_texture(ctx, c.material.normal, parts.back().normal);
+    if (c.material.pbr) {
+      mesh_texture(ctx, c.material.metal_rough, parts.back().metal_rough);
+      mesh_texture(ctx, c.material.occlusion, parts.back().occlusion);
+    }
   } else if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model)) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const i32 index = m->model.meshMaterial[i];
@@ -1751,6 +2070,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
       parts.back().shader = mm.shader;
       mesh_texture(ctx, mm.normal, parts.back().normal);
+      if (mm.surface.pbr) {
+        if (!mesh_texture(ctx, mm.metal_rough, parts.back().metal_rough)) {
+          parts.back().metal_rough = model_file_pbr_map(*m, index, false);
+          parts.back().uv2 |= model_file_pbr_map_uv2(*m, index, false) ? 4 : 0;
+        }
+        if (!mesh_texture(ctx, mm.occlusion, parts.back().occlusion)) {
+          parts.back().occlusion = model_file_pbr_map(*m, index, true);
+          parts.back().uv2 |= model_file_pbr_map_uv2(*m, index, true) ? 8 : 0;
+        }
+      }
     }
   }
 
@@ -1772,7 +2101,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       built_in = false;
     if (built_in)
       set_draw_uniforms(shader, s.instanced_locs, c.fx, *p.surface, colors::white, p.normal.id > 0, false,
-                        p.under.id > 0, p.under_normal.id > 0);
+                        p.under.id > 0, p.under_normal.id > 0, pbr_map_bits(p.metal_rough, p.occlusion) | p.uv2);
     rlEnableShader(shader.id);
     rlSetUniformMatrix(rlGetLocationUniform(shader.id, "mvp"), mvp);
     rlSetUniform(rlGetLocationUniform(shader.id, "instanceFloats"), &floats, RL_SHADER_UNIFORM_INT, 1);
@@ -1792,7 +2121,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       rlSetUniform(rlGetLocationUniform(shader.id, "texture0"), &unit, RL_SHADER_UNIFORM_INT, 1);
       // The normal map and the under layer on the units DrawMesh would give them.
       const struct { u32 id; i32 unit; const char *name; } extra[] = {
-          {p.normal.id, 2, "texture2"}, {p.under.id, 3, "underMap"}, {p.under_normal.id, 4, "underNormalMap"}};
+          {p.normal.id, 2, "texture2"}, {p.under.id, 3, "underMap"}, {p.under_normal.id, 4, "underNormalMap"},
+          {p.metal_rough.id, MATERIAL_MAP_METALNESS, "metalRoughMap"}, {p.occlusion.id, MATERIAL_MAP_HEIGHT, "occlusionMap"}};
       for (const auto &e : extra)
         if (e.id > 0) {
           rlActiveTextureSlot(e.unit);
@@ -1892,9 +2222,15 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     const bool under_normal = under && mesh_texture(ctx, c.material.under_normal, texture);
     if (under_normal)
       maps[MATERIAL_MAP_OCCLUSION].texture = texture;
+    if (c.material.pbr && mesh_texture(ctx, c.material.metal_rough, texture))
+      maps[MATERIAL_MAP_METALNESS].texture = texture;
+    if (c.material.pbr && mesh_texture(ctx, c.material.occlusion, texture))
+      maps[MATERIAL_MAP_HEIGHT].texture = texture;
     to_raylib(c.color, maps[MATERIAL_MAP_DIFFUSE].color);
     if (!own)
-      set_draw_uniforms(s.lit, s.locs, c.fx, c.material, colors::white, normal_map, false, under, under_normal);
+      set_draw_uniforms(s.lit, s.locs, c.fx, c.material, colors::white, normal_map, false, under, under_normal,
+                        pbr_map_bits(maps[MATERIAL_MAP_METALNESS].texture, maps[MATERIAL_MAP_HEIGHT].texture) |
+                            (i32)maps[MATERIAL_MAP_METALNESS].value);
     Material material{};
     material.shader = own ? custom : s.lit;
     material.maps = maps.data();
@@ -1919,7 +2255,9 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     if (built_in)
       set_draw_uniforms(shader, posed ? s.skinned_locs : s.locs, c.fx, mm.surface, mm.emission_color,
                         maps[MATERIAL_MAP_NORMAL].texture.id > 0, maps[MATERIAL_MAP_EMISSION].texture.id > 0,
-                        maps[MATERIAL_MAP_ROUGHNESS].texture.id > 0, maps[MATERIAL_MAP_OCCLUSION].texture.id > 0);
+                        maps[MATERIAL_MAP_ROUGHNESS].texture.id > 0, maps[MATERIAL_MAP_OCCLUSION].texture.id > 0,
+                        pbr_map_bits(maps[MATERIAL_MAP_METALNESS].texture, maps[MATERIAL_MAP_HEIGHT].texture) |
+                            (i32)maps[MATERIAL_MAP_METALNESS].value);
     Material material{};
     material.shader = shader;
     material.maps = maps.data();
@@ -2187,6 +2525,7 @@ void setup(context &ctx) {
 mod_desc render3d_module() { return mod_desc{.name = "njin.render3d", .setup = setup}; }
 
 render3d_state::~render3d_state() {
+  env_free(env);
   free_shadow(shadow);
   free_shadow(lamp);
   free_shadow(cover);
@@ -2291,6 +2630,8 @@ void end_3d(context &ctx) {
   cull_boxes(s);
   if (ctx_ref<debug_state>(ctx)->running && !offscreen)
     render3d_capture_debug(ctx);
+  // light3d::environment's maps, made when it changed (into their own framebuffers).
+  const bool env_drew = env_update(ctx, s.env, s.light);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
@@ -2324,7 +2665,7 @@ void end_3d(context &ctx) {
   } else if (!offscreen) {
     s.cover_age = -1;
   }
-  if (shadows || lamps || cover_now) {
+  if (shadows || lamps || cover_now || env_drew) {
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
   }
@@ -2353,7 +2694,11 @@ void end_3d(context &ctx) {
     rlActiveTextureSlot(lamp_unit);
     rlEnableTexture(s.lamp.depth);
   }
+  env_bind(s.env);
   rlActiveTextureSlot(0);
+  // The environment as the sky, behind everything of the pass.
+  if (s.light.environment_visible)
+    env_draw_sky(s.env, s.light, s.camera, view_proj);
   for (const draw3d_cmd &c : s.cmds)
     draw_main(ctx, c, view_proj);
   // Decals, SSAO and SSR work on the opaque image, before glass and water.
@@ -2371,6 +2716,7 @@ void end_3d(context &ctx) {
       rlActiveTextureSlot(lamp_unit);
       rlEnableTexture(s.lamp.depth);
     }
+    env_bind(s.env);
     rlActiveTextureSlot(0);
   }
   // Glass after everything it shows, tested against the depth but not
@@ -2383,7 +2729,7 @@ void end_3d(context &ctx) {
   rlDrawRenderBatchActive();
   rlEnableDepthMask();
   s.translucent_pass = false;
-  for (i32 unit : {shadow_unit, lamp_unit}) {
+  for (i32 unit : {shadow_unit, lamp_unit, env_unit}) {
     rlActiveTextureSlot(unit);
     rlDisableTexture();
   }

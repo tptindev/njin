@@ -3,6 +3,7 @@
 #include "_mod.h"
 #include "debug3d.h"
 #include "njin_3d.h"
+#include "render3d_env.h"
 #include <raylib.h>
 #include <array>
 #include <unordered_map>
@@ -48,6 +49,11 @@ struct render3d_locations {
   // Point/spot light shadows, and the skinning shader's bones.
   i32 light_shadow = -1, lamp_vp = -1, lamp_params = -1, lamp_map = -1, lamp_rows = -1;
   i32 bones = -1;
+  // Tone mapping, PBR and the environment (light3d::tonemap, material3d::pbr,
+  // light3d::environment).
+  i32 tone_map = -1, exposure = -1, light_color_linear = -1, ambient_linear = -1, light_colors_linear = -1;
+  i32 emission_linear = -1, pbr_params = -1, use_pbr_maps = -1;
+  i32 env_on = -1, env_sh = -1, env_map = -1, env_params = -1;
 };
 
 // A draw of the outdoor world (njin_world3d.h), made by world3d_draw.cpp.
@@ -235,6 +241,8 @@ struct render3d_state {
   u32 prev_bones_tex = 0; // last frame's bone matrices of one draw, 4 texels each
   bool velocity_ready = false;
   bool velocity_failed = false;
+  // light3d::environment, ready to light PBR materials (render3d_env.cpp).
+  env_maps env;
 
   render3d_state() = default;
   ~render3d_state();
