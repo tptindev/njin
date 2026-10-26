@@ -61,6 +61,39 @@ Two things to note:
 An enemy should chase only when it **sees** the player (the ray is not blocked by a wall), then give up when the player
 is too far away. That is all the "intelligence" a small game needs.
 
+## Placing things on a grid
+
+Village builders, farms and grid inventories put things several cells big that must not overlap.
+njin::place_grid remembers which thing holds each cell. Each thing is a block of `w` x `h` cells whose
+top-left cell is `at`, carrying an `id` the game chooses (other than njin::place_none, e.g. the
+building's index plus 1). Turning it 90 degrees swaps `w` and `h`.
+
+| Task | Function |
+|---|---|
+| The cell under the mouse, snapping the dragged thing to cells (mouse in its middle) | place_cell_at(), place_snap() |
+| The thing's world area, to draw it or place a sprite | place_rect() |
+| Can it go there (inside the grid, no overlap) | place_fits(); `ignore` is the thing being moved |
+| Put, move, take off | place_put(), place_remove() |
+| Which thing is in this cell | place_owner() |
+| The first free spot (picking an item into a bag, placing something just bought) | place_find_free() |
+
+@code
+njin::place_grid village = njin::place_grid_make({0, 0}, {32, 32}, 40, 40);
+
+// Dragging a 3x3 house with the mouse: green if it fits, red if not.
+const njin::cell at = njin::place_snap(village, njin::scr2w(ctx, njin::mouse_pos(ctx)), 3, 3);
+const bool ok = njin::place_fits(village, at, 3, 3, dragging_id);
+njin::draw_rect(ctx, njin::place_rect(village, at, 3, 3), ok ? green : red);
+if (ok && njin::mouse_released(ctx, njin::mouse_left)) {
+  njin::place_put(village, at, 3, 3, dragging_id); // moves it if the house is already on the grid
+  njin::nav_set_area(g.nav, njin::place_rect(village, at, 3, 3)); // enemies walk around the house
+}
+@endcode
+
+The placing grid does not block paths: to make enemies walk around, also mark the thing on a
+njin::nav_grid as above (when moving it, free the old spot with `nav_set_area(..., 1)`). Save the grid
+with the game: `owner` is an array of numbers.
+
 ## Animated tiles
 
 Water, torches, swaying grass: declare an animation for the tile in Tiled (the tileset's animation editor) and the engine plays

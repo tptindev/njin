@@ -29,6 +29,7 @@
 #include "njin_log.h"
 #include "njin_mem.h"
 #include "njin_nav.h"
+#include "njin_place.h"
 #include "njin_particles.h"
 #include "njin_post.h"
 #include "njin_prefab.h"

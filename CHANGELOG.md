@@ -30,6 +30,13 @@ To release: edit that header, add a section here, commit, then
   setting thins the stream itself. `particles3d_spawn()` is unchanged.
 - `particle_soft`: a round particle that fades out to its edge (alpha
   `(1 - r^2)^2`), for smoke, steam and mist, in 2D (GPU and CPU) and 3D.
+- The machine's clock: `time_unix()`, `time_date()`, `time_from_date()` and
+  `date_time`, for time that passes while the game is closed (building timers,
+  daily rewards). Also in Lua.
+- `njin_place.h`: `place_grid`, a grid of which thing holds each cell, for
+  things several cells big (buildings, crops, grid inventories): `place_snap()`,
+  `place_fits()`, `place_put()` (also moves), `place_remove()`,
+  `place_find_free()`, `place_rect()`, `place_owner()`.
 
 ### Fixed
 

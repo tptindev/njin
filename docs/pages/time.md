@@ -12,6 +12,38 @@
 Hầu hết code dùng njin::delta(). Dùng njin::delta_real() cho thứ vẫn phải chạy khi game
 dừng: menu tạm dừng, hiệu ứng UI.
 
+## Giờ của máy
+
+Các thời gian ở trên chỉ đếm khi game đang chạy. Việc tính theo **giờ thật**, kể cả lúc game tắt
+(công trình xây trong 8 tiếng, mỏ sinh vàng khi người chơi đi vắng, phần thưởng mỗi ngày), dùng giờ
+của máy:
+
+| Hàm | Trả về |
+|---|---|
+| njin::time_unix() | Số giây từ 1/1/1970 UTC |
+| njin::time_date() | Tách giờ đó thành njin::date_time: năm, tháng, ngày, giờ, phút, giây, thứ |
+| njin::time_from_date() | Ngược lại; trường vượt khoảng cộng dồn sang trường lớn hơn (`day + 1` của ngày cuối tháng là mùng 1 tháng sau) |
+
+`local = true` (mặc định) là theo múi giờ của máy: ngày mới bắt đầu lúc nửa đêm của người chơi.
+`false` là theo UTC: mọi máy cùng đổi ngày.
+
+@code
+// Lúc lưu game.
+save["saved_at"] = njin::time_unix();
+
+// Lúc mở lại: mỏ sinh vàng trong lúc vắng, tối đa 8 tiếng.
+const njin::i64 away = njin::time_unix() - saved_at;
+if (away > 0)
+  gold += std::min<njin::i64>(away, 8 * 3600) * gold_per_second;
+
+// Phần thưởng mỗi ngày làm mới lúc nửa đêm tới.
+const njin::date_time today = njin::time_date(njin::time_unix());
+const njin::i64 reset = njin::time_from_date({.year = today.year, .month = today.month, .day = today.day + 1});
+@endcode
+
+Người chơi chỉnh được đồng hồ của máy. Game offline thường chấp nhận; ít nhất bỏ qua khi giờ đi
+lùi so với lần lưu trước (`away < 0`), để vàng không bị trừ.
+
 ## Tốc độ và tạm dừng
 
 - njin::time_set_scale(): 1 là bình thường, 0.5 là chậm một nửa. Ảnh hưởng delta(), fixed

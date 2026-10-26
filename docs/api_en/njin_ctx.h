@@ -155,6 +155,59 @@ f32 fixed_alpha(const context &ctx);
 /// @param ctx Engine context.
 /// @return Running time, in seconds.
 f32 elapsed(const context &ctx);
+
+/// The machine's clock: seconds since 00:00 on 1 January 1970, UTC (Unix time).
+///
+/// Unlike elapsed() and the timers, this time goes on while the game is closed,
+/// so use it for anything counted in real time: save when the game quits, take
+/// the difference when it opens again to know how long has passed (a building
+/// finished, a mine produced, energy refilled), daily rewards. Players can set
+/// the machine's clock; an offline game usually accepts that, or ignores time
+/// that went backwards since the last save.
+///
+/// Needs no context: can be called even before create().
+/// @code
+/// // When saving: save["saved_at"] = njin::time_unix();
+/// const njin::i64 away = njin::time_unix() - saved_at;   // seconds
+/// if (away > 0) gold += std::min<njin::i64>(away, 8 * 3600) * gold_per_second;
+/// @endcode
+/// @return Seconds.
+i64 time_unix();
+
+/// A moment split into date and time. Used with time_date() and time_from_date().
+struct date_time {
+  i32 year = 1970;  ///< Year, e.g. 2026.
+  i32 month = 1;    ///< Month, 1..12.
+  i32 day = 1;      ///< Day of the month, 1..31.
+  i32 hour = 0;     ///< Hour, 0..23.
+  i32 minute = 0;   ///< Minute, 0..59.
+  i32 second = 0;   ///< Second, 0..59.
+  i32 weekday = 4;  ///< Day of the week, 0 is Sunday, 1 Monday ... 6 Saturday. Ignored by time_from_date().
+};
+
+/// Splits a Unix time (time_unix()) into date and time.
+///
+/// `local` is the machine's time zone (the day changes at the player's
+/// midnight, for daily rewards); `false` is UTC (every machine changes day
+/// together).
+/// @param unix_time Seconds since 1 January 1970 UTC.
+/// @param local The machine's time, or UTC.
+/// @return Date and time.
+date_time time_date(i64 unix_time, bool local = true);
+
+/// The reverse of time_date(): the Unix time of a date and time.
+///
+/// A field out of range carries into the larger one, so `day + 1` of the last
+/// day of a month is the first of the next. `weekday` is ignored.
+/// @code
+/// // The coming midnight, when the daily reward resets.
+/// njin::date_time d = njin::time_date(njin::time_unix());
+/// const njin::i64 reset = njin::time_from_date({.year = d.year, .month = d.month, .day = d.day + 1});
+/// @endcode
+/// @param date Date and time.
+/// @param local `date` is in the machine's time, or in UTC.
+/// @return Seconds since 1 January 1970 UTC.
+i64 time_from_date(const date_time &date, bool local = true);
 /// @}
 
 /// @addtogroup grp_random

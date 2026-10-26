@@ -9,7 +9,7 @@
 /// sprite_anim, scene_owned, child_of.
 
 /// @defgroup grp_time Thời gian
-/// Thời gian của frame và thời gian đã chạy.
+/// Thời gian của frame, thời gian đã chạy, và giờ của máy (giờ thật, ngày tháng).
 
 /// @defgroup grp_camera Camera
 /// Camera đang dùng và đổi tọa độ giữa thế giới và màn hình.
@@ -157,6 +157,9 @@
 
 /// @defgroup grp_nav Tìm đường
 /// Lưới ô, A*, tầm nhìn và đi theo đường cho quái.
+
+/// @defgroup grp_place Đặt vật lên lưới
+/// Lưới chiếm chỗ cho vật nhiều ô: công trình, cây trồng, đồ trong túi; bắt theo ô, kiểm tra chồng nhau, tìm chỗ trống.
 
 /// @defgroup grp_spatial Hàng xóm gần nhất
 /// Lưới hoặc quadtree cho hàng nghìn hình tròn: k vật gần nhất, đẩy các vật chồng nhau ra.

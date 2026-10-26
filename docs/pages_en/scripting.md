@@ -82,7 +82,7 @@ positions are `vec2` or `vec3` (add, subtract, multiply by a number, `:length()`
 
 | Group | Functions |
 |---|---|
-| Time | `delta`, `elapsed`, `time_scale`, `set_time_scale` |
+| Time | `delta`, `elapsed`, `time_scale`, `set_time_scale`; the machine's clock: `time_unix()`, `time_date(t, local)` (a table of `year`, `month`, `day`, `hour`, `minute`, `second`, `weekday`), `time_from_date(table, local)` |
 | Random | `random`, `random_range(lo, hi)`, `random_int(lo, hi)` |
 | Entities | `entity_create`, `entity_destroy`, `entity_valid` |
 | Transforms | `position`, `set_position`, `rotation`, `set_rotation`, `scale`, `set_scale`; the 3D ones add `3d`: `position3d`... |

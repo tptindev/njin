@@ -35,6 +35,24 @@ void script_bind_njin(context &ctx, script_runtime &rt) {
   n["random"] = [c] { return random(*c).unit(); };
   n["random_range"] = [c](f32 lo, f32 hi) { return random(*c).range(lo, hi); };
   n["random_int"] = [c](i32 lo, i32 hi) { return random(*c).range(lo, hi); };
+  // The machine's clock: Unix seconds, and a date as a table of the date_time
+  // fields.
+  script_runtime *r = &rt;
+  n["time_unix"] = [] { return (lua_Integer)time_unix(); };
+  n["time_date"] = [r](lua_Integer t, sol::optional<bool> local) {
+    const date_time d = time_date((i64)t, local.value_or(true));
+    return r->lua.create_table_with("year", d.year, "month", d.month, "day", d.day, "hour", d.hour, "minute",
+                                    d.minute, "second", d.second, "weekday", d.weekday);
+  };
+  n["time_from_date"] = [](sol::table d, sol::optional<bool> local) {
+    const date_time date{.year = d.get_or("year", 1970),
+                         .month = d.get_or("month", 1),
+                         .day = d.get_or("day", 1),
+                         .hour = d.get_or("hour", 0),
+                         .minute = d.get_or("minute", 0),
+                         .second = d.get_or("second", 0)};
+    return (lua_Integer)time_from_date(date, local.value_or(true));
+  };
 
   // --- entities and transforms
   n["entity_create"] = [c, reg, lua_id] {

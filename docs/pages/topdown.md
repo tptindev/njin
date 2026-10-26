@@ -61,6 +61,38 @@ Lưu ý hai điều:
 Quái chỉ nên đuổi khi **nhìn thấy** người chơi (tia không bị tường chắn), rồi bỏ cuộc khi người chơi
 ở quá xa. Đó là tất cả "trí tuệ" mà một game nhỏ cần.
 
+## Đặt vật lên lưới
+
+Game xây làng, nông trại, túi đồ kiểu lưới đặt những vật chiếm nhiều ô và không được chồng lên nhau.
+njin::place_grid nhớ ô nào thuộc vật nào. Mỗi vật là một khối `w` x `h` ô có góc trên trái ở `at`, mang
+một số `id` do game chọn (khác njin::place_none, ví dụ chỉ số công trình cộng 1). Xoay 90 độ thì đổi `w`
+và `h`.
+
+| Việc | Hàm |
+|---|---|
+| Ô dưới chuột, bắt vật đang kéo theo ô (chuột nằm giữa vật) | place_cell_at(), place_snap() |
+| Vùng thế giới của vật, để vẽ hay đặt sprite | place_rect() |
+| Đặt được không (trong lưới, không chồng) | place_fits(); `ignore` là vật đang dời chỗ |
+| Đặt, dời chỗ, gỡ | place_put(), place_remove() |
+| Vật nào ở ô này | place_owner() |
+| Chỗ trống đầu tiên (nhặt đồ vào túi, đặt sẵn đồ vừa mua) | place_find_free() |
+
+@code
+njin::place_grid village = njin::place_grid_make({0, 0}, {32, 32}, 40, 40);
+
+// Đang kéo nhà 3x3 theo chuột: tô xanh nếu đặt được, đỏ nếu không.
+const njin::cell at = njin::place_snap(village, njin::scr2w(ctx, njin::mouse_pos(ctx)), 3, 3);
+const bool ok = njin::place_fits(village, at, 3, 3, dragging_id);
+njin::draw_rect(ctx, njin::place_rect(village, at, 3, 3), ok ? green : red);
+if (ok && njin::mouse_released(ctx, njin::mouse_left)) {
+  njin::place_put(village, at, 3, 3, dragging_id); // dời chỗ nếu nhà đã có trên lưới
+  njin::nav_set_area(g.nav, njin::place_rect(village, at, 3, 3)); // quái đi vòng qua nhà
+}
+@endcode
+
+Lưới đặt vật không chặn đường đi: muốn quái đi vòng thì đánh dấu thêm trên njin::nav_grid như trên
+(lúc dời chỗ, trả lại chỗ cũ bằng `nav_set_area(..., 1)`). Lưu lưới cùng game: `owner` là một mảng số.
+
 ## Ô có animation
 
 Nước, đuốc, cỏ lay: khai báo animation cho ô trong Tiled (animation editor của tileset) và engine chạy

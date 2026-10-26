@@ -154,6 +154,57 @@ f32 fixed_alpha(const context &ctx);
 /// @param ctx Context của engine.
 /// @return Thời gian đã chạy, tính bằng giây.
 f32 elapsed(const context &ctx);
+
+/// Giờ của máy: số giây từ 00:00 ngày 1/1/1970 theo giờ UTC (Unix time).
+///
+/// Khác elapsed() và các timer, giờ này vẫn trôi khi game tắt, nên dùng cho
+/// việc tính theo giờ thật: lưu lúc thoát rồi lúc mở lại lấy hiệu để biết bao
+/// lâu đã qua (công trình xây xong, mỏ sinh tài nguyên, năng lượng hồi), phần
+/// thưởng mỗi ngày. Người chơi chỉnh được đồng hồ của máy; game offline thường
+/// chấp nhận điều đó, hoặc bỏ qua khi giờ đi lùi so với lần lưu trước.
+///
+/// Không cần context: gọi được cả trước create().
+/// @code
+/// // Lúc lưu: save["saved_at"] = njin::time_unix();
+/// const njin::i64 away = njin::time_unix() - saved_at;   // giây
+/// if (away > 0) gold += std::min<njin::i64>(away, 8 * 3600) * gold_per_second;
+/// @endcode
+/// @return Số giây.
+i64 time_unix();
+
+/// Một thời điểm tách thành ngày, giờ. Dùng với time_date() và time_from_date().
+struct date_time {
+  i32 year = 1970;  ///< Năm, ví dụ 2026.
+  i32 month = 1;    ///< Tháng, 1..12.
+  i32 day = 1;      ///< Ngày trong tháng, 1..31.
+  i32 hour = 0;     ///< Giờ, 0..23.
+  i32 minute = 0;   ///< Phút, 0..59.
+  i32 second = 0;   ///< Giây, 0..59.
+  i32 weekday = 4;  ///< Thứ trong tuần, 0 là Chủ nhật, 1 là thứ Hai ... 6 là thứ Bảy. time_from_date() bỏ qua.
+};
+
+/// Tách một giờ Unix (time_unix()) thành ngày, giờ.
+///
+/// `local` là theo múi giờ của máy (đổi ngày lúc nửa đêm của người chơi, cho
+/// phần thưởng mỗi ngày); `false` là theo UTC (mọi máy cùng đổi ngày).
+/// @param unix_time Số giây từ 1/1/1970 UTC.
+/// @param local Theo giờ của máy, hay theo UTC.
+/// @return Ngày, giờ.
+date_time time_date(i64 unix_time, bool local = true);
+
+/// Ngược lại của time_date(): giờ Unix của một ngày, giờ.
+///
+/// Trường vượt khoảng được cộng dồn sang trường lớn hơn, nên `day + 1` của ngày
+/// cuối tháng là ngày đầu tháng sau. `weekday` bị bỏ qua.
+/// @code
+/// // Lúc nửa đêm tới, khi phần thưởng mỗi ngày làm mới.
+/// njin::date_time d = njin::time_date(njin::time_unix());
+/// const njin::i64 reset = njin::time_from_date({.year = d.year, .month = d.month, .day = d.day + 1});
+/// @endcode
+/// @param date Ngày, giờ.
+/// @param local `date` theo giờ của máy, hay theo UTC.
+/// @return Số giây từ 1/1/1970 UTC.
+i64 time_from_date(const date_time &date, bool local = true);
 /// @}
 
 /// @addtogroup grp_random

@@ -80,7 +80,7 @@ Mọi hàm của module chỉ gọi thẳng API C++ cùng tên, không thêm hà
 
 | Nhóm | Hàm |
 |---|---|
-| Thời gian | `delta`, `elapsed`, `time_scale`, `set_time_scale` |
+| Thời gian | `delta`, `elapsed`, `time_scale`, `set_time_scale`; giờ của máy: `time_unix()`, `time_date(t, local)` (bảng `year`, `month`, `day`, `hour`, `minute`, `second`, `weekday`), `time_from_date(bảng, local)` |
 | Ngẫu nhiên | `random`, `random_range(lo, hi)`, `random_int(lo, hi)` |
 | Entity | `entity_create`, `entity_destroy`, `entity_valid` |
 | Transform | `position`, `set_position`, `rotation`, `set_rotation`, `scale`, `set_scale`; bản 3D thêm `3d`: `position3d`... |

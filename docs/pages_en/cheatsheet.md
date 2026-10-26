@@ -32,6 +32,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Knockback when hit | write straight into the body's `velocity` | @ref platformer |
 | Moving platforms, patrolling guards | njin::path_mover | @ref platformer |
 | Enemies that chase and path-find around walls | njin::nav_grid_from_world(), njin::nav_find_path(), njin::nav_steer() | @ref topdown |
+| Put buildings, crops, inventory items on a grid without overlapping | njin::place_grid, njin::place_fits(), njin::place_put() | @ref topdown |
 | Move an object to a point over a period of time | njin::tween_move() | @ref screen_timers |
 | Write your own movement controller | njin::collision_move() | @ref collision |
 
@@ -146,6 +147,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Do something every N seconds (spawn monsters, regenerate health) | njin::timer_every() | @ref screen_timers |
 | Run a value from A to B, smoothly | njin::tween_value(), njin::tween_move() | @ref screen_timers |
 | Random numbers | njin::random() | @ref math |
+| The machine's real time, even while the game is closed (8-hour builds, daily rewards) | njin::time_unix(), njin::time_date(), njin::time_from_date() | @ref time |
 | Geometry: vec2, rectangles, basic collision | njin::vec2, njin::rect, njin::collide_rects() | @ref math |
 
 ## Audio

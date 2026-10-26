@@ -9,7 +9,7 @@
 /// sprite_anim, scene_owned, child_of.
 
 /// @defgroup grp_time Time
-/// Frame time and elapsed time.
+/// Frame time, elapsed time, and the machine's clock (real time, dates).
 
 /// @defgroup grp_camera Camera
 /// The active camera and converting coordinates between world and screen.
@@ -157,6 +157,9 @@
 
 /// @defgroup grp_nav Pathfinding
 /// Grid, A*, line of sight and path following for enemies.
+
+/// @defgroup grp_place Placing things on a grid
+/// An occupancy grid for things several cells big: buildings, crops, inventory items; snapping to cells, overlap checks, finding a free spot.
 
 /// @defgroup grp_spatial Nearest neighbours
 /// A grid or a quadtree for thousands of circles: the k nearest, and pushing overlapping ones apart.
