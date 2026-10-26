@@ -20,6 +20,19 @@ To release: edit that header, add a section here, commit, then
 - njin_inspector: an Allocator tab in the Memory window (used, peak, history,
   live blocks by size, editable limits, run the callbacks, hold a ballast).
   Protocol 7: a game and an inspector built before it must be rebuilt together.
+- `model_bounds()`: a model's bounding box in its rest pose, to size and place
+  models loaded from files.
+
+### Fixed
+
+- `model_load()` of a glTF mesh of more than 65535 vertices (32-bit indices,
+  a scanned or generated model of a few hundred thousand triangles): raylib
+  cut its indices to 16 bits and the mesh came out scrambled. It is now split
+  into meshes of at most 65535 vertices from the file's own indices (not in a
+  file with morph targets, which logs a warning instead).
+- `model_load()` with `skip_nodes`, `only_nodes` or `merge` freed raylib's
+  mesh arrays with plain `free()` while raylib allocates through the counting
+  allocator: a heap corruption crash.
 
 ## 0.6.0
 

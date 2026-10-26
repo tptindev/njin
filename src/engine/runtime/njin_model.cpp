@@ -196,9 +196,11 @@ bool name_has(const char *name, const char *const *list, u32 count) {
 }
 
 // The node name of each of raylib's meshes: LoadGLTF makes one mesh per
-// triangle primitive, visiting the nodes in file order (rmodels.c). Empty
-// when the file does not parse or the count does not match.
-std::vector<std::string> mesh_node_names(const cgltf_data *data, i32 mesh_count) {
+// triangle primitive, visiting the nodes in file order (rmodels.c).
+// `origin`, when not empty, maps each mesh to the one LoadGLTF made it from
+// (split_large_meshes()). Empty when the file does not parse or the count
+// does not match.
+std::vector<std::string> mesh_node_names(const cgltf_data *data, i32 mesh_count, const std::vector<i32> &origin) {
   std::vector<std::string> names;
   for (cgltf_size i = 0; i < data->nodes_count; i++) {
     const cgltf_node &node = data->nodes[i];
@@ -208,21 +210,164 @@ std::vector<std::string> mesh_node_names(const cgltf_data *data, i32 mesh_count)
       if (node.mesh->primitives[p].type == cgltf_primitive_type_triangles)
         names.push_back(node.name != nullptr ? node.name : "");
   }
+  if (!origin.empty()) {
+    std::vector<std::string> split;
+    for (const i32 o : origin)
+      split.push_back(o >= 0 && (usize)o < names.size() ? names[(usize)o] : std::string());
+    names = std::move(split);
+  }
   if ((i32)names.size() != mesh_count)
     names.clear();
   return names;
-}
-
-// Copies `count` items of `n` floats (or bytes) each, or `fill` when the mesh has none.
-template <typename T> void append(std::vector<T> &out, const T *src, i32 count, i32 n, T fill) {
-  for (i32 i = 0; i < count * n; i++)
-    out.push_back(src != nullptr ? src[i] : fill);
 }
 
 template <typename T> T *to_raylib_array(const std::vector<T> &v) {
   T *p = (T *)MemAlloc((u32)(v.size() * sizeof(T)));
   std::copy(v.begin(), v.end(), p);
   return p;
+}
+
+// `n` items of each vertex in `used`, picked from `src`; nullptr when the mesh has none.
+template <typename T> T *gather(const T *src, const std::vector<u32> &used, i32 n) {
+  if (src == nullptr)
+    return nullptr;
+  T *p = (T *)MemAlloc((u32)(used.size() * (usize)n * sizeof(T)));
+  for (usize i = 0; i < used.size(); i++)
+    std::copy(src + (usize)used[i] * (usize)n, src + ((usize)used[i] + 1) * (usize)n, p + i * (usize)n);
+  return p;
+}
+
+// raylib keeps 16-bit indices: LoadGLTF cuts a primitive's 32-bit indices
+// down to 16 bits ("converted from u32 to u16"), so one of more than 65535
+// vertices comes out scrambled (a scanned or generated model of a few hundred
+// thousand triangles). Each such mesh is cut here, from the file's own
+// indices, into meshes of at most 65535 vertices sharing its material. Its
+// vertex data is LoadGLTF's (already in model space), only the indices are
+// read again. `origin` gets, per mesh after, the mesh it came from; it stays
+// empty when nothing is cut.
+void split_large_meshes(Model &model, cgltf_data *data, const char *resolved, const char *path,
+                        std::vector<i32> &origin) {
+  std::vector<const cgltf_primitive *> prims; // behind each raylib mesh
+  bool targets = false;
+  for (cgltf_size i = 0; i < data->nodes_count; i++) {
+    const cgltf_node &node = data->nodes[i];
+    if (node.mesh == nullptr)
+      continue;
+    for (cgltf_size p = 0; p < node.mesh->primitives_count; p++) {
+      const cgltf_primitive &prim = node.mesh->primitives[p];
+      if (prim.type != cgltf_primitive_type_triangles)
+        continue;
+      prims.push_back(&prim);
+      targets |= prim.targets_count > 0;
+    }
+  }
+  if ((i32)prims.size() != model.meshCount)
+    return;
+  const auto too_big = [&](i32 k) {
+    const cgltf_accessor *ia = prims[(usize)k]->indices;
+    return model.meshes[k].vertexCount > 65535 && ia != nullptr && ia->component_type == cgltf_component_type_r_32u;
+  };
+  bool any = false;
+  for (i32 k = 0; k < model.meshCount; k++)
+    any |= too_big(k);
+  if (!any)
+    return;
+  if (targets) {
+    NJIN_WARN("model: %s: a mesh of more than 65535 vertices in a file with morph targets is not split: "
+              "it is drawn scrambled",
+              path);
+    return;
+  }
+  cgltf_options options{};
+  if (cgltf_load_buffers(&options, data, resolved) != cgltf_result_success) {
+    NJIN_WARN("model: %s: cannot read its buffers to split a mesh of more than 65535 vertices", path);
+    return;
+  }
+  std::vector<Mesh> meshes;
+  std::vector<i32> materials;
+  for (i32 k = 0; k < model.meshCount; k++) {
+    Mesh &src = model.meshes[k];
+    if (!too_big(k)) {
+      meshes.push_back(src);
+      materials.push_back(model.meshMaterial[k]);
+      origin.push_back(k);
+      src = Mesh{}; // moved: not unloaded below
+      continue;
+    }
+    const cgltf_accessor *ia = prims[(usize)k]->indices;
+    std::vector<i32> remap((usize)src.vertexCount, -1); // source vertex -> vertex of the piece
+    std::vector<u32> used;                              // piece vertex -> source vertex
+    std::vector<unsigned short> idx;
+    const auto flush = [&]() {
+      if (idx.empty())
+        return;
+      Mesh m{};
+      m.vertexCount = (i32)used.size();
+      m.triangleCount = (i32)(idx.size() / 3);
+      m.vertices = gather(src.vertices, used, 3);
+      m.texcoords = gather(src.texcoords, used, 2);
+      m.texcoords2 = gather(src.texcoords2, used, 2);
+      m.normals = gather(src.normals, used, 3);
+      m.tangents = gather(src.tangents, used, 4);
+      m.colors = gather(src.colors, used, 4);
+      m.indices = to_raylib_array(idx);
+      m.boneCount = src.boneCount;
+      m.boneIndices = gather(src.boneIndices, used, 4);
+      m.boneWeights = gather(src.boneWeights, used, 4);
+      m.animVertices = gather(src.animVertices, used, 3);
+      m.animNormals = gather(src.animNormals, used, 3);
+      UploadMesh(&m, false);
+      meshes.push_back(m);
+      materials.push_back(model.meshMaterial[k]);
+      origin.push_back(k);
+      for (const u32 v : used)
+        remap[v] = -1;
+      used.clear();
+      idx.clear();
+    };
+    const i32 before = (i32)meshes.size();
+    for (cgltf_size t = 0; t + 2 < ia->count; t += 3) {
+      u32 v[3];
+      bool valid = true;
+      for (i32 c = 0; c < 3; c++) {
+        v[c] = (u32)cgltf_accessor_read_index(ia, t + (cgltf_size)c);
+        valid &= v[c] < (u32)src.vertexCount;
+      }
+      if (!valid)
+        continue;
+      i32 fresh = 0;
+      for (i32 c = 0; c < 3; c++)
+        fresh += remap[v[c]] < 0 && (c == 0 || v[c] != v[0]) && (c < 2 || v[c] != v[1]);
+      if (used.size() + (usize)fresh > 65535)
+        flush();
+      for (const u32 s : v) {
+        if (remap[s] < 0) {
+          remap[s] = (i32)used.size();
+          used.push_back(s);
+        }
+        idx.push_back((unsigned short)remap[s]);
+      }
+    }
+    flush();
+    NJIN_INFO("model: %s: a mesh of %d vertices split into %d of at most 65535", path, src.vertexCount,
+              (i32)meshes.size() - before);
+  }
+  for (i32 i = 0; i < model.meshCount; i++)
+    if (model.meshes[i].vaoId != 0 || model.meshes[i].vertices != nullptr)
+      UnloadMesh(model.meshes[i]);
+  MemFree(model.meshes); // raylib's allocator: RL_FREE here is plain free()
+  MemFree(model.meshMaterial);
+  model.meshCount = (i32)meshes.size();
+  model.meshes = (Mesh *)MemAlloc((u32)(meshes.size() * sizeof(Mesh))); // zeroed
+  model.meshMaterial = (i32 *)MemAlloc((u32)(meshes.size() * sizeof(i32)));
+  std::copy(meshes.begin(), meshes.end(), model.meshes);
+  std::copy(materials.begin(), materials.end(), model.meshMaterial);
+}
+
+// Copies `count` items of `n` floats (or bytes) each, or `fill` when the mesh has none.
+template <typename T> void append(std::vector<T> &out, const T *src, i32 count, i32 n, T fill) {
+  for (i32 i = 0; i < count * n; i++)
+    out.push_back(src != nullptr ? src[i] : fill);
 }
 
 // The meshes in `keep`, sharing material `material`, as few meshes as their
@@ -302,11 +447,12 @@ void merge_meshes(const Model &model, const std::vector<i32> &keep, std::vector<
 // index of each mesh left when they are filtered without merging, `merged`
 // what merge_meshes says each merged mesh is made of.
 bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &desc, const char *path,
-                  std::vector<i32> &kept, std::vector<std::vector<std::pair<i32, u32>>> &merged) {
+                  const std::vector<i32> &origin, std::vector<i32> &kept,
+                  std::vector<std::vector<std::pair<i32, u32>>> &merged) {
   const bool filtering = desc.skip_count > 0 || desc.only_count > 0;
   if (!filtering && !desc.merge)
     return true;
-  const std::vector<std::string> names = mesh_node_names(data, model.meshCount);
+  const std::vector<std::string> names = mesh_node_names(data, model.meshCount, origin);
   if (filtering && names.empty()) {
     NJIN_WARN("model: %s: its meshes do not follow its nodes, the node filter is not applied", path);
     return true;
@@ -337,11 +483,11 @@ bool filter_model(Model &model, const cgltf_data *data, const model_load_desc &d
   for (i32 i = 0; i < model.meshCount; i++)
     if (model.meshes[i].vaoId != 0 || model.meshes[i].vertices != nullptr)
       UnloadMesh(model.meshes[i]);
-  RL_FREE(model.meshes);
-  RL_FREE(model.meshMaterial);
+  MemFree(model.meshes); // raylib's allocator: RL_FREE here is plain free()
+  MemFree(model.meshMaterial);
   model.meshCount = (i32)meshes.size();
-  model.meshes = (Mesh *)RL_CALLOC(meshes.size(), sizeof(Mesh));
-  model.meshMaterial = (i32 *)RL_CALLOC(meshes.size(), sizeof(i32));
+  model.meshes = (Mesh *)MemAlloc((u32)(meshes.size() * sizeof(Mesh))); // zeroed
+  model.meshMaterial = (i32 *)MemAlloc((u32)(meshes.size() * sizeof(i32)));
   std::copy(meshes.begin(), meshes.end(), model.meshes);
   std::copy(materials.begin(), materials.end(), model.meshMaterial);
   return model.meshCount > 0;
@@ -708,6 +854,9 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
     if (cgltf_parse_file(&options, resolved.c_str(), &gltf) != cgltf_result_success)
       gltf = nullptr;
   }
+  std::vector<i32> origin;
+  if (gltf != nullptr)
+    split_large_meshes(model, gltf, resolved.c_str(), path, origin);
   model_slot slot;
   // Morph targets need the file's buffers; read before the node filter moves meshes.
   std::vector<std::pair<const cgltf_mesh *, std::vector<i32>>> mesh_slots;
@@ -727,7 +876,7 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
     apply_texcoord_sets(model, gltf);
   std::vector<i32> kept;
   std::vector<std::vector<std::pair<i32, u32>>> merged;
-  if (gltf != nullptr && !filter_model(model, gltf, desc, path, kept, merged)) {
+  if (gltf != nullptr && !filter_model(model, gltf, desc, path, origin, kept, merged)) {
     NJIN_WARN("model: %s: the node filter leaves no mesh", path);
     cgltf_free(gltf);
     UnloadModel(model);

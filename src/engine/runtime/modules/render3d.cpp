@@ -3080,6 +3080,17 @@ f32 model_volume(const context &ctx, model_handle handle) {
   return (f32)std::fabs(total);
 }
 
+bool model_bounds(const context &ctx, model_handle handle, vec3 *min, vec3 *max) {
+  const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), handle);
+  if (m == nullptr)
+    return false;
+  if (min != nullptr)
+    *min = {m->bounds.min.x, m->bounds.min.y, m->bounds.min.z};
+  if (max != nullptr)
+    *max = {m->bounds.max.x, m->bounds.max.y, m->bounds.max.z};
+  return true;
+}
+
 bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool children, vec3 *min, vec3 *max) {
   vec3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
   bool any = false;

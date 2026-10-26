@@ -772,6 +772,21 @@ bool model_bone_bounds(const context &ctx, model_handle handle, i32 bone, bool c
 /// @return Thể tích; lưới hở thì gần đúng. 0 nếu handle không hợp lệ.
 f32 model_volume(const context &ctx, model_handle handle);
 
+/// Hộp bao của model ở tư thế gốc, đơn vị thế giới, trước transform của lần vẽ:
+/// để biết cỡ thật của model nạp từ file (đặt nó lên mặt đất, phóng cho đúng cỡ,
+/// dựng hộp va chạm).
+/// @code
+/// njin::vec3 lo, hi;
+/// njin::model_bounds(ctx, crate, &lo, &hi);
+/// const float scale = 0.6f / (hi.y - lo.y); // thùng cao 0.6 m
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model từ model_load() hay model_create().
+/// @param min Nhận góc nhỏ nhất. Có thể nullptr.
+/// @param max Nhận góc lớn nhất. Có thể nullptr.
+/// @return false nếu handle không hợp lệ (khi đó `min`, `max` không đổi).
+bool model_bounds(const context &ctx, model_handle handle, vec3 *min, vec3 *max);
+
 /// Các đỉnh của phần da đó (như model_bone_bounds()), cùng hệ trục: theo các
 /// trục của model ở tư thế gốc, tính từ gốc của xương. Để dựng một khối lồi ôm
 /// đúng hình (physics3d_hull_create()).
