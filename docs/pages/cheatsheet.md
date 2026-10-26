@@ -141,6 +141,41 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Làm mờ, CRT, bloom, vignette toàn màn | njin::post_fx_set() | @ref post_processing |
 | Chuyển mượt giữa hai bộ hiệu ứng | njin::post_fx_lerp() | @ref post_processing |
 
+## 3D
+
+Cần bật feature trong CMake: `njin_use(<game> FEATURES 3d)`, thêm `physics3d` cho vật lý, `nav3d` cho tìm đường.
+
+| Muốn | Dùng | Xem |
+|---|---|---|
+| Vẽ 3D: camera, hình khối, màu | njin::begin_3d(), njin::draw_cube3d(), njin::draw_sphere3d(), njin::end_3d() | @ref graphics_3d |
+| Camera nhìn song song (isometric, chiến thuật) | njin::camera3d::projection, njin::camera3d::ortho_height | @ref graphics_3d |
+| Hình mịn bằng SDF, khối dẻo nối nhau | njin::draw_shape3d(), njin::draw_sdf_blend() | @ref graphics_3d |
+| Nạp và vẽ model glTF, cỡ thật của model | njin::model_load(), njin::draw_model(), njin::model_bounds() | @ref graphics_3d |
+| Đổi vật liệu, màu của một phần model | njin::model_material_get(), njin::model_material_set() | @ref graphics_3d |
+| Animation xương, trộn hai animation | njin::draw_model_anim(), njin::model_anim_find() | @ref graphics_3d |
+| Tóc, váy, đuôi đung đưa theo chuyển động | njin::spring3d_create(), njin::spring3d_update() | @ref spring3d |
+| Chân đặt đúng mặt dốc, bậc thang | njin::foot3d_create(), njin::foot3d_update() | @ref foot3d |
+| Dùng animation của bộ xương khác | njin::retarget3d_create(), njin::retarget3d_pose() | @ref retarget3d |
+| Ít đa giác khi ở xa | njin::model_lod_build() | @ref model_lod |
+| Mặt trời, ánh sáng nền, bóng đổ, sương | njin::light3d_set() | @ref graphics_3d |
+| Đèn điểm, đèn nón, đèn pin có bóng | njin::light3d_add() | @ref graphics_3d |
+| Ánh sáng mạnh không cháy trắng (tone mapping) | njin::light3d::tonemap, njin::light3d::exposure | @ref pbr3d |
+| Vật liệu PBR: kim loại, độ nhám, model glTF như Blender | njin::material3d::pbr, njin::model_load_desc::pbr | @ref pbr3d |
+| Ánh sáng và phản chiếu từ ảnh HDR, nền trời bằng ảnh | njin::light3d::environment | @ref pbr3d |
+| Nháy trắng khi trúng đòn, tan biến khi chết | njin::fx3d_set() | @ref graphics_3d |
+| Lửa, khói, tia lửa 3D; phát liên tục từ vòng, đĩa | njin::particles3d_spawn(), njin::particles3d_emit() | @ref graphics_3d |
+| Vẽ hàng nghìn bản của một model | njin::draw_instanced3d() | @ref graphics_3d |
+| Chọn vật bằng chuột, nhãn trên đầu nhân vật | njin::camera3d_ray(), njin::ray3d_model(), njin::camera3d_to_screen() | @ref graphics_3d |
+| Model và hình 3D thành entity | njin::model3d, njin::shape3d_render | @ref entities_3d |
+| Vật lý 3D: rơi, va, đẩy | njin::body3d_create(), njin::physics3d_raycast() | @ref physics3d |
+| Nhân vật đi trên địa hình, cầu thang | njin::character3d_create(), njin::character3d_set_velocity() | @ref physics3d |
+| Ragdoll, vải và vật mềm, xe | njin::body3d_create() | @ref physics3d |
+| Tìm đường 3D, đám đông tránh nhau | njin::navmesh3d_create(), njin::nav3d_agent_add() | @ref nav_3d |
+| Địa hình, cỏ, cây rải, nước | njin::terrain3d_create(), njin::grass3d_create(), njin::scatter3d_create(), njin::water3d_create() | @ref world_3d |
+| Bầu trời theo giờ, thời tiết | njin::draw_sky3d(), njin::weather3d_preset() | @ref sky3d |
+| Góc tối, phản chiếu sàn, vết đạn, chống răng cưa, mờ chuyển động | njin::post3d_set(), njin::decal3d_add() | @ref post_3d |
+| Vẽ đường, mũi tên debug trong 3D | njin::gizmo_line3d(), njin::gizmo_arrow3d() | @ref graphics_3d |
+
 ## Thời gian và ngẫu nhiên
 
 | Muốn | Dùng | Xem |

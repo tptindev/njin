@@ -141,6 +141,41 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Full-screen blur, CRT, bloom, vignette | njin::post_fx_set() | @ref post_processing |
 | Blend smoothly between two sets of effects | njin::post_fx_lerp() | @ref post_processing |
 
+## 3D
+
+Turn the features on in CMake: `njin_use(<game> FEATURES 3d)`, plus `physics3d` for physics, `nav3d` for pathfinding.
+
+| I want to | Use | See |
+|---|---|---|
+| Draw in 3D: camera, primitives, colour | njin::begin_3d(), njin::draw_cube3d(), njin::draw_sphere3d(), njin::end_3d() | @ref graphics_3d |
+| A parallel camera (isometric, strategy) | njin::camera3d::projection, njin::camera3d::ortho_height | @ref graphics_3d |
+| Smooth SDF shapes, soft blended blobs | njin::draw_shape3d(), njin::draw_sdf_blend() | @ref graphics_3d |
+| Load and draw glTF models, a model's real size | njin::model_load(), njin::draw_model(), njin::model_bounds() | @ref graphics_3d |
+| Change a model part's material or colour | njin::model_material_get(), njin::model_material_set() | @ref graphics_3d |
+| Skeletal animation, blending two clips | njin::draw_model_anim(), njin::model_anim_find() | @ref graphics_3d |
+| Hair, skirts, tails swaying with motion | njin::spring3d_create(), njin::spring3d_update() | @ref spring3d |
+| Feet that land on slopes and steps | njin::foot3d_create(), njin::foot3d_update() | @ref foot3d |
+| Play another skeleton's animations | njin::retarget3d_create(), njin::retarget3d_pose() | @ref retarget3d |
+| Fewer polygons far away | njin::model_lod_build() | @ref model_lod |
+| Sun, ambient light, shadows, fog | njin::light3d_set() | @ref graphics_3d |
+| Point lights, spot lights, a torch with shadows | njin::light3d_add() | @ref graphics_3d |
+| Strong light without burning white (tone mapping) | njin::light3d::tonemap, njin::light3d::exposure | @ref pbr3d |
+| PBR materials: metal, roughness, glTF models as in Blender | njin::material3d::pbr, njin::model_load_desc::pbr | @ref pbr3d |
+| Light and reflections from an HDR image, an image sky | njin::light3d::environment | @ref pbr3d |
+| Flash white on a hit, dissolve on death | njin::fx3d_set() | @ref graphics_3d |
+| 3D fire, smoke, sparks; emitting from a ring or disc | njin::particles3d_spawn(), njin::particles3d_emit() | @ref graphics_3d |
+| Draw thousands of copies of a model | njin::draw_instanced3d() | @ref graphics_3d |
+| Pick things with the mouse, labels above characters | njin::camera3d_ray(), njin::ray3d_model(), njin::camera3d_to_screen() | @ref graphics_3d |
+| Models and 3D shapes as entities | njin::model3d, njin::shape3d_render | @ref entities_3d |
+| 3D physics: falling, hitting, pushing | njin::body3d_create(), njin::physics3d_raycast() | @ref physics3d |
+| A character walking on terrain and stairs | njin::character3d_create(), njin::character3d_set_velocity() | @ref physics3d |
+| Ragdolls, cloth and soft bodies, vehicles | njin::body3d_create() | @ref physics3d |
+| 3D pathfinding, crowds avoiding each other | njin::navmesh3d_create(), njin::nav3d_agent_add() | @ref nav_3d |
+| Terrain, grass, scattered trees, water | njin::terrain3d_create(), njin::grass3d_create(), njin::scatter3d_create(), njin::water3d_create() | @ref world_3d |
+| A sky by the hour, weather | njin::draw_sky3d(), njin::weather3d_preset() | @ref sky3d |
+| Contact shadows, floor reflections, bullet holes, anti-aliasing, motion blur | njin::post3d_set(), njin::decal3d_add() | @ref post_3d |
+| Debug lines and arrows in 3D | njin::gizmo_line3d(), njin::gizmo_arrow3d() | @ref graphics_3d |
+
 ## Time and randomness
 
 | I want to | Use | See |
