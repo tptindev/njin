@@ -1,4 +1,9 @@
 #pragma once
+// Part of the 3d feature: a game turns it on with njin_use(<game> FEATURES 3d)
+// (cmake/njin.cmake), or links njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_3D)
+#error "njin_world3d.h is part of the njin feature '3d', which this game does not use: add it with njin_use(<game> FEATURES 3d)"
+#endif
 #include "_math.h"
 #include "njin_3d.h"
 #include "njin_procgen.h"
@@ -369,6 +374,32 @@ struct water3d_desc {
   terrain3d_handle terrain{};      ///< Terrain making the bottom and the shore.
   /// Grid density, times the default. Higher gives smoother waves far away, at a cost.
   f32 detail = 1.0f;
+  /// Without `terrain`: a flat bed this many metres below `level`, so shallow
+  /// water shows its bottom (a basin, a sink, a small tank). 0 (the default) is
+  /// evenly deep like a sea.
+  f32 bed = 0.0f;
+  /// Point and spot lights (light3d_add(), njin::light3d_source) also light the
+  /// water and glint on it, for indoor or night water. By default only the sun
+  /// does.
+  bool lamps = false;
+  /// A stream falling onto the water (a tap, a gutter, a small waterfall) at
+  /// `pour_at` on the xz plane: round ripples spread from there, fading out at
+  /// `pour_reach` metres, with churned foam where it lands. Only drawn:
+  /// water3d_height() and water3d_normal() do not include these ripples.
+  vec2 pour_at{0.0f, 0.0f};
+  f32 pour = 0.0f;       ///< Strength of the stream, 0..1. 0 (the default) is none.
+  f32 pour_reach = 0.3f; ///< How far the ripples spread, metres; ten rings fit in it.
+  /// An ellipse fitting `size` instead of a rectangle, its edge wandering with
+  /// noise and turning clear towards it: a puddle spreading on a floor, a small
+  /// pond. Ignored for a sea.
+  bool round = false;
+  /// Refraction: seen through the surface, what lies under the water is bent
+  /// along the waves and ripples, more where the water is thicker; the real
+  /// depth to the bed and to things under water is taken from the drawn scene
+  /// (instead of `bed` and `terrain`), so water around a sunken thing is also
+  /// clearer. A strength, about 0..1; 0 (the default) is off. Turning it on makes
+  /// the 3D pass copy the scene's colour and depth once a frame, as post3d does.
+  f32 refract = 0.0f;
 };
 
 /// Creates a water surface.
@@ -393,6 +424,28 @@ void water3d_set(context &ctx, water3d_handle handle, const water3d_desc &desc);
 /// @param handle Water surface.
 /// @return Description, or the default if the handle is invalid.
 water3d_desc water3d_get(const context &ctx, water3d_handle handle);
+
+/// The most ripples spreading at once on one water surface (water3d_splash()).
+inline constexpr i32 water3d_splash_max = 8;
+
+/// Something falls into the water (a stone, a bowl, a big drop) at `at` on the xz
+/// plane: the water churns where it goes in, then a train of rings spreads out
+/// and dies away within a few seconds. The bigger the thing (`size`, metres) the
+/// longer the ripples and the faster they spread; `strength` (0..1) is the height
+/// of the waves, rising with how fast the thing fell.
+///
+/// Only drawn, like `water3d_desc::pour`: water3d_height() does not include these
+/// ripples. Beyond njin::water3d_splash_max spreading at once, the oldest is replaced.
+/// @code
+/// // A bowl dropped from 40 cm: it hits the water at about 2.8 m/s.
+/// njin::water3d_splash(ctx, basin, {bowl.x, bowl.z}, 2.8f / 4.0f, 0.16f);
+/// @endcode
+/// @param ctx The engine context.
+/// @param handle The water. An invalid handle is ignored.
+/// @param at Where the thing falls in, x and z.
+/// @param strength Strength, 0..1.
+/// @param size Size of the thing, metres.
+void water3d_splash(context &ctx, water3d_handle handle, vec2 at, f32 strength, f32 size);
 
 /// Draws the water surface in the open 3D pass. Water is drawn after every opaque
 /// shape, like glass.

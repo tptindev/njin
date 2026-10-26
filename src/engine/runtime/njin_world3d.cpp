@@ -952,6 +952,27 @@ water3d_desc water3d_get(const context &ctx, water3d_handle handle) {
   return w != nullptr ? w->desc : water3d_desc{};
 }
 
+bool world3d_wants_scene(const context &ctx) {
+  for (const water3d_slot &w : ctx_ref<world3d_store>(ctx)->waters)
+    if (w.alive && w.desc.refract > 0.0f)
+      return true;
+  return false;
+}
+
+void water3d_splash(context &ctx, water3d_handle handle, vec2 at, f32 strength, f32 size) {
+  water3d_slot *w = slot_in(ctx_ref<world3d_store>(ctx)->waters, handle.id);
+  if (w == nullptr || refuse(std::isfinite(at.x) && std::isfinite(at.y) && std::isfinite(strength) &&
+                                 std::isfinite(size),
+                             "water3d_splash"))
+    return;
+  // In place of the oldest.
+  water3d_ring *oldest = &w->rings[0];
+  for (water3d_ring &r : w->rings)
+    if (r.start < oldest->start)
+      oldest = &r;
+  *oldest = {at, ctx_ref<world3d_store>(ctx)->time, clamp(strength, 0.0f, 1.0f), std::max(size, 0.01f)};
+}
+
 void draw_water3d(const context &ctx, water3d_handle handle) {
   if (water_of(ctx, handle.id) != nullptr)
     render3d_record_world(ctx, world3d_water, handle.id);

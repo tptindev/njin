@@ -1,4 +1,5 @@
 #include "render3d.h"
+#include "post3d.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
 #include "njin_quality_impl.h"
@@ -29,6 +30,7 @@ constexpr i32 unit_height = 8;
 constexpr i32 unit_normal = 9;
 constexpr i32 unit_splat = 10;
 constexpr i32 unit_cover = 12;   // render3d's top-down cover depth (rain and snow)
+constexpr i32 unit_scene = 5;    // 5, 6: the scene's colour and depth under refracting water (no layers there)
 
 constexpr i32 rain_drops = 9000;
 constexpr i32 snow_flakes = 7000;
@@ -413,6 +415,17 @@ uniform vec3 foamColor;
 uniform vec4 waterParams;  // depth fade, clarity, foam width, crest foam
 uniform vec3 waterSpec;    // specular, shininess, ripples
 uniform int hasGround;
+uniform vec2 waterBed;     // 1 when it has a flat bed (water3d_desc::bed), the bed's height
+uniform int waterLamps;    // 1: the point and spot lights shine on it too
+uniform vec4 waterPour;    // where a stream falls in (x, z), its strength, how far its rings reach
+uniform vec4 waterRound;   // a round lake's centre (x, z) and half size; zero size: a rectangle
+uniform mat4 mvp;
+uniform sampler2D sceneColor; // refracting: the opaque scene drawn so far
+uniform sampler2D sceneDepth;
+uniform vec4 waterScene;      // 1 when refracting, its strength, the camera's near and far
+uniform vec3 waterScreen;     // the scene's size in pixels; 1 for an orthographic camera
+uniform vec4 waterRings[8];   // things fallen in: where (x, z), seconds since, strength (0: none)
+uniform float waterRingSize[8]; // and how big each was, metres
 uniform sampler2D groundHeight;
 uniform vec4 groundGrid;   // origin x, origin z, spacing
 uniform ivec2 groundLast;
@@ -430,7 +443,24 @@ float ground_at(vec2 xz) {
 
 float ripple_noise(vec2 p) { return sky_noise(p); }
 
+// How far from the camera the scene is at `uv`, along its view.
+float scene_depth(vec2 uv, float near, float far) {
+  float z = texture(sceneDepth, uv).r;
+  return waterScreen.z > 0.5 ? mix(near, far, z) : 2.0 * near * far / (far + near - (z * 2.0 - 1.0) * (far - near));
+}
+
 void main() {
+  // A round lake: an ellipse in its rectangle, its edge wandering in and out,
+  // the water thinning toward it.
+  float edgeFade = 1.0;
+  if (waterRound.z > 0.0) {
+    vec2 q = (fragRest - waterRound.xy) / waterRound.zw;
+    float edge = 1.0 - 0.22 * ripple_noise(q * 2.2 + waterRound.xy * 7.0);
+    float r = length(q) / edge;
+    if (r > 1.0)
+      discard;
+    edgeFade = 1.0 - smoothstep(0.8, 1.0, r);
+  }
   float spacing = max(length(fwidth(fragRest)), 0.01);
   vec3 n;
   float crest;
@@ -447,12 +477,81 @@ void main() {
     float fadek = 1.0 - smoothstep(0.3, 2.0, spacing);
     n = normalize(n - vec3(grad.x, 0.0, grad.y) * 0.06 * waterSpec.z * fadek);
   }
+  // A stream falling in: rings running out from where it lands, ragged by a
+  // little noise, and churned water right under it.
+  float churn = 0.0;
+  if (waterPour.z > 0.0) {
+    float reach = max(waterPour.w, 0.01);
+    vec2 dp = fragRest - waterPour.xy;
+    float d = length(dp);
+    float k = 62.831853 / reach; // ten rings in the reach
+    float ragged = ripple_noise(dp * (40.0 / reach) + time * 1.3);
+    float wave = cos(d * k - time * k * reach * 0.8 + ragged * 2.5);
+    float fade = exp(-3.0 * d / reach) * smoothstep(0.0, reach * 0.04, d);
+    float keep = 1.0 - smoothstep(0.5, 1.0, spacing * k * 0.16); // rings finer than a pixel fade out
+    n = normalize(n - vec3(dp / max(d, 1e-4), 0.0).xzy * wave * fade * keep * 0.45 * waterPour.z);
+    churn = waterPour.z * (1.0 - smoothstep(reach * 0.04, reach * 0.18, d));
+    if (churn > 0.0) {
+      vec2 q = dp * (90.0 / reach) + vec2(time * 2.1, -time * 1.7);
+      float e = 0.1;
+      vec2 grad = vec2(ripple_noise(q + vec2(e, 0.0)) - ripple_noise(q - vec2(e, 0.0)),
+                       ripple_noise(q + vec2(0.0, e)) - ripple_noise(q - vec2(0.0, e))) / (2.0 * e);
+      n = normalize(n - vec3(grad.x, 0.0, grad.y) * 0.25 * churn);
+    }
+  }
+  // Things fallen in: a train of rings running out from each, a few waves
+  // behind its front, dying away; churned for a moment where it went in.
+  for (int i = 0; i < 8; i++) {
+    float strength = waterRings[i].w;
+    if (strength <= 0.0)
+      continue;
+    float age = waterRings[i].z, size = waterRingSize[i];
+    float life = exp(-age / (1.2 + size * 4.0));
+    if (life < 0.02)
+      continue;
+    vec2 dp = fragRest - waterRings[i].xy;
+    float d = length(dp);
+    float wl = max(size * 0.45, 0.025);    // wavelength
+    float front = (0.18 + size * 1.2) * age + size * 0.3;
+    float behind = front - d;               // > 0 inside the front
+    float train = exp(-pow((behind - wl * 1.5) / (wl * 1.8), 2.0));
+    float spread = 1.0 / (1.0 + d / max(size, 0.02));
+    float wave = sin(6.2831853 * behind / wl);
+    float keep = 1.0 - smoothstep(0.5, 1.0, spacing * 6.2831853 / wl * 0.16);
+    n = normalize(n - vec3(dp / max(d, 1e-4), 0.0).xzy * wave * train * spread * life * strength * keep * 1.2);
+    churn = max(churn, strength * exp(-age / 0.35) * (1.0 - smoothstep(size * 0.25, size * 0.7, d)));
+  }
   vec3 v = normalize(viewPos - fragPos);
   if (dot(n, v) < 0.0)
     n = normalize(n + v * (0.01 - dot(n, v)));
   float depth = 1000.0;
   if (hasGround == 1)
     depth = fragPos.y - ground_at(fragPos.xz);
+  else if (waterBed.x > 0.0)
+    depth = fragPos.y - waterBed.y;
+  // Refracting: what lies under the water, seen along the ray bent into it
+  // (n = 1.33), so it shows nearer the surface and wavers with the waves;
+  // the depth is how far that ray runs through the water to it.
+  vec3 under = vec3(0.0);
+  bool see = waterScene.x > 0.0;
+  if (see) {
+    vec2 suv = gl_FragCoord.xy / waterScreen.xy;
+    float near = waterScene.z, far = waterScene.w;
+    float here = waterScreen.z > 0.5 ? mix(near, far, gl_FragCoord.z)
+                                     : 2.0 * near * far / (far + near - (gl_FragCoord.z * 2.0 - 1.0) * (far - near));
+    float straight = scene_depth(suv, near, far) - here;
+    vec3 bent = refract(-v, n, 0.75);
+    float run = clamp(straight, 0.0, 1.0);
+    vec4 a = mvp * vec4(fragPos + bent * run, 1.0), b = mvp * vec4(fragPos - v * run, 1.0);
+    vec2 ruv = clamp(suv + (a.xy / a.w - b.xy / b.w) * 0.5 * waterScene.y, vec2(0.001), vec2(0.999));
+    float through = scene_depth(ruv, near, far) - here;
+    if (through < 0.0) { // bent onto something above the water: look straight
+      ruv = suv;
+      through = straight;
+    }
+    under = texture(sceneColor, ruv).rgb;
+    depth = max(through, 0.0) * max(abs(bent.y), 0.2);
+  }
   if (depth < -0.05)
     discard;
   depth = max(depth, 0.0);
@@ -460,28 +559,55 @@ void main() {
   vec3 body = mix(shallowColor, deepColor, deep);
   vec3 l = -lightDir;
   float sun = shadowOn == 1 ? sunlight(fragPos, vec3(0.0, 1.0, 0.0), l) : 1.0;
-  vec3 lit = body * (ambient + lightColor * max(dot(n, l), 0.0) * 0.4 * sun);
+  // The lamps, as shade() lights everything else, their glints as sharp as the sun's.
+  vec3 lampLight = vec3(0.0), lampGlint = vec3(0.0);
+  if (waterLamps == 1)
+    for (int i = 0; i < lightCount; i++) {
+      vec3 d = lightPos[i].xyz - fragPos;
+      float dist = length(d);
+      float reach = lightPos[i].w;
+      if (dist >= reach)
+        continue;
+      vec3 li = d / max(dist, 1e-5);
+      float fall = 1.0 - dist / reach;
+      float att = fall * fall;
+      if (lightSpot[i].w > -1.5) {
+        float co = lightSpot[i].w;
+        float ci = lightColors[i].w;
+        att *= clamp((dot(-li, lightSpot[i].xyz) - co) / max(ci - co, 1e-4), 0.0, 1.0);
+      }
+      if (att > 0.0 && lightShadow[i] >= 0)
+        att *= lamplight(lightShadow[i], lightSpot[i].w < -1.5, lightPos[i].xyz, fragPos, vec3(0.0, 1.0, 0.0), li);
+      lampLight += lightColors[i].rgb * max(dot(n, li), 0.0) * att;
+      lampGlint += lightColors[i].rgb * pow(max(dot(n, normalize(li + v)), 0.0), max(waterSpec.y, 1.0)) * att;
+    }
+  vec3 lit = body * (ambient + (lightColor * max(dot(n, l), 0.0) * sun + lampLight) * 0.4);
   vec3 r = reflect(-v, n);
   r.y = abs(r.y);
   vec3 refl = sky_color(r, viewPos, true);
   float fres = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
   vec3 col = mix(lit, refl, fres);
   vec3 hv = normalize(l + v);
-  col += lightColor * pow(max(dot(n, hv), 0.0), max(waterSpec.y, 1.0)) * waterSpec.x * sun;
+  col += (lightColor * pow(max(dot(n, hv), 0.0), max(waterSpec.y, 1.0)) * sun + lampGlint) * waterSpec.x;
   float speck = ripple_noise(fragRest * 2.3 + time * 0.2) * 0.6 + ripple_noise(fragRest * 5.1 - time * 0.3) * 0.4;
   float shore = waterParams.z > 0.0 ? 1.0 - smoothstep(0.0, waterParams.z, depth) : 0.0;
   // A thin line at the water's edge, broken into patches further out.
   float foam = smoothstep(0.55, 0.85, speck * 0.75 + shore * 0.45) * shore;
   foam = max(foam, waterParams.w * smoothstep(0.55, 0.95, crest) * smoothstep(0.35, 0.7, speck));
+  if (churn > 0.0) {
+    float fizz = ripple_noise((fragRest - waterPour.xy) * (120.0 / max(waterPour.w, 0.01)) + time * 4.0);
+    foam = max(foam, churn * smoothstep(0.45, 0.75, fizz) * 0.8);
+  }
   foam = clamp(foam, 0.0, 1.0);
-  col = mix(col, foamColor * (ambient + lightColor * max(dot(n, l), 0.0) * sun), foam);
+  col = mix(col, foamColor * (ambient + lightColor * max(dot(n, l), 0.0) * sun + lampLight), foam);
   float alpha = clamp(1.0 - exp(-depth / max(waterParams.y, 0.01)), 0.0, 1.0);
-  alpha = max(max(alpha, fres), foam);
+  alpha = max(max(alpha, fres), foam) * edgeFade;
   if (fogDensity > 0.0) {
     float f = fogDensity * length(viewPos - fragPos);
     col = mix(fogColor, col, exp(-f * f));
   }
-  finalColor = vec4(col, alpha);
+  // Refracting, the water lays itself over the bent view of what is under it.
+  finalColor = see ? vec4(mix(under, col, alpha), 1.0) : vec4(col, alpha);
 }
 )";
 
@@ -1359,11 +1485,35 @@ void draw_water(context &ctx, const water3d_slot &wslot, u32 id, const Matrix &v
     set_v4(p, "groundGrid", {t->desc.origin.x, t->desc.origin.z, t->spacing, 0.0f});
     set_iv2(p, "groundLast", t->res - 1, t->res - 1);
   }
+  set_v2(p, "waterBed", {d.bed > 0.0f ? 1.0f : 0.0f, d.level - d.bed});
+  set_i(p, "waterLamps", d.lamps ? 1 : 0);
+  set_v4(p, "waterPour", {d.pour_at.x, d.pour_at.y, clamp(d.pour, 0.0f, 1.0f), std::max(d.pour_reach, 0.01f)});
+  set_v4(p, "waterRound", d.round && !ocean ? vec4{d.center.x, d.center.y, d.size.x * 0.5f, d.size.y * 0.5f} : vec4{});
+  vec4 rings[water3d_splash_max]{};
+  f32 ring_sizes[water3d_splash_max]{};
+  for (i32 i = 0; i < water3d_splash_max; i++) {
+    const water3d_ring &r = wslot.rings[i];
+    rings[i] = {r.at.x, r.at.y, w.time - r.start, r.strength};
+    ring_sizes[i] = r.size;
+  }
+  rlSetUniform(location(p, "waterRings"), rings, RL_SHADER_UNIFORM_VEC4, water3d_splash_max);
+  rlSetUniform(location(p, "waterRingSize"), ring_sizes, RL_SHADER_UNIFORM_FLOAT, water3d_splash_max);
+  u32 scene_color = 0, scene_depth = 0;
+  i32 scene_w = 0, scene_h = 0;
+  const bool see = d.refract > 0.0f && post3d_scene(ctx, scene_color, scene_depth, scene_w, scene_h);
+  set_v4(p, "waterScene", {see ? 1.0f : 0.0f, d.refract, s.camera.near_plane, s.camera.far_plane});
+  if (see) {
+    bind(p, "sceneColor", unit_scene, scene_color);
+    bind(p, "sceneDepth", unit_scene + 1, scene_depth);
+    set_v3(p, "waterScreen",
+           {(f32)scene_w, (f32)scene_h, s.camera.projection == camera3d_orthographic ? 1.0f : 0.0f});
+  }
   set_sky_uniforms(p, w.sky_drawn ? w.sky : sky_params_from_light(ctx), w.time);
   rlDisableBackfaceCulling();
   draw_mesh(*mesh);
   rlEnableBackfaceCulling();
   unbind_units(unit_height, unit_height);
+  unbind_units(unit_scene, unit_scene + 1);
   rlDisableShader();
 }
 

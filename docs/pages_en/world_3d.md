@@ -107,6 +107,41 @@ const njin::water3d_handle sea = njin::water3d_create(ctx, {.level = 0.0f, .terr
 njin::water3d_float(ctx, sea, raft, {.buoyancy = 1.8f});
 ```
 
+Small indoor water (a basin, a sink, a fish tank) has no terrain: `bed` gives it a flat bed that many metres below
+`level`, so shallow water shows its bottom according to `clarity`. `lamps` lets point and spot lights
+(light3d_add()) light the water and glint on it, not only the sun: needed for water at night or under a roof. A
+stream falling in (a tap, a gutter) is set with `pour_at` and `pour`: round ripples spread out to `pour_reach`
+metres, with churned foam right where the water lands. `round` makes the lake an ellipse fitting `size`, its edge
+wandering and turning clear towards it, like a puddle spreading on a floor. The waves of a hand-sized surface must
+be short and low (wavelengths of a few tens of centimetres, `steepness` a few percent), and a large `detail` makes
+the mesh dense enough.
+
+```cpp
+// A 60 x 45 cm sink, water 9 cm deep, a tap running near the back wall.
+const njin::water3d_handle basin = njin::water3d_create(
+    ctx, {.level = 0.47f, .center = {0.0f, 0.0f}, .size = {0.6f, 0.45f},
+          .waves = {{{1.0f, 0.4f}, 0.14f, 0.03f, 0.5f}, {{-0.5f, 1.0f}, 0.09f, 0.02f, 0.5f}},
+          .wave_count = 2, .clarity = 0.3f, .crest_foam = 0.0f, .detail = 20.0f, .bed = 0.09f,
+          .lamps = true, .pour_at = {0.0f, -0.1f}, .pour = 1.0f, .pour_reach = 0.25f});
+```
+
+`refract` makes the surface refract: seen through the water, the bed and sunken things bend along the waves and
+look shallower than they are, like a chopstick standing in a glass; the depth to the bed and to things under water
+is taken from the drawn scene, so water around a sunken thing is also clearer. With it on, the 3D pass copies the
+scene's colour and depth once a frame (as when post3d is on).
+
+water3d_splash() is something falling into the water: foam churns where it lands, then a train of rings spreads
+out and dies away within a few seconds, bigger and faster with the size of the thing and how hard it fell. The game
+handles the rest of the fall itself (drops, sound, whether the thing sinks or floats).
+
+```cpp
+// A bowl dropped from 40 cm: it hits the water at about 2.8 m/s.
+njin::water3d_splash(ctx, basin, {bowl.x, bowl.z}, 2.8f / 4.0f, 0.16f);
+```
+
+Water (and the sky of draw_sky3d()) does not go through light3d::tonemap: its colours stay as given, even when the
+scene turns tone mapping on.
+
 ## Sky and weather {#sky3d}
 
 draw_sky3d() draws the sky behind everything in the 3D pass (it only covers what nothing was drawn over): a

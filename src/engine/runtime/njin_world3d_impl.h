@@ -75,9 +75,22 @@ struct scatter3d_slot {
   i32 total = 0;
 };
 
+// Whether a live water refracts (water3d_desc::refract), so the world pass
+// must copy the scene's colour and depth for it (post3d_wanted).
+bool world3d_wants_scene(const context &ctx);
+
+// A ring of waves running out from where something fell in (water3d_splash).
+struct water3d_ring {
+  vec2 at{0.0f, 0.0f};
+  f32 start = -1e9f; // on the waves' clock
+  f32 strength = 0.0f;
+  f32 size = 0.0f;
+};
+
 struct water3d_slot {
   bool alive = false;
   water3d_desc desc{};
+  water3d_ring rings[water3d_splash_max]{};
 };
 
 // The sky as the shaders draw it (and water reflects it), from sky3d or, when

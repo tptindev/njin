@@ -8,6 +8,7 @@
 #include "njin_quality_impl.h"
 #include "njin_log.h"
 #include "njin_texture.h"
+#include "njin_world3d_impl.h"
 #include <algorithm>
 #include <cmath>
 #include <raymath.h>
@@ -1291,11 +1292,12 @@ vec2 post3d_taa_jitter(context &ctx) {
 
 bool post3d_wanted(const context &ctx) {
   const post3d_state &st = ctx_ref<post3d_state>(ctx);
-  return !st.failed && (effects_on(st.settings) || st.live > 0);
+  return !st.failed && (effects_on(st.settings) || st.live > 0 || world3d_wants_scene(ctx));
 }
 
 void post3d_after_opaque(context &ctx) {
   post3d_state &st = ctx_ref<post3d_state>(ctx);
+  st.scene_ready = false;
   if (!usable(ctx) || !load(st))
     return;
   const pass_view v = current_view(ctx);
@@ -1307,10 +1309,28 @@ void post3d_after_opaque(context &ctx) {
     run_ssao(ctx, st, v);
   if (st.settings.ssr > 0.0f)
     run_ssr(ctx, st, v);
+  // Water that refracts sees the scene as it is now, shaded and decaled.
+  if (world3d_wants_scene(ctx)) {
+    if (st.live > 0 || st.settings.ssao > 0.0f || st.settings.ssr > 0.0f)
+      blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
+    st.scene_ready = true;
+  }
+}
+
+bool post3d_scene(const context &ctx, u32 &color, u32 &depth, i32 &w, i32 &h) {
+  const post3d_state &st = ctx_ref<post3d_state>(ctx);
+  if (!st.scene_ready || st.copy_fbo == 0)
+    return false;
+  color = st.copy_color;
+  depth = st.copy_depth;
+  w = st.w;
+  h = st.h;
+  return true;
 }
 
 void post3d_after_pass(context &ctx) {
   post3d_state &st = ctx_ref<post3d_state>(ctx);
+  st.scene_ready = false;
   const bool taa = st.taa_pass;
   st.taa_pass = false;
   if (!usable(ctx) || !st.loaded || st.copy_fbo == 0)

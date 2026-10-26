@@ -26,6 +26,18 @@ To release: edit that header, add a section here, commit, then
   images. Game shaders get `toneMap`, `exposure`, `lightColorLinear`,
   `ambientLinear`. Lua: `tonemap`, `exposure`, `pbr`, `metallic`,
   `roughness`.
+- Small and indoor water (basins, tanks, puddles), all on
+  `water3d_desc`: `bed` gives water without a terrain a flat bed so shallow
+  water is see-through, `lamps` lets point and spot lights light it and glint
+  on it, and `pour_at` / `pour` / `pour_reach` add rings spreading from a
+  stream falling in, with churned foam where it lands; `round` makes a lake an
+  ellipse with a wandering, thinning edge (a puddle spreading on a floor);
+  `refract` bends what lies under the water along the waves (index 1.33),
+  its depth taken from the drawn scene, which the 3D pass then copies once a
+  frame as for post3d. All off by default, so existing water looks the same.
+- `water3d_splash()`: something falling into water churns it where it goes in
+  and sends out a train of rings that dies away, sized by the thing and how
+  hard it fell (up to `water3d_splash_max` at once).
 
 ## 0.7.0
 

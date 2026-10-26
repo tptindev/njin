@@ -99,6 +99,38 @@ const njin::water3d_handle sea = njin::water3d_create(ctx, {.level = 0.0f, .terr
 njin::water3d_float(ctx, sea, raft, {.buoyancy = 1.8f});
 ```
 
+Nước nhỏ trong nhà (chậu, bồn rửa, bể cá) không có địa hình: `bed` cho nó một đáy phẳng sâu bấy nhiêu mét dưới
+`level`, nên nước nông trong thấy đáy theo `clarity`. `lamps` cho đèn điểm và đèn nón (light3d_add()) chiếu lên
+mặt nước và lấp lánh trên nó, không chỉ mặt trời: cần cho nước ban đêm hay dưới mái. Một dòng nước rơi xuống
+(vòi, máng xối) đặt bằng `pour_at` và `pour`: gợn tròn lan ra tới `pour_reach` mét, bọt sủi ngay chỗ nước rơi.
+`round` cho hồ hình bầu dục vừa trong `size`, mép lượn và trong dần ra mép, như vũng nước loang trên sàn.
+Sóng của một mặt nước cỡ một bàn tay phải ngắn và thấp (bước sóng vài chục xăng-ti-mét, `steepness` vài phần
+trăm), và `detail` lớn cho lưới đủ dày.
+
+```cpp
+// Bồn rửa 60 x 45 cm, nước sâu 9 cm, vòi chảy xuống gần thành sau.
+const njin::water3d_handle basin = njin::water3d_create(
+    ctx, {.level = 0.47f, .center = {0.0f, 0.0f}, .size = {0.6f, 0.45f},
+          .waves = {{{1.0f, 0.4f}, 0.14f, 0.03f, 0.5f}, {{-0.5f, 1.0f}, 0.09f, 0.02f, 0.5f}},
+          .wave_count = 2, .clarity = 0.3f, .crest_foam = 0.0f, .detail = 20.0f, .bed = 0.09f,
+          .lamps = true, .pour_at = {0.0f, -0.1f}, .pour = 1.0f, .pour_reach = 0.25f});
+```
+
+`refract` cho mặt nước khúc xạ: nhìn qua nước, đáy và vật chìm cong lệch theo sóng, trông nông hơn thật như
+nhìn chiếc đũa cắm trong cốc; độ sâu tới đáy và tới vật dưới nước lấy theo cảnh đã vẽ nên nước quanh một vật chìm
+cũng trong hơn. Bật nó thì mỗi frame lần vẽ 3D chép ảnh màu và độ sâu của cảnh một lần (như khi bật post3d).
+
+water3d_splash() là một vật rơi xuống nước: bọt sủi chỗ rơi rồi một chuỗi vòng sóng lan ra, tắt dần trong vài
+giây, to và nhanh theo cỡ vật và sức rơi. Game tự lo phần còn lại của cú rơi (giọt bắn, tiếng, vật chìm hay nổi).
+
+```cpp
+// Chén rơi từ 40 cm: chạm nước ở khoảng 2.8 m/s.
+njin::water3d_splash(ctx, basin, {bowl.x, bowl.z}, 2.8f / 4.0f, 0.16f);
+```
+
+Nước (và bầu trời của draw_sky3d()) không đi qua light3d::tonemap: màu của nó giữ như đã cho, kể cả khi cảnh
+bật tone mapping.
+
 ## Bầu trời và thời tiết {#sky3d}
 
 draw_sky3d() vẽ bầu trời phía sau mọi thứ của lần vẽ 3D (chỉ phủ chỗ chưa có gì): nền theo giờ, mặt trời, mây

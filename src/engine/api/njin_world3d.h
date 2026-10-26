@@ -368,6 +368,28 @@ struct water3d_desc {
   terrain3d_handle terrain{};      ///< Địa hình làm đáy và bờ.
   /// Độ dày lưới, nhân với mặc định. Lớn thì sóng mịn hơn ở xa, tốn hơn.
   f32 detail = 1.0f;
+  /// Không có `terrain`: đáy phẳng sâu bấy nhiêu mét dưới `level`, để nước nông
+  /// trong thấy đáy (chậu, bồn rửa, bể nhỏ). 0 (mặc định) là sâu đều như biển.
+  f32 bed = 0.0f;
+  /// Đèn điểm và đèn nón (light3d_add(), njin::light3d_source) cũng chiếu lên mặt
+  /// nước và lấp lánh trên nó, cho nước trong nhà hay ban đêm. Mặc định chỉ có
+  /// mặt trời.
+  bool lamps = false;
+  /// Một dòng nước rơi xuống mặt nước (vòi, máng xối, thác nhỏ) tại `pour_at` trên
+  /// mặt xz: gợn tròn lan ra từ đó, nhạt dần tới `pour_reach` mét, bọt sủi chỗ nước
+  /// rơi. Chỉ là hình vẽ: water3d_height() và water3d_normal() không tính gợn này.
+  vec2 pour_at{0.0f, 0.0f};
+  f32 pour = 0.0f;       ///< Độ mạnh của dòng nước, 0..1. 0 (mặc định) là không có.
+  f32 pour_reach = 0.3f; ///< Gợn lan xa bấy nhiêu mét; mười vòng gợn trong tầm này.
+  /// Hồ bầu dục vừa trong `size` thay cho hình chữ nhật, mép lượn theo nhiễu và
+  /// trong dần ra mép: vũng nước loang trên sàn, ao nhỏ. Bỏ qua với biển.
+  bool round = false;
+  /// Khúc xạ: nhìn qua mặt nước, những gì dưới nước cong lệch theo sóng và gợn,
+  /// lệch nhiều hơn chỗ nước dày; độ sâu thật tới đáy và tới vật dưới nước lấy
+  /// theo cảnh đã vẽ (thay cho `bed` và `terrain`), nên nước quanh một vật chìm
+  /// cũng trong hơn. Độ mạnh, khoảng 0..1; 0 (mặc định) là tắt. Bật nó làm lần vẽ
+  /// 3D chép ảnh màu và độ sâu của cảnh một lần mỗi frame, như post3d.
+  f32 refract = 0.0f;
 };
 
 /// Tạo mặt nước.
@@ -392,6 +414,27 @@ void water3d_set(context &ctx, water3d_handle handle, const water3d_desc &desc);
 /// @param handle Mặt nước.
 /// @return Cách dựng, hoặc mặc định nếu handle không hợp lệ.
 water3d_desc water3d_get(const context &ctx, water3d_handle handle);
+
+/// Số gợn tối đa cùng lúc trên một mặt nước (water3d_splash()).
+inline constexpr i32 water3d_splash_max = 8;
+
+/// Một vật rơi xuống nước (hòn đá, cái chén, giọt nước lớn) tại `at` trên mặt xz:
+/// mặt nước sủi bọt ngay chỗ rơi rồi một chuỗi vòng sóng lan ra và tắt dần trong
+/// vài giây. Vật càng to (`size`, mét) gợn càng dài và lan càng nhanh; `strength`
+/// (0..1) là độ cao của sóng, tăng theo tốc độ vật rơi.
+///
+/// Chỉ là hình vẽ, như `water3d_desc::pour`: water3d_height() không tính gợn này.
+/// Quá njin::water3d_splash_max gợn đang lan thì gợn cũ nhất bị thay.
+/// @code
+/// // Chén rơi từ 40 cm xuống: chạm nước ở khoảng 2.8 m/s.
+/// njin::water3d_splash(ctx, basin, {bowl.x, bowl.z}, 2.8f / 4.0f, 0.16f);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Mặt nước. Handle không hợp lệ bị bỏ qua.
+/// @param at Chỗ vật rơi xuống, toạ độ x, z.
+/// @param strength Độ mạnh, 0..1.
+/// @param size Cỡ của vật, mét.
+void water3d_splash(context &ctx, water3d_handle handle, vec2 at, f32 strength, f32 size);
 
 /// Vẽ mặt nước trong lần vẽ 3D đang mở. Nước vẽ sau mọi hình đục, như kính.
 /// @param ctx Context của engine.

@@ -216,7 +216,7 @@
  "docs/pages/ui_editor.md": "90ce15b02f94a2e70e562bbba40e70e7f0799728",
  "docs/pages/video.md": "93c0bff05e7546c606366fad03821f017a8f554f",
  "docs/pages/window_files.md": "c0c1d17887ab6bca2945790e2883ae0b98e95043",
- "docs/pages/world_3d.md": "3444001515a106ffe8de16d630820d96a2f83ad5",
+ "docs/pages/world_3d.md": "0383c751bf4753487d0818727acf519271993f33",
  "src/engine/api/_collide.h": "96e40d444bc7229f020fa5ee9cedb1f1ed4b5b20",
  "src/engine/api/_comps.h": "68d46887a9a210fc56821f213937a946da0bf920",
  "src/engine/api/_math.h": "f99b8806f1cf7798d32e9237686cd342a84fa9eb",
@@ -278,5 +278,5 @@
  "src/engine/api/njin_version.h": "791b6794273e5edc04b542ba266fecd595069e9a",
  "src/engine/api/njin_video.h": "258fcf1cf897fc4f22b7e66196211cd2959fc255",
  "src/engine/api/njin_window.h": "9798b13dddd91f2d6f661ab52a309d675f750651",
- "src/engine/api/njin_world3d.h": "f8ac4cac6d3aa675c81088c8cbefc7de8e4a1b72"
+ "src/engine/api/njin_world3d.h": "e6e26c86f2b6d9fe6bc4b63433aed1da5ebc4473"
 }

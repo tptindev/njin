@@ -66,6 +66,7 @@ struct post3d_state {
   // The copy of the target: colour and depth, the target's size.
   u32 copy_fbo = 0, copy_color = 0, copy_depth = 0;
   i32 w = 0, h = 0;
+  bool scene_ready = false; // the copy holds the open pass's opaque scene, for refracting water
   RenderTexture2D ao_a{}, ao_b{};       // SSAO, full or half size
   RenderTexture2D mask{};               // SSR: how much each pixel reflects
   RenderTexture2D shafts_a{}, shafts_b{}; // half size
@@ -106,8 +107,12 @@ struct post3d_state {
 };
 
 // Whether the world must be drawn into the world target with a depth texture
-// this frame: an effect is on or a decal exists.
+// this frame: an effect is on, a decal exists or a water refracts.
 bool post3d_wanted(const context &ctx);
+
+// The open pass's opaque scene, colour and depth textures w x h, between
+// post3d_after_opaque and post3d_after_pass; false when it was not copied.
+bool post3d_scene(const context &ctx, u32 &color, u32 &depth, i32 &w, i32 &h);
 // Works `settings` out again from `requested` and graphics_quality.
 void post3d_apply_quality(context &ctx);
 
