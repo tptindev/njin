@@ -99,6 +99,18 @@ constexpr f32 tile_surface(tile_shape shape, f32 u) {
 /// @return `true` nếu nhận ra tên.
 bool tile_shape_from_name(const char *name, tile_shape &out);
 
+/// Dạng lưới của một tilemap (tilemap::orientation), như các bản đồ của Tiled.
+enum tile_orientation : u8 {
+  tile_orthogonal,    ///< Ô vuông, như mọi bản đồ top-down và platformer. Mặc định.
+  /// Kim cương (isometric): cột `x` chạy xuống bên phải, hàng `y` chạy xuống bên trái.
+  tile_isometric,
+  /// Kim cương so le (staggered): các hàng (hay cột, `stagger_x`) xếp lệch nhau nửa ô,
+  /// nên bản đồ là một hình chữ nhật.
+  tile_staggered,
+  /// Lục giác: như so le, mỗi ô có thêm hai cạnh thẳng dài `hex_side`.
+  tile_hexagonal,
+};
+
 /// Animation của một loại ô: nước, đuốc, cỏ lay. Mọi ô cùng số thứ tự trong
 /// tilemap chạy cùng nhịp. Tạo bằng tilemap_animate(); nạp tự động từ Tiled.
 struct tile_anim {
@@ -107,7 +119,8 @@ struct tile_anim {
   f32 total = 0.0f;           ///< Tổng thời lượng, tính sẵn.
 };
 
-/// Lưới ô vuông không giới hạn kích thước, vẽ từ một tileset, chia thành chunk.
+/// Lưới ô không giới hạn kích thước, vẽ từ một tileset, chia thành chunk. Ô vuông
+/// là mặc định; bản đồ isometric, so le và lục giác đặt `orientation` (xem dưới).
 ///
 /// Cần một transform trên cùng entity: `transform.pos` là góc trên trái của ô
 /// (0, 0) trong thế giới. Góc xoay và tỉ lệ bị bỏ qua.
@@ -141,6 +154,27 @@ struct tilemap {
   std::vector<u8> shapes;
   /// Animation theo số thứ tự ô gốc. Đặt bằng tilemap_animate().
   std::unordered_map<i32, tile_anim> anims;
+
+  /// @name Lưới không vuông
+  /// Bản đồ isometric, so le và lục giác (như Tiled nạp bằng level_load()).
+  /// Khi đó `transform.pos` là góc trên trái của **hộp bao** ô (0, 0), và
+  /// tilemap_cell_at(), tilemap_cell_rect(), tilemap_cell_center(),
+  /// tilemap_cell_polygon() theo đúng dạng ô. Ô được vẽ từng ô trong tầm nhìn
+  /// (không có ảnh chunk) theo thứ tự chồng như Tiled vẽ: ảnh ô cao hơn ô (cây,
+  /// tường) đặt đáy trái khớp đáy trái của hộp bao ô và đè lên ô phía sau.
+  ///
+  /// Không có va chạm theo ô: collider `collider_tiles`, tilemap_overlaps() và
+  /// tilemap_move() chỉ dùng lưới vuông, còn lưới khác không chặn gì. Game đọc
+  /// ô bằng tilemap_cell_at() rồi tilemap_get() để biết đi được không.
+  /// @{
+  tile_orientation orientation = tile_orthogonal; ///< Dạng lưới.
+  /// Hộp bao một ô của lưới không vuông, pixel (của Tiled: `tilewidth`,
+  /// `tileheight` của bản đồ). `{0, 0}` là bằng `tile_size`. Lưới vuông bỏ qua.
+  vec2 cell_size{};
+  bool stagger_x = false;    ///< So le, lục giác: cột lệch nhau thay vì hàng.
+  bool stagger_even = false; ///< So le, lục giác: hàng (cột) chẵn lệch thay vì lẻ.
+  f32 hex_side = 0.0f;       ///< Lục giác: độ dài cạnh thẳng, pixel.
+  /// @}
 };
 
 /// Đặt hình va chạm cho mọi ô có số thứ tự `id` trong tilemap.
@@ -402,37 +436,153 @@ inline std::vector<tile_marker> tilemap_from_rows(tilemap &map, std::initializer
   return markers;
 }
 
-/// Ô chứa một điểm trong thế giới.
+/// Ô chứa một điểm trong thế giới, theo dạng lưới (tilemap::orientation): với lưới
+/// kim cương hay lục giác là ô có hình chứa điểm, không phải hộp bao.
 /// @param map Tilemap.
-/// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới.
+/// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới (hộp bao của nó, với lưới không vuông).
 /// @param world_pos Điểm trong thế giới.
 /// @return Ô chứa điểm đó.
-inline cell tilemap_cell_at(const tilemap &map, vec2 origin, vec2 world_pos) {
-  const vec2 local = world_pos - origin;
-  return {(i32)std::floor(local.x / map.tile_size.x),
-          (i32)std::floor(local.y / map.tile_size.y)};
-}
+inline cell tilemap_cell_at(const tilemap &map, vec2 origin, vec2 world_pos);
 
-/// Hình chữ nhật của một ô trong thế giới.
+/// Hình chữ nhật của một ô trong thế giới; với lưới không vuông là hộp bao ô.
 /// @param map Tilemap.
-/// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới.
+/// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới (hộp bao của nó, với lưới không vuông).
 /// @param x Cột.
 /// @param y Hàng.
 /// @return Hình chữ nhật của ô.
 inline rect tilemap_cell_rect(const tilemap &map, vec2 origin, i32 x, i32 y) {
-  return {{origin.x + (f32)x * map.tile_size.x,
-           origin.y + (f32)y * map.tile_size.y},
-          map.tile_size};
+  if (map.orientation == tile_orthogonal)
+    return {{origin.x + (f32)x * map.tile_size.x,
+             origin.y + (f32)y * map.tile_size.y},
+            map.tile_size};
+  const vec2 size = map.cell_size.x > 0.0f && map.cell_size.y > 0.0f ? map.cell_size : map.tile_size;
+  if (map.orientation == tile_isometric)
+    return {{origin.x + (f32)(x - y) * size.x * 0.5f, origin.y + (f32)(x + y) * size.y * 0.5f}, size};
+  // So le là lục giác có cạnh thẳng dài 0.
+  const f32 side = map.orientation == tile_hexagonal ? map.hex_side : 0.0f;
+  const auto shifted = [&](i32 i) { return ((i & 1) != 0) != map.stagger_even; };
+  if (map.stagger_x)
+    return {{origin.x + (f32)x * (size.x + side) * 0.5f,
+             origin.y + (f32)y * size.y + (shifted(x) ? size.y * 0.5f : 0.0f)},
+            size};
+  return {{origin.x + (f32)x * size.x + (shifted(y) ? size.x * 0.5f : 0.0f),
+           origin.y + (f32)y * (size.y + side) * 0.5f},
+          size};
+}
+
+/// Tâm của một ô trong thế giới, theo dạng lưới.
+/// @param map Tilemap.
+/// @param origin `transform.pos` của tilemap.
+/// @param x Cột.
+/// @param y Hàng.
+/// @return Tâm ô.
+inline vec2 tilemap_cell_center(const tilemap &map, vec2 origin, i32 x, i32 y) {
+  const rect r = tilemap_cell_rect(map, origin, x, y);
+  return r.pos + r.size * 0.5f;
+}
+
+/// Các đỉnh của một ô trong thế giới, theo chiều kim đồng hồ trên màn hình bắt
+/// đầu từ đỉnh trên (hay góc trên trái của ô vuông): để tô ô dưới chuột, vẽ
+/// lưới. 4 đỉnh cho ô vuông và kim cương, 6 cho lục giác.
+/// @param map Tilemap.
+/// @param origin `transform.pos` của tilemap.
+/// @param x Cột.
+/// @param y Hàng.
+/// @param out Nhận các đỉnh.
+/// @return Số đỉnh.
+inline i32 tilemap_cell_polygon(const tilemap &map, vec2 origin, i32 x, i32 y, vec2 (&out)[6]) {
+  const rect r = tilemap_cell_rect(map, origin, x, y);
+  const f32 l = r.pos.x, t = r.pos.y, w = r.size.x, h = r.size.y;
+  if (map.orientation == tile_orthogonal) {
+    out[0] = {l, t};
+    out[1] = {l + w, t};
+    out[2] = {l + w, t + h};
+    out[3] = {l, t + h};
+    return 4;
+  }
+  const f32 side = map.orientation == tile_hexagonal ? map.hex_side : 0.0f;
+  if (side <= 0.0f) {
+    out[0] = {l + w * 0.5f, t};
+    out[1] = {l + w, t + h * 0.5f};
+    out[2] = {l + w * 0.5f, t + h};
+    out[3] = {l, t + h * 0.5f};
+    return 4;
+  }
+  if (map.stagger_x) {
+    // Đỉnh phẳng: hai cạnh thẳng nằm ngang ở trên và dưới.
+    out[0] = {l + (w - side) * 0.5f, t};
+    out[1] = {l + (w + side) * 0.5f, t};
+    out[2] = {l + w, t + h * 0.5f};
+    out[3] = {l + (w + side) * 0.5f, t + h};
+    out[4] = {l + (w - side) * 0.5f, t + h};
+    out[5] = {l, t + h * 0.5f};
+    return 6;
+  }
+  // Đỉnh nhọn: hai cạnh thẳng đứng ở hai bên.
+  out[0] = {l + w * 0.5f, t};
+  out[1] = {l + w, t + (h - side) * 0.5f};
+  out[2] = {l + w, t + (h + side) * 0.5f};
+  out[3] = {l + w * 0.5f, t + h};
+  out[4] = {l, t + (h + side) * 0.5f};
+  out[5] = {l, t + (h - side) * 0.5f};
+  return 6;
+}
+
+inline cell tilemap_cell_at(const tilemap &map, vec2 origin, vec2 world_pos) {
+  const vec2 local = world_pos - origin;
+  if (map.orientation == tile_orthogonal)
+    return {(i32)std::floor(local.x / map.tile_size.x),
+            (i32)std::floor(local.y / map.tile_size.y)};
+  const vec2 size = map.cell_size.x > 0.0f && map.cell_size.y > 0.0f ? map.cell_size : map.tile_size;
+  if (map.orientation == tile_isometric) {
+    // Từ đỉnh trên của ô (0, 0): nửa ô sang phải là +x, nửa ô xuống là +x +y.
+    const f32 u = (local.x - size.x * 0.5f) / (size.x * 0.5f), v = local.y / (size.y * 0.5f);
+    return {(i32)std::floor((v + u) * 0.5f), (i32)std::floor((v - u) * 0.5f)};
+  }
+  // So le, lục giác: ô gần đúng theo hộp bao, rồi trong ba hàng ba cột quanh nó
+  // ô có hình chứa điểm (hay ô có tâm gần nhất, trên đúng mép).
+  const f32 side = map.orientation == tile_hexagonal ? map.hex_side : 0.0f;
+  cell guess;
+  if (map.stagger_x) {
+    guess.x = (i32)std::floor(local.x / ((size.x + side) * 0.5f));
+    guess.y = (i32)std::floor(local.y / size.y);
+  } else {
+    guess.y = (i32)std::floor(local.y / ((size.y + side) * 0.5f));
+    guess.x = (i32)std::floor(local.x / size.x);
+  }
+  cell best = guess;
+  f32 best_d = 1e30f;
+  for (i32 dy = -1; dy <= 1; dy++) {
+    for (i32 dx = -1; dx <= 1; dx++) {
+      const i32 cx = guess.x + dx, cy = guess.y + dy;
+      vec2 p[6];
+      const i32 n = tilemap_cell_polygon(map, origin, cx, cy, p);
+      bool inside = true;
+      for (i32 i = 0; i < n && inside; i++) {
+        const vec2 a = p[i], b = p[(i + 1) % n];
+        inside = (b.x - a.x) * (world_pos.y - a.y) - (b.y - a.y) * (world_pos.x - a.x) >= 0.0f;
+      }
+      if (inside)
+        return {cx, cy};
+      const vec2 c = tilemap_cell_center(map, origin, cx, cy) - world_pos;
+      const f32 d = c.x * c.x + c.y * c.y;
+      if (d < best_d) {
+        best_d = d;
+        best = {cx, cy};
+      }
+    }
+  }
+  return best;
 }
 
 /// Hình chữ nhật có chồng lên ô không trống nào không. Chỉ chạm mép thì không
-/// tính.
+/// tính. Chỉ lưới vuông; lưới khác luôn là `false`.
 /// @param map Tilemap.
 /// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới.
 /// @param box Hình chữ nhật cần kiểm tra.
 /// @return `true` nếu `box` chồng lên ít nhất một ô không trống.
 inline bool tilemap_overlaps(const tilemap &map, vec2 origin, rect box) {
-  if (box.size.x <= 0.0f || box.size.y <= 0.0f)
+  if (box.size.x <= 0.0f || box.size.y <= 0.0f || map.orientation != tile_orthogonal)
     return false;
   const cell a = tilemap_cell_at(map, origin, box.pos);
   // Trừ một chút để cạnh phải/dưới chạm đúng mép ô không bị tính sang ô kế.
@@ -457,7 +607,8 @@ inline bool tilemap_overlaps(const tilemap &map, vec2 origin, rect box) {
 /// qua tường mỏng.
 ///
 /// Mọi ô không trống đều chặn, không xét tilemap::shapes. Muốn bục một chiều
-/// và dốc thì dùng collider `collider_tiles` với collision_move().
+/// và dốc thì dùng collider `collider_tiles` với collision_move(). Chỉ lưới
+/// vuông; lưới khác không chặn gì.
 /// @param map Tilemap, mọi ô không trống đều là vật cản.
 /// @param origin Vị trí góc trên trái của ô (0, 0) trong thế giới.
 /// @param box Hình chữ nhật của vật cần di chuyển.

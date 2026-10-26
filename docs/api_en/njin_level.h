@@ -2,7 +2,7 @@
 #include "_comps.h"
 #include "_types.h"
 #include "njin_collision.h"
-#include "njin_draw.h"
+#include "_draw_types.h"
 #include "njin_json.h"
 #include <entt/entity/entity.hpp>
 #include <string>
@@ -88,9 +88,12 @@ struct level_object {
 ///   prefab matching its class if there is one. A tile object also gets
 ///   njin::sprite.
 ///
-/// Accepts only square-grid (orthogonal) maps, the kind that top-down and
-/// platformer games use; isometric and hexagonal maps are refused (returns a handle with id 0,
-/// a log is written). Supports infinite maps, nested layers, CSV, base64,
+/// Accepts every Tiled grid: square (orthogonal), isometric, staggered and
+/// hexagonal, see tilemap::orientation. On a non-square grid, solid tile layers
+/// get no collider (with a warning: tile collision is for square grids only);
+/// on an isometric map object positions are projected to the screen,
+/// rectangles become diamond polygons, and ellipses and rotated objects are
+/// skipped (with a warning). Supports infinite maps, nested layers, CSV, base64,
 /// zlib and gzip data. Not yet supported (a warning is logged): zstd compression, diagonally
 /// flipped cells, multi-image tilesets, animated tiles.
 /// @param ctx Engine context.

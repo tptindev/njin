@@ -88,9 +88,12 @@ struct level_object {
 ///   prefab trùng tên với lớp của nó nếu có. Object hình ô (tile object) có
 ///   thêm njin::sprite.
 ///
-/// Chỉ nhận bản đồ lưới vuông (orthogonal), loại mà game top-down và
-/// platformer dùng; bản đồ isometric, lục giác bị từ chối (trả về handle id 0,
-/// có ghi log). Hỗ trợ bản đồ vô hạn, layer lồng nhau, dữ liệu CSV, base64,
+/// Nhận mọi dạng lưới của Tiled: vuông (orthogonal), isometric, so le
+/// (staggered) và lục giác (hexagonal), xem tilemap::orientation. Với lưới không
+/// vuông, layer ô vật cản không có collider (có cảnh báo: va chạm theo ô chỉ dành
+/// cho lưới vuông); trên bản đồ isometric, vị trí object được chiếu ra màn hình,
+/// hình chữ nhật thành đa giác kim cương, còn elip và object xoay bị bỏ qua
+/// (có cảnh báo). Hỗ trợ bản đồ vô hạn, layer lồng nhau, dữ liệu CSV, base64,
 /// zlib, gzip. Chưa hỗ trợ (có cảnh báo): nén zstd, ô xoay chéo, tileset nhiều
 /// ảnh, ô animation.
 /// @param ctx Context của engine.

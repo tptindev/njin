@@ -274,8 +274,8 @@ json_value xml_layers(const xml_node &parent, const char *where) {
 
 json_value xml_map(const xml_node &map, const char *where) {
   json_value out = json_value::make_object();
-  copy_strings(map, out, {"orientation", "class"});
-  copy_numbers(map, out, {"width", "height", "tilewidth", "tileheight"});
+  copy_strings(map, out, {"orientation", "class", "staggeraxis", "staggerindex"});
+  copy_numbers(map, out, {"width", "height", "tilewidth", "tileheight", "hexsidelength"});
   out.set("infinite", map.attr_number("infinite", 0.0) != 0.0);
   out.set("properties", xml_props(map));
   json_value tilesets = json_value::make_array();
@@ -340,6 +340,20 @@ struct tiled_loader {
   const std::string where;
   vec2 grid{};
   std::vector<tiled_tileset> tilesets;
+  // The map's grid (tilemap::orientation and the fields after it), and its
+  // height in cells, which places an isometric map.
+  level_tile_layer shape{};
+  f32 rows = 0.0f;
+
+  bool isometric() const { return shape.orientation == tile_isometric; }
+
+  // An isometric map keeps object positions in its own pixels, both axes
+  // counted in tile heights along the cell axes: this is where one lands on
+  // the screen (Tiled's pixelToScreenCoords).
+  vec2 iso_screen(vec2 p) const {
+    const f32 tx = p.x / grid.y, ty = p.y / grid.y;
+    return {(tx - ty) * grid.x * 0.5f + rows * grid.x * 0.5f, (tx + ty) * grid.y * 0.5f};
+  }
 
   // Tileset holding global id `id` (flags removed), or nullptr.
   const tiled_tileset *tileset_of(u32 id, usize *index) const {
@@ -422,7 +436,7 @@ struct tiled_loader {
         ts.tiles.columns = (i32)((w - 2.0f * ts.tiles.margin + ts.tiles.spacing) /
                                  (ts.tiles.tile_size.x + ts.tiles.spacing));
       }
-      if (ts.tiles.tile_size.x != grid.x || ts.tiles.tile_size.y != grid.y)
+      if (shape.orientation == tile_orthogonal && (ts.tiles.tile_size.x != grid.x || ts.tiles.tile_size.y != grid.y))
         NJIN_WARN("level: %s: tileset '%s' has %gx%g tiles on a %gx%g grid; they are "
                   "drawn at their own size", where.c_str(), (*def)["name"].string_or("?"),
                   ts.tiles.tile_size.x, ts.tiles.tile_size.y, grid.x, grid.y);
@@ -487,9 +501,11 @@ struct tiled_loader {
       read_gids(layer, layer, layer["x"].int_or(0), layer["y"].int_or(0),
                 layer["width"].int_or(0), per_tileset);
     }
-    level_tile_layer info;
+    level_tile_layer info = shape;
     info.name = layer["name"].string_or("");
-    info.origin = b.slot.origin + offset;
+    // An isometric map's cell (0, 0) has its top corner in the middle of the
+    // map's top edge; tilemap::orientation counts from the corner of its box.
+    info.origin = b.slot.origin + offset + (isometric() ? vec2{(rows - 1.0f) * grid.x * 0.5f, 0.0f} : vec2{});
     info.visible = visible;
     info.solid = b.is_solid(info.name, props_object(layer["properties"])["solid"].bool_or(false));
     info.tint = parse_color(layer["tintcolor"].string_or(nullptr), info.tint);
@@ -520,6 +536,10 @@ struct tiled_loader {
       const vec2 corner = b.slot.origin + offset + vec2{o["x"].f32_or(0.0f), o["y"].f32_or(0.0f)};
       const f32 rot = o["rotation"].f32_or(0.0f);
       transform at{.pos = corner, .rot = rot};
+      if (isometric()) {
+        iso_object(o, obj, offset, draw_layer, visible, solid);
+        continue;
+      }
 
       sprite tile_sprite{};
       bool has_sprite = false;
@@ -553,6 +573,60 @@ struct tiled_loader {
       }
       b.add_object(std::move(obj), at, solid, has_sprite ? &tile_sprite : nullptr);
     }
+  }
+
+  // An object of an isometric map: its position (and a rectangle's or
+  // polygon's corners) projected to the screen. A rectangle becomes the
+  // diamond it covers, as `points`. Ellipses and rotated objects have no
+  // faithful shape there and are skipped with a warning.
+  void iso_object(const json_value &o, level_object &obj, vec2 offset, i32 draw_layer, bool visible, bool solid) {
+    const vec2 p{o["x"].f32_or(0.0f), o["y"].f32_or(0.0f)};
+    const vec2 base = b.slot.origin + offset;
+    if (o["ellipse"].bool_or(false) || o["rotation"].f32_or(0.0f) != 0.0f) {
+      NJIN_WARN("level: %s: %s object '%s' on an isometric map is skipped (no faithful shape there)",
+                where.c_str(), o["ellipse"].bool_or(false) ? "ellipse" : "rotated", obj.name.c_str());
+      return;
+    }
+    const vec2 at = base + iso_screen(p);
+    transform tr{.pos = at};
+    sprite tile_sprite{};
+    bool has_sprite = false;
+    if (const u32 gid = (u32)o["gid"].number_or(0.0); gid != 0) {
+      // Tile objects of isometric maps stand on their bottom centre.
+      tr.pos = at + vec2{0.0f, -obj.size.y * 0.5f};
+      usize ts = 0;
+      const i32 value = tile_value(gid, &ts);
+      if (value >= 0) {
+        const level_tileset &set = tilesets[ts].tiles;
+        tile_sprite.texture = set.texture;
+        tile_sprite.source = set.source(tile_id(value));
+        tile_sprite.flip_x = (value & tile_flip_x) != 0;
+        tile_sprite.flip_y = (value & tile_flip_y) != 0;
+        tile_sprite.layer = draw_layer;
+        tile_sprite.visible = visible && o["visible"].bool_or(true);
+        if (set.tile_size.x > 0.0f && obj.size.x > 0.0f)
+          tr.scale = obj.size.x / set.tile_size.x;
+        has_sprite = true;
+      }
+    } else if (o["polygon"].is(json_value::array) || o["polyline"].is(json_value::array)) {
+      obj.closed = o["polygon"].is(json_value::array);
+      for (const json_value &q : o[obj.closed ? "polygon" : "polyline"].items)
+        obj.points.push_back(iso_screen(p + vec2{q["x"].f32_or(0.0f), q["y"].f32_or(0.0f)}) - iso_screen(p));
+    } else if (!o["point"].bool_or(false) && obj.size.x > 0.0f && obj.size.y > 0.0f) {
+      for (const vec2 c : {vec2{0.0f, 0.0f}, vec2{obj.size.x, 0.0f}, obj.size, vec2{0.0f, obj.size.y}})
+        obj.points.push_back(iso_screen(p + c) - iso_screen(p));
+      obj.closed = true;
+    }
+    if (!has_sprite && !obj.points.empty()) {
+      // The size of what the points cover, on the screen.
+      vec2 lo = obj.points[0], hi = obj.points[0];
+      for (const vec2 q : obj.points) {
+        lo = {std::min(lo.x, q.x), std::min(lo.y, q.y)};
+        hi = {std::max(hi.x, q.x), std::max(hi.y, q.y)};
+      }
+      obj.size = hi - lo;
+    }
+    b.add_object(std::move(obj), tr, solid, has_sprite ? &tile_sprite : nullptr);
   }
 
   void image_layer(const json_value &layer, vec2 offset, f32 opacity, bool visible) {
@@ -597,13 +671,22 @@ level_handle load_tiled(context &ctx, const std::string &path, const level_desc 
     NJIN_WARN("level: %s is not a Tiled map", path.c_str());
     return level_handle{};
   }
-  // njin makes top-down and platformer games, which sit on a square grid.
-  // Drawing any other grid as squares would only produce a wrong level.
   const char *orientation = map["orientation"].string_or("orthogonal");
-  if (std::strcmp(orientation, "orthogonal") != 0) {
-    NJIN_WARN("level: %s has %s orientation; only orthogonal (square grid) maps are "
-              "supported", path.c_str(), orientation);
+  level_tile_layer shape;
+  if (std::strcmp(orientation, "isometric") == 0) {
+    shape.orientation = tile_isometric;
+  } else if (std::strcmp(orientation, "staggered") == 0) {
+    shape.orientation = tile_staggered;
+  } else if (std::strcmp(orientation, "hexagonal") == 0) {
+    shape.orientation = tile_hexagonal;
+  } else if (std::strcmp(orientation, "orthogonal") != 0) {
+    NJIN_WARN("level: %s has %s orientation, which njin does not know", path.c_str(), orientation);
     return level_handle{};
+  }
+  if (shape.orientation == tile_staggered || shape.orientation == tile_hexagonal) {
+    shape.stagger_x = std::strcmp(map["staggeraxis"].string_or("y"), "x") == 0;
+    shape.stagger_even = std::strcmp(map["staggerindex"].string_or("odd"), "even") == 0;
+    shape.hex_side = shape.orientation == tile_hexagonal ? map["hexsidelength"].f32_or(0.0f) : 0.0f;
   }
 
   const level_handle handle = level_begin(ctx);
@@ -611,11 +694,26 @@ level_handle load_tiled(context &ctx, const std::string &path, const level_desc 
   slot.origin = desc.origin;
   slot.props = props_object(map["properties"]);
   const vec2 grid{map["tilewidth"].f32_or(16.0f), map["tileheight"].f32_or(16.0f)};
-  slot.size = {map["width"].f32_or(0.0f) * grid.x, map["height"].f32_or(0.0f) * grid.y};
+  const f32 cols = map["width"].f32_or(0.0f), rows = map["height"].f32_or(0.0f);
+  shape.cell_size = grid;
+  // The map's size on the screen, as Tiled lays it out.
+  const f32 side = shape.hex_side;
+  switch (shape.orientation) {
+  case tile_isometric:
+    slot.size = {(cols + rows) * grid.x * 0.5f, (cols + rows) * grid.y * 0.5f};
+    break;
+  case tile_staggered:
+  case tile_hexagonal:
+    slot.size = shape.stagger_x ? vec2{cols * (grid.x + side) * 0.5f + (grid.x - side) * 0.5f, rows * grid.y + grid.y * 0.5f}
+                                : vec2{cols * grid.x + grid.x * 0.5f, rows * (grid.y + side) * 0.5f + (grid.y - side) * 0.5f};
+    break;
+  default:
+    slot.size = {cols * grid.x, rows * grid.y};
+  }
 
   level_builder b{.ctx = ctx, .desc = desc, .handle = handle, .slot = slot,
                   .dir = level_dir_of(path), .loaded = {}};
-  tiled_loader loader{.b = b, .where = path, .grid = grid, .tilesets = {}};
+  tiled_loader loader{.b = b, .where = path, .grid = grid, .tilesets = {}, .shape = shape, .rows = rows};
   loader.load_tilesets(map);
   loader.layers(map["layers"], {}, 1.0f, true);
   return handle;
@@ -749,8 +847,19 @@ void level_builder::add_tiles(const level_tile_layer &layer, const level_tileset
       for (const auto &[id, shape] : tileset.shapes)
         tilemap_set_shape(map, id, shape);
       map.anims = tileset.anims;
+      map.orientation = layer.orientation;
+      map.cell_size = layer.cell_size;
+      map.stagger_x = layer.stagger_x;
+      map.stagger_even = layer.stagger_even;
+      map.hex_side = layer.hex_side;
       reg.emplace<tilemap>(e, std::move(map));
-      if (layer.solid) {
+      if (layer.solid && layer.orientation != tile_orthogonal) {
+        // Tile collision is a square grid's (collision_move). Approximating a
+        // diamond or a hexagon by its box would block where nothing is drawn.
+        NJIN_WARN("level: tile layer '%s' is solid, but only square maps have tile collision; "
+                  "read the cells with tilemap_cell_at() and tilemap_get() instead",
+                  layer.name.c_str());
+      } else if (layer.solid) {
         collider col = desc.solid;
         col.shape = collider_tiles;
         reg.emplace<collider>(e, col);

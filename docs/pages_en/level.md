@@ -75,11 +75,23 @@ IntGrid is only decoration; collision comes from the IntGrid value.
 - njin::level_size() and njin::level_origin() give the size and position, for limiting the camera.
 - njin::level_properties() returns the properties of the whole map (Tiled) or of the level (LDtk).
 
-## Square grids only
+## Isometric, staggered, hexagonal
 
-njin's level loader only accepts **square-grid** maps (Tiled: Orientation
-"Orthogonal"; LDtk is always a square grid). Tiled's isometric, staggered or hexagonal maps are
-refused: njin::level_load() returns a handle with id 0 and writes the reason to the log, instead of drawing it wrong.
+Tiled maps of every Orientation load: Orthogonal (square grid), Isometric, Staggered and Hexagonal
+(LDtk is always a square grid). The tilemaps of a non-square map carry their grid in
+njin::tilemap::orientation, so tilemap_cell_at(), tilemap_cell_center() and tilemap_cell_polygon()
+follow the cell's real shape, and cells are drawn in the stacking order Tiled draws them (see
+@ref tilemap).
+
+Three things differ from square grids:
+
+- **No tile collision.** Solid tile layers get no collider, with a warning in the log: blocking by the
+  box of a diamond or hexagonal cell would block where nothing is. Games read cells with
+  tilemap_cell_at() then tilemap_get() to know where one can walk, or use solid objects.
+- **Objects on an isometric map** are projected to the screen as Tiled draws them: points and tile
+  objects land in the right place, rectangles become diamond polygons in `level_object::points`.
+  Ellipses and rotated objects have no faithful shape there and are skipped, with a warning.
+- A tilemap's `transform.pos` is the top-left corner of cell (0, 0)'s box, not the map's corner.
 
 ## Not supported yet
 

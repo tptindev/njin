@@ -56,7 +56,7 @@ nav_grid nav_grid_from_world(const context &ctx, rect area, vec2 cell_size, u32 
       continue;
     }
     const tilemap *map = reg.try_get<tilemap>(e);
-    if (map == nullptr)
+    if (map == nullptr || map->orientation != tile_orthogonal)
       continue;
     // Every colliding tile blocks the nav cells under it.
     for (const auto &[key, chunk] : map->chunks) {

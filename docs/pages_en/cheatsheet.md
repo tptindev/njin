@@ -64,6 +64,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Generate a map with Wave Function Collapse, from a sample or your own rules | njin::wfc_learn(), njin::wfc_generate() | @ref procgen |
 | Put a generated grid into a tilemap | njin::tilemap_from_grid() | @ref procgen |
 | Load a level drawn in Tiled or LDtk | njin::level_load(), njin::level_load_ldtk() | @ref level |
+| Isometric, staggered, hexagonal maps; the cell under the mouse | njin::tilemap::orientation, njin::tilemap_cell_at(), njin::tilemap_cell_polygon() | @ref tilemap |
 | Find spawn points, doors, monsters placed in a level | njin::level_find() | @ref level |
 | See which tile is at a position, whether something touches a tile | njin::tilemap_cell_at(), njin::tilemap_overlaps(), njin::tilemap_move() | @ref tilemap |
 

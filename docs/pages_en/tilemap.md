@@ -115,3 +115,39 @@ njin::tilemap_animate(map, 10, {10, 11, 12, 13}, 0.18f); // tile 10 plays throug
 Maps loaded from Tiled and LDtk come with both (see @ref level). An animated tile is not baked into the chunk image
 but drawn on top every frame, so static chunks stay cheap. `collision_move()` and `collision_raycast()`
 understand tile shapes; tilemap_move() treats every tile as an obstacle. See @ref platformer to use them.
+
+## Isometric, staggered and hexagonal grids
+
+Besides squares, njin::tilemap has three other grids (`orientation`), as Tiled's maps do:
+
+| `orientation` | Cells | Also |
+|---|---|---|
+| `tile_orthogonal` | Squares (the default) | |
+| `tile_isometric` | Diamonds; column `x` runs down to the right, row `y` down to the left | `cell_size` |
+| `tile_staggered` | Diamonds staggered, so the map is a rectangle | `cell_size`, `stagger_x`, `stagger_even` |
+| `tile_hexagonal` | Hexagons, pointy (rows shifted) or flat (`stagger_x`, columns shifted) | as above, and `hex_side` |
+
+`cell_size` is the box of one cell (Tiled: the map's `tilewidth`, `tileheight`); a tile image
+(`tile_size`) may be taller than its cell, like the trees and walls of an isometric map, and is drawn
+with its bottom-left corner on the cell's bottom-left corner, over the cells behind it. Cells are drawn
+straight from the tileset in Tiled's stacking order, without chunk images. `transform.pos` is the
+top-left corner of cell (0, 0)'s box.
+
+| Function | Does |
+|---|---|
+| tilemap_cell_at() | The cell whose shape holds a point, e.g. the one under the mouse |
+| tilemap_cell_center() | A cell's centre, to put a character or thing on it |
+| tilemap_cell_polygon() | A cell's corners (4 or 6), to highlight the cell under the mouse |
+| tilemap_cell_rect() | A cell's box |
+
+@code
+// Outline the hexagonal cell under the mouse.
+const njin::cell c = njin::tilemap_cell_at(map, tr.pos, njin::scr2w(ctx, njin::mouse_pos(ctx)));
+njin::vec2 p[6];
+const int n = njin::tilemap_cell_polygon(map, tr.pos, c.x, c.y, p);
+for (int i = 0; i < n; i++)
+  njin::draw_line(ctx, p[i], p[(i + 1) % n], 2.0f, njin::colors::yellow);
+@endcode
+
+Tile collision (`collider_tiles`, tilemap_overlaps(), tilemap_move()) is for square grids only; other
+grids block nothing. Read cells with tilemap_cell_at() then tilemap_get() to know where one can walk.

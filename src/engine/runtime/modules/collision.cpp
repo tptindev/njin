@@ -88,7 +88,8 @@ template <class Fnc>
 void each_tiles(const entt::registry &registry, Fnc &&fnc) {
   for (auto [entity, tr, col, map] :
        registry.view<const transform, const collider, const tilemap>().each()) {
-    if (col.enabled && col.shape == collider_tiles)
+    // Tile collision is a square grid's; other grids block nothing (_tilemap.h).
+    if (col.enabled && col.shape == collider_tiles && map.orientation == tile_orthogonal)
       fnc(entity, col, map, tr.pos);
   }
 }
@@ -97,7 +98,7 @@ void each_tiles(const entt::registry &registry, Fnc &&fnc) {
 // (non-empty, and not tile_none).
 template <class Fnc>
 void each_tile_in(const tilemap &map, vec2 origin, rect area, Fnc &&fnc) {
-  if (area.size.x < 0.0f || area.size.y < 0.0f)
+  if (area.size.x < 0.0f || area.size.y < 0.0f || map.orientation != tile_orthogonal)
     return;
   const cell a = tilemap_cell_at(map, origin, area.pos);
   const cell b = tilemap_cell_at(map, origin, area.pos + area.size - vec2{1e-4f, 1e-4f});
@@ -695,7 +696,7 @@ raycast_hit collision_raycast(const context &ctx, vec2 from, vec2 to, u32 mask,
     vec2 n{};
     if (col.shape == collider_tiles) {
       const tilemap *map = registry.try_get<tilemap>(entity);
-      if (map == nullptr)
+      if (map == nullptr || map->orientation != tile_orthogonal)
         continue;
       // Walk the cells the segment crosses, in order (Amanatides–Woo).
       const vec2 origin = tr.pos;

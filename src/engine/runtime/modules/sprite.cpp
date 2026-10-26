@@ -16,6 +16,7 @@
 #include "particles.h"
 #include "_collide.h"
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <vector>
 
@@ -196,7 +197,8 @@ void bake_tilemaps(context &ctx) {
 
   for (auto [entity, tr, map] : registry.view<transform, tilemap>().each()) {
     const texture_slot *tileset = texture_slot_of(ctx_ref<texture_store>(ctx), map.tileset);
-    if (!map.visible || tileset == nullptr)
+    // Non-square grids are drawn tile by tile (draw_shaped_tiles), not baked.
+    if (!map.visible || tileset == nullptr || map.orientation != tile_orthogonal)
       continue;
     auto &images = cache.chunks[entity];
     for (const auto &[key, chunk] : map.chunks) {
@@ -232,6 +234,72 @@ void bake_tilemaps(context &ctx) {
   }
 }
 
+// Isometric, staggered and hexagonal maps: every cell whose image can reach
+// the view, straight from the tileset, in the order Tiled paints them, so an
+// image taller than its cell (a tree, a wall) covers the cells behind it. The
+// image sits on the bottom-left corner of the cell's box.
+void draw_shaped_tiles(context &ctx, const texture_slot &tileset, vec2 origin, const tilemap &map,
+                       const rect &view, Color tint) {
+  const vec2 step = map.tile_size + vec2{map.spacing, map.spacing};
+  const Rectangle area = texture_area(tileset);
+  const i32 columns = (i32)((area.width - 2.0f * map.margin + map.spacing) / step.x);
+  if (columns <= 0)
+    return;
+  const vec2 cell_box = map.cell_size.x > 0.0f && map.cell_size.y > 0.0f ? map.cell_size : map.tile_size;
+  // An image reaches above its cell by the extra height, and right by the
+  // extra width: cells that far below or left of the view still show.
+  const f32 rise = std::max(0.0f, map.tile_size.y - cell_box.y);
+  const f32 wide = std::max(0.0f, map.tile_size.x - cell_box.x);
+  const rect r{{view.pos.x - wide, view.pos.y}, {view.size.x + wide, view.size.y + rise}};
+  cell lo{INT32_MAX, INT32_MAX}, hi{INT32_MIN, INT32_MIN};
+  for (const vec2 p : {r.pos, r.pos + vec2{r.size.x, 0.0f}, r.pos + vec2{0.0f, r.size.y}, r.pos + r.size}) {
+    const cell c = tilemap_cell_at(map, origin, p);
+    lo = {std::min(lo.x, c.x), std::min(lo.y, c.y)};
+    hi = {std::max(hi.x, c.x), std::max(hi.y, c.y)};
+  }
+  lo = {lo.x - 1, lo.y - 1};
+  hi = {hi.x + 1, hi.y + 1};
+  const f32 time = ctx_ref<sprite_cache>(ctx)->tile_time;
+  const auto draw = [&](i32 x, i32 y) {
+    const i32 value = tilemap_get(map, x, y);
+    if (value < 0)
+      return;
+    i32 id = tile_id(value);
+    if (!map.anims.empty()) {
+      const auto anim = map.anims.find(id);
+      if (anim != map.anims.end()) {
+        const i32 frame = tile_anim_frame(anim->second, time);
+        if (frame >= 0)
+          id = frame;
+      }
+    }
+    const rect box = tilemap_cell_rect(map, origin, x, y);
+    const Rectangle source{area.x + map.margin + (f32)(id % columns) * step.x,
+                           area.y + map.margin + (f32)(id / columns) * step.y,
+                           (value & tile_flip_x) != 0 ? -map.tile_size.x : map.tile_size.x,
+                           (value & tile_flip_y) != 0 ? -map.tile_size.y : map.tile_size.y};
+    DrawTextureRec(tileset.texture, source, Vector2{box.pos.x, box.pos.y + box.size.y - map.tile_size.y}, tint);
+  };
+  if (map.orientation == tile_isometric) {
+    // Back to front: by x + y (the diamond's screen row), then left to right.
+    for (i32 d = lo.x + lo.y; d <= hi.x + hi.y; d++)
+      for (i32 x = std::max(lo.x, d - hi.y); x <= std::min(hi.x, d - lo.y); x++)
+        draw(x, d - x);
+  } else if (map.stagger_x) {
+    // Row by row; in each, the raised columns before the lowered ones.
+    const auto shifted = [&](i32 i) { return ((i & 1) != 0) != map.stagger_even; };
+    for (i32 y = lo.y; y <= hi.y; y++)
+      for (const bool lowered : {false, true})
+        for (i32 x = lo.x; x <= hi.x; x++)
+          if (shifted(x) == lowered)
+            draw(x, y);
+  } else {
+    for (i32 y = lo.y; y <= hi.y; y++)
+      for (i32 x = lo.x; x <= hi.x; x++)
+        draw(x, y);
+  }
+}
+
 void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
                   const tilemap &map, const rect &view) {
   const texture_slot *tileset = texture_slot_of(ctx_ref<texture_store>(ctx), map.tileset);
@@ -239,6 +307,11 @@ void draw_tilemap(context &ctx, entt::entity entity, const transform &tr,
     return;
   Color tint{};
   to_raylib(map.tint, tint);
+  if (map.orientation != tile_orthogonal) {
+    ctx_ref<render_stats>(ctx)->note_draw(tileset->texture.id, blend_alpha);
+    draw_shaped_tiles(ctx, *tileset, tr.pos, map, view, tint);
+    return;
+  }
   const auto cached = ctx_ref<sprite_cache>(ctx)->chunks.find(entity);
   // Chunks with animated tiles: those are drawn after every chunk image, all
   // from the tileset, so the tileset texture is one batch instead of one per chunk.

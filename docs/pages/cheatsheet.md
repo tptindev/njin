@@ -64,6 +64,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Sinh bản đồ bằng Wave Function Collapse, từ mẫu hoặc luật tự viết | njin::wfc_learn(), njin::wfc_generate() | @ref procgen |
 | Đưa lưới sinh ra vào tilemap | njin::tilemap_from_grid() | @ref procgen |
 | Nạp màn chơi vẽ trong Tiled hoặc LDtk | njin::level_load(), njin::level_load_ldtk() | @ref level |
+| Bản đồ isometric, so le, lục giác; ô dưới chuột | njin::tilemap::orientation, njin::tilemap_cell_at(), njin::tilemap_cell_polygon() | @ref tilemap |
 | Tìm điểm xuất hiện, cửa, quái đặt trong màn | njin::level_find() | @ref level |
 | Xem ô nào ở vị trí nào, có chạm ô không | njin::tilemap_cell_at(), njin::tilemap_overlaps(), njin::tilemap_move() | @ref tilemap |
 

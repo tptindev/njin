@@ -26,6 +26,17 @@ To release: edit that header, add a section here, commit, then
   diagonal and corner rules and costs as `nav_find_path()`, optional
   `max_cost`), `nav_flow_dir()` (looks a few cells ahead for straight lines)
   and `nav_flow_cost()`, for many units heading for one place.
+- Isometric, staggered and hexagonal tilemaps: `tilemap::orientation`
+  (`tile_orthogonal` by default, `tile_isometric`, `tile_staggered`,
+  `tile_hexagonal`) with `cell_size`, `stagger_x`, `stagger_even`, `hex_side`;
+  `tilemap_cell_at()` / `tilemap_cell_rect()` follow the cell's shape, new
+  `tilemap_cell_center()` and `tilemap_cell_polygon()`. They are drawn tile by
+  tile in Tiled's stacking order, tall tile images over the cells behind.
+  `level_load()` now loads Tiled maps of every orientation (it refused all but
+  orthogonal): solid tile layers of non-square maps get no collider (tile
+  collision stays square-only, with a warning), and isometric objects are
+  projected to the screen (ellipses and rotated objects skipped, with a
+  warning). Square tilemaps are unchanged.
 - Memory manager. Every C++ `new`/`delete` and every raylib allocation goes
   through one counting allocator (`src/engine/mem`, built into the raylib
   target). `config::mem_budget_mb` (soft limit: warning, then the

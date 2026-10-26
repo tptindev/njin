@@ -115,3 +115,38 @@ njin::tilemap_animate(map, 10, {10, 11, 12, 13}, 0.18f); // ô 10 chạy qua b�
 Bản đồ nạp từ Tiled và LDtk có sẵn cả hai (xem @ref level). Ô có animation không bị bake vào ảnh
 chunk mà vẽ chồng lên mỗi frame, nên chunk tĩnh vẫn rẻ. `collision_move()` và `collision_raycast()`
 hiểu hình của ô; tilemap_move() thì coi mọi ô là vật cản. Xem @ref platformer để dùng chúng.
+
+## Lưới isometric, so le và lục giác
+
+Ngoài ô vuông, njin::tilemap có ba dạng lưới khác (`orientation`), như các bản đồ của Tiled:
+
+| `orientation` | Ô | Thêm |
+|---|---|---|
+| `tile_orthogonal` | Vuông (mặc định) | |
+| `tile_isometric` | Kim cương; cột `x` xuống bên phải, hàng `y` xuống bên trái | `cell_size` |
+| `tile_staggered` | Kim cương xếp so le, bản đồ thành hình chữ nhật | `cell_size`, `stagger_x`, `stagger_even` |
+| `tile_hexagonal` | Lục giác, đỉnh nhọn (hàng lệch) hay đỉnh phẳng (`stagger_x`, cột lệch) | như trên, cùng `hex_side` |
+
+`cell_size` là hộp bao một ô (Tiled: `tilewidth`, `tileheight` của bản đồ); ảnh ô (`tile_size`) có thể
+cao hơn ô, như cây hay tường của bản đồ isometric, và được vẽ với đáy trái khớp đáy trái của ô, đè lên
+ô phía sau. Ô vẽ thẳng từ tileset theo thứ tự chồng như Tiled, không có ảnh chunk. `transform.pos` là
+góc trên trái của hộp bao ô (0, 0).
+
+| Hàm | Làm gì |
+|---|---|
+| tilemap_cell_at() | Ô có hình chứa một điểm, ví dụ ô dưới chuột |
+| tilemap_cell_center() | Tâm ô, để đặt nhân vật hay vật lên ô |
+| tilemap_cell_polygon() | Các đỉnh của ô (4 hay 6), để tô ô dưới chuột |
+| tilemap_cell_rect() | Hộp bao của ô |
+
+@code
+// Tô viền ô lục giác dưới chuột.
+const njin::cell c = njin::tilemap_cell_at(map, tr.pos, njin::scr2w(ctx, njin::mouse_pos(ctx)));
+njin::vec2 p[6];
+const int n = njin::tilemap_cell_polygon(map, tr.pos, c.x, c.y, p);
+for (int i = 0; i < n; i++)
+  njin::draw_line(ctx, p[i], p[(i + 1) % n], 2.0f, njin::colors::yellow);
+@endcode
+
+Va chạm theo ô (`collider_tiles`, tilemap_overlaps(), tilemap_move()) chỉ dành cho lưới vuông; lưới
+khác không chặn gì. Đọc ô bằng tilemap_cell_at() rồi tilemap_get() để biết đi được không.

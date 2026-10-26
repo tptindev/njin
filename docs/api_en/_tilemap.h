@@ -99,6 +99,18 @@ constexpr f32 tile_surface(tile_shape shape, f32 u) {
 /// @return `true` if the name was recognized.
 bool tile_shape_from_name(const char *name, tile_shape &out);
 
+/// Grid of a tilemap (tilemap::orientation), as Tiled's maps have.
+enum tile_orientation : u8 {
+  tile_orthogonal,    ///< Squares, as every top-down and platformer map. The default.
+  /// Diamonds (isometric): column `x` runs down to the right, row `y` down to the left.
+  tile_isometric,
+  /// Staggered diamonds: rows (or columns, `stagger_x`) shifted by half a cell
+  /// from each other, so the map is a rectangle.
+  tile_staggered,
+  /// Hexagons: as staggered, each cell with two more straight sides of length `hex_side`.
+  tile_hexagonal,
+};
+
 /// Animation of a tile type: water, torch, swaying grass. All tiles with the same index in the
 /// tilemap run in sync. Created with tilemap_animate(); loaded automatically from Tiled.
 struct tile_anim {
@@ -107,7 +119,8 @@ struct tile_anim {
   f32 total = 0.0f;           ///< Total duration, precomputed.
 };
 
-/// A grid of square tiles with no size limit, drawn from a tileset, split into chunks.
+/// A grid of tiles with no size limit, drawn from a tileset, split into chunks. Squares
+/// are the default; isometric, staggered and hexagonal maps set `orientation` (see below).
 ///
 /// Needs a transform on the same entity: `transform.pos` is the top-left corner of tile
 /// (0, 0) in the world. Rotation and scale are ignored.
@@ -141,6 +154,28 @@ struct tilemap {
   std::vector<u8> shapes;
   /// Animation by base tile index. Set with tilemap_animate().
   std::unordered_map<i32, tile_anim> anims;
+
+  /// @name Non-square grids
+  /// Isometric, staggered and hexagonal maps (as Tiled loaded with level_load()).
+  /// Then `transform.pos` is the top-left corner of cell (0, 0)'s **box**, and
+  /// tilemap_cell_at(), tilemap_cell_rect(), tilemap_cell_center(),
+  /// tilemap_cell_polygon() follow the cell's real shape. Cells are drawn one by
+  /// one in the view (no chunk images) in the stacking order Tiled draws them: a
+  /// tile image taller than its cell (a tree, a wall) sits with its bottom-left
+  /// corner on the bottom-left corner of the cell's box and covers the cells behind.
+  ///
+  /// No tile collision: a `collider_tiles` collider, tilemap_overlaps() and
+  /// tilemap_move() use square grids only, and other grids block nothing. Games
+  /// read cells with tilemap_cell_at() then tilemap_get() to know where one can walk.
+  /// @{
+  tile_orientation orientation = tile_orthogonal; ///< Grid shape.
+  /// The box of one cell of a non-square grid, pixels (Tiled: the map's
+  /// `tilewidth`, `tileheight`). `{0, 0}` is `tile_size`. Square grids ignore it.
+  vec2 cell_size{};
+  bool stagger_x = false;    ///< Staggered, hexagonal: columns shifted instead of rows.
+  bool stagger_even = false; ///< Staggered, hexagonal: even rows (columns) shifted instead of odd.
+  f32 hex_side = 0.0f;       ///< Hexagonal: length of the straight sides, pixels.
+  /// @}
 };
 
 /// Set the collision shape for every tile with index `id` in the tilemap.
@@ -402,37 +437,153 @@ inline std::vector<tile_marker> tilemap_from_rows(tilemap &map, std::initializer
   return markers;
 }
 
-/// Tile containing a point in the world.
+/// Tile containing a point in the world, by the grid's shape (tilemap::orientation):
+/// on a diamond or hexagonal grid the cell whose shape holds the point, not its box.
 /// @param map Tilemap.
-/// @param origin Position of the top-left corner of tile (0, 0) in the world.
+/// @param origin Position of the top-left corner of tile (0, 0) in the world (its box, on a non-square grid).
 /// @param world_pos Point in the world.
 /// @return The tile containing that point.
-inline cell tilemap_cell_at(const tilemap &map, vec2 origin, vec2 world_pos) {
-  const vec2 local = world_pos - origin;
-  return {(i32)std::floor(local.x / map.tile_size.x),
-          (i32)std::floor(local.y / map.tile_size.y)};
-}
+inline cell tilemap_cell_at(const tilemap &map, vec2 origin, vec2 world_pos);
 
-/// Rectangle of a tile in the world.
+/// Rectangle of a tile in the world; on a non-square grid the cell's box.
 /// @param map Tilemap.
-/// @param origin Position of the top-left corner of tile (0, 0) in the world.
+/// @param origin Position of the top-left corner of tile (0, 0) in the world (its box, on a non-square grid).
 /// @param x Column.
 /// @param y Row.
 /// @return The rectangle of the tile.
 inline rect tilemap_cell_rect(const tilemap &map, vec2 origin, i32 x, i32 y) {
-  return {{origin.x + (f32)x * map.tile_size.x,
-           origin.y + (f32)y * map.tile_size.y},
-          map.tile_size};
+  if (map.orientation == tile_orthogonal)
+    return {{origin.x + (f32)x * map.tile_size.x,
+             origin.y + (f32)y * map.tile_size.y},
+            map.tile_size};
+  const vec2 size = map.cell_size.x > 0.0f && map.cell_size.y > 0.0f ? map.cell_size : map.tile_size;
+  if (map.orientation == tile_isometric)
+    return {{origin.x + (f32)(x - y) * size.x * 0.5f, origin.y + (f32)(x + y) * size.y * 0.5f}, size};
+  // Staggered is hexagonal with straight sides of length 0.
+  const f32 side = map.orientation == tile_hexagonal ? map.hex_side : 0.0f;
+  const auto shifted = [&](i32 i) { return ((i & 1) != 0) != map.stagger_even; };
+  if (map.stagger_x)
+    return {{origin.x + (f32)x * (size.x + side) * 0.5f,
+             origin.y + (f32)y * size.y + (shifted(x) ? size.y * 0.5f : 0.0f)},
+            size};
+  return {{origin.x + (f32)x * size.x + (shifted(y) ? size.x * 0.5f : 0.0f),
+           origin.y + (f32)y * (size.y + side) * 0.5f},
+          size};
+}
+
+/// Centre of a cell in the world, by the grid's shape.
+/// @param map Tilemap.
+/// @param origin The tilemap's `transform.pos`.
+/// @param x Column.
+/// @param y Row.
+/// @return Centre of the cell.
+inline vec2 tilemap_cell_center(const tilemap &map, vec2 origin, i32 x, i32 y) {
+  const rect r = tilemap_cell_rect(map, origin, x, y);
+  return r.pos + r.size * 0.5f;
+}
+
+/// The corners of a cell in the world, clockwise on the screen from the top one
+/// (or a square's top-left one): to highlight the cell under the mouse, to draw
+/// the grid. 4 corners for squares and diamonds, 6 for hexagons.
+/// @param map Tilemap.
+/// @param origin The tilemap's `transform.pos`.
+/// @param x Column.
+/// @param y Row.
+/// @param out Receives the corners.
+/// @return Number of corners.
+inline i32 tilemap_cell_polygon(const tilemap &map, vec2 origin, i32 x, i32 y, vec2 (&out)[6]) {
+  const rect r = tilemap_cell_rect(map, origin, x, y);
+  const f32 l = r.pos.x, t = r.pos.y, w = r.size.x, h = r.size.y;
+  if (map.orientation == tile_orthogonal) {
+    out[0] = {l, t};
+    out[1] = {l + w, t};
+    out[2] = {l + w, t + h};
+    out[3] = {l, t + h};
+    return 4;
+  }
+  const f32 side = map.orientation == tile_hexagonal ? map.hex_side : 0.0f;
+  if (side <= 0.0f) {
+    out[0] = {l + w * 0.5f, t};
+    out[1] = {l + w, t + h * 0.5f};
+    out[2] = {l + w * 0.5f, t + h};
+    out[3] = {l, t + h * 0.5f};
+    return 4;
+  }
+  if (map.stagger_x) {
+    // Flat top: the two straight sides lie across, at the top and bottom.
+    out[0] = {l + (w - side) * 0.5f, t};
+    out[1] = {l + (w + side) * 0.5f, t};
+    out[2] = {l + w, t + h * 0.5f};
+    out[3] = {l + (w + side) * 0.5f, t + h};
+    out[4] = {l + (w - side) * 0.5f, t + h};
+    out[5] = {l, t + h * 0.5f};
+    return 6;
+  }
+  // Pointy top: the two straight sides stand up, left and right.
+  out[0] = {l + w * 0.5f, t};
+  out[1] = {l + w, t + (h - side) * 0.5f};
+  out[2] = {l + w, t + (h + side) * 0.5f};
+  out[3] = {l + w * 0.5f, t + h};
+  out[4] = {l, t + (h + side) * 0.5f};
+  out[5] = {l, t + (h - side) * 0.5f};
+  return 6;
+}
+
+inline cell tilemap_cell_at(const tilemap &map, vec2 origin, vec2 world_pos) {
+  const vec2 local = world_pos - origin;
+  if (map.orientation == tile_orthogonal)
+    return {(i32)std::floor(local.x / map.tile_size.x),
+            (i32)std::floor(local.y / map.tile_size.y)};
+  const vec2 size = map.cell_size.x > 0.0f && map.cell_size.y > 0.0f ? map.cell_size : map.tile_size;
+  if (map.orientation == tile_isometric) {
+    // From the top corner of cell (0, 0): half a cell right is +x, half a cell down is +x +y.
+    const f32 u = (local.x - size.x * 0.5f) / (size.x * 0.5f), v = local.y / (size.y * 0.5f);
+    return {(i32)std::floor((v + u) * 0.5f), (i32)std::floor((v - u) * 0.5f)};
+  }
+  // Staggered, hexagonal: the cell by its box first, then among the three rows and
+  // columns around it the one whose shape holds the point (or the nearest centre, right on an edge).
+  const f32 side = map.orientation == tile_hexagonal ? map.hex_side : 0.0f;
+  cell guess;
+  if (map.stagger_x) {
+    guess.x = (i32)std::floor(local.x / ((size.x + side) * 0.5f));
+    guess.y = (i32)std::floor(local.y / size.y);
+  } else {
+    guess.y = (i32)std::floor(local.y / ((size.y + side) * 0.5f));
+    guess.x = (i32)std::floor(local.x / size.x);
+  }
+  cell best = guess;
+  f32 best_d = 1e30f;
+  for (i32 dy = -1; dy <= 1; dy++) {
+    for (i32 dx = -1; dx <= 1; dx++) {
+      const i32 cx = guess.x + dx, cy = guess.y + dy;
+      vec2 p[6];
+      const i32 n = tilemap_cell_polygon(map, origin, cx, cy, p);
+      bool inside = true;
+      for (i32 i = 0; i < n && inside; i++) {
+        const vec2 a = p[i], b = p[(i + 1) % n];
+        inside = (b.x - a.x) * (world_pos.y - a.y) - (b.y - a.y) * (world_pos.x - a.x) >= 0.0f;
+      }
+      if (inside)
+        return {cx, cy};
+      const vec2 c = tilemap_cell_center(map, origin, cx, cy) - world_pos;
+      const f32 d = c.x * c.x + c.y * c.y;
+      if (d < best_d) {
+        best_d = d;
+        best = {cx, cy};
+      }
+    }
+  }
+  return best;
 }
 
 /// Whether a rectangle overlaps any non-empty tile. Only touching an edge does not
-/// count.
+/// count. Square grids only; other grids are always `false`.
 /// @param map Tilemap.
 /// @param origin Position of the top-left corner of tile (0, 0) in the world.
 /// @param box Rectangle to check.
 /// @return `true` if `box` overlaps at least one non-empty tile.
 inline bool tilemap_overlaps(const tilemap &map, vec2 origin, rect box) {
-  if (box.size.x <= 0.0f || box.size.y <= 0.0f)
+  if (box.size.x <= 0.0f || box.size.y <= 0.0f || map.orientation != tile_orthogonal)
     return false;
   const cell a = tilemap_cell_at(map, origin, box.pos);
   // Subtract a little so a right/bottom edge exactly on a tile edge is not counted in the next tile.
@@ -457,7 +608,8 @@ inline bool tilemap_overlaps(const tilemap &map, vec2 origin, rect box) {
 /// through thin walls.
 ///
 /// Every non-empty tile blocks, tilemap::shapes is not considered. For one-way platforms
-/// and slopes use a `collider_tiles` collider with collision_move().
+/// and slopes use a `collider_tiles` collider with collision_move(). Square grids only;
+/// other grids block nothing.
 /// @param map Tilemap, every non-empty tile is an obstacle.
 /// @param origin Position of the top-left corner of tile (0, 0) in the world.
 /// @param box Rectangle of the body to move.

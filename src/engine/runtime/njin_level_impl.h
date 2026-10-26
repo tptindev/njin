@@ -58,6 +58,13 @@ struct level_tile_layer {
   bool solid = false;
   rgba tint{1.0f, 1.0f, 1.0f, 1.0f};
   i32 draw_layer = 0;
+  // The map's grid, copied onto its tilemaps (tilemap::orientation and the
+  // fields after it). Tiled only; LDtk maps are square.
+  tile_orientation orientation = tile_orthogonal;
+  vec2 cell_size{};
+  bool stagger_x = false;
+  bool stagger_even = false;
+  f32 hex_side = 0.0f;
 };
 
 // Everything the Tiled and LDtk loaders share: textures, entity creation,

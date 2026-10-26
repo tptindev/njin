@@ -75,11 +75,22 @@ IntGrid chỉ để trang trí; va chạm là giá trị IntGrid.
 - njin::level_size(), njin::level_origin() cho biết kích thước và vị trí, để giới hạn camera.
 - njin::level_properties() trả về thuộc tính của cả bản đồ (Tiled) hay của level (LDtk).
 
-## Chỉ lưới vuông
+## Isometric, so le, lục giác
 
-Bộ nạp level của njin chỉ nhận bản đồ **lưới vuông** (Tiled: Orientation
-"Orthogonal"; LDtk luôn là lưới vuông). Bản đồ isometric, staggered hay lục giác của Tiled bị
-từ chối: njin::level_load() trả về handle id 0 và ghi lý do vào log, thay vì vẽ sai.
+Bản đồ Tiled có Orientation nào cũng nạp được: Orthogonal (lưới vuông), Isometric, Staggered và
+Hexagonal (LDtk luôn là lưới vuông). Tilemap của bản đồ không vuông mang dạng lưới trong
+njin::tilemap::orientation, nên tilemap_cell_at(), tilemap_cell_center() và tilemap_cell_polygon()
+theo đúng hình ô, và ô được vẽ theo thứ tự chồng như Tiled vẽ (xem @ref tilemap).
+
+Có ba điều khác lưới vuông:
+
+- **Không có va chạm theo ô.** Layer ô vật cản không có collider và có cảnh báo trong log: chặn theo
+  hộp bao của ô kim cương hay lục giác sẽ chặn cả chỗ không có gì. Game đọc ô bằng tilemap_cell_at()
+  rồi tilemap_get() để biết đi được không, hay dùng object vật cản.
+- **Object trên bản đồ isometric** được chiếu ra màn hình như Tiled vẽ: điểm và object hình ô đặt đúng
+  chỗ, hình chữ nhật thành đa giác kim cương trong `level_object::points`. Hình elip và object có góc
+  xoay không có hình đúng ở đó nên bị bỏ qua, có cảnh báo.
+- `transform.pos` của tilemap là góc trên trái của hộp bao ô (0, 0), không phải góc bản đồ.
 
 ## Chưa hỗ trợ
 
