@@ -2,6 +2,7 @@
 #include "_math.h"
 #include "_tilemap.h"
 #include "_types.h"
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -150,5 +151,74 @@ struct nav_agent {
 /// @param pos Vị trí hiện tại.
 /// @return Hướng đi.
 vec2 nav_steer(nav_agent &agent, vec2 pos);
+
+/// Trường hướng (flow field): mỗi ô của một njin::nav_grid biết đi hướng nào để
+/// về đích gần nhất, tính một lần cho cả lưới. Cho rất nhiều con cùng đi về
+/// một chỗ (tower defense, RTS, bầy quái đuổi người chơi): mỗi con chỉ đọc ô của
+/// nó bằng nav_flow_dir(), thay vì mỗi con một lần nav_find_path().
+///
+/// Dựng bằng nav_flow_build(); dựng lại khi đích đổi ô hay lưới đổi (tường
+/// mới, cửa mở). Một lần dựng tốn như một lần A* xét hết lưới.
+struct nav_flow {
+  vec2 origin{};                ///< Như nav_grid::origin của lưới đã dùng.
+  vec2 cell_size{16.0f, 16.0f}; ///< Như nav_grid::cell_size.
+  i32 width = 0;                ///< Số cột.
+  i32 height = 0;               ///< Số hàng.
+  /// Chi phí từ từng ô về đích gần nhất, theo hàng, cùng cách tính với
+  /// nav_find_path() (chi phí vào ô, đi chéo nhân 1.41). Âm là không tới được.
+  std::vector<f32> cost;
+  /// Ô kế tiếp trên đường về đích (`y * width + x`); -1 ở ô đích và ô không tới được.
+  std::vector<i32> next;
+  std::vector<vec2> goals; ///< Các đích đã dùng.
+};
+
+/// Tùy chọn của nav_flow_build().
+struct nav_flow_opts {
+  bool diagonal = true;     ///< Đi chéo được, như nav_path_opts::diagonal.
+  bool cut_corners = false; ///< Đi chéo qua góc vật cản, như nav_path_opts::cut_corners.
+  /// Chỉ tính các ô có chi phí về đích tới mức này (0 là cả lưới): bầy quái chỉ
+  /// đuổi trong một vùng quanh người chơi, rẻ hơn trên bản đồ lớn. Ô xa hơn là
+  /// không tới được.
+  f32 max_cost = 0.0f;
+};
+
+/// Dựng trường hướng về đích gần nhất trong `goals` (một hay nhiều chỗ: lâu
+/// đài, mọi công trình của người chơi). Đích nằm ngoài lưới hay trên vật cản bị
+/// bỏ qua. `flow` được dùng lại nên dựng mỗi giây không cấp phát lại bộ nhớ.
+/// @code
+/// njin::nav_flow_build(g.flow, g.nav, player_pos);  // khi người chơi sang ô khác
+/// for (auto [e, tr, body] : reg.view<njin::transform, njin::topdown_body, enemy>().each())
+///   body.input.move = njin::nav_flow_dir(g.flow, g.nav, tr.pos);
+/// @endcode
+/// @param flow Nhận kết quả.
+/// @param grid Lưới.
+/// @param goals Các đích, trong thế giới.
+/// @param opts Tùy chọn.
+void nav_flow_build(nav_flow &flow, const nav_grid &grid, std::span<const vec2> goals,
+                    const nav_flow_opts &opts = {});
+
+/// Như bản trên, với một đích.
+/// @param flow Nhận kết quả.
+/// @param grid Lưới.
+/// @param goal Đích, trong thế giới.
+/// @param opts Tùy chọn.
+void nav_flow_build(nav_flow &flow, const nav_grid &grid, vec2 goal, const nav_flow_opts &opts = {});
+
+/// Hướng cần đi từ `pos` để về đích, độ dài 1: tới tâm ô kế tiếp, hay xa hơn
+/// vài ô khi đường thẳng tới đó không vướng vật cản (theo `grid`), nên đi xiên
+/// mượt thay vì bậc thang. Trong ô đích là hướng thẳng tới điểm đích. `{0, 0}`
+/// khi đã tới đích, ngoài lưới hay không tới được. Gán cho
+/// `topdown_body::input.move`, như nav_steer().
+/// @param flow Trường hướng từ nav_flow_build().
+/// @param grid Lưới đã dùng để dựng nó.
+/// @param pos Vị trí hiện tại.
+/// @return Hướng đi.
+vec2 nav_flow_dir(const nav_flow &flow, const nav_grid &grid, vec2 pos);
+
+/// Chi phí từ ô chứa `pos` về đích gần nhất (nav_flow::cost).
+/// @param flow Trường hướng.
+/// @param pos Vị trí.
+/// @return Chi phí; âm nếu không tới được hay ngoài lưới.
+f32 nav_flow_cost(const nav_flow &flow, vec2 pos);
 /// @}
 } // namespace njin

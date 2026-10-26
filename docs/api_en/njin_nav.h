@@ -2,6 +2,7 @@
 #include "_math.h"
 #include "_tilemap.h"
 #include "_types.h"
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -151,5 +152,79 @@ struct nav_agent {
 /// @param pos Current position.
 /// @return Direction to move.
 vec2 nav_steer(nav_agent &agent, vec2 pos);
+
+/// A flow field: every cell of a njin::nav_grid knows which way leads to the
+/// nearest goal, worked out once for the whole grid. For very many units
+/// heading for one place (tower defense, RTS, a swarm chasing the player):
+/// each reads its own cell with nav_flow_dir(), instead of one nav_find_path()
+/// per unit.
+///
+/// Build it with nav_flow_build(); build it again when the goal moves to
+/// another cell or the grid changes (a new wall, a door opening). One build
+/// costs about one A* that searches the whole grid.
+struct nav_flow {
+  vec2 origin{};                ///< As nav_grid::origin of the grid used.
+  vec2 cell_size{16.0f, 16.0f}; ///< As nav_grid::cell_size.
+  i32 width = 0;                ///< Number of columns.
+  i32 height = 0;               ///< Number of rows.
+  /// Cost from each cell to the nearest goal, row by row, counted as
+  /// nav_find_path() counts it (the cost of entering a cell, diagonals times
+  /// 1.41). Negative is unreachable.
+  std::vector<f32> cost;
+  /// The next cell on the way to the goal (`y * width + x`); -1 in goal cells and unreachable ones.
+  std::vector<i32> next;
+  std::vector<vec2> goals; ///< The goals used.
+};
+
+/// Options of nav_flow_build().
+struct nav_flow_opts {
+  bool diagonal = true;     ///< Diagonal moves allowed, as nav_path_opts::diagonal.
+  bool cut_corners = false; ///< Diagonal moves past obstacle corners, as nav_path_opts::cut_corners.
+  /// Only cells whose cost to a goal is up to this (0 is the whole grid): a
+  /// swarm that only chases within an area around the player, cheaper on a big
+  /// map. Cells farther away are unreachable.
+  f32 max_cost = 0.0f;
+};
+
+/// Builds the flow towards the nearest goal in `goals` (one place or several:
+/// a castle, every building of the player). Goals outside the grid or on an
+/// obstacle are skipped. `flow` is reused, so building it every second does
+/// not allocate again.
+/// @code
+/// njin::nav_flow_build(g.flow, g.nav, player_pos);  // when the player enters another cell
+/// for (auto [e, tr, body] : reg.view<njin::transform, njin::topdown_body, enemy>().each())
+///   body.input.move = njin::nav_flow_dir(g.flow, g.nav, tr.pos);
+/// @endcode
+/// @param flow Receives the result.
+/// @param grid Grid.
+/// @param goals The goals, in the world.
+/// @param opts Options.
+void nav_flow_build(nav_flow &flow, const nav_grid &grid, std::span<const vec2> goals,
+                    const nav_flow_opts &opts = {});
+
+/// As above, with one goal.
+/// @param flow Receives the result.
+/// @param grid Grid.
+/// @param goal Goal, in the world.
+/// @param opts Options.
+void nav_flow_build(nav_flow &flow, const nav_grid &grid, vec2 goal, const nav_flow_opts &opts = {});
+
+/// The direction to move from `pos` towards the goal, of length 1: to the
+/// centre of the next cell, or a few cells farther when the straight line there
+/// is clear of obstacles (by `grid`), so units walk smooth diagonals instead of
+/// staircases. In a goal's cell, straight to the goal point. `{0, 0}` at the
+/// goal, outside the grid or when unreachable. Assign it to
+/// `topdown_body::input.move`, as nav_steer().
+/// @param flow Flow from nav_flow_build().
+/// @param grid The grid it was built from.
+/// @param pos Current position.
+/// @return Direction to move.
+vec2 nav_flow_dir(const nav_flow &flow, const nav_grid &grid, vec2 pos);
+
+/// Cost from the cell holding `pos` to the nearest goal (nav_flow::cost).
+/// @param flow Flow.
+/// @param pos Position.
+/// @return Cost; negative if unreachable or outside the grid.
+f32 nav_flow_cost(const nav_flow &flow, vec2 pos);
 /// @}
 } // namespace njin

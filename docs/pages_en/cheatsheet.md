@@ -32,6 +32,7 @@ that runs in 50 lines. Not used to `entt::registry` yet? Read @ref ecs.
 | Knockback when hit | write straight into the body's `velocity` | @ref platformer |
 | Moving platforms, patrolling guards | njin::path_mover | @ref platformer |
 | Enemies that chase and path-find around walls | njin::nav_grid_from_world(), njin::nav_find_path(), njin::nav_steer() | @ref topdown |
+| Hundreds of units heading for one goal (tower defense, RTS, swarms) | njin::nav_flow_build(), njin::nav_flow_dir() | @ref topdown |
 | Put buildings, crops, inventory items on a grid without overlapping | njin::place_grid, njin::place_fits(), njin::place_put() | @ref topdown |
 | Move an object to a point over a period of time | njin::tween_move() | @ref screen_timers |
 | Write your own movement controller | njin::collision_move() | @ref collision |

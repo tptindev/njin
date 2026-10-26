@@ -269,4 +269,117 @@ vec2 nav_steer(nav_agent &agent, vec2 pos) {
     return {};
   return normalize(agent.path[(usize)agent.next] - pos);
 }
+
+void nav_flow_build(nav_flow &flow, const nav_grid &g, std::span<const vec2> goals, const nav_flow_opts &opts) {
+  flow.origin = g.origin;
+  flow.cell_size = g.cell_size;
+  flow.width = g.width;
+  flow.height = g.height;
+  const usize n = (usize)std::max(g.width, 0) * (usize)std::max(g.height, 0);
+  flow.cost.assign(n, -1.0f);
+  flow.next.assign(n, -1);
+  flow.goals.assign(goals.begin(), goals.end());
+  if (n == 0)
+    return;
+
+  // Dijkstra outwards from every goal at once. The cost of a step is that of
+  // entering the cell it leads to, as nav_find_path counts it, so walking the
+  // `next` cells back costs what the search found.
+  using node = std::pair<f32, i32>; // cost, index
+  std::priority_queue<node, std::vector<node>, std::greater<node>> open;
+  for (const vec2 goal : goals) {
+    const cell c = nav_cell_at(g, goal);
+    if (!inside(g, c) || nav_cost(g, c) == 0)
+      continue;
+    const i32 i = index_of(g, c);
+    flow.cost[(usize)i] = 0.0f;
+    open.push({0.0f, i});
+  }
+  static constexpr i32 dirs[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+  while (!open.empty()) {
+    const auto [here, cur] = open.top();
+    open.pop();
+    if (here > flow.cost[(usize)cur])
+      continue; // reached cheaper since
+    const cell c{cur % g.width, cur / g.width};
+    // Stepping from a neighbour into `c` costs entering `c`.
+    const f32 enter = (f32)nav_cost(g, c);
+    for (i32 k = 0; k < (opts.diagonal ? 8 : 4); k++) {
+      const cell nb{c.x + dirs[k][0], c.y + dirs[k][1]};
+      if (nav_cost(g, nb) == 0)
+        continue;
+      const bool diag = k >= 4;
+      if (diag) {
+        const bool side_a = nav_cost(g, {c.x + dirs[k][0], c.y}) != 0;
+        const bool side_b = nav_cost(g, {c.x, c.y + dirs[k][1]}) != 0;
+        if (opts.cut_corners ? (!side_a && !side_b) : (!side_a || !side_b))
+          continue;
+      }
+      const f32 next = here + (diag ? 1.41421356f : 1.0f) * enter;
+      if (opts.max_cost > 0.0f && next > opts.max_cost)
+        continue;
+      const i32 ni = index_of(g, nb);
+      const f32 known = flow.cost[(usize)ni];
+      if (known >= 0.0f && known <= next)
+        continue;
+      flow.cost[(usize)ni] = next;
+      flow.next[(usize)ni] = cur;
+      open.push({next, ni});
+    }
+  }
+}
+
+void nav_flow_build(nav_flow &flow, const nav_grid &grid, vec2 goal, const nav_flow_opts &opts) {
+  nav_flow_build(flow, grid, std::span<const vec2>(&goal, 1), opts);
+}
+
+namespace {
+i32 flow_index(const nav_flow &f, vec2 pos) {
+  if (f.cell_size.x <= 0.0f || f.cell_size.y <= 0.0f)
+    return -1;
+  const i32 x = (i32)std::floor((pos.x - f.origin.x) / f.cell_size.x);
+  const i32 y = (i32)std::floor((pos.y - f.origin.y) / f.cell_size.y);
+  if (x < 0 || y < 0 || x >= f.width || y >= f.height || f.cost.size() != (usize)f.width * (usize)f.height)
+    return -1;
+  return y * f.width + x;
+}
+
+vec2 flow_center(const nav_flow &f, i32 i) {
+  return {f.origin.x + ((f32)(i % f.width) + 0.5f) * f.cell_size.x,
+          f.origin.y + ((f32)(i / f.width) + 0.5f) * f.cell_size.y};
+}
+} // namespace
+
+vec2 nav_flow_dir(const nav_flow &f, const nav_grid &g, vec2 pos) {
+  const i32 i = flow_index(f, pos);
+  if (i < 0 || f.cost[(usize)i] < 0.0f)
+    return {};
+  if (f.next[(usize)i] < 0) {
+    // In a goal's cell: straight to the goal in it.
+    for (const vec2 goal : f.goals) {
+      if (flow_index(f, goal) == i) {
+        const vec2 d = goal - pos;
+        return length_sq(d) > 1e-6f ? normalize(d) : vec2{};
+      }
+    }
+    return {};
+  }
+  // Up to a few cells down the chain, the farthest in plain sight: a straight
+  // line instead of a staircase of cell centres.
+  constexpr i32 lookahead = 4;
+  i32 aim = f.next[(usize)i];
+  for (i32 j = aim, k = 1; k < lookahead && f.next[(usize)j] >= 0; k++) {
+    j = f.next[(usize)j];
+    if (!nav_line_clear(g, pos, flow_center(f, j)))
+      break;
+    aim = j;
+  }
+  const vec2 d = flow_center(f, aim) - pos;
+  return length_sq(d) > 1e-6f ? normalize(d) : vec2{};
+}
+
+f32 nav_flow_cost(const nav_flow &f, vec2 pos) {
+  const i32 i = flow_index(f, pos);
+  return i < 0 ? -1.0f : f.cost[(usize)i];
+}
 } // namespace njin

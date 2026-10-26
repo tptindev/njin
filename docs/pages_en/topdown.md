@@ -61,6 +61,33 @@ Two things to note:
 An enemy should chase only when it **sees** the player (the ray is not blocked by a wall), then give up when the player
 is too far away. That is all the "intelligence" a small game needs.
 
+### A whole swarm heading for one place: flow fields
+
+Hundreds of units heading for one goal (tower defense enemies, RTS soldiers, a swarm chasing the
+player) make one A\* each too costly. njin::nav_flow works it out once for the whole grid: every cell
+knows which way leads to the nearest goal, and each unit only reads its own cell.
+
+| Task | Function |
+|---|---|
+| Build the flow towards one goal or several | nav_flow_build(); build again when the goal moves to another cell or the grid changes |
+| Direction to move from a position, of length 1 | nav_flow_dir(): looks a few cells ahead, so units walk smooth diagonals |
+| How far is left (cost as A\*), negative if unreachable | nav_flow_cost() |
+
+@code
+// Whenever the player enters another cell: once for the whole swarm.
+const njin::cell now = njin::nav_cell_at(g.nav, player_pos);
+if (now.x != g.player_cell.x || now.y != g.player_cell.y) {
+  njin::nav_flow_build(g.flow, g.nav, player_pos, {.max_cost = 60});
+  g.player_cell = now;
+}
+for (auto [e, tr, body] : reg.view<njin::transform, njin::topdown_body, enemy>().each())
+  body.input.move = njin::nav_flow_dir(g.flow, g.nav, tr.pos);
+@endcode
+
+For several goals (every building of the player) pass the whole list: each unit heads for the one
+nearest to it. `max_cost` limits the work to an area around the goal, cheaper on a big map. To keep
+the swarm from piling up, push its members apart with njin::spatial_separate() (@ref collision).
+
 ## Placing things on a grid
 
 Village builders, farms and grid inventories put things several cells big that must not overlap.

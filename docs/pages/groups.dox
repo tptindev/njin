@@ -156,7 +156,7 @@
 /// Bộ điều khiển platformer (coyote time, nhảy tường, dốc) và top-down (8 hướng, lướt), bục di chuyển.
 
 /// @defgroup grp_nav Tìm đường
-/// Lưới ô, A*, tầm nhìn và đi theo đường cho quái.
+/// Lưới ô, A*, flow field, tầm nhìn và đi theo đường cho quái.
 
 /// @defgroup grp_place Đặt vật lên lưới
 /// Lưới chiếm chỗ cho vật nhiều ô: công trình, cây trồng, đồ trong túi; bắt theo ô, kiểm tra chồng nhau, tìm chỗ trống.

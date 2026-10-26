@@ -61,6 +61,33 @@ Lưu ý hai điều:
 Quái chỉ nên đuổi khi **nhìn thấy** người chơi (tia không bị tường chắn), rồi bỏ cuộc khi người chơi
 ở quá xa. Đó là tất cả "trí tuệ" mà một game nhỏ cần.
 
+### Cả bầy cùng về một chỗ: flow field
+
+Hàng trăm con cùng đi về một đích (quái trong tower defense, lính RTS, bầy quái đuổi người chơi) thì
+mỗi con một lần A\* là quá tốn. njin::nav_flow tính một lần cho cả lưới: mỗi ô biết đi hướng nào để về
+đích gần nhất, rồi mỗi con chỉ đọc ô của nó.
+
+| Việc | Hàm |
+|---|---|
+| Dựng trường hướng về một hay nhiều đích | nav_flow_build(); dựng lại khi đích sang ô khác hay lưới đổi |
+| Hướng đi từ một vị trí, độ dài 1 | nav_flow_dir(): nhìn trước vài ô nên đi xiên mượt |
+| Còn bao xa (chi phí như A\*), âm là không tới được | nav_flow_cost() |
+
+@code
+// Mỗi khi người chơi sang ô khác: một lần cho cả bầy.
+const njin::cell now = njin::nav_cell_at(g.nav, player_pos);
+if (now.x != g.player_cell.x || now.y != g.player_cell.y) {
+  njin::nav_flow_build(g.flow, g.nav, player_pos, {.max_cost = 60});
+  g.player_cell = now;
+}
+for (auto [e, tr, body] : reg.view<njin::transform, njin::topdown_body, enemy>().each())
+  body.input.move = njin::nav_flow_dir(g.flow, g.nav, tr.pos);
+@endcode
+
+Nhiều đích (mọi công trình của người chơi) thì truyền cả danh sách: mỗi con về chỗ gần nó nhất.
+`max_cost` chỉ tính trong một vùng quanh đích, rẻ hơn trên bản đồ lớn. Để cả bầy không chồng lên nhau,
+đẩy chúng ra bằng njin::spatial_separate() (@ref collision).
+
 ## Đặt vật lên lưới
 
 Game xây làng, nông trại, túi đồ kiểu lưới đặt những vật chiếm nhiều ô và không được chồng lên nhau.

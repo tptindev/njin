@@ -32,6 +32,7 @@ vật chạy được trong 50 dòng. Chưa quen `entt::registry`? Đọc @ref e
 | Đẩy lùi khi trúng đòn | ghi thẳng vào `velocity` của body | @ref platformer |
 | Bục di chuyển, lính gác đi tuần | njin::path_mover | @ref platformer |
 | Quái đuổi theo, tìm đường tránh tường | njin::nav_grid_from_world(), njin::nav_find_path(), njin::nav_steer() | @ref topdown |
+| Hàng trăm con cùng về một đích (tower defense, RTS, bầy quái) | njin::nav_flow_build(), njin::nav_flow_dir() | @ref topdown |
 | Đặt công trình, cây trồng, đồ trong túi lên lưới, không chồng nhau | njin::place_grid, njin::place_fits(), njin::place_put() | @ref topdown |
 | Cho một vật chạy tới một điểm trong một khoảng thời gian | njin::tween_move() | @ref screen_timers |
 | Tự viết bộ điều khiển di chuyển | njin::collision_move() | @ref collision |

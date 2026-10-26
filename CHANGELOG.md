@@ -22,6 +22,10 @@ To release: edit that header, add a section here, commit, then
   centre). GLFW has no multi-touch, so the runtime reads the window's
   WM_POINTER messages and passes them on; the first finger still drives the
   mouse as before. Also in Lua.
+- Flow fields on a `nav_grid`: `nav_flow_build()` (one goal or several,
+  diagonal and corner rules and costs as `nav_find_path()`, optional
+  `max_cost`), `nav_flow_dir()` (looks a few cells ahead for straight lines)
+  and `nav_flow_cost()`, for many units heading for one place.
 - Memory manager. Every C++ `new`/`delete` and every raylib allocation goes
   through one counting allocator (`src/engine/mem`, built into the raylib
   target). `config::mem_budget_mb` (soft limit: warning, then the

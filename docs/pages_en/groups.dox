@@ -156,7 +156,7 @@
 /// Platformer controller (coyote time, wall jump, slopes) and top-down controller (8 directions, dash), moving platforms.
 
 /// @defgroup grp_nav Pathfinding
-/// Grid, A*, line of sight and path following for enemies.
+/// Grid, A*, flow fields, line of sight and path following for enemies.
 
 /// @defgroup grp_place Placing things on a grid
 /// An occupancy grid for things several cells big: buildings, crops, inventory items; snapping to cells, overlap checks, finding a free spot.
