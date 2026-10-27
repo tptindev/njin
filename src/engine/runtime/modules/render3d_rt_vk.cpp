@@ -11,6 +11,7 @@
 #include <GL/gl.h>
 #include "render3d_rt_vk.h"
 #include <cstdio>
+#include <array>
 #include <cstring>
 #include <unordered_map>
 #include <vector>
@@ -25,6 +26,8 @@ extern const unsigned char rt_shadow_spv[];
 extern const unsigned long long rt_shadow_spv_size;
 extern const unsigned char rt_denoise_spv[];
 extern const unsigned long long rt_denoise_spv_size;
+extern const unsigned char rt_temporal_spv[];
+extern const unsigned long long rt_temporal_spv_size;
 extern const unsigned char rt_reflect_spv[];
 extern const unsigned long long rt_reflect_spv_size;
 extern const unsigned char rt_gi_spv[];
@@ -95,6 +98,8 @@ struct params_t {
   float grid_min[4];
   float grid_size[4];
   float grid_count[4];
+  float prev_view_proj[16];
+  float prev_inv_view_proj[16];
 };
 
 // rt/common.glsl's inst_t: a mesh's buffers by address, colour and glow.
@@ -138,16 +143,22 @@ struct state {
   int refl_w = 0, refl_h = 0, grid_points = 0;
   bool grid_clear = false; // the grid was made: clear it before use
   nvrhi::TextureHandle raw, no_grid, no_depth; // a black grid and depth for reflections without a grid
+  // The shadows over time: denoised this frame, and two history and depth
+  // images each, read and written in turns (temporal.comp).
+  nvrhi::TextureHandle den;
+  std::array<nvrhi::TextureHandle, 2> hist, pdepth;
+  int hist_at = 0;
   nvrhi::BufferHandle inst_buf;
   size_t inst_capacity = 0;
   std::vector<inst_t> inst_data;
   nvrhi::BufferHandle params;
   nvrhi::rt::AccelStructHandle tlas;
   size_t tlas_capacity = 0;
-  nvrhi::ShaderHandle shadow_cs, denoise_cs, reflect_cs, gi_cs;
-  nvrhi::BindingLayoutHandle shadow_layout, denoise_layout, reflect_layout, gi_layout;
+  nvrhi::ShaderHandle shadow_cs, denoise_cs, temporal_cs, reflect_cs, gi_cs;
+  nvrhi::BindingLayoutHandle shadow_layout, denoise_layout, temporal_layout, reflect_layout, gi_layout;
   nvrhi::BindingSetHandle shadow_set, denoise_set, reflect_set, gi_set;
-  nvrhi::ComputePipelineHandle shadow_pipe, denoise_pipe, reflect_pipe, gi_pipe;
+  std::array<nvrhi::BindingSetHandle, 2> temporal_set; // reading history 0 or 1
+  nvrhi::ComputePipelineHandle shadow_pipe, denoise_pipe, temporal_pipe, reflect_pipe, gi_pipe;
   // What the binding sets were made for; they are made again when it changes.
   const void *sets_key[7]{};
   bool no_grid_clear = true;
@@ -230,6 +241,7 @@ bool make_pipelines(state &s) {
   const std::vector<uint32_t> shadow = words(rt_shadow_spv, rt_shadow_spv_size);
   const std::vector<uint32_t> denoise = words(rt_denoise_spv, rt_denoise_spv_size);
   const std::vector<uint32_t> reflect = words(rt_reflect_spv, rt_reflect_spv_size);
+  const std::vector<uint32_t> temporal = words(rt_temporal_spv, rt_temporal_spv_size);
   const std::vector<uint32_t> gi = words(rt_gi_spv, rt_gi_spv_size);
   s.shadow_cs = s.nv->createShader(nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute), shadow.data(),
                                    shadow.size() * 4);
@@ -250,6 +262,13 @@ bool make_pipelines(state &s) {
   s.reflect_cs = s.nv->createShader(nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute), reflect.data(),
                                     reflect.size() * 4);
   s.gi_cs = s.nv->createShader(nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute), gi.data(), gi.size() * 4);
+  s.temporal_cs = s.nv->createShader(nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute), temporal.data(),
+                                     temporal.size() * 4);
+  nvrhi::BindingLayoutDesc tl;
+  tl.setVisibility(nvrhi::ShaderType::Compute).addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0));
+  for (uint32_t i = 0; i < 7; i++)
+    tl.addItem(nvrhi::BindingLayoutItem::Texture_UAV(i));
+  s.temporal_layout = s.nv->createBindingLayout(tl);
   s.reflect_layout = s.nv->createBindingLayout(nvrhi::BindingLayoutDesc()
                                                    .setVisibility(nvrhi::ShaderType::Compute)
                                                    .addItem(nvrhi::BindingLayoutItem::RayTracingAccelStruct(0))
@@ -266,9 +285,11 @@ bool make_pipelines(state &s) {
                                               .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0))
                                               .addItem(nvrhi::BindingLayoutItem::Texture_UAV(0))
                                               .addItem(nvrhi::BindingLayoutItem::Texture_UAV(1)));
-  if (!s.shadow_cs || !s.denoise_cs || !s.reflect_cs || !s.gi_cs || !s.shadow_layout || !s.denoise_layout ||
-      !s.reflect_layout || !s.gi_layout)
+  if (!s.shadow_cs || !s.denoise_cs || !s.temporal_cs || !s.reflect_cs || !s.gi_cs || !s.shadow_layout ||
+      !s.denoise_layout || !s.temporal_layout || !s.reflect_layout || !s.gi_layout)
     return false;
+  s.temporal_pipe = s.nv->createComputePipeline(
+      nvrhi::ComputePipelineDesc().setComputeShader(s.temporal_cs).addBindingLayout(s.temporal_layout));
   s.reflect_pipe = s.nv->createComputePipeline(
       nvrhi::ComputePipelineDesc().setComputeShader(s.reflect_cs).addBindingLayout(s.reflect_layout));
   s.gi_pipe =
@@ -299,7 +320,8 @@ bool make_pipelines(state &s) {
                                     .setIsVolatile(true)
                                     .setMaxVersions(64)
                                     .setDebugName("njin rt params"));
-  return s.shadow_pipe && s.denoise_pipe && s.reflect_pipe && s.gi_pipe && s.no_grid && s.no_depth && s.params;
+  return s.shadow_pipe && s.denoise_pipe && s.temporal_pipe && s.reflect_pipe && s.gi_pipe && s.no_grid &&
+         s.no_depth && s.params;
 }
 
 // Drops the GL errors left by earlier calls, so the checks below see their own.
@@ -457,6 +479,7 @@ void make_sets(state &s, bool depth, bool reflect, bool gi) {
   nvrhi::ITexture *grid = s.grid.tex ? s.grid.tex.Get() : s.no_grid.Get();
   nvrhi::ITexture *grid_depth = s.grid_depth.tex ? s.grid_depth.tex.Get() : s.no_depth.Get();
   s.shadow_set = s.denoise_set = s.reflect_set = s.gi_set = nullptr;
+  s.temporal_set = {};
   if (depth) {
     s.shadow_set = s.nv->createBindingSet(nvrhi::BindingSetDesc()
                                               .addItem(nvrhi::BindingSetItem::RayTracingAccelStruct(0, s.tlas))
@@ -468,8 +491,20 @@ void make_sets(state &s, bool depth, bool reflect, bool gi) {
                                                .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, s.params))
                                                .addItem(nvrhi::BindingSetItem::Texture_UAV(0, s.depth.tex))
                                                .addItem(nvrhi::BindingSetItem::Texture_UAV(1, s.raw))
-                                               .addItem(nvrhi::BindingSetItem::Texture_UAV(2, s.mask.tex)),
+                                               .addItem(nvrhi::BindingSetItem::Texture_UAV(2, s.den)),
                                            s.denoise_layout);
+    for (int i = 0; i < 2; i++)
+      s.temporal_set[(size_t)i] =
+          s.nv->createBindingSet(nvrhi::BindingSetDesc()
+                                     .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, s.params))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(0, s.depth.tex))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(1, s.den))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(2, s.hist[(size_t)i]))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(3, s.pdepth[(size_t)i]))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(4, s.mask.tex))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(5, s.hist[(size_t)(1 - i)]))
+                                     .addItem(nvrhi::BindingSetItem::Texture_UAV(6, s.pdepth[(size_t)(1 - i)])),
+                                 s.temporal_layout);
   }
   if (depth && reflect && s.refl.tex)
     s.reflect_set = s.nv->createBindingSet(nvrhi::BindingSetDesc()
@@ -550,7 +585,13 @@ void shutdown() {
   s.shadow_pipe = s.denoise_pipe = s.reflect_pipe = s.gi_pipe = nullptr;
   s.shadow_layout = s.denoise_layout = s.reflect_layout = s.gi_layout = nullptr;
   s.shadow_cs = s.denoise_cs = s.reflect_cs = s.gi_cs = nullptr;
-  s.raw = s.no_grid = s.no_depth = nullptr;
+  s.raw = s.no_grid = s.no_depth = s.den = nullptr;
+  s.hist = {};
+  s.pdepth = {};
+  s.temporal_set = {};
+  s.temporal_pipe = nullptr;
+  s.temporal_layout = nullptr;
+  s.temporal_cs = nullptr;
   s.inst_buf = nullptr;
   s.params = nullptr;
   s.tlas = nullptr;
@@ -644,6 +685,23 @@ bool targets(int w, int h, unsigned &gl_depth, unsigned &gl_mask) {
                                     .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
                                     .setKeepInitialState(true)
                                     .setDebugName("njin rt raw shadows"));
+    const auto image = [&](nvrhi::Format f, const char *name) {
+      return s.nv->createTexture(nvrhi::TextureDesc()
+                                     .setWidth((uint32_t)w)
+                                     .setHeight((uint32_t)h)
+                                     .setFormat(f)
+                                     .setIsUAV(true)
+                                     .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
+                                     .setKeepInitialState(true)
+                                     .setDebugName(name));
+    };
+    s.den = image(nvrhi::Format::RGBA8_UNORM, "njin rt denoised shadows");
+    for (size_t i = 0; i < 2; i++) {
+      s.hist[i] = image(nvrhi::Format::RGBA16_FLOAT, "njin rt shadow history");
+      s.pdepth[i] = image(nvrhi::Format::R32_FLOAT, "njin rt last depth");
+    }
+    if (!s.den || !s.hist[0] || !s.hist[1] || !s.pdepth[0] || !s.pdepth[1])
+      s.raw = nullptr;
     if (!s.raw || !make_image(s, s.depth, w, h, nvrhi::Format::R32_FLOAT, GL_R32F_, "njin rt depth") ||
         !make_image(s, s.mask, w, h, nvrhi::Format::RGBA8_UNORM, GL_RGBA8_, "njin rt shadows")) {
       rt_log(1, "rt: could not share the images with OpenGL; ray tracing is off");
@@ -745,7 +803,7 @@ bool trace(const instance_in *inst, uint32_t count, const trace_in &t) {
     if (!s.inst_buf)
       return false;
   }
-  const void *key[7] = {s.tlas.Get(), s.inst_buf.Get(), depth ? s.depth.tex.Get() : nullptr,
+  const void *key[7] = {s.tlas.Get(), s.inst_buf.Get(), depth ? s.den.Get() : nullptr,
                         reflect ? s.refl.tex.Get() : nullptr, s.grid.tex.Get(), gi ? s.grid_depth.tex.Get() : nullptr,
                         depth ? s.mask.tex.Get() : nullptr};
   if (std::memcmp(key, s.sets_key, sizeof(key)) != 0) {
@@ -802,6 +860,9 @@ bool trace(const instance_in *inst, uint32_t count, const trace_in &t) {
   std::memcpy(p.grid_min, t.grid_min, sizeof(p.grid_min));
   std::memcpy(p.grid_size, t.grid_size, sizeof(p.grid_size));
   std::memcpy(p.grid_count, t.grid_count, sizeof(p.grid_count));
+  std::memcpy(p.prev_view_proj, t.prev_view_proj, sizeof(p.prev_view_proj));
+  std::memcpy(p.prev_inv_view_proj, t.prev_inv_view_proj, sizeof(p.prev_inv_view_proj));
+  p.light_info[3] = t.history ? 1.0f : 0.0f;
   s.cmd->open();
   if (s.no_grid_clear) {
     s.cmd->clearTextureFloat(s.no_grid, nvrhi::AllSubresources, nvrhi::Color(0.0f));
@@ -822,6 +883,11 @@ bool trace(const instance_in *inst, uint32_t count, const trace_in &t) {
     s.cmd->dispatch(gx, gy);
     s.cmd->setComputeState(nvrhi::ComputeState().setPipeline(s.denoise_pipe).addBindingSet(s.denoise_set));
     s.cmd->dispatch(gx, gy);
+    // Over time: read history `hist_at`, write the other.
+    s.cmd->setComputeState(
+        nvrhi::ComputeState().setPipeline(s.temporal_pipe).addBindingSet(s.temporal_set[(size_t)s.hist_at]));
+    s.cmd->dispatch(gx, gy);
+    s.hist_at = 1 - s.hist_at;
   }
   // The grid first: the reflections light what they meet with it.
   if (gi) {

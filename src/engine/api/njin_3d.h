@@ -239,6 +239,16 @@ struct light3d {
   f32 volume_sun = 1.0f;       ///< Độ sáng của nắng trong sương, nhân với màu nắng.
   f32 volume_ambient = 0.3f;   ///< Phần ánh sáng nền (`ambient`) mà sương tán xạ.
   bool volume_lamps = true;    ///< Đèn điểm và đèn nón cũng tán xạ trong sương (theo bóng của chúng).
+  /// Bước dò dài nhất, mét. 0 (mặc định) là chia mỗi tia đều `volume_steps` bước như
+  /// cũ. Lớn hơn 0 thì tia dài được chia thêm bước (tối đa 256) để không bước nào dài
+  /// hơn: luồng sáng hẹp trong một sảnh sâu không bị bỏ sót, mép không lởm chởm khi
+  /// camera chạy, mà phòng nhỏ không tốn thêm. 0.2..0.5 là thường dùng.
+  f32 volume_step_max = 0.0f;
+  /// Ngoài vùng ảnh bóng của mặt trời (`shadow_range`, hay tầng cuối của
+  /// `shadow_cascades`), sương không nhận nắng. Mặc định tắt: ngoài vùng đó coi như
+  /// có nắng, đúng cho cảnh ngoài trời. Bật cho cảnh trong nhà, nơi nắng chỉ vào qua
+  /// cửa: không thì sương ở xa sáng như nắng xuyên qua trần.
+  bool volume_dark_outside = false;
   /// @}
 
   /// @name Bóng bằng ray tracing
@@ -415,7 +425,7 @@ struct irradiance3d_desc {
   /// Số tia mỗi điểm mỗi frame (khi `ray_traced`), 16..256.
   i32 rays = 128;
   /// Phần giữ lại từ frame trước, 0..0.99: lớn thì mịn và chậm theo kịp thay đổi.
-  f32 history = 0.9f;
+  f32 history = 0.95f;
 };
 
 /// Đặt lưới ánh sáng gián tiếp của cảnh (một lưới mỗi lúc; đặt lại thì thay lưới cũ).
@@ -1270,6 +1280,51 @@ ray3d camera3d_ray(const context &ctx, const camera3d &camera, vec2 screen);
 /// trả về khi đó không có nghĩa).
 /// @return Vị trí, pixel màn hình (cùng hệ với mouse_pos()).
 vec2 camera3d_to_screen(const context &ctx, const camera3d &camera, vec3 point, bool *visible = nullptr);
+
+/// Camera quỹ đạo: nhìn vào `target` từ khoảng cách `distance`, theo góc `yaw` và
+/// `pitch`. Cho cảnh xem vật, chiến thuật, trình xem model, hay camera góc nhìn thứ ba
+/// (đặt `target` theo nhân vật mỗi frame). camera3d_orbit_view() ra njin::camera3d để
+/// đưa vào begin_3d(); camera3d_orbit_update() xoay, dời, zoom nó bằng chuột.
+struct camera3d_orbit {
+  vec3 target{0.0f, 0.0f, 0.0f}; ///< Điểm camera nhìn vào và xoay quanh.
+  /// Góc quanh trục y, độ. 0 là camera ở phía `+z` của `target`, nhìn về `-z`;
+  /// tăng thì camera đi về phía `+x`.
+  f32 yaw = 0.0f;
+  f32 pitch = 20.0f;      ///< Góc nâng, độ: dương là camera ở trên `target`, nhìn xuống.
+  f32 distance = 8.0f;    ///< Khoảng cách tới `target`.
+  f32 pitch_min = -85.0f; ///< Góc nâng nhỏ nhất, độ.
+  f32 pitch_max = 85.0f;  ///< Góc nâng lớn nhất, độ.
+  f32 distance_min = 0.5f;   ///< Zoom gần nhất.
+  f32 distance_max = 100.0f; ///< Zoom xa nhất.
+  f32 fovy = 60.0f;          ///< Góc nhìn dọc, độ (njin::camera3d::fovy).
+};
+
+/// Cách camera3d_orbit_update() đọc chuột. Mặc định như trình xem model và
+/// njin_inspector: chuột phải xoay, chuột giữa (hoặc Shift + chuột phải) dời, lăn zoom.
+struct camera3d_orbit_input {
+  mouse_button rotate = mouse_right; ///< Giữ nút này và kéo để xoay.
+  mouse_button pan = mouse_middle;   ///< Giữ nút này và kéo để dời `target`.
+  bool shift_pans = true;            ///< Shift + nút `rotate` cũng dời.
+  bool zoom = true;                  ///< Lăn chuột để zoom.
+  f32 rotate_speed = 0.3f;           ///< Độ xoay mỗi pixel chuột kéo.
+  /// Độ dời: 1 là điểm `target` đi theo con trỏ (dời một pixel trên màn hình ở
+  /// khoảng cách `distance`).
+  f32 pan_speed = 1.0f;
+  f32 zoom_step = 0.12f; ///< Mỗi nấc lăn đổi `distance` bấy nhiêu phần.
+};
+
+/// Camera của một camera quỹ đạo, để đưa vào begin_3d() hay camera3d_ray().
+/// @param orbit Camera quỹ đạo.
+/// @return Camera phối cảnh ở vị trí của nó, nhìn vào `target`.
+camera3d camera3d_orbit_view(const camera3d_orbit &orbit);
+
+/// Xoay, dời, zoom camera quỹ đạo bằng chuột, theo `input`. Gọi mỗi frame (trong
+/// phase_update). Bỏ qua chuột khi nó đang ở trên giao diện (ui_mouse_over()).
+/// Góc và khoảng cách được giữ trong giới hạn của `orbit`.
+/// @param ctx Context của engine.
+/// @param orbit Camera quỹ đạo, được sửa tại chỗ.
+/// @param input Nút và tốc độ.
+void camera3d_orbit_update(const context &ctx, camera3d_orbit &orbit, const camera3d_orbit_input &input = {});
 
 /// Tia với hộp có các cạnh song song với trục. Gốc tia nằm trong hộp thì chạm ở
 /// mặt tia đi ra.

@@ -14,10 +14,12 @@ layout(set = 0, binding = 256) uniform Params {
   vec4 lightPos[8];   // lamps lighting what rays hit: position, reach
   vec4 lightColor[8]; // linear colour times intensity, cos of the inner cone
   vec4 lightSpot[8];  // direction, cos of the outer cone (-2 for a point light)
-  vec4 lightInfo;     // lamp count, 1 when the grid lights what rays hit
+  vec4 lightInfo;     // lamp count, 1 when the grid lights what rays hit, -, 1 when the shadows have a history
   vec4 gridMin;       // the irradiance grid's corner, the share kept from last frame
   vec4 gridSize;      // its size, intensity
   vec4 gridCount;     // points along x, y, z, rays per point
+  mat4 prevViewProj;    // last frame's, for the shadows over time
+  mat4 prevInvViewProj;
 } p;
 
 const float PI = 3.14159265;

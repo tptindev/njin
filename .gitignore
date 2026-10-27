@@ -33,6 +33,7 @@ compile_commands.json
 !/examples/fps/
 !/examples/sokoban/
 !/examples/platformer3d/
+!/examples/skylight/
 **/build/
 **/build-*/
 

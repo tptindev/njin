@@ -178,6 +178,7 @@ Cần bật feature trong CMake: `njin_use(<game> FEATURES 3d)`, thêm `physics3
 | Vẽ hàng nghìn bản của một model | njin::draw_instanced3d() | @ref graphics_3d |
 | Chỉ vẽ instance camera thấy, cây xa ít tam giác | njin::draw_instanced3d() với njin::instanced3d_desc | @ref instancing3d_cull |
 | Chọn vật bằng chuột, nhãn trên đầu nhân vật | njin::camera3d_ray(), njin::ray3d_model(), njin::camera3d_to_screen() | @ref graphics_3d |
+| Camera xoay, dời, zoom bằng chuột | njin::camera3d_orbit, njin::camera3d_orbit_update() | @ref camera3d_orbit |
 | Model và hình 3D thành entity | njin::model3d, njin::shape3d_render | @ref entities_3d |
 | Vật lý 3D: rơi, va, đẩy | njin::body3d_create(), njin::physics3d_raycast() | @ref physics3d |
 | Nhân vật đi trên địa hình, cầu thang | njin::character3d_create(), njin::character3d_set_velocity() | @ref physics3d |

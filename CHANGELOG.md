@@ -45,7 +45,9 @@ To release: edit that header, add a section here, commit, then
     lights every material in its box.
   - `light3d::volume_*`: volumetric fog marched at half size through the sun's
     and lamps' shadows, with height falloff, drifting noise and a
-    Henyey-Greenstein phase.
+    Henyey-Greenstein phase; blended over frames (reprojected, clamped to the
+    neighbourhood) and upsampled by depth, so shafts are smooth and do not
+    bleed over edges.
   - `post3d::oit` (weighted blended transparency) and `post3d::aa`
     (`aa3d_fxaa`, `aa3d_smaa` with iryoku/smaa, MIT).
   - Lua: the new `light3d_set`, `material3d_set` and `post3d_set` fields.
@@ -61,6 +63,22 @@ To release: edit that header, add a section here, commit, then
   map. `raytracing_available()` says whether it runs; without it the shadow
   maps are used as before. Lua: `ray_traced_shadows`, `sun_angle`,
   `shadow_rays`, `source_size`.
+- `camera3d_orbit` with `camera3d_orbit_view()` and `camera3d_orbit_update()`:
+  a camera turning round a point, rotated, panned and zoomed with the mouse
+  (buttons and speeds in `camera3d_orbit_input`), ignoring the mouse over UI.
+- `light3d::volume_step_max`: a fog ray gets more steps (up to 256) so none is
+  longer, for deep rooms where narrow shafts were stepped over;
+  `light3d::volume_dark_outside`: fog outside the sun's shadow map (or last
+  cascade) gets no sun, for interiors. Both off by default. Lua:
+  `volume_step_max`, `volume_dark_outside`.
+- `examples/skylight` (`njin_skylight`): sunbeams through a skylight in a dark
+  hall onto a statue, in thin volumetric fog with bloom and bounce light, ray
+  traced with `NJIN_RAYTRACING`; the camera orbits, pans and zooms with the
+  mouse and the statue, a block and a ball can be dragged into the sun. The
+  statue is Ville Seppänen's "Snake Statue", CC BY 4.0.
+- Ray traced shadows are blended over frames (reprojected, kept where the
+  surface is the same, clamped to the neighbourhood), so a few rays a pixel
+  no longer flicker.
 - Ray traced reflections (`light3d::ray_traced_reflections`,
   `reflection_roughness`): a mirror ray per pixel from the pass's depth; what
   it meets is lit simply (its colour times its texture's mean, the sun

@@ -38,6 +38,10 @@ struct instance_in {
 struct trace_in {
   int width = 0, height = 0;
   float inv_view_proj[16]{}; // column-major, as raylib's Matrix
+  // Last frame's view-projection and its inverse, for the shadows over time;
+  // `history` false (a new size, a cut) starts them again.
+  float prev_view_proj[16]{}, prev_inv_view_proj[16]{};
+  bool history = false;
   float eye[3]{};
   float sun[4]{};          // direction towards the sun, tan of its angular radius; all 0 for no sun
   int rays = 4;

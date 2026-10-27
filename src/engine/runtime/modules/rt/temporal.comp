@@ -1,0 +1,79 @@
+// Ray traced shadows over time (render3d_rt_vk.cpp): denoise.comp's result
+// blended with the shadows of the frames before, so the few rays a pixel do
+// not flicker. Each pixel is found where it was last frame (its surface
+// through last frame's view-projection); that history is taken only when the
+// surface found there is the same one (a point just uncovered has none) and
+// is kept within the range of this frame's 3 x 3 neighbourhood, so a moving
+// shadow does not smear. The depth is kept for the next frame; the images go
+// in turns.
+#version 460
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 384, r32f) uniform readonly image2D depthImg;
+layout(set = 0, binding = 385, rgba8) uniform readonly image2D curImg;     // denoised, this frame
+layout(set = 0, binding = 386, rgba16f) uniform readonly image2D histIn;   // the frames before
+layout(set = 0, binding = 387, r32f) uniform readonly image2D prevDepth;   // last frame's depth
+layout(set = 0, binding = 388, rgba8) uniform writeonly image2D maskOut;   // to OpenGL
+layout(set = 0, binding = 389, rgba16f) uniform writeonly image2D histOut;
+layout(set = 0, binding = 390, r32f) uniform writeonly image2D depthOut;
+#include "common.glsl"
+
+void main() {
+  ivec2 px = ivec2(gl_GlobalInvocationID.xy);
+  ivec2 hi = ivec2(p.size.xy) - 1;
+  if (px.x > hi.x || px.y > hi.y)
+    return;
+  float d = imageLoad(depthImg, px).r;
+  imageStore(depthOut, px, vec4(d));
+  vec4 cur = imageLoad(curImg, px);
+  if (d >= 1.0 || p.lightInfo.w < 0.5) {
+    imageStore(maskOut, px, cur);
+    imageStore(histOut, px, cur);
+    return;
+  }
+  // The range history is kept in: this frame's 3 x 3 neighbourhood, a little
+  // wider, so a converged history is not pulled back to the noise.
+  vec4 lo = cur, top = cur;
+  for (int y = -1; y <= 1; y++)
+    for (int x = -1; x <= 1; x++) {
+      vec4 c = imageLoad(curImg, clamp(px + ivec2(x, y), ivec2(0), hi));
+      lo = min(lo, c);
+      top = max(top, c);
+    }
+  lo -= 0.1;
+  top += 0.1;
+  vec3 pos = world_at(px, d);
+  vec4 c = p.prevViewProj * vec4(pos, 1.0);
+  vec4 outv = cur;
+  if (c.w > 0.0) {
+    vec2 at = (c.xy / c.w * 0.5 + 0.5) * p.size.xy - 0.5;
+    ivec2 a = ivec2(floor(at));
+    vec2 f = at - vec2(a);
+    float tol = 0.02 * distance(pos, p.eye.xyz) + 0.02;
+    // Last frame's shadows there, by hand bilinear over the four pixels round
+    // it that show this same surface (last frame's depth puts them where this
+    // one is): one across an edge would bring another surface's light.
+    vec4 h = vec4(0.0);
+    float wsum = 0.0;
+    for (int k = 0; k < 4; k++) {
+      ivec2 o = ivec2(k & 1, k >> 1);
+      ivec2 q = a + o;
+      if (any(lessThan(q, ivec2(0))) || any(greaterThan(q, hi)))
+        continue;
+      float pd = imageLoad(prevDepth, q).r;
+      if (pd >= 1.0)
+        continue;
+      vec4 w = p.prevInvViewProj * vec4((vec2(q) + 0.5) / p.size.xy * 2.0 - 1.0, pd * 2.0 - 1.0, 1.0);
+      if (distance(w.xyz / w.w, pos) >= tol)
+        continue;
+      float bw = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
+      h += imageLoad(histIn, q) * bw;
+      wsum += bw;
+    }
+    // Most of the footprint on this surface: blend; else this frame alone.
+    if (wsum > 0.25)
+      outv = mix(cur, clamp(h / wsum, lo, top), 0.92);
+  }
+  imageStore(maskOut, px, outv);
+  imageStore(histOut, px, outv);
+}

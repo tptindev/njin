@@ -31,6 +31,26 @@ const njin::camera3d iso{.position = focus + njin::vec3{20, 16, 20}, .target = f
 njin::begin_3d(ctx, iso);
 @endcode
 
+### Camera quỹ đạo {#camera3d_orbit}
+
+njin::camera3d_orbit là camera nhìn vào một điểm từ một khoảng cách, theo góc `yaw` (quanh trục y) và `pitch`
+(nâng), như trình xem model, cảnh chiến thuật hay camera góc nhìn thứ ba. camera3d_orbit_view() ra camera3d để
+đưa vào begin_3d(); camera3d_orbit_update() xoay, dời, zoom nó bằng chuột: mặc định chuột phải kéo để xoay,
+chuột giữa (hoặc Shift + chuột phải) kéo để dời, lăn để zoom, đặt khác được bằng njin::camera3d_orbit_input. Nó
+bỏ qua chuột khi chuột ở trên UI và giữ góc, khoảng cách trong giới hạn của camera.
+
+@code
+njin::camera3d_orbit orbit{.target = {0, 1, 0}, .yaw = 30, .pitch = 25, .distance = 10,
+                           .distance_min = 2, .distance_max = 40};
+// phase_update
+njin::camera3d_orbit_update(ctx, orbit);
+// phase_render
+njin::begin_3d(ctx, njin::camera3d_orbit_view(orbit));
+@endcode
+
+Camera góc nhìn thứ ba: đặt `orbit.target` theo nhân vật mỗi frame, và chỉ cho xoay bằng chuột phải
+(`camera3d_orbit_input{.pan = njin::mouse_middle, .shift_pans = false}`). `njin_skylight` dùng nó (@ref samples).
+
 Lệnh vẽ được **ghi lại** và vẽ thật ở end_3d(), theo đúng thứ tự gọi: trước hết engine tính bóng đổ
 từ tất cả, rồi mới vẽ từng hình. Vì vậy thứ tự material3d_set(), fx3d_set() và lệnh vẽ vẫn có ý nghĩa
 như bình thường, còn light3d_add() thì chiếu lên mọi hình của lần vẽ dù gọi trước hay sau.
@@ -454,12 +474,34 @@ mưa). Mỗi điểm ảnh dò một tia từ camera tới bề mặt (hay tới
 | `volume_noise`, `volume_noise_size`, `volume_wind` | Sương loang thành đám, trôi theo gió |
 | `volume_anisotropy` | Dương: sáng nhất khi nhìn về phía nguồn sáng (quầng quanh mặt trời, đèn pha) |
 | `volume_sun`, `volume_ambient`, `volume_lamps` | Phần nắng, ánh sáng nền và đèn mà sương tán xạ |
+| `volume_step_max` | Bước dò dài nhất, mét: tia dài tự chia thêm bước (tối đa 256). 0 là đúng `volume_steps` bước mỗi tia |
+| `volume_dark_outside` | Ngoài vùng ảnh bóng của mặt trời, sương không nhận nắng (cảnh trong nhà) |
 
 @code
 // Nhà kho bỏ hoang: nắng chiều lọt qua khe tường.
 njin::light3d_set(ctx, {.direction = {0.3f, -0.4f, 0.85f}, .color = {3, 2.6f, 2, 1}, .shadows = true,
                         .tonemap = njin::tonemap3d_agx, .hdr = true,
                         .volume_density = 0.03f, .volume_noise = 0.4f, .volume_anisotropy = 0.6f});
+@endcode
+
+Mỗi điểm ảnh dò ở vị trí lệch khác nhau mỗi frame, rồi njin trộn kết quả với các frame trước (chiếu lại theo
+camera, giữ trong khoảng màu của các điểm quanh nó để vật di chuyển không để lại vệt), nên luồng sáng mịn và sắc
+sau vài frame. Khi đưa lên đủ độ phân giải, mỗi điểm ảnh chỉ lấy sương của những điểm cùng bề mặt, nên sương không
+lem qua mép vật. Để có phòng tối với luồng nắng như trong tranh, đặt `volume_ambient` về 0 và `ambient` rất thấp:
+sương chỉ sáng ở chỗ nắng đi qua. Tường, sàn, trần nên chồng lên nhau một chút: hai khối chỉ chạm nhau ở một cạnh
+để lọt nắng qua khe.
+
+Mỗi tia mặc định chia đều `volume_steps` bước, nên trong một sảnh sâu một bước dài cả nửa mét và luồng sáng hẹp
+bị bước qua: mép lởm chởm khi camera chạy. `volume_step_max` (ví dụ 0.25) cho tia dài thêm bước, phòng nhỏ không
+tốn thêm. Sương chỉ biết bóng của mặt trời trong ảnh bóng (`shadow_range`, hay các tầng của `shadow_cascades`);
+ngoài đó mặc định coi như có nắng, đúng cho ngoài trời. Trong nhà, nơi nắng chỉ vào qua cửa, bật
+`volume_dark_outside` để sương ở xa không sáng như nắng xuyên qua trần.
+
+@code
+// Một sảnh sâu, nắng qua giếng trời (như njin_skylight).
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .shadow_range = 22, .tonemap = njin::tonemap3d_agx,
+                        .hdr = true, .volume_density = 0.0005f, .volume_ambient = 0,
+                        .volume_step_max = 0.25f, .volume_dark_outside = true});
 @endcode
 
 Sương khối chỉ áp cho lần vẽ vào thế giới và đẹp nhất với `light3d::hdr`: ánh sáng trong sương cộng thẳng vào

@@ -13,6 +13,7 @@ set(NJIN_FEATURE_3D_SOURCES
     njin_instance.cpp
     njin_model.cpp
     njin_model_lod.cpp
+    njin_orbit3d.cpp
     njin_ray3d.cpp
     njin_world3d.cpp
     modules/particles3d.cpp
@@ -73,7 +74,7 @@ njin_embed_file("${CMAKE_CURRENT_BINARY_DIR}/smaa_shader_data.cpp" "${smaa_SOURC
 # glslc when they change and embedded as rt_<name>_spv.
 if(NJIN_RAYTRACING)
   set(_njin_rt_embeds)
-  foreach(shader shadow denoise reflect gi)
+  foreach(shader shadow denoise temporal reflect gi)
     set(src "${CMAKE_CURRENT_SOURCE_DIR}/modules/rt/${shader}.comp")
     set(spv "${CMAKE_CURRENT_BINARY_DIR}/rt/${shader}.spv")
     set(cpp "${CMAKE_CURRENT_BINARY_DIR}/rt/${shader}_spv.cpp")

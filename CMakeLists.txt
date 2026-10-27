@@ -358,7 +358,7 @@ option(NJIN_BUILD_EXAMPLES "Build the small examples shipped with njin" ON)
 # Which of them: all by default. Working on the engine, one or two are enough,
 # and editing a public header then rebuilds only those (the engine preset).
 set(NJIN_ALL_EXAMPLES sandbox pong platformer topdown debug_demo render_demo
-                      tower_defense lighting_demo fps sokoban platformer3d)
+                      tower_defense lighting_demo fps sokoban platformer3d skylight)
 set(NJIN_EXAMPLES "${NJIN_ALL_EXAMPLES}" CACHE STRING "The examples to build (NJIN_BUILD_EXAMPLES), ;-separated")
 if(NJIN_BUILD_EXAMPLES)
   foreach(example IN LISTS NJIN_EXAMPLES)

@@ -54,6 +54,7 @@ choose. See the [Animation Editor guide](src/tools/anim_editor/README.md).
 | `njin_fps` | A first-person shooter: glTF models, shadows, lights, glowing tracers, 3D particles |
 | `njin_sokoban` | 2.5D box-pushing: instancing, an SDF-shaped character, lights on target tiles |
 | `njin_platformer3d` | A third-person 3D platformer on Jolt physics: double jump, moving platforms, pushable crates |
+| `njin_skylight` | Sunbeams through a skylight in volumetric fog onto a statue; bloom, bounce light, ray traced shadows and bounce with `NJIN_RAYTRACING`; orbit the camera and drag things into the sun |
 
 The samples can be built standalone, reusing an already-built engine; see the
 [game project guide](examples/README.md). Use `-DNJIN_BUILD_EXAMPLES=OFF`

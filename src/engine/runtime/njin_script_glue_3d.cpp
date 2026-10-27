@@ -217,6 +217,8 @@ void apply_light3d(light3d &l, const sol::table &t) {
   l.shadow_rays = (i32)num(t, "shadow_rays", (f32)l.shadow_rays);
   l.ray_traced_reflections = flag(t, "ray_traced_reflections", l.ray_traced_reflections);
   l.reflection_roughness = num(t, "reflection_roughness", l.reflection_roughness);
+  l.volume_step_max = num(t, "volume_step_max", l.volume_step_max);
+  l.volume_dark_outside = flag(t, "volume_dark_outside", l.volume_dark_outside);
 }
 
 sol::table light3d_table(sol::state_view lua, const light3d &l) {

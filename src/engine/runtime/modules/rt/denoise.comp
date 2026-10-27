@@ -1,6 +1,7 @@
 // Smooths shadow.comp's few-ray result: a 7 x 7 Gaussian over the pixels at
 // about the same distance (relative depth difference) and facing about the
-// same way, so the noise goes and shadow edges between objects stay.
+// same way, so the noise goes and shadow edges between objects stay; then
+// temporal.comp blends it over frames.
 #version 460
 layout(local_size_x = 8, local_size_y = 8) in;
 

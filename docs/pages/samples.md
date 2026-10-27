@@ -1,6 +1,6 @@
 # Game mẫu và đóng gói {#samples}
 
-Bảy chương trình trong `examples` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
+Tám chương trình trong `examples` để đọc, chạy và sửa. Mới bắt đầu? Làm @ref first_jump (platformer) hoặc
 @ref first_walk (top-down) trước: mỗi bài dưới 50 dòng, rồi quay lại đây xem một game đầy đủ.
 
 | Game | Là gì | Đọc để học |
@@ -12,6 +12,7 @@ Bảy chương trình trong `examples` để đọc, chạy và sửa. Mới b�
 | `njin_fps` | Bắn súng góc nhìn thứ nhất: đi lại và bắn mục tiêu trên lưới 5x5, model glTF (khẩu súng), bóng đổ, sương mù, đèn màu, đèn pin, vệt đạn và mục tiêu trúng phát sáng (bloom), hạt 3D, rung camera | @ref graphics_3d |
 | `njin_sokoban` | Đẩy thùng 2.5D: camera nghiêng, sàn/tường instanced, thùng có texture, nhân vật hình SDF viên nang có viền sáng, đèn trên ô đích, hạt bụi và lấp lánh | @ref graphics_3d |
 | `njin_platformer3d` | *Nhảy qua mây*: platformer 3D góc nhìn thứ ba trên vật lý Jolt, nhân vật nhảy đôi, bục di chuyển, thùng đẩy được, checkpoint, vòng đích | @ref physics3d |
+| `njin_skylight` | *Giếng trời*: nắng lọt qua giếng trời 3 x 3 ô trên trần một sảnh tối thành chín luồng sáng trong sương, rọi lên bức tượng; bloom, ánh sáng dội, và với `NJIN_RAYTRACING` bóng và ánh sáng dội bằng tia. Xoay, dời, zoom camera bằng chuột, kéo tượng, khối đá, quả cầu vào nắng; phím 1 đến 4 bật tắt từng phần để so | @ref shadow3d_raytraced, @ref fog3d_volume, @ref probe3d |
 
 @image html platformer.gif "njin_platformer: chạy và nhảy trên dốc, nhắc \"E\" khi lại gần con cú"
 
@@ -27,11 +28,19 @@ Bảy chương trình trong `examples` để đọc, chạy và sửa. Mới b�
 
 @image html platformer3d.png "njin_platformer3d: bục đầu với ba thùng vật lý, dãy bục lên tới vòng đích ở xa"
 
+@image html skylight.png "njin_skylight: nắng qua giếng trời 3 x 3 ô rọi lên bức tượng rắn, khối đá vừa được kéo vào nắng"
+
 `njin_fps` là ví dụ 3D, chuyển thể từ [fps_tutorial của Biped-Potato](https://github.com/Biped-Potato/fps_tutorial)
 (Bevy) sang njin; model khẩu súng (`assets/models/ak.glb`) là của tác giả đó, giấy phép MIT
 (`assets/models/LICENSE.txt`). `njin_sokoban` sinh texture thùng từ script Python, không có file nhị phân
 không rõ nguồn. `njin_platformer3d` vẽ mọi thứ bằng hình khối và hình SDF, không có file asset nào. Cả
 ba không có menu, cài đặt hay nhạc: đọc @ref graphics_3d để xem API 3D chúng dùng.
+
+Bức tượng của `njin_skylight` (`assets/snake_statue.glb`) là *Snake Statue* của Ville Seppänen, giấy phép CC BY 4.0
+(`assets/LICENSE.txt`). Build thường thì nó dùng ảnh bóng và lưới ánh sáng chụp một lần; build engine với
+`-DNJIN_RAYTRACING=ON` (@ref setup_engine_build) trên máy có ray tracing để thấy bóng mềm dần theo khoảng cách và ánh
+sáng dội theo kịp khi kéo vật. Sảnh sâu 20 m nên sương dò 128 bước và ảnh bóng phủ cả sảnh (`shadow_range` 22): ít bước
+hơn thì mép luồng sáng lởm chởm khi camera chạy, ảnh bóng hẹp hơn thì sương ngoài nó sáng như có nắng.
 
 `njin_fps` còn chơi được nhiều người qua mạng (@ref netcode): một máy mở phòng và chơi luôn, các máy khác vào,
 mọi người bắn chung một bộ bia, chủ phòng giữ điểm. Thử hai cửa sổ trên cùng một máy, với mạng xấu giả lập:

@@ -189,8 +189,17 @@ void grid_store(probe_state &p, i32 point, i32 size);
 // ---------------------------------------------------------------------------
 struct volume_state {
   bool tried = false, ok = false;
-  Shader march{}, compose{};
-  u32 tex = 0, fbo = 0;
+  Shader march{}, resolve{}, compose{};
+  u32 tex = 0, fbo = 0; // this pass's march, half size
+  // Where along each ray the light was scattered (a second target of `fbo`):
+  // the history is found there, not at the surface behind.
+  u32 dist_tex = 0;
+  // The fog of the passes before, reprojected and blended with this one's:
+  // two images, written in turn.
+  std::array<u32, 2> hist_tex{}, hist_fbo{};
+  i32 hist_at = 0;      // the one written last
+  bool hist_ok = false; // it holds the last pass's fog
+  Matrix prev_vp{};     // the last pass's view-projection
   i32 w = 0, h = 0;
   u32 frame = 0;
 };
@@ -245,6 +254,10 @@ struct rt_state {
   i32 w = 0, h = 0;
   Shader copy{};
   u32 frame = 0;
+  // The last trace's view-projection, for the shadows over time; `prev_ok`
+  // when it is of this size and camera (not a cut).
+  Matrix prev_vp{};
+  bool prev_ok = false;
 };
 void rt_free(rt_state &r);
 // Whether the open pass traces its shadows: light3d::ray_traced_shadows on a

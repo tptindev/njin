@@ -426,6 +426,7 @@ bool rt_prepass_begin(context &ctx, i32 w, i32 h) {
     }
     r.w = w;
     r.h = h;
+    r.prev_ok = false; // new images: no history
   }
   rlDrawRenderBatchActive();
   rlEnableFramebuffer(r.pre_fbo);
@@ -537,9 +538,16 @@ void rt_trace(context &ctx, const Matrix &view_proj) {
       t.grid_lights = true;
     }
   }
+  // Last frame's view-projection: the shadows are blended over frames.
+  t.history = r.prev_ok;
+  const float16 pv = MatrixToFloatV(r.prev_vp), piv = MatrixToFloatV(MatrixInvert(r.prev_vp));
+  std::memcpy(t.prev_view_proj, pv.v, sizeof(t.prev_view_proj));
+  std::memcpy(t.prev_inv_view_proj, piv.v, sizeof(t.prev_inv_view_proj));
   t.frame = r.frame++;
   const bool ok = rtvk::trace(g.inst.data(), (u32)g.inst.size(), t);
   r.live = ok && shadows;
+  r.prev_vp = view_proj;
+  r.prev_ok = ok && shadows;
   r.refl_live = ok && t.reflect;
   if (t.gi)
     p.rt_live = p.rt_live || ok;
