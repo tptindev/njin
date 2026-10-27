@@ -212,6 +212,11 @@ void apply_light3d(light3d &l, const sol::table &t) {
   l.volume_color = color_of(t["volume_color"], l.volume_color);
   l.volume_falloff = num(t, "volume_falloff", l.volume_falloff);
   l.volume_noise = num(t, "volume_noise", l.volume_noise);
+  l.ray_traced_shadows = flag(t, "ray_traced_shadows", l.ray_traced_shadows);
+  l.sun_angle = num(t, "sun_angle", l.sun_angle);
+  l.shadow_rays = (i32)num(t, "shadow_rays", (f32)l.shadow_rays);
+  l.ray_traced_reflections = flag(t, "ray_traced_reflections", l.ray_traced_reflections);
+  l.reflection_roughness = num(t, "reflection_roughness", l.reflection_roughness);
 }
 
 sol::table light3d_table(sol::state_view lua, const light3d &l) {
@@ -221,7 +226,9 @@ sol::table light3d_table(sol::state_view lua, const light3d &l) {
                                "fog_density", l.fog_density, "tonemap", tonemap_names[std::clamp((i32)l.tonemap, 0, 4)],
                                "exposure", l.exposure, "hdr", l.hdr, "auto_exposure", l.auto_exposure,
                                "shadow_cascades", l.shadow_cascades, "lights_max", l.lights_max, "source_shadows",
-                               l.source_shadows, "volume_density", l.volume_density);
+                               l.source_shadows, "volume_density", l.volume_density, "ray_traced_shadows",
+                               l.ray_traced_shadows, "sun_angle", l.sun_angle, "shadow_rays", l.shadow_rays,
+                               "ray_traced_reflections", l.ray_traced_reflections);
 }
 
 bool weather_kind_of(const std::string &name, weather3d_kind &out) {
@@ -435,7 +442,7 @@ void script_bind_3d(context &ctx, script_runtime &rt) {
   };
   n["light3d_get"] = [c, r] { return light3d_table(r->lua, light3d_get(*c)); };
   // light3d_add({kind="point"|"spot", position=, direction=, color=, intensity=, radius=, cone=,
-  //              softness=, shadows=}) for the open 3D pass.
+  //              softness=, shadows=, source_size=}) for the open 3D pass.
   n["light3d_add"] = [c](sol::table t) {
     light3d_source l{};
     l.kind = t["kind"].get_or(std::string("point")) == "spot" ? light3d_spot : light3d_point;
@@ -447,6 +454,7 @@ void script_bind_3d(context &ctx, script_runtime &rt) {
     l.cone = num(t, "cone", l.cone);
     l.softness = num(t, "softness", l.softness);
     l.shadows = flag(t, "shadows", l.shadows);
+    l.source_size = num(t, "source_size", l.source_size);
     light3d_add(*c, l);
   };
   n["draw_sky3d"] = [c](sol::this_state s, sol::object sky) { draw_sky3d(*c, sky_of(s, sky)); };

@@ -196,6 +196,45 @@ FetchContent_Declare(
   SYSTEM)
 
 FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg smaa asio enet)
+
+# Ray tracing (light3d::ray_traced_shadows) beside the OpenGL renderer: a
+# Vulkan device with ray queries through NVRHI (NVIDIA, MIT), sharing images and
+# semaphores with OpenGL (render3d_rt_vk.cpp). Off by default; Windows only for
+# now. Its compute shaders are compiled at build time by glslc from the Vulkan
+# SDK (the SDK's compiler, not linked: glslang's licence has a GPL part).
+option(NJIN_RAYTRACING "Ray traced shadows on Vulkan (NVRHI) beside the OpenGL renderer" OFF)
+if(NJIN_RAYTRACING)
+  if(NOT WIN32)
+    message(FATAL_ERROR "njin: NJIN_RAYTRACING is Windows only for now")
+  endif()
+  file(GLOB _njin_vulkan_sdks LIST_DIRECTORIES true "C:/VulkanSDK/*")
+  list(SORT _njin_vulkan_sdks COMPARE NATURAL ORDER DESCENDING)
+  set(_njin_glslc_hints "$ENV{VULKAN_SDK}/Bin")
+  foreach(_njin_sdk IN LISTS _njin_vulkan_sdks)
+    list(APPEND _njin_glslc_hints "${_njin_sdk}/Bin")
+  endforeach()
+  find_program(NJIN_GLSLC glslc HINTS ${_njin_glslc_hints})
+  if(NOT NJIN_GLSLC)
+    message(FATAL_ERROR "njin: NJIN_RAYTRACING needs glslc: install the Vulkan SDK (https://vulkan.lunarg.com) "
+                        "or set NJIN_GLSLC to its path")
+  endif()
+  set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
+  set(NVRHI_WITH_DX12 OFF CACHE BOOL "" FORCE)
+  set(NVRHI_WITH_VULKAN ON CACHE BOOL "" FORCE)
+  set(NVRHI_INSTALL OFF CACHE BOOL "" FORCE)
+  set(NVRHI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    nvrhi
+    GIT_REPOSITORY https://github.com/NVIDIA-RTX/NVRHI.git
+    GIT_TAG 2e21b39c1eddd9661cf6728b165c132412708869
+    SYSTEM)
+  FetchContent_MakeAvailable(nvrhi)
+  # NVRHI links the Vulkan headers it fetched privately; render3d_rt_vk.cpp
+  # needs them too, and the same NVRHI_WITH_AFTERMATH it was built with.
+  add_library(njin_nvrhi INTERFACE)
+  target_link_libraries(njin_nvrhi INTERFACE nvrhi_vk nvrhi Vulkan::Headers)
+  target_compile_definitions(njin_nvrhi INTERFACE NVRHI_WITH_AFTERMATH=0)
+endif()
 # Jolt is 154 sources sharing most of their headers: compiled 16 to a file
 # (unity build) it takes half the time. It is only rebuilt with a new tag.
 set_target_properties(Jolt PROPERTIES UNITY_BUILD ON UNITY_BUILD_BATCH_SIZE 16)
@@ -290,6 +329,9 @@ set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings rayli
 foreach(_njin_feature IN LISTS NJIN_FEATURES_ORDER)
   list(APPEND _njin_export_targets njin_${_njin_feature})
 endforeach()
+if(NJIN_RAYTRACING)
+  list(APPEND _njin_export_targets njin_nvrhi nvrhi nvrhi_vk Vulkan-Headers)
+endif()
 if(TARGET glfw)
   get_target_property(_njin_glfw_type glfw TYPE)
   if(_njin_glfw_type STREQUAL "OBJECT_LIBRARY")

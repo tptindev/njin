@@ -36,6 +36,33 @@ To release: edit that header, add a section here, commit, then
   - `post3d::oit` (weighted blended transparency) and `post3d::aa`
     (`aa3d_fxaa`, `aa3d_smaa` with iryoku/smaa, MIT).
   - Lua: the new `light3d_set`, `material3d_set` and `post3d_set` fields.
+- Ray traced shadows, opt-in at build time (`-DNJIN_RAYTRACING=ON`, Windows,
+  needs the Vulkan SDK's `glslc`) and per game (`light3d::ray_traced_shadows`):
+  the sun and up to three shadowed lamps traced with Vulkan ray queries
+  through NVRHI (NVIDIA, MIT) beside the OpenGL renderer, which shares its
+  depth and the shadow mask with Vulkan on the same GPU. Soft by
+  `light3d::sun_angle` and `light3d_source::source_size`, `shadow_rays` rays
+  a pixel, a depth-aware `shadow_denoise`; no `shadow_range` limit.
+  Primitives, models (posed ones skinned on the CPU), `draw_instanced3d` and
+  terrain cast them. Glass, water and volumetric fog keep the sun's shadow
+  map. `raytracing_available()` says whether it runs; without it the shadow
+  maps are used as before. Lua: `ray_traced_shadows`, `sun_angle`,
+  `shadow_rays`, `source_size`.
+- Ray traced reflections (`light3d::ray_traced_reflections`,
+  `reflection_roughness`): a mirror ray per pixel from the pass's depth; what
+  it meets is lit simply (its colour times its texture's mean, the sun
+  through a shadow ray, up to 8 lamps, the ambient light or the ray traced
+  grid, its glow) and replaces the environment or probes on smooth PBR
+  materials. Lua: `ray_traced_reflections`, `reflection_roughness`.
+- Ray traced irradiance grid (`irradiance3d_desc::ray_traced`, `rays`,
+  `history`): the grid is traced every frame instead of captured, lit by the
+  sun, lamps and itself, so light bounces again frame after frame and follows
+  moving lights and objects, as DDGI does: each point keeps a 16 x 16
+  octahedral tile of the distances round it, and a lookup weighs points by
+  Chebyshev visibility and facing, so light does not leak through walls.
+  Points whose rays mostly meet the inside of things (back faces, except of
+  double-sided model parts) are skipped. Without ray tracing the grid is
+  captured as before. Costs measured on an RTX 3050 laptop are in the wiki.
 - PBR, all opt-in (games that set none of it draw exactly as before):
   `light3d::tonemap` (`tonemap3d_linear`, `_aces` as three.js's ACESFilmic,
   `_agx` as Blender's, `_neutral` as Khronos PBR Neutral) with `exposure`:

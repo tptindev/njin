@@ -288,6 +288,9 @@ giống hệt animation.
 | Mặt trời, ánh sáng nền | light3d_set() với njin::light3d | Có hiệu lực từ begin_3d() tiếp theo |
 | Bóng đổ của mặt trời | `light3d::shadows`, `shadow_range`, `shadow_size`, `shadow_softness` | Hộp bóng quanh chỗ camera nhìn; mép bóng mềm 3 x 3 |
 | Bóng nhiều tầng | `light3d::shadow_cascades`, `shadow_cascade_split` | @ref shadow3d_cascades |
+| Bóng bằng tia (ray tracing) | `light3d::ray_traced_shadows`, `sun_angle`, `shadow_rays` | @ref shadow3d_raytraced |
+| Phản chiếu bằng tia | `light3d::ray_traced_reflections`, `reflection_roughness` | @ref reflect3d_raytraced |
+| Ánh sáng gián tiếp bằng tia | `irradiance3d_desc::ray_traced` | @ref probe3d |
 | Sương mù | `light3d::fog_color`, `fog_density` | Theo khoảng cách tới camera |
 | Sương khối, luồng sáng trong sương | `light3d::volume_density` và các trường `volume_*` | @ref fog3d_volume |
 | Đèn điểm, đèn nón | light3d_add() với njin::light3d_source mỗi lần vẽ, hoặc entity (@ref entities_3d) | Mặc định tối đa njin::light3d_max (16); `light3d::lights_max` tới njin::light3d_limit (@ref lights3d_many) |
@@ -325,6 +328,86 @@ njin::light3d_set(ctx, {.direction = sun, .shadows = true, .shadow_range = 150.0
 
 Mỗi tầng vẽ lại mọi hình đổ bóng một lần, nên bốn tầng tốn gấp bốn một ảnh bóng. Camera song song
 (`camera3d_orthographic`) luôn dùng một ảnh bóng quanh chỗ nó nhìn.
+
+### Bóng bằng tia (ray tracing) {#shadow3d_raytraced}
+
+`light3d::ray_traced_shadows` tính bóng của mặt trời và của tối đa ba đèn có `light3d_source::shadows` bằng tia
+thay cho ảnh bóng. Bóng sắc ở chỗ vật chạm đất và mềm dần ra xa theo cỡ của nguồn sáng (`sun_angle` cho mặt
+trời, `light3d_source::source_size` cho đèn), không răng cưa, không lệch bóng, và không bị giới hạn bởi
+`shadow_range`: vật ở xa camera vẫn có bóng.
+
+@code
+// Bóng bằng tia khi máy có, ảnh bóng như cũ khi không: bật luôn cũng an toàn.
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .ray_traced_shadows = true, .sun_angle = 1.5f});
+njin::begin_3d(ctx, cam);
+njin::light3d_add(ctx, {.position = lamp, .radius = 10.0f, .shadows = true, .source_size = 0.1f});
+@endcode
+
+Cách làm: njin vẽ độ sâu của các hình đục trước, rồi một thiết bị Vulkan (qua
+[NVRHI](https://github.com/NVIDIA-RTX/NVRHI) của NVIDIA) dựng cảnh thành cấu trúc tăng tốc, bắn
+`shadow_rays` tia mỗi điểm ảnh từ bề mặt tới nguồn sáng và làm mịn kết quả (`shadow_denoise` pixel). OpenGL vẫn
+vẽ cả cảnh và đọc kết quả đó khi tính ánh sáng; hai bên dùng chung ảnh trên cùng một GPU.
+
+| Trường | Ý nghĩa |
+|---|---|
+| `ray_traced_shadows` | Bật. Mặt trời đổ bóng bằng tia khi `shadows` cũng bật; đèn khi có `light3d_source::shadows` |
+| `sun_angle` | Đường kính góc của mặt trời, độ; 0.53 là mặt trời thật, 2..5 là trời âm u, 0 là bóng sắc |
+| `shadow_rays` | Số tia mỗi điểm ảnh mỗi nguồn sáng, 1..16 |
+| `shadow_denoise` | Bán kính bộ lọc khử nhiễu, pixel, 0..8 |
+| `light3d_source::source_size` | Bán kính bóng đèn: lớn thì bóng đèn mềm hơn |
+
+Cần ba thứ:
+
+- njin được build với `-DNJIN_RAYTRACING=ON` (hiện chỉ trên Windows, cần Vulkan SDK, xem @ref setup_engine_build).
+- GPU có ray tracing: NVIDIA RTX, AMD Radeon RX 6000 trở lên, Intel Arc.
+- Game chạy trên chính GPU đó. Laptop có hai GPU thì game phải link `njin::gpu` (các game mẫu đều link), không thì
+  OpenGL chạy trên GPU tích hợp và log ghi rõ lý do ray tracing tắt.
+
+raytracing_available() cho biết các điều kiện trên có đủ không, chẳng hạn để hiện tuỳ chọn trong menu đồ hoạ.
+Khi thiếu, njin dùng ảnh bóng như cũ (`shadows`, `source_shadows`), và `graphics_quality` tắt bóng thì bóng
+bằng tia cũng tắt.
+
+Những gì đổ bóng bằng tia: hình khối, model (model đang có tư thế được tính lại trên CPU mỗi frame), vẽ
+instanced (draw_instanced3d()) và địa hình. Hình SDF (draw_shape3d()) và cỏ nhận bóng nhưng chưa đổ bóng;
+phần trong suốt của model không đổ bóng. Bóng bằng tia chỉ cho các bề mặt đục của lần vẽ vào thế giới: kính,
+nước và sương khối vẫn dùng ảnh bóng của mặt trời, nên njin vẫn vẽ ảnh đó khi lần vẽ có chúng; đèn đổ bóng bằng
+tia không đổ bóng lên chúng. Lần vẽ vào render texture (begin_3d() có `target`) dùng ảnh bóng.
+
+Model có tư thế dựng lại cấu trúc tăng tốc mỗi frame, nên hàng trăm nhân vật có xương sẽ tốn hơn.
+
+Thời gian một frame đo trên RTX 3050 laptop, 1280 x 720, một cảnh khoảng 50 vật (40 vẽ instanced, một model có
+xương đang chạy, một đèn đổ bóng), sàn PBR nhẵn:
+
+| Bật | ms mỗi frame |
+|---|---|
+| Không ray tracing (ảnh bóng như cũ) | 1.0 |
+| `ray_traced_shadows` (2 tia) | 2.3 |
+| `ray_traced_reflections` (ảnh bóng cho bóng đổ) | 2.1 |
+| `irradiance3d_desc::ray_traced`, lưới 8 x 4 x 8, 128 tia | 2.0 |
+| Cả ba | 2.7 |
+
+Phần lớn chênh lệch là phần chung, trả một lần dù bật mấy phần: vẽ độ sâu trước, gửi cảnh sang Vulkan, đồng bộ
+hai bên. Nên bật thêm một phần khi đã có phần khác thì rẻ hơn con số riêng của nó.
+
+### Phản chiếu bằng tia {#reflect3d_raytraced}
+
+`light3d::ray_traced_reflections` cho mỗi điểm ảnh một tia theo hướng phản chiếu của bề mặt. Vật liệu PBR nhẵn
+(`material3d::pbr`, `roughness` dưới `reflection_roughness`) phản chiếu đúng những vật quanh nó, cả vật ngoài
+màn hình hay bị che, thay cho ảnh môi trường hay probe. Nhám dần lên tới `reflection_roughness` thì phản chiếu mờ
+dần về môi trường/probe; chỗ tia không gặp gì vẫn lấy môi trường (hay `ambient`).
+
+@code
+// Sàn đá bóng phản chiếu đồ đạc và nhân vật.
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .tonemap = njin::tonemap3d_agx,
+                        .ray_traced_shadows = true, .ray_traced_reflections = true});
+njin::material3d_set(ctx, {.pbr = true, .metallic = 0.2f, .roughness = 0.08f});
+njin::draw_plane3d(ctx, {0, 0, 0}, {20, 20}, {0.4f, 0.4f, 0.42f, 1});
+@endcode
+
+Vật được phản chiếu tô đơn giản: màu nền của nó (màu nhân màu trung bình của ảnh, không chi tiết ảnh), nắng
+qua bóng của nó, tối đa 8 đèn (không bóng), ánh sáng nền hay lưới ánh sáng bằng tia (@ref probe3d), và màu phát
+sáng. Hướng phản chiếu lấy theo mặt hình học, không theo normal map. Cần những điều kiện như bóng bằng tia
+(@ref shadow3d_raytraced); những gì được phản chiếu cũng là những gì đổ bóng bằng tia.
 
 ### Nhiều đèn {#lights3d_many}
 
@@ -525,6 +608,27 @@ Probe và lưới chỉ được chụp lại khi gọi probe3d_refresh(), irrad
 `live`, chụp lại mỗi frame (vẽ lại cảnh 6 lần). Cảnh chụp gồm hình đục, model, địa hình và bầu trời; không có
 hạt, nước và kính. Trên trình điều khiển chỉ có 16 texture unit (macOS), probe và lưới không dùng được
 (@ref lights3d_many).
+
+`irradiance3d_desc::ray_traced` tính lưới bằng tia mỗi frame thay vì chụp (cần raytracing_available(), xem
+@ref shadow3d_raytraced; không có thì lưới được chụp như trên). Mỗi điểm bắn `rays` tia ra mọi hướng; chỗ tia
+gặp được chiếu bởi nắng (qua bóng), đèn và chính lưới, nên ánh sáng dội nhiều lần, như cách DDGI của NVIDIA làm:
+phòng sáng dần qua cửa sổ, tường đỏ hắt sáng đỏ lên sàn, và lưới theo kịp đèn bật tắt, nắng đổi giờ, vật di chuyển
+mà không cần irradiance3d_refresh(). `history` là phần giữ lại từ frame trước: lớn thì mịn, nhỏ thì đổi nhanh.
+
+@code
+// Lưới phủ cả phòng 8 x 3 x 8 m, lớn hơn phòng một chút: điểm nằm trong tường bị bỏ qua.
+njin::irradiance3d_set(ctx, {.center = {0, 1.5f, 0}, .size = {8.1f, 3.1f, 8.1f}, .count_x = 7, .count_y = 4,
+                             .count_z = 7, .blend = 0.05f, .ray_traced = true});
+@endcode
+
+Ánh sáng không lọt qua tường: như DDGI, mỗi điểm nhớ khoảng cách tới vật quanh nó theo mọi hướng (một ô bát diện
+16 x 16), và khi một bề mặt lấy ánh sáng từ lưới, điểm nào bị vật che khỏi bề mặt đó (phép thử Chebyshev) hay
+nằm sau lưng bề mặt thì gần như không tính. Một lưới phủ nhiều phòng vẫn để phòng tối tối dù phòng bên cạnh đầy
+nắng. Điểm có phần lớn tia gặp mặt trong của vật (nằm trong tường, dưới sàn) bị bỏ hẳn, nên hộp có thể phủ tới
+giữa bề dày tường để sàn và tường cũng nhận ánh sáng gián tiếp. Mặt trong được nhận theo chiều tam giác như
+OpenGL vẽ; phần model vẽ hai mặt (`double_sided` trong glTF: lá, vải, tấm mỏng) không có mặt trong nên không
+tính. Ở mép và góc phòng, nơi gần như mọi điểm bị che, ánh sáng tối đi thay vì loé lên. Chi phí tỉ lệ với số
+điểm nhân `rays` (xem bảng ở @ref shadow3d_raytraced).
 
 ## Hiệu ứng
 

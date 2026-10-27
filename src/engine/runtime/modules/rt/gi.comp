@@ -1,0 +1,133 @@
+// Ray traced irradiance grid (irradiance3d_desc::ray_traced), render3d_rt_vk.cpp.
+//
+// One workgroup per grid point: rays spread evenly over the sphere (turned
+// differently every frame), each lit where it lands by common.glsl's
+// shade_hit (whose ambient light is this grid, so light bounces again frame
+// after frame) or the sky where it lands nowhere. Per axis of the ambient cube
+// the cosine-weighted mean of what came in (irradiance over pi, what
+// render3d's grid_irradiance reads), blended with last frame's. A point whose
+// rays mostly meet the inside of things is marked (alpha 0) and skipped by
+// the lookups, so points in walls do not darken the room. And DDGI's depths:
+// per point a 16 x 16 octahedral tile of the mean distance to what is round it
+// and its square, which the lookups test a surface against (common.glsl's
+// grid_visibility), so light does not leak through walls.
+#version 460
+#extension GL_EXT_ray_query : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference_uvec2 : require
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT scene;
+layout(set = 0, binding = 384, rgba32f) uniform image2D gridImg;
+layout(set = 0, binding = 385, rgba32f) uniform image2D gridDepth;
+#define RT_SCENE
+#define RT_SHADE
+#include "common.glsl"
+
+// This point's rays: direction and distance, light and whether it met the inside of something.
+const int max_rays = 256;
+shared vec4 rayDir[max_rays];
+shared vec4 rayLight[max_rays];
+
+const vec3 axes[6] = vec3[6](vec3(1, 0, 0), vec3(-1, 0, 0), vec3(0, 1, 0), vec3(0, -1, 0), vec3(0, 0, 1), vec3(0, 0, -1));
+
+// Direction `i` of `n` spread evenly over the sphere (spherical Fibonacci).
+vec3 fibonacci(float i, float n) {
+  float z = 1.0 - (2.0 * i + 1.0) / n;
+  float r = sqrt(max(1.0 - z * z, 0.0));
+  float a = 6.2831853 * fract(i * 0.6180340);
+  return vec3(r * cos(a), r * sin(a), z);
+}
+
+// A rotation from three hashes.
+mat3 turn(uvec3 seed) {
+  float a = 6.2831853 * rnd(seed), b = acos(2.0 * rnd(seed + 11u) - 1.0), c = 6.2831853 * rnd(seed + 23u);
+  vec3 x = vec3(sin(b) * cos(a), sin(b) * sin(a), cos(b));
+  float s = sin(c), k = cos(c), t = 1.0 - k;
+  return mat3(t * x.x * x.x + k, t * x.x * x.y + s * x.z, t * x.x * x.z - s * x.y,
+              t * x.x * x.y - s * x.z, t * x.y * x.y + k, t * x.y * x.z + s * x.x,
+              t * x.x * x.z + s * x.y, t * x.y * x.z - s * x.x, t * x.z * x.z + k);
+}
+
+// The direction at the centre of texel `t` of a 16 x 16 octahedral tile.
+vec3 oct_dir(ivec2 t) {
+  vec2 e = (vec2(t) + 0.5) / 16.0 * 2.0 - 1.0;
+  vec3 v = vec3(e, 1.0 - abs(e.x) - abs(e.y));
+  if (v.z < 0.0)
+    v.xy = (1.0 - abs(v.yx)) * vec2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0);
+  return normalize(v);
+}
+
+void main() {
+  uint point = gl_WorkGroupID.x;
+  uint lid = gl_LocalInvocationID.x;
+  ivec3 cnt = ivec3(p.gridCount.xyz);
+  int total = cnt.x * cnt.y * cnt.z;
+  if (int(point) >= total)
+    return;
+  ivec3 g = ivec3(int(point) % cnt.x, (int(point) / cnt.x) % cnt.y, int(point) / (cnt.x * cnt.y));
+  vec3 pos = grid_point(vec3(g));
+  int rays = clamp(int(p.gridCount.w), 1, max_rays);
+  vec3 sp = grid_spacing();
+  float far = 1.5 * max(sp.x, max(sp.y, sp.z));
+  float keep = clamp(p.gridMin.w, 0.0, 0.99);
+  mat3 rot = turn(uvec3(point, uint(p.size.w), 7u));
+  for (int r = int(lid); r < rays; r += 64) {
+    vec3 dir = rot * fibonacci(float(r), float(rays));
+    hit_t h = trace_closest(pos, dir, 2000.0);
+    // The inside of something (its back, unless it is drawn from both sides):
+    // no light, and a short distance, so the point does not see past it.
+    bool back = h.hit && !h.front && !h.two_sided;
+    float dist = h.hit ? distance(h.pos, pos) : far;
+    rayDir[r] = vec4(dir, back ? min(dist, far) * 0.2 : min(dist, far));
+    rayLight[r] = vec4(back ? vec3(0.0) : (h.hit ? shade_hit(h) : sky(dir)), back ? 1.0 : 0.0);
+  }
+  barrier();
+  // Light: per axis of the ambient cube, the cosine-weighted mean of what came in.
+  if (lid < 6u) {
+    vec3 sum = vec3(0.0);
+    float w = 0.0, backs = 0.0;
+    for (int r = 0; r < rays; r++) {
+      backs += rayLight[r].a;
+      if (rayLight[r].a > 0.5)
+        continue;
+      float k = dot(rayDir[r].xyz, axes[lid]);
+      if (k > 0.0) {
+        sum += rayLight[r].rgb * k;
+        w += k;
+      }
+    }
+    ivec2 at = ivec2(int(point), int(lid));
+    vec4 old = imageLoad(gridImg, at);
+    vec3 now = w > 0.0 ? sum / w : vec3(0.0);
+    // Alpha 0 is a new point or one inside something, 1 a lit one. A point
+    // whose rays mostly meet the inside of things lies inside one.
+    bool inside = backs > 0.25 * float(rays);
+    vec3 kept = old.a > 0.5 ? mix(now, old.rgb, keep) : now;
+    imageStore(gridImg, at, vec4(kept, inside ? 0.0 : 1.0));
+  }
+  // Depth: per texel of the point's octahedral tile (four a thread), the mean
+  // distance and its square over the rays near its direction (DDGI's sharpness 50).
+  for (int k4 = 0; k4 < 4; k4++) {
+    int texel = int(lid) + k4 * 64;
+    ivec2 t = ivec2(texel % 16, texel / 16);
+    vec3 td = oct_dir(t);
+    vec2 m = vec2(0.0);
+    float w = 0.0;
+    for (int r = 0; r < rays; r++) {
+      float k = pow(max(dot(td, rayDir[r].xyz), 0.0), 50.0);
+      if (k <= 1e-4)
+        continue;
+      float d = rayDir[r].w;
+      m += vec2(d, d * d) * k;
+      w += k;
+    }
+    ivec2 at = ivec2(int(point) * 16 + t.x, t.y);
+    vec4 old = imageLoad(gridDepth, at);
+    if (w > 0.0) {
+      m /= w;
+      vec2 kept = old.a > 0.5 ? mix(m, old.rg, keep) : m;
+      imageStore(gridDepth, at, vec4(kept, 0.0, 1.0));
+    }
+  }
+}

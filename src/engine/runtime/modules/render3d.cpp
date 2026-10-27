@@ -173,6 +173,23 @@ uniform vec4 irrSize;        // size, intensity
 uniform vec4 irrCount;       // points along x, y, z
 #ifdef NJIN_EXT
 uniform sampler2D irrTex;    // a column per point, a row per direction (+x -x +y -y +z -z), linear
+// The ray traced grid's depths (irrCount.w 1): per point a 16 x 16 octahedral
+// tile of the mean distance to what is round it and its square, for DDGI's
+// visibility test.
+uniform sampler2D irrDepth;
+#endif
+// Ray traced shadows (light3d::ray_traced_shadows, render3d_rt.cpp): the share
+// of the sun (r) and of up to three lamps (g, b, a) reaching each pixel of the
+// pass, traced from its depth before it draws. shadowOn 3 takes the sun from
+// it, a lamp whose lightShadow is -2, -3 or -4 its channel.
+uniform int rtOn;
+// Ray traced reflections (light3d::ray_traced_reflections): per pixel the
+// light a mirror ray met (linear), alpha 1 where it met something; rtRefl the
+// roughness up to which it replaces the environment or probes (0 off).
+uniform float rtRefl;
+#ifdef NJIN_EXT
+uniform sampler2D rtMask;
+uniform sampler2D rtReflTex;
 #endif
 // The samplers above are only in the extended variant (NJIN_EXT, compiled when
 // a pass uses them): with them the shader has more samplers than a 16-unit
@@ -362,9 +379,35 @@ float sunlight_cascades(vec3 pos, vec3 n, vec3 l) {
   return 1.0;
 }
 
-// The sun's share by light3d::shadows: off (1), one map, or cascades.
+// Channel `c` of the ray traced shadows at this pixel (1 without them).
+float rt_share(int c) {
+#ifdef NJIN_EXT
+  if (rtOn != 1)
+    return 1.0;
+  return texelFetch(rtMask, ivec2(gl_FragCoord.xy), 0)[c];
+#else
+  return 1.0;
+#endif
+}
+
+// The ray traced reflection in place of `specLight` on a smooth enough surface.
+void rt_reflection(float rough, bool lin, inout vec3 specLight) {
+#ifdef NJIN_EXT
+  if (rtRefl <= 0.0)
+    return;
+  vec4 h = texelFetch(rtReflTex, ivec2(gl_FragCoord.xy), 0);
+  float w = h.a * (1.0 - smoothstep(rtRefl * 0.5, rtRefl, rough));
+  if (w > 0.0)
+    specLight = mix(specLight, lin ? h.rgb : linear_to_srgb(h.rgb), w);
+#endif
+}
+
+// The sun's share by light3d::shadows: off (1), one map, cascades, or ray traced.
 float sun_share(vec3 pos, vec3 n, vec3 l) {
-  return shadowOn == 1 ? sunlight(pos, n, l) : shadowOn == 2 ? sunlight_cascades(pos, n, l) : 1.0;
+  return shadowOn == 1   ? sunlight(pos, n, l)
+         : shadowOn == 2 ? sunlight_cascades(pos, n, l)
+         : shadowOn == 3 ? rt_share(0)
+                         : 1.0;
 }
 
 // Share of point/spot light `i` (atlas row `row`) reaching `pos`, 3x3 PCF on
@@ -424,6 +467,8 @@ float lamp_share(int i, vec3 pos, vec3 n, out vec3 li) {
   float nli = max(dot(n, li), 0.0);
   if (nli > 0.0 && att > 0.0 && lightShadow[i] >= 0)
     att *= lamplight(lightShadow[i], lightSpot[i].w < -1.5, lightPos[i].xyz, pos, n, li);
+  else if (nli > 0.0 && att > 0.0 && lightShadow[i] <= -2)
+    att *= rt_share(-1 - lightShadow[i]);
   return att;
 }
 
@@ -505,6 +550,8 @@ float lamp_share_ext(lamp a, vec3 pos, vec3 n, out vec3 li) {
   int row = int(a.linear.w);
   if (nli > 0.0 && att > 0.0 && row >= 0)
     att *= lamplight_ext(row, a.spot.w < -1.5, a.pos.xyz, pos, n, li);
+  else if (nli > 0.0 && att > 0.0 && row <= -2)
+    att *= rt_share(-1 - row);
   return att;
 }
 
@@ -537,6 +584,71 @@ int lamp_index(int first, int j) {
   return int(texelFetch(indexTex, ivec2(at % 4096, at / 4096), 0).r);
 }
 
+#ifdef NJIN_EXT
+#define GRID_COUNT irrCount
+#define GRID_SIZE irrSize
+#define GRID_MIN irrMin
+#define GRID_FETCH_DEPTH(at) texelFetch(irrDepth, at, 0)
+
+// The grid's spacing between points along each axis.
+vec3 grid_spacing() {
+  vec3 cnt = GRID_COUNT.xyz;
+  return GRID_SIZE.xyz / max(cnt - 1.0, vec3(1.0));
+}
+
+// Where grid point `q` (its indices) stands.
+vec3 grid_point(vec3 q) {
+  vec3 cnt = GRID_COUNT.xyz;
+  vec3 t = mix(vec3(0.5), q / max(cnt - 1.0, vec3(1.0)), vec3(greaterThan(cnt, vec3(1.0))));
+  return GRID_MIN.xyz + GRID_SIZE.xyz * t;
+}
+
+// Octahedral coordinates (0..1) of direction `d`.
+vec2 grid_oct(vec3 d) {
+  d /= abs(d.x) + abs(d.y) + abs(d.z);
+  vec2 e = d.z >= 0.0 ? d.xy : (1.0 - abs(d.yx)) * vec2(d.x >= 0.0 ? 1.0 : -1.0, d.y >= 0.0 ? 1.0 : -1.0);
+  return e * 0.5 + 0.5;
+}
+
+// Point `col`'s mean distance to what is round it towards `d`, and the mean
+// square: its 16 x 16 octahedral depth tile, filtered by hand.
+vec2 grid_depth(int col, vec3 d) {
+  vec2 t = clamp(grid_oct(d) * 16.0 - 0.5, vec2(0.0), vec2(15.0));
+  ivec2 a = ivec2(floor(t));
+  ivec2 b = min(a + 1, ivec2(15));
+  vec2 f = t - vec2(a);
+  vec2 m00 = GRID_FETCH_DEPTH(ivec2(col * 16 + a.x, a.y)).rg, m10 = GRID_FETCH_DEPTH(ivec2(col * 16 + b.x, a.y)).rg;
+  vec2 m01 = GRID_FETCH_DEPTH(ivec2(col * 16 + a.x, b.y)).rg, m11 = GRID_FETCH_DEPTH(ivec2(col * 16 + b.x, b.y)).rg;
+  return mix(mix(m00, m10, f.x), mix(m01, m11, f.x), f.y);
+}
+
+// How much point `col` at `at` sees a surface at `pos` facing `n` (DDGI's
+// weights): less as the surface turns away from it, and by Chebyshev's
+// bound from its depths when something lies between them.
+float grid_visibility(int col, vec3 at, vec3 pos, vec3 n) {
+  vec3 s = grid_spacing();
+  vec3 biased = pos + n * (0.2 * min(s.x, min(s.y, s.z)));
+  vec3 d = biased - at;
+  float r = length(d);
+  if (r < 1e-4)
+    return 1.0;
+  d /= r;
+  float wrap = (dot(-d, n) + 1.0) * 0.5;
+  float w = wrap * wrap + 0.2;
+  vec2 m = grid_depth(col, d);
+  if (r > m.x) {
+    float variance = abs(m.y - m.x * m.x);
+    float e = r - m.x;
+    float c = variance / (variance + e * e);
+    w *= max(c * c * c, 0.0);
+  }
+  // Tiny weights crushed further, so a hidden point's light does not creep in.
+  if (w < 0.2)
+    w *= w * w / 0.04;
+  return max(w, 1e-6);
+}
+#endif
+
 // The ambient light at `pos` from the irradiance volume, in linear light, and
 // how much of it applies (0 outside the box, rising over its blend).
 vec3 grid_irradiance(vec3 n, vec3 pos, out float weight) {
@@ -556,15 +668,32 @@ vec3 grid_irradiance(vec3 n, vec3 pos, out float weight) {
   // The three faces of the ambient cube the normal looks towards.
   int dx = n.x >= 0.0 ? 0 : 1, dy = n.y >= 0.0 ? 2 : 3, dz = n.z >= 0.0 ? 4 : 5;
   vec3 sum = vec3(0.0);
+  float wsum = 0.0;
   for (int c = 0; c < 8; c++) {
     vec3 o = vec3(float(c & 1), float((c >> 1) & 1), float((c >> 2) & 1));
     vec3 p = min(g0 + o, max(cnt - 1.0, vec3(0.0)));
     float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y) * (o.z > 0.5 ? f.z : 1.0 - f.z);
+    int col = int(p.x + cnt.x * (p.y + cnt.y * p.z));
+    // The ray traced grid (irrCount.w 1) marks the points inside things with
+    // alpha 0: they do not count; one that does not see `pos` hardly.
+    if (irrCount.w > 0.5)
+      w *= texelFetch(irrTex, ivec2(col, 0), 0).a;
     if (w <= 0.0)
       continue;
-    int col = int(p.x + cnt.x * (p.y + cnt.y * p.z));
+    if (irrCount.w > 0.5)
+      w *= grid_visibility(col, grid_point(p), pos, n);
     sum += w * (n2.x * texelFetch(irrTex, ivec2(col, dx), 0).rgb + n2.y * texelFetch(irrTex, ivec2(col, dy), 0).rgb +
                 n2.z * texelFetch(irrTex, ivec2(col, dz), 0).rgb);
+    wsum += w;
+  }
+  if (irrCount.w > 0.5) {
+    if (wsum <= 1e-4) {
+      weight = 0.0;
+      return vec3(0.0);
+    }
+    // Where nearly every point is hidden the few left are not trusted alone:
+    // divided by at least 0.05, it darkens instead of flaring.
+    sum /= max(wsum, 0.05);
   }
   return sum * irrSize.w;
 }
@@ -890,6 +1019,7 @@ vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
   }
   if (probeCount > 0)
     probe_light(n, pos, r, rough, diffuseLight, specLight);
+  rt_reflection(rough, lin, specLight);
   float gw;
   vec3 g = grid_irradiance(n, pos, gw);
   if (gw > 0.0)
@@ -910,6 +1040,7 @@ vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
       vec3 unusedDiffuse = vec3(0.0);
       probe_light(n, pos, reflect(-v, n), cr, unusedDiffuse, ccLight);
     }
+    rt_reflection(cr, lin, ccLight);
     around = around * (1.0 - fc) + ccLight * fc * occlusion;
   }
   color += around;
@@ -1764,6 +1895,10 @@ render3d_locations find_locations(Shader shader) {
   l.lightmap_params = loc("lightmapParams");
   l.light_map = loc("lightMap");
   l.oit_pass = loc("oitPass");
+  l.rt_on = loc("rtOn");
+  l.rt_mask = loc("rtMask");
+  l.rt_refl = loc("rtRefl");
+  l.rt_refl_tex = loc("rtReflTex");
   return l;
 }
 
@@ -2374,12 +2509,15 @@ void set_bones(const render3d_state &s, Shader shader, i32 loc, const draw3d_cmd
 void draw_shape(const render3d_state &s, const draw3d_cmd &c, const Matrix &view_proj, bool ortho, vec3 ray_dir,
                 bool depth_only);
 void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only);
-void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover = false);
+void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover = false,
+                  bool every_opaque = false);
 
 // Depth of every opaque shadow caster into the bound target, seen through the
 // current matrices (`view_proj`): along `dir` for the sun (orthographic), from
 // the SDF shader's viewPos for a lamp.
-void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover) {
+// `every_opaque`: the camera's depth prepass of ray traced shadows, which
+// takes the opaque draws that cast no shadow too, and every one in view.
+void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover, bool every_opaque) {
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
   map_set maps = s.maps;
   Material depth{};
@@ -2400,25 +2538,26 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
         world3d_draw_depth(ctx, c, view_proj);
       continue;
     }
+    const bool shadowed = every_opaque || (c.material.cast_shadows && !c.material.unlit);
     if (c.is_shape) {
-      if (c.material.cast_shadows && !c.material.unlit)
+      if (shadowed)
         draw_shape(s, c, view_proj, ortho, dir, true);
       continue;
     }
     if (c.buffer.id != 0) {
-      if (c.material.cast_shadows && !c.material.unlit)
+      if (shadowed)
         draw_instanced_cmd(ctx, c, true);
       continue;
     }
     if (c.mesh != nullptr) {
-      if (c.material.cast_shadows && !c.material.unlit)
+      if (shadowed)
         DrawMesh(*c.mesh, depth, c.transform);
       continue;
     }
     bool bones_set = false;
     for_each_model_mesh(ctx, c,
                         [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &transform, bool posed) {
-                          if (!mm.surface.cast_shadows)
+                          if (!mm.surface.cast_shadows && !every_opaque)
                             return;
                           if (posed && !bones_set) {
                             set_bones(s, s.depth_skinned, s.depth_skinned_bones, c);
@@ -2613,7 +2752,7 @@ bool render_lamp_shadows(context &ctx) {
   const i32 max_rows = std::clamp(s.light.source_shadows, 0, s.lext.on ? light3d_shadow_limit : light3d_shadow_max);
   const i32 count = std::min((i32)s.lights.size(), s.lext.on ? light3d_limit : light3d_max);
   for (i32 i = 0; i < count && ls.rows < max_rows; i++)
-    if (s.lights[(usize)i].shadows && s.lights[(usize)i].radius > 0.0f)
+    if (s.lights[(usize)i].shadows && s.lights[(usize)i].radius > 0.0f && !(s.rt.wanted && s.rt.lamp[(usize)i] >= 0))
       ls.row[(usize)i] = ls.rows++;
   if (ls.rows == 0 || s.cmds.empty())
     return false;
@@ -2738,6 +2877,17 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   i32 rows[light3d_max];
   for (i32 i = 0; i < light3d_max; i++)
     rows[i] = lamps && i < count ? ls.row[(usize)i] : -1;
+  // Ray traced lamps read their channel of the mask (-2, -3, -4).
+  const bool rt = s.rt.live && s.rt.reading;
+  set_i32(sh, l.rt_on, rt ? 1 : 0);
+  set_i32(sh, l.rt_mask, rt_mask_unit);
+  set_f32(sh, l.rt_refl,
+          s.rt.refl_live && s.rt.reading ? std::max(s.light.reflection_roughness, 0.001f) : 0.0f);
+  set_i32(sh, l.rt_refl_tex, rt_refl_unit);
+  if (s.rt.wanted)
+    for (i32 i = 0; i < count; i++)
+      if (s.rt.lamp[(usize)i] >= 0)
+        rows[i] = -2 - s.rt.lamp[(usize)i];
   SetShaderValueV(sh, l.light_shadow, rows, SHADER_UNIFORM_INT, light3d_max);
   set_i32(sh, l.lamp_map, lamp_unit);
   if (lamps && s.lext.on) {
@@ -2754,7 +2904,7 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   }
 
   const bool cascaded = shadows && s.cascades > 1;
-  set_i32(sh, l.shadow_on, cascaded ? 2 : shadows ? 1 : 0);
+  set_i32(sh, l.shadow_on, rt && s.rt.sun ? 3 : cascaded ? 2 : shadows ? 1 : 0);
   if (cascaded) {
     // The atlas is a row of square tiles: a texel is 1 / its height.
     const i32 tile = s.shadow.height;
@@ -3437,6 +3587,7 @@ render3d_state::~render3d_state() {
   probes_free(probes);
   volume_free(volume);
   oit_free(oit);
+  rt_free(rt);
   free_shadow(shadow);
   free_shadow(lamp);
   free_shadow(cover);
@@ -3559,6 +3710,7 @@ void bind_pass_maps(const render3d_state &s, bool shadows, bool lamps) {
   if (s.lext.on)
     lights_ext_bind(s.lext);
   probes_bind(s);
+  rt_bind(s.rt);
   rlActiveTextureSlot(0);
 }
 
@@ -3569,10 +3721,11 @@ void unbind_pass_maps(const render3d_state &s) {
     rlActiveTextureSlot(unit);
     rlDisableTexture();
   }
-  const bool extra = s.lext.on || s.probes.atlas != 0 || s.probes.grid_ready || s.scene_bound;
+  const bool extra = s.lext.on || s.probes.atlas != 0 || s.probes.grid_ready || s.probes.rt_live || s.scene_bound ||
+                     s.rt.live || s.rt.refl_live;
   if (extra)
     for (i32 unit : {light_tex_unit, cluster_tex_unit, index_tex_unit, lamp_mat_unit, probe_atlas_unit, probe_sh_unit,
-                     grid_tex_unit, scene_color_unit}) {
+                     grid_tex_unit, scene_color_unit, rt_mask_unit, rt_refl_unit, grid_depth_unit}) {
       rlActiveTextureSlot(unit);
       rlDisableTexture();
     }
@@ -3692,7 +3845,8 @@ bool capture_probes(context &ctx, bool shadows, const Matrix &light_vp, bool lam
     drew = true;
     one = one || !slot.desc.live;
   }
-  if (p.grid_set) {
+  // A grid traced by rays (render3d_rt.cpp) is not captured.
+  if (p.grid_set && !ctx_ref<render3d_state>(ctx)->rt.gi) {
     const irradiance3d_desc &g = p.grid;
     const i32 nx = std::clamp(g.count_x, 1, 16), ny = std::clamp(g.count_y, 1, 16), nz = std::clamp(g.count_z, 1, 16);
     const i32 total = nx * ny * nz;
@@ -3791,6 +3945,43 @@ bool render3d_wants_scene(const context &ctx) {
   return s.transmission_seen || s.light.volume_density > 0.0f || hdr_wanted(ctx);
 }
 
+namespace {
+// Ray traced shadows: the camera's depth of every opaque draw into the
+// prepass target, then the trace from it (render3d_rt.cpp). True when it bound
+// another target (the pass's must be bound again).
+bool rt_prepass(context &ctx) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  // The irradiance grid alone needs no depth.
+  if (!s.rt.sun && s.rt.lamp_count == 0 && !s.rt.reflect) {
+    rt_trace(ctx, MatrixIdentity());
+    return false;
+  }
+  const vec2 size = pass_pixels(ctx);
+  if (!rt_prepass_begin(ctx, (i32)size.x, (i32)size.y)) {
+    s.rt.wanted = false;
+    return true;
+  }
+  load_camera(ctx, s.camera);
+  const Matrix view_proj = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+  // SDF shapes are traced from the eye.
+  set_vec3(s.sdf, s.sdf_locs.view_pos, s.camera.position);
+  rlEnableDepthTest();
+  draw_casters(ctx, view_proj, s.camera.projection == camera3d_orthographic,
+               normalize(s.camera.target - s.camera.position), false, true);
+  rt_trace(ctx, view_proj);
+  return true;
+}
+
+// Whether the pass draws water, which is lit in the translucent pass and so
+// takes the sun's shadow map, not the ray traced mask.
+bool draws_water(const render3d_state &s) {
+  for (const draw3d_cmd &c : s.cmds)
+    if (c.world == world3d_water)
+      return true;
+  return false;
+}
+} // namespace
+
 void end_3d(context &ctx) {
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
@@ -3807,15 +3998,20 @@ void end_3d(context &ctx) {
   // The extended lights replace the uniform arrays for this pass.
   s.lext.on = lights_ext_wanted(s.light);
   s.transmission_now = any_transmission(ctx, s);
+  // light3d::ray_traced_shadows: the sun and some lamps from a traced mask the
+  // extended variant reads, not their shadow maps.
+  bool rt = rt_wanted(ctx, offscreen);
   // The lighting shaders' extended variant, only for a pass that needs it;
   // where it cannot be built, the extended lights fall back to the 16 lamps.
   const probe_state &probes = s.probes;
   bool probes_on = probes.grid_set;
   for (const probe_slot &p : probes.slots)
     probes_on = probes_on || p.alive;
-  const bool ext = use_ext(s, s.lext.on || probes_on || s.transmission_now);
-  if (!ext)
+  const bool ext = use_ext(s, s.lext.on || probes_on || s.transmission_now || rt);
+  if (!ext) {
     s.lext.on = false;
+    s.rt.wanted = rt = false;
+  }
   world3d_use_ext(ctx, ext);
 
   bool shadows = false;
@@ -3826,7 +4022,10 @@ void end_3d(context &ctx) {
   if (q.shadow_size_max > 0)
     sun_size = std::max(256, std::min(sun_size, q.shadow_size_max));
   s.cascades = 1;
-  if (s.light.shadows && q.shadows && !s.cmds.empty()) {
+  // A traced sun still needs its map for what is lit outside the opaque draws:
+  // volumetric fog, glass that lets light through, water.
+  const bool sun_map = !(rt && s.rt.sun) || s.light.volume_density > 0.0f || s.transmission_now || draws_water(s);
+  if (s.light.shadows && q.shadows && !s.cmds.empty() && sun_map) {
     // The cascades side by side in one atlas, or the single map.
     const i32 n = cascade_count(s);
     if (ensure_shadow(s.shadow, sun_size * n, sun_size)) {
@@ -3865,8 +4064,9 @@ void end_3d(context &ctx) {
   // Reflection probes and the irradiance volume, from this pass's draws.
   const bool captured = !offscreen && capture_probes(ctx, shadows, light_vp, lamps);
   // light3d::hdr: the pass draws into the HDR image, tone mapped at its end.
+  const bool traced = rt && rt_prepass(ctx);
   s.hdr_out = !offscreen && hdr_wanted(ctx) && hdr_begin(ctx);
-  if (shadows || lamps || cover_now || env_drew || captured || s.hdr.active) {
+  if (shadows || lamps || cover_now || env_drew || captured || s.hdr.active || traced) {
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
   }
@@ -3885,7 +4085,9 @@ void end_3d(context &ctx) {
              ctx_ref<camera_post>(ctx)->drawing;
   s.oit_pass = 0;
   s.oit_done = false;
+  s.rt.reading = s.rt.live || s.rt.refl_live;
   all_pass_uniforms(ctx, shadows, light_vp, lamps);
+  s.rt.reading = false;
   const Matrix view_proj = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   bind_pass_maps(s, shadows, lamps);
   // The environment as the sky, behind everything of the pass.
@@ -3907,6 +4109,9 @@ void end_3d(context &ctx) {
     rlEnableDepthTest();
     bind_pass_maps(s, shadows, lamps);
   }
+  // The mask holds the opaque surfaces' shadows: glass and water take the maps.
+  if (s.rt.live || s.rt.refl_live)
+    all_pass_uniforms(ctx, shadows, light_vp, lamps);
   // Glass after everything it shows, tested against the depth but not
   // writing it, so panes behind panes still show.
   s.translucent_pass = true;
@@ -3967,6 +4172,7 @@ void end_3d(context &ctx) {
   s.active = false;
   s.oit_on = false;
   s.hdr_out = false;
+  s.rt.live = s.rt.wanted = s.rt.refl_live = false;
   world3d_pass_end(ctx);
   rlDrawRenderBatchActive();
   if (offscreen) {

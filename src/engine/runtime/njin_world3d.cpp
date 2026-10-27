@@ -236,6 +236,7 @@ void mark_dirty(terrain3d_slot &t, i32 x0, i32 z0, i32 x1, i32 z1) {
     t.dx1 = std::max(t.dx1, x1), t.dz1 = std::max(t.dz1, z1);
   }
   t.dirty = true;
+  t.edits++;
 }
 
 i32 pow2_at_most(i32 v) {

@@ -173,6 +173,12 @@ nên preset `debug` vẫn build như cũ.
 Nếu máy có [ccache](https://ccache.dev) 4.10 trở lên, njin tự biên dịch qua nó (tắt bằng `-DNJIN_CCACHE=OFF`):
 build lại sau `rm -rf build` hay khi đổi nhánh thì lấy kết quả từ cache thay vì biên dịch lại.
 
+Bóng bằng tia (@ref shadow3d_raytraced) cần build engine với `-DNJIN_RAYTRACING=ON`, hiện chỉ trên Windows. CMake
+tải thêm [NVRHI](https://github.com/NVIDIA-RTX/NVRHI) (MIT) và Vulkan-Headers, và cần `glslc` của
+[Vulkan SDK](https://vulkan.lunarg.com) để biên dịch shader ray tracing lúc build: CMake tìm nó theo biến môi trường
+`VULKAN_SDK` hay trong `C:/VulkanSDK/`, hoặc đặt `-DNJIN_GLSLC=<đường dẫn>`. Người chơi không cần SDK, chỉ cần driver
+có Vulkan. Mặc định tắt, nên build thường không cần gì thêm.
+
 ## Gặp lỗi
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |

@@ -1,0 +1,40 @@
+// Ray traced reflections (light3d::ray_traced_reflections), render3d_rt_vk.cpp.
+//
+// For each pixel of the pass's depth, one ray along the mirror direction of
+// the surface (its normal from the depth); what it meets is lit by
+// common.glsl's shade_hit. rgb the light, a 1 where something was met; the
+// lighting shaders keep their environment or probes where a is 0, and use the
+// ray's light only on smooth surfaces.
+#version 460
+#extension GL_EXT_ray_query : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference_uvec2 : require
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT scene;
+layout(set = 0, binding = 384, r32f) uniform readonly image2D depthImg;
+layout(set = 0, binding = 385, rgba16f) uniform writeonly image2D outImg;
+layout(set = 0, binding = 386, rgba32f) uniform readonly image2D gridImg;
+layout(set = 0, binding = 387, rgba32f) uniform readonly image2D gridDepth;
+#define RT_SCENE
+#define RT_DEPTH
+#define RT_SHADE
+#include "common.glsl"
+
+void main() {
+  ivec2 px = ivec2(gl_GlobalInvocationID.xy);
+  if (px.x >= int(p.size.x) || px.y >= int(p.size.y))
+    return;
+  float d = imageLoad(depthImg, px).r;
+  if (d >= 1.0) {
+    imageStore(outImg, px, vec4(0.0));
+    return;
+  }
+  vec3 pos = world_at(px);
+  vec3 n = normal_at(px, pos);
+  vec3 v = normalize(pos - p.eye.xyz);
+  vec3 r = reflect(v, n);
+  vec3 o = pos + n * (0.003 + 0.0008 * distance(pos, p.eye.xyz));
+  hit_t h = trace_closest(o, r, 2000.0);
+  imageStore(outImg, px, h.hit ? vec4(shade_hit(h), 1.0) : vec4(0.0));
+}

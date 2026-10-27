@@ -61,6 +61,8 @@ struct render3d_locations {
   i32 tone_map = -1, exposure = -1, light_color_linear = -1, ambient_linear = -1, light_colors_linear = -1;
   i32 emission_linear = -1, pbr_params = -1, use_pbr_maps = -1;
   i32 env_on = -1, env_sh = -1, env_map = -1, env_params = -1;
+  // Ray traced shadows (render3d_rt.cpp).
+  i32 rt_on = -1, rt_mask = -1, rt_refl = -1, rt_refl_tex = -1;
 };
 
 // A draw of the outdoor world (njin_world3d.h), made by world3d_draw.cpp.
@@ -274,6 +276,7 @@ struct render3d_state {
   probe_state probes;
   volume_state volume;
   oit_state oit;
+  rt_state rt;
   // Lit colours are written for the HDR image (or a probe's capture): the
   // shaders' hdrOut.
   bool hdr_out = false;

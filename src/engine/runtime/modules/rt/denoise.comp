@@ -1,0 +1,43 @@
+// Smooths shadow.comp's few-ray result: a 7 x 7 Gaussian over the pixels at
+// about the same distance (relative depth difference) and facing about the
+// same way, so the noise goes and shadow edges between objects stay.
+#version 460
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 384, r32f) uniform readonly image2D depthImg;
+layout(set = 0, binding = 385, rgba8) uniform readonly image2D rawImg;
+layout(set = 0, binding = 386, rgba8) uniform writeonly image2D outImg;
+#include "common.glsl"
+
+float view_depth(ivec2 px) {
+  float d = imageLoad(depthImg, px).r;
+  vec2 ndc = (vec2(px) + 0.5) / p.size.xy * 2.0 - 1.0;
+  vec4 w = p.invViewProj * vec4(ndc, d * 2.0 - 1.0, 1.0);
+  return distance(w.xyz / w.w, p.eye.xyz);
+}
+
+void main() {
+  ivec2 px = ivec2(gl_GlobalInvocationID.xy);
+  ivec2 hi = ivec2(p.size.xy) - 1;
+  if (px.x > hi.x || px.y > hi.y)
+    return;
+  if (imageLoad(depthImg, px).r >= 1.0) {
+    imageStore(outImg, px, vec4(1.0));
+    return;
+  }
+  float z = view_depth(px);
+  int r = int(p.lampInfo.y);
+  vec4 sum = vec4(0.0);
+  float wsum = 0.0;
+  for (int y = -r; y <= r; y++)
+    for (int x = -r; x <= r; x++) {
+      ivec2 q = clamp(px + ivec2(x, y), ivec2(0), hi);
+      if (imageLoad(depthImg, q).r >= 1.0)
+        continue;
+      float zq = view_depth(q);
+      float w = exp(-float(x * x + y * y) / float(max(r * r, 1))) * exp(-abs(zq - z) / max(z * 0.01, 1e-3));
+      sum += imageLoad(rawImg, q) * w;
+      wsum += w;
+    }
+  imageStore(outImg, px, wsum > 0.0 ? sum / wsum : imageLoad(rawImg, px));
+}

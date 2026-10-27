@@ -240,6 +240,38 @@ struct light3d {
   f32 volume_ambient = 0.3f;   ///< Phần ánh sáng nền (`ambient`) mà sương tán xạ.
   bool volume_lamps = true;    ///< Đèn điểm và đèn nón cũng tán xạ trong sương (theo bóng của chúng).
   /// @}
+
+  /// @name Bóng bằng ray tracing
+  /// Bóng của mặt trời và của tối đa ba đèn có `light3d_source::shadows` được tính
+  /// bằng tia (ray tracing trên Vulkan, bên cạnh OpenGL) thay cho ảnh bóng: sắc chỗ
+  /// vật chạm đất, mềm dần ra xa theo cỡ của nguồn sáng, không răng cưa, không lệch
+  /// bóng, không giới hạn bởi `shadow_range`. Cần njin được build với
+  /// `-DNJIN_RAYTRACING=ON` (Windows) và một GPU có ray tracing (raytracing_available()).
+  /// Khi không có, njin dùng ảnh bóng như cũ (`shadows`, `source_shadows`).
+  ///
+  /// Chỉ cho lần vẽ vào thế giới; hình SDF (draw_shape3d) và cỏ chưa đổ bóng bằng
+  /// tia, kính và nước vẫn nhận bóng từ ảnh bóng nếu `shadows` bật.
+  /// @{
+
+  /// Bật bóng bằng tia. Mặt trời đổ bóng khi `shadows` cũng bật; đèn khi có
+  /// `light3d_source::shadows`.
+  bool ray_traced_shadows = false;
+  /// Đường kính góc của mặt trời, độ. 0.53 là mặt trời thật; lớn hơn thì bóng mềm hơn
+  /// (trời âm u: 2..5), 0 là bóng sắc tuyệt đối.
+  f32 sun_angle = 0.53f;
+  /// Số tia mỗi điểm ảnh mỗi nguồn sáng, 1..16. Ít tia thì bóng mềm có hạt, bộ lọc
+  /// khử nhiễu làm mịn lại; nhiều thì mịn hơn, tốn hơn.
+  i32 shadow_rays = 2;
+  /// Bán kính bộ lọc khử nhiễu, pixel, 0..8. 0 là không lọc.
+  i32 shadow_denoise = 3;
+  /// Phản chiếu bằng tia: vật liệu PBR nhẵn (`material3d::pbr`, `roughness` dưới
+  /// `reflection_roughness`) phản chiếu đúng những vật quanh nó, cả vật ngoài màn hình,
+  /// thay cho ảnh môi trường hay probe. Vật được phản chiếu tô đơn giản (màu nền, nắng
+  /// qua bóng của nó, đèn, ánh sáng nền); chỗ tia không gặp gì vẫn lấy môi trường.
+  bool ray_traced_reflections = false;
+  /// Độ nhám lớn nhất còn phản chiếu bằng tia; nhám hơn thì dần về môi trường/probe.
+  f32 reflection_roughness = 0.5f;
+  /// @}
 };
 
 /// Đặt ánh sáng chung. Có hiệu lực từ begin_3d() tiếp theo.
@@ -251,6 +283,14 @@ void light3d_set(context &ctx, const light3d &light);
 /// @param ctx Context của engine.
 /// @return Giá trị đặt bởi light3d_set(), hoặc mặc định của njin::light3d.
 light3d light3d_get(const context &ctx);
+
+/// Bóng bằng tia (light3d::ray_traced_shadows) có dùng được không: njin được build
+/// với `NJIN_RAYTRACING`, GPU và driver có ray tracing và chia ảnh với OpenGL. Lần
+/// gọi đầu khởi động Vulkan (vài trăm mili giây), nên gọi lúc tải game, sau khi mở
+/// cửa sổ, chẳng hạn để hiện hay ẩn tuỳ chọn trong menu đồ hoạ.
+/// @param ctx Context của engine.
+/// @return true khi bóng bằng tia sẽ được dùng.
+bool raytracing_available(context &ctx);
 
 /// Loại đèn của njin::light3d_source.
 enum light3d_kind {
@@ -277,6 +317,9 @@ struct light3d_source {
   /// bóng). Tốn: mọi hình đổ bóng được vẽ thêm 6 lần cho một đèn điểm, 1 lần cho một
   /// đèn nón, nên chỉ bật cho vài đèn quan trọng (đèn pin, đèn treo giữa phòng).
   bool shadows = false;
+  /// Bán kính của bóng đèn, đơn vị thế giới, cho bóng bằng tia
+  /// (light3d::ray_traced_shadows): lớn thì bóng mềm hơn. 0 là bóng sắc.
+  f32 source_size = 0.05f;
 };
 
 /// Số đèn tối đa trong một lần vẽ 3D, mặc định. Đèn thêm quá số này bị bỏ qua,
@@ -364,6 +407,15 @@ struct irradiance3d_desc {
   i32 count_z = 4; ///< Số điểm của lưới theo z, 1..16.
   f32 intensity = 1.0f; ///< Độ sáng của ánh sáng lấy từ lưới.
   f32 blend = 0.5f;     ///< Bề dày dải mép hộp mờ dần sang `ambient`, mét.
+  /// Tính lưới bằng tia mỗi frame thay vì chụp một lần (cần raytracing_available()):
+  /// ánh sáng gián tiếp theo kịp đèn, nắng và vật di chuyển, và dội nhiều lần (tường đỏ
+  /// hắt sáng đỏ lên sàn, phòng sáng dần qua cửa sổ). Không có ray tracing thì lưới
+  /// được chụp như cũ.
+  bool ray_traced = false;
+  /// Số tia mỗi điểm mỗi frame (khi `ray_traced`), 16..256.
+  i32 rays = 128;
+  /// Phần giữ lại từ frame trước, 0..0.99: lớn thì mịn và chậm theo kịp thay đổi.
+  f32 history = 0.9f;
 };
 
 /// Đặt lưới ánh sáng gián tiếp của cảnh (một lưới mỗi lúc; đặt lại thì thay lưới cũ).

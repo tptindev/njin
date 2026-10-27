@@ -32,6 +32,9 @@ struct terrain3d_slot {
   // Changed since the GPU copy was last updated: [x0, x1) x [z0, z1) samples.
   bool dirty = true;
   i32 dx0 = 0, dz0 = 0, dx1 = 0, dz1 = 0;
+  // Counts the edits (mark_dirty), so the ray traced copy (render3d_rt.cpp)
+  // knows when to rebuild.
+  u32 edits = 0;
   // GPU (world3d_draw.cpp): heights (R32F), normals and layer weights (RGBA8).
   u32 height_tex = 0, normal_tex = 0, splat_tex = 0;
 };

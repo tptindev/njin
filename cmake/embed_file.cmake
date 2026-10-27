@@ -5,8 +5,13 @@
 # at configure time. The output is only rewritten when its content changes, so
 # an unchanged font does not rebuild the runtime, and CMake re-runs when the
 # input file does.
+#
+# As a script (cmake -DOUT=... -DIN=... -DSYMBOL=... -P embed_file.cmake) it
+# does the same at build time, for a file the build makes (the SPIR-V shaders).
 function(njin_embed_file out input symbol)
-  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${input}")
+  if(NOT CMAKE_SCRIPT_MODE_FILE)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${input}")
+  endif()
   file(READ "${input}" hex HEX)
   string(LENGTH "${hex}" hex_length)
   math(EXPR size "${hex_length} / 2")
@@ -25,3 +30,7 @@ function(njin_embed_file out input symbol)
        "} // namespace njin\n")
   configure_file("${staging}" "${out}" COPYONLY)
 endfunction()
+
+if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
+  njin_embed_file("${OUT}" "${IN}" "${SYMBOL}")
+endif()

@@ -293,7 +293,7 @@ void probes_uniforms(const render3d_state &s, Shader sh, bool capturing) {
     set_i(sh, "probeSH", probe_sh_unit);
     set_v4(sh, "probeParams", {(f32)probe_levels, 0.5f / (f32)probe_level, (f32)probe3d_max, 0.5f / (f32)probe_column});
   }
-  const bool grid = !capturing && p.grid_ready && p.grid_set;
+  const bool grid = !capturing && (p.grid_ready || p.rt_live) && p.grid_set;
   set_i(sh, "irrOn", grid ? 1 : 0);
   if (grid) {
     const irradiance3d_desc &g = p.grid;
@@ -302,8 +302,9 @@ void probes_uniforms(const render3d_state &s, Shader sh, bool capturing) {
     set_v4(sh, "irrMin", {lo.x, lo.y, lo.z, std::max(g.blend, 0.01f)});
     set_v4(sh, "irrSize", {size.x, size.y, size.z, std::max(g.intensity, 0.0f)});
     set_v4(sh, "irrCount", {(f32)std::clamp(g.count_x, 1, 16), (f32)std::clamp(g.count_y, 1, 16),
-                             (f32)std::clamp(g.count_z, 1, 16), 0.0f});
+                             (f32)std::clamp(g.count_z, 1, 16), p.rt_live ? 1.0f : 0.0f});
     set_i(sh, "irrTex", grid_tex_unit);
+    set_i(sh, "irrDepth", grid_depth_unit);
   }
 }
 
@@ -315,9 +316,14 @@ void probes_bind(const render3d_state &s) {
     rlActiveTextureSlot(probe_sh_unit);
     rlEnableTexture(p.sh_tex);
   }
-  if (p.grid_ready) {
+  // The ray traced grid in place of the captured one while it runs.
+  if (p.rt_live || p.grid_ready) {
     rlActiveTextureSlot(grid_tex_unit);
-    rlEnableTexture(p.grid_tex);
+    rlEnableTexture(p.rt_live ? p.rt_tex : p.grid_tex);
+  }
+  if (p.rt_live) {
+    rlActiveTextureSlot(grid_depth_unit);
+    rlEnableTexture(p.rt_depth);
   }
   rlActiveTextureSlot(0);
 }
@@ -371,6 +377,8 @@ void irradiance3d_set(context &ctx, const irradiance3d_desc &desc) {
   p.grid_ready = false;
   p.grid_next = 0;
   p.grid_data.clear();
+  p.rt_live = false;
+  p.rt_reset = true;
 }
 
 void irradiance3d_refresh(context &ctx) {
@@ -387,5 +395,6 @@ void irradiance3d_clear(context &ctx) {
   p.grid_set = false;
   p.grid_ready = false;
   p.grid_next = 0;
+  p.rt_live = false;
 }
 } // namespace njin

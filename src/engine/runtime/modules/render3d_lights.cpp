@@ -77,7 +77,8 @@ void lights_ext_update(render3d_state &s, vec2 size) {
     const f32 inner = half * (1.0f - clamp(src.softness, 0.0f, 1.0f));
     const vec3 d = normalize(src.direction);
     const rgb_linear lc = linear_of(src.color);
-    const i32 row = s.lamps.row[(usize)i];
+    // A ray traced lamp reads its channel of the mask instead (-2, -3, -4).
+    const i32 row = s.rt.wanted && s.rt.lamp[(usize)i] >= 0 ? -2 - s.rt.lamp[(usize)i] : s.lamps.row[(usize)i];
     const f32 v[16] = {src.position.x, src.position.y, src.position.z, std::max(src.radius, 0.001f),
                        src.color.r * k, src.color.g * k, src.color.b * k, std::cos(inner),
                        d.x, d.y, d.z, src.kind == light3d_spot ? std::cos(half) : -2.0f,

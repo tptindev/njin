@@ -28,6 +28,9 @@ constexpr i32 probe_atlas_unit = 20;
 constexpr i32 probe_sh_unit = 21;
 constexpr i32 grid_tex_unit = 22;
 constexpr i32 scene_color_unit = 23;
+constexpr i32 rt_mask_unit = 24;
+constexpr i32 rt_refl_unit = 25;
+constexpr i32 grid_depth_unit = 26;
 constexpr i32 lightmap_unit = 12;
 // render3d.cpp's units of the sun's and the lamps' shadow maps.
 constexpr i32 sun_shadow_unit = 14;
@@ -147,6 +150,10 @@ struct probe_state {
   env_maps builder; // makes the maps of one probe at a time
   Shader equi{};
   bool tried = false, ok = false;
+  // The irradiance grid traced by rays (irradiance3d_desc::ray_traced,
+  // render3d_rt.cpp): its GL name, holding light; `rt_reset` clears it.
+  u32 rt_tex = 0, rt_depth = 0; // the light, and the depths for the visibility test
+  bool rt_live = false, rt_reset = false;
   // The irradiance volume: an ambient cube per point (6 rows), captured a few
   // points a frame.
   bool grid_set = false, grid_ready = false;
@@ -211,4 +218,46 @@ bool oit_begin(oit_state &o, u32 depth, i32 w, i32 h);
 void oit_bind(const oit_state &o, i32 pass);
 // Lays the result over `target` (w x h).
 void oit_compose(oit_state &o, u32 target);
+
+// ---------------------------------------------------------------------------
+// Ray traced shadows (light3d::ray_traced_shadows), render3d_rt.cpp. The pass's
+// opaque depth is drawn first into `pre_fbo`, copied into an image shared with
+// Vulkan, which traces the sun and up to three lamps from it into the mask the
+// lighting shaders read (rtMask, rt_share()).
+// ---------------------------------------------------------------------------
+constexpr i32 rt_lamp_max = 3;
+struct rt_state {
+  bool tried = false, ok = false; // the Vulkan side started (once)
+  bool wanted = false; // the open pass traces: its sun and lamps are not drawn into shadow maps
+  bool live = false;   // the mask holds this pass's shadows
+  bool reading = false; // the lighting shaders being set up read the mask (opaque draws only)
+  bool sun = false;    // the sun is traced (light3d::shadows)
+  bool reflect = false; // the open pass traces reflections (light3d::ray_traced_reflections)
+  bool gi = false;      // it updates the ray traced irradiance grid
+  bool refl_live = false; // the reflections' image holds this pass's
+  // Channel of the mask of each light (0..2), -1 for none.
+  std::array<i8, light3d_limit> lamp{};
+  std::array<i32, rt_lamp_max> lamp_light{}; // the light of each channel
+  i32 lamp_count = 0;
+  // The depth prepass and the shared images (GL names; Vulkan owns their memory).
+  u32 pre_fbo = 0, pre_depth = 0, pre_color = 0;
+  u32 copy_fbo = 0, depth_tex = 0, mask_tex = 0, refl_tex = 0;
+  i32 w = 0, h = 0;
+  Shader copy{};
+  u32 frame = 0;
+};
+void rt_free(rt_state &r);
+// Whether the open pass traces its shadows: light3d::ray_traced_shadows on a
+// world pass, the Vulkan side started (tried once, logged if it cannot). Picks
+// the lamps traced (rt_state::lamp).
+bool rt_wanted(context &ctx, bool offscreen);
+// Prepares the prepass target for the pass's size and binds it; false when
+// the shared images cannot be made.
+bool rt_prepass_begin(context &ctx, i32 w, i32 h);
+// After the prepass: the depth into the shared image, the scene's geometry to
+// Vulkan, the trace. Sets rt_state::live.
+void rt_trace(context &ctx, const Matrix &view_proj);
+// The mask on its unit (rt_mask_unit).
+void rt_bind(const rt_state &r);
+
 } // namespace njin

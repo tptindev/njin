@@ -18,8 +18,10 @@ struct instance_slot {
   u32 count = 0;    // instances written by the last upload
   bool alive = false;
   // A copy of the last upload, kept only while the debug server runs, so the
-  // inspector's 3D view can place what draw_instanced3d drew.
+  // inspector's 3D view can place what draw_instanced3d drew, or ray traced
+  // shadows need the instances (instance_store::keep_cpu). `uploads` counts them.
   std::vector<f32> cpu;
+  u32 uploads = 0;
 };
 
 // Owns every instance buffer and the quad they share. The destructor frees the
@@ -30,6 +32,9 @@ struct instance_store {
   unsigned int quad_vbo = 0;
   bool probed = false;
   bool available = false;
+  // Keep every upload's copy in instance_slot::cpu (ray traced shadows build
+  // the instances from it; render3d_rt.cpp sets it).
+  bool keep_cpu = false;
   // Shader program id -> locations of instance0..3 (-1 when a shader does not
   // declare one). Looked up once per program; a reloaded shader is a new id.
   std::unordered_map<unsigned int, std::array<int, 4>> locations;
