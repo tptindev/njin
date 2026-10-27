@@ -349,6 +349,12 @@ for (const lamp &l : street_lamps)
 
 Nước có `water3d_desc::lamps` cũng nhận các đèn này. Shader riêng của game vẫn chỉ nhận mặt trời.
 
+Đèn mở rộng (`lights_max` trên 16, `source_shadows` trên 4), probe, lưới ánh sáng và vật xuyên sáng
+(`material3d::transmission`) dùng một bản shader riêng, chỉ được dựng khi một lần vẽ cần tới. Bản đó cần hơn 16
+texture unit; trình điều khiển chỉ có 16 (OpenGL trên macOS) không dựng được nó, nên ở đó các phần này tắt: log ghi
+một cảnh báo, đèn quay về 16 đèn và 4 bóng, probe và lưới không dùng, vật xuyên sáng chỉ trong suốt. Cảnh không
+dùng chúng vẽ như thường trên mọi máy.
+
 ### Sương khối {#fog3d_volume}
 
 `light3d::volume_density` lớn hơn 0 bật sương có thật trong không gian: nắng và đèn tán xạ trong nó thành
@@ -480,7 +486,8 @@ njin::draw_model(ctx, car, {});
 
 Vật xuyên sáng được vẽ sau mọi hình đục, như kính, và nhìn qua bản sao của cảnh đục mà njin tự chép ở lần vẽ
 vào thế giới (từ frame sau frame đầu tiên có vật xuyên sáng). Ở lần vẽ vào render texture không có bản sao,
-nên vật chỉ trong suốt theo `transmission`.
+nên vật chỉ trong suốt theo `transmission`; trên trình điều khiển chỉ có 16 texture unit (macOS) cũng vậy
+(@ref lights3d_many).
 
 Hai trường nữa dùng cho mọi vật liệu, có `pbr` hay không:
 
@@ -516,7 +523,8 @@ njin::irradiance3d_refresh(ctx);
 
 Probe và lưới chỉ được chụp lại khi gọi probe3d_refresh(), irradiance3d_refresh() (hay đặt lại), trừ probe có
 `live`, chụp lại mỗi frame (vẽ lại cảnh 6 lần). Cảnh chụp gồm hình đục, model, địa hình và bầu trời; không có
-hạt, nước và kính.
+hạt, nước và kính. Trên trình điều khiển chỉ có 16 texture unit (macOS), probe và lưới không dùng được
+(@ref lights3d_many).
 
 ## Hiệu ứng
 

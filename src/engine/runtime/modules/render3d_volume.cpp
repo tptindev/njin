@@ -192,8 +192,14 @@ bool load(volume_state &v) {
   if (v.tried)
     return v.ok;
   v.tried = true;
-  const std::string march = std::string("#version 330\n") + render3d_lighting_glsl() + march_main;
+  // With the extended lights (it reads their clusters); a driver that cannot
+  // build that variant gets the plain one, lit by the 16 lamps.
+  const std::string march = std::string("#version 330\n#define NJIN_EXT\n") + render3d_lighting_glsl() + march_main;
   v.march = LoadShaderFromMemory(quad_vs, march.c_str());
+  if (!IsShaderValid(v.march)) {
+    const std::string plain = std::string("#version 330\n") + render3d_lighting_glsl() + march_main;
+    v.march = LoadShaderFromMemory(quad_vs, plain.c_str());
+  }
   v.compose = LoadShaderFromMemory(quad_vs, compose_fs);
   v.ok = IsShaderValid(v.march) && IsShaderValid(v.compose);
   if (!v.ok)

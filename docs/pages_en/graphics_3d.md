@@ -363,6 +363,12 @@ for (const lamp &l : street_lamps)
 
 Water with `water3d_desc::lamps` also takes these lights. A game's own shader still only gets the sun.
 
+The extended lights (`lights_max` above 16, `source_shadows` above 4), probes, the light grid and things that
+transmit (`material3d::transmission`) use a separate variant of the shaders, built only when a pass needs it. That
+variant needs more than 16 texture units; a driver with only 16 (OpenGL on macOS) cannot build it, so there these
+parts are off: the log shows a warning, lights fall back to 16 lights and 4 shadows, probes and the grid are not
+used, things that transmit are only transparent. A scene that does not use them draws as usual on every machine.
+
 ### Volumetric fog {#fog3d_volume}
 
 `light3d::volume_density` above 0 turns on fog that exists in space: sunlight and lamplight scatter in it into
@@ -502,7 +508,8 @@ njin::draw_model(ctx, car, {});
 
 Things that transmit are drawn after every opaque shape, like glass, and look through a copy of the opaque scene
 that njin makes itself in a pass into the world (from the frame after the first with a transmitting thing). In a
-pass into a render texture there is no copy, so the thing is only transparent by `transmission`.
+pass into a render texture there is no copy, so the thing is only transparent by `transmission`; the same on a
+driver with only 16 texture units (macOS) (@ref lights3d_many).
 
 Two more fields work for every material, with or without `pbr`:
 
@@ -539,7 +546,8 @@ njin::irradiance3d_refresh(ctx);
 
 Probes and the grid are only captured again by probe3d_refresh(), irradiance3d_refresh() (or setting them
 again), except a probe with `live`, captured every frame (drawing the scene 6 times again). What is captured
-is opaque shapes, models, terrain and the sky; not particles, water and glass.
+is opaque shapes, models, terrain and the sky; not particles, water and glass. On a driver with only 16 texture
+units (macOS) probes and the grid are not available (@ref lights3d_many).
 
 ## Effects
 

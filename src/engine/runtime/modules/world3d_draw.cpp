@@ -913,6 +913,11 @@ struct world3d_gpu {
   bool failed = false;
   Shader terrain{}, terrain_depth{}, grass{}, grass_depth{}, sky{}, water{}, precip{};
   render3d_locations terrain_locs, grass_locs, water_locs;
+  // The other variant of the lit shaders (world3d_use_ext): the extended one
+  // while the plain one is in use, and the other way round.
+  Shader terrain_alt{}, grass_alt{}, water_alt{};
+  render3d_locations terrain_locs_alt, grass_locs_alt, water_locs_alt;
+  bool ext_tried = false, ext_ok = false, ext_active = false;
   std::vector<std::pair<i64, gpu_mesh>> grids; // (chunk << 8 | step) -> grid
   gpu_mesh blade, sky_tri, precip_mesh, ocean;
   f32 ocean_detail = 0.0f;
@@ -930,7 +935,8 @@ struct world3d_gpu {
     free_mesh(sky_tri);
     free_mesh(precip_mesh);
     free_mesh(ocean);
-    for (Shader *s : {&terrain, &terrain_depth, &grass, &grass_depth, &sky, &water, &precip})
+    for (Shader *s : {&terrain, &terrain_depth, &grass, &grass_depth, &sky, &water, &precip, &terrain_alt, &grass_alt,
+                      &water_alt})
       if (IsShaderValid(*s))
         UnloadShader(*s);
   }
@@ -1601,6 +1607,50 @@ void world3d_pass_uniforms(context &ctx, bool shadows, const Matrix &light_vp, b
   render3d_set_pass_uniforms(s, g.terrain, g.terrain_locs, shadows, light_vp, lamps);
   render3d_set_pass_uniforms(s, g.grass, g.grass_locs, shadows, light_vp, lamps);
   render3d_set_pass_uniforms(s, g.water, g.water_locs, shadows, light_vp, lamps);
+}
+
+void world3d_use_ext(context &ctx, bool on) {
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  if (!has_world(s))
+    return;
+  world3d_gpu &g = gpu_of(ctx);
+  if (!ensure_ready(g))
+    return;
+  if (on && !g.ext_tried) {
+    g.ext_tried = true;
+    const std::string head = "#version 330\n#define NJIN_EXT\n";
+    const std::string lighting = render3d_lighting_glsl();
+    const std::string terrain_fs = head + lighting + cover_glsl + terrain_fs_main;
+    const std::string grass_vs = head + grass_vs_common + grass_vs_main;
+    const std::string grass_fs = head + lighting + grass_fs_main;
+    const std::string water_vs = head + waves_glsl + water_vs_main;
+    const std::string water_fs = head + lighting + sky_glsl + waves_glsl + water_fs_main;
+    g.terrain_alt = LoadShaderFromMemory(terrain_vs, terrain_fs.c_str());
+    g.grass_alt = LoadShaderFromMemory(grass_vs.c_str(), grass_fs.c_str());
+    g.water_alt = LoadShaderFromMemory(water_vs.c_str(), water_fs.c_str());
+    g.ext_ok = IsShaderValid(g.terrain_alt) && IsShaderValid(g.grass_alt) && IsShaderValid(g.water_alt);
+    if (g.ext_ok) {
+      g.terrain_locs_alt = render3d_find_locations(g.terrain_alt);
+      g.grass_locs_alt = render3d_find_locations(g.grass_alt);
+      g.water_locs_alt = render3d_find_locations(g.water_alt);
+    } else {
+      for (Shader *sh : {&g.terrain_alt, &g.grass_alt, &g.water_alt})
+        if (IsShaderValid(*sh))
+          UnloadShader(*sh);
+      g.terrain_alt = g.grass_alt = g.water_alt = Shader{};
+      NJIN_WARN("world3d: the extended shaders failed to compile; the outdoor world lights without the extended lights");
+    }
+  }
+  const bool want = on && g.ext_ok;
+  if (want == g.ext_active)
+    return;
+  std::swap(g.terrain, g.terrain_alt);
+  std::swap(g.grass, g.grass_alt);
+  std::swap(g.water, g.water_alt);
+  std::swap(g.terrain_locs, g.terrain_locs_alt);
+  std::swap(g.grass_locs, g.grass_locs_alt);
+  std::swap(g.water_locs, g.water_locs_alt);
+  g.ext_active = want;
 }
 
 void world3d_draw(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {

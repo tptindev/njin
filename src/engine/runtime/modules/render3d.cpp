@@ -145,10 +145,12 @@ uniform vec3 viewDir;         // the camera's forward
 // count into indexTex). clusterOn 2 goes through all of them (probe captures).
 uniform int clusterOn;
 uniform int lightTotal;
+#ifdef NJIN_EXT
 uniform sampler2D lightTex;
 uniform sampler2D clusterTex;
 uniform sampler2D indexTex;
 uniform sampler2D lampMatTex; // the lamps' face matrices, 4 texels each, for the extended lights
+#endif
 uniform vec4 clusterGrid;     // tiles across, tiles up, depth slices, tile size in pixels
 uniform vec4 clusterDepth;    // near, far, log(far / near), 1 for an orthographic camera
 // PBR material extensions: clearcoat, its roughness, anisotropy, its rotation (radians).
@@ -159,15 +161,22 @@ uniform vec4 pbrExtra;
 uniform int probeCount;
 uniform vec4 probeBox[16];
 uniform vec4 probeAt[8];
+#ifdef NJIN_EXT
 uniform sampler2D probeAtlas;
 uniform sampler2D probeSH;
+#endif
 uniform vec4 probeParams;     // levels, half a texel of a level's height, probes in the atlas, half a texel across
 // The irradiance volume (irradiance3d_set): an ambient cube per grid point.
 uniform int irrOn;
 uniform vec4 irrMin;         // corner, blend
 uniform vec4 irrSize;        // size, intensity
 uniform vec4 irrCount;       // points along x, y, z
+#ifdef NJIN_EXT
 uniform sampler2D irrTex;    // a column per point, a row per direction (+x -x +y -y +z -z), linear
+#endif
+// The samplers above are only in the extended variant (NJIN_EXT, compiled when
+// a pass uses them): with them the shader has more samplers than a 16-unit
+// driver (macOS) takes, and the plain variant keeps the count it always had.
 // What the main shader works out per pixel for the lighting functions below:
 // the tangent along which anisotropy stretches (zero none), and a lightmap's
 // ambient light (negative none).
@@ -418,6 +427,7 @@ float lamp_share(int i, vec3 pos, vec3 n, out vec3 li) {
   return att;
 }
 
+#ifdef NJIN_EXT
 // The extended lights: face matrix `i` of the lamp atlas.
 mat4 lamp_matrix(int i) {
   return mat4(texelFetch(lampMatTex, ivec2(i * 4, 0), 0), texelFetch(lampMatTex, ivec2(i * 4 + 1, 0), 0),
@@ -558,6 +568,35 @@ vec3 grid_irradiance(vec3 n, vec3 pos, out float weight) {
   }
   return sum * irrSize.w;
 }
+
+#else
+// The plain variant: no extended lights, no irradiance volume.
+struct lamp {
+  vec4 pos;
+  vec4 color;
+  vec4 spot;
+  vec4 linear;
+};
+
+lamp lamp_at(int k) { return lamp(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0)); }
+
+float lamp_share_ext(lamp a, vec3 pos, vec3 n, out vec3 li) {
+  li = vec3(0.0, 1.0, 0.0);
+  return 0.0;
+}
+
+void lamp_range(vec3 pos, out int first, out int count) {
+  first = 0;
+  count = 0;
+}
+
+int lamp_index(int first, int j) { return 0; }
+
+vec3 grid_irradiance(vec3 n, vec3 pos, out float weight) {
+  weight = 0.0;
+  return vec3(0.0);
+}
+#endif
 
 // The ambient light a classic material gets: a lightmap's, the irradiance
 // volume's, or `ambient` (the linear copies when `lin`).
@@ -729,6 +768,7 @@ vec3 pbr_lobe(vec3 albedo, float metal, float rough, vec3 f0, vec3 n, vec3 v, ve
   return pbr_direct(albedo, metal, rough, f0, n, v, l, c);
 }
 
+#ifdef NJIN_EXT
 // Reflection probe `i`'s light from direction `d`, blurred for `rough`.
 vec3 probe_radiance(int i, vec3 d, float rough) {
   vec2 uv = vec2(atan(d.z, d.x) / (2.0 * PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
@@ -787,6 +827,11 @@ void probe_light(vec3 n, vec3 pos, vec3 r, float rough, inout vec3 diffuseLight,
   specLight = mix(specLight, s / wsum, k);
   diffuseLight = mix(diffuseLight, d / wsum, k);
 }
+
+#else
+// The plain variant: no reflection probes.
+void probe_light(vec3 n, vec3 pos, vec3 r, float rough, inout vec3 diffuseLight, inout vec3 specLight) {}
+#endif
 
 // The PBR material: the sun, the lamps, and the ambient light or the
 // environment, with the lights' colours as given (`lin`: their linear copies).
@@ -940,7 +985,9 @@ uniform vec4 lightmapParams;     // on, intensity, 1 sRGB-encoded, 1 on the seco
 uniform vec4 transmit;
 uniform vec3 attenuationColor;
 uniform int sceneOn;
+#ifdef NJIN_EXT
 uniform sampler2D sceneColor;
+#endif
 uniform mat4 sceneVP;
 // post3d::oit: 0 drawn as usual, 1 into the weighted sum, 2 into the revealage.
 uniform int oitPass;
@@ -1047,6 +1094,7 @@ vec2 parallax_uv(vec2 uv, vec3 n) {
   return mix(cur, cur + shift, clamp(w, 0.0, 1.0));
 }
 
+#ifdef NJIN_EXT
 // What shows through a see-through material (material3d::transmission): the
 // opaque scene where the refracted view ray leaves the thickness, blurred by
 // the roughness, tinted by the base colour and the attenuation, and how much of
@@ -1074,6 +1122,8 @@ vec3 transmitted(vec3 albedo, vec3 n, float rough, out float share) {
   share = clamp(transmit.x, 0.0, 1.0) * (1.0 - fres);
   return behind * tint;
 }
+
+#endif
 
 // post3d::oit: the colour weighted by its coverage and depth (McGuire and
 // Bavoil's weight), or its coverage for the revealage.
@@ -1167,6 +1217,7 @@ void main() {
     surfAmbient = (lightmapParams.z > 0.5 ? srgb_to_linear(lm) : lm) * lightmapParams.y;
   }
   vec4 color = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
+#ifdef NJIN_EXT
   if (transmit.x > 0.0 && sceneOn == 1) {
     // Into the HDR image the scene is linear and exposed as `color`; into a
     // display image both are as shown.
@@ -1174,7 +1225,9 @@ void main() {
     vec3 tint = hdrOut == 1 || toneMap > 0 ? srgb_to_linear(base.rgb) : base.rgb;
     vec3 behind = transmitted(tint, n, clamp(surfRough >= 0.0 ? surfRough : pbrParams.z, 0.0, 1.0), share);
     color = vec4(mix(color.rgb, behind, share), 1.0);
-  } else if (transmit.x > 0.0) {
+  } else
+#endif
+  if (transmit.x > 0.0) {
     // No copy of the scene (a pass into a render texture): plain see-through.
     color.a *= 1.0 - clamp(transmit.x, 0.0, 1.0) * 0.9;
   }
@@ -1782,6 +1835,76 @@ bool ensure_ready(render3d_state &s) {
   s.maps[MATERIAL_MAP_DIFFUSE].texture = default_texture();
   s.ready = true;
   return true;
+}
+
+// The material map slots DrawMesh binds through, as ensure_ready gives the
+// plain lit and skinned shaders.
+void set_map_locs(Shader &sh) {
+  sh.locs[SHADER_LOC_MAP_EMISSION] = GetShaderLocation(sh, "emissionMap");
+  sh.locs[SHADER_LOC_MAP_ROUGHNESS] = GetShaderLocation(sh, "underMap");
+  sh.locs[SHADER_LOC_MAP_OCCLUSION] = GetShaderLocation(sh, "underNormalMap");
+  sh.locs[SHADER_LOC_MAP_METALNESS] = GetShaderLocation(sh, "metalRoughMap");
+  sh.locs[SHADER_LOC_MAP_HEIGHT] = GetShaderLocation(sh, "occlusionMap");
+  sh.locs[SHADER_LOC_MAP_BRDF] = GetShaderLocation(sh, "heightMap");
+}
+
+// Puts the extended variant of the lighting shaders in use (`on`), made the
+// first time, or the plain one back. The plain variant has the samplers it
+// always had (12), so it builds on a 16-unit driver; the extended one adds 8
+// (the light clusters, probes, the irradiance volume, the scene behind a
+// transmitting material). Where it does not build, the plain shaders stay and
+// those parts are off. True when the extended variant is in use.
+bool use_ext(render3d_state &s, bool on) {
+  if (on && !s.ext_tried) {
+    s.ext_tried = true;
+    const std::string head = "#version 330\n#define NJIN_EXT\n";
+    const std::string lit_fs = head + lighting_glsl + lit_fs_main;
+    const std::string sdf_fs = head + lighting_glsl + sdf_fs_main;
+    const std::string instanced_vs = head + instanced_glsl + lit_instanced_vs_main;
+    s.lit_alt = LoadShaderFromMemory(lit_vs, lit_fs.c_str());
+    s.sdf_alt = LoadShaderFromMemory(sdf_vs, sdf_fs.c_str());
+    s.lit_instanced_alt = LoadShaderFromMemory(instanced_vs.c_str(), lit_fs.c_str());
+    s.ext_ok = IsShaderValid(s.lit_alt) && IsShaderValid(s.sdf_alt) && IsShaderValid(s.lit_instanced_alt);
+    if (s.ext_ok && s.skin_ok) {
+      const std::string skinned_vs = head + skin_glsl + lit_skinned_vs_main;
+      s.lit_skinned_alt = LoadShaderFromMemory(skinned_vs.c_str(), lit_fs.c_str());
+      s.skin_ok_alt = IsShaderValid(s.lit_skinned_alt);
+    }
+    if (!s.ext_ok) {
+      for (Shader *sh : {&s.lit_alt, &s.sdf_alt, &s.lit_instanced_alt, &s.lit_skinned_alt})
+        if (IsShaderValid(*sh))
+          UnloadShader(*sh);
+      s.lit_alt = s.sdf_alt = s.lit_instanced_alt = s.lit_skinned_alt = Shader{};
+      s.skin_ok_alt = false;
+      NJIN_WARN("3d: the extended lighting shaders failed to compile (too few texture units?); "
+                "light3d::lights_max, source_shadows past 4, probes, irradiance3d and transmission are off");
+    } else {
+      s.locs_alt = find_locations(s.lit_alt);
+      s.sdf_locs_alt = find_locations(s.sdf_alt);
+      s.instanced_locs_alt = find_locations(s.lit_instanced_alt);
+      set_map_locs(s.lit_alt);
+      if (s.skin_ok_alt) {
+        s.skinned_locs_alt = find_locations(s.lit_skinned_alt);
+        set_map_locs(s.lit_skinned_alt);
+      }
+    }
+  }
+  const bool want = on && s.ext_ok;
+  if (want != s.ext_active) {
+    std::swap(s.lit, s.lit_alt);
+    std::swap(s.sdf, s.sdf_alt);
+    std::swap(s.lit_instanced, s.lit_instanced_alt);
+    std::swap(s.locs, s.locs_alt);
+    std::swap(s.sdf_locs, s.sdf_locs_alt);
+    std::swap(s.instanced_locs, s.instanced_locs_alt);
+    // Posed models keep the plain skinning shader if the extended one failed.
+    if (s.skin_ok_alt) {
+      std::swap(s.lit_skinned, s.lit_skinned_alt);
+      std::swap(s.skinned_locs, s.skinned_locs_alt);
+    }
+    s.ext_active = want;
+  }
+  return want;
 }
 
 void free_shadow(shadow_target &t) {
@@ -3339,6 +3462,9 @@ render3d_state::~render3d_state() {
   UnloadShader(lit_instanced);
   UnloadShader(depth_instanced);
   UnloadShader(depth);
+  for (Shader *sh : {&lit_alt, &sdf_alt, &lit_instanced_alt, &lit_skinned_alt})
+    if (IsShaderValid(*sh))
+      UnloadShader(*sh);
 }
 
 namespace {
@@ -3681,6 +3807,16 @@ void end_3d(context &ctx) {
   // The extended lights replace the uniform arrays for this pass.
   s.lext.on = lights_ext_wanted(s.light);
   s.transmission_now = any_transmission(ctx, s);
+  // The lighting shaders' extended variant, only for a pass that needs it;
+  // where it cannot be built, the extended lights fall back to the 16 lamps.
+  const probe_state &probes = s.probes;
+  bool probes_on = probes.grid_set;
+  for (const probe_slot &p : probes.slots)
+    probes_on = probes_on || p.alive;
+  const bool ext = use_ext(s, s.lext.on || probes_on || s.transmission_now);
+  if (!ext)
+    s.lext.on = false;
+  world3d_use_ext(ctx, ext);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();

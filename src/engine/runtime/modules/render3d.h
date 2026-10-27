@@ -179,6 +179,17 @@ struct render3d_state {
   render3d_locations sdf_locs;
   render3d_locations instanced_locs;
   render3d_locations skinned_locs;
+  // The other variant of the four lighting shaders above and their locations
+  // (render3d.cpp's use_ext): the extended one (NJIN_EXT: the light clusters,
+  // probes, the irradiance volume, transmission) while the plain one is in use,
+  // and the plain one while the extended one is. Made the first time a pass
+  // needs it; a driver that cannot build it (macOS: 16 texture units) keeps the
+  // plain shaders and those parts are off.
+  Shader lit_alt{}, sdf_alt{}, lit_instanced_alt{}, lit_skinned_alt{};
+  render3d_locations locs_alt, sdf_locs_alt, instanced_locs_alt, skinned_locs_alt;
+  bool skin_ok_alt = false;
+  bool ext_tried = false, ext_ok = false;
+  bool ext_active = false; // the extended variant is the one in use
   Mesh cube{};     // 1x1x1, centred on the origin
   Mesh sphere{};   // radius 1
   Mesh plane{};    // 1x1 on xz, facing +y
@@ -355,6 +366,9 @@ void render3d_motion_commit(context &ctx);
 // one recorded draw (the camera pass, or a shadow pass's depth seen through
 // `view_proj`), and after them.
 void world3d_pass_uniforms(context &ctx, bool shadows, const Matrix &light_vp, bool lamps);
+// Puts the extended variant (NJIN_EXT) of the terrain, grass and water shaders
+// in use for the open pass, or the plain one back (render3d.cpp's use_ext).
+void world3d_use_ext(context &ctx, bool on);
 void world3d_draw(context &ctx, const draw3d_cmd &c, const Matrix &view_proj);
 void world3d_draw_depth(context &ctx, const draw3d_cmd &c, const Matrix &view_proj);
 void world3d_pass_end(context &ctx);
