@@ -656,6 +656,10 @@ hạt, nước và kính. Trên trình điều khiển chỉ có 16 texture unit
 gặp được chiếu bởi nắng (qua bóng), đèn và chính lưới, nên ánh sáng dội nhiều lần, như cách DDGI của NVIDIA làm:
 phòng sáng dần qua cửa sổ, tường đỏ hắt sáng đỏ lên sàn, và lưới theo kịp đèn bật tắt, nắng đổi giờ, vật di chuyển
 mà không cần irradiance3d_refresh(). `history` là phần giữ lại từ frame trước: lớn thì mịn, nhỏ thì đổi nhanh.
+Mỗi điểm chỉ có vài trăm tia nên kết quả từng frame dao động; giảm `history` thì phải tăng `rays` để không nhấp
+nháy. Cảnh có vật di chuyển nhiều: `rays` 256 với `history` 0.85 theo kịp nhanh gấp ba mà nhiễu như 128 tia với
+0.95 (`njin_skylight` dùng như vậy). Quanh một vật vừa di chuyển (hình khối hay model, so vị trí với frame trước),
+các điểm của lưới tự bỏ bớt phần cũ trong vài frame, nên ánh sáng dội theo kịp ngay khi kéo vật mà chỗ khác vẫn mịn.
 
 @code
 // Lưới phủ cả phòng 8 x 3 x 8 m, lớn hơn phòng một chút: điểm nằm trong tường bị bỏ qua.

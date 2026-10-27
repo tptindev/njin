@@ -40,8 +40,8 @@ void main() {
       lo = min(lo, c);
       top = max(top, c);
     }
-  lo -= 0.1;
-  top += 0.1;
+  lo -= 0.05;
+  top += 0.05;
   vec3 pos = world_at(px, d);
   vec4 c = p.prevViewProj * vec4(pos, 1.0);
   vec4 outv = cur;
@@ -72,7 +72,13 @@ void main() {
     }
     // Most of the footprint on this surface: blend; else this frame alone.
     if (wsum > 0.25)
-      outv = mix(cur, clamp(h / wsum, lo, top), 0.92);
+    {
+      // History far outside this frame's range is a change (a thing moved, a
+      // shadow left): taken up quickly. Within it, the long blend.
+      vec4 raw = h / wsum, kept = clamp(raw, lo, top);
+      float off = max(max(abs(raw.r - kept.r), abs(raw.g - kept.g)), max(abs(raw.b - kept.b), abs(raw.a - kept.a)));
+      outv = mix(cur, kept, off > 0.15 ? 0.5 : 0.92);
+    }
   }
   imageStore(maskOut, px, outv);
   imageStore(histOut, px, outv);

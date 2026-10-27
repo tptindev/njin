@@ -543,6 +543,50 @@ void rt_trace(context &ctx, const Matrix &view_proj) {
   const float16 pv = MatrixToFloatV(r.prev_vp), piv = MatrixToFloatV(MatrixInvert(r.prev_vp));
   std::memcpy(t.prev_view_proj, pv.v, sizeof(t.prev_view_proj));
   std::memcpy(t.prev_inv_view_proj, piv.v, sizeof(t.prev_inv_view_proj));
+  // What moved since the last trace: round where it was and where it is,
+  // as far as its size and two grid steps, the grid takes this trace's rays.
+  if (t.gi) {
+    const vec3 cnt{t.grid_count[0], t.grid_count[1], t.grid_count[2]};
+    const vec3 gsize{t.grid_size[0], t.grid_size[1], t.grid_size[2]};
+    const f32 step = std::max({gsize.x / std::max(cnt.x - 1.0f, 1.0f), gsize.y / std::max(cnt.y - 1.0f, 1.0f),
+                               gsize.z / std::max(cnt.z - 1.0f, 1.0f)});
+    const auto add_change = [&](vec3 at, f32 radius) {
+      // One region per place: a thing dragged along refreshes its own.
+      for (rt_state::change &c : r.changes)
+        if (length(c.at - at) < 0.5f * (c.radius + radius)) {
+          c.at = at;
+          c.radius = std::max(c.radius, radius + 2.0f * step);
+          c.until = r.frame + 8;
+          return;
+        }
+      r.changes.push_back({at, radius + 2.0f * step, r.frame + 8});
+    };
+    for (const draw3d_cmd &c : s.cmds) {
+      if (c.motion_key == 0 || c.world != world3d_none || c.buffer.id != 0)
+        continue;
+      const vec3 at = c.boxed ? c.box_center : vec3{c.transform.m12, c.transform.m13, c.transform.m14};
+      const f32 radius = c.boxed ? length(c.box_extent) : 1.0f;
+      auto [it, fresh] = r.moved_from.try_emplace(c.motion_key);
+      rt_state::seen &was = it->second;
+      if (!fresh && was.frame + 1 == r.frame) {
+        const vec3 d = at - was.at;
+        if (dot(d, d) > 1e-6f) {
+          add_change(was.at, was.radius);
+          add_change(at, radius);
+        }
+      }
+      was = {at, radius, r.frame};
+    }
+    // Draws gone for a while are forgotten.
+    if ((r.frame & 255u) == 0)
+      std::erase_if(r.moved_from, [&](const auto &e) { return r.frame - e.second.frame > 60; });
+    // The regions still fresh, the newest first, up to eight.
+    std::erase_if(r.changes, [&](const rt_state::change &c) { return c.until < r.frame; });
+    for (auto it = r.changes.rbegin(); it != r.changes.rend() && t.change_count < 8; ++it) {
+      const f32 c[4] = {it->at.x, it->at.y, it->at.z, it->radius};
+      std::memcpy(t.changes[t.change_count++], c, sizeof(c));
+    }
+  }
   t.frame = r.frame++;
   const bool ok = rtvk::trace(g.inst.data(), (u32)g.inst.size(), t);
   r.live = ok && shadows;

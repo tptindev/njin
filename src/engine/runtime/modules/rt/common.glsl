@@ -20,6 +20,8 @@ layout(set = 0, binding = 256) uniform Params {
   vec4 gridCount;     // points along x, y, z, rays per point
   mat4 prevViewProj;    // last frame's, for the shadows over time
   mat4 prevInvViewProj;
+  vec4 changes[8];      // where things moved since last frame: centre, radius (the grid updates fast there)
+  vec4 changeInfo;      // how many
 } p;
 
 const float PI = 3.14159265;

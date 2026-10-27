@@ -241,11 +241,16 @@ void main() {
     finalColor = mean;
     return;
   }
-  // Widened by a quarter of the range: the history is found where its light
-  // was, so it is trusted more than one half-size pass, whose edges are steps.
-  vec4 margin = (hi - lo) * 0.25;
-  vec4 h = clamp(texture(histTex, uv), lo - margin, hi + margin);
-  finalColor = mix(mean, h, keep);
+  // Widened by a tenth of the range: the history is found where its light
+  // was, so it is trusted a little more than one half-size pass.
+  vec4 margin = (hi - lo) * 0.1;
+  vec4 raw = texture(histTex, uv);
+  vec4 h = clamp(raw, lo - margin, hi + margin);
+  // History well outside this pass's range is a change (a thing moved into
+  // a shaft): taken up quickly.
+  vec4 off = abs(raw - h) / max(hi - lo + margin, vec4(1e-3));
+  float k = max(max(off.r, off.g), max(off.b, off.a)) > 0.5 ? min(keep, 0.6) : keep;
+  finalColor = mix(mean, h, k);
 }
 )";
 

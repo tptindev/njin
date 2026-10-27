@@ -5,6 +5,7 @@
 #include <raylib.h>
 #include <array>
 #include <initializer_list>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -258,6 +259,22 @@ struct rt_state {
   // when it is of this size and camera (not a cut).
   Matrix prev_vp{};
   bool prev_ok = false;
+  // Where each keyed draw (draw3d_cmd::motion_key) was at the last trace and
+  // the trace it was seen at, to find what moved (the grid updates fast round it).
+  struct seen {
+    vec3 at{};
+    f32 radius = 0.0f;
+    u32 frame = 0;
+  };
+  std::unordered_map<u64, seen> moved_from;
+  // The regions where something moved, kept for a few traces after (the
+  // bounce of the bounce takes them to settle): centre, radius, until.
+  struct change {
+    vec3 at{};
+    f32 radius = 0.0f;
+    u32 until = 0;
+  };
+  std::vector<change> changes;
 };
 void rt_free(rt_state &r);
 // Whether the open pass traces its shadows: light3d::ray_traced_shadows on a

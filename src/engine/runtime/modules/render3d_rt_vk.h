@@ -64,6 +64,10 @@ struct trace_in {
   // size and intensity, points along x, y, z and rays per point.
   float grid_min[4]{}, grid_size[4]{}, grid_count[4]{};
   bool grid_lights = false; // what rays meet takes its ambient light from the grid
+  // Where things moved since the last trace (centre, radius): the grid's
+  // points there take this trace's rays at once.
+  float changes[8][4]{};
+  int change_count = 0;
 };
 
 // Starts Vulkan with ray queries and the GL interop; false (logged once) when

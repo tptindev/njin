@@ -100,6 +100,8 @@ struct params_t {
   float grid_count[4];
   float prev_view_proj[16];
   float prev_inv_view_proj[16];
+  float changes[8][4];
+  float change_info[4];
 };
 
 // rt/common.glsl's inst_t: a mesh's buffers by address, colour and glow.
@@ -863,6 +865,8 @@ bool trace(const instance_in *inst, uint32_t count, const trace_in &t) {
   std::memcpy(p.prev_view_proj, t.prev_view_proj, sizeof(p.prev_view_proj));
   std::memcpy(p.prev_inv_view_proj, t.prev_inv_view_proj, sizeof(p.prev_inv_view_proj));
   p.light_info[3] = t.history ? 1.0f : 0.0f;
+  std::memcpy(p.changes, t.changes, sizeof(p.changes));
+  p.change_info[0] = (float)std::clamp(t.change_count, 0, 8);
   s.cmd->open();
   if (s.no_grid_clear) {
     s.cmd->clearTextureFloat(s.no_grid, nvrhi::AllSubresources, nvrhi::Color(0.0f));

@@ -92,7 +92,9 @@ To release: edit that header, add a section here, commit, then
   octahedral tile of the distances round it, and a lookup weighs points by
   Chebyshev visibility and facing, so light does not leak through walls.
   Points whose rays mostly meet the inside of things (back faces, except of
-  double-sided model parts) are skipped. Without ray tracing the grid is
+  double-sided model parts) are skipped. Round a primitive or model that
+  moved since the last frame, the points keep less of their history for a
+  few frames, so the bounce follows a dragged thing at once. Without ray tracing the grid is
   captured as before. Costs measured on an RTX 3050 laptop are in the wiki.
 - PBR, all opt-in (games that set none of it draw exactly as before):
   `light3d::tonemap` (`tonemap3d_linear`, `_aces` as three.js's ACESFilmic,

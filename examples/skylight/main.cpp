@@ -64,7 +64,8 @@ void set_bounce(context &ctx) {
   }
   irradiance3d_set(ctx, {.center = {0.0f, height * 0.5f, 0.0f},
                          .size = {2.0f * hall - 0.4f, height - 0.4f, 2.0f * hall - 0.4f},
-                         .count_x = 10, .count_y = 6, .count_z = 10, .blend = 0.05f, .ray_traced = true, .rays = 128});
+                         .count_x = 10, .count_y = 6, .count_z = 10, .blend = 0.05f, .ray_traced = true, .rays = 256,
+                         .history = 0.85f});
 }
 
 void startup(context &ctx) {

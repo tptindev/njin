@@ -71,6 +71,16 @@ void main() {
   vec3 sp = grid_spacing();
   float far = 1.5 * max(sp.x, max(sp.y, sp.z));
   float keep = clamp(p.gridMin.w, 0.0, 0.99);
+  // Near something that moved since last frame the light round it changed:
+  // this frame's rays count for 40 %, so the bounce follows within a few
+  // frames (the region stays fresh 8 traces after the move); the
+  // long history stays where nothing moved, keeping the rays' noise down.
+  for (int c = 0; c < 8; c++) {
+    if (c >= int(p.changeInfo.x))
+      break;
+    if (distance(pos, p.changes[c].xyz) < p.changes[c].w)
+      keep = min(keep, 0.6);
+  }
   mat3 rot = turn(uvec3(point, uint(p.size.w), 7u));
   for (int r = int(lid); r < rays; r += 64) {
     vec3 dir = rot * fibonacci(float(r), float(rays));
