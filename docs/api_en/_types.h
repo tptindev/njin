@@ -251,6 +251,16 @@ struct scatter3d_handle {
   u32 id = 0; ///< 0 means invalid.
 };
 
+/// Identifier of a reflection probe, created by probe3d_add().
+///
+/// `id == 0` is an invalid handle. A removed probe is ignored too: its slot is reused
+/// for a later probe, but with a different `gen`, so an old handle never points at the
+/// new probe.
+struct probe3d_handle {
+  u32 id = 0;  ///< 0 means invalid.
+  u32 gen = 0; ///< Which use of this slot it is.
+};
+
 /// Identifier of a decal, created by decal3d_add().
 ///
 /// `id == 0` is an invalid handle. A decal that is gone or was replaced is ignored

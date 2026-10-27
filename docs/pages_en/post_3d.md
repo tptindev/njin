@@ -3,8 +3,9 @@
 This page adds effects to the 3D scene that work on the image of the whole frame, from the depth of each pixel:
 wall corners and the feet of objects darken (SSAO), polished floors reflect (SSR), bullet holes, scorch marks and
 paint stick to any surface (decals), the image smears as the camera turns (motion blur), sunlight shines in rays
-through gaps, the lens flares, and edges are smoothed over time (TAA). Everything is declared in `njin_post3d.h` and runs on OpenGL 3.3 like the rest
-of 3D.
+through gaps, the lens flares, and edges are smoothed over time (TAA) or from the image (FXAA, SMAA), plus bloom on
+the HDR image and transparency that does not depend on order (OIT). Everything is declared in `njin_post3d.h` and
+runs on OpenGL 3.3 like the rest of 3D.
 
 What you need first: @ref graphics_3d (begin_3d(), lighting, materials). Light shafts go with the sky of
 @ref world_3d but do not need it.
@@ -34,6 +35,9 @@ njin::post3d_set(ctx, fx);
 | Light shafts | `shafts` | The sky round the sun, through gaps between objects |
 | Lens flare | `flare` | The whole image, while the sun is in the frame and not hidden |
 | Temporal anti-aliasing (TAA) | `taa`, `taa_sharpen` | The first 3D pass into the world of each frame |
+| HDR bloom | `bloom`, `bloom_radius`, together with `light3d::hdr` | The bright places of the whole 3D image |
+| Anti-aliasing from the image | `aa` (aa3d_fxaa, aa3d_smaa) | The whole world image, after the first 3D pass of each frame |
+| Order-independent transparency (OIT) | `oit` | Transparent shapes and model parts drawn with the built-in shader |
 
 The effects only apply to 3D passes into the world, not to passes into a render texture (begin_3d() with a
 `target`). They run inside end_3d() in this order: after every opaque shape come decals, SSAO and reflections;
@@ -184,6 +188,58 @@ as having only the camera's motion.
 SDF shapes (draw_shape3d()), draw_instanced3d(), terrain, grass, water, glass and 3D particles have no motion of their
 own: they follow the camera's motion, as before.
 
+## HDR bloom {#post3d_bloom}
+
+With `light3d::hdr` (@ref hdr3d), `bloom` lets bright places spread out by exactly their energy, as Bevy and
+Unreal do: the image is shrunk down a chain of images (the 13-tap filter of Call of Duty, with a Karis average on
+the first so one over-bright pixel does not flicker), scaled back up step by step, adding up, and mixed into the
+image by `bloom` before tone mapping. There is no threshold: everything spreads a little, but only very bright
+places (lights, strongly glowing things, the sun reflected on metal) show a clear halo. 0.04 to 0.15 is usual;
+`bloom_radius` (0.25 to 2) sets how far it spreads.
+
+```cpp
+njin::light3d_set(ctx, {.direction = sun, .tonemap = njin::tonemap3d_agx, .hdr = true});
+njin::post3d_set(ctx, {.bloom = 0.08f});
+njin::material3d_set(ctx, {.emission = {1, 0.4f, 0.1f, 8.0f}}); // a really bright fireball
+```
+
+Without HDR `bloom` does nothing; use the bloom of post_fx_set() (@ref post_processing), which has a threshold
+and works on an 8-bit image.
+
+## Anti-aliasing from the image (FXAA, SMAA) {#post3d_aa}
+
+`aa` smooths jaggies from the drawn image itself, once a frame, after the first 3D pass into the world: it does
+not blend with the previous frame so there is no ghosting when things move fast as with TAA, but edges thinner
+than a pixel can still flicker.
+
+| `aa` | How | Suits |
+|---|---|---|
+| `aa3d_fxaa` | FXAA (Lottes): finds edges by brightness, blends along them, one pass | Cheapest; blurs text and fine patterns a little |
+| `aa3d_smaa` | SMAA 1x (Jimenez et al., the iryoku/smaa library): finds edges, guesses the shape of the jaggies, blends, three passes | Sharper than FXAA, costs a little more |
+
+`aa` applies to the whole world image (2D drawn into it earlier too), not to UI drawn after phase_render. It can be
+used with TAA, but usually one of the two is enough.
+
+## Order-independent transparency (OIT) {#post3d_oit}
+
+Ordinary transparent shapes are drawn one by one and write depth, so a pane of glass drawn first hides the pane
+behind it, and several layers of smoke, leaves or glass over each other come out wrong depending on order. `oit`
+draws them as weighted blended OIT (McGuire and Bavoil): every layer is added with a weight by its coverage and
+depth into two floating point images, which are then laid over the image once, so it comes out right whatever the
+order they are drawn in.
+
+```cpp
+njin::post3d_set(ctx, {.oit = true});
+njin::draw_cube3d(ctx, {0, 1, 0}, {2, 2, 0.05f}, {1, 0.2f, 0.2f, 0.5f});    // red glass
+njin::draw_cube3d(ctx, {0, 1, -1}, {2, 2, 0.05f}, {0.2f, 0.4f, 1, 0.5f});   // blue glass behind it, still seen
+```
+
+It applies to shapes with a colour whose `a` < 1, model parts with a transparent material, and
+draw_instanced3d() of those models, when they are drawn with the built-in shader. A game's own shader, water, 3D
+particles and things that transmit (material3d::transmission) are still drawn one by one as before, after the OIT
+layer. Overlapping colours are a weighted average, an approximation rather than as exact as drawing in the
+right order: two very dense layers of different colours give a colour mixed between the two.
+
 ## Full example
 
 A corner of a room with a polished floor and a box running round the sphere; keys 1, 2, 3, 4 toggle SSAO, reflections,
@@ -220,3 +276,4 @@ screen, as post_fx_set() does.
   is blended with the 3D image, does not shake, but can soften a little while the camera turns.
 - Every 3D pass into the world gets the effects: a game that draws the world with two begin_3d() in one frame gets
   its decals drawn in both.
+- FXAA and SMAA run once a frame, after the first 3D pass into the world.

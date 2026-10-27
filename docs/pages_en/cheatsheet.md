@@ -162,6 +162,13 @@ Turn the features on in CMake: `njin_use(<game> FEATURES 3d)`, plus `physics3d` 
 | Strong light without burning white (tone mapping) | njin::light3d::tonemap, njin::light3d::exposure | @ref pbr3d |
 | PBR materials: metal, roughness, glTF models as in Blender | njin::material3d::pbr, njin::model_load_desc::pbr | @ref pbr3d |
 | Light and reflections from an HDR image, an image sky | njin::light3d::environment | @ref pbr3d |
+| HDR drawing, bloom by energy, auto exposure | njin::light3d::hdr, njin::light3d::auto_exposure, njin::post3d::bloom | @ref hdr3d |
+| Clearcoat, brushed metal, refracting glass, parallax, lightmaps | njin::material3d::clearcoat, njin::material3d::transmission, njin::material3d::height | @ref pbr3d_more |
+| Reflections in a room, light bounced from walls | njin::probe3d_add(), njin::irradiance3d_set() | @ref probe3d |
+| Sharp shadows near, still shadows far | njin::light3d::shadow_cascades | @ref shadow3d_cascades |
+| Hundreds of lights, more shadow-casting lights | njin::light3d::lights_max, njin::light3d::source_shadows | @ref lights3d_many |
+| Shafts of sun in fog, a flashlight in fog | njin::light3d::volume_density | @ref fog3d_volume |
+| Several layers of glass over each other, FXAA/SMAA | njin::post3d::oit, njin::post3d::aa | @ref post3d_oit |
 | Flash white on a hit, dissolve on death | njin::fx3d_set() | @ref graphics_3d |
 | 3D fire, smoke, sparks; emitting from a ring or disc | njin::particles3d_spawn(), njin::particles3d_emit() | @ref graphics_3d |
 | Draw thousands of copies of a model | njin::draw_instanced3d() | @ref graphics_3d |

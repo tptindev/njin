@@ -163,6 +163,97 @@ struct light3d {
   /// Draws the environment image as the sky, behind everything of the pass (with the same tone mapping).
   bool environment_visible = false;
   /// @}
+
+  /// @name HDR and auto exposure
+  /// @{
+
+  /// Draws the 3D scene into an HDR image (16-bit floats, brighter than 1 is kept) and
+  /// tone maps it once at the end, as Bevy and Unreal do, instead of tone mapping in
+  /// each shader. The 3D screen effects (SSAO, SSR, TAA, light shafts, motion blur) work
+  /// on the real light, the bloom of `post3d::bloom` spreads by energy, and auto
+  /// exposure measures the image. Only when `tonemap` is not tonemap3d_none, for passes
+  /// into the world (a pass into a render texture still tone maps in each shader).
+  ///
+  /// Everything in the pass goes through tone mapping, as in Bevy: lit things, water and
+  /// the sky (draw_sky3d(), `environment_visible`) are also multiplied by the exposure;
+  /// `unlit` things, 3D particles, the fog colour and the background (the clear colour,
+  /// 2D drawn before begin_3d()) keep the colour as given and only go through the curve.
+  /// With tonemap3d_linear and `exposure` 1 they keep their colour, with ACES or AgX they
+  /// follow that curve. A game's own shader gets the `int` `hdrOut` (1 now): write linear
+  /// light already multiplied by `exposure`, without tone mapping.
+  bool hdr = false;
+  /// Adjusts the exposure to the average brightness of the image (measured with the
+  /// centre weighted), as an eye gets used to dark or bright places: entering a cave it
+  /// slowly brightens, going out into the sun it darkens. Multiplied into `exposure`.
+  /// Only with `hdr`.
+  bool auto_exposure = false;
+  f32 auto_exposure_speed = 1.5f; ///< How fast it adapts, per second. Large changes fast.
+  f32 auto_exposure_min = 0.25f;  ///< The smallest exposure factor it picks.
+  f32 auto_exposure_max = 4.0f;   ///< The largest exposure factor it picks.
+  /// The brightness the average image is brought to (mid grey, 0.18 as a camera). Larger
+  /// makes the whole scene brighter.
+  f32 auto_exposure_key = 0.18f;
+  /// @}
+
+  /// @name Cascaded shadow maps
+  /// @{
+
+  /// Number of sun shadow cascades, 1..4. 1 (the default) is one shadow image as before,
+  /// covering the `shadow_range` box round where the camera looks. From 2, the span from
+  /// the camera to `shadow_range` metres is split into slices, each with a shadow image
+  /// of side `shadow_size`: shadows are sharp near the camera and still there far away.
+  /// Each cascade draws every shadow caster once more.
+  i32 shadow_cascades = 1;
+  /// How the cascades are split, 0..1: 0 splits evenly, 1 exponentially (the near
+  /// cascade very short). About 0.75 suits most scenes.
+  f32 shadow_cascade_split = 0.75f;
+  /// @}
+
+  /// @name Many lights
+  /// @{
+
+  /// Most lights in one draw, up to njin::light3d_limit. The default njin::light3d_max
+  /// (16): lights past that are ignored, as before. Larger, and njin splits the view into
+  /// clusters (clustered lighting, as Bevy) and each pixel only works out the lights
+  /// touching its cluster, so hundreds of small lights stay fast.
+  i32 lights_max = 16;
+  /// Number of point and spot lights with `shadows` that cast, up to
+  /// njin::light3d_shadow_limit. The default njin::light3d_shadow_max (4). Each shadowed
+  /// light adds a row to the shadow image (6 tiles of `source_shadow_size` for a point
+  /// light) and draws every shadow caster again 6 times (point light) or once (spot
+  /// light).
+  i32 source_shadows = 4;
+  /// @}
+
+  /// @name Volumetric fog
+  /// Fog that exists in space: sunlight and lamplight scatter in it into shafts of light,
+  /// and the shadows of things cut it into dark streaks (sun through a window, a torch in
+  /// fog, street lamps on a rainy night). Worked out by marching a ray from the camera
+  /// through each pixel, at half resolution. Best with `hdr`. Only for passes into the
+  /// world.
+  /// @{
+
+  /// Density of the fog, per metre. 0 (the default) is off; 0.02..0.1 is light to thick fog.
+  f32 volume_density = 0.0f;
+  /// Colour of the fog (the part of the light it scatters back), usually white or blue grey.
+  rgba volume_color{1.0f, 1.0f, 1.0f, 1.0f};
+  /// The fog is thick below `volume_base` (height y) and thins above it, as
+  /// `exp(-volume_falloff * (y - volume_base))`. A `volume_falloff` of 0 is even at every height.
+  f32 volume_base = 0.0f;
+  f32 volume_falloff = 0.0f; ///< How fast it thins with height, per metre. 0 is even.
+  /// Fog in patches, 0 (even) to 1 (clearly in clouds).
+  f32 volume_noise = 0.0f;
+  f32 volume_noise_size = 6.0f;             ///< Size of one patch of fog, metres.
+  vec3 volume_wind{0.6f, 0.0f, 0.2f};       ///< The patches drift with the wind, metres per second.
+  /// Direction of scattering, -1..1 (Henyey-Greenstein): positive is brightest looking
+  /// towards the light (a halo round the sun, headlights), 0 is even in every direction.
+  f32 volume_anisotropy = 0.5f;
+  f32 volume_distance = 60.0f; ///< Marches this many metres from the camera; beyond it there is no fog.
+  i32 volume_steps = 32;       ///< Steps per ray, 8..128. More is smoother and costs more.
+  f32 volume_sun = 1.0f;       ///< Brightness of the sun in the fog, multiplied into the sun colour.
+  f32 volume_ambient = 0.3f;   ///< The share of the ambient light (`ambient`) the fog scatters.
+  bool volume_lamps = true;    ///< Point and spot lights also scatter in the fog (through their shadows).
+  /// @}
 };
 
 /// Sets the shared lighting. Takes effect from the next begin_3d().
@@ -203,11 +294,19 @@ struct light3d_source {
   bool shadows = false;
 };
 
-/// Maximum lights in one 3D draw. Lights added past this are ignored.
+/// Maximum lights in one 3D draw, by default. Lights added past this are ignored,
+/// unless light3d::lights_max is larger.
 inline constexpr i32 light3d_max = 16;
 
-/// Maximum point and spot lights that cast shadows in one 3D draw.
+/// Maximum point and spot lights that cast shadows in one 3D draw, by default
+/// (light3d::source_shadows).
 inline constexpr i32 light3d_shadow_max = 4;
+
+/// Upper limit of light3d::lights_max.
+inline constexpr i32 light3d_limit = 1024;
+
+/// Upper limit of light3d::source_shadows.
+inline constexpr i32 light3d_shadow_limit = 16;
 
 /// Adds a light for the currently open 3D draw. Call every frame, between
 /// begin_3d() and end_3d() (order relative to draw calls does not matter:
@@ -215,6 +314,92 @@ inline constexpr i32 light3d_shadow_max = 4;
 /// @param ctx Engine context.
 /// @param light Light.
 void light3d_add(context &ctx, const light3d_source &light);
+
+/// A reflection probe: njin captures the scene round `position` (6 directions) into an
+/// environment image of its own, and then `pbr` materials in the box `size` round it take
+/// their light and reflections from that image instead of light3d::environment: in a room
+/// they reflect the walls and things in the room, not the sky outside. Like the reflection
+/// probes of Bevy, Unity and Unreal.
+///
+/// A probe is captured in the next 3D pass into the world, from that pass's own draw calls
+/// (opaque shapes, models, terrain, sky; not particles, water, glass), and then kept
+/// until probe3d_refresh(), unless `live`.
+struct probe3d_desc {
+  vec3 position{0.0f, 1.5f, 0.0f}; ///< Where it captures, usually mid room at eye height; also the centre of the box.
+  /// Size of the box of influence in x, y, z, usually the size of the room. Materials in
+  /// the box use this probe.
+  vec3 size{8.0f, 3.0f, 8.0f};
+  /// Thickness of the strip at the box's edge where the probe fades into the next probe or
+  /// the environment, metres.
+  f32 blend = 1.0f;
+  f32 intensity = 1.0f; ///< Brightness of the light and reflections taken from the probe.
+  /// Corrects parallax by the box (box projection): reflections on the floor and walls
+  /// match where things really are in the room, instead of being at infinity. Best on for a
+  /// closed room.
+  bool parallax = true;
+  i32 resolution = 128; ///< Side of each face when capturing, pixels (32..512).
+  /// Captures again every frame (the scene round the probe keeps changing). Costs: draws the
+  /// scene 6 times again.
+  bool live = false;
+};
+
+/// Most reflection probes at once.
+inline constexpr i32 probe3d_max = 8;
+
+/// Adds a reflection probe. Past njin::probe3d_max it returns an invalid handle.
+/// @param ctx Engine context.
+/// @param desc Probe.
+/// @return Handle of the probe.
+probe3d_handle probe3d_add(context &ctx, const probe3d_desc &desc);
+
+/// Changes how a probe is set; it is captured again at the next pass.
+/// @param ctx Engine context.
+/// @param handle Probe. An invalid handle is ignored.
+/// @param desc The new settings.
+void probe3d_set(context &ctx, probe3d_handle handle, const probe3d_desc &desc);
+
+/// Captures the probe again in the next 3D pass (the scene round it changed: a light went
+/// out, things moved).
+/// @param ctx Engine context.
+/// @param handle Probe. An invalid handle is ignored.
+void probe3d_refresh(context &ctx, probe3d_handle handle);
+
+/// Removes a probe.
+/// @param ctx Engine context.
+/// @param handle Probe. An invalid handle is ignored.
+void probe3d_remove(context &ctx, probe3d_handle handle);
+
+/// A grid of indirect light (an irradiance volume, as Bevy's): njin captures the scene at
+/// each point of a grid in the box and remembers the light arriving from six directions
+/// (an ambient cube), and then every shape in the box (also materials without `pbr`) takes
+/// its ambient light from it instead of light3d::ambient: corners of a room darken, the
+/// floor by a red wall glows red, where sun falls in it bounces light up onto the ceiling.
+/// Captured in the next 3D pass into the world.
+struct irradiance3d_desc {
+  vec3 center{0.0f, 1.5f, 0.0f}; ///< Centre of the box.
+  vec3 size{8.0f, 3.0f, 8.0f};   ///< Size of the box in x, y, z.
+  /// Number of grid points along x, 1..16. Each point draws the scene 6 times again (small)
+  /// when capturing, once only.
+  i32 count_x = 4;
+  i32 count_y = 2; ///< Number of grid points along y, 1..16.
+  i32 count_z = 4; ///< Number of grid points along z, 1..16.
+  f32 intensity = 1.0f; ///< Brightness of the light taken from the grid.
+  f32 blend = 0.5f;     ///< Thickness of the strip at the box's edge that fades into `ambient`, metres.
+};
+
+/// Sets the scene's grid of indirect light (one grid at a time; setting it again replaces
+/// the old one). It is captured in the next 3D pass into the world.
+/// @param ctx Engine context.
+/// @param desc Grid.
+void irradiance3d_set(context &ctx, const irradiance3d_desc &desc);
+
+/// Captures the grid of light again in the next 3D pass.
+/// @param ctx Engine context.
+void irradiance3d_refresh(context &ctx);
+
+/// Removes the grid of light: shapes use light3d::ambient again.
+/// @param ctx Engine context.
+void irradiance3d_clear(context &ctx);
 
 /// The surface of 3D shapes drawn after material3d_set().
 ///
@@ -291,6 +476,50 @@ struct material3d {
   /// and environment light. As `metal_rough` for models.
   texture_handle occlusion{};
   f32 occlusion_strength = 1.0f; ///< Strength of `occlusion`, 0..1.
+  /// @}
+
+  /// @name Advanced PBR materials
+  /// As glTF (KHR_materials_clearcoat, _anisotropy, _transmission, _ior, _volume) and
+  /// Bevy's StandardMaterial. Only with `pbr`; all off by default.
+  /// @{
+
+  /// A transparent glossy coat over the surface, 0..1 (car paint, varnished wood, glossy
+  /// plastic): a second, sharp highlight and reflection on top of the layer below.
+  f32 clearcoat = 0.0f;
+  f32 clearcoat_roughness = 0.03f; ///< Roughness of the coat, 0..1.
+  /// Anisotropy, -1..1 (brushed metal, pan bottoms, hair): the highlight stretches into a
+  /// streak along the image's u direction (positive) or v direction (negative). Needs a
+  /// mesh with UVs.
+  f32 anisotropy = 0.0f;
+  f32 anisotropy_rotation = 0.0f; ///< Turns the direction of anisotropy on the surface, degrees.
+  /// The share of light that passes through the thing, 0..1 (glass, water in a bottle, clear
+  /// plastic): looking through it you see the scene behind, bent by `ior` and `thickness`,
+  /// tinted by `attenuation_color`, blurred by `roughness` (frosted glass). Things that
+  /// transmit are drawn after every opaque shape, like glass. It needs an image of the opaque
+  /// scene: njin copies it itself in a pass into the world (from the frame after the first with
+  /// a transmitting thing); in a pass into a render texture the thing is only transparent by
+  /// `transmission`, without bending.
+  f32 transmission = 0.0f;
+  f32 ior = 1.5f;       ///< Index of refraction: 1.33 water, 1.5 glass, 2.4 diamond.
+  /// Thickness of the thing, metres: the light travels this far inside it so the scene behind
+  /// is shifted and tinted by that much. 0 is a thin thing (a pane of glass).
+  f32 thickness = 0.0f;
+  /// The colour of the light left after travelling `attenuation_distance` metres inside the
+  /// thing (wine, coloured glass, sea water). White is no tint.
+  rgba attenuation_color{1.0f, 1.0f, 1.0f, 1.0f};
+  f32 attenuation_distance = 0.0f; ///< Metres. 0 is no tint.
+  /// A height image (red channel, white is high) for parallax: a flat surface looks truly
+  /// bumpy seen at an angle (bricks, paving, bark), the image shifts with the view angle and
+  /// low places are hidden by high ones. For shapes, models and draw_instanced3d(); needs a
+  /// mesh with UVs. Invalid is none.
+  texture_handle height{};
+  f32 height_scale = 0.04f; ///< Depth of the parallax, in UV units (usually 0.02..0.08).
+  /// A baked light image (a lightmap), on the mesh's second UV set (the first if it has none):
+  /// replaces `ambient` (and the environment) on this surface with precomputed indirect light,
+  /// as Bevy's and Unity's lightmaps. An 8-bit image is taken as sRGB, a `.hdr` image as linear
+  /// light. Also for materials without `pbr`. Invalid is none.
+  texture_handle lightmap{};
+  f32 lightmap_intensity = 1.0f; ///< Brightness of `lightmap`.
   /// @}
 };
 

@@ -1,4 +1,9 @@
 #pragma once
+// Part of the 3d feature: a game turns it on with njin_use(<game> FEATURES 3d)
+// (cmake/njin.cmake), or links njin::rt.
+#if !defined(NJIN_ENGINE_INTERNAL) && !defined(NJIN_FEATURE_3D)
+#error "njin_post3d.h is part of the njin feature '3d', which this game does not use: add it with njin_use(<game> FEATURES 3d)"
+#endif
 #include "_math.h"
 #include "_types.h"
 
@@ -7,6 +12,15 @@ struct context;
 
 /// @addtogroup grp_post3d
 /// @{
+
+/// How anti-aliasing from the image works (post3d::aa).
+enum aa3d {
+  aa3d_none, ///< Off (the default).
+  /// FXAA (Timothy Lottes): finds edges by brightness and blends along them, one pass.
+  aa3d_fxaa,
+  /// SMAA 1x (Jimenez et al.): finds edges and blends by the shape of the jaggies, three passes.
+  aa3d_smaa,
+};
 
 /// Screen effects of the 3D scene, worked out from the depth of the 3D pass:
 /// ambient occlusion (SSAO), reflections (SSR), motion blur, light shafts and
@@ -86,6 +100,39 @@ struct post3d {
   /// @{
   bool taa = false;           ///< Turns TAA on.
   f32 taa_sharpen = 0.25f;    ///< Sharpens the image back after blending, 0..1. 0 is no sharpening.
+  /// @}
+
+  /// @name HDR bloom
+  /// Bright places spread out by exactly their energy (as Bevy and Unreal: a chain of shrunk
+  /// images scaled back up, no threshold): lights, strongly glowing things, the sun reflected
+  /// on metal give off a halo, dark places are not blurred. Only with light3d::hdr; without
+  /// HDR use the bloom of post_fx_set().
+  /// @{
+  f32 bloom = 0.0f;        ///< The share of the light that spreads, 0..1. 0 is off; 0.04..0.15 is usual.
+  f32 bloom_radius = 1.0f; ///< How far it spreads, 0.25..2. 1 is the default.
+  /// @}
+
+  /// @name Anti-aliasing from the image (FXAA, SMAA)
+  /// Smooths jaggies from the drawn image itself, once a frame, without blending with the
+  /// previous frame, so there is no ghosting when things move fast (unlike TAA), but thin
+  /// edges can still flicker. Applies to the whole world image after the frame's first 3D pass
+  /// into the world.
+  /// @{
+
+  /// How it smooths: aa3d_none (the default), aa3d_fxaa (fastest, blurs text and fine patterns
+  /// a little) or aa3d_smaa (sharper, costs a little more).
+  aa3d aa = aa3d_none;
+  /// @}
+
+  /// @name Order-independent transparency (OIT)
+  /// Transparent things (a colour with `a` < 1, glass parts of a model, draw_instanced3d()) are
+  /// blended by weight (weighted blended OIT, McGuire and Bavoil) instead of one by one: several
+  /// layers of glass, smoke, leaves over each other come out right whatever the order they are
+  /// drawn in and one no longer hides another. Plain transparent shapes (`a` < 1) are put into
+  /// this pass too. A game's own shader, water, 3D particles and things that transmit
+  /// (material3d::transmission) are still drawn as before, after it.
+  /// @{
+  bool oit = false; ///< Turns OIT on.
   /// @}
 };
 

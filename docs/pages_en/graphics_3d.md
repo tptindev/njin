@@ -298,9 +298,11 @@ at most, with no toe in the ground; on a flat floor the pose is exactly the anim
 |---|---|---|
 | Sun, ambient light | light3d_set() with njin::light3d | Takes effect from the next begin_3d() |
 | The sun's shadow | `light3d::shadows`, `shadow_range`, `shadow_size`, `shadow_softness` | A shadow box around where the camera looks; 3x3 soft edge |
+| Cascaded shadows | `light3d::shadow_cascades`, `shadow_cascade_split` | @ref shadow3d_cascades |
 | Fog | `light3d::fog_color`, `fog_density` | By distance to the camera |
-| Point, spot lights | light3d_add() with njin::light3d_source per draw, or an entity (@ref entities_3d) | Up to njin::light3d_max (16) |
-| Point and spot light shadows | `light3d_source::shadows`, `light3d::source_shadow_size` | Up to njin::light3d_shadow_max (4) per draw; later lights light without casting shadows |
+| Volumetric fog, shafts of light in fog | `light3d::volume_density` and the `volume_*` fields | @ref fog3d_volume |
+| Point, spot lights | light3d_add() with njin::light3d_source per draw, or an entity (@ref entities_3d) | Up to njin::light3d_max (16) by default; `light3d::lights_max` up to njin::light3d_limit (@ref lights3d_many) |
+| Point and spot light shadows | `light3d_source::shadows`, `light3d::source_shadow_size` | Up to njin::light3d_shadow_max (4) per draw by default, `light3d::source_shadows` up to njin::light3d_shadow_limit; later lights light without casting shadows |
 | Surface | material3d_set() with njin::material3d | Shininess, emission, rim light, `unlit`, `texture`, `cast_shadows`; PBR: `pbr`, `metallic`, `roughness` (@ref pbr3d) |
 | Tone mapping, environment image | `light3d::tonemap`, `exposure`, `environment` | @ref pbr3d |
 
@@ -317,6 +319,78 @@ in the middle of a room); the light's `radius` is also the shadow's range.
 njin::light3d_add(ctx, {.kind = njin::light3d_spot, .position = eye, .direction = forward,
                         .intensity = 2.0f, .radius = 25.0f, .cone = 40.0f, .shadows = true});
 @endcode
+
+### Cascaded shadows {#shadow3d_cascades}
+
+One shadow image covering the whole `shadow_range` makes shadows near the camera blurry and jagged when the
+range is wide, while shrinking the range makes distant things lose their shadow. `light3d::shadow_cascades`
+from 2 to 4 splits the span from the camera to `shadow_range` metres into slices (cascaded shadow maps, as
+Bevy and Unreal), each with a `shadow_size` shadow image: near slices are short so shadows are sharp, far
+slices are long so shadows are still there. `shadow_cascade_split` picks how it is split, 0 evenly, 1
+exponentially; 0.75 suits most scenes. The edge of each cascade blends into the next so there is no visible
+line where the sharpness changes, and each cascade keeps a fixed size and moves in whole shadow-image pixels,
+so shadow edges do not shimmer while the camera moves.
+
+@code
+// An open world: shadows to 150 m, four 2048 pixel cascades.
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .shadow_range = 150.0f, .shadow_size = 2048,
+                        .shadow_cascades = 4});
+@endcode
+
+Each cascade draws every shadow caster once more, so four cascades cost four times one shadow image. A
+parallel camera (`camera3d_orthographic`) always uses one shadow image around where it looks.
+
+### Many lights {#lights3d_many}
+
+By default a draw has at most 16 lights and every pixel works out all 16. `light3d::lights_max` above 16 (up
+to njin::light3d_limit, 1024) turns on clustered lighting as Bevy has: the view is split into 16 x 9 tiles and
+24 depth slices, njin records the lights touching each cluster, and each pixel only works out the lights of its
+cluster. Hundreds of small lights (torches down a corridor, street lamps, glowing bullets) stay fast, as long as
+each light has a fitting `radius`: a light with a long reach touches more clusters.
+
+`light3d::source_shadows` above 4 (up to njin::light3d_shadow_limit, 16) lets more lights cast shadows, in the
+same way. Each shadow-casting light adds a row to the shadow image and draws every shadow caster again 6 times
+(point light) or once (spot light), so this limit is about speed more than about count.
+
+@code
+// A night street: 200 street lamps, the 8 nearest cast shadows.
+njin::light3d_set(ctx, {.color = {0.05f, 0.05f, 0.1f, 1}, .lights_max = 256, .source_shadows = 8});
+njin::begin_3d(ctx, cam);
+for (const lamp &l : street_lamps)
+  njin::light3d_add(ctx, {.position = l.pos, .color = {1, 0.8f, 0.5f, 1}, .intensity = 2.0f, .radius = 8.0f,
+                          .shadows = l.near_player});
+@endcode
+
+Water with `water3d_desc::lamps` also takes these lights. A game's own shader still only gets the sun.
+
+### Volumetric fog {#fog3d_volume}
+
+`light3d::volume_density` above 0 turns on fog that exists in space: sunlight and lamplight scatter in it into
+shafts of light, and the shadows of things cut it into dark streaks (sun through a window, a flashlight in fog,
+street lamps on a rainy night). Each pixel marches a ray from the camera to the surface (or to `volume_distance`)
+through `volume_steps` steps, at half resolution; each step takes the sunlight through its shadow (the cascades
+too), the lights through their shadows, and the ambient light.
+
+| Field | Meaning |
+|---|---|
+| `volume_density` | Density per metre; 0.02 is light fog, 0.1 is thick |
+| `volume_color` | Colour of the light the fog scatters back |
+| `volume_base`, `volume_falloff` | The fog is thick below the height `volume_base` and thins above it |
+| `volume_noise`, `volume_noise_size`, `volume_wind` | Fog in patches that drift with the wind |
+| `volume_anisotropy` | Positive: brightest looking towards the light (a halo round the sun, headlights) |
+| `volume_sun`, `volume_ambient`, `volume_lamps` | The share of the sun, the ambient light and the lamps the fog scatters |
+
+@code
+// An abandoned warehouse: afternoon sun through gaps in the wall.
+njin::light3d_set(ctx, {.direction = {0.3f, -0.4f, 0.85f}, .color = {3, 2.6f, 2, 1}, .shadows = true,
+                        .tonemap = njin::tonemap3d_agx, .hdr = true,
+                        .volume_density = 0.03f, .volume_noise = 0.4f, .volume_anisotropy = 0.6f});
+@endcode
+
+Volumetric fog only applies to passes into the world and looks best with `light3d::hdr`: the light in the fog is
+added straight into the image. It is different from `fog_density` (flat fog by distance, still usable at the
+same time). Each marching step costs about one lighting evaluation: 32 steps at half resolution is a
+moderately heavy effect, so lower `volume_steps` on weak machines.
 
 ## Tone mapping and PBR materials {#pbr3d}
 
@@ -338,7 +412,8 @@ the right colours.
 | `tonemap3d_neutral` | Khronos PBR Neutral: keeps material colours almost as they are, for products and objects |
 
 `unlit` things, 3D particles, the background and the fog colour keep the colours given (fog is mixed in
-after compression, so it still matches the background). Bloom reads the compressed image.
+after compression, so it still matches the background). The bloom of post_fx_set() reads the compressed image;
+turn on `light3d::hdr` to get bloom and auto exposure on the real light (@ref hdr3d).
 
 **PBR materials** (`material3d::pbr`, `metallic`, `roughness`): the Cook-Torrance GGX BRDF, the shading of
 glTF, Blender and three.js, instead of `specular` and `shininess`. Lighting keeps Blinn-Phong's scale: a
@@ -374,6 +449,97 @@ so a very rough white metal sphere in even white light stays white. Without an `
 materials take `ambient` as an evenly coloured sky: metals then only reflect that colour, so set an
 environment image when the scene has metal. world3d's generated sky (draw_sky3d()) does not become an
 environment by itself yet.
+
+### HDR and auto exposure {#hdr3d}
+
+The tone mapping above runs in each shader, so the pass's image is still 8-bit: places brighter than 1 were
+already compressed before bloom, SSR or TAA read them. `light3d::hdr` (together with a `tonemap` other than
+tonemap3d_none) draws the scene into a 16-bit floating point image and tone maps it once at the end of the pass,
+as Bevy and Unreal do. That adds two things:
+
+- **Bloom by energy** (`post3d::bloom`, @ref post3d_bloom): lights and strongly glowing things give off a halo by
+  their real brightness, without a threshold.
+- **Auto exposure** (`light3d::auto_exposure`): njin measures the average brightness of the image (centre
+  weighted) and brings it gradually to `auto_exposure_key`, at the speed `auto_exposure_speed`, between
+  `auto_exposure_min` and `auto_exposure_max`: entering a cave the scene slowly brightens, going out into the sun
+  it darkens again.
+
+@code
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .tonemap = njin::tonemap3d_agx, .hdr = true,
+                        .auto_exposure = true});
+njin::post3d_set(ctx, {.bloom = 0.08f});
+@endcode
+
+With HDR everything in the pass goes through the tone curve, the background included (the clear colour, 2D
+drawn before begin_3d()), as in Bevy: lit things, water and the sky are also multiplied by the exposure; `unlit`
+things, 3D particles, fog and the background are not. With tonemap3d_linear and an `exposure` of 1 those colours
+stay as they are; with ACES or AgX they follow the curve. HDR only applies to passes into the world (a pass into a
+render texture still tone maps in each shader) and needs a floating point image, so it takes about two screen
+images of 8-bit extra memory.
+
+### Advanced PBR materials {#pbr3d_more}
+
+The fields below only have an effect with `material3d::pbr`, like the material extensions of glTF and Bevy's
+StandardMaterial. A model loaded with `model_load_desc::pbr` takes them from the file
+(`KHR_materials_clearcoat`, `_anisotropy`, `_ior`, `_transmission`, `_volume`; factors only, images are not read).
+
+| Field | For |
+|---|---|
+| `clearcoat`, `clearcoat_roughness` | A transparent glossy coat over the layer below: car paint, varnished wood |
+| `anisotropy`, `anisotropy_rotation` | A highlight stretched along the image's u direction: brushed metal, pan bottoms, hair |
+| `transmission`, `ior`, `thickness` | Light passing through: glass, water in a bottle, clear plastic; the scene behind is bent by the index of refraction and blurred by `roughness` (frosted glass) |
+| `attenuation_color`, `attenuation_distance` | The colour of a transparent body: wine, coloured glass, sea water |
+
+@code
+// A green glass bottle, 1 cm thick, and a car body in glossy red paint.
+njin::material3d_set(ctx, {.pbr = true, .roughness = 0.05f, .transmission = 1.0f, .ior = 1.5f,
+                           .thickness = 0.01f, .attenuation_color = {0.6f, 0.9f, 0.7f, 1},
+                           .attenuation_distance = 0.02f});
+njin::draw_model(ctx, bottle, {.position = {0, 1, 0}});
+njin::material3d_set(ctx, {.pbr = true, .roughness = 0.5f, .clearcoat = 1.0f, .clearcoat_roughness = 0.05f});
+njin::draw_model(ctx, car, {});
+@endcode
+
+Things that transmit are drawn after every opaque shape, like glass, and look through a copy of the opaque scene
+that njin makes itself in a pass into the world (from the frame after the first with a transmitting thing). In a
+pass into a render texture there is no copy, so the thing is only transparent by `transmission`.
+
+Two more fields work for every material, with or without `pbr`:
+
+- **Parallax** (`height`, `height_scale`): a height image (red channel, white is high) makes a flat surface look
+  truly bumpy seen at an angle, the image shifting with the view angle and low places hidden by high ones
+  (parallax occlusion mapping). Needs a mesh with UVs, and is not used together with `world_uv`.
+- **Lightmap** (`lightmap`, `lightmap_intensity`): baked indirect light (Blender, bake tools), on the mesh's
+  second UV set (the first if it has none), replacing `ambient` and the environment on that surface. The sun and
+  lights still add light as usual.
+
+### Reflection probes and the light grid {#probe3d}
+
+One environment image for the whole scene does not suit indoors: a metal floor in a room would reflect the sky.
+probe3d_add() places a probe: njin captures the scene round `probe3d_desc::position` in six directions, in the
+next 3D pass into the world, from that pass's own draw calls, and builds an environment image of its own from
+it. PBR materials in the box `size` take their ambient light and reflections from that probe instead of
+`environment`, fading into the next probe within the `blend` strip at the box's edge. `parallax` corrects the
+reflections by the box, so walls and furniture reflect in the right place, not as if at infinity. At most
+njin::probe3d_max probes.
+
+irradiance3d_set() sets a grid of indirect light: njin captures the scene at each point of the grid (a few
+points per frame until done) and remembers the light arriving from six directions. Every shape in the box, also
+materials without `pbr`, takes its ambient light from the grid instead of `ambient`: corners of a room darken,
+the floor by a red wall glows red, the underside of things is lit by the floor's bounce.
+
+@code
+// A room 8 x 3 x 8 m: a probe in the middle and a 4 x 2 x 4 grid.
+const njin::probe3d_handle room = njin::probe3d_add(ctx, {.position = {0, 1.5f, 0}, .size = {8, 3, 8}});
+njin::irradiance3d_set(ctx, {.center = {0, 1.5f, 0}, .size = {7.6f, 2.8f, 7.6f}});
+// ... when the room's light goes out or things move:
+njin::probe3d_refresh(ctx, room);
+njin::irradiance3d_refresh(ctx);
+@endcode
+
+Probes and the grid are only captured again by probe3d_refresh(), irradiance3d_refresh() (or setting them
+again), except a probe with `live`, captured every frame (drawing the scene 6 times again). What is captured
+is opaque shapes, models, terrain and the sky; not particles, water and glass.
 
 ## Effects
 
