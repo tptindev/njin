@@ -36,6 +36,7 @@ namespace {
 // Past raylib's material map slots (0..11), so DrawMesh never rebinds them.
 constexpr i32 shadow_unit = 14;
 constexpr i32 lamp_unit = 15;
+static_assert(shadow_unit == sun_shadow_unit && lamp_unit == lamp_shadow_unit);
 // A game shader's extra textures (shader_set_texture()): above the units a
 // model's own maps take (DrawMesh binds up to MATERIAL_MAP_BRDF), below the
 // shadow maps.
@@ -124,6 +125,54 @@ uniform int envOn;
 uniform vec3 envSH[9];
 uniform sampler2D envMap;
 uniform vec4 envParams;       // x levels, y intensity, z rotation (radians), w texel height of a level
+// light3d::hdr: 1 when the pass draws into the HDR image, which is tone mapped
+// once at its end: lit colours are written exposed and in linear light, the
+// authored ones (unlit, fog, flash) in linear light.
+uniform int hdrOut;
+// Cascaded sun shadows (shadowOn 2, light3d::shadow_cascades): the atlas holds
+// the cascades side by side, each seen through its own matrix; a point takes
+// the first cascade whose far distance along the view is past it.
+uniform int shadowCascades;
+uniform mat4 cascadeVP[4];
+uniform vec4 cascadeSplit;    // far distance of each cascade along viewDir
+uniform vec4 cascadeTexel;    // a texel's world size in each cascade
+uniform vec4 cascadeSpan;     // the depth range of each cascade's projection, world units
+uniform vec3 viewDir;         // the camera's forward
+// The extended lights (light3d::lights_max past 16, or source_shadows past 4):
+// every light in lightTex (4 texels: position and reach, colour and inner cone,
+// direction and outer cone, linear colour and shadow row), and with clusterOn 1
+// the lights touching each cluster of the view (clusterTex: first index and
+// count into indexTex). clusterOn 2 goes through all of them (probe captures).
+uniform int clusterOn;
+uniform int lightTotal;
+uniform sampler2D lightTex;
+uniform sampler2D clusterTex;
+uniform sampler2D indexTex;
+uniform sampler2D lampMatTex; // the lamps' face matrices, 4 texels each, for the extended lights
+uniform vec4 clusterGrid;     // tiles across, tiles up, depth slices, tile size in pixels
+uniform vec4 clusterDepth;    // near, far, log(far / near), 1 for an orthographic camera
+// PBR material extensions: clearcoat, its roughness, anisotropy, its rotation (radians).
+uniform vec4 pbrExtra;
+// Reflection probes (probe3d_add): per probe its box (centre and blend, half
+// size and intensity), where it was captured (and 1 for box parallax); their
+// prefiltered images side by side in probeAtlas, their irradiance in probeSH.
+uniform int probeCount;
+uniform vec4 probeBox[16];
+uniform vec4 probeAt[8];
+uniform sampler2D probeAtlas;
+uniform sampler2D probeSH;
+uniform vec4 probeParams;     // levels, half a texel of a level's height, probes in the atlas, half a texel across
+// The irradiance volume (irradiance3d_set): an ambient cube per grid point.
+uniform int irrOn;
+uniform vec4 irrMin;         // corner, blend
+uniform vec4 irrSize;        // size, intensity
+uniform vec4 irrCount;       // points along x, y, z
+uniform sampler2D irrTex;    // a column per point, a row per direction (+x -x +y -y +z -z), linear
+// What the main shader works out per pixel for the lighting functions below:
+// the tangent along which anisotropy stretches (zero none), and a lightmap's
+// ambient light (negative none).
+vec3 surfTangent = vec3(0.0);
+vec3 surfAmbient = vec3(-1.0);
 // The maps of a PBR material, read by the main shader: multiplied into the
 // factors. Negative when the shader has none (the SDF shapes, the outdoor world).
 float surfMetal = -1.0;
@@ -260,6 +309,55 @@ float sunlight(vec3 pos, vec3 n, vec3 l) {
   return lit / 9.0;
 }
 
+// Share of the sun reaching `pos` in cascade `i`, or -1 when `pos` is outside it.
+float cascade_light(int i, vec3 pos, vec3 n, vec3 l) {
+  float texelWorld = cascadeTexel[i];
+  vec4 lp = cascadeVP[i] * vec4(pos + n * texelWorld * 1.5, 1.0);
+  vec3 c = lp.xyz / lp.w * 0.5 + 0.5;
+  float step = shadowParams.x * max(shadowParams.y, 0.0);
+  float edge = step * 1.5 + shadowParams.x;
+  if (c.x <= edge || c.x >= 1.0 - edge || c.y <= edge || c.y >= 1.0 - edge || c.z >= 1.0)
+    return -1.0;
+  // The same bias in world units as the single map's.
+  float bias = 2.0 * texelWorld * (1.5 + 2.0 * (1.0 - max(dot(n, l), 0.0))) / cascadeSpan[i];
+  float n_c = float(shadowCascades);
+  float lit = 0.0;
+  for (int x = -1; x <= 1; x++)
+    for (int y = -1; y <= 1; y++) {
+      vec2 q = c.xy + vec2(x, y) * step;
+      lit += c.z - bias <= texture(shadowMap, vec2((float(i) + q.x) / n_c, q.y)).r ? 1.0 : 0.0;
+    }
+  return lit / 9.0;
+}
+
+// Share of the sun reaching `pos` through the cascades, the last tenth of each
+// blended into the next so the change of sharpness does not show as a line.
+float sunlight_cascades(vec3 pos, vec3 n, vec3 l) {
+  float d = dot(pos - viewPos, viewDir);
+  for (int i = 0; i < 4; i++) {
+    if (i >= shadowCascades)
+      break;
+    if (d > cascadeSplit[i])
+      continue;
+    float a = cascade_light(i, pos, n, l);
+    if (a < 0.0)
+      continue;
+    float from = cascadeSplit[i] * 0.9;
+    if (i + 1 < shadowCascades && d > from) {
+      float b = cascade_light(i + 1, pos, n, l);
+      if (b >= 0.0)
+        a = mix(a, b, (d - from) / max(cascadeSplit[i] - from, 1e-4));
+    }
+    return a;
+  }
+  return 1.0;
+}
+
+// The sun's share by light3d::shadows: off (1), one map, or cascades.
+float sun_share(vec3 pos, vec3 n, vec3 l) {
+  return shadowOn == 1 ? sunlight(pos, n, l) : shadowOn == 2 ? sunlight_cascades(pos, n, l) : 1.0;
+}
+
 // Share of point/spot light `i` (atlas row `row`) reaching `pos`, 3x3 PCF on
 // linear depth. A point light picks the cube face its direction falls in.
 float lamplight(int row, bool point, vec3 lpos, vec3 pos, vec3 n, vec3 l) {
@@ -320,16 +418,170 @@ float lamp_share(int i, vec3 pos, vec3 n, out vec3 li) {
   return att;
 }
 
+// The extended lights: face matrix `i` of the lamp atlas.
+mat4 lamp_matrix(int i) {
+  return mat4(texelFetch(lampMatTex, ivec2(i * 4, 0), 0), texelFetch(lampMatTex, ivec2(i * 4 + 1, 0), 0),
+              texelFetch(lampMatTex, ivec2(i * 4 + 2, 0), 0), texelFetch(lampMatTex, ivec2(i * 4 + 3, 0), 0));
+}
+
+// lamplight() with the face matrices from lampMatTex.
+float lamplight_ext(int row, bool point, vec3 lpos, vec3 pos, vec3 n, vec3 l) {
+  vec3 d = pos - lpos;
+  int face = 0;
+  if (point) {
+    vec3 a = abs(d);
+    if (a.x >= a.y && a.x >= a.z)
+      face = d.x > 0.0 ? 0 : 1;
+    else if (a.y >= a.z)
+      face = d.y > 0.0 ? 2 : 3;
+    else
+      face = d.z > 0.0 ? 4 : 5;
+  }
+  vec4 p = texelFetch(lightTex, ivec2(4, row), 0); // the row's near, far, texel, 1 / tile
+  float texel = length(d) * p.z;
+  vec4 c = lamp_matrix(row * 6 + face) * vec4(pos + n * texel * 1.5, 1.0);
+  if (c.w <= 0.0)
+    return 1.0;
+  vec2 uv = c.xy / c.w * 0.5 + 0.5;
+  if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0)
+    return 1.0;
+  float depth = c.w;
+  float bias = texel * (1.5 + 2.0 * (1.0 - max(dot(n, l), 0.0)));
+  vec2 cell = vec2(float(face), float(row));
+  vec2 lo = vec2(0.5 * p.w);
+  vec2 hi = vec2(1.0) - lo;
+  float lit = 0.0;
+  for (int x = -1; x <= 1; x++)
+    for (int y = -1; y <= 1; y++) {
+      vec2 q = clamp(uv + vec2(x, y) * p.w, lo, hi);
+      float z = texture(lampShadowMap, (cell + q) / vec2(6.0, lampRows)).r;
+      float linear = p.x * p.y / (p.y - z * (p.y - p.x));
+      lit += depth - bias <= linear ? 1.0 : 0.0;
+    }
+  return lit / 9.0;
+}
+
+// An extended light: its position and reach, colour (sRGB, times intensity)
+// and inner cone, direction and outer cone, linear colour and shadow row.
+struct lamp {
+  vec4 pos;
+  vec4 color;
+  vec4 spot;
+  vec4 linear;
+};
+
+lamp lamp_at(int k) {
+  lamp a;
+  a.pos = texelFetch(lightTex, ivec2(0, k), 0);
+  a.color = texelFetch(lightTex, ivec2(1, k), 0);
+  a.spot = texelFetch(lightTex, ivec2(2, k), 0);
+  a.linear = texelFetch(lightTex, ivec2(3, k), 0);
+  return a;
+}
+
+// lamp_share() for an extended light.
+float lamp_share_ext(lamp a, vec3 pos, vec3 n, out vec3 li) {
+  vec3 d = a.pos.xyz - pos;
+  float dist = length(d);
+  float reach = a.pos.w;
+  li = d / max(dist, 1e-5);
+  if (dist >= reach)
+    return 0.0;
+  float fall = 1.0 - dist / reach;
+  float att = fall * fall;
+  if (a.spot.w > -1.5)
+    att *= clamp((dot(-li, a.spot.xyz) - a.spot.w) / max(a.color.w - a.spot.w, 1e-4), 0.0, 1.0);
+  float nli = max(dot(n, li), 0.0);
+  int row = int(a.linear.w);
+  if (nli > 0.0 && att > 0.0 && row >= 0)
+    att *= lamplight_ext(row, a.spot.w < -1.5, a.pos.xyz, pos, n, li);
+  return att;
+}
+
+// The extended lights reaching `pos`: `first` and `count` into the index list
+// of its cluster (clusterOn 1), or every light (clusterOn 2: `first` 0).
+void lamp_range(vec3 pos, out int first, out int count) {
+  first = 0;
+  count = 0;
+  if (clusterOn == 2) {
+    count = lightTotal;
+    return;
+  }
+  if (clusterOn != 1)
+    return;
+  ivec2 tile = clamp(ivec2(gl_FragCoord.xy / clusterGrid.w), ivec2(0), ivec2(clusterGrid.xy) - 1);
+  float z = dot(pos - viewPos, viewDir);
+  float s = clusterDepth.w > 0.5 ? (z - clusterDepth.x) / max(clusterDepth.y - clusterDepth.x, 1e-4)
+                                 : log(max(z, clusterDepth.x) / clusterDepth.x) / clusterDepth.z;
+  int slice = clamp(int(s * clusterGrid.z), 0, int(clusterGrid.z) - 1);
+  vec4 c = texelFetch(clusterTex, ivec2(tile.y * int(clusterGrid.x) + tile.x, slice), 0);
+  first = int(c.r);
+  count = int(c.g);
+}
+
+// Which extended light the `j`th of the range is.
+int lamp_index(int first, int j) {
+  if (clusterOn == 2)
+    return j;
+  int at = first + j;
+  return int(texelFetch(indexTex, ivec2(at % 4096, at / 4096), 0).r);
+}
+
+// The ambient light at `pos` from the irradiance volume, in linear light, and
+// how much of it applies (0 outside the box, rising over its blend).
+vec3 grid_irradiance(vec3 n, vec3 pos, out float weight) {
+  weight = 0.0;
+  if (irrOn != 1)
+    return vec3(0.0);
+  vec3 rel = (pos - irrMin.xyz) / max(irrSize.xyz, vec3(1e-4));
+  vec3 inside = min(pos - irrMin.xyz, irrMin.xyz + irrSize.xyz - pos);
+  weight = clamp(min(inside.x, min(inside.y, inside.z)) / max(irrMin.w, 1e-4), 0.0, 1.0);
+  if (weight <= 0.0)
+    return vec3(0.0);
+  vec3 cnt = irrCount.xyz;
+  vec3 g = clamp(rel, 0.0, 1.0) * max(cnt - 1.0, vec3(0.0));
+  vec3 g0 = floor(g);
+  vec3 f = g - g0;
+  vec3 n2 = n * n;
+  // The three faces of the ambient cube the normal looks towards.
+  int dx = n.x >= 0.0 ? 0 : 1, dy = n.y >= 0.0 ? 2 : 3, dz = n.z >= 0.0 ? 4 : 5;
+  vec3 sum = vec3(0.0);
+  for (int c = 0; c < 8; c++) {
+    vec3 o = vec3(float(c & 1), float((c >> 1) & 1), float((c >> 2) & 1));
+    vec3 p = min(g0 + o, max(cnt - 1.0, vec3(0.0)));
+    float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y) * (o.z > 0.5 ? f.z : 1.0 - f.z);
+    if (w <= 0.0)
+      continue;
+    int col = int(p.x + cnt.x * (p.y + cnt.y * p.z));
+    sum += w * (n2.x * texelFetch(irrTex, ivec2(col, dx), 0).rgb + n2.y * texelFetch(irrTex, ivec2(col, dy), 0).rgb +
+                n2.z * texelFetch(irrTex, ivec2(col, dz), 0).rgb);
+  }
+  return sum * irrSize.w;
+}
+
+// The ambient light a classic material gets: a lightmap's, the irradiance
+// volume's, or `ambient` (the linear copies when `lin`).
+vec3 classic_ambient(vec3 n, vec3 pos, bool lin) {
+  vec3 a = lin ? ambientLinear : ambient;
+  if (surfAmbient.r >= 0.0)
+    return lin ? surfAmbient : linear_to_srgb(surfAmbient);
+  float w;
+  vec3 g = grid_irradiance(n, pos, w);
+  if (w > 0.0)
+    a = mix(a, lin ? g : linear_to_srgb(g), w);
+  return a;
+}
+
 // Blinn-Phong: the sun, the lamps, ambient and rim, with the lights' colours
 // as given (`lin`: their linear copies).
 vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
-  vec3 diffuse = lin ? ambientLinear : ambient;
+  vec3 diffuse = classic_ambient(n, pos, lin);
   vec3 spec = vec3(0.0);
   vec3 sunColor = lin ? lightColorLinear : lightColor;
   vec3 l = -lightDir;
   float nl = max(dot(n, l), 0.0);
   if (nl > 0.0) {
-    float sun = shadowOn == 1 ? sunlight(pos, n, l) : 1.0;
+    float sun = sun_share(pos, n, l);
     diffuse += sunColor * nl * sun;
     spec += sunColor * pow(max(dot(n, normalize(l + v)), 0.0), surface.y) * sun;
   }
@@ -339,6 +591,20 @@ vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
     if (att <= 0.0)
       continue;
     vec3 c = lin ? lightColorsLinear[i].rgb : lightColors[i].rgb;
+    float nli = max(dot(n, li), 0.0);
+    diffuse += c * nli * att;
+    if (nli > 0.0)
+      spec += c * pow(max(dot(n, normalize(li + v)), 0.0), surface.y) * att;
+  }
+  int first, count;
+  lamp_range(pos, first, count);
+  for (int j = 0; j < count; j++) {
+    lamp a = lamp_at(lamp_index(first, j));
+    vec3 li;
+    float att = lamp_share_ext(a, pos, n, li);
+    if (att <= 0.0)
+      continue;
+    vec3 c = lin ? a.linear.rgb : a.color.rgb;
     float nli = max(dot(n, li), 0.0);
     diffuse += c * nli * att;
     if (nli > 0.0)
@@ -409,6 +675,119 @@ vec3 env_radiance(vec3 d, float rough) {
   return mix(a, b, at - k0) * envParams.y;
 }
 
+// pbr_direct() with the material extensions (pbrExtra): anisotropic GGX along
+// surfTangent (Burley's distribution, Heitz's correlated visibility, as
+// Filament), and a clearcoat lobe over it (Kelemen visibility) taking its share
+// of the light first.
+vec3 pbr_direct_ext(vec3 albedo, float metal, float rough, vec3 f0, vec3 n, vec3 v, vec3 l, vec3 c) {
+  float nl = max(dot(n, l), 0.0);
+  if (nl <= 0.0)
+    return vec3(0.0);
+  vec3 h = normalize(l + v);
+  float nv = max(dot(n, v), 1e-4), nh = max(dot(n, h), 0.0), vh = max(dot(v, h), 0.0);
+  vec3 F = f0 + (1.0 - f0) * pow(1.0 - vh, 5.0);
+  vec3 kd = (1.0 - F) * (1.0 - metal);
+  vec3 spec;
+  float aniso = clamp(pbrExtra.z, -1.0, 1.0);
+  if (aniso != 0.0 && dot(surfTangent, surfTangent) > 0.0) {
+    vec3 t = surfTangent, b = cross(n, t);
+    float a = rough * rough;
+    float at = max(a * (1.0 + aniso), 0.001), ab = max(a * (1.0 - aniso), 0.001);
+    float a2 = at * ab;
+    vec3 w = vec3(ab * dot(t, h), at * dot(b, h), a2 * nh);
+    float w2 = a2 / dot(w, w);
+    float D = a2 * w2 * w2 / PI;
+    float lv = nl * length(vec3(at * dot(t, v), ab * dot(b, v), nv));
+    float ll = nv * length(vec3(at * dot(t, l), ab * dot(b, l), nl));
+    spec = D * (0.5 / max(lv + ll, 1e-5)) * F;
+  } else {
+    float a = rough * rough, a2 = a * a;
+    float q = nh * nh * (a2 - 1.0) + 1.0;
+    float D = a2 / (PI * q * q);
+    float k = (rough + 1.0) * (rough + 1.0) / 8.0;
+    float G = nv / (nv * (1.0 - k) + k) * nl / (nl * (1.0 - k) + k);
+    spec = D * G * F / (4.0 * nv * nl);
+  }
+  vec3 base = (kd * albedo + spec * PI) * c * nl;
+  float cc = clamp(pbrExtra.x, 0.0, 1.0);
+  if (cc > 0.0) {
+    float cr = clamp(pbrExtra.y, 0.045, 1.0);
+    float a = cr * cr, a2 = a * a;
+    float q = nh * nh * (a2 - 1.0) + 1.0;
+    float D = a2 / (PI * q * q);
+    float Fc = (0.04 + 0.96 * pow(1.0 - vh, 5.0)) * cc;
+    float V = 0.25 / max(vh * vh, 1e-4);
+    base = base * (1.0 - Fc) + vec3(D * V * Fc * PI) * c * nl;
+  }
+  return base;
+}
+
+// One light on a PBR material, through the extensions only when it has any.
+vec3 pbr_lobe(vec3 albedo, float metal, float rough, vec3 f0, vec3 n, vec3 v, vec3 l, vec3 c) {
+  if (pbrExtra.x > 0.0 || pbrExtra.z != 0.0)
+    return pbr_direct_ext(albedo, metal, rough, f0, n, v, l, c);
+  return pbr_direct(albedo, metal, rough, f0, n, v, l, c);
+}
+
+// Reflection probe `i`'s light from direction `d`, blurred for `rough`.
+vec3 probe_radiance(int i, vec3 d, float rough) {
+  vec2 uv = vec2(atan(d.z, d.x) / (2.0 * PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
+  float levels = probeParams.x;
+  float at = clamp(rough, 0.0, 1.0) * (levels - 1.0);
+  float k0 = floor(at);
+  float k1 = min(k0 + 1.0, levels - 1.0);
+  float v = clamp(uv.y, probeParams.y, 1.0 - probeParams.y);
+  float u = (float(i) + clamp(uv.x, probeParams.w, 1.0 - probeParams.w)) / probeParams.z;
+  vec3 a = textureLod(probeAtlas, vec2(u, (k0 + v) / levels), 0.0).rgb;
+  vec3 b = textureLod(probeAtlas, vec2(u, (k1 + v) / levels), 0.0).rgb;
+  return mix(a, b, at - k0);
+}
+
+// Reflection probe `i`'s irradiance along `n`, from its spherical harmonics.
+vec3 probe_irradiance(int i, vec3 n) {
+  vec3 s[9];
+  for (int k = 0; k < 9; k++)
+    s[k] = texelFetch(probeSH, ivec2(k, i), 0).rgb;
+  return s[0] * 0.886227 + s[1] * (1.023328 * n.y) + s[2] * (1.023328 * n.z) + s[3] * (1.023328 * n.x) +
+         s[4] * (0.858086 * n.x * n.y) + s[5] * (0.858086 * n.y * n.z) + s[6] * (0.247708 * (3.0 * n.z * n.z - 1.0)) +
+         s[7] * (0.858086 * n.x * n.z) + s[8] * (0.429043 * (n.x * n.x - n.y * n.y));
+}
+
+// The reflection probes round `pos` in place of the environment: each weighted
+// by how far inside its box `pos` is, the reflection `r` turned towards where
+// it meets the box (box projection) when the probe asks for it.
+void probe_light(vec3 n, vec3 pos, vec3 r, float rough, inout vec3 diffuseLight, inout vec3 specLight) {
+  float wsum = 0.0;
+  vec3 d = vec3(0.0), s = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    if (i >= probeCount)
+      break;
+    vec4 box = probeBox[i * 2];
+    vec4 half_size = probeBox[i * 2 + 1];
+    vec3 q = abs(pos - box.xyz) - half_size.xyz;
+    float w = clamp(-max(q.x, max(q.y, q.z)) / max(box.w, 1e-4), 0.0, 1.0);
+    if (w <= 0.0)
+      continue;
+    vec3 dir = r;
+    if (probeAt[i].w > 0.5) {
+      vec3 rr = r + vec3(equal(r, vec3(0.0))) * 1e-5;
+      vec3 t1 = (box.xyz + half_size.xyz - pos) / rr;
+      vec3 t2 = (box.xyz - half_size.xyz - pos) / rr;
+      vec3 tf = max(t1, t2);
+      float t = min(tf.x, min(tf.y, tf.z));
+      dir = normalize(pos + r * t - probeAt[i].xyz);
+    }
+    s += w * probe_radiance(i, dir, rough) * half_size.w;
+    d += w * probe_irradiance(i, n) / PI * half_size.w;
+    wsum += w;
+  }
+  if (wsum <= 0.0)
+    return;
+  float k = min(wsum, 1.0);
+  specLight = mix(specLight, s / wsum, k);
+  diffuseLight = mix(diffuseLight, d / wsum, k);
+}
+
 // The PBR material: the sun, the lamps, and the ambient light or the
 // environment, with the lights' colours as given (`lin`: their linear copies).
 vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
@@ -418,14 +797,23 @@ vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
   vec3 color = vec3(0.0);
   vec3 l = -lightDir;
   if (dot(n, l) > 0.0) {
-    float sun = shadowOn == 1 ? sunlight(pos, n, l) : 1.0;
-    color += pbr_direct(albedo, metal, rough, f0, n, v, l, (lin ? lightColorLinear : lightColor) * sun);
+    float sun = sun_share(pos, n, l);
+    color += pbr_lobe(albedo, metal, rough, f0, n, v, l, (lin ? lightColorLinear : lightColor) * sun);
   }
   for (int i = 0; i < lightCount; i++) {
     vec3 li;
     float att = lamp_share(i, pos, n, li);
     if (att > 0.0)
-      color += pbr_direct(albedo, metal, rough, f0, n, v, li, (lin ? lightColorsLinear[i].rgb : lightColors[i].rgb) * att);
+      color += pbr_lobe(albedo, metal, rough, f0, n, v, li, (lin ? lightColorsLinear[i].rgb : lightColors[i].rgb) * att);
+  }
+  int first, count;
+  lamp_range(pos, first, count);
+  for (int j = 0; j < count; j++) {
+    lamp a = lamp_at(lamp_index(first, j));
+    vec3 li;
+    float att = lamp_share_ext(a, pos, n, li);
+    if (att > 0.0)
+      color += pbr_lobe(albedo, metal, rough, f0, n, v, li, (lin ? a.linear.rgb : a.color.rgb) * att);
   }
   // Light from all around: the environment, or the ambient colour as an even
   // sky. With the energy single scattering loses on rough surfaces given back
@@ -438,18 +826,48 @@ vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
   float ess = ab.x + ab.y;
   vec3 favg = f0 + (1.0 - f0) * 0.047619;
   vec3 multi = single * favg / (1.0 - (1.0 - ess) * favg) * (1.0 - ess);
+  // Anisotropy bends the reflection towards the stretch (Filament's bent normal).
+  vec3 r = reflect(-v, n);
+  float aniso = clamp(pbrExtra.z, -1.0, 1.0);
+  if (aniso != 0.0 && dot(surfTangent, surfTangent) > 0.0) {
+    vec3 along = aniso >= 0.0 ? cross(n, surfTangent) : surfTangent;
+    vec3 across = cross(along, v);
+    vec3 bent = normalize(mix(n, cross(across, along), abs(aniso) * clamp(5.0 * rough, 0.0, 1.0)));
+    r = reflect(-v, bent);
+  }
   vec3 diffuseLight, specLight;
   if (envOn == 1) {
     diffuseLight = env_irradiance(n) / PI;
-    specLight = env_radiance(reflect(-v, n), rough);
+    specLight = env_radiance(r, rough);
   } else {
     diffuseLight = lin ? ambientLinear : ambient;
     specLight = diffuseLight;
   }
+  if (probeCount > 0)
+    probe_light(n, pos, r, rough, diffuseLight, specLight);
+  float gw;
+  vec3 g = grid_irradiance(n, pos, gw);
+  if (gw > 0.0)
+    diffuseLight = mix(diffuseLight, lin ? g : linear_to_srgb(g), gw);
+  if (surfAmbient.r >= 0.0)
+    diffuseLight = lin ? surfAmbient : linear_to_srgb(surfAmbient);
   vec3 total = single + multi;
   vec3 kd = albedo * (1.0 - metal) * (1.0 - max(total.r, max(total.g, total.b)));
   float occlusion = mix(1.0, surfOcclusion, clamp(pbrParams.w, 0.0, 1.0));
-  color += (kd * diffuseLight + single * specLight + multi * diffuseLight) * occlusion;
+  vec3 around = (kd * diffuseLight + single * specLight + multi * diffuseLight) * occlusion;
+  float cc = clamp(pbrExtra.x, 0.0, 1.0);
+  if (cc > 0.0) {
+    // The clearcoat reflects the surroundings sharply and takes its share first.
+    float cr = clamp(pbrExtra.y, 0.045, 1.0);
+    float fc = (0.04 + 0.96 * pow(1.0 - nv, 5.0)) * cc;
+    vec3 ccLight = envOn == 1 ? env_radiance(reflect(-v, n), cr) : (lin ? ambientLinear : ambient);
+    if (probeCount > 0) {
+      vec3 unusedDiffuse = vec3(0.0);
+      probe_light(n, pos, reflect(-v, n), cr, unusedDiffuse, ccLight);
+    }
+    around = around * (1.0 - fc) + ccLight * fc * occlusion;
+  }
+  color += around;
   vec3 rimColor = lin ? srgb_to_linear(rim.rgb) : rim.rgb;
   return color + rimColor * rim.a * pow(1.0 - nv, 3.0);
 }
@@ -462,12 +880,25 @@ vec3 shade(vec3 base, vec3 n, vec3 pos, float cut, vec3 glow) {
     vec3 albedo = srgb_to_linear(base);
     vec3 lit = pbrParams.x > 0.5 ? pbr_light(albedo, n, pos, v, true) : classic_light(albedo, n, pos, v, true);
     lit += emissionLinear.rgb * emissionLinear.a + srgb_to_linear(glow);
-    color = tone_out(lit);
+    color = hdrOut == 1 ? lit * exposure : tone_out(lit);
   } else {
     // Without tone mapping, as njin always drew it (PBR or not).
     if (unlit == 0)
       color = pbrParams.x > 0.5 ? pbr_light(base, n, pos, v, false) : classic_light(base, n, pos, v, false);
     color += emission.rgb * emission.a + glow;
+    if (hdrOut == 1)
+      color = srgb_to_linear(color);
+  }
+  if (hdrOut == 1) {
+    // Into the HDR image: the authored colours in linear light too.
+    color = mix(color, srgb_to_linear(flash.rgb), flash.a);
+    if (dissolve.x > 0.0 && cut < dissolve.x + dissolve.y)
+      color = mix(color, srgb_to_linear(edgeColor.rgb), edgeColor.a);
+    if (fogDensity > 0.0) {
+      float f = fogDensity * length(viewPos - pos);
+      color = mix(srgb_to_linear(fogColor), color, exp(-f * f));
+    }
+    return color;
   }
   color = mix(color, flash.rgb, flash.a);
   if (dissolve.x > 0.0 && cut < dissolve.x + dissolve.y)
@@ -500,6 +931,19 @@ uniform int useUnderNormal;
 uniform sampler2D metalRoughMap; // material3d::metal_rough: g roughness, b metallic
 uniform sampler2D occlusionMap;  // material3d::occlusion: r
 uniform int usePbrMaps;          // 1 metal_rough, 2 occlusion; 4, 8: that map on the second texture coordinates
+uniform sampler2D heightMap;     // material3d::height: r
+uniform float heightScale;       // > 0 when there is one
+uniform sampler2D lightMap;      // material3d::lightmap
+uniform vec4 lightmapParams;     // on, intensity, 1 sRGB-encoded, 1 on the second texture coordinates
+// material3d::transmission: transmission, ior, thickness, attenuation distance;
+// the attenuation colour; the opaque scene behind (sceneOn 1) and its view-projection.
+uniform vec4 transmit;
+uniform vec3 attenuationColor;
+uniform int sceneOn;
+uniform sampler2D sceneColor;
+uniform mat4 sceneVP;
+// post3d::oit: 0 drawn as usual, 1 into the weighted sum, 2 into the revealage.
+uniform int oitPass;
 
 // Normal mapping without tangents: the frame comes from screen derivatives
 // (Christian Schueler, "Normal Mapping Without Precomputed Tangents").
@@ -558,9 +1002,95 @@ vec4 untiled(sampler2D s, vec2 uv, vec2 offa, vec2 offb, float k) {
   return mix(a, b, smoothstep(0.2, 0.8, k));
 }
 
+// The texture frame at this pixel from screen derivatives (as mapped_normal),
+// u along `t` and v along `b`, unnormalized.
+void uv_frame(vec3 n, vec2 uv, out vec3 t, out vec3 b) {
+  vec3 dp1 = dFdx(fragPos);
+  vec3 dp2 = dFdy(fragPos);
+  vec2 duv1 = dFdx(uv);
+  vec2 duv2 = dFdy(uv);
+  vec3 dp2perp = cross(dp2, n);
+  vec3 dp1perp = cross(n, dp1);
+  t = dp2perp * duv1.x + dp1perp * duv2.x;
+  b = dp2perp * duv1.y + dp1perp * duv2.y;
+}
+
+// Parallax occlusion mapping: the view ray stepped down into the height map
+// (white high), the hit between the last two steps.
+vec2 parallax_uv(vec2 uv, vec3 n) {
+  vec3 t, b;
+  uv_frame(n, uv, t, b);
+  float invmax = inversesqrt(max(max(dot(t, t), dot(b, b)), 1e-12));
+  t *= invmax;
+  b *= invmax;
+  vec3 v = normalize(viewPos - fragPos);
+  vec3 vt = vec3(dot(v, t), dot(v, b), dot(v, n));
+  float steps = mix(32.0, 8.0, clamp(vt.z, 0.0, 1.0));
+  vec2 shift = vt.xy / max(vt.z, 0.1) * heightScale / steps;
+  vec2 dx = dFdx(uv), dy = dFdy(uv);
+  float layer = 1.0 / steps;
+  float depth = 0.0;
+  vec2 cur = uv;
+  float h = 1.0 - textureGrad(heightMap, cur, dx, dy).r;
+  float prev_h = h, prev_depth = 0.0;
+  for (int i = 0; i < 32; i++) {
+    if (depth >= h)
+      break;
+    prev_h = h;
+    prev_depth = depth;
+    cur -= shift;
+    depth += layer;
+    h = 1.0 - textureGrad(heightMap, cur, dx, dy).r;
+  }
+  float after = h - depth, before = prev_h - prev_depth;
+  float w = after / min(after - before, -1e-5);
+  return mix(cur, cur + shift, clamp(w, 0.0, 1.0));
+}
+
+// What shows through a see-through material (material3d::transmission): the
+// opaque scene where the refracted view ray leaves the thickness, blurred by
+// the roughness, tinted by the base colour and the attenuation, and how much of
+// it shows (Schlick's Fresnel for the material's ior).
+vec3 transmitted(vec3 albedo, vec3 n, float rough, out float share) {
+  vec3 v = normalize(viewPos - fragPos);
+  float ior = max(transmit.y, 1.0);
+  vec3 ray = refract(-v, n, 1.0 / ior);
+  if (dot(ray, ray) < 1e-6)
+    ray = -v;
+  vec3 exit_at = fragPos + ray * max(transmit.z, 0.02);
+  vec4 clip = sceneVP * vec4(exit_at, 1.0);
+  vec2 uv = clip.w > 0.0 ? clip.xy / clip.w * 0.5 + 0.5 : gl_FragCoord.xy / vec2(textureSize(sceneColor, 0));
+  uv = clamp(uv, vec2(0.001), vec2(0.999));
+  float r = rough * rough * 0.04;
+  vec3 behind = texture(sceneColor, uv).rgb * 0.4;
+  behind += (texture(sceneColor, uv + vec2(r, 0.0)).rgb + texture(sceneColor, uv - vec2(r, 0.0)).rgb +
+             texture(sceneColor, uv + vec2(0.0, r)).rgb + texture(sceneColor, uv - vec2(0.0, r)).rgb) * 0.15;
+  vec3 tint = albedo;
+  if (transmit.w > 0.0 && transmit.z > 0.0)
+    tint *= exp(log(max(attenuationColor, vec3(1e-4))) / transmit.w * transmit.z);
+  float f0 = (ior - 1.0) / (ior + 1.0);
+  f0 *= f0;
+  float fres = f0 + (1.0 - f0) * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+  share = clamp(transmit.x, 0.0, 1.0) * (1.0 - fres);
+  return behind * tint;
+}
+
+// post3d::oit: the colour weighted by its coverage and depth (McGuire and
+// Bavoil's weight), or its coverage for the revealage.
+vec4 oit_out(vec4 c) {
+  float a = clamp(c.a, 0.0, 1.0);
+  if (oitPass == 2)
+    return vec4(a);
+  float z = gl_FragCoord.z;
+  float w = clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
+  return vec4(c.rgb * a, a) * w;
+}
+
 void main() {
   vec2 uv = fragTexCoord;
   vec3 n = normalize(fragNormal);
+  if (heightScale > 0.0 && worldUv <= 0.0)
+    uv = parallax_uv(uv, n);
   vec3 wt, wb;
   vec2 offa, offb;
   float k = 0.0;
@@ -621,8 +1151,34 @@ void main() {
     }
     if ((usePbrMaps & 2) != 0)
       surfOcclusion = texture(occlusionMap, (usePbrMaps & 8) != 0 ? fragTexCoord2 : uv).r;
+    if (pbrExtra.z != 0.0) {
+      vec3 t, b;
+      uv_frame(n, uv, t, b);
+      t -= n * dot(n, t);
+      if (dot(t, t) > 1e-12) {
+        t = normalize(t);
+        float a = pbrExtra.w;
+        surfTangent = t * cos(a) + cross(n, t) * sin(a);
+      }
+    }
   }
-  finalColor = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
+  if (lightmapParams.x > 0.5) {
+    vec3 lm = texture(lightMap, lightmapParams.w > 0.5 ? fragTexCoord2 : uv).rgb;
+    surfAmbient = (lightmapParams.z > 0.5 ? srgb_to_linear(lm) : lm) * lightmapParams.y;
+  }
+  vec4 color = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
+  if (transmit.x > 0.0 && sceneOn == 1) {
+    // Into the HDR image the scene is linear and exposed as `color`; into a
+    // display image both are as shown.
+    float share;
+    vec3 tint = hdrOut == 1 || toneMap > 0 ? srgb_to_linear(base.rgb) : base.rgb;
+    vec3 behind = transmitted(tint, n, clamp(surfRough >= 0.0 ? surfRough : pbrParams.z, 0.0, 1.0), share);
+    color = vec4(mix(color.rgb, behind, share), 1.0);
+  } else if (transmit.x > 0.0) {
+    // No copy of the scene (a pass into a render texture): plain see-through.
+    color.a *= 1.0 - clamp(transmit.x, 0.0, 1.0) * 0.9;
+  }
+  finalColor = oitPass == 0 ? color : oit_out(color);
 }
 )";
 
@@ -1137,6 +1693,24 @@ render3d_locations find_locations(Shader shader) {
   l.env_sh = loc("envSH");
   l.env_map = loc("envMap");
   l.env_params = loc("envParams");
+  l.hdr_out = loc("hdrOut");
+  l.shadow_cascades = loc("shadowCascades");
+  l.cascade_vp = loc("cascadeVP");
+  l.cascade_split = loc("cascadeSplit");
+  l.cascade_texel = loc("cascadeTexel");
+  l.cascade_span = loc("cascadeSpan");
+  l.view_dir = loc("viewDir");
+  l.cluster_on = loc("clusterOn");
+  l.pbr_extra = loc("pbrExtra");
+  l.transmit = loc("transmit");
+  l.attenuation_color = loc("attenuationColor");
+  l.scene_on = loc("sceneOn");
+  l.scene_color = loc("sceneColor");
+  l.scene_vp = loc("sceneVP");
+  l.height_scale = loc("heightScale");
+  l.lightmap_params = loc("lightmapParams");
+  l.light_map = loc("lightMap");
+  l.oit_pass = loc("oitPass");
   return l;
 }
 
@@ -1179,6 +1753,7 @@ bool ensure_ready(render3d_state &s) {
     s.lit_skinned.locs[SHADER_LOC_MAP_OCCLUSION] = GetShaderLocation(s.lit_skinned, "underNormalMap");
     s.lit_skinned.locs[SHADER_LOC_MAP_METALNESS] = GetShaderLocation(s.lit_skinned, "metalRoughMap");
     s.lit_skinned.locs[SHADER_LOC_MAP_HEIGHT] = GetShaderLocation(s.lit_skinned, "occlusionMap");
+    s.lit_skinned.locs[SHADER_LOC_MAP_BRDF] = GetShaderLocation(s.lit_skinned, "heightMap");
   } else {
     NJIN_WARN("3d: the skinning shader failed to compile, animated models are drawn in their rest pose");
   }
@@ -1191,6 +1766,8 @@ bool ensure_ready(render3d_state &s) {
   // And the PBR maps through the metalness and height slots.
   s.lit.locs[SHADER_LOC_MAP_METALNESS] = GetShaderLocation(s.lit, "metalRoughMap");
   s.lit.locs[SHADER_LOC_MAP_HEIGHT] = GetShaderLocation(s.lit, "occlusionMap");
+  // material3d::height through the BRDF slot (a 2D one, unused otherwise).
+  s.lit.locs[SHADER_LOC_MAP_BRDF] = GetShaderLocation(s.lit, "heightMap");
   // Enough segments that a sphere or capsule filling a good part of the
   // screen still reads as round.
   s.cube = GenMeshCube(1.0f, 1.0f, 1.0f);
@@ -1278,6 +1855,10 @@ vec2 pass_size(const context &ctx) {
 // Binds what the open pass draws into again (after the shadow passes).
 void bind_pass_target(context &ctx) {
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  if (s.hdr.active) {
+    hdr_bind(ctx);
+    return;
+  }
   if (s.target_fbo == 0) {
     world_target_rebind(ctx);
     return;
@@ -1453,10 +2034,29 @@ i32 pbr_map_bits(const Texture2D &metal_rough, const Texture2D &occlusion) {
   return (metal_rough.id > 0 ? 1 : 0) | (occlusion.id > 0 ? 2 : 0);
 }
 
+// A material that lets light through (material3d::transmission, PBR only).
+bool transmits(const material3d &m) { return m.pbr && m.transmission > 0.0f; }
+
 // Uniforms of the built-in shader for one draw.
 void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, const material3d &m,
                        rgba emission_color, bool normal_map, bool emission_map, bool under_map = false,
-                       bool under_normal = false, i32 pbr_maps = 0) {
+                       bool under_normal = false, i32 pbr_maps = 0, bool height_map = false, i32 lightmap = 0) {
+  // The material extensions (render3d_ext.h); zero leaves the classic path.
+  const bool pbr = m.pbr;
+  set_vec4(sh, l.pbr_extra,
+           {pbr ? clamp(m.clearcoat, 0.0f, 1.0f) : 0.0f, clamp(m.clearcoat_roughness, 0.0f, 1.0f),
+            pbr ? clamp(m.anisotropy, -1.0f, 1.0f) : 0.0f, m.anisotropy_rotation * DEG2RAD});
+  set_vec4(sh, l.transmit,
+           {pbr ? clamp(m.transmission, 0.0f, 1.0f) : 0.0f, std::max(m.ior, 1.0f), std::max(m.thickness, 0.0f),
+            std::max(m.attenuation_distance, 0.0f)});
+  const rgb_linear at = linear_of(m.attenuation_color);
+  set_vec3(sh, l.attenuation_color, {at.r, at.g, at.b});
+  set_f32(sh, l.height_scale, height_map ? std::max(m.height_scale, 0.0f) : 0.0f);
+  set_vec4(sh, l.lightmap_params,
+           {(lightmap & 1) != 0 ? 1.0f : 0.0f, std::max(m.lightmap_intensity, 0.0f), (lightmap & 2) != 0 ? 1.0f : 0.0f,
+            (lightmap & 4) != 0 ? 1.0f : 0.0f});
+  if ((lightmap & 1) != 0)
+    set_i32(sh, l.light_map, lightmap_unit);
   set_vec4(sh, l.flash, v4(fx.flash));
   set_vec4(sh, l.dissolve,
            {clamp(fx.dissolve, 0.0f, 1.0f), fx.edge_width, fx.grain > 0.0f ? fx.grain : 0.1f, fx.seed});
@@ -1508,7 +2108,43 @@ bool game_shader(const context &ctx, shader_handle handle, Shader &out) {
 }
 
 // Translucent or dissolving draws cast no shadow.
-bool casts(const draw3d_cmd &c) { return c.color.a >= 1.0f && c.fx.dissolve <= 0.0f; }
+bool casts(const draw3d_cmd &c) {
+  return c.color.a >= 1.0f && c.fx.dissolve <= 0.0f && !(c.mesh != nullptr && transmits(c.material));
+}
+
+// A primitive drawn in the translucent pass: one that lets light through
+// (material3d::transmission), or a see-through one when post3d::oit is on.
+bool primitive_see_through(const render3d_state &s, const draw3d_cmd &c) {
+  return transmits(c.material) || (s.oit_on && c.color.a < 1.0f);
+}
+
+// A see-through primitive or model part OIT draws: by its alpha alone, with
+// the built-in shader (`built_in`), not letting light through.
+bool oit_drawn(const render3d_state &s, f32 alpha, const material3d &m, bool built_in) {
+  return s.oit_on && alpha < 1.0f && !transmits(m) && built_in;
+}
+
+// Whether a draw may be drawn in the current (OIT or translucent) pass: the
+// OIT passes take only what OIT draws, the translucent pass after them skips it.
+bool oit_allows(const render3d_state &s, bool by_oit) {
+  if (s.oit_pass > 0)
+    return by_oit;
+  return !(s.oit_done && by_oit);
+}
+
+// material3d::lightmap of a draw as set_draw_uniforms' bits (1 on, 2 sRGB, 4
+// on the second texture coordinates), binding it on its unit.
+i32 bind_lightmap(const context &ctx, const material3d &m, const Mesh &mesh) {
+  Texture2D lm{};
+  if (!mesh_texture(ctx, m.lightmap, lm))
+    return 0;
+  rlActiveTextureSlot(lightmap_unit);
+  rlEnableTexture(lm.id);
+  rlActiveTextureSlot(0);
+  const bool srgb = lm.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 || lm.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8;
+  const bool uv2 = mesh.texcoords2 != nullptr || mesh.vboId[RL_DEFAULT_SHADER_ATTRIB_LOCATION_TEXCOORD2] != 0;
+  return 1 | (srgb ? 2 : 0) | (uv2 ? 4 : 0);
+}
 
 using map_set = std::array<MaterialMap, 12>;
 
@@ -1527,7 +2163,7 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const Material &file = model.materials[index];
     const model_material &mm = slot->materials[(usize)index];
     // See-through parts only in the translucent pass, and never as shadow casters.
-    if ((mm.color.a < 1.0f) != ctx_ref<render3d_state>(ctx)->translucent_pass)
+    if ((mm.color.a < 1.0f || transmits(mm.surface)) != ctx_ref<render3d_state>(ctx)->translucent_pass)
       continue;
     map_set maps{};
     for (usize m = 0; m < maps.size(); m++)
@@ -1568,6 +2204,10 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     }
     // Carried to the draw in the metalness slot's unused value.
     maps[MATERIAL_MAP_METALNESS].value = (f32)uv2;
+    // material3d::height through the BRDF slot; a file's own is never there.
+    maps[MATERIAL_MAP_BRDF].texture = Texture2D{};
+    if (mesh_texture(ctx, mm.surface.height, texture))
+      maps[MATERIAL_MAP_BRDF].texture = texture;
     rgba own = mm.color;
     for (u32 r = 0; r < c.recolor_count; r++) {
       const model_recolor &rc = ctx_ref<render3d_state>(ctx)->recolors[c.recolor_first + r];
@@ -1708,6 +2348,94 @@ Matrix render_shadow(context &ctx) {
   return light_vp;
 }
 
+// How many sun cascades the open pass draws: light3d::shadow_cascades for a
+// perspective camera (an orthographic one has one map round what it looks at).
+i32 cascade_count(const render3d_state &s) {
+  if (s.camera.projection == camera3d_orthographic)
+    return 1;
+  return std::clamp(s.light.shadow_cascades, 1, 4);
+}
+
+// The sun's cascades (light3d::shadow_cascades) into the shadow atlas, a
+// square tile each: the view from the camera's near plane to shadow_range
+// split between a linear and a logarithmic spread, each slice in a sphere
+// (so its size does not change as the camera turns) snapped to whole texels.
+void render_cascades(context &ctx) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const light3d &sun = s.light;
+  const i32 n = s.cascades;
+  const i32 size = s.shadow.height;
+  const vec3 dir = normalize(sun.direction);
+  const vec3 forward = normalize(s.camera.target - s.camera.position);
+  const vec3 cam_right = normalize(cross(forward, s.camera.up));
+  const vec3 cam_up = cross(cam_right, forward);
+  const vec2 screen = pass_size(ctx);
+  const f32 aspect = screen.y > 0.0f ? screen.x / screen.y : 1.0f;
+  const f32 tan_y = std::tan(s.camera.fovy * 0.5f * DEG2RAD);
+  const f32 tan_x = tan_y * aspect;
+  const f32 near_d = std::max(s.camera.near_plane, 0.01f);
+  const f32 far_d = std::max(std::min(sun.shadow_range, s.camera.far_plane), near_d * 2.0f);
+  const f32 lambda = clamp(sun.shadow_cascade_split, 0.0f, 1.0f);
+  const vec3 helper = std::fabs(dir.y) < 0.99f ? vec3{0.0f, 1.0f, 0.0f} : vec3{0.0f, 0.0f, 1.0f};
+  const vec3 right = normalize(cross(dir, helper));
+  const vec3 up = cross(right, dir);
+
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(s.shadow.fbo);
+  rlSetFramebufferWidth(s.shadow.size);
+  rlSetFramebufferHeight(s.shadow.height);
+  rlViewport(0, 0, s.shadow.size, s.shadow.height);
+  rlClearColor(255, 255, 255, 255);
+  rlClearScreenBuffers();
+  rlEnableDepthTest();
+  f32 from = near_d;
+  f32 split[4]{}, texel[4]{}, span[4]{};
+  for (i32 i = 0; i < n; i++) {
+    const f32 k = (f32)(i + 1) / (f32)n;
+    const f32 log_d = near_d * std::pow(far_d / near_d, k);
+    const f32 lin_d = near_d + (far_d - near_d) * k;
+    const f32 to = i == n - 1 ? far_d : lambda * log_d + (1.0f - lambda) * lin_d;
+    // The slice's corners, and the sphere round them.
+    vec3 corners[8];
+    i32 c = 0;
+    for (const f32 d : {from, to})
+      for (const f32 sx : {-1.0f, 1.0f})
+        for (const f32 sy : {-1.0f, 1.0f})
+          corners[c++] = s.camera.position + forward * d + cam_right * (sx * d * tan_x) + cam_up * (sy * d * tan_y);
+    vec3 center{};
+    for (const vec3 &p : corners)
+      center = center + p * 0.125f;
+    f32 radius = 0.0f;
+    for (const vec3 &p : corners)
+      radius = std::max(radius, distance(p, center));
+    radius = std::ceil(radius * 16.0f) / 16.0f;
+    const f32 step = 2.0f * radius / (f32)size;
+    const f32 cx = dot(center, right), cy = dot(center, up);
+    center -= right * (cx - std::floor(cx / step) * step) + up * (cy - std::floor(cy / step) * step);
+    // Casters up to shadow_range towards the sun still land in it.
+    const f32 back = far_d + radius;
+    const f32 depth_far = back + radius * 2.0f;
+    rlViewport(i * size, 0, size, size);
+    rlMatrixMode(RL_PROJECTION);
+    rlLoadIdentity();
+    rlOrtho(-radius, radius, -radius, radius, 0.1, depth_far);
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+    rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(center - dir * back), rl3(center), rl3(up))));
+    const Matrix vp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+    s.cascade_vp[(usize)i] = vp;
+    split[i] = to;
+    texel[i] = step;
+    span[i] = depth_far - 0.1f;
+    draw_casters(ctx, vp, true, dir);
+    from = to;
+  }
+  rlDisableFramebuffer();
+  s.cascade_split = {split[0], split[1], split[2], split[3]};
+  s.cascade_texel = {texel[0], texel[1], texel[2], texel[3]};
+  s.cascade_span = {span[0], span[1], span[2], span[3]};
+}
+
 constexpr i32 cover_size = 256;
 constexpr f32 cover_half = 18.0f; // metres each side of the camera: the rain box and a little more
 
@@ -1757,8 +2485,11 @@ bool render_lamp_shadows(context &ctx) {
   const graphics_quality &q = ctx_ref<quality_state>(ctx)->q;
   if (!q.lamp_shadows)
     return false;
-  const i32 count = std::min((i32)s.lights.size(), light3d_max);
-  for (i32 i = 0; i < count && ls.rows < light3d_shadow_max; i++)
+  // light3d::source_shadows past light3d_shadow_max only with the extended
+  // lights, whose shaders read the rows from textures.
+  const i32 max_rows = std::clamp(s.light.source_shadows, 0, s.lext.on ? light3d_shadow_limit : light3d_shadow_max);
+  const i32 count = std::min((i32)s.lights.size(), s.lext.on ? light3d_limit : light3d_max);
+  for (i32 i = 0; i < count && ls.rows < max_rows; i++)
     if (s.lights[(usize)i].shadows && s.lights[(usize)i].radius > 0.0f)
       ls.row[(usize)i] = ls.rows++;
   if (ls.rows == 0 || s.cmds.empty())
@@ -1840,7 +2571,16 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   // stay for game shaders and the water, which read them as they are.
   const i32 tone = sun.tonemap == tonemap3d_none ? 0 : (i32)sun.tonemap;
   set_i32(sh, l.tone_map, tone);
-  set_f32(sh, l.exposure, std::max(sun.exposure, 0.0f));
+  set_f32(sh, l.exposure, s.hdr.active && !s.capturing ? s.hdr.adapted * std::max(sun.exposure, 0.0f)
+                                                       : std::max(sun.exposure, 0.0f));
+  set_i32(sh, l.hdr_out, s.hdr_out ? 1 : 0);
+  const vec3 forward = normalize(s.camera.target - s.camera.position);
+  set_vec3(sh, l.view_dir, forward);
+  // The extended lights replace the uniform arrays below (lightCount 0).
+  set_i32(sh, l.cluster_on, s.lext.on ? (s.capturing ? 2 : 1) : 0);
+  if (s.lext.on)
+    lights_ext_uniforms(s, sh);
+  probes_uniforms(s, sh, s.capturing);
   const rgb_linear sc = linear_of(sun.color), ac = linear_of(sun.ambient);
   set_vec3(sh, l.light_color_linear, {sc.r, sc.g, sc.b});
   set_vec3(sh, l.ambient_linear, {ac.r, ac.g, ac.b});
@@ -1850,7 +2590,7 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   vec4 colors_linear[light3d_max]{};
   vec4 colors[light3d_max]{};
   vec4 spot[light3d_max]{};
-  const i32 count = std::min((i32)s.lights.size(), light3d_max);
+  const i32 count = s.lext.on ? 0 : std::min((i32)s.lights.size(), light3d_max);
   for (i32 i = 0; i < count; i++) {
     const light3d_source &src = s.lights[(usize)i];
     const f32 k = src.intensity;
@@ -1877,7 +2617,11 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
     rows[i] = lamps && i < count ? ls.row[(usize)i] : -1;
   SetShaderValueV(sh, l.light_shadow, rows, SHADER_UNIFORM_INT, light3d_max);
   set_i32(sh, l.lamp_map, lamp_unit);
-  if (lamps) {
+  if (lamps && s.lext.on) {
+    // The rows' parameters and matrices are in the extended lights' textures.
+    const f32 atlas_rows = (f32)std::max(s.lamp.height / std::max(s.lamp.size / lamp_faces, 1), 1);
+    SetShaderValue(sh, l.lamp_rows, &atlas_rows, SHADER_UNIFORM_FLOAT);
+  } else if (lamps) {
     SetShaderValueV(sh, l.lamp_params, ls.params.data(), SHADER_UNIFORM_VEC4, ls.rows);
     const f32 atlas_rows = (f32)std::max(s.lamp.height / std::max(s.lamp.size / lamp_faces, 1), 1);
     SetShaderValue(sh, l.lamp_rows, &atlas_rows, SHADER_UNIFORM_FLOAT);
@@ -1886,8 +2630,21 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
     rlDisableShader();
   }
 
-  set_i32(sh, l.shadow_on, shadows ? 1 : 0);
-  if (shadows) {
+  const bool cascaded = shadows && s.cascades > 1;
+  set_i32(sh, l.shadow_on, cascaded ? 2 : shadows ? 1 : 0);
+  if (cascaded) {
+    // The atlas is a row of square tiles: a texel is 1 / its height.
+    const i32 tile = s.shadow.height;
+    set_vec4(sh, l.shadow_params, {1.0f / (f32)tile, sun.shadow_softness, 0.0f, 0.0f});
+    set_i32(sh, l.shadow_cascades, s.cascades);
+    rlEnableShader(sh.id);
+    rlSetUniformMatrices(l.cascade_vp, s.cascade_vp.data(), s.cascades);
+    rlDisableShader();
+    set_vec4(sh, l.cascade_split, s.cascade_split);
+    set_vec4(sh, l.cascade_texel, s.cascade_texel);
+    set_vec4(sh, l.cascade_span, s.cascade_span);
+    set_i32(sh, l.shadow_map, shadow_unit);
+  } else if (shadows) {
     SetShaderValueMatrix(sh, l.light_vp, light_vp);
     const f32 texel_world = 2.0f * std::max(sun.shadow_range, 0.1f) / (f32)s.shadow.size;
     set_vec4(sh, l.shadow_params, {1.0f / (f32)s.shadow.size, sun.shadow_softness, texel_world, 0.0f});
@@ -2060,7 +2817,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const i32 index = m->model.meshMaterial[i];
       const model_material &mm = m->materials[(usize)index];
-      if ((mm.color.a < 1.0f) != (s.translucent_pass && !depth_only))
+      if ((mm.color.a < 1.0f || transmits(mm.surface)) != (s.translucent_pass && !depth_only))
         continue;
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
@@ -2099,9 +2856,15 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     bool built_in = call_built_in;
     if (!depth_only && game_shader(ctx, p.shader, shader))
       built_in = false;
+    if (!depth_only && s.translucent_pass && !oit_allows(s, oit_drawn(s, p.color.a, *p.surface, built_in)))
+      continue;
+    Texture2D height{};
+    if (built_in)
+      mesh_texture(ctx, p.surface->height, height);
     if (built_in)
       set_draw_uniforms(shader, s.instanced_locs, c.fx, *p.surface, colors::white, p.normal.id > 0, false,
-                        p.under.id > 0, p.under_normal.id > 0, pbr_map_bits(p.metal_rough, p.occlusion) | p.uv2);
+                        p.under.id > 0, p.under_normal.id > 0, pbr_map_bits(p.metal_rough, p.occlusion) | p.uv2,
+                        height.id > 0, bind_lightmap(ctx, *p.surface, *p.mesh));
     rlEnableShader(shader.id);
     rlSetUniformMatrix(rlGetLocationUniform(shader.id, "mvp"), mvp);
     rlSetUniform(rlGetLocationUniform(shader.id, "instanceFloats"), &floats, RL_SHADER_UNIFORM_INT, 1);
@@ -2122,7 +2885,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       // The normal map and the under layer on the units DrawMesh would give them.
       const struct { u32 id; i32 unit; const char *name; } extra[] = {
           {p.normal.id, 2, "texture2"}, {p.under.id, 3, "underMap"}, {p.under_normal.id, 4, "underNormalMap"},
-          {p.metal_rough.id, MATERIAL_MAP_METALNESS, "metalRoughMap"}, {p.occlusion.id, MATERIAL_MAP_HEIGHT, "occlusionMap"}};
+          {p.metal_rough.id, MATERIAL_MAP_METALNESS, "metalRoughMap"}, {p.occlusion.id, MATERIAL_MAP_HEIGHT, "occlusionMap"},
+          {height.id, MATERIAL_MAP_BRDF, "heightMap"}};
       for (const auto &e : extra)
         if (e.id > 0) {
           rlActiveTextureSlot(e.unit);
@@ -2181,12 +2945,21 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
 void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (c.world != world3d_none) {
-    world3d_draw(ctx, c, view_proj);
+    if (s.oit_pass == 0)
+      world3d_draw(ctx, c, view_proj);
     return;
   }
-  if (s.translucent_pass && (c.is_shape || (c.mesh != nullptr && c.buffer.id == 0)))
+  if (s.translucent_pass && c.is_shape)
     return;
-  if (c.culled && (c.is_shape || c.mesh != nullptr))
+  if (c.mesh != nullptr && c.buffer.id == 0) {
+    // A primitive: in the pass its material and alpha put it in.
+    if (primitive_see_through(s, c) != s.translucent_pass)
+      return;
+    if (s.translucent_pass && !oit_allows(s, oit_drawn(s, c.color.a, c.material, c.shader.id == 0)))
+      return;
+  }
+  // A capture looks all round: nothing is culled against the camera.
+  if (c.culled && !s.capturing && (c.is_shape || c.mesh != nullptr))
     return;
   if (c.is_shape) {
     const bool ortho = s.camera.projection == camera3d_orthographic;
@@ -2198,12 +2971,12 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     return;
   }
   if (c.mesh == nullptr) {
-    if (c.culled) {
+    if (c.culled && !s.capturing) {
       if (!s.translucent_pass)
         ctx_ref<render_stats>(ctx)->models3d_culled++;
       return;
     }
-    if (!s.translucent_pass)
+    if (!s.translucent_pass && !s.capturing)
       ctx_ref<render_stats>(ctx)->models3d++;
   }
   Shader custom{};
@@ -2226,11 +2999,15 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
       maps[MATERIAL_MAP_METALNESS].texture = texture;
     if (c.material.pbr && mesh_texture(ctx, c.material.occlusion, texture))
       maps[MATERIAL_MAP_HEIGHT].texture = texture;
+    const bool height = !own && mesh_texture(ctx, c.material.height, texture);
+    if (height)
+      maps[MATERIAL_MAP_BRDF].texture = texture;
     to_raylib(c.color, maps[MATERIAL_MAP_DIFFUSE].color);
     if (!own)
       set_draw_uniforms(s.lit, s.locs, c.fx, c.material, colors::white, normal_map, false, under, under_normal,
                         pbr_map_bits(maps[MATERIAL_MAP_METALNESS].texture, maps[MATERIAL_MAP_HEIGHT].texture) |
-                            (i32)maps[MATERIAL_MAP_METALNESS].value);
+                            (i32)maps[MATERIAL_MAP_METALNESS].value,
+                        height, bind_lightmap(ctx, c.material, *c.mesh));
     Material material{};
     material.shader = own ? custom : s.lit;
     material.maps = maps.data();
@@ -2245,6 +3022,11 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
       shader = custom;
     // A game shader does not skin: that part stays in the rest pose.
     const bool built_in = shader.id == s.lit.id;
+    if (s.translucent_pass && !oit_allows(s, oit_drawn(s, mm.color.a, mm.surface, built_in)))
+      return;
+    // The height map's unit is a game shader's first texture's.
+    if (!built_in)
+      maps[MATERIAL_MAP_BRDF].texture = Texture2D{};
     if (built_in && posed) {
       shader = s.lit_skinned;
       if (!bones_set) {
@@ -2257,7 +3039,8 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
                         maps[MATERIAL_MAP_NORMAL].texture.id > 0, maps[MATERIAL_MAP_EMISSION].texture.id > 0,
                         maps[MATERIAL_MAP_ROUGHNESS].texture.id > 0, maps[MATERIAL_MAP_OCCLUSION].texture.id > 0,
                         pbr_map_bits(maps[MATERIAL_MAP_METALNESS].texture, maps[MATERIAL_MAP_HEIGHT].texture) |
-                            (i32)maps[MATERIAL_MAP_METALNESS].value);
+                            (i32)maps[MATERIAL_MAP_METALNESS].value,
+                        maps[MATERIAL_MAP_BRDF].texture.id > 0, bind_lightmap(ctx, mm.surface, mesh));
     Material material{};
     material.shader = shader;
     material.maps = maps.data();
@@ -2499,7 +3282,7 @@ void record_entities(context &ctx) {
                                 .bone_count = 0});
   }
   for (auto [e, l] : reg.view<const light3d_source>().each()) {
-    if ((i32)s.lights.size() >= light3d_max)
+    if ((i32)s.lights.size() >= std::clamp(s.light.lights_max, 0, light3d_limit))
       break;
     light3d_source light = l;
     if (const transform3d *t = reg.try_get<transform3d>(e))
@@ -2526,6 +3309,11 @@ mod_desc render3d_module() { return mod_desc{.name = "njin.render3d", .setup = s
 
 render3d_state::~render3d_state() {
   env_free(env);
+  hdr_free(hdr);
+  lights_ext_free(lext);
+  probes_free(probes);
+  volume_free(volume);
+  oit_free(oit);
   free_shadow(shadow);
   free_shadow(lamp);
   free_shadow(cover);
@@ -2619,6 +3407,264 @@ void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target
   start_pass(ctx, camera);
 }
 
+namespace {
+// The pass's uniforms on every lighting shader, the outdoor world's included.
+void all_pass_uniforms(context &ctx, bool shadows, const Matrix &light_vp, bool lamps) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp, lamps);
+  set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp, lamps);
+  set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);
+  if (s.skin_ok)
+    set_pass_uniforms(s, s.lit_skinned, s.skinned_locs, shadows, light_vp, lamps);
+  world3d_pass_uniforms(ctx, shadows, light_vp, lamps);
+}
+
+// The maps the lighting shaders read during the pass, on their units.
+void bind_pass_maps(const render3d_state &s, bool shadows, bool lamps) {
+  if (shadows) {
+    rlActiveTextureSlot(shadow_unit);
+    rlEnableTexture(s.shadow.depth);
+  }
+  if (lamps) {
+    rlActiveTextureSlot(lamp_unit);
+    rlEnableTexture(s.lamp.depth);
+  }
+  env_bind(s.env);
+  if (s.lext.on)
+    lights_ext_bind(s.lext);
+  probes_bind(s);
+  rlActiveTextureSlot(0);
+}
+
+// The units past 15 only when this pass used them: a driver with 16 units
+// (macOS) would refuse them, and a scene without the opt-in parts never needs it.
+void unbind_pass_maps(const render3d_state &s) {
+  for (i32 unit : {shadow_unit, lamp_unit, env_unit, lightmap_unit}) {
+    rlActiveTextureSlot(unit);
+    rlDisableTexture();
+  }
+  const bool extra = s.lext.on || s.probes.atlas != 0 || s.probes.grid_ready || s.scene_bound;
+  if (extra)
+    for (i32 unit : {light_tex_unit, cluster_tex_unit, index_tex_unit, lamp_mat_unit, probe_atlas_unit, probe_sh_unit,
+                     grid_tex_unit, scene_color_unit}) {
+      rlActiveTextureSlot(unit);
+      rlDisableTexture();
+    }
+  rlActiveTextureSlot(0);
+}
+
+// The size in pixels of what the open pass draws into (gl_FragCoord's range,
+// for the light clusters).
+vec2 pass_pixels(context &ctx) {
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  if (s.target_fbo != 0)
+    return s.target_size;
+  const camera_post &post = ctx_ref<camera_post>(ctx);
+  if (post.drawing)
+    return {(f32)post.target.texture.width, (f32)post.target.texture.height};
+  const view_state &view = ctx_ref<view_state>(ctx);
+  if (view.drawing)
+    return {(f32)view.target.texture.width, (f32)view.target.texture.height};
+  return {(f32)GetRenderWidth(), (f32)GetRenderHeight()};
+}
+
+// Whether a draw of the pass lets light through (material3d::transmission).
+bool any_transmission(const context &ctx, const render3d_state &s) {
+  for (const draw3d_cmd &c : s.cmds) {
+    if (c.world != world3d_none || c.is_shape)
+      continue;
+    if (c.mesh != nullptr) {
+      if (transmits(c.material))
+        return true;
+      continue;
+    }
+    if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model))
+      for (const model_material &mm : m->materials)
+        if (transmits(mm.surface))
+          return true;
+  }
+  return false;
+}
+
+// The pass's opaque scene seen from `eye` into six face tiles of `size` side
+// by side in `fbo` (render3d_ext.h's cube order), lit for an HDR image with
+// exposure 1, without probes and without culling against the camera.
+void capture_faces(context &ctx, vec3 eye, i32 size, u32 fbo, bool shadows, const Matrix &light_vp, bool lamps) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const camera3d camera = s.camera;
+  const light3d light = s.light;
+  const std::array<vec4, 6> frustum = s.frustum;
+  const f32 tan_half = s.tan_half_fovy;
+  const bool hdr_out = s.hdr_out;
+  s.capturing = true;
+  s.hdr_out = true;
+  if (s.light.tonemap == tonemap3d_none)
+    s.light.tonemap = tonemap3d_linear;
+  s.light.exposure = 1.0f;
+  rlDrawRenderBatchActive();
+  rlEnableFramebuffer(fbo);
+  rlSetFramebufferWidth(size * 6);
+  rlSetFramebufferHeight(size);
+  rlViewport(0, 0, size * 6, size);
+  rlClearColor(0, 0, 0, 255);
+  rlClearScreenBuffers();
+  rlEnableDepthTest();
+  for (i32 f = 0; f < 6; f++) {
+    camera3d cam = camera;
+    cam.position = eye;
+    cam.target = eye + cube_dirs[f];
+    cam.up = cube_ups[f];
+    cam.fovy = 90.0f;
+    cam.projection = camera3d_perspective;
+    s.camera = cam;
+    rlViewport(f * size, 0, size, size);
+    rlMatrixMode(RL_PROJECTION);
+    rlLoadIdentity();
+    const f64 n = std::max((f64)cam.near_plane, 0.01);
+    rlFrustum(-n, n, -n, n, n, cam.far_plane);
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+    rlMultMatrixf(MatrixToFloat(MatrixLookAt(rl3(eye), rl3(eye + cube_dirs[f]), rl3(cube_ups[f]))));
+    set_frustum(s);
+    all_pass_uniforms(ctx, shadows, light_vp, lamps);
+    const Matrix vp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+    bind_pass_maps(s, shadows, lamps);
+    if (s.light.environment_visible)
+      env_draw_sky(s.env, s.light, cam, vp, true, 1.0f);
+    for (const draw3d_cmd &c : s.cmds)
+      draw_main(ctx, c, vp);
+    rlDrawRenderBatchActive();
+  }
+  unbind_pass_maps(s);
+  rlDisableFramebuffer();
+  s.camera = camera;
+  s.light = light;
+  s.frustum = frustum;
+  s.tan_half_fovy = tan_half;
+  s.hdr_out = hdr_out;
+  s.capturing = false;
+}
+
+// The probes due (one a pass, and the live ones) and a few points of the
+// irradiance volume, captured from this pass's draws. True when it drew.
+bool capture_probes(context &ctx, bool shadows, const Matrix &light_vp, bool lamps) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  probe_state &p = s.probes;
+  bool drew = false;
+  bool one = false;
+  for (usize i = 0; i < p.slots.size(); i++) {
+    probe_slot &slot = p.slots[i];
+    if (!slot.alive || !(slot.dirty || slot.desc.live))
+      continue;
+    if (slot.dirty && !slot.desc.live && one)
+      continue;
+    if (!probe_capture_target(p, std::clamp(slot.desc.resolution, 32, 512), false))
+      break;
+    capture_faces(ctx, slot.desc.position, p.cap_size, p.cap_fbo, shadows, light_vp, lamps);
+    slot.ready = probe_store(s, (i32)i);
+    slot.dirty = false;
+    drew = true;
+    one = one || !slot.desc.live;
+  }
+  if (p.grid_set) {
+    const irradiance3d_desc &g = p.grid;
+    const i32 nx = std::clamp(g.count_x, 1, 16), ny = std::clamp(g.count_y, 1, 16), nz = std::clamp(g.count_z, 1, 16);
+    const i32 total = nx * ny * nz;
+    constexpr i32 small = 16;
+    for (i32 k = 0; k < 8 && p.grid_next < total; k++) {
+      if (!probe_capture_target(p, small, true))
+        break;
+      const i32 at = p.grid_next;
+      const i32 ix = at % nx, iy = (at / nx) % ny, iz = at / (nx * ny);
+      const auto along = [](i32 i, i32 n) { return n > 1 ? (f32)i / (f32)(n - 1) : 0.5f; };
+      const vec3 lo = g.center - g.size * 0.5f;
+      const vec3 eye{lo.x + g.size.x * along(ix, nx), lo.y + g.size.y * along(iy, ny), lo.z + g.size.z * along(iz, nz)};
+      capture_faces(ctx, eye, small, p.small_fbo, shadows, light_vp, lamps);
+      grid_store(p, at, small);
+      p.grid_next++;
+      drew = true;
+    }
+  }
+  return drew;
+}
+
+// post3d::oit: the plain see-through draws of the built-in shaders into the
+// weighted sum and the revealage, then laid over the pass's image.
+void run_oit(context &ctx) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const camera_post &post = ctx_ref<camera_post>(ctx);
+  const u32 depth = s.hdr.active ? s.hdr.depth : post.target.depth.id;
+  const i32 w = s.hdr.active ? s.hdr.w : post.target.texture.width;
+  const i32 h = s.hdr.active ? s.hdr.h : post.target.texture.height;
+  const u32 target = s.hdr.active ? s.hdr.fbo : post.target.id;
+  if (depth == 0 || !oit_begin(s.oit, depth, w, h))
+    return;
+  rlDisableDepthMask();
+  for (i32 pass = 1; pass <= 2; pass++) {
+    oit_bind(s.oit, pass);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+    if (pass == 1)
+      rlSetBlendFactors(RL_ONE, RL_ONE, RL_FUNC_ADD);
+    else
+      rlSetBlendFactors(RL_ZERO, RL_ONE_MINUS_SRC_COLOR, RL_FUNC_ADD);
+    rlSetBlendMode(RL_BLEND_CUSTOM);
+    for (Shader *sh : {&s.lit, &s.lit_instanced, &s.lit_skinned})
+      if (IsShaderValid(*sh))
+        set_i32(*sh, GetShaderLocation(*sh, "oitPass"), pass);
+    s.oit_pass = pass;
+    const Matrix view_proj = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+    for (const draw3d_cmd &c : s.cmds)
+      draw_main(ctx, c, view_proj);
+    rlDrawRenderBatchActive();
+  }
+  s.oit_pass = 0;
+  for (Shader *sh : {&s.lit, &s.lit_instanced, &s.lit_skinned})
+    if (IsShaderValid(*sh))
+      set_i32(*sh, GetShaderLocation(*sh, "oitPass"), 0);
+  rlSetBlendMode(RL_BLEND_ALPHA);
+  rlEnableDepthMask();
+  oit_compose(s.oit, target);
+  s.oit_done = true;
+}
+
+// The copy of the opaque scene for the draws that let light through, on its
+// unit, and its uniforms on the lighting shaders.
+void bind_scene(context &ctx, const Matrix &view_proj) {
+  render3d_state &s = ctx_ref<render3d_state>(ctx);
+  u32 color = 0, depth = 0;
+  i32 w = 0, h = 0;
+  s.scene_bound = s.transmission_now && post3d_scene(ctx, color, depth, w, h);
+  for (Shader *sh : {&s.lit, &s.lit_instanced, &s.lit_skinned}) {
+    if (!IsShaderValid(*sh))
+      continue;
+    const render3d_locations &l = sh == &s.lit ? s.locs : sh == &s.lit_instanced ? s.instanced_locs : s.skinned_locs;
+    set_i32(*sh, l.scene_on, s.scene_bound ? 1 : 0);
+    if (s.scene_bound) {
+      set_i32(*sh, l.scene_color, scene_color_unit);
+      SetShaderValueMatrix(*sh, l.scene_vp, view_proj);
+    }
+  }
+  if (s.scene_bound) {
+    rlActiveTextureSlot(scene_color_unit);
+    rlEnableTexture(color);
+    rlActiveTextureSlot(0);
+  }
+}
+} // namespace
+
+f32 render3d_out_exposure(const render3d_state &s) {
+  if (s.capturing)
+    return 1.0f;
+  const f32 e = std::max(s.light.exposure, 0.0f);
+  return s.hdr.active ? e * s.hdr.adapted : e;
+}
+
+bool render3d_wants_scene(const context &ctx) {
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  return s.transmission_seen || s.light.volume_density > 0.0f || hdr_wanted(ctx);
+}
+
 void end_3d(context &ctx) {
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
@@ -2632,6 +3678,9 @@ void end_3d(context &ctx) {
     render3d_capture_debug(ctx);
   // light3d::environment's maps, made when it changed (into their own framebuffers).
   const bool env_drew = env_update(ctx, s.env, s.light);
+  // The extended lights replace the uniform arrays for this pass.
+  s.lext.on = lights_ext_wanted(s.light);
+  s.transmission_now = any_transmission(ctx, s);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
@@ -2640,9 +3689,18 @@ void end_3d(context &ctx) {
   i32 sun_size = std::clamp(s.light.shadow_size, 256, 8192);
   if (q.shadow_size_max > 0)
     sun_size = std::max(256, std::min(sun_size, q.shadow_size_max));
-  if (s.light.shadows && q.shadows && !s.cmds.empty() && ensure_shadow(s.shadow, sun_size, sun_size)) {
-    light_vp = render_shadow(ctx);
-    shadows = true;
+  s.cascades = 1;
+  if (s.light.shadows && q.shadows && !s.cmds.empty()) {
+    // The cascades side by side in one atlas, or the single map.
+    const i32 n = cascade_count(s);
+    if (ensure_shadow(s.shadow, sun_size * n, sun_size)) {
+      s.cascades = n;
+      if (n > 1)
+        render_cascades(ctx);
+      else
+        light_vp = render_shadow(ctx);
+      shadows = true;
+    }
   }
   const bool lamps = render_lamp_shadows(ctx);
   // The cover map is drawn again every few passes (things move under it) or
@@ -2665,7 +3723,14 @@ void end_3d(context &ctx) {
   } else if (!offscreen) {
     s.cover_age = -1;
   }
-  if (shadows || lamps || cover_now || env_drew) {
+  // The extended lights' textures and clusters (the probes capture with them).
+  if (s.lext.on)
+    lights_ext_update(s, pass_pixels(ctx));
+  // Reflection probes and the irradiance volume, from this pass's draws.
+  const bool captured = !offscreen && capture_probes(ctx, shadows, light_vp, lamps);
+  // light3d::hdr: the pass draws into the HDR image, tone mapped at its end.
+  s.hdr_out = !offscreen && hdr_wanted(ctx) && hdr_begin(ctx);
+  if (shadows || lamps || cover_now || env_drew || captured || s.hdr.active) {
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
   }
@@ -2679,49 +3744,46 @@ void end_3d(context &ctx) {
     s.depth_inv_view_proj = MatrixInvert(MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
     s.depth_drawn = true;
   }
-  set_pass_uniforms(s, s.lit, s.locs, shadows, light_vp, lamps);
-  set_pass_uniforms(s, s.sdf, s.sdf_locs, shadows, light_vp, lamps);
-  set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);
-  if (s.skin_ok)
-    set_pass_uniforms(s, s.lit_skinned, s.skinned_locs, shadows, light_vp, lamps);
-  world3d_pass_uniforms(ctx, shadows, light_vp, lamps);
+  // post3d::oit on a world pass, whose target has a depth texture.
+  s.oit_on = !offscreen && post3d_settings(ctx).oit && (s.hdr.active || ctx_ref<camera_post>(ctx)->target.depth.id != 0) &&
+             ctx_ref<camera_post>(ctx)->drawing;
+  s.oit_pass = 0;
+  s.oit_done = false;
+  all_pass_uniforms(ctx, shadows, light_vp, lamps);
   const Matrix view_proj = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
-  if (shadows) {
-    rlActiveTextureSlot(shadow_unit);
-    rlEnableTexture(s.shadow.depth);
-  }
-  if (lamps) {
-    rlActiveTextureSlot(lamp_unit);
-    rlEnableTexture(s.lamp.depth);
-  }
-  env_bind(s.env);
-  rlActiveTextureSlot(0);
+  bind_pass_maps(s, shadows, lamps);
   // The environment as the sky, behind everything of the pass.
   if (s.light.environment_visible)
-    env_draw_sky(s.env, s.light, s.camera, view_proj);
+    env_draw_sky(s.env, s.light, s.camera, view_proj, s.hdr_out, render3d_out_exposure(s));
   for (const draw3d_cmd &c : s.cmds)
     draw_main(ctx, c, view_proj);
   // Decals, SSAO and SSR work on the opaque image, before glass and water.
   const bool post3d = !offscreen && post3d_wanted(ctx);
   if (post3d) {
     post3d_after_opaque(ctx);
+    // Volumetric fog over the opaque scene, from its depth.
+    u32 depth = 0;
+    i32 dw = 0, dh = 0;
+    if (s.light.volume_density > 0.0f && post3d_depth(ctx, depth, dw, dh))
+      volume_run(ctx, depth, dw, dh, shadows, light_vp, lamps, view_proj);
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
     rlEnableDepthTest();
-    if (shadows) {
-      rlActiveTextureSlot(shadow_unit);
-      rlEnableTexture(s.shadow.depth);
-    }
-    if (lamps) {
-      rlActiveTextureSlot(lamp_unit);
-      rlEnableTexture(s.lamp.depth);
-    }
-    env_bind(s.env);
-    rlActiveTextureSlot(0);
+    bind_pass_maps(s, shadows, lamps);
   }
   // Glass after everything it shows, tested against the depth but not
   // writing it, so panes behind panes still show.
   s.translucent_pass = true;
+  bind_scene(ctx, view_proj);
+  if (s.oit_on) {
+    run_oit(ctx);
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+    bind_pass_maps(s, shadows, lamps);
+    if (s.scene_bound)
+      bind_scene(ctx, view_proj);
+  }
   rlDrawRenderBatchActive();
   rlDisableDepthMask();
   for (const draw3d_cmd &c : s.cmds)
@@ -2729,11 +3791,8 @@ void end_3d(context &ctx) {
   rlDrawRenderBatchActive();
   rlEnableDepthMask();
   s.translucent_pass = false;
-  for (i32 unit : {shadow_unit, lamp_unit, env_unit}) {
-    rlActiveTextureSlot(unit);
-    rlDisableTexture();
-  }
-  rlActiveTextureSlot(0);
+  s.oit_done = false;
+  unbind_pass_maps(s);
   particles3d_draw(ctx, s.camera);
   if (post3d) {
     post3d_after_pass(ctx);
@@ -2744,6 +3803,22 @@ void end_3d(context &ctx) {
     rlEnableDepthTest();
   }
   s.jitter = {};
+  if (s.hdr.active) {
+    // Bloom, the exposure and the tone curve, into the world target.
+    hdr_resolve(ctx);
+    s.hdr_out = false;
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+  }
+  if (!offscreen && post3d_settings(ctx).aa != aa3d_none && ctx_ref<camera_post>(ctx)->drawing) {
+    aa_apply(ctx);
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+  }
+  if (!offscreen)
+    s.transmission_seen = s.transmission_now;
   if (!offscreen)
     gizmo_draw_3d(ctx, s.camera);
 
@@ -2754,6 +3829,8 @@ void end_3d(context &ctx) {
   s.blend_parts.clear();
   s.lights.clear();
   s.active = false;
+  s.oit_on = false;
+  s.hdr_out = false;
   world3d_pass_end(ctx);
   rlDrawRenderBatchActive();
   if (offscreen) {
@@ -3130,8 +4207,9 @@ void light3d_add(context &ctx, const light3d_source &light) {
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
     return;
-  if ((i32)s.lights.size() >= light3d_max) {
-    NJIN_WARN_LIMITED("3d: more than %d lights in one pass, the rest are ignored", light3d_max);
+  const i32 cap = std::clamp(s.light.lights_max, 0, light3d_limit);
+  if ((i32)s.lights.size() >= cap) {
+    NJIN_WARN_LIMITED("3d: more than %d lights in one pass, the rest are ignored", cap);
     return;
   }
   s.lights.push_back(light);

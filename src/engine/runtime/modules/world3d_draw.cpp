@@ -343,11 +343,18 @@ const char *const sky_fs_main = R"(
 in vec2 fragNdc;
 uniform mat4 invViewProj;
 uniform vec3 eyePos;
+uniform int hdrOut;        // light3d::hdr: linear and exposed
+uniform float hdrExposure;
 out vec4 finalColor;
 void main() {
   vec4 p = invViewProj * vec4(fragNdc, 1.0, 1.0);
   vec3 dir = normalize(p.xyz / p.w - eyePos);
-  finalColor = vec4(sky_color(dir, eyePos, true), 1.0);
+  vec3 c = sky_color(dir, eyePos, true);
+  if (hdrOut == 1) {
+    c = max(c, vec3(0.0));
+    c = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)) * hdrExposure;
+  }
+  finalColor = vec4(c, 1.0);
 }
 )";
 
@@ -558,7 +565,7 @@ void main() {
   float deep = 1.0 - exp(-depth / max(waterParams.x, 0.01));
   vec3 body = mix(shallowColor, deepColor, deep);
   vec3 l = -lightDir;
-  float sun = shadowOn == 1 ? sunlight(fragPos, vec3(0.0, 1.0, 0.0), l) : 1.0;
+  float sun = sun_share(fragPos, vec3(0.0, 1.0, 0.0), l);
   // The lamps, as shade() lights everything else, their glints as sharp as the sun's.
   vec3 lampLight = vec3(0.0), lampGlint = vec3(0.0);
   if (waterLamps == 1)
@@ -581,6 +588,20 @@ void main() {
       lampLight += lightColors[i].rgb * max(dot(n, li), 0.0) * att;
       lampGlint += lightColors[i].rgb * pow(max(dot(n, normalize(li + v)), 0.0), max(waterSpec.y, 1.0)) * att;
     }
+  if (waterLamps == 1) {
+    // The extended lights (light3d::lights_max), the same way.
+    int first, count;
+    lamp_range(fragPos, first, count);
+    for (int j = 0; j < count; j++) {
+      lamp a = lamp_at(lamp_index(first, j));
+      vec3 li;
+      float att = lamp_share_ext(a, fragPos, vec3(0.0, 1.0, 0.0), li);
+      if (att <= 0.0)
+        continue;
+      lampLight += a.color.rgb * max(dot(n, li), 0.0) * att;
+      lampGlint += a.color.rgb * pow(max(dot(n, normalize(li + v)), 0.0), max(waterSpec.y, 1.0)) * att;
+    }
+  }
   vec3 lit = body * (ambient + (lightColor * max(dot(n, l), 0.0) * sun + lampLight) * 0.4);
   vec3 r = reflect(-v, n);
   r.y = abs(r.y);
@@ -606,6 +627,10 @@ void main() {
     float f = fogDensity * length(viewPos - fragPos);
     col = mix(fogColor, col, exp(-f * f));
   }
+  // Into the HDR image (light3d::hdr): linear and exposed, as lit things are;
+  // the scene under it is already.
+  if (hdrOut == 1)
+    col = srgb_to_linear(col) * exposure;
   // Refracting, the water lays itself over the bent view of what is under it.
   finalColor = see ? vec4(mix(under, col, alpha), 1.0) : vec4(col, alpha);
 }
@@ -706,6 +731,8 @@ uniform vec3 ambient;
 uniform vec3 lightColor;
 uniform vec4 precip;
 uniform float amount;
+uniform int hdrOut;        // light3d::hdr: linear and exposed
+uniform float hdrExposure;
 out vec4 finalColor;
 void main() {
   float a;
@@ -718,7 +745,10 @@ void main() {
     a = (1.0 - abs(fragUv.x - 0.5) * 2.0) * smoothstep(0.0, 0.35, fragUv.y) * 0.45;
     c = vec3(0.85, 0.9, 1.0) * (ambient * 1.8 + lightColor * 0.3 + 0.08);
   }
-  finalColor = vec4(min(c, vec3(1.0)), a * fragFade * amount);
+  c = min(c, vec3(1.0));
+  if (hdrOut == 1)
+    c = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)) * hdrExposure;
+  finalColor = vec4(c, a * fragFade * amount);
 }
 )";
 
@@ -1405,6 +1435,8 @@ void draw_sky(context &ctx, const Matrix &view_proj) {
   set_m(p, "invViewProj", MatrixInvert(view_proj));
   set_v3(p, "eyePos", s.camera.position);
   set_sky_uniforms(p, ctx_ref<world3d_store>(ctx)->sky, ctx_ref<world3d_store>(ctx)->time);
+  set_i(p, "hdrOut", s.hdr_out ? 1 : 0);
+  set_f(p, "hdrExposure", render3d_out_exposure(s));
   rlDisableDepthMask();
   draw_mesh(g.sky_tri);
   rlEnableDepthMask();
@@ -1529,6 +1561,8 @@ void draw_precip(context &ctx, const Matrix &view_proj) {
   set_v2(p, "wind", w.sky.wind);
   set_v3(p, "ambient", {s.light.ambient.r, s.light.ambient.g, s.light.ambient.b});
   set_v3(p, "lightColor", {s.light.color.r, s.light.color.g, s.light.color.b});
+  set_i(p, "hdrOut", s.hdr_out ? 1 : 0);
+  set_f(p, "hdrExposure", render3d_out_exposure(s));
   set_cover(ctx, p);
   rlDisableBackfaceCulling();
   if (rlEnableVertexArray(g.precip_mesh.vao)) {

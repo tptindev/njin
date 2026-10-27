@@ -175,6 +175,15 @@ void apply_material(material3d &m, const sol::table &t) {
   m.pbr = flag(t, "pbr", m.pbr);
   m.metallic = num(t, "metallic", m.metallic);
   m.roughness = num(t, "roughness", m.roughness);
+  m.clearcoat = num(t, "clearcoat", m.clearcoat);
+  m.clearcoat_roughness = num(t, "clearcoat_roughness", m.clearcoat_roughness);
+  m.anisotropy = num(t, "anisotropy", m.anisotropy);
+  m.anisotropy_rotation = num(t, "anisotropy_rotation", m.anisotropy_rotation);
+  m.transmission = num(t, "transmission", m.transmission);
+  m.ior = num(t, "ior", m.ior);
+  m.thickness = num(t, "thickness", m.thickness);
+  m.attenuation_color = color_of(t["attenuation_color"], m.attenuation_color);
+  m.attenuation_distance = num(t, "attenuation_distance", m.attenuation_distance);
 }
 
 // light3d::tonemap by name ("none", "linear", "aces", "agx", "neutral").
@@ -194,6 +203,15 @@ void apply_light3d(light3d &l, const sol::table &t) {
       if (*name == tonemap_names[i])
         l.tonemap = (tonemap3d)i;
   l.exposure = num(t, "exposure", l.exposure);
+  l.hdr = flag(t, "hdr", l.hdr);
+  l.auto_exposure = flag(t, "auto_exposure", l.auto_exposure);
+  l.shadow_cascades = (i32)num(t, "shadow_cascades", (f32)l.shadow_cascades);
+  l.lights_max = (i32)num(t, "lights_max", (f32)l.lights_max);
+  l.source_shadows = (i32)num(t, "source_shadows", (f32)l.source_shadows);
+  l.volume_density = num(t, "volume_density", l.volume_density);
+  l.volume_color = color_of(t["volume_color"], l.volume_color);
+  l.volume_falloff = num(t, "volume_falloff", l.volume_falloff);
+  l.volume_noise = num(t, "volume_noise", l.volume_noise);
 }
 
 sol::table light3d_table(sol::state_view lua, const light3d &l) {
@@ -201,7 +219,9 @@ sol::table light3d_table(sol::state_view lua, const light3d &l) {
   return lua.create_table_with("direction", l.direction, "color", col(l.color), "ambient", col(l.ambient), "shadows",
                                l.shadows, "shadow_range", l.shadow_range, "fog_color", col(l.fog_color),
                                "fog_density", l.fog_density, "tonemap", tonemap_names[std::clamp((i32)l.tonemap, 0, 4)],
-                               "exposure", l.exposure);
+                               "exposure", l.exposure, "hdr", l.hdr, "auto_exposure", l.auto_exposure,
+                               "shadow_cascades", l.shadow_cascades, "lights_max", l.lights_max, "source_shadows",
+                               l.source_shadows, "volume_density", l.volume_density);
 }
 
 bool weather_kind_of(const std::string &name, weather3d_kind &out) {
@@ -450,6 +470,12 @@ void script_bind_3d(context &ctx, script_runtime &rt) {
     p.flare = num(t, "flare", p.flare);
     p.taa = flag(t, "taa", p.taa);
     p.taa_sharpen = num(t, "taa_sharpen", p.taa_sharpen);
+    p.bloom = num(t, "bloom", p.bloom);
+    p.oit = flag(t, "oit", p.oit);
+    // aa = "none", "fxaa" or "smaa"
+    // (A std::string key: GCC misreads sol's lookup of a 2-letter literal.)
+    if (sol::optional<std::string> aa = t[std::string("aa")])
+      p.aa = *aa == "fxaa" ? aa3d_fxaa : *aa == "smaa" ? aa3d_smaa : aa3d_none;
     post3d_set(*c, p);
   };
   n["post3d_off"] = [c] { post3d_set(*c, post3d{}); };

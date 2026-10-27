@@ -10,6 +10,32 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- 3D graphics closer to Bevy's, all opt-in (a scene that sets none of it
+  draws pixel for pixel as before):
+  - `light3d::hdr`: the 3D pass drawn into a half-float image and tone mapped
+    once at its end; `post3d::bloom` (Jimenez's downsample chain with Karis'
+    average, no threshold) and `light3d::auto_exposure` (centre-weighted mean
+    log luminance, eased towards `auto_exposure_key`) work on it.
+  - `light3d::shadow_cascades` (1..4): cascaded sun shadows over
+    `shadow_range`, split by `shadow_cascade_split`, each slice in a stable
+    texel-snapped sphere, blended at the seams.
+  - `light3d::lights_max` (to `light3d_limit`, 1024): clustered lighting, 16 x
+    9 tiles by 24 depth slices; `light3d::source_shadows` (to
+    `light3d_shadow_limit`, 16) shadowed lamps. Water with `lamps` takes them.
+  - `material3d`: `clearcoat`, `anisotropy`, `transmission` with `ior`,
+    `thickness` and attenuation (refracting the opaque scene), parallax
+    occlusion (`height`), `lightmap`; glTF's `KHR_materials_clearcoat`,
+    `_anisotropy`, `_ior`, `_transmission`, `_volume` factors with
+    `model_load_desc::pbr`.
+  - `probe3d_add()`: reflection probes captured from the pass's draws, box
+    blended and box projected; `irradiance3d_set()`: an ambient-cube grid that
+    lights every material in its box.
+  - `light3d::volume_*`: volumetric fog marched at half size through the sun's
+    and lamps' shadows, with height falloff, drifting noise and a
+    Henyey-Greenstein phase.
+  - `post3d::oit` (weighted blended transparency) and `post3d::aa`
+    (`aa3d_fxaa`, `aa3d_smaa` with iryoku/smaa, MIT).
+  - Lua: the new `light3d_set`, `material3d_set` and `post3d_set` fields.
 - PBR, all opt-in (games that set none of it draw exactly as before):
   `light3d::tonemap` (`tonemap3d_linear`, `_aces` as three.js's ACESFilmic,
   `_agx` as Blender's, `_neutral` as Khronos PBR Neutral) with `exposure`:

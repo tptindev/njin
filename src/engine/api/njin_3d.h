@@ -152,6 +152,94 @@ struct light3d {
   /// Vẽ ảnh môi trường làm nền trời, sau mọi thứ của lần vẽ (cùng tone mapping).
   bool environment_visible = false;
   /// @}
+
+  /// @name HDR và tự chỉnh độ phơi sáng
+  /// @{
+
+  /// Vẽ cảnh 3D vào một ảnh HDR (số thực 16 bit, sáng hơn 1 vẫn giữ nguyên) rồi tone
+  /// map một lần ở cuối, như Bevy và Unreal, thay cho tone map trong từng shader. Hiệu
+  /// ứng màn hình 3D (SSAO, SSR, TAA, tia nắng, mờ chuyển động) chạy trên ánh sáng
+  /// thật, bloom của `post3d::bloom` lan theo năng lượng, và tự chỉnh độ phơi sáng
+  /// đo được ảnh. Chỉ khi `tonemap` khác tonemap3d_none, cho lần vẽ vào thế giới
+  /// (lần vẽ vào render texture vẫn tone map trong từng shader).
+  ///
+  /// Mọi thứ của lần vẽ đi qua tone mapping, như Bevy: vật được chiếu sáng, nước,
+  /// bầu trời (draw_sky3d(), `environment_visible`) nhân thêm phơi sáng; vật `unlit`,
+  /// hạt 3D, màu sương và nền (màu xóa, 2D vẽ trước begin_3d()) giữ màu như nhập,
+  /// chỉ qua đường cong. Với tonemap3d_linear và `exposure` 1 thì chúng giữ nguyên
+  /// màu, với ACES hay AgX thì theo đường cong đó. Shader riêng của game nhận `int`
+  /// `hdrOut` (1 lúc này): khi đó hãy ghi ánh sáng tuyến tính đã nhân `exposure`,
+  /// không tone map.
+  bool hdr = false;
+  /// Tự chỉnh độ phơi sáng theo độ sáng trung bình của ảnh (đo ưu tiên giữa màn
+  /// hình), như mắt quen dần với chỗ tối hay sáng: vào hang thì sáng lên dần, ra nắng
+  /// thì tối đi. Nhân thêm vào `exposure`. Chỉ khi `hdr`.
+  bool auto_exposure = false;
+  f32 auto_exposure_speed = 1.5f; ///< Tốc độ quen dần, mỗi giây. Lớn là đổi nhanh.
+  f32 auto_exposure_min = 0.25f;  ///< Hệ số phơi sáng nhỏ nhất mà nó chọn.
+  f32 auto_exposure_max = 4.0f;   ///< Hệ số phơi sáng lớn nhất mà nó chọn.
+  /// Độ sáng mà ảnh trung bình được đưa về (xám giữa, 0.18 như máy ảnh). Lớn thì cả
+  /// cảnh sáng hơn.
+  f32 auto_exposure_key = 0.18f;
+  /// @}
+
+  /// @name Bóng đổ nhiều tầng (cascaded shadow maps)
+  /// @{
+
+  /// Số tầng bóng của mặt trời, 1..4. 1 (mặc định) là một ảnh bóng như trước, phủ
+  /// hình hộp `shadow_range` quanh chỗ camera nhìn. Từ 2 trở lên, khoảng từ camera
+  /// tới `shadow_range` mét được chia thành từng đoạn, mỗi đoạn một ảnh bóng cạnh
+  /// `shadow_size`: gần camera bóng sắc, xa vẫn có bóng. Mỗi tầng vẽ thêm mọi hình
+  /// đổ bóng một lần.
+  i32 shadow_cascades = 1;
+  /// Cách chia các tầng, 0..1: 0 chia đều, 1 chia theo cấp số nhân (tầng gần rất
+  /// ngắn). Khoảng 0.75 hợp với đa số cảnh.
+  f32 shadow_cascade_split = 0.75f;
+  /// @}
+
+  /// @name Nhiều đèn
+  /// @{
+
+  /// Số đèn tối đa của một lần vẽ, tới njin::light3d_limit. Mặc định njin::light3d_max
+  /// (16): đèn quá số đó bị bỏ qua, như trước. Lớn hơn thì njin chia khung nhìn thành
+  /// các cụm (clustered lighting, như Bevy) và mỗi điểm ảnh chỉ tính các đèn chạm cụm
+  /// của nó, nên hàng trăm đèn nhỏ vẫn nhanh.
+  i32 lights_max = 16;
+  /// Số đèn điểm và đèn nón có `shadows` được đổ bóng, tới njin::light3d_shadow_limit.
+  /// Mặc định njin::light3d_shadow_max (4). Mỗi đèn đổ bóng thêm một hàng vào ảnh bóng
+  /// (6 ô `source_shadow_size` cho đèn điểm) và vẽ lại mọi hình đổ bóng 6 lần (đèn
+  /// điểm) hoặc 1 lần (đèn nón).
+  i32 source_shadows = 4;
+  /// @}
+
+  /// @name Sương khối (volumetric fog)
+  /// Sương có thật trong không gian: ánh nắng và ánh đèn tán xạ trong nó thành những
+  /// luồng sáng, bóng của vật cắt thành vệt tối (nắng lọt qua cửa sổ, đèn pin trong
+  /// sương, đèn đường đêm mưa). Tính bằng cách dò tia từ camera qua từng điểm ảnh, ở
+  /// nửa độ phân giải. Đẹp nhất với `hdr`. Chỉ cho lần vẽ vào thế giới.
+  /// @{
+
+  /// Mật độ sương, mỗi mét. 0 (mặc định) là tắt; 0.02..0.1 là sương nhẹ đến dày.
+  f32 volume_density = 0.0f;
+  /// Màu của sương (phần ánh sáng nó tán xạ lại), thường là trắng hay xám xanh.
+  rgba volume_color{1.0f, 1.0f, 1.0f, 1.0f};
+  /// Sương dày ở dưới `volume_base` (độ cao y) và mỏng dần lên trên, theo
+  /// `exp(-volume_falloff * (y - volume_base))`. `volume_falloff` 0 là đều mọi độ cao.
+  f32 volume_base = 0.0f;
+  f32 volume_falloff = 0.0f; ///< Độ mỏng dần theo độ cao, mỗi mét. 0 là đều.
+  /// Sương loang lổ thành từng đám, 0 (đều) đến 1 (thành đám rõ rệt).
+  f32 volume_noise = 0.0f;
+  f32 volume_noise_size = 6.0f;             ///< Cỡ một đám sương, mét.
+  vec3 volume_wind{0.6f, 0.0f, 0.2f};       ///< Đám sương trôi theo gió, mét mỗi giây.
+  /// Hướng tán xạ, -1..1 (Henyey-Greenstein): dương thì sáng nhất khi nhìn về phía
+  /// nguồn sáng (quầng quanh mặt trời, đèn pha), 0 thì đều mọi hướng.
+  f32 volume_anisotropy = 0.5f;
+  f32 volume_distance = 60.0f; ///< Dò tới bấy nhiêu mét từ camera; xa hơn coi như hết sương.
+  i32 volume_steps = 32;       ///< Số bước dò mỗi tia, 8..128. Nhiều thì mịn hơn, tốn hơn.
+  f32 volume_sun = 1.0f;       ///< Độ sáng của nắng trong sương, nhân với màu nắng.
+  f32 volume_ambient = 0.3f;   ///< Phần ánh sáng nền (`ambient`) mà sương tán xạ.
+  bool volume_lamps = true;    ///< Đèn điểm và đèn nón cũng tán xạ trong sương (theo bóng của chúng).
+  /// @}
 };
 
 /// Đặt ánh sáng chung. Có hiệu lực từ begin_3d() tiếp theo.
@@ -191,17 +279,106 @@ struct light3d_source {
   bool shadows = false;
 };
 
-/// Số đèn tối đa trong một lần vẽ 3D. Đèn thêm quá số này bị bỏ qua.
+/// Số đèn tối đa trong một lần vẽ 3D, mặc định. Đèn thêm quá số này bị bỏ qua,
+/// trừ khi light3d::lights_max lớn hơn.
 inline constexpr i32 light3d_max = 16;
 
-/// Số đèn điểm và đèn nón tối đa được đổ bóng trong một lần vẽ 3D.
+/// Số đèn điểm và đèn nón tối đa được đổ bóng trong một lần vẽ 3D, mặc định
+/// (light3d::source_shadows).
 inline constexpr i32 light3d_shadow_max = 4;
+
+/// Giới hạn trên của light3d::lights_max.
+inline constexpr i32 light3d_limit = 1024;
+
+/// Giới hạn trên của light3d::source_shadows.
+inline constexpr i32 light3d_shadow_limit = 16;
 
 /// Thêm một đèn cho lần vẽ 3D đang mở. Gọi mỗi frame, giữa begin_3d() và end_3d()
 /// (thứ tự với các lệnh vẽ không quan trọng: mọi đèn chiếu lên mọi hình của lần vẽ).
 /// @param ctx Context của engine.
 /// @param light Đèn.
 void light3d_add(context &ctx, const light3d_source &light);
+
+/// Một probe phản chiếu: njin chụp cảnh quanh `position` (6 hướng) thành một ảnh
+/// môi trường riêng, rồi vật liệu `pbr` trong hộp `size` quanh nó lấy ánh sáng và
+/// phản chiếu từ ảnh đó thay cho light3d::environment: trong phòng thì phản chiếu
+/// tường và đồ trong phòng, không phải bầu trời ngoài kia. Như reflection probe
+/// của Bevy, Unity và Unreal.
+///
+/// Probe được chụp ở lần vẽ 3D vào thế giới kế tiếp, từ chính các lệnh vẽ của lần
+/// vẽ đó (hình đục, model, địa hình, bầu trời; không có hạt, nước, kính), rồi giữ
+/// nguyên cho tới probe3d_refresh(), trừ khi `live`.
+struct probe3d_desc {
+  vec3 position{0.0f, 1.5f, 0.0f}; ///< Chỗ chụp, thường giữa phòng ở tầm mắt; cũng là tâm hộp.
+  /// Cỡ hộp ảnh hưởng theo x, y, z, thường bằng cỡ căn phòng. Vật liệu trong hộp
+  /// dùng probe này.
+  vec3 size{8.0f, 3.0f, 8.0f};
+  /// Bề dày của dải mép hộp mà probe mờ dần sang probe bên cạnh hay môi trường, mét.
+  f32 blend = 1.0f;
+  f32 intensity = 1.0f; ///< Độ sáng của ánh sáng và phản chiếu lấy từ probe.
+  /// Sửa thị sai theo hộp (box projection): phản chiếu trên sàn và tường khớp với vị
+  /// trí thật của vật trong phòng, thay vì như ở xa vô tận. Nên bật cho phòng kín.
+  bool parallax = true;
+  i32 resolution = 128; ///< Cạnh mỗi mặt khi chụp, pixel (32..512).
+  /// Chụp lại mỗi frame (cảnh quanh probe đổi liên tục). Tốn: vẽ lại cảnh 6 lần.
+  bool live = false;
+};
+
+/// Số probe phản chiếu tối đa cùng lúc.
+inline constexpr i32 probe3d_max = 8;
+
+/// Thêm một probe phản chiếu. Quá njin::probe3d_max thì trả về handle không hợp lệ.
+/// @param ctx Context của engine.
+/// @param desc Probe.
+/// @return Handle của probe.
+probe3d_handle probe3d_add(context &ctx, const probe3d_desc &desc);
+
+/// Đổi cách đặt của một probe; nó được chụp lại ở lần vẽ kế tiếp.
+/// @param ctx Context của engine.
+/// @param handle Probe. Handle không hợp lệ bị bỏ qua.
+/// @param desc Cách đặt mới.
+void probe3d_set(context &ctx, probe3d_handle handle, const probe3d_desc &desc);
+
+/// Chụp lại probe ở lần vẽ 3D kế tiếp (cảnh quanh nó đã đổi: đèn tắt, đồ dời chỗ).
+/// @param ctx Context của engine.
+/// @param handle Probe. Handle không hợp lệ bị bỏ qua.
+void probe3d_refresh(context &ctx, probe3d_handle handle);
+
+/// Bỏ một probe.
+/// @param ctx Context của engine.
+/// @param handle Probe. Handle không hợp lệ bị bỏ qua.
+void probe3d_remove(context &ctx, probe3d_handle handle);
+
+/// Một lưới ánh sáng gián tiếp (irradiance volume, như của Bevy): njin chụp cảnh ở
+/// từng điểm của lưới trong hộp và nhớ ánh sáng tới từ sáu hướng (ambient cube), rồi
+/// mọi hình trong hộp (cả vật liệu không `pbr`) lấy ánh sáng nền từ đó thay cho
+/// light3d::ambient: góc phòng tối đi, sàn cạnh tường đỏ ửng màu đỏ, chỗ có nắng
+/// rọi vào hắt sáng lên trần. Được chụp ở lần vẽ 3D vào thế giới kế tiếp.
+struct irradiance3d_desc {
+  vec3 center{0.0f, 1.5f, 0.0f}; ///< Tâm hộp.
+  vec3 size{8.0f, 3.0f, 8.0f};   ///< Cỡ hộp theo x, y, z.
+  /// Số điểm của lưới theo x, 1..16. Mỗi điểm vẽ lại cảnh 6 lần (ở cỡ nhỏ) khi chụp,
+  /// chỉ một lần.
+  i32 count_x = 4;
+  i32 count_y = 2; ///< Số điểm của lưới theo y, 1..16.
+  i32 count_z = 4; ///< Số điểm của lưới theo z, 1..16.
+  f32 intensity = 1.0f; ///< Độ sáng của ánh sáng lấy từ lưới.
+  f32 blend = 0.5f;     ///< Bề dày dải mép hộp mờ dần sang `ambient`, mét.
+};
+
+/// Đặt lưới ánh sáng gián tiếp của cảnh (một lưới mỗi lúc; đặt lại thì thay lưới cũ).
+/// Nó được chụp ở lần vẽ 3D vào thế giới kế tiếp.
+/// @param ctx Context của engine.
+/// @param desc Lưới.
+void irradiance3d_set(context &ctx, const irradiance3d_desc &desc);
+
+/// Chụp lại lưới ánh sáng ở lần vẽ 3D kế tiếp.
+/// @param ctx Context của engine.
+void irradiance3d_refresh(context &ctx);
+
+/// Bỏ lưới ánh sáng: các hình lại dùng light3d::ambient.
+/// @param ctx Context của engine.
+void irradiance3d_clear(context &ctx);
 
 /// Bề mặt của các hình 3D vẽ sau material3d_set().
 ///
@@ -271,6 +448,48 @@ struct material3d {
   /// sáng nền và môi trường. Như `metal_rough` với model.
   texture_handle occlusion{};
   f32 occlusion_strength = 1.0f; ///< Độ mạnh của `occlusion`, 0..1.
+  /// @}
+
+  /// @name Vật liệu PBR nâng cao
+  /// Như glTF (KHR_materials_clearcoat, _anisotropy, _transmission, _ior, _volume) và
+  /// StandardMaterial của Bevy. Chỉ khi `pbr`; mặc định đều tắt.
+  /// @{
+
+  /// Lớp sơn bóng trong suốt phủ trên bề mặt, 0..1 (sơn xe, gỗ đánh vecni, nhựa
+  /// bóng): một điểm sáng bóng và phản chiếu thứ hai, sắc, trên lớp vật liệu dưới.
+  f32 clearcoat = 0.0f;
+  f32 clearcoat_roughness = 0.03f; ///< Độ nhám của lớp sơn bóng, 0..1.
+  /// Độ dị hướng, -1..1 (kim loại chải xước, đáy nồi, tóc): điểm sáng bóng kéo dài
+  /// thành vệt theo hướng u của ảnh (dương) hay hướng v (âm). Cần lưới có UV.
+  f32 anisotropy = 0.0f;
+  f32 anisotropy_rotation = 0.0f; ///< Xoay hướng dị hướng trên bề mặt, độ.
+  /// Phần ánh sáng xuyên qua vật, 0..1 (kính, nước trong chai, nhựa trong): nhìn qua
+  /// vật thấy cảnh phía sau, bị bẻ cong theo `ior` và `thickness`, nhuộm theo
+  /// `attenuation_color`, mờ theo `roughness` (kính mờ). Vật xuyên sáng vẽ sau mọi
+  /// hình đục, như kính. Cần ảnh của cảnh đục: njin tự sao lại nó ở lần vẽ vào thế
+  /// giới (từ frame sau frame đầu tiên có vật xuyên sáng); ở lần vẽ vào render texture
+  /// thì vật chỉ trong suốt theo `transmission`, không bẻ cong.
+  f32 transmission = 0.0f;
+  f32 ior = 1.5f;       ///< Chiết suất: 1.33 nước, 1.5 kính, 2.4 kim cương.
+  /// Độ dày của vật, mét: ánh sáng đi trong vật bấy nhiêu nên cảnh sau bị lệch và
+  /// nhuộm màu bấy nhiêu. 0 là vật mỏng (tấm kính).
+  f32 thickness = 0.0f;
+  /// Màu ánh sáng còn lại sau khi đi `attenuation_distance` mét trong vật (rượu vang,
+  /// kính màu, nước biển). Trắng là không nhuộm.
+  rgba attenuation_color{1.0f, 1.0f, 1.0f, 1.0f};
+  f32 attenuation_distance = 0.0f; ///< Mét. 0 là không nhuộm.
+  /// Ảnh độ cao (kênh đỏ, trắng là cao) cho parallax: bề mặt phẳng trông lồi lõm thật
+  /// khi nhìn xiên (gạch, đá lát, vỏ cây), ảnh dịch theo góc nhìn và chỗ thấp bị chỗ
+  /// cao che. Cho hình khối, model và draw_instanced3d(); cần lưới có UV. Không hợp lệ
+  /// là không dùng.
+  texture_handle height{};
+  f32 height_scale = 0.04f; ///< Độ sâu của parallax, theo đơn vị của UV (thường 0.02..0.08).
+  /// Ảnh ánh sáng nướng sẵn (lightmap), theo bộ UV thứ hai của lưới (bộ thứ nhất nếu
+  /// lưới không có): thay `ambient` (và môi trường) trên bề mặt này bằng ánh sáng gián
+  /// tiếp đã tính trước, như lightmap của Bevy và Unity. Ảnh 8 bit coi là sRGB, ảnh
+  /// `.hdr` là ánh sáng tuyến tính. Cả vật liệu không `pbr`. Không hợp lệ là không dùng.
+  texture_handle lightmap{};
+  f32 lightmap_intensity = 1.0f; ///< Độ sáng của `lightmap`.
   /// @}
 };
 

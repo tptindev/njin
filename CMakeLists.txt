@@ -162,6 +162,16 @@ FetchContent_Declare(
   SOURCE_SUBDIR no-cmake
   SYSTEM)
 
+# SMAA (MIT) for post3d::aa: its shader (SMAA.hlsl, GLSL-compatible) is
+# compiled into the 3d feature and its two lookup images (Textures/*.h) are
+# included there. The repository has no tags, so it is pinned to a commit.
+FetchContent_Declare(
+  smaa
+  GIT_REPOSITORY https://github.com/iryoku/smaa.git
+  GIT_TAG 71c806a838bdd7d517df19192a20f0c61b3ca29d
+  SOURCE_SUBDIR no-cmake
+  SYSTEM)
+
 # Asio (Boost Software License 1.0, standalone, header-only) for njin_network.h:
 # TCP and UDP on one network thread, written as C++20 coroutines. Private to
 # the net feature (njin_net); its CMake-less repository is used for its headers
@@ -185,7 +195,7 @@ FetchContent_Declare(
   SOURCE_SUBDIR no-cmake
   SYSTEM)
 
-FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg asio enet)
+FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer lua sol2 recastnavigation pl_mpeg smaa asio enet)
 # Jolt is 154 sources sharing most of their headers: compiled 16 to a file
 # (unity build) it takes half the time. It is only rebuilt with a new tag.
 set_target_properties(Jolt PROPERTIES UNITY_BUILD ON UNITY_BUILD_BATCH_SIZE 16)
@@ -195,6 +205,8 @@ file(GLOB _njin_recast_sources "${recastnavigation_SOURCE_DIR}/Recast/Source/*.c
 add_library(njin_recast STATIC ${_njin_recast_sources})
 target_include_directories(njin_recast SYSTEM PUBLIC "${recastnavigation_SOURCE_DIR}/Recast/Include"
                            "${recastnavigation_SOURCE_DIR}/Detour/Include" "${recastnavigation_SOURCE_DIR}/DetourCrowd/Include")
+add_library(njin_smaa INTERFACE)
+target_include_directories(njin_smaa SYSTEM INTERFACE "${smaa_SOURCE_DIR}/Textures")
 add_library(njin_plmpeg INTERFACE)
 target_include_directories(njin_plmpeg SYSTEM INTERFACE "${pl_mpeg_SOURCE_DIR}")
 find_package(Threads REQUIRED)
@@ -274,7 +286,7 @@ foreach(_njin_feature IN LISTS NJIN_FEATURES_ORDER)
 endforeach()
 # Export the engine build for standalone games. Private games are never
 # discovered or added by this project.
-set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_asio njin_enet EnTT)
+set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_smaa njin_asio njin_enet EnTT)
 foreach(_njin_feature IN LISTS NJIN_FEATURES_ORDER)
   list(APPEND _njin_export_targets njin_${_njin_feature})
 endforeach()

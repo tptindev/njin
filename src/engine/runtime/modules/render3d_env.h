@@ -42,7 +42,7 @@ struct env_maps {
   // Made on first use.
   bool shaders_tried = false;
   Shader copy{}, prefilter{}, sky{};
-  i32 sky_env_params = -1, sky_tone = -1, sky_exposure = -1, sky_inv_vp = -1, sky_eye = -1, sky_map = -1;
+  i32 sky_env_params = -1, sky_tone = -1, sky_exposure = -1, sky_inv_vp = -1, sky_eye = -1, sky_map = -1, sky_hdr = -1;
 };
 
 // Makes the maps when light3d::environment names an image they were not made
@@ -57,8 +57,16 @@ void env_set_uniforms(const env_maps &env, const light3d &light, Shader shader, 
 // Binds `atlas` to env_unit for the pass (nothing when not ready).
 void env_bind(const env_maps &env);
 
-// Fills the pass's background with the environment, tone mapped as the scene.
-void env_draw_sky(env_maps &env, const light3d &light, const camera3d &camera, const Matrix &view_proj);
+// Fills the pass's background with the environment, tone mapped as the scene
+// (`exposure` the lit shaders'), or for the HDR image (`hdr_out`) exposed only.
+void env_draw_sky(env_maps &env, const light3d &light, const camera3d &camera, const Matrix &view_proj, bool hdr_out,
+                  f32 exposure);
 
 void env_free(env_maps &env);
+
+// The maps of `source` (linear when it is a float image) at other sizes than
+// light3d::environment's: a reflection probe's. Draws into its own
+// framebuffers. False on failure.
+bool env_build(env_maps &env, const Texture2D &source, i32 base_width, i32 base_height, i32 atlas_width,
+               i32 level_height);
 } // namespace njin

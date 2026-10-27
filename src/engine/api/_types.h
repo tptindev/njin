@@ -251,6 +251,15 @@ struct scatter3d_handle {
   u32 id = 0; ///< 0 nghĩa là không hợp lệ.
 };
 
+/// Định danh của một probe phản chiếu, tạo bởi probe3d_add().
+///
+/// `id == 0` là handle không hợp lệ. Probe đã bỏ cũng bị bỏ qua: ô của nó được dùng
+/// lại cho probe sau, nhưng `gen` khác nên handle cũ không trỏ nhầm sang probe mới.
+struct probe3d_handle {
+  u32 id = 0;  ///< 0 nghĩa là không hợp lệ.
+  u32 gen = 0; ///< Lần dùng thứ mấy của ô này.
+};
+
 /// Định danh của một decal, tạo bởi decal3d_add().
 ///
 /// `id == 0` là handle không hợp lệ. Decal đã hết hay đã bị thay chỗ cũng bị bỏ

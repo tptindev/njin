@@ -12,8 +12,9 @@
 
 namespace njin {
 namespace {
-constexpr i32 base_width = 1024, base_height = 512;
-constexpr i32 atlas_width = 512;
+// The sizes for light3d::environment (a probe's are smaller, render3d_probe.cpp).
+constexpr i32 env_base_width = 1024, env_base_height = 512;
+constexpr i32 env_atlas_width = 512, env_level_height = 256;
 constexpr i32 sh_width = 64, sh_height = 32;
 
 // A full-screen quad, the texture coordinate 0 at the bottom-left: the row a
@@ -123,7 +124,10 @@ void main() {
   d = env_dir(d);
   vec2 uv = vec2(atan(d.z, d.x) / (2.0 * PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
   vec3 c = textureLod(skyMap, uv, 0.0).rgb * envParams.y;
-  finalColor = vec4(toneMap > 0 ? tone_out(c) : linear_to_srgb(clamp(c, 0.0, 1.0)), 1.0);
+  if (hdrOut == 1)
+    finalColor = vec4(c * exposure, 1.0); // into the HDR image, tone mapped at the pass's end
+  else
+    finalColor = vec4(toneMap > 0 ? tone_out(c) : linear_to_srgb(clamp(c, 0.0, 1.0)), 1.0);
 }
 )";
 
@@ -204,6 +208,7 @@ bool make_shaders(env_maps &env) {
   env.sky_exposure = GetShaderLocation(env.sky, "exposure");
   env.sky_inv_vp = GetShaderLocation(env.sky, "skyInvViewProj");
   env.sky_eye = GetShaderLocation(env.sky, "skyEye");
+  env.sky_hdr = GetShaderLocation(env.sky, "hdrOut");
   env.sky_map = GetShaderLocation(env.sky, "skyMap");
   return true;
 }
@@ -246,10 +251,12 @@ void project_sh(env_maps &env, const f32 *rgba) {
   }
 }
 
-bool make_maps(env_maps &env, const Texture2D &source) {
+bool make_maps(env_maps &env, const Texture2D &source, i32 base_width, i32 base_height, i32 atlas_width,
+               i32 level_height) {
   if (!make_shaders(env))
     return false;
   free_maps(env);
+  env.level_height = level_height;
   // 1. The image in linear light, mipmapped.
   u32 fbo = 0;
   bool ok = float_target(base_width, base_height, RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16, 1, env.base, fbo);
@@ -333,6 +340,14 @@ bool make_maps(env_maps &env, const Texture2D &source) {
 }
 } // namespace
 
+bool env_build(env_maps &env, const Texture2D &source, i32 base_width, i32 base_height, i32 atlas_width,
+               i32 level_height) {
+  rlDrawRenderBatchActive();
+  const bool ok = make_maps(env, source, base_width, base_height, atlas_width, level_height);
+  rlDisableFramebuffer();
+  return ok;
+}
+
 rgb_linear linear_of(rgba c) { return {to_linear(c.r), to_linear(c.g), to_linear(c.b)}; }
 
 bool env_update(context &ctx, env_maps &env, const light3d &light) {
@@ -354,7 +369,7 @@ bool env_update(context &ctx, env_maps &env, const light3d &light) {
   env.warned = false;
   // Drawing below goes into the maps' own framebuffers.
   rlDrawRenderBatchActive();
-  const bool ok = make_maps(env, slot->texture);
+  const bool ok = make_maps(env, slot->texture, env_base_width, env_base_height, env_atlas_width, env_level_height);
   rlDisableFramebuffer();
   if (!ok) {
     free_maps(env);
@@ -394,7 +409,8 @@ void env_bind(const env_maps &env) {
   rlEnableTexture(env.atlas.id);
 }
 
-void env_draw_sky(env_maps &env, const light3d &light, const camera3d &camera, const Matrix &view_proj) {
+void env_draw_sky(env_maps &env, const light3d &light, const camera3d &camera, const Matrix &view_proj, bool hdr_out,
+                  f32 exposure) {
   if (!env.ready)
     return;
   rlDrawRenderBatchActive();
@@ -405,8 +421,9 @@ void env_draw_sky(env_maps &env, const light3d &light, const camera3d &camera, c
   SetShaderValue(env.sky, env.sky_env_params, &p, SHADER_UNIFORM_VEC4);
   const i32 tone = light.tonemap == tonemap3d_none ? 0 : (i32)light.tonemap;
   SetShaderValue(env.sky, env.sky_tone, &tone, SHADER_UNIFORM_INT);
-  const f32 exposure = std::max(light.exposure, 0.0f);
   SetShaderValue(env.sky, env.sky_exposure, &exposure, SHADER_UNIFORM_FLOAT);
+  const i32 hdr = hdr_out ? 1 : 0;
+  SetShaderValue(env.sky, env.sky_hdr, &hdr, SHADER_UNIFORM_INT);
   SetShaderValueMatrix(env.sky, env.sky_inv_vp, MatrixInvert(view_proj));
   SetShaderValue(env.sky, env.sky_eye, &camera.position, SHADER_UNIFORM_VEC3);
   const i32 unit = 0;

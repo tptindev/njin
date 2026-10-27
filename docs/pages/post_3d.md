@@ -2,8 +2,8 @@
 
 Trang này thêm cho cảnh 3D những hiệu ứng tính trên ảnh của cả khung hình, từ độ sâu của từng pixel: góc
 tường và chân vật tối đi (SSAO), sàn bóng phản chiếu (SSR), vết đạn, vết cháy, sơn dán lên mọi bề mặt
-(decal), nhòe khi camera quay (mờ chuyển động), tia nắng xuyên qua khe, lóa ống kính và khử răng cưa theo thời
-gian (TAA). Mọi thứ khai báo
+(decal), nhòe khi camera quay (mờ chuyển động), tia nắng xuyên qua khe, lóa ống kính, khử răng cưa theo thời
+gian (TAA) hay trên ảnh (FXAA, SMAA), bloom trên ảnh HDR và vật trong suốt không phụ thuộc thứ tự (OIT). Mọi thứ khai báo
 trong `njin_post3d.h` và chạy trên OpenGL 3.3 như phần 3D còn lại.
 
 Cần biết trước: @ref graphics_3d (begin_3d(), ánh sáng, vật liệu). Tia nắng đi cùng bầu trời của
@@ -34,6 +34,9 @@ njin::post3d_set(ctx, fx);
 | Tia nắng | `shafts` | Trời quanh mặt trời, qua khe giữa các vật |
 | Lóa ống kính | `flare` | Cả ảnh, khi mặt trời trong khung hình và không bị che |
 | Khử răng cưa theo thời gian (TAA) | `taa`, `taa_sharpen` | Lần vẽ 3D đầu tiên vào thế giới của mỗi frame |
+| Bloom HDR | `bloom`, `bloom_radius`, cùng `light3d::hdr` | Chỗ sáng của cả ảnh 3D |
+| Khử răng cưa trên ảnh | `aa` (aa3d_fxaa, aa3d_smaa) | Cả ảnh thế giới, sau lần vẽ 3D đầu tiên của mỗi frame |
+| Trong suốt không phụ thuộc thứ tự (OIT) | `oit` | Hình và phần model trong suốt vẽ bằng shader có sẵn |
 
 Hiệu ứng chỉ áp cho lần vẽ 3D vào thế giới, không cho lần vẽ vào render texture (begin_3d() có `target`).
 Chúng chạy trong end_3d() theo thứ tự: sau mọi hình đục là decal, SSAO, phản chiếu; rồi kính, nước và hạt 3D;
@@ -169,6 +172,54 @@ thời, vật mới xuất hiện ở chỗ của vật cũ) được coi như c
 Hình SDF (draw_shape3d()), draw_instanced3d(), địa hình, cỏ, nước, kính và hạt 3D không có chuyển động riêng: chúng
 theo chuyển động của camera, như trước.
 
+## Bloom HDR {#post3d_bloom}
+
+Với `light3d::hdr` (@ref hdr3d), `bloom` cho chỗ sáng lan ra xung quanh theo đúng năng lượng của nó, như Bevy
+và Unreal: ảnh được thu nhỏ dần thành một chuỗi ảnh (bộ lọc 13 điểm của Call of Duty, lần đầu lấy trung bình
+Karis nên một pixel quá sáng không nhấp nháy), rồi phóng lại từng bậc cộng dồn, và trộn vào ảnh theo `bloom`
+trước khi tone map. Không có ngưỡng: mọi thứ đều lan một chút, nhưng chỉ chỗ rất sáng (đèn, vật tự phát sáng
+mạnh, mặt trời phản chiếu trên kim loại) mới thấy rõ quầng. 0.04 tới 0.15 là thường dùng; `bloom_radius` (0.25
+tới 2) chỉnh độ lan.
+
+```cpp
+njin::light3d_set(ctx, {.direction = sun, .tonemap = njin::tonemap3d_agx, .hdr = true});
+njin::post3d_set(ctx, {.bloom = 0.08f});
+njin::material3d_set(ctx, {.emission = {1, 0.4f, 0.1f, 8.0f}}); // một quả cầu lửa thật sáng
+```
+
+Không có HDR thì `bloom` không làm gì; dùng bloom của post_fx_set() (@ref post_processing), có ngưỡng, trên ảnh 8 bit.
+
+## Khử răng cưa trên ảnh (FXAA, SMAA) {#post3d_aa}
+
+`aa` khử răng cưa từ chính ảnh đã vẽ, một lần mỗi frame, sau lần vẽ 3D đầu tiên vào thế giới: không trộn với
+frame trước nên không có bóng mờ khi vật chạy nhanh như TAA, nhưng cạnh mảnh hơn một pixel vẫn có thể nhấp nháy.
+
+| `aa` | Cách làm | Hợp với |
+|---|---|---|
+| `aa3d_fxaa` | FXAA (Lottes): tìm cạnh theo độ sáng, trộn dọc cạnh, một lượt | Rẻ nhất; hơi mờ chữ và vân nhỏ |
+| `aa3d_smaa` | SMAA 1x (Jimenez và cộng sự, thư viện iryoku/smaa): tìm cạnh, đoán hình răng cưa, trộn, ba lượt | Sắc hơn FXAA, tốn hơn một chút |
+
+`aa` áp lên cả ảnh thế giới (cả 2D vẽ vào nó trước đó), không áp lên UI vẽ sau phase_render. Dùng cùng TAA được,
+nhưng thường chỉ cần một trong hai.
+
+## Trong suốt không phụ thuộc thứ tự (OIT) {#post3d_oit}
+
+Hình trong suốt thường được vẽ lần lượt và ghi độ sâu, nên tấm kính vẽ trước che mất tấm kính sau nó, và nhiều lớp
+khói, lá, kính chồng nhau ra sai tùy thứ tự. `oit` vẽ chúng theo cách weighted blended OIT (McGuire và Bavoil): mọi
+lớp được cộng theo trọng số độ phủ và độ sâu vào hai ảnh số thực, rồi phủ lên ảnh một lần, nên ra đúng bất kể thứ
+tự vẽ.
+
+```cpp
+njin::post3d_set(ctx, {.oit = true});
+njin::draw_cube3d(ctx, {0, 1, 0}, {2, 2, 0.05f}, {1, 0.2f, 0.2f, 0.5f});    // kính đỏ
+njin::draw_cube3d(ctx, {0, 1, -1}, {2, 2, 0.05f}, {0.2f, 0.4f, 1, 0.5f});   // kính xanh sau nó, vẫn thấy
+```
+
+Áp cho hình khối có màu với `a` < 1, phần model có vật liệu trong suốt và draw_instanced3d() của các model đó, khi
+chúng vẽ bằng shader có sẵn. Shader riêng của game, nước, hạt 3D và vật xuyên sáng (material3d::transmission) vẫn vẽ
+lần lượt như cũ, sau lớp OIT. Màu chồng nhau là trung bình có trọng số, gần đúng chứ không chính xác như vẽ đúng thứ
+tự: hai lớp rất đậm cùng màu khác nhau ra màu pha giữa hai lớp.
+
 ## Ví dụ đầy đủ
 
 Một góc phòng có sàn bóng và một hộp chạy vòng quanh quả cầu; phím 1, 2, 3, 4 bật tắt SSAO, phản chiếu, mờ chuyển
@@ -200,3 +251,4 @@ thế giới vào ảnh riêng và vận tốc của từng vật). Với bốn 
   cùng ảnh 3D, không rung nhưng có thể hơi mềm khi camera quay.
 - Mỗi lần vẽ 3D vào thế giới đều có hiệu ứng: game vẽ thế giới bằng hai begin_3d() trong một frame thì decal
   được vẽ ở cả hai lần.
+- FXAA và SMAA chỉ chạy một lần mỗi frame, sau lần vẽ 3D đầu tiên vào thế giới.

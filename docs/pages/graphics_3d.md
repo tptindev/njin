@@ -287,9 +287,11 @@ giống hệt animation.
 |---|---|---|
 | Mặt trời, ánh sáng nền | light3d_set() với njin::light3d | Có hiệu lực từ begin_3d() tiếp theo |
 | Bóng đổ của mặt trời | `light3d::shadows`, `shadow_range`, `shadow_size`, `shadow_softness` | Hộp bóng quanh chỗ camera nhìn; mép bóng mềm 3 x 3 |
+| Bóng nhiều tầng | `light3d::shadow_cascades`, `shadow_cascade_split` | @ref shadow3d_cascades |
 | Sương mù | `light3d::fog_color`, `fog_density` | Theo khoảng cách tới camera |
-| Đèn điểm, đèn nón | light3d_add() với njin::light3d_source mỗi lần vẽ, hoặc entity (@ref entities_3d) | Tối đa njin::light3d_max (16) |
-| Bóng đổ của đèn điểm, đèn nón | `light3d_source::shadows`, `light3d::source_shadow_size` | Tối đa njin::light3d_shadow_max (4) mỗi lần vẽ; đèn sau đó chiếu sáng mà không đổ bóng |
+| Sương khối, luồng sáng trong sương | `light3d::volume_density` và các trường `volume_*` | @ref fog3d_volume |
+| Đèn điểm, đèn nón | light3d_add() với njin::light3d_source mỗi lần vẽ, hoặc entity (@ref entities_3d) | Mặc định tối đa njin::light3d_max (16); `light3d::lights_max` tới njin::light3d_limit (@ref lights3d_many) |
+| Bóng đổ của đèn điểm, đèn nón | `light3d_source::shadows`, `light3d::source_shadow_size` | Mặc định tối đa njin::light3d_shadow_max (4) mỗi lần vẽ, `light3d::source_shadows` tới njin::light3d_shadow_limit; đèn sau đó chiếu sáng mà không đổ bóng |
 | Bề mặt | material3d_set() với njin::material3d | Độ bóng, phát sáng, viền sáng (`rim`), `unlit`, `texture`, `cast_shadows`; PBR: `pbr`, `metallic`, `roughness` (@ref pbr3d) |
 | Tone mapping, ảnh môi trường | `light3d::tonemap`, `exposure`, `environment` | @ref pbr3d |
 
@@ -305,6 +307,75 @@ Chỉ bật cho vài đèn quan trọng (đèn pin, đèn treo giữa phòng); `
 njin::light3d_add(ctx, {.kind = njin::light3d_spot, .position = eye, .direction = forward,
                         .intensity = 2.0f, .radius = 25.0f, .cone = 40.0f, .shadows = true});
 @endcode
+
+### Bóng nhiều tầng {#shadow3d_cascades}
+
+Một ảnh bóng phủ cả `shadow_range` thì bóng gần camera mờ và răng cưa khi tầm rộng, còn thu hẹp tầm thì vật
+ở xa mất bóng. `light3d::shadow_cascades` từ 2 tới 4 chia đoạn từ camera tới `shadow_range` mét thành từng
+tầng (cascaded shadow maps, như Bevy và Unreal), mỗi tầng một ảnh `shadow_size`: tầng gần ngắn nên bóng sắc,
+tầng xa dài nên vẫn có bóng. `shadow_cascade_split` chọn cách chia, 0 đều, 1 theo cấp số nhân; 0.75 hợp với
+đa số cảnh. Mép mỗi tầng trộn sang tầng sau nên không thấy đường đổi độ sắc, và mỗi tầng giữ cỡ cố định, dịch
+theo từng pixel ảnh bóng, nên mép bóng không nhấp nháy khi camera chạy.
+
+@code
+// Thế giới mở: bóng tới 150 m, bốn tầng 2048 pixel.
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .shadow_range = 150.0f, .shadow_size = 2048,
+                        .shadow_cascades = 4});
+@endcode
+
+Mỗi tầng vẽ lại mọi hình đổ bóng một lần, nên bốn tầng tốn gấp bốn một ảnh bóng. Camera song song
+(`camera3d_orthographic`) luôn dùng một ảnh bóng quanh chỗ nó nhìn.
+
+### Nhiều đèn {#lights3d_many}
+
+Mặc định mỗi lần vẽ có tối đa 16 đèn và mỗi điểm ảnh tính cả 16. `light3d::lights_max` lớn hơn 16 (tới
+njin::light3d_limit, 1024) bật clustered lighting như Bevy: khung nhìn được chia thành 16 x 9 ô và 24 lớp độ
+sâu, njin ghi các đèn chạm mỗi cụm, và mỗi điểm ảnh chỉ tính đèn của cụm nó. Hàng trăm đèn nhỏ (đuốc dọc
+hành lang, đèn đường, tia đạn phát sáng) vẫn nhanh, miễn mỗi đèn có `radius` vừa đủ: đèn tầm xa chạm nhiều
+cụm hơn.
+
+`light3d::source_shadows` lớn hơn 4 (tới njin::light3d_shadow_limit, 16) cho nhiều đèn đổ bóng hơn, cũng bằng
+cách này. Mỗi đèn đổ bóng thêm một hàng vào ảnh bóng và vẽ lại mọi hình đổ bóng 6 lần (đèn điểm) hay 1 lần
+(đèn nón), nên giới hạn này là về tốc độ hơn là về số.
+
+@code
+// Một con phố đêm: 200 đèn đường, 8 đèn gần nhất đổ bóng.
+njin::light3d_set(ctx, {.color = {0.05f, 0.05f, 0.1f, 1}, .lights_max = 256, .source_shadows = 8});
+njin::begin_3d(ctx, cam);
+for (const lamp &l : street_lamps)
+  njin::light3d_add(ctx, {.position = l.pos, .color = {1, 0.8f, 0.5f, 1}, .intensity = 2.0f, .radius = 8.0f,
+                          .shadows = l.near_player});
+@endcode
+
+Nước có `water3d_desc::lamps` cũng nhận các đèn này. Shader riêng của game vẫn chỉ nhận mặt trời.
+
+### Sương khối {#fog3d_volume}
+
+`light3d::volume_density` lớn hơn 0 bật sương có thật trong không gian: nắng và đèn tán xạ trong nó thành
+những luồng sáng, bóng của vật cắt thành vệt tối (nắng lọt qua cửa sổ, đèn pin trong sương, đèn đường đêm
+mưa). Mỗi điểm ảnh dò một tia từ camera tới bề mặt (hay tới `volume_distance`) qua `volume_steps` bước, ở nửa
+độ phân giải, mỗi bước lấy ánh nắng qua bóng của nó (cả các tầng bóng), ánh các đèn qua bóng của chúng và
+ánh sáng nền.
+
+| Trường | Ý nghĩa |
+|---|---|
+| `volume_density` | Mật độ mỗi mét; 0.02 là sương nhẹ, 0.1 là dày |
+| `volume_color` | Màu ánh sáng sương tán xạ lại |
+| `volume_base`, `volume_falloff` | Sương dày dưới độ cao `volume_base`, mỏng dần lên trên |
+| `volume_noise`, `volume_noise_size`, `volume_wind` | Sương loang thành đám, trôi theo gió |
+| `volume_anisotropy` | Dương: sáng nhất khi nhìn về phía nguồn sáng (quầng quanh mặt trời, đèn pha) |
+| `volume_sun`, `volume_ambient`, `volume_lamps` | Phần nắng, ánh sáng nền và đèn mà sương tán xạ |
+
+@code
+// Nhà kho bỏ hoang: nắng chiều lọt qua khe tường.
+njin::light3d_set(ctx, {.direction = {0.3f, -0.4f, 0.85f}, .color = {3, 2.6f, 2, 1}, .shadows = true,
+                        .tonemap = njin::tonemap3d_agx, .hdr = true,
+                        .volume_density = 0.03f, .volume_noise = 0.4f, .volume_anisotropy = 0.6f});
+@endcode
+
+Sương khối chỉ áp cho lần vẽ vào thế giới và đẹp nhất với `light3d::hdr`: ánh sáng trong sương cộng thẳng vào
+ảnh. Nó khác `fog_density` (sương phẳng theo khoảng cách, vẫn dùng được cùng lúc). Mỗi bước dò tốn như một lần
+tính ánh sáng: 32 bước ở nửa độ phân giải là một hiệu ứng nặng vừa, nên giảm `volume_steps` trên máy yếu.
 
 ## Tone mapping và vật liệu PBR {#pbr3d}
 
@@ -324,7 +395,8 @@ dưới đây bật riêng từng phần, game không bật thì vẫn vẽ y nh
 | `tonemap3d_neutral` | Khronos PBR Neutral: giữ màu vật liệu gần như nguyên, cho sản phẩm, đồ vật |
 
 Vật `unlit`, hạt 3D, nền và màu sương giữ nguyên màu nhập vào (sương trộn sau khi nén, nên vẫn khớp màu
-nền). Bloom đọc ảnh đã nén.
+nền). Bloom của post_fx_set() đọc ảnh đã nén; bật `light3d::hdr` để có bloom và tự chỉnh độ phơi sáng trên
+ánh sáng thật (@ref hdr3d).
 
 **Vật liệu PBR** (`material3d::pbr`, `metallic`, `roughness`): BRDF Cook-Torrance GGX, cách tô của glTF,
 Blender và three.js, thay cho `specular` và `shininess`. Ánh sáng giữ cùng thang với Blinn-Phong: đèn
@@ -358,6 +430,93 @@ Phần phản chiếu môi trường bù lại năng lượng mà mặt nhám m�
 nên một quả cầu kim loại trắng thật nhám trong ánh sáng trắng đều vẫn trắng. Không có `environment` thì
 vật liệu PBR nhận `ambient` như một bầu trời đều màu: kim loại khi đó chỉ phản chiếu màu ấy, nên đặt một
 ảnh môi trường khi cảnh có kim loại. Bầu trời tự sinh của world3d (draw_sky3d()) chưa tự thành môi trường.
+
+### HDR và tự chỉnh độ phơi sáng {#hdr3d}
+
+Tone mapping ở trên chạy trong từng shader, nên ảnh của lần vẽ vẫn là 8 bit: chỗ sáng hơn 1 đã bị nén trước
+khi bloom, SSR hay TAA đọc nó. `light3d::hdr` (cùng một `tonemap` khác tonemap3d_none) vẽ cảnh vào một ảnh
+số thực 16 bit rồi tone map một lần ở cuối lần vẽ, như Bevy và Unreal. Thêm được hai thứ:
+
+- **Bloom theo năng lượng** (`post3d::bloom`, @ref post3d_bloom): đèn và vật phát sáng mạnh tỏa quầng theo
+  độ sáng thật của chúng, không cần ngưỡng.
+- **Tự chỉnh độ phơi sáng** (`light3d::auto_exposure`): njin đo độ sáng trung bình của ảnh (ưu tiên giữa màn
+  hình) và đưa nó dần về `auto_exposure_key`, với tốc độ `auto_exposure_speed`, trong khoảng
+  `auto_exposure_min` tới `auto_exposure_max`: đi vào hang thì cảnh sáng dần lên, ra nắng thì tối lại.
+
+@code
+njin::light3d_set(ctx, {.direction = sun, .shadows = true, .tonemap = njin::tonemap3d_agx, .hdr = true,
+                        .auto_exposure = true});
+njin::post3d_set(ctx, {.bloom = 0.08f});
+@endcode
+
+Với HDR, mọi thứ của lần vẽ đi qua đường cong tone mapping, kể cả nền (màu xóa, 2D vẽ trước begin_3d()), như
+Bevy: vật được chiếu sáng, nước và bầu trời nhân thêm độ phơi sáng; vật `unlit`, hạt 3D, sương và nền thì
+không. Với tonemap3d_linear và `exposure` 1 các màu đó giữ nguyên; với ACES hay AgX chúng theo đường cong.
+HDR chỉ áp cho lần vẽ vào thế giới (lần vẽ vào render texture vẫn tone map trong từng shader) và cần ảnh số
+thực, nên tốn thêm bộ nhớ cỡ hai ảnh màn hình 8 bit.
+
+### Vật liệu PBR nâng cao {#pbr3d_more}
+
+Các trường sau chỉ có tác dụng khi `material3d::pbr`, như các phần mở rộng vật liệu của glTF và
+StandardMaterial của Bevy. Model nạp bằng `model_load_desc::pbr` lấy chúng từ file
+(`KHR_materials_clearcoat`, `_anisotropy`, `_ior`, `_transmission`, `_volume`; chỉ các hệ số, không đọc ảnh).
+
+| Trường | Cho |
+|---|---|
+| `clearcoat`, `clearcoat_roughness` | Lớp sơn bóng trong suốt trên lớp dưới: sơn xe, gỗ đánh vecni |
+| `anisotropy`, `anisotropy_rotation` | Điểm sáng bóng kéo dài theo hướng u của ảnh: kim loại chải xước, đáy nồi, tóc |
+| `transmission`, `ior`, `thickness` | Ánh sáng xuyên qua: kính, nước trong chai, nhựa trong; cảnh phía sau bẻ cong theo chiết suất, mờ theo `roughness` (kính mờ) |
+| `attenuation_color`, `attenuation_distance` | Màu của khối trong suốt: rượu vang, kính màu, nước biển |
+
+@code
+// Chai thủy tinh xanh, dày 1 cm, và vỏ xe sơn đỏ bóng.
+njin::material3d_set(ctx, {.pbr = true, .roughness = 0.05f, .transmission = 1.0f, .ior = 1.5f,
+                           .thickness = 0.01f, .attenuation_color = {0.6f, 0.9f, 0.7f, 1},
+                           .attenuation_distance = 0.02f});
+njin::draw_model(ctx, bottle, {.position = {0, 1, 0}});
+njin::material3d_set(ctx, {.pbr = true, .roughness = 0.5f, .clearcoat = 1.0f, .clearcoat_roughness = 0.05f});
+njin::draw_model(ctx, car, {});
+@endcode
+
+Vật xuyên sáng được vẽ sau mọi hình đục, như kính, và nhìn qua bản sao của cảnh đục mà njin tự chép ở lần vẽ
+vào thế giới (từ frame sau frame đầu tiên có vật xuyên sáng). Ở lần vẽ vào render texture không có bản sao,
+nên vật chỉ trong suốt theo `transmission`.
+
+Hai trường nữa dùng cho mọi vật liệu, có `pbr` hay không:
+
+- **Parallax** (`height`, `height_scale`): một ảnh độ cao (kênh đỏ, trắng là cao) làm mặt phẳng trông lồi lõm
+  thật khi nhìn xiên, ảnh dịch theo góc nhìn và chỗ thấp bị chỗ cao che (parallax occlusion mapping). Cần
+  lưới có UV, không dùng cùng `world_uv`.
+- **Lightmap** (`lightmap`, `lightmap_intensity`): ánh sáng gián tiếp nướng sẵn (Blender, các công cụ bake),
+  theo bộ UV thứ hai của lưới (bộ thứ nhất nếu lưới không có), thay `ambient` và môi trường trên bề mặt đó.
+  Mặt trời và đèn vẫn chiếu thêm như thường.
+
+### Probe phản chiếu và lưới ánh sáng {#probe3d}
+
+Một ảnh môi trường chung cho cả cảnh không hợp với trong nhà: sàn kim loại trong phòng lại phản chiếu bầu
+trời. probe3d_add() đặt một probe: njin chụp cảnh quanh `probe3d_desc::position` theo sáu hướng, ở lần vẽ 3D
+vào thế giới kế tiếp, từ chính các lệnh vẽ của lần vẽ đó, rồi dựng thành ảnh môi trường riêng. Vật liệu PBR
+trong hộp `size` lấy ánh sáng nền và phản chiếu từ probe đó thay cho `environment`, mờ dần sang probe bên
+cạnh trong dải `blend` ở mép hộp. `parallax` sửa phản chiếu theo hình hộp nên tường và đồ đạc phản chiếu
+đúng chỗ, không như ở xa vô tận. Tối đa njin::probe3d_max probe.
+
+irradiance3d_set() đặt một lưới ánh sáng gián tiếp: njin chụp cảnh ở từng điểm của lưới (vài điểm mỗi frame
+cho tới hết) và nhớ ánh sáng tới từ sáu hướng. Mọi hình trong hộp, kể cả vật liệu không `pbr`, lấy ánh sáng
+nền từ lưới thay cho `ambient`: góc phòng tối đi, sàn cạnh tường đỏ ửng đỏ, mặt dưới của vật được sàn sáng hắt
+lên.
+
+@code
+// Một căn phòng 8 x 3 x 8 m: một probe giữa phòng và một lưới 4 x 2 x 4.
+const njin::probe3d_handle room = njin::probe3d_add(ctx, {.position = {0, 1.5f, 0}, .size = {8, 3, 8}});
+njin::irradiance3d_set(ctx, {.center = {0, 1.5f, 0}, .size = {7.6f, 2.8f, 7.6f}});
+// ... khi đèn trong phòng tắt hay đồ dời chỗ:
+njin::probe3d_refresh(ctx, room);
+njin::irradiance3d_refresh(ctx);
+@endcode
+
+Probe và lưới chỉ được chụp lại khi gọi probe3d_refresh(), irradiance3d_refresh() (hay đặt lại), trừ probe có
+`live`, chụp lại mỗi frame (vẽ lại cảnh 6 lần). Cảnh chụp gồm hình đục, model, địa hình và bầu trời; không có
+hạt, nước và kính.
 
 ## Hiệu ứng
 

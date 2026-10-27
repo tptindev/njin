@@ -20,7 +20,12 @@ set(NJIN_FEATURE_3D_SOURCES
     modules/post3d.cpp
     modules/render3d.cpp
     modules/render3d_env.cpp
-    modules/world3d_draw.cpp)
+    modules/render3d_hdr.cpp
+    modules/render3d_lights.cpp
+    modules/render3d_probe.cpp
+    modules/render3d_volume.cpp
+    modules/world3d_draw.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/smaa_shader_data.cpp")
 set(NJIN_FEATURE_PHYSICS3D_SOURCES feature_physics3d.cpp njin_physics3d.cpp)
 set(NJIN_FEATURE_NAV3D_SOURCES feature_nav3d.cpp njin_nav3d.cpp)
 set(NJIN_FEATURE_VIDEO_SOURCES feature_video.cpp njin_plmpeg.cpp njin_video.cpp)
@@ -52,6 +57,8 @@ include("${PROJECT_SOURCE_DIR}/cmake/embed_file.cmake")
 njin_embed_file("${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp"
                 "${CMAKE_CURRENT_SOURCE_DIR}/assets/JetBrainsMono-Regular.ttf"
                 font_default_ttf)
+# SMAA's shader (post3d::aa), compiled into the 3d feature as text.
+njin_embed_file("${CMAKE_CURRENT_BINARY_DIR}/smaa_shader_data.cpp" "${smaa_SOURCE_DIR}/SMAA.hlsl" smaa_hlsl)
 
 # Engine side of the boundary: raylib and the runtime headers are allowed in
 # these (see src/engine/api/CMakeLists.txt). raylib stays private; EnTT is part
@@ -115,7 +122,7 @@ function(_njin_feature name)
   target_compile_definitions(njin_${name} INTERFACE NJIN_FEATURE_${upper})
 endfunction()
 
-_njin_feature(3d LIBS meshoptimizer)
+_njin_feature(3d LIBS meshoptimizer njin_smaa)
 _njin_feature(physics3d NEEDS 3d LIBS Jolt)
 _njin_feature(nav3d NEEDS 3d physics3d LIBS njin_recast)
 _njin_feature(video LIBS njin_plmpeg)

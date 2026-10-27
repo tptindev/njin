@@ -13,6 +13,15 @@ struct context;
 /// @addtogroup grp_post3d
 /// @{
 
+/// Cách khử răng cưa trên ảnh (post3d::aa).
+enum aa3d {
+  aa3d_none, ///< Tắt (mặc định).
+  /// FXAA (Timothy Lottes): tìm cạnh theo độ sáng rồi trộn dọc cạnh, một lượt.
+  aa3d_fxaa,
+  /// SMAA 1x (Jimenez và cộng sự): tìm cạnh rồi trộn theo hình dạng răng cưa, ba lượt.
+  aa3d_smaa,
+};
+
 /// Hiệu ứng màn hình của cảnh 3D, tính từ độ sâu của lần vẽ 3D: che khuất môi
 /// trường (SSAO), phản chiếu (SSR), mờ chuyển động, tia nắng và lóa ống kính.
 ///
@@ -87,6 +96,38 @@ struct post3d {
   /// @{
   bool taa = false;           ///< Bật TAA.
   f32 taa_sharpen = 0.25f;    ///< Làm nét lại ảnh sau khi trộn, 0..1. 0 là không làm nét.
+  /// @}
+
+  /// @name Bloom HDR
+  /// Chỗ sáng lan ra xung quanh theo đúng năng lượng của nó (như Bevy và Unreal: một
+  /// chuỗi ảnh thu nhỏ rồi phóng lại, không có ngưỡng): đèn, vật tự phát sáng mạnh,
+  /// mặt trời phản chiếu trên kim loại tỏa quầng, chỗ tối không bị mờ. Chỉ khi
+  /// light3d::hdr; không có HDR thì dùng bloom của post_fx_set().
+  /// @{
+  f32 bloom = 0.0f;        ///< Phần ánh sáng được lan, 0..1. 0 là tắt; 0.04..0.15 là thường dùng.
+  f32 bloom_radius = 1.0f; ///< Độ lan, 0.25..2. 1 là mặc định.
+  /// @}
+
+  /// @name Khử răng cưa trên ảnh (FXAA, SMAA)
+  /// Khử răng cưa từ chính ảnh đã vẽ, một lần mỗi frame, không trộn với frame trước
+  /// nên không có bóng mờ khi vật chạy nhanh (khác TAA), nhưng cạnh mảnh vẫn có thể
+  /// nhấp nháy. Áp lên cả ảnh thế giới sau lần vẽ 3D vào thế giới đầu tiên của frame.
+  /// @{
+
+  /// Cách khử: aa3d_none (mặc định), aa3d_fxaa (nhanh nhất, hơi mờ chữ và vân nhỏ)
+  /// hay aa3d_smaa (sắc hơn, tốn hơn chút).
+  aa3d aa = aa3d_none;
+  /// @}
+
+  /// @name Trong suốt không phụ thuộc thứ tự (OIT)
+  /// Vật trong suốt (màu có `a` < 1, phần kính của model, draw_instanced3d()) được
+  /// trộn theo trọng số (weighted blended OIT, McGuire và Bavoil) thay vì vẽ lần lượt:
+  /// nhiều lớp kính, khói, lá chồng lên nhau ra đúng bất kể thứ tự vẽ và không còn
+  /// vật này che mất vật kia. Hình thường trong suốt (`a` < 1) cũng được đưa vào lượt
+  /// này. Shader riêng của game, nước, hạt 3D và vật xuyên sáng
+  /// (material3d::transmission) vẫn vẽ như cũ, sau đó.
+  /// @{
+  bool oit = false; ///< Bật OIT.
   /// @}
 };
 

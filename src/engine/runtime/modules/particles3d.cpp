@@ -255,7 +255,8 @@ void particles3d_draw(context &ctx, const camera3d &view) {
     if (b.shader.id != 0) {
       rlDrawRenderBatchActive();
       shader_begin(ctx, b.shader);
-    } else if (b.style != particle3d_flat) {
+    } else if (b.style != particle3d_flat || ctx_ref<render3d_state>(ctx)->hdr_out) {
+      // Into the HDR image even the plain look has a shader (linear light).
       rlDrawRenderBatchActive();
       look = particle3d_look_begin(ctx, s.looks, b.style);
     }

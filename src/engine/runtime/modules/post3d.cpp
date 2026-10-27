@@ -527,13 +527,14 @@ uniform sampler2D texture0;
 uniform sampler2D alphaTex;
 uniform vec2 texel;
 uniform float sharpen;
+uniform int hdrOut; // into the HDR image: light above 1 is kept
 void main() {
   vec2 uv = fragTexCoord;
   vec3 c = texture(texture0, uv).rgb;
   vec3 n = texture(texture0, uv + vec2(0.0, texel.y)).rgb + texture(texture0, uv - vec2(0.0, texel.y)).rgb +
            texture(texture0, uv + vec2(texel.x, 0.0)).rgb + texture(texture0, uv - vec2(texel.x, 0.0)).rgb;
   vec3 s = c + (c * 4.0 - n) * sharpen * 0.25;
-  finalColor = vec4(clamp(s, 0.0, 1.0), texture(alphaTex, uv).a);
+  finalColor = vec4(hdrOut == 1 ? max(s, vec3(0.0)) : clamp(s, 0.0, 1.0), texture(alphaTex, uv).a);
 }
 )";
 
@@ -562,7 +563,13 @@ uniform vec3 eyePos;
 uniform vec3 sunDir;
 uniform vec3 sunColor;
 uniform vec3 ambient;
+uniform int hdrOut;      // into the HDR image: linear light, the lit mode exposed
+uniform float exposure;
 out vec4 finalColor;
+vec3 to_linear(vec3 c) {
+  c = max(c, vec3(0.0));
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
 void main() {
   vec2 uv = gl_FragCoord.xy / targetSize;
   float d = texture(depthTex, uv).r;
@@ -588,10 +595,10 @@ void main() {
   if (a <= 0.002)
     discard;
   if (mode == 0) {
-    finalColor = vec4(mix(vec3(1.0), c.rgb, a), 1.0);
+    finalColor = vec4(mix(vec3(1.0), hdrOut == 1 ? to_linear(c.rgb) : c.rgb, a), 1.0);
   } else {
     vec3 light = ambient + sunColor * max(dot(n, -normalize(sunDir)), 0.0);
-    finalColor = vec4(c.rgb * light, a);
+    finalColor = vec4(hdrOut == 1 ? to_linear(c.rgb * light) * exposure : c.rgb * light, a);
   }
 }
 )";
@@ -641,12 +648,14 @@ void free_copy(post3d_state &st) {
 
 // The copy of the world target: colour (filtered, for reflections) and a
 // depth texture of the same format as the target's, so a blit can fill it.
-bool ensure_copy(post3d_state &st, i32 w, i32 h) {
-  if (st.copy_fbo != 0 && st.w == w && st.h == h)
+bool ensure_copy(post3d_state &st, i32 w, i32 h, bool hdr) {
+  if (st.copy_fbo != 0 && st.w == w && st.h == h && st.copy_hdr == hdr)
     return true;
   free_copy(st);
+  st.copy_hdr = hdr;
   st.copy_fbo = rlLoadFramebuffer();
-  st.copy_color = rlLoadTexture(nullptr, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+  // Half floats for the HDR image (light3d::hdr), so a blit copies it as it is.
+  st.copy_color = rlLoadTexture(nullptr, w, h, hdr ? RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16 : RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
   st.copy_depth = rlLoadTextureDepth(w, h, false);
   rlTextureParameters(st.copy_color, RL_TEXTURE_MIN_FILTER, RL_TEXTURE_FILTER_LINEAR);
   rlTextureParameters(st.copy_color, RL_TEXTURE_MAG_FILTER, RL_TEXTURE_FILTER_LINEAR);
@@ -784,6 +793,9 @@ pass_view current_view(context &ctx) {
   v.target = ctx_ref<camera_post>(ctx)->target.id;
   v.w = ctx_ref<camera_post>(ctx)->target.texture.width;
   v.h = ctx_ref<camera_post>(ctx)->target.texture.height;
+  // light3d::hdr: the pass draws into the HDR image, of the same size.
+  if (s.hdr.active)
+    v.target = s.hdr.fbo;
   return v;
 }
 
@@ -819,6 +831,8 @@ void draw_decals(context &ctx, post3d_state &st, const pass_view &v) {
   set_v3(sh, "sunDir", s.light.direction);
   set_v3(sh, "sunColor", {s.light.color.r, s.light.color.g, s.light.color.b});
   set_v3(sh, "ambient", {s.light.ambient.r, s.light.ambient.g, s.light.ambient.b});
+  set_i(sh, "hdrOut", s.hdr.active ? 1 : 0);
+  set_f(sh, "exposure", render3d_out_exposure(s));
   set_i(sh, "depthTex", decal_depth_unit);
   rlActiveTextureSlot(decal_depth_unit);
   rlEnableTexture(st.copy_depth);
@@ -1199,6 +1213,7 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
   Shader out = st.taa_out;
   set_v2(out, "texel", {1.0f / (f32)v.w, 1.0f / (f32)v.h});
   set_f(out, "sharpen", clamp(p.taa_sharpen, 0.0f, 1.0f));
+  set_i(out, "hdrOut", ctx_ref<render3d_state>(ctx)->hdr.active ? 1 : 0);
   bind_2d(v.target, v.w, v.h);
   quad(out, texture_of(st.hist_tex[next], v.w, v.h), v.w, v.h, [&] { sampler(out, "alphaTex", st.copy_color); });
   EndBlendMode();
@@ -1261,6 +1276,7 @@ post3d_state::~post3d_state() {
 }
 
 void post3d_frame_begin(context &ctx) {
+  hdr_frame_begin(ctx);
   ctx_ref<post3d_state>(ctx)->taa_claimed = false;
   ctx_ref<post3d_state>(ctx)->vel_claimed = false;
 }
@@ -1292,25 +1308,41 @@ vec2 post3d_taa_jitter(context &ctx) {
 
 bool post3d_wanted(const context &ctx) {
   const post3d_state &st = ctx_ref<post3d_state>(ctx);
-  return !st.failed && (effects_on(st.settings) || st.live > 0 || world3d_wants_scene(ctx));
+  return !st.failed && (effects_on(st.settings) || st.live > 0 || world3d_wants_scene(ctx) ||
+                        render3d_wants_scene(ctx) || st.settings.oit || st.settings.aa != aa3d_none);
+}
+
+const post3d &post3d_settings(const context &ctx) { return ctx_ref<post3d_state>(ctx)->settings; }
+
+bool post3d_depth(const context &ctx, u32 &depth, i32 &w, i32 &h) {
+  const post3d_state &st = ctx_ref<post3d_state>(ctx);
+  if (!st.depth_ready || st.copy_fbo == 0)
+    return false;
+  depth = st.copy_depth;
+  w = st.w;
+  h = st.h;
+  return true;
 }
 
 void post3d_after_opaque(context &ctx) {
   post3d_state &st = ctx_ref<post3d_state>(ctx);
   st.scene_ready = false;
+  st.depth_ready = false;
   if (!usable(ctx) || !load(st))
     return;
   const pass_view v = current_view(ctx);
-  if (!ensure_copy(st, v.w, v.h))
+  if (!ensure_copy(st, v.w, v.h, ctx_ref<render3d_state>(ctx)->hdr.active))
     return;
   blit(v.target, st.copy_fbo, v.w, v.h, color_bit | depth_bit);
+  st.depth_ready = true;
   draw_decals(ctx, st, v);
   if (st.settings.ssao > 0.0f)
     run_ssao(ctx, st, v);
   if (st.settings.ssr > 0.0f)
     run_ssr(ctx, st, v);
-  // Water that refracts sees the scene as it is now, shaded and decaled.
-  if (world3d_wants_scene(ctx)) {
+  // Water that refracts, and materials that let light through
+  // (material3d::transmission), see the scene as it is now, shaded and decaled.
+  if (world3d_wants_scene(ctx) || ctx_ref<render3d_state>(ctx)->transmission_now) {
     if (st.live > 0 || st.settings.ssao > 0.0f || st.settings.ssr > 0.0f)
       blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
     st.scene_ready = true;
@@ -1331,6 +1363,7 @@ bool post3d_scene(const context &ctx, u32 &color, u32 &depth, i32 &w, i32 &h) {
 void post3d_after_pass(context &ctx) {
   post3d_state &st = ctx_ref<post3d_state>(ctx);
   st.scene_ready = false;
+  st.depth_ready = false;
   const bool taa = st.taa_pass;
   st.taa_pass = false;
   if (!usable(ctx) || !st.loaded || st.copy_fbo == 0)

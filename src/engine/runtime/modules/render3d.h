@@ -4,6 +4,7 @@
 #include "debug3d.h"
 #include "njin_3d.h"
 #include "render3d_env.h"
+#include "render3d_ext.h"
 #include <raylib.h>
 #include <array>
 #include <unordered_map>
@@ -49,6 +50,12 @@ struct render3d_locations {
   // Point/spot light shadows, and the skinning shader's bones.
   i32 light_shadow = -1, lamp_vp = -1, lamp_params = -1, lamp_map = -1, lamp_rows = -1;
   i32 bones = -1;
+  // HDR, cascades, the extended lights, probes, the irradiance volume, the
+  // material extensions, transmission and OIT (render3d_ext.h).
+  i32 hdr_out = -1, shadow_cascades = -1, cascade_vp = -1, cascade_split = -1, cascade_texel = -1, cascade_span = -1;
+  i32 view_dir = -1, cluster_on = -1;
+  i32 pbr_extra = -1, transmit = -1, attenuation_color = -1, scene_on = -1, scene_color = -1, scene_vp = -1;
+  i32 height_scale = -1, lightmap_params = -1, light_map = -1, oit_pass = -1;
   // Tone mapping, PBR and the environment (light3d::tonemap, material3d::pbr,
   // light3d::environment).
   i32 tone_map = -1, exposure = -1, light_color_linear = -1, ambient_linear = -1, light_colors_linear = -1;
@@ -139,11 +146,13 @@ struct shadow_target {
 
 // The shadowed point and spot lights of the open pass (light3d_source::shadows):
 // row of the lamp atlas per light (-1 none), and per row the face matrices and
-// the lighting shader's lampParams.
+// the lighting shader's lampParams. Rows past light3d_shadow_max and lights
+// past light3d_max only with the extended lights (light3d::source_shadows,
+// lights_max), which read them from textures.
 struct lamp_shadows {
-  std::array<i32, light3d_max> row{};
-  std::array<Matrix, light3d_shadow_max * 6> vp{};
-  std::array<vec4, light3d_shadow_max> params{};
+  std::array<i32, light3d_limit> row{};
+  std::array<Matrix, light3d_shadow_limit * 6> vp{};
+  std::array<vec4, light3d_shadow_limit> params{};
   i32 rows = 0;
 };
 
@@ -243,6 +252,34 @@ struct render3d_state {
   bool velocity_failed = false;
   // light3d::environment, ready to light PBR materials (render3d_env.cpp).
   env_maps env;
+  // light3d::shadow_cascades: how many were drawn this pass (1 = the single
+  // map, as always), and each one's matrix, far distance, texel size and depth span.
+  i32 cascades = 1;
+  std::array<Matrix, 4> cascade_vp{};
+  vec4 cascade_split{}, cascade_texel{}, cascade_span{};
+  // The opt-in parts (render3d_ext.h).
+  hdr_state hdr;
+  lights_ext lext;
+  probe_state probes;
+  volume_state volume;
+  oit_state oit;
+  // Lit colours are written for the HDR image (or a probe's capture): the
+  // shaders' hdrOut.
+  bool hdr_out = false;
+  // A probe or grid capture is drawing: no culling against the camera, no
+  // probes in the lighting, every extended light.
+  bool capturing = false;
+  // post3d::oit for the open pass; which OIT pass is drawing (1, 2; 0 none),
+  // and whether its draws are done (the translucent pass then skips them).
+  bool oit_on = false;
+  i32 oit_pass = 0;
+  bool oit_done = false;
+  // material3d::transmission: some draw of the last world pass had it (so the
+  // next asks post3d for the scene's copy); the copy bound for this pass.
+  bool transmission_seen = false;
+  bool transmission_now = false; // the open pass has such a draw
+  bool scene_bound = false;
+  Matrix scene_vp{};
 
   render3d_state() = default;
   ~render3d_state();
@@ -271,6 +308,14 @@ vec3 render3d_post_eye(const camera3d &camera);
 
 // Closes a 3D pass the game left open. Called at the end of the world pass.
 void render3d_close(context &ctx);
+
+// The exposure lit colours are written with in the open pass (light3d::exposure,
+// times the auto exposure into the HDR image; 1 in a probe's capture).
+f32 render3d_out_exposure(const render3d_state &s);
+
+// post3d: whether the next world pass wants the scene's colour and depth
+// copied (a draw that lets light through, volumetric fog, HDR), and the AA.
+bool render3d_wants_scene(const context &ctx);
 
 // For the outdoor world (world3d_draw.cpp), which draws with the same lighting:
 // the lighting GLSL (the sun and its shadow, lamps, fog: shade()), the uniform

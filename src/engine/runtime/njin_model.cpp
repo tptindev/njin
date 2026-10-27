@@ -544,6 +544,34 @@ void apply_pbr(model_slot &slot, cgltf_data *data, const char *resolved, bool pb
       mm.emission_color = {mm.emission_color.r * k, mm.emission_color.g * k, mm.emission_color.b * k,
                            mm.emission_color.a};
     }
+    // The material extensions material3d has (factors only; their images are
+    // not read), for a file loaded as PBR.
+    if (pbr) {
+      if (m.has_clearcoat) {
+        mm.surface.clearcoat = m.clearcoat.clearcoat_factor;
+        mm.surface.clearcoat_roughness = m.clearcoat.clearcoat_roughness_factor;
+      }
+      if (m.has_anisotropy) {
+        mm.surface.anisotropy = m.anisotropy.anisotropy_strength;
+        mm.surface.anisotropy_rotation = m.anisotropy.anisotropy_rotation * RAD2DEG;
+      }
+      if (m.has_ior)
+        mm.surface.ior = m.ior.ior;
+      if (m.has_transmission)
+        mm.surface.transmission = m.transmission.transmission_factor;
+      if (m.has_volume) {
+        mm.surface.thickness = m.volume.thickness_factor;
+        // glTF's colour is linear, material3d's sRGB.
+        const auto srgb = [](f32 c) {
+          c = std::clamp(c, 0.0f, 1.0f);
+          return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+        };
+        mm.surface.attenuation_color = {srgb(m.volume.attenuation_color[0]), srgb(m.volume.attenuation_color[1]),
+                                        srgb(m.volume.attenuation_color[2]), 1.0f};
+        // glTF's default is infinity (no attenuation): njin's is 0.
+        mm.surface.attenuation_distance = std::isfinite(m.volume.attenuation_distance) ? m.volume.attenuation_distance : 0.0f;
+      }
+    }
     const cgltf_int base_set = m.has_pbr_metallic_roughness &&
                                        m.pbr_metallic_roughness.base_color_texture.texture != nullptr
                                    ? m.pbr_metallic_roughness.base_color_texture.texcoord

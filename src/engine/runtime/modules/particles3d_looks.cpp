@@ -12,6 +12,7 @@
 #include "render3d.h"
 #include <raylib.h>
 #include <rlgl.h>
+#include <string>
 
 namespace njin {
 namespace {
@@ -46,6 +47,32 @@ float noise(vec3 x) {
                  mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
 )"
+
+// The plain look (particle3d_flat) for the HDR image: the image times the
+// colour, as raylib's own shader draws it.
+constexpr const char *flat_fs = R"(#version 330
+in vec3 v_world;
+in vec2 v_uv;
+in vec4 v_color;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+out vec4 finalColor;
+void main() {
+  finalColor = texture(texture0, v_uv) * colDiffuse * v_color;
+}
+)";
+
+// Appended to every look: the colour into linear light for the HDR image.
+constexpr const char *hdr_wrap = R"(
+uniform int hdrOut;
+void main() {
+  look_main();
+  if (hdrOut == 1) {
+    vec3 c = max(finalColor.rgb, vec3(0.0));
+    finalColor.rgb = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+  }
+}
+)";
 
 // Smoke: a soft ball eaten at its edge by fractal noise rising through the
 // world; lit on the side toward the sun, the rest in the ambient light.
@@ -159,12 +186,21 @@ particle3d_looks::~particle3d_looks() {
 
 bool particle3d_look_begin(context &ctx, particle3d_looks &looks, particle3d_style style) {
   const i32 i = (i32)style;
-  if (i <= (i32)particle3d_flat || i >= particle3d_look_count)
+  // The plain look only for the HDR image (as raylib's shader otherwise).
+  const bool hdr = ctx_ref<render3d_state>(ctx)->hdr_out;
+  if (i < (i32)particle3d_flat || i >= particle3d_look_count || (i == (i32)particle3d_flat && !hdr))
     return false;
   if (!looks.tried[i]) {
     looks.tried[i] = true;
-    static const char *const sources[particle3d_look_count] = {nullptr, smoke_fs, fire_fs, spark_fs, flame_fs};
-    Shader s = LoadShaderFromMemory(look_vs, sources[i]);
+    static const char *const sources[particle3d_look_count] = {flat_fs, smoke_fs, fire_fs, spark_fs, flame_fs};
+    // Each look's main() becomes look_main(), wrapped by one that takes its
+    // colour into linear light for the HDR image (light3d::hdr).
+    std::string fs = sources[i];
+    const usize at = fs.find("void main()");
+    if (at != std::string::npos)
+      fs.replace(at, 11, "void look_main()");
+    fs += hdr_wrap;
+    Shader s = LoadShaderFromMemory(look_vs, fs.c_str());
     if (IsShaderValid(s) && s.id != rlGetShaderIdDefault())
       looks.shaders[i] = s;
   }
@@ -172,6 +208,10 @@ bool particle3d_look_begin(context &ctx, particle3d_looks &looks, particle3d_sty
   if (s.id == 0)
     return false;
   BeginShaderMode(s);
+  const i32 hdr_out = hdr ? 1 : 0;
+  const i32 hdr_loc = GetShaderLocation(s, "hdrOut");
+  if (hdr_loc >= 0)
+    SetShaderValue(s, hdr_loc, &hdr_out, SHADER_UNIFORM_INT);
   const light3d &sun = ctx_ref<render3d_state>(ctx)->light;
   const f32 time = elapsed(ctx);
   const vec3 toward = length_sq(sun.direction) > 0.0f ? normalize(sun.direction) * -1.0f : vec3{0.0f, 1.0f, 0.0f};

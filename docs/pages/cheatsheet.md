@@ -162,6 +162,13 @@ Cần bật feature trong CMake: `njin_use(<game> FEATURES 3d)`, thêm `physics3
 | Ánh sáng mạnh không cháy trắng (tone mapping) | njin::light3d::tonemap, njin::light3d::exposure | @ref pbr3d |
 | Vật liệu PBR: kim loại, độ nhám, model glTF như Blender | njin::material3d::pbr, njin::model_load_desc::pbr | @ref pbr3d |
 | Ánh sáng và phản chiếu từ ảnh HDR, nền trời bằng ảnh | njin::light3d::environment | @ref pbr3d |
+| Vẽ HDR, bloom theo năng lượng, tự chỉnh độ phơi sáng | njin::light3d::hdr, njin::light3d::auto_exposure, njin::post3d::bloom | @ref hdr3d |
+| Sơn bóng, kim loại xước, kính khúc xạ, parallax, lightmap | njin::material3d::clearcoat, njin::material3d::transmission, njin::material3d::height | @ref pbr3d_more |
+| Phản chiếu trong phòng, ánh sáng hắt từ tường | njin::probe3d_add(), njin::irradiance3d_set() | @ref probe3d |
+| Bóng sắc gần, vẫn có bóng ở xa | njin::light3d::shadow_cascades | @ref shadow3d_cascades |
+| Hàng trăm đèn, nhiều đèn đổ bóng | njin::light3d::lights_max, njin::light3d::source_shadows | @ref lights3d_many |
+| Luồng nắng trong sương, đèn pin trong sương | njin::light3d::volume_density | @ref fog3d_volume |
+| Nhiều lớp kính chồng nhau, khử răng cưa FXAA/SMAA | njin::post3d::oit, njin::post3d::aa | @ref post3d_oit |
 | Nháy trắng khi trúng đòn, tan biến khi chết | njin::fx3d_set() | @ref graphics_3d |
 | Lửa, khói, tia lửa 3D; phát liên tục từ vòng, đĩa | njin::particles3d_spawn(), njin::particles3d_emit() | @ref graphics_3d |
 | Vẽ hàng nghìn bản của một model | njin::draw_instanced3d() | @ref graphics_3d |

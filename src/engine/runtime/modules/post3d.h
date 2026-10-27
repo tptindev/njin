@@ -67,6 +67,8 @@ struct post3d_state {
   u32 copy_fbo = 0, copy_color = 0, copy_depth = 0;
   i32 w = 0, h = 0;
   bool scene_ready = false; // the copy holds the open pass's opaque scene, for refracting water
+  bool depth_ready = false; // the copy holds the open pass's opaque depth (volumetric fog)
+  bool copy_hdr = false;    // the copy's colour is half float (the HDR image's)
   RenderTexture2D ao_a{}, ao_b{};       // SSAO, full or half size
   RenderTexture2D mask{};               // SSR: how much each pixel reflects
   RenderTexture2D shafts_a{}, shafts_b{}; // half size
@@ -113,6 +115,11 @@ bool post3d_wanted(const context &ctx);
 // The open pass's opaque scene, colour and depth textures w x h, between
 // post3d_after_opaque and post3d_after_pass; false when it was not copied.
 bool post3d_scene(const context &ctx, u32 &color, u32 &depth, i32 &w, i32 &h);
+// The open pass's opaque depth texture (w x h), copied after its opaque draws;
+// false when it was not.
+bool post3d_depth(const context &ctx, u32 &depth, i32 &w, i32 &h);
+// The effects in use (post3d_set() under graphics_quality).
+const post3d &post3d_settings(const context &ctx);
 // Works `settings` out again from `requested` and graphics_quality.
 void post3d_apply_quality(context &ctx);
 
