@@ -22,6 +22,9 @@ struct instance_slot {
   // shadows need the instances (instance_store::keep_cpu). `uploads` counts them.
   std::vector<f32> cpu;
   u32 uploads = 0;
+  // Keep the copy for this buffer alone: draw_instanced3d with an
+  // instanced3d_desc reads it to cull each instance (render3d_cull.cpp).
+  bool keep_cpu = false;
 };
 
 // Owns every instance buffer and the quad they share. The destructor frees the

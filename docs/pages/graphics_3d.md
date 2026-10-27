@@ -96,8 +96,8 @@ njin::model_lod_build(ctx, person); // 3 mức, mỗi mức khoảng nửa số 
 
 Việc giản lược dùng thư viện [meshoptimizer](https://github.com/zeux/meshoptimizer) (MIT). Nó
 giữ đường ranh giữa các màu và các mảnh UV, nên lưới phẳng có nhiều màu xen kẽ (như bàn cờ) gần
-như không giản lược được; model_lod_build() khi đó trả về 0. draw_instanced3d() và ray3d_model()
-luôn dùng model gốc.
+như không giản lược được; model_lod_build() khi đó trả về 0. ray3d_model() luôn dùng model gốc;
+draw_instanced3d() cũng vậy, trừ bản nhận njin::instanced3d_desc (xem @ref instancing3d_cull).
 
 ## Animation của model
 
@@ -722,7 +722,7 @@ tự làm ảnh.
 Hiệu ứng tính trên ảnh 3D theo độ sâu (góc tường tối đi, sàn bóng phản chiếu, vết đạn dán lên bề mặt, mờ
 chuyển động, tia nắng, lóa ống kính) ở trang riêng: @ref post_3d.
 
-## Instancing
+## Instancing {#instancing3d}
 
 draw_instanced3d() vẽ `count` bản của một hình có sẵn hay một model bằng một lệnh vẽ, dữ liệu mỗi bản
 nằm trong một bộ đệm instance như draw_instanced() của 2D. Không truyền shader thì shader có sẵn đọc:
@@ -735,7 +735,66 @@ nằm trong một bộ đệm instance như draw_instanced() của 2D. Không tr
 | `instance3` (16 số) | Tỉ lệ theo x, y, z (0 là 1) |
 
 Hàng chục nghìn instance mà camera chỉ thấy một phần (rừng, thành phố) thì xếp chúng theo ô và chỉ vẽ những ô camera
-thấy: @ref spatial_batch.
+thấy: @ref spatial_batch. Hoặc để engine tự bỏ từng instance, như dưới đây.
+
+### Bỏ từng instance và mức chi tiết {#instancing3d_cull}
+
+Bản draw_instanced3d() nhận njin::instanced3d_desc đọc vị trí và tỉ lệ của từng instance (`instance0`, `instance3`),
+bỏ những instance nằm ngoài tầm nhìn, và chọn mức chi tiết (model_lod_build()) cho từng instance theo cỡ của nó trên
+màn hình. Bóng đổ bỏ instance theo tầm nhìn của đèn, nên instance sau lưng camera vẫn đổ bóng vào cảnh.
+
+@code
+njin::model_lod_build(ctx, tree, {.levels = 2});
+// Cả rừng trong một bộ đệm; engine chỉ vẽ phần camera thấy, cây xa bằng bản ít tam giác.
+njin::draw_instanced3d(ctx, tree, forest, njin::instanced3d_desc{});
+@endcode
+
+| Trường | Mặc định | Ý nghĩa |
+|---|---|---|
+| `first`, `count` | cả bộ đệm | Đoạn instance |
+| `cull` | bật | Bỏ instance ngoài tầm nhìn, và instance bị che khi bật render3d_options::occlusion |
+| `lod` | bật | Mỗi instance một mức chi tiết; model không có mức chi tiết thì không đổi gì |
+| `radius` | 0 (tự tính) | Bán kính quả cầu bao một instance ở tỉ lệ 1, quanh vị trí của nó |
+| `pose`, `shader` | không | Như các bản draw_instanced3d() khác |
+
+Engine duyệt các instance trên CPU, cho camera và cho mỗi bóng đổ, rồi chép những instance còn lại vào bộ đệm riêng
+của nó, nên cần bản sao dữ liệu trên CPU: từ lệnh vẽ đầu tiên, mỗi instance_buffer_upload() giữ lại một bản, và lần
+đầu engine đọc bộ đệm từ GPU về. Với vài trăm instance luôn nằm trong tầm nhìn thì bản thường rẻ hơn.
+njin::render_info_get() đếm `instances3d` (đã vẽ) và `instances3d_culled` (bị bỏ).
+
+## Bớt việc vẽ {#render3d_options}
+
+render3d_options_set() bật ba cách bớt việc cho GPU và CPU. Mặc định tắt cả, nên cảnh không bật gì vẽ y như trước.
+Chúng chỉ áp dụng cho vật đục (hình khối, model, hình SDF) vẽ bằng shader có sẵn, trong lần vẽ của camera; vật trong
+suốt, vật vẽ bằng shader của game và thế giới ngoài trời (@ref world_3d) giữ thứ tự gọi.
+
+@code
+njin::render3d_options_set(ctx, {.order = njin::draw_order3d_state, .batch = true, .occlusion = true});
+@endcode
+
+| Trường | Làm gì | Khi nào nên bật |
+|---|---|---|
+| `order` | `draw_order3d_front_to_back`: vật gần camera vẽ trước, GPU bỏ điểm ảnh bị che phía sau. `draw_order3d_state`: gom theo shader, model hay hình và ảnh, rồi gần trước xa sau | Cảnh nhiều vật chồng lên nhau, vật liệu nặng |
+| `batch` | Các draw_model() cùng model, cùng mức chi tiết, cùng màu và cùng njin::fx3d (và hình khối cùng hình, cùng vật liệu, cùng màu) vẽ bằng một lệnh instanced mỗi phần, cả trong bóng đổ. Giữ mọi ảnh của vật liệu, khác với tự gọi draw_instanced3d() | Hàng trăm bản của vài model vẽ từng cái một (đồ đạc, đạn, cây đặt tay) |
+| `occlusion` | Bỏ vật bị vật khác che hẳn (Hi-Z), kể cả từng instance của @ref instancing3d_cull. Vật bị che vẫn đổ bóng | Trong nhà, thành phố, hang: nhiều thứ nằm sau tường |
+
+Không gom: model có tư thế (draw_model_anim(), njin::model3d đang chạy animation), có morph, có model_recolor, vật
+trong suốt, vật vẽ bằng shader của game, và phần lưới hơn 4096 đỉnh (mỗi đỉnh đọc lại ma trận của bản, trên GPU tích
+hợp tốn hơn số lệnh vẽ tiết kiệm được). Đổi thứ tự hay gom lệnh có thể đổi bên thắng giữa hai mặt trùng đúng lên
+nhau (z-fighting), vì ma trận tính trên GPU thay vì CPU.
+
+Occlusion culling: sau các vật đục, engine chép độ sâu của lần vẽ, thu nhỏ thành ảnh 320 điểm ngang (mỗi điểm giữ độ sâu
+xa nhất bên dưới nó), đọc về CPU mà không chờ GPU, rồi ở các frame sau thử hộp bao của mỗi vật với tháp mip của ảnh đó.
+Độ sâu vì thế trễ một đến vài frame:
+
+- vật vừa ló ra sau góc tường có thể hiện trễ một frame;
+- camera đi xa hơn `occlusion_max_move` (mặc định 1 m) hay quay hơn khoảng 18 độ kể từ lúc lấy độ sâu thì frame đó
+  không bỏ gì, chờ độ sâu mới. Camera chạy nhanh (xe, rơi) thì tăng `occlusion_max_move` nếu chấp nhận được vật
+  hiện trễ;
+- mỗi camera (chia đôi màn hình) giữ độ sâu riêng; begin_3d() vào render texture không dùng occlusion.
+
+njin::render_info_get() đếm `occluded3d` (vật bị bỏ vì bị che), `batches3d` (lệnh do gom) và `batched3d` (lệnh vẽ đã
+gom vào đó).
 
 ## Shader của game
 

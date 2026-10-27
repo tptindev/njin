@@ -846,7 +846,8 @@ struct model_lod_desc {
 /// model khi nó nhỏ trên màn hình. Sau đó draw_model(), draw_model_anim() và
 /// njin::model3d tự chọn mức theo khoảng cách tới camera; model có xương giữ
 /// xương và animation ở mọi mức, model có morph giữ morph ở mọi mức.
-/// draw_instanced3d() và ray3d_model() luôn dùng model gốc.
+/// ray3d_model() luôn dùng model gốc; draw_instanced3d() cũng vậy, trừ bản nhận
+/// njin::instanced3d_desc.
 ///
 /// Làm một lần sau khi nạp (tốn vài mili giây với vài chục nghìn tam giác); gọi
 /// lại thì thay các mức cũ. model_unload() giải phóng cả các mức.
@@ -1394,6 +1395,110 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
 /// @param shader Shader của game, hoặc không hợp lệ để dùng shader có sẵn.
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       const model_pose &pose, shader_handle shader = {});
+
+/// Cách draw_instanced3d() với njin::instanced3d_desc chọn instance để vẽ.
+struct instanced3d_desc {
+  u32 first = 0;               ///< Instance đầu tiên.
+  u32 count = 0xFFFFFFFFu;     ///< Số instance, bị cắt bớt nếu vượt quá số đã ghi (mặc định: đến hết).
+  /// Bỏ từng instance nằm ngoài tầm nhìn của camera, và (khi bật
+  /// render3d_options::occlusion) instance bị vật khác che hẳn. Mỗi bóng đổ bỏ
+  /// instance theo tầm nhìn của đèn, nên instance ngoài camera vẫn đổ bóng vào cảnh.
+  bool cull = true;
+  /// Mỗi instance dùng mức chi tiết (model_lod_build()) theo cỡ của nó trên màn
+  /// hình, như draw_model(). Model không có mức chi tiết thì không đổi gì.
+  bool lod = true;
+  /// Bán kính quả cầu bao một instance ở tỉ lệ 1, tính từ vị trí của nó. 0 là tự
+  /// tính từ hộp bao của model hay hình.
+  f32 radius = 0.0f;
+  /// Trọng số morph cho mọi instance, như bản draw_instanced3d() nhận `pose`.
+  /// Null là trọng số mặc định của file.
+  const model_pose *pose = nullptr;
+  /// Shader của game, hoặc không hợp lệ để dùng shader có sẵn. Shader của game
+  /// phải đọc `instance0` như shader có sẵn (vị trí `xyz`, tỉ lệ `w`), vì engine
+  /// đọc nó để bỏ instance.
+  shader_handle shader{};
+};
+
+/// Vẽ instance của một model như draw_instanced3d(), nhưng engine bỏ từng instance
+/// không thấy và chọn mức chi tiết cho từng instance (xem njin::instanced3d_desc).
+/// Những instance còn lại được chép, theo từng mức chi tiết, vào một bộ đệm của
+/// engine rồi vẽ, nên cần bản sao của dữ liệu trên CPU: engine giữ bản sao từ lần
+/// instance_buffer_upload() kế tiếp, và lần đầu đọc lại bộ đệm từ GPU (OpenGL ES
+/// không đọc lại được: lần upload đầu tiên sau lệnh vẽ này mới bắt đầu bỏ instance).
+///
+/// Đáng dùng khi bộ đệm trải rộng hơn tầm nhìn (rừng cây cả bản đồ, đám đông
+/// quanh người chơi). Mỗi frame engine duyệt mọi instance trên CPU, cho camera
+/// và cho mỗi bóng đổ, nên với vài trăm instance luôn trong tầm nhìn thì bản
+/// thường rẻ hơn. render_info::instances3d và `instances3d_culled` cho biết bao
+/// nhiêu instance đã vẽ và đã bỏ.
+/// @code
+/// njin::model_lod_build(ctx, tree, {.levels = 2});
+/// njin::draw_instanced3d(ctx, tree, forest, njin::instanced3d_desc{});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param model Model từ model_load().
+/// @param buffer Bộ đệm đã ghi bằng instance_buffer_upload().
+/// @param desc Đoạn instance, bỏ instance và mức chi tiết.
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer,
+                      const instanced3d_desc &desc);
+
+/// Như bản trên, cho một hình có sẵn (hình có sẵn không có mức chi tiết).
+/// @param ctx Context của engine.
+/// @param mesh Hình.
+/// @param buffer Bộ đệm đã ghi bằng instance_buffer_upload().
+/// @param desc Đoạn instance và việc bỏ instance.
+void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer,
+                      const instanced3d_desc &desc);
+
+/// Thứ tự vẽ các vật đục của lần vẽ 3D (render3d_options::order).
+enum draw_order3d {
+  draw_order3d_recorded,     ///< Theo thứ tự game gọi, như trước giờ.
+  draw_order3d_front_to_back, ///< Gần camera trước: GPU bỏ được điểm ảnh bị che phía sau.
+  /// Gom theo shader, model hay hình và ảnh, rồi gần trước xa sau trong mỗi
+  /// nhóm: ít lần đổi trạng thái của GPU nhất.
+  draw_order3d_state,
+};
+
+/// Các cách bớt việc vẽ 3D. Mặc định tắt cả, nên cảnh không bật gì vẽ y như trước.
+///
+/// Chỉ áp dụng cho vật đục (hình khối, model, hình SDF) vẽ bằng shader có sẵn,
+/// trong lần vẽ của camera. Vật trong suốt, vật vẽ bằng shader của game và thế
+/// giới ngoài trời giữ thứ tự gọi, sau các vật đục đã sắp xếp.
+struct render3d_options {
+  /// Thứ tự vẽ vật đục. Khác `draw_order3d_recorded` thì hai vật đục chồng đúng
+  /// lên nhau (cùng độ sâu) có thể đổi bên thắng.
+  draw_order3d order = draw_order3d_recorded;
+  /// Gom lệnh tự động: các draw_model() cùng model, cùng mức chi tiết, cùng màu
+  /// và cùng njin::fx3d (và các hình khối cùng hình, cùng vật liệu, cùng màu)
+  /// vẽ bằng một lệnh instanced cho mỗi phần, như tự gọi draw_instanced3d() mà
+  /// vẫn giữ mọi ảnh của vật liệu. Không gom model có tư thế, có morph, có
+  /// model_recolor, vật trong suốt hay vật vẽ bằng shader của game. Cũng gom
+  /// trong các bóng đổ. Phần lưới hơn 4096 đỉnh vẫn vẽ từng cái (ở đó lệnh vẽ đã
+  /// rẻ so với việc vẽ). Ma trận tính trên GPU, nên hai mặt trùng đúng lên nhau
+  /// có thể đổi bên thắng. render_info::batches3d và `batched3d` cho biết đã gom gì.
+  bool batch = false;
+  /// Bỏ vật bị vật khác che hẳn (occlusion culling, Hi-Z): engine thu nhỏ độ sâu
+  /// của lần vẽ trước thành tháp mip, đọc về CPU (không chờ GPU) và thử hộp bao
+  /// của mỗi vật với nó. Vật bị che vẫn đổ bóng. Áp dụng cho draw_model(),
+  /// njin::model3d, hình khối, hình SDF và instanced3d_desc::cull; cần ảnh độ sâu
+  /// của lần vẽ thế giới (không có ở begin_3d() vào render texture).
+  ///
+  /// Độ sâu trễ một đến vài frame: vật vừa ló ra sau tường có thể hiện trễ một
+  /// frame. Khi camera nhảy chỗ hay quay gấp (hơn `occlusion_max_move` mét,
+  /// hơn khoảng 18 độ) engine không bỏ gì cho đến khi có độ sâu mới.
+  bool occlusion = false;
+  f32 occlusion_max_move = 1.0f; ///< Mét camera được đi từ lúc lấy độ sâu mà vẫn dùng nó.
+};
+
+/// Đặt các cách bớt việc vẽ cho những lần vẽ 3D sau.
+/// @param ctx Context của engine.
+/// @param options Thứ tự vẽ, gom lệnh và occlusion culling.
+void render3d_options_set(context &ctx, const render3d_options &options);
+
+/// Các cách bớt việc vẽ đang dùng.
+/// @param ctx Context của engine.
+/// @return Giá trị render3d_options_set() đặt gần nhất, hoặc mặc định.
+render3d_options render3d_options_get(const context &ctx);
 
 /// Hiệu ứng cho các hình 3D vẽ sau fx3d_set(): nháy màu và tan biến, như
 /// njin::flash_fx và njin::dissolve_fx của sprite.

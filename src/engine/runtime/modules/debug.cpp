@@ -874,7 +874,12 @@ render_info render_info_get(const context &ctx) {
                      .post_passes = s.post_passes,
                      .lights = s.lights,
                      .models3d = s.models3d,
-                     .models3d_culled = s.models3d_culled};
+                     .models3d_culled = s.models3d_culled,
+                     .occluded3d = s.occluded3d,
+                     .instances3d = s.instances3d,
+                     .instances3d_culled = s.instances3d_culled,
+                     .batches3d = s.batches3d,
+                     .batched3d = s.batched3d};
 }
 
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }

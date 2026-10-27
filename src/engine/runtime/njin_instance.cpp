@@ -122,7 +122,7 @@ void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f
   }
   rlUpdateVertexBuffer(slot->vbo, data, bytes, 0);
   slot->uploads++;
-  if (ctx_ref<debug_state>(ctx)->running || ctx_ref<instance_store>(ctx)->keep_cpu)
+  if (ctx_ref<debug_state>(ctx)->running || ctx_ref<instance_store>(ctx)->keep_cpu || slot->keep_cpu)
     slot->cpu.assign(data, data + (usize)count * slot->floats);
   else
     slot->cpu.clear();

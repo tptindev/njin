@@ -157,6 +157,7 @@ Cần bật feature trong CMake: `njin_use(<game> FEATURES 3d)`, thêm `physics3
 | Chân đặt đúng mặt dốc, bậc thang | njin::foot3d_create(), njin::foot3d_update() | @ref foot3d |
 | Dùng animation của bộ xương khác | njin::retarget3d_create(), njin::retarget3d_pose() | @ref retarget3d |
 | Ít đa giác khi ở xa | njin::model_lod_build() | @ref model_lod |
+| Bỏ vật bị che, gom lệnh vẽ, sắp xếp vật đục | njin::render3d_options_set() | @ref render3d_options |
 | Mặt trời, ánh sáng nền, bóng đổ, sương | njin::light3d_set() | @ref graphics_3d |
 | Đèn điểm, đèn nón, đèn pin có bóng | njin::light3d_add() | @ref graphics_3d |
 | Ánh sáng mạnh không cháy trắng (tone mapping) | njin::light3d::tonemap, njin::light3d::exposure | @ref pbr3d |
@@ -175,6 +176,7 @@ Cần bật feature trong CMake: `njin_use(<game> FEATURES 3d)`, thêm `physics3
 | Nháy trắng khi trúng đòn, tan biến khi chết | njin::fx3d_set() | @ref graphics_3d |
 | Lửa, khói, tia lửa 3D; phát liên tục từ vòng, đĩa | njin::particles3d_spawn(), njin::particles3d_emit() | @ref graphics_3d |
 | Vẽ hàng nghìn bản của một model | njin::draw_instanced3d() | @ref graphics_3d |
+| Chỉ vẽ instance camera thấy, cây xa ít tam giác | njin::draw_instanced3d() với njin::instanced3d_desc | @ref instancing3d_cull |
 | Chọn vật bằng chuột, nhãn trên đầu nhân vật | njin::camera3d_ray(), njin::ray3d_model(), njin::camera3d_to_screen() | @ref graphics_3d |
 | Model và hình 3D thành entity | njin::model3d, njin::shape3d_render | @ref entities_3d |
 | Vật lý 3D: rơi, va, đẩy | njin::body3d_create(), njin::physics3d_raycast() | @ref physics3d |

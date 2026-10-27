@@ -19,6 +19,7 @@ set(NJIN_FEATURE_3D_SOURCES
     modules/particles3d_looks.cpp
     modules/post3d.cpp
     modules/render3d.cpp
+    modules/render3d_cull.cpp
     modules/render3d_env.cpp
     modules/render3d_hdr.cpp
     modules/render3d_lights.cpp

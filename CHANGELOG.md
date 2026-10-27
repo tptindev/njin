@@ -10,6 +10,19 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Ways to draw less in 3D, all opt-in (a scene that sets none of it draws
+  pixel for pixel as before):
+  - `render3d_options_set()`: `order` sorts the opaque draws front to back
+    or by state; `batch` merges `draw_model()` calls of one model (and
+    primitives of one mesh and material) into one instanced call per mesh,
+    shadows included; `occlusion` skips draws hidden behind others, tested
+    against a max-depth mip chain of an earlier pass's depth read back
+    without waiting for the GPU (one to a few frames old).
+  - `draw_instanced3d()` with an `instanced3d_desc`: culls each instance
+    against the camera (and each shadow's view) and Hi-Z, and picks each
+    instance's `model_lod_build()` level.
+  - `render_info`: `occluded3d`, `instances3d`, `instances3d_culled`,
+    `batches3d`, `batched3d`.
 - 3D graphics closer to Bevy's, all opt-in (a scene that sets none of it
   draws pixel for pixel as before):
   - `light3d::hdr`: the 3D pass drawn into a half-float image and tone mapped

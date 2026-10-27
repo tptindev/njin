@@ -3,6 +3,7 @@
 #include "_mod.h"
 #include "debug3d.h"
 #include "njin_3d.h"
+#include "render3d_cull.h"
 #include "render3d_env.h"
 #include "render3d_ext.h"
 #include <raylib.h>
@@ -108,6 +109,15 @@ struct draw3d_cmd {
   // camera pass skips it.
   u8 lod = 0;
   bool culled = false;
+  // Hidden behind other draws, seen from the camera (render3d_options::occlusion,
+  // hiz_mark()). Like `culled`, only the camera pass skips it.
+  bool occluded = false;
+  // draw_instanced3d with an instanced3d_desc: cull each instance, pick each
+  // one's level of detail, and the radius round an instance's position at
+  // scale 1 (0: from the bounds). See instances_select().
+  bool inst_cull = false;
+  bool inst_lod = false;
+  f32 inst_radius = 0.0f;
   // World-space box round the draw (centre and half size), when `boxed`, for
   // culling against the camera and each shadow pass (cull_boxes()).
   // Instanced and world3d draws have none: they cull themselves, or not.
@@ -294,6 +304,16 @@ struct render3d_state {
   bool transmission_now = false; // the open pass has such a draw
   bool scene_bound = false;
   Matrix scene_vp{};
+
+  // render3d_options_set(), and what it needs: occlusion and the scratch
+  // instance buffers (render3d_cull.h), and the programs that draw a batch of
+  // draws with one matrix per instance (render3d_options::batch), made on
+  // first use: lit, its extended variant, and depth.
+  render3d_options options;
+  cull3d_state cull;
+  Shader lit_batched{}, lit_batched_ext{}, depth_batched{};
+  render3d_locations batched_locs, batched_locs_ext;
+  bool batch_tried = false, batch_ok = false, batch_ext_tried = false, batch_ext_ok = false;
 
   render3d_state() = default;
   ~render3d_state();

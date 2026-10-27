@@ -156,6 +156,13 @@ struct render_info {
   u32 lights = 0;          ///< Đèn đã vẽ vào bản đồ ánh sáng (njin_light.h).
   u32 models3d = 0;        ///< Model 3D đã vẽ (draw_model(), njin::model3d).
   u32 models3d_culled = 0; ///< Model 3D bị bỏ qua vì nằm ngoài tầm nhìn camera (vẫn đổ bóng).
+  /// Vật 3D (model, hình khối, hình SDF) bị bỏ vì vật khác che hẳn
+  /// (render3d_options::occlusion; vẫn đổ bóng).
+  u32 occluded3d = 0;
+  u32 instances3d = 0;        ///< Instance đã vẽ bởi draw_instanced3d() với njin::instanced3d_desc.
+  u32 instances3d_culled = 0; ///< Instance mà lệnh đó bỏ vì ngoài tầm nhìn hay bị che.
+  u32 batches3d = 0;          ///< Lệnh instanced do render3d_options::batch gom (lần vẽ của camera).
+  u32 batched3d = 0;          ///< Lệnh vẽ 3D đã gom vào các lệnh đó.
 };
 
 /// Số liệu vẽ của frame vừa rồi. Đọc trong `phase_post_render` (hoặc frame sau)

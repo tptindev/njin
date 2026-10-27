@@ -29,6 +29,8 @@
 #include <raymath.h>
 #include <rlgl.h>
 #include <string>
+#include <tuple>
+#include <type_traits>
 #include <vector>
 
 namespace njin {
@@ -1661,6 +1663,45 @@ uniform mat4 mvp;
 void main() { gl_Position = mvp * (skin_matrix() * vec4(vertexPosition, 1.0)); }
 )";
 
+// render3d_options::batch: many draws of one mesh in one instanced call, each
+// with its own matrix, as DrawMeshInstanced gives it. Its four locations
+// (12..15) are past what a mesh keeps in its vertex array (the bones are at 10
+// and 11), and are turned off again after the draw (draw_batched()).
+const char *const batched_vs_main = R"(
+layout(location = 12) in mat4 instanceTransform;
+in vec3 vertexPosition;
+in vec2 vertexTexCoord;
+in vec2 vertexTexCoord2;
+in vec3 vertexNormal;
+in vec4 vertexColor;
+uniform mat4 mvp;
+out vec2 fragTexCoord;
+out vec2 fragTexCoord2;
+out vec4 fragColor;
+out vec3 fragNormal;
+out vec3 fragPos;
+void main() {
+  vec4 world = instanceTransform * vec4(vertexPosition, 1.0);
+  fragTexCoord = vertexTexCoord;
+  fragTexCoord2 = vertexTexCoord2;
+  fragColor = vertexColor;
+  // The cofactor matrix: the inverse transpose times the determinant, the same
+  // direction once the fragment shader normalizes it, without an inverse per vertex.
+  mat3 m = mat3(instanceTransform);
+  mat3 cof = mat3(cross(m[1], m[2]), cross(m[2], m[0]), cross(m[0], m[1]));
+  fragNormal = cof * vertexNormal * sign(dot(m[0], cof[0]));
+  fragPos = world.xyz;
+  gl_Position = mvp * world;
+}
+)";
+
+const char *const depth_batched_vs = R"(#version 330
+layout(location = 12) in mat4 instanceTransform;
+in vec3 vertexPosition;
+uniform mat4 mvp;
+void main() { gl_Position = mvp * (instanceTransform * vec4(vertexPosition, 1.0)); }
+)";
+
 const char *const depth_vs = R"(#version 330
 in vec3 vertexPosition;
 uniform mat4 mvp;
@@ -2040,6 +2081,125 @@ bool use_ext(render3d_state &s, bool on) {
     s.ext_active = want;
   }
   return want;
+}
+
+// The programs of render3d_options::batch, made the first time a pass batches:
+// the plain lit one and the depth one, and the extended lit one when the
+// extended variant is in use. False when they cannot be built.
+bool ensure_batched(render3d_state &s) {
+  const auto ready = [](Shader &sh) {
+    set_map_locs(sh);
+    sh.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] = 12;
+  };
+  if (!s.batch_tried) {
+    s.batch_tried = true;
+    const std::string head = "#version 330\n";
+    const std::string vs = head + batched_vs_main;
+    const std::string fs = head + lighting_glsl + lit_fs_main;
+    s.lit_batched = LoadShaderFromMemory(vs.c_str(), fs.c_str());
+    s.depth_batched = LoadShaderFromMemory(depth_batched_vs, depth_fs);
+    s.batch_ok = IsShaderValid(s.lit_batched) && IsShaderValid(s.depth_batched);
+    if (s.batch_ok) {
+      s.batched_locs = find_locations(s.lit_batched);
+      ready(s.lit_batched);
+      s.depth_batched.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] = 12;
+    } else {
+      NJIN_WARN("3d: the batching shaders failed to compile; render3d_options::batch is off");
+    }
+  }
+  if (s.batch_ok && s.ext_active && !s.batch_ext_tried) {
+    s.batch_ext_tried = true;
+    const std::string head = "#version 330\n#define NJIN_EXT\n";
+    const std::string vs = head + batched_vs_main;
+    const std::string fs = head + lighting_glsl + lit_fs_main;
+    s.lit_batched_ext = LoadShaderFromMemory(vs.c_str(), fs.c_str());
+    s.batch_ext_ok = IsShaderValid(s.lit_batched_ext);
+    if (s.batch_ext_ok) {
+      s.batched_locs_ext = find_locations(s.lit_batched_ext);
+      ready(s.lit_batched_ext);
+    }
+  }
+  return s.batch_ok && (!s.ext_active || s.batch_ext_ok);
+}
+
+// The batched lit program of the variant in use, and its locations.
+Shader batched_lit(const render3d_state &s) { return s.ext_active ? s.lit_batched_ext : s.lit_batched; }
+const render3d_locations &batched_locs(const render3d_state &s) {
+  return s.ext_active ? s.batched_locs_ext : s.batched_locs;
+}
+
+// render3d_options::batch leaves meshes with more vertices than this to one
+// draw each: the instance's matrix is read again for every vertex, which on an
+// integrated GPU costs more than the draw calls it saves on such a mesh.
+constexpr i32 batch_max_vertices = 4096;
+
+// Draws `mesh` once per matrix in one instanced call (render3d_options::batch),
+// binding `material` as DrawMesh does. The matrices go through a scratch
+// buffer of the pass (DrawMeshInstanced would make and free one per call), on
+// locations 12..15, which are turned off again after the draw.
+void draw_batched(render3d_state &s, const Mesh &mesh, const Material &material,
+                  const std::vector<Matrix> &transforms) {
+  thread_local std::vector<f32> data;
+  data.resize(transforms.size() * 16);
+  for (usize i = 0; i < transforms.size(); i++) {
+    const float16 m = MatrixToFloatV(transforms[i]);
+    std::memcpy(&data[i * 16], m.v, sizeof(m.v));
+  }
+  const u32 vbo = scratch_upload(s.cull, data.data(), (i32)(data.size() * sizeof(f32)));
+  const Shader &sh = material.shader;
+  rlEnableShader(sh.id);
+  if (sh.locs[SHADER_LOC_COLOR_DIFFUSE] != -1) {
+    const Color c = material.maps[MATERIAL_MAP_DIFFUSE].color;
+    const f32 v[4] = {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f};
+    rlSetUniform(sh.locs[SHADER_LOC_COLOR_DIFFUSE], v, SHADER_UNIFORM_VEC4, 1);
+  }
+  const Matrix view = rlGetMatrixModelview(), proj = rlGetMatrixProjection();
+  if (sh.locs[SHADER_LOC_MATRIX_VIEW] != -1)
+    rlSetUniformMatrix(sh.locs[SHADER_LOC_MATRIX_VIEW], view);
+  if (sh.locs[SHADER_LOC_MATRIX_PROJECTION] != -1)
+    rlSetUniformMatrix(sh.locs[SHADER_LOC_MATRIX_PROJECTION], proj);
+  if (sh.locs[SHADER_LOC_MATRIX_MODEL] != -1)
+    rlSetUniformMatrix(sh.locs[SHADER_LOC_MATRIX_MODEL], MatrixIdentity());
+  if (sh.locs[SHADER_LOC_MATRIX_NORMAL] != -1)
+    rlSetUniformMatrix(sh.locs[SHADER_LOC_MATRIX_NORMAL], MatrixIdentity());
+  rlSetUniformMatrix(sh.locs[SHADER_LOC_MATRIX_MVP], MatrixMultiply(view, proj));
+  for (i32 i = 0; i < (i32)s.maps.size(); i++)
+    if (material.maps[i].texture.id > 0) {
+      rlActiveTextureSlot(i);
+      rlEnableTexture(material.maps[i].texture.id);
+      rlSetUniform(sh.locs[SHADER_LOC_MAP_DIFFUSE + i], &i, SHADER_UNIFORM_INT, 1);
+    }
+  if (rlEnableVertexArray(mesh.vaoId)) {
+    // A mesh without colours reads white, as DrawMesh does.
+    if (sh.locs[SHADER_LOC_VERTEX_COLOR] != -1 && mesh.vboId[RL_DEFAULT_SHADER_ATTRIB_LOCATION_COLOR] == 0) {
+      const f32 white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+      rlSetVertexAttributeDefault(sh.locs[SHADER_LOC_VERTEX_COLOR], white, SHADER_ATTRIB_VEC4, 4);
+    }
+    rlEnableVertexBuffer(vbo);
+    for (u32 i = 0; i < 4; i++) {
+      rlEnableVertexAttribute(12 + i);
+      rlSetVertexAttribute(12 + i, 4, RL_FLOAT, false, 64, (i32)(i * 16));
+      rlSetVertexAttributeDivisor(12 + i, 1);
+    }
+    if (mesh.indices != nullptr)
+      rlDrawVertexArrayElementsInstanced(0, mesh.triangleCount * 3, nullptr, (i32)transforms.size());
+    else
+      rlDrawVertexArrayInstanced(0, mesh.vertexCount, (i32)transforms.size());
+    for (u32 i = 12; i < 16; i++) {
+      rlSetVertexAttributeDivisor(i, 0);
+      rlDisableVertexAttribute(i);
+    }
+  }
+  for (i32 i = 0; i < (i32)s.maps.size(); i++)
+    if (material.maps[i].texture.id > 0) {
+      rlActiveTextureSlot(i);
+      rlDisableTexture();
+    }
+  rlActiveTextureSlot(0);
+  rlDisableVertexArray();
+  rlDisableVertexBuffer();
+  rlDisableVertexBufferElement();
+  rlDisableShader();
 }
 
 void free_shadow(shadow_target &t) {
@@ -2508,7 +2668,9 @@ void set_bones(const render3d_state &s, Shader shader, i32 loc, const draw3d_cmd
 
 void draw_shape(const render3d_state &s, const draw3d_cmd &c, const Matrix &view_proj, bool ortho, vec3 ray_dir,
                 bool depth_only);
-void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only);
+void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, const std::array<vec4, 6> *planes = nullptr,
+                        bool camera = false);
+bool primitive_box(const render3d_state &s, const Mesh *mesh, vec3 &mid, vec3 &half);
 void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover = false,
                   bool every_opaque = false);
 
@@ -2529,9 +2691,35 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
   // (another cube face of a lamp, beyond its reach, far from the sun's box)
   // would be clipped away anyway.
   const std::array<vec4, 6> planes = frustum_planes(view_proj);
+  // render3d_options::batch: the unposed primitives and models, gathered per
+  // mesh or model and level of detail, then drawn one instanced call per mesh.
+  struct caster_batch {
+    const draw3d_cmd *first = nullptr;
+    std::vector<Matrix> transforms;
+  };
+  thread_local std::vector<caster_batch> batches;
+  thread_local std::unordered_map<u64, usize> batch_index;
+  usize batch_count = 0;
+  batch_index.clear();
+  const bool batching = s.options.batch && ensure_batched(ctx_ref<render3d_state>(ctx));
   for (const draw3d_cmd &c : s.cmds) {
     if (!casts(c) || (c.boxed && box_outside(planes, c.box_center, c.box_extent)))
       continue;
+    if (batching && c.world == world3d_none && !c.is_shape && c.buffer.id == 0 && c.bone_count == 0 &&
+        c.morph_count == 0 && (c.mesh == nullptr || c.mesh->vertexCount <= batch_max_vertices) &&
+        (c.mesh == nullptr || every_opaque || (c.material.cast_shadows && !c.material.unlit))) {
+      const u64 key = c.mesh != nullptr ? mix_key(5, (u64)(uintptr_t)c.mesh) : mix_key(6, ((u64)c.model.id << 8) | c.lod);
+      const auto [at, added] = batch_index.try_emplace(key, batch_count);
+      if (added) {
+        if (batch_count == batches.size())
+          batches.emplace_back();
+        batches[batch_count].first = &c;
+        batches[batch_count].transforms.clear();
+        batch_count++;
+      }
+      batches[at->second].transforms.push_back(c.transform);
+      continue;
+    }
     if (c.world != world3d_none) {
       // Grass blades would leave the ground under them dry in patches.
       if (!(cover && c.world == world3d_grass))
@@ -2546,7 +2734,7 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
     }
     if (c.buffer.id != 0) {
       if (shadowed)
-        draw_instanced_cmd(ctx, c, true);
+        draw_instanced_cmd(ctx, c, true, &planes);
       continue;
     }
     if (c.mesh != nullptr) {
@@ -2564,6 +2752,35 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
                             bones_set = true;
                           }
                           DrawMesh(mesh, posed ? skinned : depth, transform);
+                        });
+  }
+  Material batched = depth;
+  batched.shader = s.depth_batched;
+  for (usize b = 0; b < batch_count; b++) {
+    const caster_batch &cb = batches[b];
+    if (cb.first->mesh != nullptr) {
+      if (cb.transforms.size() == 1)
+        DrawMesh(*cb.first->mesh, depth, cb.transforms[0]);
+      else
+        draw_batched(ctx_ref<render3d_state>(ctx), *cb.first->mesh, batched, cb.transforms);
+      continue;
+    }
+    const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), cb.first->model);
+    if (slot == nullptr)
+      continue;
+    thread_local std::vector<Matrix> placed;
+    placed.clear();
+    for (const Matrix &t : cb.transforms)
+      placed.push_back(MatrixMultiply(slot->model.transform, t));
+    for_each_model_mesh(ctx, *cb.first,
+                        [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &, bool) {
+                          if (!mm.surface.cast_shadows && !every_opaque)
+                            return;
+                          if (placed.size() == 1 || mesh.vertexCount > batch_max_vertices)
+                            for (const Matrix &t : placed)
+                              DrawMesh(mesh, depth, t);
+                          else
+                            draw_batched(ctx_ref<render3d_state>(ctx), mesh, batched, placed);
                         });
   }
 }
@@ -3046,7 +3263,8 @@ void restore_mesh_attribute(const Mesh &mesh, i32 loc) {
 // with the instance attributes of `shader` pointed at the buffer from `first`.
 // The mesh vertex arrays are shared, so the instance attributes are turned off
 // again after each draw. `depth_only` is the shadow pass.
-void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
+void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, const std::array<vec4, 6> *planes,
+                        bool camera) {
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   instance_slot *slot = instance_slot_of(ctx_ref<instance_store>(ctx), c.buffer);
   if (slot == nullptr || slot->vbo == 0 || c.first >= slot->count)
@@ -3074,6 +3292,9 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
   };
   // Kept between calls: no allocation per instanced draw once it has grown.
   thread_local std::vector<part> parts;
+  const model_slot *model = c.mesh == nullptr ? model_slot_of(ctx_ref<model_store>(ctx), c.model) : nullptr;
+  // The parts at level of detail `lod` (model_lod_build()), as for_each_model_mesh picks them.
+  const auto build = [&](u8 lod_level) {
   parts.clear();
   Texture2D texture = default_texture();
   if (c.mesh != nullptr && s.translucent_pass) {
@@ -3086,7 +3307,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       mesh_texture(ctx, c.material.metal_rough, parts.back().metal_rough);
       mesh_texture(ctx, c.material.occlusion, parts.back().occlusion);
     }
-  } else if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model)) {
+  } else if (const model_slot *m = model) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const i32 index = m->model.meshMaterial[i];
       const model_material &mm = m->materials[(usize)index];
@@ -3095,9 +3316,18 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
-      // Every instance shares one shape: the call's weights, or the file's.
-      model_morph_upload(*m, i, c.morph_count > 0 ? &s.morphs[c.morph_first] : m->morph_defaults.data());
-      parts.push_back({&m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
+      // Every instance shares one shape: the call's weights, or the file's, on
+      // the level of detail when it carries the morphs, else on the full mesh.
+      const bool morphed = (usize)i < m->morphs.size() && !m->morphs[(usize)i].slot.empty();
+      const model_lod_mesh *lod = lod_level > 0 ? model_lod_of(*m, lod_level, i) : nullptr;
+      if (morphed && lod != nullptr && lod->morph.slot.empty())
+        lod = nullptr;
+      const f32 *weights = c.morph_count > 0 ? &s.morphs[c.morph_first] : m->morph_defaults.data();
+      if (morphed && lod != nullptr)
+        morph_upload(lod->morph, lod->mesh, weights);
+      else
+        model_morph_upload(*m, i, weights);
+      parts.push_back({lod != nullptr ? &lod->mesh : &m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
       parts.back().shader = mm.shader;
       mesh_texture(ctx, mm.normal, parts.back().normal);
       if (mm.surface.pbr) {
@@ -3113,16 +3343,49 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
     }
   }
 
-  if (parts.empty())
-    return;
   for (part &p : parts)
     if (mesh_texture(ctx, p.surface->under, p.under))
       mesh_texture(ctx, p.surface->under_normal, p.under_normal);
+  };
+  build(0);
+  if (parts.empty())
+    return;
+  // The instances to draw: all of the range, or (instanced3d_desc) those this
+  // pass sees, by level of detail.
+  thread_local std::vector<instance_group> groups;
+  groups.clear();
+  if (c.inst_cull || c.inst_lod) {
+    f32 radius = c.inst_radius;
+    if (radius <= 0.0f) {
+      vec3 mid{}, half{};
+      if (model != nullptr) {
+        const Vector3 lo = model->bounds.min, hi = model->bounds.max;
+        mid = vec3{lo.x + hi.x, lo.y + hi.y, lo.z + hi.z} * 0.5f;
+        half = vec3{hi.x - lo.x, hi.y - lo.y, hi.z - lo.z} * 0.5f;
+      } else {
+        primitive_box(s, c.mesh, mid, half);
+      }
+      radius = length(mid) + length(half);
+    }
+    const u32 lods = model != nullptr ? (u32)model->lods.size() : 0;
+    const f32 lod_screen = model != nullptr ? model->lod_screen * ctx_ref<quality_state>(ctx)->q.lod_scale : 0.0f;
+    instances_select(ctx, s, c, radius, lods, lod_screen, c.inst_cull ? planes : nullptr, camera && c.inst_cull, groups);
+  } else {
+    groups.push_back({slot->vbo, c.first, count, 0});
+  }
+  if (groups.empty())
+    return;
   if (!s.translucent_pass)
     ctx_ref<render_stats>(ctx)->instanced_calls++;
   const Matrix mvp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
   const i32 floats = (i32)slot->floats;
   const i32 stride = (i32)(slot->floats * sizeof(f32));
+  u8 built = 0;
+  for (const instance_group &g : groups) {
+  if (g.lod != built) {
+    build(g.lod);
+    built = g.lod;
+  }
   for (const part &p : parts) {
     // A part with a shader of its own draws with it, as in draw_model().
     Shader shader = call_shader;
@@ -3176,7 +3439,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       const f32 white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
       rlSetVertexAttributeDefault(color_loc, white, RL_SHADER_ATTRIB_VEC4, 4);
     }
-    rlEnableVertexBuffer(slot->vbo);
+    rlEnableVertexBuffer(g.vbo);
     i32 locs[4] = {-1, -1, -1, -1};
     for (i32 i = 0; i < 4; i++) {
       char name[16] = "instance0";
@@ -3184,16 +3447,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       locs[i] = rlGetLocationAttrib(shader.id, name);
       if (locs[i] < 0 || i >= floats / 4)
         continue;
-      rlSetVertexAttribute((u32)locs[i], 4, RL_FLOAT, false, stride, (i32)(c.first * (u32)stride) + i * 16);
+      rlSetVertexAttribute((u32)locs[i], 4, RL_FLOAT, false, stride, (i32)(g.first * (u32)stride) + i * 16);
       rlEnableVertexAttribute((u32)locs[i]);
       rlSetVertexAttributeDivisor((u32)locs[i], 1);
     }
     if (p.double_sided)
       rlDisableBackfaceCulling();
     if (p.mesh->indices != nullptr)
-      rlDrawVertexArrayElementsInstanced(0, p.mesh->triangleCount * 3, nullptr, (i32)count);
+      rlDrawVertexArrayElementsInstanced(0, p.mesh->triangleCount * 3, nullptr, (i32)g.count);
     else
-      rlDrawVertexArrayInstanced(0, p.mesh->vertexCount, (i32)count);
+      rlDrawVertexArrayInstanced(0, p.mesh->vertexCount, (i32)g.count);
     if (p.double_sided)
       rlEnableBackfaceCulling();
     for (i32 i = 0; i < 4; i++) {
@@ -3210,12 +3473,15 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only) {
       }
     rlActiveTextureSlot(0);
   }
+  }
   if (!depth_only)
     rlDisableTexture();
   rlDisableShader();
 }
 
-void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
+// `batch` (render3d_options::batch): the transforms of the draws like `c` drawn
+// with it in one instanced call, `c`'s own first.
+void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj, const std::vector<Matrix> *batch = nullptr) {
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (c.world != world3d_none) {
     if (s.oit_pass == 0)
@@ -3232,25 +3498,28 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
       return;
   }
   // A capture looks all round: nothing is culled against the camera.
-  if (c.culled && !s.capturing && (c.is_shape || c.mesh != nullptr))
+  if ((c.culled || c.occluded) && !s.capturing && (c.is_shape || c.mesh != nullptr)) {
+    if (!c.culled && !s.translucent_pass)
+      ctx_ref<render_stats>(ctx)->occluded3d++;
     return;
+  }
   if (c.is_shape) {
     const bool ortho = s.camera.projection == camera3d_orthographic;
     draw_shape(s, c, view_proj, ortho, ortho ? normalize(s.camera.target - s.camera.position) : vec3{}, false);
     return;
   }
   if (c.buffer.id != 0) {
-    draw_instanced_cmd(ctx, c, false);
+    draw_instanced_cmd(ctx, c, false, s.capturing ? nullptr : &s.frustum, !s.capturing);
     return;
   }
   if (c.mesh == nullptr) {
-    if (c.culled && !s.capturing) {
+    if ((c.culled || c.occluded) && !s.capturing) {
       if (!s.translucent_pass)
-        ctx_ref<render_stats>(ctx)->models3d_culled++;
+        (c.culled ? ctx_ref<render_stats>(ctx)->models3d_culled : ctx_ref<render_stats>(ctx)->occluded3d)++;
       return;
     }
     if (!s.translucent_pass && !s.capturing)
-      ctx_ref<render_stats>(ctx)->models3d++;
+      ctx_ref<render_stats>(ctx)->models3d += batch != nullptr ? (u32)batch->size() : 1u;
   }
   Shader custom{};
   const bool own = game_shader(ctx, c.shader, custom);
@@ -3276,16 +3545,29 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     if (height)
       maps[MATERIAL_MAP_BRDF].texture = texture;
     to_raylib(c.color, maps[MATERIAL_MAP_DIFFUSE].color);
+    const Shader lit = batch != nullptr ? batched_lit(s) : s.lit;
     if (!own)
-      set_draw_uniforms(s.lit, s.locs, c.fx, c.material, colors::white, normal_map, false, under, under_normal,
+      set_draw_uniforms(lit, batch != nullptr ? batched_locs(s) : s.locs, c.fx, c.material, colors::white, normal_map,
+                        false, under, under_normal,
                         pbr_map_bits(maps[MATERIAL_MAP_METALNESS].texture, maps[MATERIAL_MAP_HEIGHT].texture) |
                             (i32)maps[MATERIAL_MAP_METALNESS].value,
                         height, bind_lightmap(ctx, c.material, *c.mesh));
     Material material{};
-    material.shader = own ? custom : s.lit;
+    material.shader = own ? custom : lit;
     material.maps = maps.data();
-    DrawMesh(*c.mesh, material, c.transform);
+    if (batch != nullptr)
+      draw_batched(ctx_ref<render3d_state>(ctx), *c.mesh, material, *batch);
+    else
+      DrawMesh(*c.mesh, material, c.transform);
     return;
+  }
+  // A batch's transforms with the model's own in front, as for_each_model_mesh places one draw.
+  thread_local std::vector<Matrix> placed;
+  if (batch != nullptr) {
+    placed.clear();
+    const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), c.model);
+    for (const Matrix &t : *batch)
+      placed.push_back(slot != nullptr ? MatrixMultiply(slot->model.transform, t) : t);
   }
   bool bones_set = false;
   for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &maps, const model_material &mm, const Matrix &transform,
@@ -3307,8 +3589,12 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
         bones_set = true;
       }
     }
+    const bool batched = batch != nullptr && built_in && mesh.vertexCount <= batch_max_vertices;
+    if (batched)
+      shader = batched_lit(s);
     if (built_in)
-      set_draw_uniforms(shader, posed ? s.skinned_locs : s.locs, c.fx, mm.surface, mm.emission_color,
+      set_draw_uniforms(shader, batched ? batched_locs(s) : posed ? s.skinned_locs : s.locs, c.fx, mm.surface,
+                        mm.emission_color,
                         maps[MATERIAL_MAP_NORMAL].texture.id > 0, maps[MATERIAL_MAP_EMISSION].texture.id > 0,
                         maps[MATERIAL_MAP_ROUGHNESS].texture.id > 0, maps[MATERIAL_MAP_OCCLUSION].texture.id > 0,
                         pbr_map_bits(maps[MATERIAL_MAP_METALNESS].texture, maps[MATERIAL_MAP_HEIGHT].texture) |
@@ -3317,7 +3603,14 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj) {
     Material material{};
     material.shader = shader;
     material.maps = maps.data();
-    DrawMesh(mesh, material, transform);
+    if (batched)
+      draw_batched(ctx_ref<render3d_state>(ctx), mesh, material, placed);
+    else if (batch != nullptr)
+      // A part with a game shader of its own (model_material::shader), or a heavy one: one draw each.
+      for (const Matrix &t : placed)
+        DrawMesh(mesh, material, t);
+    else
+      DrawMesh(mesh, material, transform);
   });
 }
 } // namespace
@@ -3591,9 +3884,11 @@ render3d_state::~render3d_state() {
   free_shadow(shadow);
   free_shadow(lamp);
   free_shadow(cover);
-  for (Shader *sh : {&mask, &mask_instanced, &mask_skinned, &velocity, &velocity_skinned})
+  for (Shader *sh : {&mask, &mask_instanced, &mask_skinned, &velocity, &velocity_skinned, &lit_batched,
+                     &lit_batched_ext, &depth_batched})
     if (IsShaderValid(*sh))
       UnloadShader(*sh);
+  cull3d_free(cull);
   if (prev_bones_tex != 0)
     rlUnloadTexture(prev_bones_tex);
   if (!ready)
@@ -3693,6 +3988,8 @@ void all_pass_uniforms(context &ctx, bool shadows, const Matrix &light_vp, bool 
   set_pass_uniforms(s, s.lit_instanced, s.instanced_locs, shadows, light_vp, lamps);
   if (s.skin_ok)
     set_pass_uniforms(s, s.lit_skinned, s.skinned_locs, shadows, light_vp, lamps);
+  if (s.options.batch && ensure_batched(s))
+    set_pass_uniforms(s, batched_lit(s), batched_locs(s), shadows, light_vp, lamps);
   world3d_pass_uniforms(ctx, shadows, light_vp, lamps);
 }
 
@@ -3982,6 +4279,123 @@ bool draws_water(const render3d_state &s) {
 }
 } // namespace
 
+namespace {
+// Draws of the opaque pass render3d_options may reorder and batch: opaque, of
+// the built-in shader, not the outdoor world nor instanced.
+bool sortable(const render3d_state &s, const draw3d_cmd &c) {
+  return c.world == world3d_none && c.buffer.id == 0 && c.shader.id == 0 && c.color.a >= 1.0f &&
+         !(c.mesh != nullptr && primitive_see_through(s, c));
+}
+
+// Of those, the ones a batch may take: unposed, drawn this pass.
+bool batchable(const draw3d_cmd &c) {
+  return !c.is_shape && (c.mesh == nullptr || c.mesh->vertexCount <= batch_max_vertices) && c.bone_count == 0 &&
+         c.morph_count == 0 && c.recolor_count == 0 && !c.culled && !c.occluded;
+}
+
+// Whether two batchable draws can share one instanced call: same mesh or model
+// and level of detail, colour, fx3d and (primitives) material3d. Compared as
+// bytes, so two equal values that differ in padding just do not batch.
+bool same_batch(const draw3d_cmd &a, const draw3d_cmd &b) {
+  return a.mesh == b.mesh && a.model.id == b.model.id && a.lod == b.lod &&
+         std::memcmp(&a.color, &b.color, sizeof(a.color)) == 0 && std::memcmp(&a.fx, &b.fx, sizeof(a.fx)) == 0 &&
+         (a.mesh == nullptr || std::memcmp(&a.material, &b.material, sizeof(a.material)) == 0);
+}
+
+u64 batch_hash(const draw3d_cmd &c) {
+  u64 h = mix_key((u64)(uintptr_t)c.mesh, ((u64)c.model.id << 8) | c.lod);
+  const auto bytes = [&h](const void *p, usize n) {
+    u64 x = 1469598103934665603ull;
+    for (usize i = 0; i < n; i++)
+      x = (x ^ ((const u8 *)p)[i]) * 1099511628211ull;
+    h = mix_key(h, x);
+  };
+  bytes(&c.color, sizeof(c.color));
+  bytes(&c.fx, sizeof(c.fx));
+  if (c.mesh != nullptr)
+    bytes(&c.material, sizeof(c.material));
+  return h;
+}
+
+static_assert(std::is_trivially_copyable_v<fx3d> && std::is_trivially_copyable_v<material3d>);
+
+// A batch of the opaque pass: its first command, and the transforms of all of
+// its commands, the first one's first.
+struct opaque_batch {
+  u32 first = 0;
+  std::vector<Matrix> transforms;
+};
+
+// The opaque pass's plan (render3d_options): the order to draw the commands in
+// (`order`, indices into s.cmds), and the batches: `leader[i]` is the batch of
+// command i (index into `batches`, -1 none). The order keeps the game's when
+// render3d_options::order is draw_order3d_recorded; otherwise the sortable
+// draws go first, sorted, and the others after them in the game's order.
+void plan_opaque(const render3d_state &s, std::vector<u32> &order, std::vector<i32> &leader,
+                 std::vector<opaque_batch> &batches, usize &batch_count) {
+  const usize n = s.cmds.size();
+  order.resize(n);
+  for (usize i = 0; i < n; i++)
+    order[i] = (u32)i;
+  leader.assign(n, -1);
+  batch_count = 0;
+  const render3d_options &o = s.options;
+  if (o.order != draw_order3d_recorded) {
+    const auto mid =
+        std::stable_partition(order.begin(), order.end(), [&](u32 i) { return sortable(s, s.cmds[i]); });
+    const vec3 eye = s.camera.position;
+    thread_local std::vector<f32> far;
+    far.resize(n);
+    for (auto it = order.begin(); it != mid; ++it) {
+      const draw3d_cmd &c = s.cmds[*it];
+      const vec3 at = c.boxed      ? c.box_center
+                      : c.is_shape ? c.shape.position
+                                   : vec3{c.transform.m12, c.transform.m13, c.transform.m14};
+      far[*it] = dot(at - eye, at - eye);
+    }
+    if (o.order == draw_order3d_front_to_back) {
+      std::stable_sort(order.begin(), mid, [&](u32 a, u32 b) { return far[a] < far[b]; });
+    } else {
+      // Shapes, then primitives by mesh and texture, then models by model and level.
+      const auto state = [&](const draw3d_cmd &c) {
+        return std::tuple{c.is_shape ? 0 : c.mesh != nullptr ? 1 : 2, (uintptr_t)c.mesh, c.model.id, c.lod,
+                          c.mesh != nullptr ? c.material.texture.id : 0u};
+      };
+      std::stable_sort(order.begin(), mid, [&](u32 a, u32 b) {
+        const auto ka = state(s.cmds[a]), kb = state(s.cmds[b]);
+        return ka != kb ? ka < kb : far[a] < far[b];
+      });
+    }
+  }
+  if (!o.batch)
+    return;
+  thread_local std::unordered_multimap<u64, i32> found;
+  found.clear();
+  for (const u32 i : order) {
+    const draw3d_cmd &c = s.cmds[i];
+    if (!sortable(s, c) || !batchable(c))
+      continue;
+    const u64 h = batch_hash(c);
+    i32 into = -1;
+    for (auto [it, end] = found.equal_range(h); it != end; ++it)
+      if (same_batch(s.cmds[batches[(usize)it->second].first], c)) {
+        into = it->second;
+        break;
+      }
+    if (into < 0) {
+      if (batch_count == batches.size())
+        batches.emplace_back();
+      into = (i32)batch_count++;
+      batches[(usize)into].first = i;
+      batches[(usize)into].transforms.clear();
+      found.emplace(h, into);
+    }
+    batches[(usize)into].transforms.push_back(c.transform);
+    leader[i] = into;
+  }
+}
+} // namespace
+
 void end_3d(context &ctx) {
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
@@ -3991,6 +4405,15 @@ void end_3d(context &ctx) {
   if (s.entities)
     record_entities(ctx);
   cull_boxes(s);
+  // render3d_options::occlusion: the world pass's draws hidden behind the depth
+  // of an earlier pass of this camera.
+  if (!offscreen) {
+    hiz_begin(ctx, s);
+  } else {
+    s.cull.view = nullptr;
+    s.cull.testing = false;
+  }
+  hiz_mark(s);
   if (ctx_ref<debug_state>(ctx)->running && !offscreen)
     render3d_capture_debug(ctx);
   // light3d::environment's maps, made when it changed (into their own framebuffers).
@@ -4093,8 +4516,39 @@ void end_3d(context &ctx) {
   // The environment as the sky, behind everything of the pass.
   if (s.light.environment_visible)
     env_draw_sky(s.env, s.light, s.camera, view_proj, s.hdr_out, render3d_out_exposure(s));
-  for (const draw3d_cmd &c : s.cmds)
-    draw_main(ctx, c, view_proj);
+  if (s.options.order == draw_order3d_recorded && !s.options.batch) {
+    for (const draw3d_cmd &c : s.cmds)
+      draw_main(ctx, c, view_proj);
+  } else {
+    thread_local std::vector<u32> order;
+    thread_local std::vector<i32> leader;
+    thread_local std::vector<opaque_batch> batches;
+    usize batch_count = 0;
+    plan_opaque(s, order, leader, batches, batch_count);
+    const bool batching = batch_count > 0 && ensure_batched(s);
+    render_stats &stats = ctx_ref<render_stats>(ctx);
+    for (const u32 i : order) {
+      const i32 b = batching ? leader[i] : -1;
+      if (b < 0 || batches[(usize)b].transforms.size() < 2) {
+        draw_main(ctx, s.cmds[i], view_proj);
+        continue;
+      }
+      // A batch draws at its first command; the others are in it.
+      if (batches[(usize)b].first != i)
+        continue;
+      draw_main(ctx, s.cmds[i], view_proj, &batches[(usize)b].transforms);
+      stats.batches3d++;
+      stats.batched3d += (u32)batches[(usize)b].transforms.size();
+    }
+  }
+  // The opaque depth, reduced and read back for the next passes' occlusion.
+  if (s.cull.view != nullptr) {
+    hiz_capture(ctx, s, view_proj);
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+    bind_pass_maps(s, shadows, lamps);
+  }
   // Decals, SSAO and SSR work on the opaque image, before glass and water.
   const bool post3d = !offscreen && post3d_wanted(ctx);
   if (post3d) {
@@ -4163,6 +4617,7 @@ void end_3d(context &ctx) {
   if (!offscreen)
     gizmo_draw_3d(ctx, s.camera);
 
+  instances_pass_end(s.cull);
   s.cmds.clear();
   s.bones.clear();
   s.recolors.clear();
@@ -4646,6 +5101,40 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
   c.morph_count = (u32)weights.size();
   s->morphs.insert(s->morphs.end(), weights.begin(), weights.end());
 }
+
+void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer,
+                      const instanced3d_desc &desc) {
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const usize before = s.cmds.size();
+  if (desc.pose != nullptr)
+    draw_instanced3d(ctx, model, buffer, desc.first, desc.count, *desc.pose, desc.shader);
+  else
+    draw_instanced3d(ctx, model, buffer, desc.first, desc.count, desc.shader);
+  if (s.cmds.size() == before)
+    return;
+  draw3d_cmd &c = s.cmds.back();
+  c.inst_cull = desc.cull;
+  c.inst_lod = desc.lod;
+  c.inst_radius = std::max(desc.radius, 0.0f);
+}
+
+void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer,
+                      const instanced3d_desc &desc) {
+  const render3d_state &s = ctx_ref<render3d_state>(ctx);
+  const usize before = s.cmds.size();
+  draw_instanced3d(ctx, mesh, buffer, desc.first, desc.count, desc.shader);
+  if (s.cmds.size() == before)
+    return;
+  draw3d_cmd &c = s.cmds.back();
+  c.inst_cull = desc.cull;
+  c.inst_radius = std::max(desc.radius, 0.0f);
+}
+
+void render3d_options_set(context &ctx, const render3d_options &options) {
+  ctx_ref<render3d_state>(ctx)->options = options;
+}
+
+render3d_options render3d_options_get(const context &ctx) { return ctx_ref<render3d_state>(ctx)->options; }
 
 void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color) {
   const render3d_state *s = open_pass(ctx);
