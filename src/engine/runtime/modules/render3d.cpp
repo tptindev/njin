@@ -28,6 +28,7 @@
 #include <iterator>
 #include <raymath.h>
 #include <rlgl.h>
+#include <unordered_map>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -1176,6 +1177,7 @@ uniform sampler2D sceneColor;
 uniform mat4 sceneVP;
 // post3d::oit: 0 drawn as usual, 1 into the weighted sum, 2 into the revealage.
 uniform int oitPass;
+uniform float alphaCutoff;     // material3d::alpha_cutoff, 0 off
 
 // Normal mapping without tangents: the frame comes from screen derivatives
 // (Christian Schueler, "Normal Mapping Without Precomputed Tangents").
@@ -1340,6 +1342,8 @@ void main() {
     albedo = texture(texture0, uv);
   }
   vec4 base = albedo * colDiffuse * fragColor;
+  if (alphaCutoff > 0.0 && base.a < alphaCutoff)
+    discard;
   // The under layer where the top one has worn off: patches from a slow
   // noise, more of them near the ground, a dark rim at their edge. Its
   // offsets snap to eighths of the tile, so a pattern on that grid (brick
@@ -1659,8 +1663,11 @@ void main() {
 
 const char *const depth_instanced_vs_main = R"(
 in vec3 vertexPosition;
+in vec2 vertexTexCoord;
 uniform mat4 mvp;
+out vec2 fragTexCoord;
 void main() {
+  fragTexCoord = vertexTexCoord;
   vec3 world = instance_rotation() * (vertexPosition * instance_scale()) + instance0.xyz;
   gl_Position = mvp * vec4(world, 1.0);
 }
@@ -1711,8 +1718,13 @@ void main() {
 
 const char *const depth_skinned_vs_main = R"(
 in vec3 vertexPosition;
+in vec2 vertexTexCoord;
 uniform mat4 mvp;
-void main() { gl_Position = mvp * (skin_matrix() * vec4(vertexPosition, 1.0)); }
+out vec2 fragTexCoord;
+void main() {
+  fragTexCoord = vertexTexCoord;
+  gl_Position = mvp * (skin_matrix() * vec4(vertexPosition, 1.0));
+}
 )";
 
 // render3d_options::batch: many draws of one mesh in one instanced call, each
@@ -1750,24 +1762,45 @@ void main() {
 const char *const depth_batched_vs = R"(#version 330
 layout(location = 12) in mat4 instanceTransform;
 in vec3 vertexPosition;
+in vec2 vertexTexCoord;
 uniform mat4 mvp;
-void main() { gl_Position = mvp * (instanceTransform * vec4(vertexPosition, 1.0)); }
+out vec2 fragTexCoord;
+void main() {
+  fragTexCoord = vertexTexCoord;
+  gl_Position = mvp * (instanceTransform * vec4(vertexPosition, 1.0));
+}
 )";
 
 const char *const depth_vs = R"(#version 330
 in vec3 vertexPosition;
+in vec2 vertexTexCoord;
 uniform mat4 mvp;
-void main() { gl_Position = mvp * vec4(vertexPosition, 1.0); }
+out vec2 fragTexCoord;
+void main() {
+  fragTexCoord = vertexTexCoord;
+  gl_Position = mvp * vec4(vertexPosition, 1.0);
+}
 )";
 
+// material3d::alpha_cutoff: no depth where the albedo's alpha falls short.
 const char *const depth_fs = R"(#version 330
+in vec2 fragTexCoord;
+uniform sampler2D texture0;
+uniform float alphaCutoff;
 out vec4 finalColor;
-void main() { finalColor = vec4(1.0); }
+void main() {
+  if (alphaCutoff > 0.0 && texture(texture0, fragTexCoord).a < alphaCutoff)
+    discard;
+  finalColor = vec4(1.0);
+}
 )";
 
 // The reflecting surfaces for post3d's SSR: `maskValue` where this fragment is
 // the nearest surface of the pass (its depth copy), nothing behind it.
 const char *const mask_fs = R"(#version 330
+in vec2 fragTexCoord;
+uniform sampler2D texture0;
+uniform float alphaCutoff; // material3d::alpha_cutoff
 uniform sampler2D sceneDepth;
 uniform vec2 sceneSize;
 uniform vec2 planes;
@@ -1781,6 +1814,8 @@ float linear_depth(float d) {
   return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
 }
 void main() {
+  if (alphaCutoff > 0.0 && texture(texture0, fragTexCoord).a < alphaCutoff)
+    discard;
   float scene = texture(sceneDepth, gl_FragCoord.xy / sceneSize).r;
   float a = linear_depth(gl_FragCoord.z);
   float b = linear_depth(scene);
@@ -1798,6 +1833,7 @@ constexpr i32 mask_depth_unit = 9;
 // the bones then); `mvp` (jittered, as the pass drew) only places the fragment.
 const char *const velocity_vs = R"(#version 330
 in vec3 vertexPosition;
+in vec2 vertexTexCoord;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 prevModel;
@@ -1805,7 +1841,9 @@ uniform mat4 curVP;
 uniform mat4 prevVP;
 out vec4 curClip;
 out vec4 prevClip;
+out vec2 fragTexCoord;
 void main() {
+  fragTexCoord = vertexTexCoord;
   vec4 p = vec4(vertexPosition, 1.0);
   curClip = curVP * (matModel * p);
   prevClip = prevVP * (prevModel * p);
@@ -1817,6 +1855,7 @@ void main() {
 // matrix): a second array of 128 matrices would pass the uniform limit.
 const char *const velocity_skinned_vs_main = R"(
 in vec3 vertexPosition;
+in vec2 vertexTexCoord;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 prevModel;
@@ -1826,6 +1865,7 @@ uniform sampler2D prevBones;
 uniform int prevBoneCount;
 out vec4 curClip;
 out vec4 prevClip;
+out vec2 fragTexCoord;
 mat4 prev_bone(float i) {
   int b = int(i) * 4;
   return mat4(texelFetch(prevBones, ivec2(b, 0), 0), texelFetch(prevBones, ivec2(b + 1, 0), 0),
@@ -1840,6 +1880,7 @@ mat4 prev_skin(mat4 now) {
           w.w * prev_bone(vertexBoneIds.w)) / sum;
 }
 void main() {
+  fragTexCoord = vertexTexCoord;
   vec4 p = vec4(vertexPosition, 1.0);
   mat4 k = skin_matrix();
   vec4 now = k * p;
@@ -1856,6 +1897,9 @@ void main() {
 const char *const velocity_fs = R"(#version 330
 in vec4 curClip;
 in vec4 prevClip;
+in vec2 fragTexCoord;
+uniform sampler2D texture0;
+uniform float alphaCutoff; // material3d::alpha_cutoff
 uniform sampler2D sceneDepth;
 uniform vec2 sceneSize;
 uniform vec2 planes;
@@ -1868,6 +1912,8 @@ float linear_depth(float d) {
   return 2.0 * planes.x * planes.y / (planes.y + planes.x - z * (planes.y - planes.x));
 }
 void main() {
+  if (alphaCutoff > 0.0 && texture(texture0, fragTexCoord).a < alphaCutoff)
+    discard;
   float scene = texture(sceneDepth, gl_FragCoord.xy / sceneSize).r;
   if (linear_depth(gl_FragCoord.z) > linear_depth(scene) * 1.002 + 0.02)
     discard;
@@ -1926,6 +1972,7 @@ render3d_locations find_locations(Shader shader) {
   l.emission_color = loc("emissionColor");
   l.unlit = loc("unlit");
   l.use_normal_map = loc("useNormalMap");
+  l.alpha_cutoff = loc("alphaCutoff");
   l.use_emission_map = loc("useEmissionMap");
   l.world_uv = loc("worldUv");
   l.under_amount = loc("underAmount");
@@ -2539,6 +2586,7 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
   set_vec4(sh, l.emission_color, v4(emission_color));
   set_i32(sh, l.unlit, m.unlit ? 1 : 0);
   set_i32(sh, l.use_normal_map, normal_map ? 1 : 0);
+  set_f32(sh, l.alpha_cutoff, std::max(m.alpha_cutoff, 0.0f));
   set_i32(sh, l.use_emission_map, emission_map ? 1 : 0);
   set_f32(sh, l.world_uv, std::max(m.world_uv, 0.0f));
   set_f32(sh, l.under_amount, under_map && m.world_uv > 0.0f ? std::clamp(m.under_amount, 0.0f, 1.0f) : 0.0f);
@@ -2726,6 +2774,18 @@ bool primitive_box(const render3d_state &s, const Mesh *mesh, vec3 &mid, vec3 &h
 void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover = false,
                   bool every_opaque = false);
 
+// material3d::alpha_cutoff in a depth program: the albedo on unit 0 (through
+// `depth`'s maps, which the draw owns) and the cutoff, or no cut at all.
+void depth_cut(Shader sh, Material &depth, f32 cutoff, Texture2D albedo) {
+  thread_local std::unordered_map<u32, i32> locations;
+  const auto [at, added] = locations.try_emplace(sh.id, -1);
+  if (added)
+    at->second = GetShaderLocation(sh, "alphaCutoff");
+  const f32 k = albedo.id > 0 ? std::max(cutoff, 0.0f) : 0.0f;
+  set_f32(sh, at->second, k);
+  depth.maps[MATERIAL_MAP_DIFFUSE].texture = k > 0.0f ? albedo : default_texture();
+}
+
 // Depth of every opaque shadow caster into the bound target, seen through the
 // current matrices (`view_proj`): along `dir` for the sun (orthographic), from
 // the SDF shader's viewPos for a lamp.
@@ -2790,20 +2850,27 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
       continue;
     }
     if (c.mesh != nullptr) {
-      if (shadowed)
+      if (shadowed) {
+        Texture2D albedo{};
+        mesh_texture(ctx, c.material.texture, albedo);
+        depth_cut(s.depth, depth, c.material.alpha_cutoff, albedo);
         DrawMesh(*c.mesh, depth, c.transform);
+      }
       continue;
     }
     bool bones_set = false;
     for_each_model_mesh(ctx, c,
-                        [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &transform, bool posed) {
+                        [&](const Mesh &mesh, map_set &own, const model_material &mm, const Matrix &transform,
+                            bool posed) {
                           if (!mm.surface.cast_shadows && !every_opaque)
                             return;
                           if (posed && !bones_set) {
                             set_bones(s, s.depth_skinned, s.depth_skinned_bones, c);
                             bones_set = true;
                           }
-                          DrawMesh(mesh, posed ? skinned : depth, transform);
+                          Material &m = posed ? skinned : depth;
+                          depth_cut(m.shader, m, mm.surface.alpha_cutoff, own[MATERIAL_MAP_DIFFUSE].texture);
+                          DrawMesh(mesh, m, transform);
                         });
   }
   Material batched = depth;
@@ -2811,10 +2878,15 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
   for (usize b = 0; b < batch_count; b++) {
     const caster_batch &cb = batches[b];
     if (cb.first->mesh != nullptr) {
-      if (cb.transforms.size() == 1)
+      Texture2D albedo{};
+      mesh_texture(ctx, cb.first->material.texture, albedo);
+      if (cb.transforms.size() == 1) {
+        depth_cut(depth.shader, depth, cb.first->material.alpha_cutoff, albedo);
         DrawMesh(*cb.first->mesh, depth, cb.transforms[0]);
-      else
+      } else {
+        depth_cut(batched.shader, batched, cb.first->material.alpha_cutoff, albedo);
         draw_batched(ctx_ref<render3d_state>(ctx), *cb.first->mesh, batched, cb.transforms);
+      }
       continue;
     }
     const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), cb.first->model);
@@ -2825,14 +2897,18 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
     for (const Matrix &t : cb.transforms)
       placed.push_back(MatrixMultiply(slot->model.transform, t));
     for_each_model_mesh(ctx, *cb.first,
-                        [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &, bool) {
+                        [&](const Mesh &mesh, map_set &own, const model_material &mm, const Matrix &, bool) {
                           if (!mm.surface.cast_shadows && !every_opaque)
                             return;
-                          if (placed.size() == 1 || mesh.vertexCount > batch_max_vertices)
+                          const Texture2D albedo = own[MATERIAL_MAP_DIFFUSE].texture;
+                          if (placed.size() == 1 || mesh.vertexCount > batch_max_vertices) {
+                            depth_cut(depth.shader, depth, mm.surface.alpha_cutoff, albedo);
                             for (const Matrix &t : placed)
                               DrawMesh(mesh, depth, t);
-                          else
+                          } else {
+                            depth_cut(batched.shader, batched, mm.surface.alpha_cutoff, albedo);
                             draw_batched(ctx_ref<render3d_state>(ctx), mesh, batched, placed);
+                          }
                         });
   }
 }
@@ -3477,6 +3553,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
       const f32 reflect = clamp(p.surface->reflect, 0.0f, 1.0f);
       if (mask_loc >= 0)
         rlSetUniform(mask_loc, &reflect, RL_SHADER_UNIFORM_FLOAT, 1);
+      // material3d::alpha_cutoff: the albedo on unit 0 for the cut.
+      const i32 cut_loc = rlGetLocationUniform(shader.id, "alphaCutoff");
+      if (cut_loc >= 0) {
+        const f32 cut = std::max(p.surface->alpha_cutoff, 0.0f);
+        const i32 unit = 0;
+        rlSetUniform(cut_loc, &cut, RL_SHADER_UNIFORM_FLOAT, 1);
+        rlActiveTextureSlot(0);
+        rlEnableTexture(cut > 0.0f ? p.texture.id : default_texture().id);
+        rlSetUniform(rlGetLocationUniform(shader.id, "texture0"), &unit, RL_SHADER_UNIFORM_INT, 1);
+      }
     }
     if (!depth_only) {
       const vec4 color = v4(p.color);
@@ -3541,8 +3627,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
     rlActiveTextureSlot(0);
   }
   }
-  if (!depth_only)
-    rlDisableTexture();
+  rlDisableTexture();
   rlDisableShader();
 }
 
@@ -4890,6 +4975,9 @@ bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
     if (c.mesh != nullptr) {
       if (c.material.reflect > 0.0f) {
         set_mask_value(s.mask, c.material.reflect);
+        Texture2D albedo{};
+        mesh_texture(ctx, c.material.texture, albedo);
+        depth_cut(s.mask, mesh_mat, c.material.alpha_cutoff, albedo);
         DrawMesh(*c.mesh, mesh_mat, c.transform);
       }
       continue;
@@ -4897,8 +4985,8 @@ bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
     if (c.culled || !model_reflects(ctx, c.model))
       continue;
     bool bones_set = false;
-    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &, const model_material &mm, const Matrix &transform,
-                                    bool posed) {
+    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &own, const model_material &mm,
+                                    const Matrix &transform, bool posed) {
       const bool skin = posed && skinned_ok;
       const Shader sh = skin ? s.mask_skinned : s.mask;
       if (skin && !bones_set) {
@@ -4907,7 +4995,9 @@ bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
       }
       // Every part is drawn, so a part that does not reflect clears what is behind it.
       set_mask_value(sh, mm.surface.reflect);
-      DrawMesh(mesh, skin ? skinned_mat : mesh_mat, transform);
+      Material &m = skin ? skinned_mat : mesh_mat;
+      depth_cut(sh, m, mm.surface.alpha_cutoff, own[MATERIAL_MAP_DIFFUSE].texture);
+      DrawMesh(mesh, m, transform);
     });
   }
   rlDrawRenderBatchActive();
@@ -5006,6 +5096,9 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
     const Matrix prev_transform = last != nullptr ? last->transform : c.transform;
     if (c.mesh != nullptr) {
       SetShaderValueMatrix(s.velocity, mesh_prev, prev_transform);
+      Texture2D albedo{};
+      mesh_texture(ctx, c.material.texture, albedo);
+      depth_cut(s.velocity, mesh_mat, c.material.alpha_cutoff, albedo);
       DrawMesh(*c.mesh, mesh_mat, c.transform);
       continue;
     }
@@ -5014,8 +5107,8 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
       continue;
     const Matrix prev_mesh = MatrixMultiply(slot->model.transform, prev_transform);
     bool bones_set = false;
-    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &, const model_material &, const Matrix &transform,
-                                    bool posed) {
+    for_each_model_mesh(ctx, c, [&](const Mesh &mesh, map_set &own, const model_material &mm,
+                                    const Matrix &transform, bool posed) {
       const bool skin = posed && skinned_ok;
       if (skin && !bones_set) {
         set_bones(s, s.velocity_skinned, skin_bones, c);
@@ -5024,7 +5117,9 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
       }
       const Shader sh = skin ? s.velocity_skinned : s.velocity;
       SetShaderValueMatrix(sh, skin ? skin_prev : mesh_prev, prev_mesh);
-      DrawMesh(mesh, skin ? skinned_mat : mesh_mat, transform);
+      Material &m = skin ? skinned_mat : mesh_mat;
+      depth_cut(sh, m, mm.surface.alpha_cutoff, own[MATERIAL_MAP_DIFFUSE].texture);
+      DrawMesh(mesh, m, transform);
     });
   }
   rlDrawRenderBatchActive();

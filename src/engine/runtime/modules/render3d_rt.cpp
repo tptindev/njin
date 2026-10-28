@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstring>
 #include <unordered_map>
+#include <utility>
 #include <raymath.h>
 #include <rlgl.h>
 #include <vector>
@@ -81,6 +82,92 @@ u64 mesh_blas(const Mesh &mesh) {
   in.index_count = mesh.indices != nullptr ? (u32)mesh.triangleCount * 3 : 0;
   // The vertex array id changes when a mesh is freed and another takes its address.
   return rtvk::mesh((u64)(uintptr_t)&mesh, mesh.vaoId * 2654435761u + (u32)mesh.vertexCount, in);
+}
+
+// The alpha of a texture (material3d::alpha_cutoff), read back once per texture.
+struct alpha_image {
+  i32 w = 0, h = 0;
+  std::vector<u8> a;
+};
+const alpha_image &alpha_of(const Texture2D &t) {
+  static std::unordered_map<u32, alpha_image> images;
+  const auto [it, added] = images.try_emplace(t.id);
+  if (added) {
+    Image img = LoadImageFromTexture(t);
+    if (img.data != nullptr && img.width > 0 && img.height > 0) {
+      ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+      const u8 *px = (const u8 *)img.data;
+      it->second.w = img.width, it->second.h = img.height;
+      it->second.a.resize((usize)img.width * (usize)img.height);
+      for (usize i = 0; i < it->second.a.size(); i++)
+        it->second.a[i] = px[i * 4 + 3];
+    }
+    UnloadImage(img);
+  }
+  return it->second;
+}
+
+// A surface cut by its albedo's alpha (material3d::alpha_cutoff), as geometry:
+// every triangle split into cut_steps x cut_steps small ones, those whose middle
+// the alpha covers kept. Rays then pass between the leaves. Built once per mesh
+// and image; a mesh without texture coordinates or an image is whole.
+constexpr i32 cut_steps = 8;
+u64 cut_blas(const Mesh &mesh, const Texture2D &albedo, f32 cutoff) {
+  if (cutoff <= 0.0f || albedo.id == 0 || mesh.vertices == nullptr || mesh.texcoords == nullptr)
+    return mesh_blas(mesh);
+  struct entry {
+    u32 version = 0;
+    std::vector<f32> pos;
+  };
+  static std::unordered_map<u64, entry> cuts;
+  const u64 key = key_mix((u64)(uintptr_t)&mesh, ((u64)albedo.id << 8) ^ (u64)std::lround(cutoff * 255.0f));
+  const u32 version = mesh.vaoId * 2654435761u + (u32)mesh.vertexCount;
+  entry &e = cuts[key];
+  if (e.version != version || e.pos.empty()) {
+    e.version = version;
+    e.pos.clear();
+    const alpha_image &img = alpha_of(albedo);
+    const u8 limit = (u8)clamp(cutoff * 255.0f, 0.0f, 255.0f);
+    const auto solid = [&](f32 u, f32 v) {
+      if (img.a.empty())
+        return true;
+      const i32 x = (i32)((u - std::floor(u)) * (f32)img.w), y = (i32)((v - std::floor(v)) * (f32)img.h);
+      return img.a[(usize)clamp(y, 0, img.h - 1) * (usize)img.w + (usize)clamp(x, 0, img.w - 1)] >= limit;
+    };
+    const i32 tris = mesh.indices != nullptr ? mesh.triangleCount : mesh.vertexCount / 3;
+    for (i32 t = 0; t < tris; t++) {
+      i32 v[3];
+      for (i32 k = 0; k < 3; k++)
+        v[k] = mesh.indices != nullptr ? mesh.indices[t * 3 + k] : t * 3 + k;
+      const auto at = [&](f32 i, f32 j, i32 c) { // barycentric grid point, component c of xyz or uv
+        const f32 a = i / cut_steps, b = j / cut_steps;
+        if (c < 3)
+          return mesh.vertices[v[0] * 3 + c] + (mesh.vertices[v[1] * 3 + c] - mesh.vertices[v[0] * 3 + c]) * a +
+                 (mesh.vertices[v[2] * 3 + c] - mesh.vertices[v[0] * 3 + c]) * b;
+        c -= 3;
+        return mesh.texcoords[v[0] * 2 + c] + (mesh.texcoords[v[1] * 2 + c] - mesh.texcoords[v[0] * 2 + c]) * a +
+               (mesh.texcoords[v[2] * 2 + c] - mesh.texcoords[v[0] * 2 + c]) * b;
+      };
+      const auto keep = [&](f32 i0, f32 j0, f32 i1, f32 j1, f32 i2, f32 j2) {
+        const f32 ci = (i0 + i1 + i2) / 3.0f, cj = (j0 + j1 + j2) / 3.0f;
+        if (!solid(at(ci, cj, 3), at(ci, cj, 4)))
+          return;
+        for (const auto &[i, j] : {std::pair{i0, j0}, std::pair{i1, j1}, std::pair{i2, j2}})
+          for (i32 c = 0; c < 3; c++)
+            e.pos.push_back(at(i, j, c));
+      };
+      for (i32 i = 0; i < cut_steps; i++)
+        for (i32 j = 0; i + j < cut_steps; j++) {
+          keep((f32)i, (f32)j, (f32)i + 1, (f32)j, (f32)i, (f32)j + 1);
+          if (i + j + 1 < cut_steps)
+            keep((f32)i + 1, (f32)j, (f32)i + 1, (f32)j + 1, (f32)i, (f32)j + 1);
+        }
+    }
+  }
+  rtvk::mesh_in in;
+  in.pos = e.pos.data();
+  in.vertex_count = (u32)(e.pos.size() / 3);
+  return rtvk::mesh(key, version, in);
 }
 
 // The pass's scene, rebuilt each trace; its buffers kept between passes.
@@ -153,14 +240,25 @@ void add(gather &g, u64 blas, const Matrix &m, const surface_in &sf) {
   g.inst.push_back(in);
 }
 
+// A model part's albedo image: the game's, else the file's.
+Texture2D part_texture(const context &ctx, const model_slot &m, i32 mesh) {
+  const i32 index = m.model.meshMaterial[mesh];
+  Texture2D t = texture_of(ctx, m.materials[(usize)index].albedo);
+  return t.id != 0 ? t : m.model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
+}
+
+// A model part's BLAS, cut by its material's alpha when it has a cutoff.
+u64 part_blas(const context &ctx, const model_slot &m, i32 mesh, const Mesh &shape) {
+  const model_material &mm = m.materials[(usize)m.model.meshMaterial[mesh]];
+  return cut_blas(shape, part_texture(ctx, m, mesh), mm.surface.alpha_cutoff);
+}
+
 // A model part's surface: its material's colour and albedo image, the draw's
 // tint, its glow.
 surface_in part_surface(const context &ctx, const model_slot &m, i32 mesh, rgba tint) {
   const i32 index = m.model.meshMaterial[mesh];
   const model_material &mm = m.materials[(usize)index];
-  Texture2D t = texture_of(ctx, mm.albedo);
-  if (t.id == 0)
-    t = m.model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
+  const Texture2D t = part_texture(ctx, m, mesh);
   surface_in sf =
       surface_of({mm.color.r * tint.r, mm.color.g * tint.g, mm.color.b * tint.b, 1.0f}, t, mm.surface.emission);
   sf.two_sided = mm.double_sided;
@@ -265,13 +363,14 @@ void add_instanced(context &ctx, const draw3d_cmd &c, gather &g) {
   std::vector<std::pair<u64, surface_in>> parts;
   if (c.mesh != nullptr) {
     if (c.material.cast_shadows && !c.material.unlit)
-      parts.push_back({mesh_blas(*c.mesh), surface_of(colors::white, texture_of(ctx, c.material.texture),
+      parts.push_back({cut_blas(*c.mesh, texture_of(ctx, c.material.texture), c.material.alpha_cutoff),
+                       surface_of(colors::white, texture_of(ctx, c.material.texture),
                                                        c.material.emission)});
   } else if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model)) {
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const model_material &mm = m->materials[(usize)m->model.meshMaterial[i]];
       if (mm.color.a >= 1.0f && !transmits(mm.surface) && mm.surface.cast_shadows)
-        parts.push_back({mesh_blas(m->model.meshes[i]), part_surface(ctx, *m, i, colors::white)});
+        parts.push_back({part_blas(ctx, *m, i, m->model.meshes[i]), part_surface(ctx, *m, i, colors::white)});
     }
   }
   const u32 count = std::min(c.count, slot->count - c.first);
@@ -305,7 +404,7 @@ void add_model(context &ctx, const render3d_state &s, const draw3d_cmd &c, usize
       continue;
     }
     const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
-    add(g, mesh_blas(lod != nullptr ? lod->mesh : model.meshes[i]), transform, sf);
+    add(g, part_blas(ctx, *slot, i, lod != nullptr ? lod->mesh : model.meshes[i]), transform, sf);
   }
 }
 
@@ -333,7 +432,7 @@ void gather_scene(context &ctx, const render3d_state &s, gather &g) {
     }
     if (c.mesh != nullptr) {
       if (c.material.cast_shadows && !c.material.unlit && !transmits(c.material))
-        add(g, mesh_blas(*c.mesh), c.transform,
+        add(g, cut_blas(*c.mesh, texture_of(ctx, c.material.texture), c.material.alpha_cutoff), c.transform,
             surface_of(c.color, texture_of(ctx, c.material.texture), c.material.emission));
       continue;
     }

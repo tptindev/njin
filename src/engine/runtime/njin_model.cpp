@@ -1005,6 +1005,15 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
         if (gltf->materials[i].name != nullptr)
           slot.material_names[i + 1] = gltf->materials[i].name;
         slot.materials[i + 1].double_sided = gltf->materials[i].double_sided != 0;
+        // alphaMode MASK: a cut-out. Its albedo gets mipmaps so far leaves do not sparkle.
+        if (gltf->materials[i].alpha_mode == cgltf_alpha_mode_mask) {
+          slot.materials[i + 1].surface.alpha_cutoff = std::max(gltf->materials[i].alpha_cutoff, 0.001f);
+          Texture2D &albedo = slot.model.materials[i + 1].maps[MATERIAL_MAP_DIFFUSE].texture;
+          if (albedo.id > 0 && albedo.mipmaps <= 1) {
+            GenTextureMipmaps(&albedo);
+            SetTextureFilter(albedo, TEXTURE_FILTER_TRILINEAR);
+          }
+        }
       }
     cgltf_free(gltf);
   }

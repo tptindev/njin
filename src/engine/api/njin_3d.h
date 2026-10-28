@@ -463,6 +463,15 @@ struct material3d {
   /// Không hợp lệ là không dán ảnh. Ảnh đã xếp vào atlas bị bỏ qua.
   texture_handle texture{};
   bool cast_shadows = true;  ///< Đổ bóng khi njin::light3d bật `shadows`.
+  /// Cắt theo alpha (lá cây, hàng rào, tóc thẻ): chỗ alpha của ảnh màu (nhân màu
+  /// vẽ và màu đỉnh) thấp hơn số này thì không có mặt, cả khi vẽ lẫn khi đổ bóng
+  /// (bóng chỉ xét alpha của ảnh). 0 là tắt. Vật vẫn là vật đặc, vẽ cùng lượt với
+  /// vật đặc. Với file glTF, lấy theo `alphaMode: MASK` và `alphaCutoff` của vật
+  /// liệu; ảnh màu của vật liệu ấy được tạo mipmap. Vector chuyển động (TAA,
+  /// motion blur) và mặt nạ SSR cũng cắt theo đó. Bóng ray traced dùng hình của
+  /// mặt đã cắt theo một lưới 8 x 8 mỗi tam giác (dựng một lần cho mỗi mesh),
+  /// trừ model đang có tư thế xương: nó vẫn đổ bóng nguyên tấm.
+  f32 alpha_cutoff = 0.0f;
   /// Opt-in hand-shaped clay normal/albedo variation for SDF draws only.
   /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
   f32 clay = 0.0f;
