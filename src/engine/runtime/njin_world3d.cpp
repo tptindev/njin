@@ -568,7 +568,9 @@ void terrain3d_paint(context &ctx, terrain3d_handle handle, vec3 center, f32 rad
         if (c != layer)
           p[c] = (u8)std::lround((f32)p[c] * (1.0f - f));
       const f32 room = 255.0f - std::min(255.0f, sum - (f32)p[layer]);
-      p[layer] = (u8)std::lround(std::min((f32)p[layer] + f * 255.0f, std::max(room, (f32)p[layer]) + f * 255.0f));
+      // Clamp before narrowing: repeated strokes would otherwise wrap past 255 to near 0.
+      p[layer] = (u8)std::lround(
+          std::min({(f32)p[layer] + f * 255.0f, std::max(room, (f32)p[layer]) + f * 255.0f, 255.0f}));
       if ((i32)p[0] + p[1] + p[2] + p[3] > 255) {
         const f32 over = 255.0f / (f32)((i32)p[0] + p[1] + p[2] + p[3]);
         for (i32 c = 0; c < 4; c++)
