@@ -472,6 +472,12 @@ struct material3d {
   /// mặt đã cắt theo một lưới 8 x 8 mỗi tam giác (dựng một lần cho mỗi mesh),
   /// trừ model đang có tư thế xương: nó vẫn đổ bóng nguyên tấm.
   f32 alpha_cutoff = 0.0f;
+  /// Tuyết phủ, 0..1 (0 là không): mảng tuyết theo một nhiễu trong thế giới (chỗ
+  /// phủ kín, chỗ trống) trên mặt hướng lên, và một viền mỏng dọc mép trên của
+  /// hình mà alpha của ảnh màu vẽ ra (từng lá trên tấm lá cắt). Chỉ đổi màu, không
+  /// thêm hình; lớn thì nhiều mảng kín hơn.
+  f32 snow = 0.0f;
+  rgba snow_color{0.95f, 0.96f, 1.0f, 1.0f}; ///< Màu tuyết của `snow`.
   /// Opt-in hand-shaped clay normal/albedo variation for SDF draws only.
   /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
   f32 clay = 0.0f;

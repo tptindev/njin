@@ -1178,6 +1178,52 @@ uniform mat4 sceneVP;
 // post3d::oit: 0 drawn as usual, 1 into the weighted sum, 2 into the revealage.
 uniform int oitPass;
 uniform float alphaCutoff;     // material3d::alpha_cutoff, 0 off
+uniform vec4 snowCover;        // material3d::snow: rgb its colour, a the amount (0 off)
+
+// Smooth value noise in 3D, 0..1.
+float snow_noise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y);
+  float b = mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x),
+                mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y);
+  return mix(a, b, f.z);
+}
+
+// material3d::snow: how much snow lies at this point, 0..1. Patches from a
+// world noise (some leaves buried, some bare), only on what faces up, and a
+// thin rim along the upper edge of what the albedo's alpha draws (each leaf
+// of a cut-out card), found by looking a little uphill in the image.
+float snow_amount(vec3 n, vec2 uv) {
+  float amount = snowCover.a;
+  float face = smoothstep(-0.1, 0.6, n.y);
+  float broad = snow_noise(fragPos * 0.7);
+  float leaf = snow_noise(fragPos * 2.3 + 5.0);
+  float fine = snow_noise(fragPos * 6.1 + 13.0);
+  // Buried leaves, about one leaf across each, more of them with more snow and
+  // where the broad noise drifts them; between them bare ones.
+  float patch = smoothstep(0.6, 0.8, leaf * 0.6 + broad * 0.25 + fine * 0.15 + (amount - 0.5) * 0.45) * 0.88;
+  float rim = 0.0;
+  if (worldUv <= 0.0) {
+    // The image's direction of world up: the height's gradient carried into uv
+    // through the screen derivatives.
+    vec2 dux = dFdx(uv), duy = dFdy(uv);
+    mat2 j = mat2(dux, duy);
+    if (abs(determinant(j)) > 1e-12) {
+      vec2 g = inverse(transpose(j)) * vec2(dFdx(fragPos.y), dFdy(fragPos.y));
+      if (dot(g, g) > 1e-12) {
+        vec2 step = normalize(g) * 0.02;
+        float here = texture(texture0, uv).a;
+        float above = max(texture(texture0, uv + step).a, texture(texture0, uv + step * 2.0).a * 0.7);
+        rim = smoothstep(0.15, 0.75, here - above);
+      }
+    }
+    // Far off a leaf is a few pixels: the rim would only sparkle there.
+    rim *= 1.0 - smoothstep(0.012, 0.025, max(length(dux), length(duy)));
+  }
+  rim *= smoothstep(0.2, 0.6, fine * 0.6 + broad * 0.4 + amount * 0.4) * 0.95;
+  return clamp(face * max(patch, rim) * min(amount * 2.0, 1.0), 0.0, 1.0);
+}
 
 // Normal mapping without tangents: the frame comes from screen derivatives
 // (Christian Schueler, "Normal Mapping Without Precomputed Tangents").
@@ -1405,6 +1451,8 @@ void main() {
     vec3 lm = texture(lightMap, lightmapParams.w > 0.5 ? fragTexCoord2 : uv).rgb;
     surfAmbient = (lightmapParams.z > 0.5 ? srgb_to_linear(lm) : lm) * lightmapParams.y;
   }
+  if (snowCover.a > 0.0)
+    base.rgb = mix(base.rgb, snowCover.rgb, snow_amount(n, uv));
   vec4 color = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
 #ifdef NJIN_EXT
   if (transmit.x > 0.0 && sceneOn == 1) {
@@ -1973,6 +2021,7 @@ render3d_locations find_locations(Shader shader) {
   l.unlit = loc("unlit");
   l.use_normal_map = loc("useNormalMap");
   l.alpha_cutoff = loc("alphaCutoff");
+  l.snow_cover = loc("snowCover");
   l.use_emission_map = loc("useEmissionMap");
   l.world_uv = loc("worldUv");
   l.under_amount = loc("underAmount");
@@ -2587,6 +2636,7 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
   set_i32(sh, l.unlit, m.unlit ? 1 : 0);
   set_i32(sh, l.use_normal_map, normal_map ? 1 : 0);
   set_f32(sh, l.alpha_cutoff, std::max(m.alpha_cutoff, 0.0f));
+  set_vec4(sh, l.snow_cover, {m.snow_color.r, m.snow_color.g, m.snow_color.b, clamp(m.snow, 0.0f, 1.0f)});
   set_i32(sh, l.use_emission_map, emission_map ? 1 : 0);
   set_f32(sh, l.world_uv, std::max(m.world_uv, 0.0f));
   set_f32(sh, l.under_amount, under_map && m.world_uv > 0.0f ? std::clamp(m.under_amount, 0.0f, 1.0f) : 0.0f);

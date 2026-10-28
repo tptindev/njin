@@ -41,7 +41,7 @@ struct render3d_locations {
   i32 light_count = -1, light_pos = -1, light_colors = -1, light_spot = -1;
   i32 surface = -1, emission = -1, rim = -1, emission_color = -1, unlit = -1;
   i32 use_normal_map = -1, use_emission_map = -1, world_uv = -1, under_amount = -1, use_under_normal = -1;
-  i32 alpha_cutoff = -1;
+  i32 alpha_cutoff = -1, snow_cover = -1;
   i32 shadow_on = -1, shadow_map = -1, light_vp = -1, shadow_params = -1;
   i32 flash = -1, dissolve = -1, edge_color = -1, view_mask = -1;
   // The SDF shader only.
