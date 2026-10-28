@@ -320,48 +320,82 @@ void view_mask_cut(vec3 pos) {
     discard;
 }
 
-// Share of the sun reaching `pos`, 3x3 percentage-closer filtering.
-float sunlight(vec3 pos, vec3 n, vec3 l) {
-  // Looked up a little off the surface along its normal, so faces almost
-  // parallel to the light do not shadow themselves in stripes.
-  vec4 lp = lightVP * vec4(pos + n * shadowParams.z * 1.5, 1.0);
-  vec3 c = lp.xyz / lp.w * 0.5 + 0.5;
-  if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0)
-    return 1.0;
-  float bias = shadowParams.x * (1.5 + 2.0 * (1.0 - max(dot(n, l), 0.0)));
-  float step = shadowParams.x * max(shadowParams.y, 0.0);
+// Sine and tangent of the angle between the surface and the sun, the tangent
+// held below 8 so faces edge-on to the sun do not push their bias to infinity.
+vec2 sun_slope(vec3 n, vec3 l) {
+  float c = clamp(dot(n, l), 0.05, 1.0);
+  float s = sqrt(1.0 - c * c);
+  return vec2(s, min(s / c, 8.0));
+}
+
+// One tap of the sun's map in tile `tile` of `tiles` (0..1 across the tile,
+// `texel` one of its texels): the four nearest texels compared at depth `z`
+// and blended by where `uv` falls between them, so an edge slides smoothly
+// instead of a whole texel at a time.
+float sun_tap(vec2 uv, float z, float texel, float tile, float tiles) {
+  vec2 p = uv / texel - 0.5;
+  vec2 f = fract(p);
+  vec2 b = (floor(p) + 0.5) * texel;
+  vec4 lit;
+  lit.x = z <= texture(shadowMap, vec2((tile + b.x) / tiles, b.y)).r ? 1.0 : 0.0;
+  lit.y = z <= texture(shadowMap, vec2((tile + b.x + texel) / tiles, b.y)).r ? 1.0 : 0.0;
+  lit.z = z <= texture(shadowMap, vec2((tile + b.x) / tiles, b.y + texel)).r ? 1.0 : 0.0;
+  lit.w = z <= texture(shadowMap, vec2((tile + b.x + texel) / tiles, b.y + texel)).r ? 1.0 : 0.0;
+  return mix(mix(lit.x, lit.y, f.x), mix(lit.z, lit.w, f.x), f.y);
+}
+
+// 3x3 blended taps `step` apart round `uv`, compared at depth `z`.
+float sun_pcf(vec2 uv, float z, float step, float tile, float tiles) {
   float lit = 0.0;
   for (int x = -1; x <= 1; x++)
     for (int y = -1; y <= 1; y++)
-      lit += c.z - bias <= texture(shadowMap, c.xy + vec2(x, y) * step).r ? 1.0 : 0.0;
+      lit += sun_tap(uv + vec2(x, y) * step, z, shadowParams.x, tile, tiles);
   return lit / 9.0;
+}
+
+// Depth bias in world units for a map whose texel is `texelWorld` metres: one
+// texel, and how far a face tilted from the sun falls away across the
+// filter's reach (the taps plus the blend's neighbour texel), the tilt held
+// to a tangent of 2. Past that the look-up's step off the surface does the
+// work: a depth bias slides the shadow's edge along a face the sun grazes,
+// metres for a coarse cascade, so it would creep as a point changed cascade.
+float sun_bias(float texelWorld, vec2 slope) {
+  return texelWorld * (1.0 + 0.5 * min(slope.y, 2.0) * (max(shadowParams.y, 0.0) + 1.0));
+}
+
+// Share of the sun reaching `pos`, 3x3 percentage-closer filtering.
+float sunlight(vec3 pos, vec3 n, vec3 l) {
+  // Looked up a little off the surface along its normal, more as the sun
+  // grazes it, so faces almost parallel to the light do not shadow
+  // themselves in stripes.
+  vec2 slope = sun_slope(n, l);
+  vec4 lp = lightVP * vec4(pos + n * shadowParams.z * (1.0 + 2.0 * slope.x), 1.0);
+  vec3 c = lp.xyz / lp.w * 0.5 + 0.5;
+  if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0)
+    return 1.0;
+  // The map's depth spans twice its width: 2 * texelWorld / texel metres.
+  float bias = sun_bias(shadowParams.z, slope) * shadowParams.x / (2.0 * shadowParams.z);
+  return sun_pcf(c.xy, c.z - bias, shadowParams.x * max(shadowParams.y, 0.0), 0.0, 1.0);
 }
 
 // Share of the sun reaching `pos` in cascade `i`, or -1 when `pos` is outside it.
 float cascade_light(int i, vec3 pos, vec3 n, vec3 l) {
   float texelWorld = cascadeTexel[i];
-  vec4 lp = cascadeVP[i] * vec4(pos + n * texelWorld * 1.5, 1.0);
+  vec2 slope = sun_slope(n, l);
+  vec4 lp = cascadeVP[i] * vec4(pos + n * texelWorld * (1.0 + 2.0 * slope.x), 1.0);
   vec3 c = lp.xyz / lp.w * 0.5 + 0.5;
   float step = shadowParams.x * max(shadowParams.y, 0.0);
-  float edge = step * 1.5 + shadowParams.x;
+  float edge = step * 1.5 + shadowParams.x * 2.0;
   if (c.x <= edge || c.x >= 1.0 - edge || c.y <= edge || c.y >= 1.0 - edge || c.z >= 1.0)
     return -1.0;
-  // The same bias in world units as the single map's.
-  float bias = 2.0 * texelWorld * (1.5 + 2.0 * (1.0 - max(dot(n, l), 0.0))) / cascadeSpan[i];
-  float n_c = float(shadowCascades);
-  float lit = 0.0;
-  for (int x = -1; x <= 1; x++)
-    for (int y = -1; y <= 1; y++) {
-      vec2 q = c.xy + vec2(x, y) * step;
-      lit += c.z - bias <= texture(shadowMap, vec2((float(i) + q.x) / n_c, q.y)).r ? 1.0 : 0.0;
-    }
-  return lit / 9.0;
+  float bias = sun_bias(texelWorld, slope) / cascadeSpan[i];
+  return sun_pcf(c.xy, c.z - bias, step, float(i), float(shadowCascades));
 }
 
-// Share of the sun reaching `pos` through the cascades, the last tenth of each
-// blended into the next so the change of sharpness does not show as a line.
-float sunlight_cascades(vec3 pos, vec3 n, vec3 l) {
-  float d = dot(pos - viewPos, viewDir);
+// Share of the sun reaching `pos` through the first cascade whose far
+// distance is past `d`, the last tenth of each blended into the next so the
+// change of sharpness does not show as a line; -1 when none holds it.
+float cascades_at(float d, vec3 pos, vec3 n, vec3 l) {
   for (int i = 0; i < 4; i++) {
     if (i >= shadowCascades)
       break;
@@ -378,7 +412,25 @@ float sunlight_cascades(vec3 pos, vec3 n, vec3 l) {
     }
     return a;
   }
-  return 1.0;
+  return -1.0;
+}
+
+// Share of the sun reaching `pos` through the cascades: picked by the
+// distance from the eye, so turning the view does not hand a point (a far
+// hill) to a cascade of another sharpness; by the depth along the view, whose
+// slice its cascade always covers, out at the side of a wide view where the
+// distance's cascade does not reach.
+// The shadows fade out over the last sixth of the range rather than stop at a
+// line, which would sweep across the land as the camera moves.
+float sunlight_cascades(vec3 pos, vec3 n, vec3 l) {
+  float r = length(pos - viewPos);
+  float a = cascades_at(r, pos, n, l);
+  if (a < 0.0)
+    a = cascades_at(dot(pos - viewPos, viewDir), pos, n, l);
+  if (a < 0.0)
+    return 1.0;
+  float range = cascadeSplit[shadowCascades - 1];
+  return mix(a, 1.0, smoothstep(range * 0.83, range, r));
 }
 
 // Channel `c` of the ray traced shadows at this pixel (1 without them).
@@ -2838,7 +2890,8 @@ i32 cascade_count(const render3d_state &s) {
 // The sun's cascades (light3d::shadow_cascades) into the shadow atlas, a
 // square tile each: the view from the camera's near plane to shadow_range
 // split between a linear and a logarithmic spread, each slice in a sphere
-// (so its size does not change as the camera turns) snapped to whole texels.
+// (so its size does not change as the camera turns) of a size rounded to
+// coarse steps and snapped to whole texels.
 void render_cascades(context &ctx) {
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   const light3d &sun = s.light;
@@ -2867,6 +2920,11 @@ void render_cascades(context &ctx) {
   rlClearColor(255, 255, 255, 255);
   rlClearScreenBuffers();
   rlEnableDepthTest();
+  const vec4 key{(f32)n, far_d, lambda, aspect};
+  if (key.x != s.cascade_key.x || key.y != s.cascade_key.y || key.z != s.cascade_key.z || key.w != s.cascade_key.w) {
+    s.cascade_radius = {};
+    s.cascade_key = key;
+  }
   f32 from = near_d;
   f32 split[4]{}, texel[4]{}, span[4]{};
   for (i32 i = 0; i < n; i++) {
@@ -2887,12 +2945,21 @@ void render_cascades(context &ctx) {
     f32 radius = 0.0f;
     for (const vec3 &p : corners)
       radius = std::max(radius, distance(p, center));
-    radius = std::ceil(radius * 16.0f) / 16.0f;
+    // Rounded up to steps of an eighth of an octave: a field of view that
+    // eases with speed then changes the texel size only now and then, not
+    // every frame (which would make every edge crawl however it is snapped).
+    radius = std::exp2(std::ceil(std::log2(std::max(radius, 0.01f)) * 8.0f) / 8.0f);
+    // Never smaller than it has been: one that eases back would change the
+    // texels again on the way down.
+    radius = std::max(radius, s.cascade_radius[(usize)i]);
+    s.cascade_radius[(usize)i] = radius;
     const f32 step = 2.0f * radius / (f32)size;
     const f32 cx = dot(center, right), cy = dot(center, up);
     center -= right * (cx - std::floor(cx / step) * step) + up * (cy - std::floor(cy / step) * step);
-    // Casters up to shadow_range towards the sun still land in it.
-    const f32 back = far_d + radius;
+    // Casters as far towards the sun as the camera sees still land in it: a
+    // mountain shades the valley under a low sun from well past shadow_range.
+    // The depth stays linear, so the longer span costs no precision to speak of.
+    const f32 back = std::max(far_d, std::min(s.camera.far_plane, 2000.0f)) + radius;
     const f32 depth_far = back + radius * 2.0f;
     rlViewport(i * size, 0, size, size);
     rlMatrixMode(RL_PROJECTION);

@@ -88,23 +88,27 @@ float density_at(vec3 p) {
   return d;
 }
 
-// The sun's share at a fog sample: the single map read once, not filtered
-// 3 x 3 (nine reads a step was most of the fog's cost; the steps' jitter,
-// averaged over frames, softens the edge instead); the cascades as the
-// lighting reads them. Outside the map (or the last cascade): lit, or with
-// light3d::volume_dark_outside (volE.y) dark.
+// The sun's share at a fog sample: the map, or its cascade, read once, not
+// filtered 3 x 3 (nine reads a step was most of the fog's cost; the steps'
+// jitter, averaged over frames, softens the edge instead). Outside the map
+// (or the last cascade): lit, or with light3d::volume_dark_outside (volE.y)
+// dark.
 float fog_sun(vec3 p, vec3 l) {
   float outside = volE.y > 0.5 ? 0.0 : 1.0;
-  if (shadowOn == 2 && volE.y > 0.5) {
+  if (shadowOn == 2) {
     float d = dot(p - viewPos, viewDir);
     for (int i = 0; i < 4; i++) {
       if (i >= shadowCascades)
         break;
       if (d > cascadeSplit[i])
         continue;
-      float a = cascade_light(i, p, l, l);
-      if (a >= 0.0)
-        return a;
+      vec4 lp = cascadeVP[i] * vec4(p, 1.0);
+      vec3 c = lp.xyz / lp.w * 0.5 + 0.5;
+      float edge = shadowParams.x * 2.0;
+      if (c.x <= edge || c.x >= 1.0 - edge || c.y <= edge || c.y >= 1.0 - edge || c.z >= 1.0)
+        continue;
+      float bias = cascadeTexel[i] / cascadeSpan[i];
+      return sun_tap(c.xy, c.z - bias, shadowParams.x, float(i), float(shadowCascades));
     }
     return outside;
   }

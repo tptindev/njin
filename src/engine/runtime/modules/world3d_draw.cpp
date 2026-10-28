@@ -1252,6 +1252,11 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
   }
   const std::array<vec4, 6> planes = depth ? planes_of(view_proj) : s.frustum;
   const vec3 eye = s.camera.position;
+  // The ground is one sheet, not a solid: a slope turned from a low sun shows
+  // the light only its underside, which still has to block it (the mountain
+  // shades the valley in front of it).
+  if (depth)
+    rlDisableBackfaceCulling();
   for (i32 cz = 0; cz < t.chunks; cz++)
     for (i32 cx = 0; cx < t.chunks; cx++) {
       vec3 lo, hi;
@@ -1272,6 +1277,8 @@ void draw_terrain(context &ctx, terrain3d_slot &t, const Matrix &view_proj, bool
       set_v4(p, "terrainGrid", {t.desc.origin.x, t.desc.origin.z, t.spacing, skirt});
       draw_mesh(grid_of(g, t.chunk, step));
     }
+  if (depth)
+    rlEnableBackfaceCulling();
   unbind_units(0, unit_splat);
   if (!depth)
     unbind_units(unit_cover, unit_cover);

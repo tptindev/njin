@@ -280,6 +280,11 @@ struct render3d_state {
   i32 cascades = 1;
   std::array<Matrix, 4> cascade_vp{};
   vec4 cascade_split{}, cascade_texel{}, cascade_span{};
+  // The largest each cascade's sphere has been since the cascades last changed
+  // (cascade_key: count, far distance, split, aspect): a field of view that
+  // eases back with speed leaves the texels as they were.
+  std::array<f32, 4> cascade_radius{};
+  vec4 cascade_key{};
   // The opt-in parts (render3d_ext.h).
   hdr_state hdr;
   lights_ext lext;
