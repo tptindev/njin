@@ -1265,4 +1265,18 @@ void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count)
 }
 
 i32 weather3d_cover_count(const context &ctx) { return (i32)ctx_ref<world3d_store>(ctx)->covers.size(); }
+
+void weather3d_snow_flakes_set(context &ctx, texture_handle flakes, i32 columns, i32 rows, f32 sparkle) {
+  world3d_store &w = *ctx_ref<world3d_store>(ctx);
+  if (columns < 1 || columns > 16 || rows < 1 || rows > 16) {
+    NJIN_WARN("weather3d_snow_flakes_set: a %dx%d grid, columns and rows must be 1..16: back to soft dots", columns,
+              rows);
+    w.flakes = {};
+    return;
+  }
+  w.flakes = flakes;
+  w.flake_columns = columns;
+  w.flake_rows = rows;
+  w.flake_sparkle = std::isfinite(sparkle) ? std::clamp(sparkle, 0.0f, 4.0f) : 0.0f;
+}
 } // namespace njin

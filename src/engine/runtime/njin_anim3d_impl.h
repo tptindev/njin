@@ -39,8 +39,10 @@ struct retarget_slot {
 
 struct foot_leg_state {
   foot3d_leg bones;
-  f32 lift = 0.0f;              // the ground under the foot over the draw's origin, world, eased
+  f32 lift = 0.0f;              // the ground under the foot over the draw's origin (tilted: the
+                                // model's y = 0 plane under the ankle), world, eased
   vec3 normal{0.0f, 1.0f, 0.0f}; // the ground's normal in model space, eased
+  vec3 pole{0.0f, 0.0f, 1.0f};   // where the middle joint bends a straight leg, model space, unit
 };
 
 struct foot_slot {
@@ -48,7 +50,7 @@ struct foot_slot {
   model_handle model{};
   std::vector<foot_leg_state> legs;
   f32 max_step = 0.5f, max_tilt = 35.0f, smoothing = 15.0f;
-  vec3 knee_forward{0.0f, 0.0f, 1.0f};
+  bool tilted = false; // ground measured from the model's own y = 0 plane, not the draw's height
   f32 hip = 0.0f;    // the hips' drop, world, eased
   bool fresh = true; // the next update places the feet at once
 };

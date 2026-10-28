@@ -211,9 +211,79 @@ void particles3d_clear(context &ctx) { ctx_ref<particles3d_state>(ctx)->bursts.c
 
 i32 particles3d_count(const context &ctx) { return (i32)live_count(ctx_ref<particles3d_state>(ctx)); }
 
+void draw_ribbon3d(context &ctx, const ribbon3d_point *points, u32 count, const ribbon3d_desc &desc) {
+  if (points == nullptr || count < 2 || !ctx_ref<render3d_state>(ctx)->active)
+    return;
+  particles3d_state &s = ctx_ref<particles3d_state>(ctx);
+  s.ribbons.push_back({.first = (u32)s.ribbon_points.size(), .count = count, .desc = desc});
+  s.ribbon_points.insert(s.ribbon_points.end(), points, points + count);
+}
+
+namespace {
+// The pass's ribbons as strips of quads facing the camera. Each point gets one
+// pair of edge corners, across the line through its neighbours as the camera
+// sees it, shared by the quads on both sides of it: no gap and no overlap at
+// the joins, which an additive glow would show as beads.
+void draw_ribbons(context &ctx, particles3d_state &s, const camera3d &view) {
+  thread_local std::vector<vec3> sides;
+  rlDrawRenderBatchActive();
+  rlDisableBackfaceCulling();
+  for (const ribbon3d_record &r : s.ribbons) {
+    const ribbon3d_point *pts = &s.ribbon_points[r.first];
+    sides.assign(r.count, vec3{});
+    vec3 last{0.0f, 1.0f, 0.0f};
+    for (u32 i = 0; i < r.count; i++) {
+      const vec3 tangent = pts[i + 1 < r.count ? i + 1 : i].pos - pts[i > 0 ? i - 1 : 0].pos;
+      const vec3 eye = view.projection == camera3d_orthographic ? view.target - view.position
+                                                                : pts[i].pos - view.position;
+      const vec3 across = cross(tangent, eye);
+      // Seen end on, the line has no across: keep the neighbour's.
+      if (length_sq(across) > 1e-12f)
+        last = normalize(across);
+      sides[i] = last * (pts[i].width * 0.5f);
+    }
+    blend_begin(ctx, r.desc.blend);
+    const bool look = ribbon3d_look_begin(ctx, s.looks, r.desc.style, r.desc.intensity);
+    const f32 along = 1.0f / (f32)(r.count - 1);
+    for (u32 i = 0; i + 1 < r.count; i++) {
+      const ribbon3d_point &a = pts[i], &b = pts[i + 1];
+      if (a.color.a <= 0.0f && b.color.a <= 0.0f)
+        continue;
+      Color ca{}, cb{};
+      to_raylib(a.color, ca);
+      to_raylib(b.color, cb);
+      const vec3 al = a.pos - sides[i], ar = a.pos + sides[i];
+      const vec3 bl = b.pos - sides[i + 1], br = b.pos + sides[i + 1];
+      const f32 va = (f32)i * along, vb = (f32)(i + 1) * along;
+      rlSetTexture(rlGetTextureIdDefault());
+      rlBegin(RL_QUADS);
+      rlColor4ub(ca.r, ca.g, ca.b, ca.a);
+      rlTexCoord2f(0.0f, va);
+      rlVertex3f(al.x, al.y, al.z);
+      rlTexCoord2f(1.0f, va);
+      rlVertex3f(ar.x, ar.y, ar.z);
+      rlColor4ub(cb.r, cb.g, cb.b, cb.a);
+      rlTexCoord2f(1.0f, vb);
+      rlVertex3f(br.x, br.y, br.z);
+      rlTexCoord2f(0.0f, vb);
+      rlVertex3f(bl.x, bl.y, bl.z);
+      rlEnd();
+      rlSetTexture(0);
+    }
+    rlDrawRenderBatchActive();
+    if (look)
+      EndShaderMode();
+    blend_end(ctx);
+  }
+  rlEnableBackfaceCulling();
+  s.ribbons.clear();
+  s.ribbon_points.clear();
+}
+} // namespace
+
 void particles3d_draw(context &ctx, const camera3d &view) {
   particles3d_state &s = ctx_ref<particles3d_state>(ctx);
-  if (s.bursts.empty())
+  if (s.bursts.empty() && s.ribbons.empty())
     return;
   if (!IsTextureValid(s.disc))
     s.disc = make_disc();
@@ -334,6 +404,8 @@ void particles3d_draw(context &ctx, const camera3d &view) {
     }
     blend_end(ctx);
   }
+  if (!s.ribbons.empty())
+    draw_ribbons(ctx, s, view);
   rlDrawRenderBatchActive();
   rlEnableDepthMask();
 }

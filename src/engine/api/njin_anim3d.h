@@ -181,6 +181,11 @@ struct foot3d_leg {
   i32 upper = -1; ///< Đùi.
   i32 lower = -1; ///< Cẳng chân.
   i32 foot = -1;  ///< Bàn chân.
+  /// Hướng khớp giữa (gối, cổ chân sau của con vật bốn chân) gập về phía đó khi
+  /// animation để chân thẳng, theo trục của model. 0 là theo
+  /// `foot3d_desc::knee_forward`. Chân trước và chân sau của con vật gập ngược
+  /// nhau: gối trước ra trước, khuỷu chân sau ra sau.
+  vec3 knee_forward{0.0f, 0.0f, 0.0f};
 };
 
 /// Cách tạo một bộ đặt chân. Mảng `legs` chỉ cần sống đến khi foot3d_create()
@@ -202,6 +207,12 @@ struct foot3d_desc {
   /// Hướng đầu gối gập về phía đó, theo trục của model (thường là hướng nhìn).
   /// Dùng khi animation để chân thẳng; chân đã gập thì giữ phía gập của animation.
   vec3 knee_forward{0.0f, 0.0f, 1.0f};
+  /// Model được vẽ nghiêng theo mặt đất (con vật bốn chân có thân chúi theo
+  /// dốc, nhân vật trên boong tàu chòng chành): mặt đất của animation là mặt
+  /// y = 0 của model đã nghiêng, nên mỗi chân đo đất so với mặt đó ngay dưới cổ
+  /// chân, và bàn chân nghiêng từ trục y của model sang mặt đất. `false`: gốc
+  /// của lần vẽ đứng thẳng, đất đo so với độ cao của gốc (như character3d).
+  bool tilted = false;
 };
 
 /// Tạo một bộ đặt chân cho một nhân vật: mỗi frame, mỗi bàn chân của animation

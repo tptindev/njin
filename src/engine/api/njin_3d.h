@@ -889,6 +889,30 @@ struct model_lod_desc {
 /// @return Số mức đã tạo, 0 nếu model quá đơn giản để giản lược hay handle không hợp lệ.
 i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &desc = {});
 
+/// Gắn các mức chi tiết làm sẵn (file glTF xuất từ công cụ khác) vào model,
+/// thay cho model_lod_build(): file thứ k là mức k+1 và được chọn như mức của
+/// model_lod_build() (mức 1 khi model cao chưa tới `screen` chiều cao màn hình,
+/// mỗi mức sau ở một nửa mức trước). Mỗi file phải có cùng số mesh, mesh thứ i
+/// dùng cùng material với mesh thứ i của model: chỉ lưới được lấy, material và
+/// texture của file bị bỏ. Không dùng cho model có xương hay morph.
+///
+/// Gọi lại thì thay các mức cũ (cả mức của model_lod_build()). model_unload()
+/// giải phóng cả các mức.
+///
+/// @code
+/// const njin::model_handle tree = njin::model_load(ctx, "tree.glb");
+/// const char *levels[] = {"tree_lod1.glb", "tree_lod2.glb"};
+/// njin::model_lod_load(ctx, tree, levels, 2);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param handle Model từ model_load().
+/// @param paths Đường dẫn các file, từ mức 1 trở đi.
+/// @param count Số file, 1..4.
+/// @param screen Như njin::model_lod_desc::screen.
+/// @return Số mức đã gắn, 0 nếu có file không nạp được hay không khớp với model
+/// (cảnh báo nói vì sao; model khi đó không có mức nào).
+i32 model_lod_load(context &ctx, model_handle handle, const char *const *paths, i32 count, f32 screen = 0.25f);
+
 /// Vị trí, hướng và tỉ lệ của một vật 3D.
 ///
 /// Thứ tự áp dụng: phóng theo `scale`, xoay quanh `z` (roll), rồi quanh `x`
@@ -1756,6 +1780,52 @@ void particles3d_clear(context &ctx);
 /// @param ctx Context của engine.
 /// @return Số hạt.
 i32 particles3d_count(const context &ctx);
+
+/// Kiểu vẽ có sẵn của dải 3D (ribbon3d_desc::style).
+enum ribbon3d_style {
+  ribbon3d_flat, ///< Màu của điểm phủ đều bề ngang, mép mềm.
+  /// Vệt sáng: lõi trắng nóng dọc giữa, màu của điểm toả thành quầng mềm tắt
+  /// dần ra hai mép. Vệt sao băng, tia phép, vệt chém. Dùng với `blend_additive`.
+  ribbon3d_glow,
+};
+
+/// Một điểm của dải 3D, dùng với draw_ribbon3d().
+struct ribbon3d_point {
+  vec3 pos{};                         ///< Vị trí, đơn vị thế giới 3D.
+  f32 width = 0.1f;                   ///< Bề ngang của dải ở điểm này (cả quầng sáng), đơn vị thế giới 3D.
+  rgba color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu; `a` là độ đậm (độ sáng khi cộng màu). 0 là tắt hẳn.
+};
+
+/// Cách vẽ một dải 3D bằng draw_ribbon3d().
+struct ribbon3d_desc {
+  blend_mode blend = blend_additive;    ///< Cách trộn màu.
+  ribbon3d_style style = ribbon3d_glow; ///< Kiểu vẽ.
+  /// Nhân vào độ sáng của màu. Với ảnh HDR (light3d::hdr) lớn hơn 1 là sáng
+  /// hơn trắng, tràn ra bloom (post3d::bloom); không có HDR thì bị cắt ở trắng.
+  f32 intensity = 1.0f;
+};
+
+/// Vẽ một dải mềm đi qua `points` theo thứ tự, luôn quay mặt về camera: vệt bay
+/// sau tên lửa, sao băng, đuôi kiếm, dải phép. Bề ngang và màu đổi mượt từ điểm
+/// này sang điểm kế, các đoạn nối liền nhau không có khe hay chỗ chồng, nên
+/// điểm càng dày dải càng cong mượt (game tự làm mượt đường cong nếu cần).
+///
+/// Vẽ ở end_3d() cùng các hạt 3D (particles3d_spawn()): sau các vật khác, bị vật
+/// đục che nhưng không che gì, không đổ bóng. Chỉ có tác dụng giữa begin_3d() và
+/// end_3d(); engine chép các điểm nên mảng không cần giữ đến lúc vẽ.
+/// @code
+/// // Vệt sao băng: đầu trắng sáng, đuôi vàng mảnh và tắt dần.
+/// for (njin::u32 i = 0; i < n; i++) {
+///   const njin::f32 t = (njin::f32)i / (njin::f32)(n - 1); // 0 ở đuôi, 1 ở đầu
+///   pts[i] = {.pos = path[i], .width = 0.05f + 0.3f * t, .color = {1.0f, 0.8f, 0.3f, t * t}};
+/// }
+/// njin::draw_ribbon3d(ctx, pts, n, {.intensity = 2.0f});
+/// @endcode
+/// @param ctx Context của engine.
+/// @param points Các điểm, từ đầu này đến đầu kia; dưới 2 điểm thì không vẽ.
+/// @param count Số điểm.
+/// @param desc Cách trộn màu, kiểu vẽ và độ sáng.
+void draw_ribbon3d(context &ctx, const ribbon3d_point *points, u32 count, const ribbon3d_desc &desc = {});
 
 /// Component: một model vẽ tại njin::transform3d của entity, trong mọi lần vẽ 3D
 /// có `camera3d::entities` (engine thêm nó ở end_3d(), cùng các lệnh vẽ của game).

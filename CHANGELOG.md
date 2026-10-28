@@ -10,6 +10,29 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Ribbons in 3D: `draw_ribbon3d()` draws a soft strip through a list of
+  points, facing the camera, with width and colour per point (missile
+  trails, meteors, sword trails, spell streaks). `ribbon3d_glow` has a hot
+  white core and a fading halo, `ribbon3d_flat` an even fill; drawn at
+  `end_3d()` with the 3D particles.
+
+- Levels of detail made elsewhere: `model_lod_load()` attaches glTF files
+  exported as simpler versions of a model (a plant generator's `_lod1`,
+  `_lod2`) as its levels, picked like those of `model_lod_build()`. For
+  models the simplifier cannot reduce well, such as trees made of closed
+  masses.
+
+- Shaped snowflakes: `weather3d_snow_flakes_set()` takes an image cut into a
+  grid of white flakes (alpha is the shape); each falling flake picks a cell
+  and turns slowly, and with `sparkle` the near flakes glint as a face turns
+  to the light. Without it the snow is the soft dots as before.
+
+- Feet for four-legged animals: `foot3d_leg::knee_forward` bends each leg its
+  own way when the animation has it straight (forelegs forward, hind legs
+  back), and `foot3d_desc::tilted` measures the ground from the model's own
+  y = 0 plane as drawn, for a body pitched and rolled along a slope. Both are
+  opt-in; a foot3d created without them places feet as before.
+
 - Ways to draw less in 3D, all opt-in (a scene that sets none of it draws
   pixel for pixel as before):
   - `render3d_options_set()`: `order` sorts the opaque draws front to back

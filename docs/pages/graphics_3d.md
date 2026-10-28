@@ -119,6 +119,15 @@ giữ đường ranh giữa các màu và các mảnh UV, nên lưới phẳng c
 như không giản lược được; model_lod_build() khi đó trả về 0. ray3d_model() luôn dùng model gốc;
 draw_instanced3d() cũng vậy, trừ bản nhận njin::instanced3d_desc (xem @ref instancing3d_cull).
 
+Khi công cụ làm model đã xuất sẵn các mức (như `tree_lod1.glb`, `tree_lod2.glb`), model_lod_load()
+gắn chúng vào model thay cho việc giản lược. Mỗi file phải có cùng số mesh và mesh thứ i dùng
+cùng material với model; chỉ lưới được lấy, nên các mức vẫn dùng material của model.
+
+@code
+const char *levels[] = {"assets/tree_lod1.glb", "assets/tree_lod2.glb"};
+njin::model_lod_load(ctx, tree, levels, 2);
+@endcode
+
 ## Animation của model
 
 Một glTF có skin (xương) mang theo các animation của nó: model_load() nạp chúng cùng model.
@@ -291,6 +300,11 @@ lên); foot3d_reset() sau khi dịch chuyển tức thời. `weight` giảm về
 
 Không đưa `legs` thì foot3d_create() tự tìm hai chân người theo bone_humanoid_name(). Gốc của lần vẽ là chỗ nhân vật
 đứng: chân của character3d (character3d_position()). Tia dò không trúng character3d, chỉ trúng body và địa hình.
+
+Con vật bốn chân đưa bốn chân trong `legs`, mỗi chân một `knee_forward` (gối chân trước gập ra trước, khớp chân
+sau gập ra sau). Thân của nó thường được vẽ nghiêng theo dốc (`transform.rotation` có pitch và roll): đặt `tilted`
+thì mặt đất của animation là mặt y = 0 của model đã nghiêng, mỗi chân đo đất so với mặt đó dưới cổ chân, nên chân
+chỉ bù phần mặt đất lệch khỏi thân (một móng trên mô đất, bốn móng trên hai mái của nóc nhà).
 
 Thứ tự khi dùng chung: retarget3d_pose(), rồi foot3d_update() với `pose.bones` là kết quả đó, rồi spring3d_update()
 với `pose.bones` là kết quả của foot3d (tóc đung đưa theo người đã hạ xuống), rồi vẽ.

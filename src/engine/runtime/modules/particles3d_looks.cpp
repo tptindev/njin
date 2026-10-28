@@ -86,12 +86,15 @@ uniform vec3 lightColor;
 uniform vec3 ambient;
 out vec4 finalColor;
 )" NJIN_NOISE3 R"(
-float fbm(vec3 p) {
+// `pix` is how many noise cells of the first octave one pixel covers: an
+// octave finer than a pixel only adds grain and shimmer, so it fades to its mean.
+float fbm(vec3 p, float pix) {
   float v = 0.0, a = 0.5;
   for (int i = 0; i < 4; i++) {
-    v += a * noise(p);
+    v += a * mix(noise(p), 0.5, smoothstep(0.25, 0.5, pix));
     p = p * 2.03 + vec3(1.7, 9.2, 3.1);
     a *= 0.5;
+    pix *= 2.03;
   }
   return v;
 }
@@ -100,8 +103,13 @@ void main() {
   float r = dot(c, c);
   if (r >= 1.0) discard;
   vec3 n = vec3(c.x, -c.y, sqrt(1.0 - r));
-  vec3 p = v_world * 2.2 + vec3(0.0, -time * 0.9, time * 0.25);
-  float d = fbm(p + vec3(c * 0.6, 0.0));
+  // The quad's side in world units, from how fast world and image coordinates
+  // change across a pixel. Small puffs keep the noise at its world scale; a
+  // big one gets at most a few cells across, so it stays a soft cloud.
+  float side = length(dFdx(v_world)) / max(length(dFdx(v_uv)), 1e-6);
+  float freq = min(2.2, 3.0 / max(side, 1e-3));
+  vec3 p = v_world * freq + vec3(0.0, -time * 0.9, time * 0.25);
+  float d = fbm(p + vec3(c * 0.6, 0.0), length(fwidth(v_world)) * freq);
   float age = 1.0 - v_color.a;
   float body = smoothstep(0.0, 0.55, 1.0 - r) * smoothstep(0.18 + 0.35 * age, 0.75, d + 0.25 * (1.0 - r));
   if (body <= 0.003) discard;
@@ -176,12 +184,90 @@ void main() {
 }
 )";
 #undef NJIN_NOISE3
+
+// Ribbons (draw_ribbon3d): `v_uv.x` runs across the ribbon, 0 to 1. The
+// colour carries the strength in its alpha, so both blends read it the same.
+// Flat: the colour all across, its edges a little soft.
+constexpr const char *ribbon_flat_fs = R"(#version 330
+in vec3 v_world;
+in vec2 v_uv;
+in vec4 v_color;
+uniform float intensity;
+out vec4 finalColor;
+void main() {
+  float x = abs(v_uv.x * 2.0 - 1.0);
+  finalColor = vec4(v_color.rgb * intensity, v_color.a * smoothstep(1.0, 0.75, x));
+}
+)";
+
+// Glow: a narrow white-hot core in a soft halo of the colour, falling to
+// nothing at the edges, so no edge of the quad shows.
+constexpr const char *ribbon_glow_fs = R"(#version 330
+in vec3 v_world;
+in vec2 v_uv;
+in vec4 v_color;
+uniform float intensity;
+out vec4 finalColor;
+void main() {
+  float x = v_uv.x * 2.0 - 1.0;
+  float halo = max(exp(-4.5 * x * x) - 0.011, 0.0) / 0.989;
+  float core = exp(-60.0 * x * x);
+  float hot = core * clamp(v_color.a * 1.5, 0.0, 1.0);
+  vec3 colour = mix(v_color.rgb, vec3(1.0, 0.98, 0.94), hot) * intensity;
+  finalColor = vec4(colour, clamp(halo * 0.55 + core, 0.0, 1.0) * v_color.a);
+}
+)";
 } // namespace
 
 particle3d_looks::~particle3d_looks() {
   for (Shader &s : shaders)
     if (s.id != 0 && IsShaderValid(s))
       UnloadShader(s);
+  for (Shader &s : ribbons)
+    if (s.id != 0 && IsShaderValid(s))
+      UnloadShader(s);
+}
+
+namespace {
+// Compiles a look's fragment shader with look_vs: its main() becomes
+// look_main(), wrapped by one that takes its colour into linear light for the
+// HDR image (light3d::hdr). An empty shader when it does not compile.
+Shader compile_look(const char *source) {
+  std::string fs = source;
+  const usize at = fs.find("void main()");
+  if (at != std::string::npos)
+    fs.replace(at, 11, "void look_main()");
+  fs += hdr_wrap;
+  Shader s = LoadShaderFromMemory(look_vs, fs.c_str());
+  return IsShaderValid(s) && s.id != rlGetShaderIdDefault() ? s : Shader{};
+}
+
+void set_hdr_out(context &ctx, const Shader &s) {
+  const i32 hdr_out = ctx_ref<render3d_state>(ctx)->hdr_out ? 1 : 0;
+  const i32 hdr_loc = GetShaderLocation(s, "hdrOut");
+  if (hdr_loc >= 0)
+    SetShaderValue(s, hdr_loc, &hdr_out, SHADER_UNIFORM_INT);
+}
+} // namespace
+
+bool ribbon3d_look_begin(context &ctx, particle3d_looks &looks, ribbon3d_style style, f32 intensity) {
+  const i32 i = (i32)style;
+  if (i < 0 || i >= ribbon3d_look_count)
+    return false;
+  if (!looks.ribbon_tried[i]) {
+    looks.ribbon_tried[i] = true;
+    static const char *const sources[ribbon3d_look_count] = {ribbon_flat_fs, ribbon_glow_fs};
+    looks.ribbons[i] = compile_look(sources[i]);
+  }
+  const Shader &s = looks.ribbons[i];
+  if (s.id == 0)
+    return false;
+  BeginShaderMode(s);
+  set_hdr_out(ctx, s);
+  const i32 loc = GetShaderLocation(s, "intensity");
+  if (loc >= 0)
+    SetShaderValue(s, loc, &intensity, SHADER_UNIFORM_FLOAT);
+  return true;
 }
 
 bool particle3d_look_begin(context &ctx, particle3d_looks &looks, particle3d_style style) {
@@ -193,25 +279,13 @@ bool particle3d_look_begin(context &ctx, particle3d_looks &looks, particle3d_sty
   if (!looks.tried[i]) {
     looks.tried[i] = true;
     static const char *const sources[particle3d_look_count] = {flat_fs, smoke_fs, fire_fs, spark_fs, flame_fs};
-    // Each look's main() becomes look_main(), wrapped by one that takes its
-    // colour into linear light for the HDR image (light3d::hdr).
-    std::string fs = sources[i];
-    const usize at = fs.find("void main()");
-    if (at != std::string::npos)
-      fs.replace(at, 11, "void look_main()");
-    fs += hdr_wrap;
-    Shader s = LoadShaderFromMemory(look_vs, fs.c_str());
-    if (IsShaderValid(s) && s.id != rlGetShaderIdDefault())
-      looks.shaders[i] = s;
+    looks.shaders[i] = compile_look(sources[i]);
   }
   const Shader &s = looks.shaders[i];
   if (s.id == 0)
     return false;
   BeginShaderMode(s);
-  const i32 hdr_out = hdr ? 1 : 0;
-  const i32 hdr_loc = GetShaderLocation(s, "hdrOut");
-  if (hdr_loc >= 0)
-    SetShaderValue(s, hdr_loc, &hdr_out, SHADER_UNIFORM_INT);
+  set_hdr_out(ctx, s);
   const light3d &sun = ctx_ref<render3d_state>(ctx)->light;
   const f32 time = elapsed(ctx);
   const vec3 toward = length_sq(sun.direction) > 0.0f ? normalize(sun.direction) * -1.0f : vec3{0.0f, 1.0f, 0.0f};

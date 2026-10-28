@@ -166,6 +166,17 @@ const njin::weather3d_cover porch{.center = {4.0f, 1.5f, -2.0f}, .size = {3.0f, 
 njin::weather3d_cover_set(ctx, &porch, 1);
 ```
 
+**Hình bông tuyết.** Mặc định bông tuyết là chấm tròn mờ. Muốn bông có hình, đưa một ảnh chia lưới ô bằng nhau
+(mỗi ô một bông trắng nằm giữa, kênh alpha là hình bông) cho weather3d_snow_flakes_set(): mỗi bông lấy ngẫu nhiên
+một ô và xoay chậm khi rơi. Bật mipmap để bông ở xa không nhấp nháy. Tham số `sparkle` cho bông gần camera
+lấp lánh: bông lóe sáng chốc lát khi một mặt tinh thể xoay đón ánh sáng.
+
+```cpp
+njin::texture_handle flakes = njin::texture_load(ctx, "assets/snowflakes.png"); // lưới 4 x 2
+njin::texture_set_filter(ctx, flakes, njin::filter_mipmap);
+njin::weather3d_snow_flakes_set(ctx, flakes, 4, 2, 1.0f); // lấp lánh vừa phải
+```
+
 ## Ví dụ đầy đủ
 
 Đồi có cỏ, đá và tuyết; một hồ; thùng gỗ nổi; ngày trôi qua trong hai phút; phím R chuyển mưa; chuột trái

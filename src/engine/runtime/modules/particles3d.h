@@ -40,9 +40,19 @@ struct particle3d_burst {
   std::vector<particle3d> particles;
 };
 
+// One draw_ribbon3d call: its points in particles3d_state::ribbon_points.
+struct ribbon3d_record {
+  u32 first = 0;
+  u32 count = 0;
+  ribbon3d_desc desc{};
+};
+
 // Generated once on first draw: a white disc for particle_circle.
 struct particles3d_state {
   std::vector<particle3d_burst> bursts;
+  // draw_ribbon3d calls of the open 3D pass, drawn and dropped at its end_3d.
+  std::vector<ribbon3d_record> ribbons;
+  std::vector<ribbon3d_point> ribbon_points;
   Texture2D disc{};
   particle3d_looks looks; // particles3d_desc::style
 
@@ -52,7 +62,7 @@ struct particles3d_state {
   particles3d_state &operator=(const particles3d_state &) = delete;
 };
 
-// Draws every live particle facing `camera`. Called by end_3d while its pass
+// Draws every live particle (and the pass's ribbons) facing `camera`. Called by end_3d while its pass
 // (projection, view, depth test) is still set.
 void particles3d_draw(context &ctx, const camera3d &camera);
 } // namespace njin

@@ -129,6 +129,9 @@ struct world3d_store {
   f32 wetness = 0.0f;        // weather3d::wetness of the last sky drawn
   bool cover_auto = true;    // weather3d::cover_auto of the last sky drawn
   std::vector<weather3d_cover> covers; // weather3d_cover_set, at most 16
+  texture_handle flakes{};             // weather3d_snow_flakes_set: none is the soft dots
+  i32 flake_columns = 1, flake_rows = 1;
+  f32 flake_sparkle = 0.0f;
   u32 frame = 0;
   // draw_sky3d in the open pass: its sky for the water's reflection. Reset at end_3d.
   bool sky_drawn = false;

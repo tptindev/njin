@@ -30,6 +30,7 @@ constexpr i32 unit_height = 8;
 constexpr i32 unit_normal = 9;
 constexpr i32 unit_splat = 10;
 constexpr i32 unit_cover = 12;   // render3d's top-down cover depth (rain and snow)
+constexpr i32 unit_flakes = 0;   // weather3d_snow_flakes_set's shapes (no layers in that pass)
 constexpr i32 unit_scene = 5;    // 5, 6: the scene's colour and depth under refracting water (no layers there)
 
 constexpr i32 rain_drops = 9000;
@@ -676,8 +677,12 @@ uniform vec3 eyePos;
 uniform float time;
 uniform vec2 wind;
 uniform vec4 precip;     // box width, box height, fall speed, 1 for snow
+uniform vec2 flakeGrid;  // weather3d_snow_flakes_set's columns and rows, 0 for soft dots
+uniform float sparkle;   // weather3d_snow_flakes_set's glints on the near flakes, 0 off
 out vec2 fragUv;
+flat out vec2 fragCell;  // the flake's cell in flakeGrid
 out float fragFade;
+out float fragGlint;     // how much this flake catches the light now, 0..sparkle
 // PCG: an integer hash, even over tens of thousands of drops (a sine hash
 // loses its float precision there and drops pile onto each other).
 uint pcg(uint v) {
@@ -707,10 +712,29 @@ void main() {
     p.xz += vec2(sin(time * 1.3 + r.x * 40.0), cos(time * 1.1 + r.z * 40.0)) * 0.3;
   vec3 to_eye = normalize(eyePos - p);
   vec3 pos;
+  fragCell = vec2(0.0);
+  fragGlint = 0.0;
   if (snow) {
     vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), to_eye));
     vec3 up = cross(to_eye, right);
-    pos = p + (right * (vertexPosition.x - 0.5) + up * (vertexPosition.y - 0.5)) * (0.035 + 0.035 * r.x);
+    float size = 0.035 + 0.035 * r.x;
+    if (flakeGrid.x > 0.0) {
+      // A shape: its own cell, turning slowly one way or the other as it falls,
+      // a little larger since a shape fills less of its quad than a dot.
+      vec3 k = hash3(id + 32452843u);
+      fragCell = floor(k.xy * flakeGrid);
+      float spin = k.z * 6.2832 + time * (k.x - 0.5) * 2.4;
+      vec3 r0 = right * cos(spin) + up * sin(spin);
+      up = up * cos(spin) - right * sin(spin);
+      right = r0;
+      size *= 1.4;
+      // A crystal face turns to the light six times a turn; a slow wobble of
+      // its own keeps the flakes that hardly turn from never catching it.
+      float facet = 3.0 * spin + time * (1.5 + 2.0 * k.y) + k.z * 40.0;
+      float near = 1.0 - smoothstep(2.0, 6.0, distance(eyePos, p));
+      fragGlint = sparkle * near; // TEMP
+    }
+    pos = p + (right * (vertexPosition.x - 0.5) + up * (vertexPosition.y - 0.5)) * size;
   } else {
     vec3 axis = normalize(vel);
     vec3 side = normalize(cross(axis, to_eye));
@@ -726,10 +750,14 @@ void main() {
 
 const char *const precip_fs = R"(#version 330
 in vec2 fragUv;
+flat in vec2 fragCell;
 in float fragFade;
+in float fragGlint;
 uniform vec3 ambient;
 uniform vec3 lightColor;
 uniform vec4 precip;
+uniform vec2 flakeGrid;
+uniform sampler2D flakeMap;
 uniform float amount;
 uniform int hdrOut;        // light3d::hdr: linear and exposed
 uniform float hdrExposure;
@@ -738,9 +766,16 @@ void main() {
   float a;
   vec3 c;
   if (precip.w > 0.5) {
-    a = 1.0 - smoothstep(0.55, 1.0, length(fragUv - 0.5) * 2.0);
+    if (flakeGrid.x > 0.0)
+      a = texture(flakeMap, (fragCell + vec2(fragUv.x, 1.0 - fragUv.y)) / flakeGrid).a;
+    else
+      a = 1.0 - smoothstep(0.55, 1.0, length(fragUv - 0.5) * 2.0);
     c = vec3(1.0) * (ambient * 1.1 + lightColor * 0.45);
     a *= 0.9;
+    // A glint: the flake flares and a thin four-pointed star crosses it.
+    vec2 q = abs(fragUv - 0.5);
+    float star = exp(-q.x * 70.0 - q.y * 7.0) + exp(-q.y * 70.0 - q.x * 7.0);
+    a = max(a, min(star, 1.0) * min(fragGlint, 1.0));
   } else {
     a = (1.0 - abs(fragUv.x - 0.5) * 2.0) * smoothstep(0.0, 0.35, fragUv.y) * 0.45;
     c = vec3(0.85, 0.9, 1.0) * (ambient * 1.8 + lightColor * 0.3 + 0.08);
@@ -748,6 +783,10 @@ void main() {
   c = min(c, vec3(1.0));
   if (hdrOut == 1)
     c = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)) * hdrExposure;
+  // Past white where the output is linear, so the bloom takes it.
+  c += (lightColor + 0.3) * fragGlint * (hdrOut == 1 ? 4.0 * hdrExposure : 1.0);
+  if (hdrOut != 1)
+    c = min(c, vec3(1.0));
   finalColor = vec4(c, a * fragFade * amount);
 }
 )";
@@ -1585,13 +1624,19 @@ void draw_precip(context &ctx, const Matrix &view_proj) {
       rlDrawVertexArray(0, (i32)((f32)rain_drops * w.sky.rain) * 6);
     }
     if (w.sky.snow > 0.0f) {
+      const texture_slot *flakes = texture_slot_of(ctx_ref<texture_store>(ctx), w.flakes);
+      const bool shapes = flakes != nullptr && !flakes->packed;
       set_v4(p, "precip", {26.0f, 16.0f, 1.2f, 1.0f});
+      set_v2(p, "flakeGrid", shapes ? vec2{(f32)w.flake_columns, (f32)w.flake_rows} : vec2{0.0f, 0.0f});
+      set_f(p, "sparkle", shapes ? w.flake_sparkle : 0.0f);
+      bind(p, "flakeMap", unit_flakes, shapes ? flakes->texture.id : 0);
       set_f(p, "amount", 1.0f);
       rlDrawVertexArray(0, (i32)((f32)snow_flakes * w.sky.snow) * 6);
     }
     rlDisableVertexArray();
   }
   rlEnableBackfaceCulling();
+  unbind_units(unit_flakes, unit_flakes);
   unbind_units(unit_cover, unit_cover);
   rlDisableShader();
 }

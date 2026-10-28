@@ -529,6 +529,20 @@ void weather3d_cover_set(context &ctx, const weather3d_cover *covers, i32 count)
 /// @return Số hộp, 0..16.
 i32 weather3d_cover_count(const context &ctx);
 
+/// Hình bông tuyết cho tuyết rơi, thay chấm tròn mờ: một ảnh chia lưới `columns` x
+/// `rows` ô bằng nhau, mỗi ô một bông nằm giữa ô, kênh alpha là hình bông (màu lấy từ
+/// ánh sáng, nên vẽ bông màu trắng). Mỗi bông lấy ngẫu nhiên một ô và xoay chậm khi
+/// rơi. Bật mipmap cho ảnh (texture_set_filter() với njin::filter_mipmap) để bông ở xa
+/// không nhấp nháy. Ảnh trong atlas (atlas_load()) không dùng được.
+/// @param ctx Context của engine.
+/// @param flakes Ảnh bông, hoặc handle không hợp lệ để quay về chấm tròn.
+/// @param columns Số cột của lưới, 1..16.
+/// @param rows Số hàng của lưới, 1..16.
+/// @param sparkle Độ lấp lánh của bông gần camera (trong khoảng 6 m), 0..4: mỗi bông lóe
+///                sáng chốc lát khi một mặt tinh thể xoay đón ánh sáng, kèm một ngôi sao
+///                bốn cánh mảnh (với light3d::hdr thì sáng quá trắng để bloom tỏa ra). 0 là tắt.
+void weather3d_snow_flakes_set(context &ctx, texture_handle flakes, i32 columns, i32 rows, f32 sparkle = 0.0f);
+
 /// Các kiểu thời tiết có sẵn cho weather3d_preset().
 enum weather3d_kind {
   weather3d_clear,    ///< Trời quang, ít mây.

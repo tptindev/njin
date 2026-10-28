@@ -711,26 +711,38 @@ i32 place_feet(context &ctx, foot3d_handle handle, const model_pose &pose, const
   const vec3 up_m = normalize(vector_to_model(w, {0.0f, 1.0f, 0.0f}));
   const f32 tilt_min = std::cos(s->max_tilt * (PI / 180.0f));
   const f32 base = transform.position.y;
+  // Tilted, the animation's ground is the model's y = 0 plane as drawn, and its
+  // up the model's y axis; otherwise the level plane through the draw's origin.
+  const vec3 model_up = s->tilted ? vec3{0.0f, 1.0f, 0.0f} : up_m;
+  const vec3 plane_n = normalize(apply(w.rot, {0.0f, 1.0f, 0.0f}));
+  const f32 up_y = s->tilted ? std::max(plane_n.y, 0.2f) : 1.0f;
+  const auto floor_under = [&](vec3 p) {
+    if (!s->tilted)
+      return base;
+    const vec3 o = transform.position;
+    return o.y - (plane_n.x * (p.x - o.x) + plane_n.z * (p.z - o.z)) / up_y;
+  };
 
   f32 hip_want = 1e9f;
   for (foot_leg_state &leg : s->legs) {
     const vec3 ankle = to_world(w, in[(usize)leg.bones.foot].position);
-    const vec3 from{ankle.x, base + s->max_step + 0.05f, ankle.z};
+    const f32 floor = floor_under(ankle);
+    const vec3 from{ankle.x, floor + s->max_step + 0.05f, ankle.z};
     const f32 reach_down = 2.0f * s->max_step + 0.05f;
     vec3 point{}, normal{0.0f, 1.0f, 0.0f};
     const bool hit = ground != nullptr ? (*ground)(from, reach_down, point, normal)
                                        : physics_ground(ctx, from, reach_down, point, normal);
     f32 lift = 0.0f;
-    vec3 surface{0.0f, 1.0f, 0.0f};
+    vec3 surface = s->tilted ? plane_n : vec3{0.0f, 1.0f, 0.0f};
     if (hit && std::isfinite(point.y)) {
-      lift = std::clamp(point.y - base, -s->max_step, s->max_step);
+      lift = std::clamp(point.y - floor, -s->max_step, s->max_step);
       if (finite3(normal) && length_sq(normal) > 1e-12f && normalize(normal).y >= tilt_min)
         surface = normalize(normal);
     }
     ease(leg.lift, lift);
     const vec3 n = normalize(vector_to_model(w, surface));
     const vec3 eased = snap ? n : leg.normal + (n - leg.normal) * down;
-    leg.normal = length_sq(eased) > 1e-12f ? normalize(eased) : up_m;
+    leg.normal = length_sq(eased) > 1e-12f ? normalize(eased) : model_up;
     // The hips ease once, toward where the lower foot is going (not where its
     // eased height is), so they do not trail the feet down a step.
     hip_want = std::min(hip_want, lift);
@@ -744,21 +756,22 @@ i32 place_feet(context &ctx, foot3d_handle handle, const model_pose &pose, const
   const vec3 drop = vector_to_model(w, {0.0f, s->hip, 0.0f});
   for (bone_pose3d &b : res)
     b.position = b.position + drop;
-  const vec3 pole = length_sq(s->knee_forward) > 1e-12f ? normalize(s->knee_forward) : vec3{0.0f, 0.0f, 1.0f};
   for (const foot_leg_state &leg : s->legs) {
     const bone_pose3d foot = res[(usize)leg.bones.foot];
     // On a slope the ankle stands its height above the ground along the normal,
-    // so higher over the point under it by 1 / cos of the slope.
+    // so higher over the point under it by 1 / cos of the slope (tilted: the
+    // pose already has it that high over its own plane, by 1 / cos of the tilt).
     const f32 ny = std::max(apply(w.rot, leg.normal).y, 0.2f);
-    const f32 height = std::max(to_world(w, in[(usize)leg.bones.foot].position).y - base, 0.0f);
-    const f32 slope_lift = height * (1.0f / ny - 1.0f);
+    const vec3 ankle_w = to_world(w, in[(usize)leg.bones.foot].position);
+    const f32 height = std::max(ankle_w.y - floor_under(ankle_w), 0.0f);
+    const f32 slope_lift = height * (up_y / ny - 1.0f);
     reach(res, parent, leg.bones,
-          foot.position + vector_to_model(w, {0.0f, leg.lift + slope_lift - s->hip, 0.0f}), pole);
+          foot.position + vector_to_model(w, {0.0f, leg.lift + slope_lift - s->hip, 0.0f}), leg.pole);
     // The foot keeps the pose's turn, then tips onto the ground it stands on.
     const vec3 ankle = res[(usize)leg.bones.foot].position;
     turn_subtree(res, parent, leg.bones.foot, compose(rot_of(foot), inverse(rot_of(res[(usize)leg.bones.foot]))),
                  ankle);
-    turn_subtree(res, parent, leg.bones.foot, turn_between(up_m, leg.normal), ankle);
+    turn_subtree(res, parent, leg.bones.foot, turn_between(model_up, leg.normal), ankle);
   }
   for (i32 b = 0; b < bones; b++)
     out[b] = weight >= 1.0f ? res[(usize)b] : blend_pose(in[(usize)b], res[(usize)b], weight);
@@ -794,6 +807,9 @@ foot3d_handle foot3d_create(context &ctx, const foot3d_desc &desc) {
       legs.push_back(leg);
     }
   }
+  const vec3 knee = finite3(desc.knee_forward) && length_sq(desc.knee_forward) > 1e-12f
+                        ? normalize(desc.knee_forward)
+                        : vec3{0.0f, 0.0f, 1.0f};
   foot_slot slot;
   for (const foot3d_leg &l : legs) {
     const auto ok = [&](i32 b) { return b >= 0 && b < bones; };
@@ -801,7 +817,8 @@ foot3d_handle foot3d_create(context &ctx, const foot3d_desc &desc) {
       NJIN_WARN("foot3d_create: a leg is missing its thigh, shin or foot bone: skipped");
       continue;
     }
-    slot.legs.push_back({.bones = l});
+    const bool own = finite3(l.knee_forward) && length_sq(l.knee_forward) > 1e-12f;
+    slot.legs.push_back({.bones = l, .pole = own ? normalize(l.knee_forward) : knee});
   }
   if (slot.legs.empty()) {
     NJIN_WARN("foot3d_create: no leg has a thigh, a shin and a foot bone");
@@ -813,7 +830,7 @@ foot3d_handle foot3d_create(context &ctx, const foot3d_desc &desc) {
   slot.max_step = std::max(finite(desc.max_step, 0.5f), 0.0f);
   slot.max_tilt = std::clamp(finite(desc.max_tilt, 35.0f), 0.0f, 89.0f);
   slot.smoothing = std::max(finite(desc.smoothing, 15.0f), 0.0f);
-  slot.knee_forward = finite3(desc.knee_forward) ? desc.knee_forward : vec3{0.0f, 0.0f, 1.0f};
+  slot.tilted = desc.tilted;
   ctx_ref<anim3d_store>(ctx)->feet.push_back(std::move(slot));
   return foot3d_handle{.id = (u32)ctx_ref<anim3d_store>(ctx)->feet.size()};
 }

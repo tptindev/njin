@@ -10,8 +10,9 @@
 #include <vector>
 
 // Levels of detail for model_lod_build() (njin_3d.h), simplified by
-// meshoptimizer (MIT, github.com/zeux/meshoptimizer). The draw picks the
-// level in render3d.cpp (place_model).
+// meshoptimizer (MIT, github.com/zeux/meshoptimizer), or taken from files
+// made elsewhere (model_lod_load()). The draw picks the level in render3d.cpp
+// (place_model).
 
 namespace njin {
 namespace {
@@ -283,5 +284,53 @@ i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &des
   NJIN_INFO("model: %u triangles, levels of detail: %u %u %u %u", full, built > 0 ? kept[0] : 0,
             built > 1 ? kept[1] : 0, built > 2 ? kept[2] : 0, built > 3 ? kept[3] : 0);
   return built;
+}
+
+i32 model_lod_load(context &ctx, model_handle handle, const char *const *paths, i32 count, f32 screen) {
+  model_store &store = ctx_ref<model_store>(ctx);
+  model_slot *slot = model_slot_of(store, handle);
+  if (slot == nullptr || paths == nullptr || count < 1 || count > 4)
+    return 0;
+  model_lod_free(*slot);
+  if (slot->skinned || !slot->morphs.empty()) {
+    NJIN_WARN("model: model_lod_load does not take a model with bones or morphs");
+    return 0;
+  }
+  std::vector<std::vector<model_lod_mesh>> lods;
+  for (i32 k = 0; k < count; k++) {
+    const model_handle level = model_store_load(store, model_load_desc{.path = paths[k]});
+    // Loading may grow the store: find the slots again.
+    slot = model_slot_of(store, handle);
+    model_slot *from = model_slot_of(store, level);
+    if (from == nullptr)
+      break;
+    const Model &base = slot->model;
+    Model &file = from->model;
+    bool fits = file.meshCount == base.meshCount && !from->skinned && from->morphs.empty();
+    for (i32 i = 0; fits && i < base.meshCount; i++)
+      fits = file.meshMaterial[i] == base.meshMaterial[i];
+    if (!fits) {
+      NJIN_WARN("model: %s: its meshes and materials do not match the model's", paths[k]);
+      model_store_unload(store, level);
+      break;
+    }
+    // Take the meshes; the file's slot then frees only its materials.
+    std::vector<model_lod_mesh> meshes((usize)file.meshCount);
+    for (i32 i = 0; i < file.meshCount; i++) {
+      meshes[(usize)i].mesh = file.meshes[i];
+      file.meshes[i] = Mesh{};
+    }
+    model_store_unload(store, level);
+    lods.push_back(std::move(meshes));
+  }
+  if ((i32)lods.size() < count) {
+    for (std::vector<model_lod_mesh> &level : lods)
+      for (model_lod_mesh &m : level)
+        UnloadMesh(m.mesh);
+    return 0;
+  }
+  slot->lods = std::move(lods);
+  slot->lod_screen = std::max(screen, 0.0f);
+  return count;
 }
 } // namespace njin
