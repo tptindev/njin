@@ -786,6 +786,11 @@ struct mesh3d_data {
   /// 65535 đỉnh (chỉ số 16 bit của raylib): chia lưới lớn thành nhiều model.
   const u32 *indices = nullptr;
   u32 index_count = 0; ///< Số chỉ số, bội của 3.
+  /// Tên vật liệu của lưới, như tên vật liệu trong file glTF: model_material_find()
+  /// tìm được nó, và model_combine() gộp lưới này với lưới cùng tên vật liệu của các
+  /// model khác (mảnh dựng lúc chạy dùng chung vật liệu với các mảnh nạp từ file).
+  /// nullptr là không tên.
+  const char *material = nullptr;
 };
 
 /// Tạo model từ một lưới tam giác trong bộ nhớ, rồi dùng như model nạp từ file:

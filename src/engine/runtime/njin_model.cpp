@@ -1239,6 +1239,7 @@ model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
   slot.alive = true;
   slot.bounds = GetModelBoundingBox(model);
   slot.materials.push_back(model_material{});
+  slot.material_names.push_back(mesh.material != nullptr ? mesh.material : "");
   store.slots.push_back(std::move(slot));
   return model_handle{.id = (u32)store.slots.size()};
 }
