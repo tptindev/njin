@@ -1,6 +1,7 @@
 #pragma once
 #include "../njin_internal_only.h"
 #include "njin_3d.h"
+#include "../njin_light_clusters.h"
 #include "render3d_env.h"
 #include <raylib.h>
 #include <array>
@@ -103,16 +104,12 @@ void hdr_frame_begin(context &ctx);
 // ---------------------------------------------------------------------------
 // The extended lights (light3d::lights_max past 16, source_shadows past 4).
 // ---------------------------------------------------------------------------
-struct lights_ext {
+struct lights_ext : LightClusters {
   bool on = false;  // the open pass lights through them
   i32 total = 0;    // lights in light_tex
   u32 light_tex = 0, cluster_tex = 0, index_tex = 0, lamp_mat_tex = 0;
   i32 light_rows = 0, index_rows = 0;
-  i32 tiles_x = 16, tiles_y = 9, slices = 24;
-  f32 tile_px = 1.0f;
-  vec4 depth{}; // near, far, log(far / near), 1 orthographic
-  std::vector<f32> light_data, cluster_data, index_data, mat_data;
-  std::vector<i32> counts, offsets;
+  std::vector<f32> light_data,mat_data;
 };
 void lights_ext_free(lights_ext &l);
 // Whether the light settings ask for the extended lights.

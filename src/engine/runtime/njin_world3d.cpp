@@ -1,4 +1,7 @@
 #include "njin_world3d_impl.h"
+#include "njin_model.h"
+#include "njin_cfg.h"
+#include "njin_render_capabilities.h"
 #include "modules/render3d.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
@@ -406,6 +409,7 @@ void terrain3d_destroy(context &ctx, terrain3d_handle handle) {
   terrain3d_slot *t = terrain_of(ctx, handle);
   if (t == nullptr)
     return;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) portable_terrain_release(ctx,*t);
   if (t->body.id != 0)
     ctx_ref<feature_hooks>(ctx).body_destroy(ctx, t->body);
   world3d_free_terrain(*t);
@@ -417,6 +421,7 @@ void terrain3d_destroy(context &ctx, terrain3d_handle handle) {
 }
 
 void draw_terrain3d(const context &ctx, terrain3d_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_terrain_draw(ctx,handle);return;}
   if (terrain_of(ctx, handle) != nullptr)
     render3d_record_world(ctx, world3d_terrain, handle.id);
 }
@@ -489,15 +494,41 @@ void terrain3d_edit(context &ctx, terrain3d_handle handle, const terrain3d_brush
   i32 i0, j0, i1, j1;
   if (!circle_samples(*t, brush.center.x, brush.center.z, radius, i0, j0, i1, j1))
     return;
-  const std::vector<f32> old = t->heights;
+  // Smoothing reads the heights from before the edit: only the brush's samples
+  // and one round them are kept (a whole-map copy per stroke is slow on big terrains).
+  const i32 c0 = std::max(i0 - 1, 0), d0 = std::max(j0 - 1, 0);
+  const i32 c1 = std::min(i1 + 1, t->res), d1 = std::min(j1 + 1, t->res);
+  std::vector<f32> old;
+  if (brush.kind == terrain3d_smooth)
+    for (i32 j = d0; j < d1; j++)
+      old.insert(old.end(), t->heights.begin() + (std::ptrdiff_t)((usize)j * (usize)t->res + (usize)c0),
+                 t->heights.begin() + (std::ptrdiff_t)((usize)j * (usize)t->res + (usize)c1));
+  const auto before = [&](i32 a, i32 b) { return old[(usize)(b - d0) * (usize)(c1 - c0) + (usize)(a - c0)]; };
   const f32 k = clamp(brush.strength, 0.0f, 1.0f);
   for (i32 j = j0; j < j1; j++)
     for (i32 i = i0; i < i1; i++) {
       const f32 x = t->desc.origin.x + (f32)i * t->spacing, z = t->desc.origin.z + (f32)j * t->spacing;
-      const f32 f = brush_weight(std::hypot(x - brush.center.x, z - brush.center.z), radius, brush.falloff);
+      const f32 d = std::hypot(x - brush.center.x, z - brush.center.z);
+      f32 &h = t->heights[(usize)j * (usize)t->res + (usize)i];
+      if (brush.kind == terrain3d_carve) {
+        if (d > radius)
+          continue;
+        const f32 floor = radius * (1.0f - clamp(brush.falloff, 0.0f, 1.0f));
+        h = std::min(h, brush.height + std::max(brush.strength, 0.0f) * std::max(d - floor, 0.0f));
+        t->min_h = std::min(t->min_h, h);
+        continue;
+      }
+      if (brush.kind == terrain3d_fill) {
+        if (d > radius)
+          continue;
+        const f32 top = radius * (1.0f - clamp(brush.falloff, 0.0f, 1.0f));
+        h = std::max(h, brush.height - std::max(brush.strength, 0.0f) * std::max(d - top, 0.0f));
+        t->max_h = std::max(t->max_h, h);
+        continue;
+      }
+      const f32 f = brush_weight(d, radius, brush.falloff);
       if (f <= 0.0f)
         continue;
-      f32 &h = t->heights[(usize)j * (usize)t->res + (usize)i];
       switch (brush.kind) {
       case terrain3d_raise:
         h += brush.strength * f;
@@ -508,6 +539,9 @@ void terrain3d_edit(context &ctx, terrain3d_handle handle, const terrain3d_brush
       case terrain3d_flatten:
         h = lerp(h, brush.height, k * f);
         break;
+      case terrain3d_carve:
+      case terrain3d_fill:
+        break; // above
       case terrain3d_smooth: {
         f32 sum = 0.0f;
         i32 n = 0;
@@ -516,7 +550,7 @@ void terrain3d_edit(context &ctx, terrain3d_handle handle, const terrain3d_brush
             const i32 a = i + dx, b = j + dz;
             if (a < 0 || b < 0 || a >= t->res || b >= t->res)
               continue;
-            sum += old[(usize)b * (usize)t->res + (usize)a];
+            sum += before(a, b);
             n++;
           }
         h = lerp(h, sum / (f32)n, k * f);
@@ -584,9 +618,66 @@ void terrain3d_paint(context &ctx, terrain3d_handle handle, vec3 center, f32 rad
              o.z + (f32)j1 * t->spacing);
 }
 
+void terrain3d_snow_set(context &ctx, terrain3d_handle handle, f32 snow, rgba color) {
+  terrain3d_slot *t = terrain_of(ctx, handle);
+  if (t == nullptr || refuse(std::isfinite(snow), "terrain3d_snow_set"))
+    return;
+  t->desc.snow = snow;
+  t->desc.snow_color = color;
+}
+
 // ---------------------------------------------------------------------------
 // Grass
 // ---------------------------------------------------------------------------
+
+namespace {
+// A layer's small image at a point, bilinear and wrapping like the tiles.
+vec3 ground_texel(const grass_ground_image &im, f32 u, f32 v) {
+  const f32 fx = (u - std::floor(u)) * (f32)im.size - 0.5f, fz = (v - std::floor(v)) * (f32)im.size - 0.5f;
+  const i32 i = (i32)std::floor(fx), j = (i32)std::floor(fz);
+  const f32 ax = fx - (f32)i, az = fz - (f32)j;
+  const auto at = [&](i32 a, i32 b) {
+    const u8 *p = &im.rgba[(((usize)((b + im.size) % im.size)) * (usize)im.size + (usize)((a + im.size) % im.size)) * 4];
+    return vec3{(f32)p[0], (f32)p[1], (f32)p[2]} * (1.0f / 255.0f);
+  };
+  return lerp(lerp(at(i, j), at(i + 1, j), ax), lerp(at(i, j + 1), at(i + 1, j + 1), ax), az);
+}
+
+// The terrain's colour at a point as its shader makes it seen from above
+// (layer images and colours by their sharpened weights, two scales of each
+// image), from the small copies of the images.
+vec3 grass_ground_rgb(const terrain3d_slot &t, const grass3d_slot &g, f32 x, f32 z) {
+  const f32 fx = clamp((x - t.desc.origin.x) / t.spacing, 0.0f, (f32)(t.res - 1));
+  const f32 fz = clamp((z - t.desc.origin.z) / t.spacing, 0.0f, (f32)(t.res - 1));
+  const i32 i = std::min((i32)fx, t.res - 2), j = std::min((i32)fz, t.res - 2);
+  const f32 ax = fx - (f32)i, az = fz - (f32)j;
+  f32 w[4];
+  f32 sum = 0.0f;
+  for (i32 l = 0; l < 4; l++) {
+    const auto at = [&](i32 a, i32 b) { return (f32)t.splat[((usize)b * (usize)t.res + (usize)a) * 4 + (usize)l] / 255.0f; };
+    const f32 v = l < t.desc.layer_count ? lerp(lerp(at(i, j), at(i + 1, j), ax), lerp(at(i, j + 1), at(i + 1, j + 1), ax), az)
+                                         : 0.0f;
+    w[l] = std::pow(std::max(v, 0.0f), 1.6f);
+    sum += w[l];
+  }
+  vec3 c{0.0f, 0.0f, 0.0f};
+  for (i32 l = 0; l < 4; l++) {
+    const f32 k = sum > 1e-4f ? w[l] / sum : (l == 0 ? 1.0f : 0.0f);
+    if (k <= 0.004f)
+      continue;
+    const terrain3d_layer &L = t.desc.layers[l];
+    vec3 img{1.0f, 1.0f, 1.0f};
+    const grass_ground_image &im = g.ground[l];
+    if (im.size > 0) {
+      const f32 tile = std::max(L.tile, 0.01f);
+      img = lerp(ground_texel(im, x / tile, z / tile), ground_texel(im, x / (tile * 3.7f) + 0.31f, z / (tile * 3.7f) + 0.31f),
+                 0.3f);
+    }
+    c = c + vec3{img.x * L.color.r, img.y * L.color.g, img.z * L.color.b} * k;
+  }
+  return c;
+}
+} // namespace
 
 void grass_cell_blades(const terrain3d_slot &t, const grass3d_slot &g, i32 cx, i32 cz, std::vector<f32> &out) {
   out.clear();
@@ -597,7 +688,8 @@ void grass_cell_blades(const terrain3d_slot &t, const grass3d_slot &g, i32 cx, i
   const f32 cos_max = std::cos(clamp(d.max_slope, 0.0f, 90.0f) * (pi / 180.0f));
   const f32 cos_soft = std::cos(clamp(d.max_slope - 6.0f, 0.0f, 90.0f) * (pi / 180.0f));
   const f32 size = t.desc.size;
-  out.reserve((usize)tries * 8);
+  const bool ground = std::isfinite(d.ground_color) && d.ground_color > 0.0f;
+  out.reserve((usize)tries * grass_blade_floats);
   for (i32 k = 0; k < tries; k++) {
     const f32 x = x0 + r.unit() * g.cell, z = z0 + r.unit() * g.cell;
     const f32 keep = r.unit();
@@ -605,24 +697,60 @@ void grass_cell_blades(const terrain3d_slot &t, const grass3d_slot &g, i32 cx, i
     const f32 tall = r.unit(), shade = r.unit(), phase = r.unit();
     if (x < t.desc.origin.x || z < t.desc.origin.z || x > t.desc.origin.x + size || z > t.desc.origin.z + size)
       continue;
-    f32 chance = 1.0f;
+    // How fully the ground here is the field's: its layer's weight (between
+    // the samples, so the edge does not follow the grid), the slope and the
+    // height limits.
+    const f32 edge = std::isfinite(d.edge_shrink) ? clamp(d.edge_shrink, 0.0f, 1.0f) : 0.0f;
+    f32 cover = 1.0f, near = 1.0f;
     if (d.layer >= 0 && d.layer < terrain3d_layer_max) {
-      const f32 fx = clamp((x - t.desc.origin.x) / t.spacing, 0.0f, (f32)(t.res - 1));
-      const f32 fz = clamp((z - t.desc.origin.z) / t.spacing, 0.0f, (f32)(t.res - 1));
-      const i32 i = (i32)std::lround(fx), j = (i32)std::lround(fz);
-      chance *= (f32)t.splat[((usize)j * (usize)t.res + (usize)i) * 4 + (usize)d.layer] / 255.0f;
+      const auto weight = [&](f32 wx, f32 wz) {
+        const f32 fx = clamp((wx - t.desc.origin.x) / t.spacing, 0.0f, (f32)(t.res - 1));
+        const f32 fz = clamp((wz - t.desc.origin.z) / t.spacing, 0.0f, (f32)(t.res - 1));
+        const i32 i = std::min((i32)fx, t.res - 2), j = std::min((i32)fz, t.res - 2);
+        const f32 ax = fx - (f32)i, az = fz - (f32)j;
+        const auto at = [&](i32 a, i32 b) {
+          return (f32)t.splat[((usize)b * (usize)t.res + (usize)a) * 4 + (usize)d.layer] / 255.0f;
+        };
+        return lerp(lerp(at(i, j), at(i + 1, j), ax), lerp(at(i, j + 1), at(i + 1, j + 1), ax), az);
+      };
+      cover = weight(x, z);
+      // A soft edge reaches past the layer's own fade: blades shorten while
+      // the layer is still full, with it giving out within a few steps.
+      if (edge > 0.0f && cover > 0.0f) {
+        constexpr f32 reach = 0.9f, diag = reach * 0.7071f;
+        const f32 sum = weight(x - reach, z) + weight(x + reach, z) + weight(x, z - reach) + weight(x, z + reach) +
+                        weight(x - diag, z - diag) + weight(x + diag, z - diag) + weight(x - diag, z + diag) +
+                        weight(x + diag, z + diag);
+        near = std::min(cover, (cover * 2.0f + sum) / 10.0f);
+      }
     }
-    if (chance <= keep)
+    // A soft edge grows thicker than the weight, its blades short instead.
+    if (lerp(cover, std::sqrt(cover), edge) <= keep)
       continue;
     const vec3 n = terrain_normal_at(t, x, z);
-    chance *= smooth(cos_max, cos_soft, n.y);
+    cover *= smooth(cos_max, cos_soft, n.y);
+    const f32 y = terrain_height_at(t, x, z);
+    if (d.min_height > -1.0e8f)
+      cover *= smooth(d.min_height, d.min_height + 0.4f, y);
+    f32 chance = lerp(cover, std::sqrt(cover), edge);
     if (d.patchiness > 0.0f)
       chance *= lerp(1.0f, smooth(0.38f, 0.62f, noise_2d(d.patches, x, z)), clamp(d.patchiness, 0.0f, 1.0f));
     if (chance <= keep)
       continue;
-    const f32 h = std::max(d.height * (1.0f + d.height_jitter * (tall * 2.0f - 1.0f)), 0.01f);
-    out.insert(out.end(), {x, terrain_height_at(t, x, z), z, h, facing, std::max(d.width, 0.001f),
-                           1.0f + d.color_jitter * (shade * 2.0f - 1.0f), phase * 6.2831853f});
+    // Each region its own height, each blade in it a little apart.
+    f32 region = 1.0f;
+    if (d.height_variation > 0.0f)
+      region += d.height_variation * (smooth(0.3f, 0.7f, noise_2d(d.height_patches, x, z)) * 2.0f - 1.0f);
+    region *= 1.0f - edge * (1.0f - std::min(cover, near * near));
+    // Stubs at the very edge would only read as specks.
+    if (edge > 0.0f && region < 0.15f)
+      continue;
+    const f32 h = std::max(d.height * region * (1.0f + d.height_jitter * (tall * 2.0f - 1.0f)), 0.01f);
+    const f32 tint = d.tint > 0.0f ? clamp(d.tint, 0.0f, 1.0f) * smooth(0.35f, 0.65f, noise_2d(d.tint_patches, x, z)) : 0.0f;
+    const f32 wide = std::max(d.width * (d.width_by_height && d.height > 0.0f ? h / d.height : 1.0f), 0.001f);
+    const vec3 soil = ground ? grass_ground_rgb(t, g, x, z) : vec3{0.0f, 0.0f, 0.0f};
+    out.insert(out.end(), {x, y, z, h, facing, wide, 1.0f + d.color_jitter * (shade * 2.0f - 1.0f),
+                           phase * 6.2831853f, tint, soil.x, soil.y, soil.z});
   }
 }
 
@@ -668,9 +796,56 @@ void grass3d_destroy(context &ctx, grass3d_handle handle) {
 }
 
 void draw_grass3d(const context &ctx, grass3d_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_grass_draw(ctx,handle);return;}
   const grass3d_slot *g = slot_in(ctx_ref<world3d_store>(ctx)->grasses, handle.id);
   if (g != nullptr && terrain_of(ctx, g->desc.terrain) != nullptr)
     render3d_record_world(ctx, world3d_grass, handle.id);
+}
+
+namespace {
+bool same_noise(const noise_desc &a, const noise_desc &b) {
+  return a.seed == b.seed && a.type == b.type && a.frequency == b.frequency && a.fractal == b.fractal &&
+         a.octaves == b.octaves && a.lacunarity == b.lacunarity && a.gain == b.gain && a.warp == b.warp &&
+         a.warp_frequency == b.warp_frequency;
+}
+
+// The same blades grow from both: what grass_cell_blades() reads, all but the
+// colours and looks the shader takes at each draw.
+bool same_blades(const grass3d_desc &a, const grass3d_desc &b) {
+  const bool ground_a = std::isfinite(a.ground_color) && a.ground_color > 0.0f;
+  const bool ground_b = std::isfinite(b.ground_color) && b.ground_color > 0.0f;
+  return a.density == b.density && a.height == b.height && a.height_jitter == b.height_jitter &&
+         a.width == b.width && a.width_by_height == b.width_by_height && a.color_jitter == b.color_jitter &&
+         a.layer == b.layer && a.max_slope == b.max_slope && a.min_height == b.min_height &&
+         a.edge_shrink == b.edge_shrink && same_noise(a.patches, b.patches) && a.patchiness == b.patchiness &&
+         same_noise(a.height_patches, b.height_patches) && a.height_variation == b.height_variation &&
+         same_noise(a.tint_patches, b.tint_patches) && a.tint == b.tint && ground_a == ground_b && a.seed == b.seed;
+}
+} // namespace
+
+void grass3d_set(context &ctx, grass3d_handle handle, const grass3d_desc &desc) {
+  grass3d_slot *g = slot_in(ctx_ref<world3d_store>(ctx)->grasses, handle.id);
+  if (g == nullptr)
+    return;
+  const bool regrow = !same_blades(g->desc, desc);
+  const terrain3d_handle terrain = g->desc.terrain;
+  g->desc = desc;
+  g->desc.terrain = terrain;
+  if (!regrow)
+    return;
+  // A new cell size lays the cells out anew; else each grows again in place.
+  const f32 cell = desc.density * 16.0f * 16.0f > 6000.0f ? 8.0f : 16.0f;
+  if (cell != g->cell) {
+    world3d_free_grass(*g);
+    g->cell = cell;
+  }
+  for (grass_cell &c : g->cells)
+    c.stale = true;
+}
+
+grass3d_desc grass3d_get(const context &ctx, grass3d_handle handle) {
+  const grass3d_slot *g = slot_in(ctx_ref<world3d_store>(ctx)->grasses, handle.id);
+  return g != nullptr ? g->desc : grass3d_desc{};
 }
 
 i32 grass3d_drawn(const context &ctx, grass3d_handle handle) {
@@ -826,6 +1001,7 @@ void scatter3d_destroy(context &ctx, scatter3d_handle handle) {
 }
 
 void draw_scatter3d(const context &ctx, scatter3d_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_scatter_draw(ctx,handle);return;}
   const scatter3d_slot *s = slot_in(ctx_ref<world3d_store>(ctx)->scatters, handle.id);
   const render3d_state &r = ctx_ref<render3d_state>(ctx);
   if (s == nullptr || !r.active || terrain_of(ctx, s->desc.terrain) == nullptr)
@@ -879,6 +1055,10 @@ i32 scatter3d_transforms(const context &ctx, scatter3d_handle handle, transform3
 // ---------------------------------------------------------------------------
 
 void water_displace(const water3d_desc &w, f32 x, f32 z, f32 t, vec3 &offset, vec3 &normal) {
+  water_displace(w, x, z, t, offset, normal, 0.0f);
+}
+
+void water_displace(const water3d_desc &w, f32 x, f32 z, f32 t, vec3 &offset, vec3 &normal, f32 spacing) {
   offset = {};
   vec3 tangent{1.0f, 0.0f, 0.0f}, binormal{0.0f, 0.0f, 1.0f};
   const i32 count = std::clamp(w.wave_count, 0, water3d_wave_max);
@@ -890,7 +1070,12 @@ void water_displace(const water3d_desc &w, f32 x, f32 z, f32 t, vec3 &offset, ve
     const vec2 d = wave.direction / len;
     const f32 k = 2.0f * pi / std::max(wave.wavelength, 0.01f);
     const f32 c = std::sqrt(gravity / k) * wave.speed;
-    const f32 s = clamp(wave.steepness, 0.0f, 1.0f);
+    // Fewer than four vertices a wavelength: fade the wave, gone at two (Nyquist).
+    const f32 lambda = std::max(wave.wavelength, 0.01f);
+    const f32 keep = spacing > 0.0f ? 1.0f - std::clamp((spacing - lambda * 0.25f) / (lambda * 0.25f), 0.0f, 1.0f) : 1.0f;
+    if (keep <= 0.0f)
+      continue;
+    const f32 s = clamp(wave.steepness, 0.0f, 1.0f) * keep;
     const f32 a = s / k;
     const f32 f = k * (d.x * x + d.y * z - c * t);
     const f32 cs = std::cos(f), sn = std::sin(f);
@@ -914,13 +1099,17 @@ bool on_lake(const water3d_desc &w, f32 x, f32 z) {
 // sideways too, so the surface above a point comes from elsewhere. Fixed
 // point iteration converges while the steepnesses sum below 1.
 void surface_at(const water3d_desc &w, f32 x, f32 z, f32 t, vec3 &offset, vec3 &normal) {
+  // Ice calms the waves as it closes over the water (water3d_desc::ice).
+  const f32 calm = 1.0f - (std::isfinite(w.ice) ? clamp(w.ice, 0.0f, 1.0f) : 0.0f);
   f32 px = x, pz = z;
   for (i32 i = 0; i < 8; i++) {
     water_displace(w, px, pz, t, offset, normal);
-    px = x - offset.x;
-    pz = z - offset.z;
+    px = x - offset.x * calm;
+    pz = z - offset.z * calm;
   }
   water_displace(w, px, pz, t, offset, normal);
+  offset = offset * calm;
+  normal = normalize(lerp(vec3{0.0f, 1.0f, 0.0f}, normal, calm));
 }
 } // namespace
 
@@ -957,7 +1146,7 @@ water3d_desc water3d_get(const context &ctx, water3d_handle handle) {
 
 bool world3d_wants_scene(const context &ctx) {
   for (const water3d_slot &w : ctx_ref<world3d_store>(ctx)->waters)
-    if (w.alive && w.desc.refract > 0.0f)
+    if (w.alive && (w.desc.refract > 0.0f || w.desc.reflect > 0.0f))
       return true;
   return false;
 }
@@ -977,6 +1166,7 @@ void water3d_splash(context &ctx, water3d_handle handle, vec2 at, f32 strength, 
 }
 
 void draw_water3d(const context &ctx, water3d_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_water_draw(ctx,handle);return;}
   if (water_of(ctx, handle.id) != nullptr)
     render3d_record_world(ctx, world3d_water, handle.id);
 }
@@ -1217,17 +1407,30 @@ light3d sky3d_light(const sky3d &sky, const light3d &base) {
 }
 
 void draw_sky3d(context &ctx, const sky3d &sky) {
-  render3d_state &r = ctx_ref<render3d_state>(ctx);
-  if (!r.active)
+  const bool portable = ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL;
+  if (portable) {
+    if (!ctx_ref<model_store>(ctx)->portable_pass)
+      throw std::logic_error("njin world3d: draw_sky3d requires begin_3d/end_3d");
+    // Rain and snow (and what they wet or cover) are not on the bgfx path yet.
+  } else if (!ctx_ref<render3d_state>(ctx)->active) {
     return;
+  }
   world3d_store &w = ctx_ref<world3d_store>(ctx);
   w.sky = sky_params_of(sky);
   w.sky_drawn = true;
   w.wind = std::isfinite(sky.weather.wind.x) && std::isfinite(sky.weather.wind.y) ? sky.weather.wind : vec2{};
   w.wetness = clamp(sky.weather.wetness, 0.0f, 1.0f);
   w.cover_auto = sky.weather.cover_auto;
-  if (sky.drive_light)
+  if (sky.drive_light) {
     light3d_set(ctx, sky3d_light(sky, light3d_get(ctx)));
+    // bgfx takes the light at begin_3d: give draws after this one the sky's light now.
+    if (portable)
+      ctx_ref<model_store>(ctx)->portable_frame_light = ctx_ref<model_store>(ctx)->portable_light;
+  }
+  if (portable) {
+    w.portable_precip = w.sky.rain > 0.0f || w.sky.snow > 0.0f;
+    return; // end_3d draws the sky (portable_sky_draw) and rain/snow (portable_precip_draw)
+  }
   render3d_record_world(ctx, world3d_sky, 0);
   if (w.sky.rain > 0.0f || w.sky.snow > 0.0f)
     render3d_record_world(ctx, world3d_precip, 0);
@@ -1239,8 +1442,10 @@ void draw_sky3d(context &ctx, const sky3d &sky) {
 
 namespace {
 void advance(context &ctx) {
-  ctx_ref<world3d_store>(ctx)->time += delta(ctx);
-  ctx_ref<world3d_store>(ctx)->frame++;
+  world3d_store &w = ctx_ref<world3d_store>(ctx);
+  w.time += delta(ctx);
+  w.drift = w.drift + w.wind * delta(ctx);
+  w.frame++;
 }
 
 void setup(context &ctx) { ecs_register(ctx, phase_update, advance, "clock"); }

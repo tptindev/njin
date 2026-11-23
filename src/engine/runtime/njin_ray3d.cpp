@@ -167,7 +167,7 @@ ray3d_hit ray3d_shape(const ray3d &ray, const shape3d &shape) {
 namespace {
 // The ray against `slot`'s meshes at `transform`; with `weights` (the model's
 // morph weights) a mesh with morphs is tested in that shape.
-ray3d_hit ray_model(const model_slot &slot, const ray3d &ray, const transform3d &transform, const f32 *weights) {
+ray3d_hit ray_model(const model_slot &slot, const ray3d &ray, const transform3d &transform, const f32 *weights,const model_pose *pose=nullptr) {
   // The same matrix draw_model builds.
   const vec3 r = transform.rotation * (PI / 180.0f);
   Matrix m = MatrixScale(transform.scale.x, transform.scale.y, transform.scale.z);
@@ -182,7 +182,12 @@ ray3d_hit ray_model(const model_slot &slot, const ray3d &ray, const transform3d 
   thread_local std::vector<f32> morphed;
   for (i32 i = 0; i < slot.model.meshCount; i++) {
     Mesh mesh = slot.model.meshes[i];
-    if (weights != nullptr && (usize)i < slot.morphs.size() && !slot.morphs[(usize)i].slot.empty()) {
+    if(slot.portable_animation) {
+      const auto geometry=portable_animation_geometry(slot,unsigned(i),pose);morphed.resize(geometry->vertices.size()*3);
+      for(size_t v=0;v<geometry->vertices.size();++v) {morphed[v*3]=geometry->vertices[v].x;morphed[v*3+1]=geometry->vertices[v].y;morphed[v*3+2]=geometry->vertices[v].z;}
+      mesh.vertices=morphed.data();
+    }
+    else if (weights != nullptr && (usize)i < slot.morphs.size() && !slot.morphs[(usize)i].slot.empty()) {
       morph_positions(slot.morphs[(usize)i], weights, morphed);
       mesh.vertices = morphed.data(); // the test reads only vertices and indices
     }
@@ -204,6 +209,7 @@ ray3d_hit ray3d_model(const context &ctx, const ray3d &ray, model_handle handle,
   const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr)
     return ray3d_hit{};
+  if(slot->portable_animation) return ray_model(*slot,ray,transform,nullptr,&pose);
   if (slot->morphs.empty())
     return ray_model(*slot, ray, transform, nullptr);
   std::vector<f32> weights;

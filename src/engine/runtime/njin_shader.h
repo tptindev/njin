@@ -2,6 +2,7 @@
 #include "njin_internal_only.h"
 
 #include "_types.h"
+#include "njin_renderer.h"
 #include <raylib.h>
 #include <string>
 #include <unordered_map>
@@ -20,8 +21,19 @@ struct shader_texture_binding {
 // raylib's batch has room for this many extra samplers (RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS).
 inline constexpr usize shader_max_textures = 4;
 
+struct context;
+struct portable_shader_uniform {
+  std::string alias,name,type;
+  unsigned count=1;
+  std::vector<std::array<float,4>> values;
+};
+struct portable_shader_sampler { std::string alias,name; unsigned stage=0; };
 struct shader_slot {
   Shader shader{};
+  RenderShaderHandle portable;
+  std::vector<portable_shader_uniform> portable_uniforms;
+  std::vector<portable_shader_sampler> portable_samplers;
+  std::vector<std::string> portable_files;
   bool alive = false;
   // Uniform name -> location. Querying the driver every frame is slow, so
   // locations are looked up once and cached (-1 is cached too). Mutable so
@@ -38,6 +50,7 @@ struct shader_slot {
 // must run while the GL context is still alive (before CloseWindow).
 struct shader_store {
   std::vector<shader_slot> slots;
+  context *portable_context=nullptr;
   // The shader bound by an explicit shader_begin(), cleared by shader_end().
   // A texture's material shader (texture_set_shader) only auto-binds while
   // this is invalid, so it never clobbers a shader the game began itself.
@@ -114,3 +127,18 @@ void shader_unbind_textures_instanced(const shader_slot &slot);
 // below for their own maps.
 void shader_bind_textures_from(const context &ctx, const shader_slot &slot, i32 first_unit);
 } // namespace njin
+
+namespace njin {
+shader_handle portable_shader_load(shader_store &,const char *,const char *);
+bool portable_shader_reload(shader_store &,shader_handle);
+void portable_shader_unload(shader_store &,shader_handle);
+void portable_shader_set(shader_store &,shader_handle,const char *,const char *,std::span<const std::array<float,4>>);
+std::shared_ptr<const RenderShaderBindings> portable_shader_bindings(const context &,shader_handle);
+// Automatically bind a texture/material shader only when no explicit shader is active.
+struct portable_shader_scope {
+  const shader_store &store;
+  shader_handle previous;
+  portable_shader_scope(const context &,shader_handle,bool replace=false);
+  ~portable_shader_scope();
+};
+}

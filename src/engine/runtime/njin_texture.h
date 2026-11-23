@@ -4,19 +4,24 @@
 #include "_types.h"
 #include "njin_atlas.h"
 #include "_draw_types.h"
+#include "njin_renderer.h"
 #include <raylib.h>
 #include <string>
 #include <vector>
 
 namespace njin {
+struct VirtualTexture;
 struct texture_draw_desc;
 // Both stores follow shader_store (njin_shader.h): handle id 0 is "invalid",
 // id N maps to slots[N - 1], and slots are never reused, so a stale handle can
 // never alias a newer resource.
 
 struct texture_slot {
+  std::shared_ptr<VirtualTexture> virtual_texture;
+  void (*virtual_close)(context &,VirtualTexture &)=nullptr;
   Texture2D texture{};
   bool alive = false;
+  bool streaming_mips = false;
   // Kept so derived images (tilemap chunks) can be sampled the same way.
   texture_filter filter = filter_linear;
   // Resolved file path, for hot reload. Empty for textures not from a file.
@@ -35,6 +40,7 @@ struct texture_slot {
   // sprite/tilemap/particle renderers, which manage their own shaders (e.g.
   // the flash/dissolve fx pass).
   shader_handle shader{};
+  RenderTextureHandle portable{};
 };
 
 // The part of `slot.texture` the image occupies: all of it for an ordinary
@@ -55,6 +61,9 @@ struct atlas_page {
   Texture2D texture{};
   std::vector<shelf> shelves;
   i32 next_y = 0; // top of the next new shelf
+  RenderTextureHandle portable{};
+  RenderImageAsset cpu;
+  texture_filter filter=filter_linear;
 };
 
 struct atlas_slot {
@@ -69,6 +78,7 @@ struct atlas_slot {
 // Owns the GPU textures of every live slot. The destructor frees them, so it
 // must run while the GL context is still alive (before CloseWindow).
 struct texture_store {
+  context *portable_context=nullptr;
   std::vector<texture_slot> slots;
   std::vector<atlas_slot> atlases; // atlas N is atlases[N - 1], never reused
 
@@ -82,11 +92,14 @@ struct texture_store {
 struct render_texture_slot {
   RenderTexture2D target{};
   bool alive = false;
+  RenderTargetHandle portable{};
+  texture_filter filter=filter_nearest;
 };
 
 // Same ownership rules as texture_store, for framebuffers.
 struct render_texture_store {
   std::vector<render_texture_slot> slots;
+  std::vector<RenderTargetHandle> portable_stack;
 
   render_texture_store() = default;
   ~render_texture_store();

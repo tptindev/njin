@@ -7,6 +7,8 @@
 #include <vector>
 
 namespace njin {
+namespace { thread_local bool worker_quiet=false; }
+void log_worker_quiet(bool quiet) {worker_quiet=quiet;}
 namespace {
 struct held_line {
   log_level level;
@@ -119,6 +121,7 @@ void log_set_level(log_level level) { state().level = level; }
 log_level log_get_level() { return state().level; }
 
 bool log_enabled(log_level level) {
+  if(worker_quiet) return false;
   return level != log_off && level >= state().level;
 }
 

@@ -55,9 +55,10 @@ struct particle {
 /// của chúng, còn màu và kích thước luôn theo giá trị hiện tại.
 ///
 /// Máy có GPU thì hạt được mô phỏng trong vertex shader và vẽ bằng một lệnh
-/// instanced cho mỗi emitter (xem particle_backend). Khi đó `gpu` là true và trong `particles` chỉ `age` được
-/// cập nhật: `pos`, `velocity`, `rot` giữ giá trị lúc sinh, vì card đồ họa tự
-/// tính vị trí hiện tại từ đó. Đọc vị trí hạt thì kiểm tra `gpu` trước.
+/// instanced cho mỗi emitter (xem particle_backend). Khi đó `gpu` là true;
+/// `age` chứa thời điểm sinh theo đồng hồ riêng của emitter, không phải tuổi hiện tại.
+/// `pos`, `velocity`, `rot` giữ giá trị lúc sinh, vì card đồ họa tự tính trạng thái
+/// hiện tại. Không đọc chúng như trạng thái đã mô phỏng khi `gpu` là true.
 struct particle_emitter {
   /// @name Phát
   /// @{
@@ -119,8 +120,8 @@ struct particle_emitter {
 
 /// Nơi mô phỏng và vẽ hạt.
 enum particle_backend {
-  /// Máy có GPU (OpenGL 3.3 trở lên, không phải bộ vẽ bằng phần mềm) thì mọi
-  /// emitter chạy trên GPU; máy không có thì chạy trên CPU.
+  /// Máy có instancing thì emitter chạy bằng vertex shader. Backend legacy
+  /// OpenGL loại các bộ vẽ phần mềm; SDL3/bgfx dùng khả năng của graphics device.
   particle_backend_auto,
   particle_backend_cpu, ///< Mọi emitter chạy trên CPU, dù máy có GPU.
 };
@@ -138,9 +139,9 @@ void particles_set_backend(context &ctx, particle_backend backend);
 /// @return Lựa chọn hiện tại.
 particle_backend particles_backend(const context &ctx);
 
-/// Máy này có chạy được hạt trên GPU không: OpenGL 3.3 trở lên, có instancing,
-/// và không phải bộ vẽ bằng phần mềm (llvmpipe, SwiftShader, Microsoft Basic
-/// Render Driver, ...). Chỉ đúng sau khi cửa sổ đã mở, tức là trong mọi hàm
+/// Máy này có chạy được hạt bằng vertex shader và instancing không. SDL3/bgfx
+/// kiểm tra graphics device; OpenGL legacy kiểm tra instancing và loại bộ vẽ
+/// phần mềm. Chỉ đúng sau khi cửa sổ đã mở, tức là trong mọi hàm
 /// của game.
 /// @param ctx Context của engine.
 /// @return `true` nếu GPU dùng được.

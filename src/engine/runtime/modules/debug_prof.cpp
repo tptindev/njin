@@ -149,6 +149,25 @@ json_value debug_build_mem(const context &ctx) {
 }
 
 json_value debug_build_res(const context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    json_value items=json_value::make_array();usize gpu=0,ram=0;
+    const auto &resources=ctx_ref<window_guard>(ctx).renderer_resources;
+    const auto add=[&](const char *kind,std::string name,usize bytes,std::string info) {gpu+=bytes;items.push(item(kind,name,bytes,true,info+"; estimated resource bytes, excludes transient draws"));};
+    for(const auto &[id,texture]:resources.textures) if(!texture.target) {
+      const auto &image=texture.cpu;unsigned w=image.width,h=image.height;usize bytes=0;
+      do {bytes+=size_t(w)*h*(image.format==RenderImageFormat::RGBA16F?8:4);if(image.mips==RenderMipMode::None||(w==1&&h==1)) break;w=std::max(1u,w/2);h=std::max(1u,h/2);} while(true);
+      ram+=image.pixels.size();add("texture","renderer texture #"+std::to_string(id),bytes,dim(image.width,image.height));
+    }
+    for(const auto &[id,target]:resources.targets) {
+      const auto format=resources.textures.at(target.color.id).cpu.format;
+      add("target","renderer target #"+std::to_string(id),size_t(target.width)*target.height*((format==RenderImageFormat::RGBA16F?8:4)+4),dim(target.width,target.height)+"; color plus 4-byte depth");
+    }
+    for(const auto &[id,mesh]:resources.meshes) {
+      const auto bytes=mesh.cpu.size()*sizeof(RenderVertex)+mesh.indices.size()*sizeof(std::uint16_t);ram+=bytes;
+      add("mesh","renderer mesh #"+std::to_string(id),bytes,std::to_string(mesh.cpu.size())+" vertices, lazy upload");
+    }
+    return json_value::make_object().set("t","res").set("items",std::move(items)).set("gpu_bytes",i64(gpu)).set("ram_bytes",i64(ram)).set("estimated",true);
+  }
   json_value items = json_value::make_array();
   usize gpu = 0, ram = 0;
   const auto add = [&](json_value v) {

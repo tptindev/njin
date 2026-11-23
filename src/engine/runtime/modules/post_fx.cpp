@@ -5,6 +5,7 @@
 #include "render_stats.h"
 #include "njin_quality_impl.h"
 #include "njin_log.h"
+#include "njin_render_capabilities.h"
 #include <algorithm>
 #include <rlgl.h>
 
@@ -447,6 +448,7 @@ void post_fx_apply_quality(context &ctx) {
 }
 
 void post_fx_set(context &ctx, const post_fx &fx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) portable_post_fx_validate(fx);
   ctx_ref<post_chain>(ctx)->requested = fx;
   post_fx_apply_quality(ctx);
 }

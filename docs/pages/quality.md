@@ -45,6 +45,10 @@ Thứ đắt nhất trên GPU tích hợp thường là **bóng của đèn đi�
 (pha `phase_render`, cả 2D lẫn 3D) được vẽ vào một ảnh nhỏ hơn rồi phóng lên mượt; giao diện
 (`phase_post_render`) và chữ vẫn vẽ ở độ phân giải thật của cửa sổ, nên menu và HUD vẫn nét.
 
+Phóng lên mượt là lọc song tuyến, hơi mờ. `world_sharp` phóng bằng lọc Catmull-Rom rồi làm nét theo độ
+tương phản quanh mỗi điểm (như FSR 1 / CAS): ở 0.8–0.85 cạnh và nét vẽ gần như ở cỡ thật, thêm một pass
+toàn màn hình dưới nửa mili giây, không có bóng mờ theo thời gian như TAA. Mặc định tắt.
+
 Tọa độ không đổi gì: screen_size(), chuột, camera, w2scr() vẫn tính theo màn hình như cũ.
 
 `world_scale` không áp khi game dùng độ phân giải ảo (window_set_virtual_size()): pixel art đã vẽ ở ảnh

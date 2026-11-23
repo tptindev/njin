@@ -1,4 +1,8 @@
 #include "render3d.h"
+#include "njin_model_portable.h"
+#include "njin_render_texture_portable.h"
+#include "njin_render_capabilities.h"
+#include "render3d_gpu_timer.h"
 #include "njin_world3d_impl.h"
 #include "camera.h"
 #include "fx.h"
@@ -63,6 +67,9 @@ out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
+// invariant: the depth programs transform the same way and must land on the
+// same depth to the bit (render3d_options::depth_prepass).
+invariant gl_Position;
 void main() {
   fragTexCoord = vertexTexCoord;
   fragTexCoord2 = vertexTexCoord2;
@@ -92,12 +99,16 @@ uniform vec4 lightSpot[16];   // direction, cos of the outer cone (-2 for a poin
 uniform vec2 surface;         // specular strength, shininess
 uniform vec4 emission;        // rgb, strength
 uniform vec4 rim;             // rgb, strength
+uniform vec4 toonParams;      // light3d::toon_bands (0 off), toon_softness, toon_threshold
 uniform int unlit;
 uniform int shadowOn;
+uniform int noShadowRecv; // material3d::receive_shadows off: the sun is never shadowed
 uniform mat4 lightVP;
 uniform vec4 shadowParams;    // texel size (0..1), softness in texels, texel size in world units
 uniform vec4 flash;
 uniform vec4 dissolve;        // amount, edge width, grain, seed
+uniform vec4 dissolveFrom;    // fx3d::dissolve_from xyz, dissolve_sweep (0 off)
+uniform vec3 dissolveTo;      // fx3d::dissolve_to
 uniform vec4 viewMask;        // fx3d mask: centre xyz, radius (0 off)
 uniform vec4 edgeColor;
 // Shadows of point and spot lights: the atlas row of each light (-1 = none),
@@ -204,6 +215,8 @@ vec3 surfTangent = vec3(0.0);
 vec3 surfAmbient = vec3(-1.0);
 // The maps of a PBR material, read by the main shader: multiplied into the
 // factors. Negative when the shader has none (the SDF shapes, the outdoor world).
+// surfRough also comes from terrain3d_layer::roughness, which the classic
+// lighting reads too (classic_surface).
 float surfMetal = -1.0;
 float surfRough = -1.0;
 float surfOcclusion = 1.0;
@@ -288,6 +301,12 @@ float dissolve_cut(vec3 pos) {
   if (dissolve.x <= 0.0)
     return 1.0;
   float cut = hash(floor(pos / dissolve.z) + dissolve.w * 17.31);
+  if (dissolveFrom.w > 0.0) {
+    // A sweep: from dissolveFrom (first gone) to dissolveTo (last), ragged by the patches.
+    vec3 axis = dissolveTo - dissolveFrom.xyz;
+    float along = clamp(dot(pos - dissolveFrom.xyz, axis) / max(dot(axis, axis), 1e-6), 0.0, 1.0);
+    cut = mix(cut, along, dissolveFrom.w);
+  }
   if (cut < dissolve.x)
     discard;
   return cut;
@@ -459,6 +478,8 @@ void rt_reflection(float rough, bool lin, inout vec3 specLight) {
 
 // The sun's share by light3d::shadows: off (1), one map, cascades, or ray traced.
 float sun_share(vec3 pos, vec3 n, vec3 l) {
+  if (noShadowRecv == 1)
+    return 1.0;
   return shadowOn == 1   ? sunlight(pos, n, l)
          : shadowOn == 2 ? sunlight_cascades(pos, n, l)
          : shadowOn == 3 ? rt_share(0)
@@ -795,9 +816,38 @@ vec3 classic_ambient(vec3 n, vec3 pos, bool lin) {
   return a;
 }
 
+// light3d::toon_bands: a light's share (N.L times its shadow) in flat steps,
+// from the threshold up to 1; unchanged when off.
+bool toon_on() { return toonParams.x >= 2.0; }
+float toon_band(float x) {
+  if (!toon_on())
+    return x;
+  float steps = toonParams.x - 1.0;
+  float s = (x - toonParams.z) / max(1.0 - toonParams.z, 1e-4) * steps;
+  float w = max(toonParams.y, 1e-3) * 0.5;
+  float level = 0.0;
+  for (int i = 0; i < 7; i++)
+    if (float(i) < steps)
+      level += smoothstep(float(i) - w, float(i) + w, s);
+  return level / steps;
+}
+// The highlight as a spot with a sharp rim when toon.
+float toon_spec(float x) { return toon_on() ? smoothstep(0.5 - toonParams.y * 0.5, 0.5 + toonParams.y * 0.5, x) : x; }
+
+// The specular strength and shininess here: `surface` as set, or with a
+// roughness per pixel (surfRough, 0.5 keeping them as set) the smoother parts
+// brighter and sharper, the rougher fading to none.
+vec2 classic_surface() {
+  if (surfRough < 0.0)
+    return surface;
+  float r = clamp(surfRough, 0.0, 1.0);
+  return vec2(surface.x * 2.0 * (1.0 - r), max(surface.y * exp2(1.0 - 2.0 * r), 1.0));
+}
+
 // Blinn-Phong: the sun, the lamps, ambient and rim, with the lights' colours
 // as given (`lin`: their linear copies).
 vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
+  vec2 surf = classic_surface();
   vec3 diffuse = classic_ambient(n, pos, lin);
   vec3 spec = vec3(0.0);
   vec3 sunColor = lin ? lightColorLinear : lightColor;
@@ -805,8 +855,8 @@ vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
   float nl = max(dot(n, l), 0.0);
   if (nl > 0.0) {
     float sun = sun_share(pos, n, l);
-    diffuse += sunColor * nl * sun;
-    spec += sunColor * pow(max(dot(n, normalize(l + v)), 0.0), surface.y) * sun;
+    diffuse += sunColor * toon_band(nl * sun);
+    spec += sunColor * toon_spec(pow(max(dot(n, normalize(l + v)), 0.0), surf.y) * sun);
   }
   for (int i = 0; i < lightCount; i++) {
     vec3 li;
@@ -815,9 +865,9 @@ vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
       continue;
     vec3 c = lin ? lightColorsLinear[i].rgb : lightColors[i].rgb;
     float nli = max(dot(n, li), 0.0);
-    diffuse += c * nli * att;
+    diffuse += c * toon_band(nli * att);
     if (nli > 0.0)
-      spec += c * pow(max(dot(n, normalize(li + v)), 0.0), surface.y) * att;
+      spec += c * toon_spec(pow(max(dot(n, normalize(li + v)), 0.0), surf.y) * att);
   }
   int first, count;
   lamp_range(pos, first, count);
@@ -829,12 +879,12 @@ vec3 classic_light(vec3 base, vec3 n, vec3 pos, vec3 v, bool lin) {
       continue;
     vec3 c = lin ? a.linear.rgb : a.color.rgb;
     float nli = max(dot(n, li), 0.0);
-    diffuse += c * nli * att;
+    diffuse += c * toon_band(nli * att);
     if (nli > 0.0)
-      spec += c * pow(max(dot(n, normalize(li + v)), 0.0), surface.y) * att;
+      spec += c * toon_spec(pow(max(dot(n, normalize(li + v)), 0.0), surf.y) * att);
   }
   vec3 rimColor = lin ? srgb_to_linear(rim.rgb) : rim.rgb;
-  return base * diffuse + spec * surface.x + rimColor * rim.a * pow(1.0 - max(dot(n, v), 0.0), 3.0);
+  return base * diffuse + spec * surf.x + rimColor * rim.a * pow(1.0 - max(dot(n, v), 0.0), 3.0);
 }
 
 // Cook-Torrance with GGX for one light of colour `c` from `l`. In njin's scale
@@ -1017,6 +1067,15 @@ void probe_light(vec3 n, vec3 pos, vec3 r, float rough, inout vec3 diffuseLight,
 void probe_light(vec3 n, vec3 pos, vec3 r, float rough, inout vec3 diffuseLight, inout vec3 specLight) {}
 #endif
 
+// A light's share for a PBR lobe, which multiplies by N.L itself: under
+// toon_bands, what makes that product land on the band.
+float toon_share(vec3 n, vec3 l, float share) {
+  if (!toon_on())
+    return share;
+  float nl = max(dot(n, l), 1e-4);
+  return toon_band(nl * share) / nl;
+}
+
 // The PBR material: the sun, the lamps, and the ambient light or the
 // environment, with the lights' colours as given (`lin`: their linear copies).
 vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
@@ -1026,14 +1085,15 @@ vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
   vec3 color = vec3(0.0);
   vec3 l = -lightDir;
   if (dot(n, l) > 0.0) {
-    float sun = sun_share(pos, n, l);
+    float sun = toon_share(n, l, sun_share(pos, n, l));
     color += pbr_lobe(albedo, metal, rough, f0, n, v, l, (lin ? lightColorLinear : lightColor) * sun);
   }
   for (int i = 0; i < lightCount; i++) {
     vec3 li;
     float att = lamp_share(i, pos, n, li);
     if (att > 0.0)
-      color += pbr_lobe(albedo, metal, rough, f0, n, v, li, (lin ? lightColorsLinear[i].rgb : lightColors[i].rgb) * att);
+      color += pbr_lobe(albedo, metal, rough, f0, n, v, li,
+                        (lin ? lightColorsLinear[i].rgb : lightColors[i].rgb) * toon_share(n, li, att));
   }
   int first, count;
   lamp_range(pos, first, count);
@@ -1042,7 +1102,7 @@ vec3 pbr_light(vec3 albedo, vec3 n, vec3 pos, vec3 v, bool lin) {
     vec3 li;
     float att = lamp_share_ext(a, pos, n, li);
     if (att > 0.0)
-      color += pbr_lobe(albedo, metal, rough, f0, n, v, li, (lin ? a.linear.rgb : a.color.rgb) * att);
+      color += pbr_lobe(albedo, metal, rough, f0, n, v, li, (lin ? a.linear.rgb : a.color.rgb) * toon_share(n, li, att));
   }
   // Light from all around: the environment, or the ambient colour as an even
   // sky. With the energy single scattering loses on rough surfaces given back
@@ -1140,6 +1200,101 @@ vec3 shade(vec3 base, vec3 n, vec3 pos, float cut, vec3 glow) {
   }
   return color;
 }
+
+// terrain3d_layer::glitter and material3d::glitter: ice crystals a few
+// centimetres apart, one in some cells of a grid in the world, each with a
+// face tilted its own way. One
+// flares where that face mirrors the sun into the eye, in sunlight only, so
+// they come and go as the camera moves. A crystal is never drawn smaller than
+// the pixel, and fades out where a pixel spans several of them.
+// material3d::glitter_lamps: the same crystals flare in the point and spot
+// lights too, each in its light's colour.
+vec3 glitter_hash(vec3 p) {
+  p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+  p += dot(p, p.yxz + 33.33);
+  return fract((p.xxy + p.yxx) * p.zyx);
+}
+// The crystal at `pos`: how much of it the pixel shows (0: none there), the
+// face it turns out, and the way to the eye. `foot` is the pixel's size there.
+float glitter_crystal(vec3 pos, vec3 n, float foot, out vec3 face, out vec3 v) {
+  const float cell = 0.03;
+  face = n;
+  v = viewPos - pos;
+  float dist = length(v);
+  v /= dist;
+  vec3 id = floor(pos / cell);
+  vec3 h = glitter_hash(id);
+  if (h.x > 0.5)
+    return 0.0;
+  vec3 d = (id + 0.2 + 0.6 * glitter_hash(id + 17.0)) * cell - pos;
+  d -= n * dot(d, n); // across the surface only
+  float r = max(cell * 0.12, foot * 0.6);
+  float spot = 1.0 - smoothstep(r * 0.5, r, length(d));
+  // Any way up the crystal lies: with the sun behind the eye only the steep
+  // faces send it back, and those are most of the glints.
+  face = normalize(glitter_hash(id + 31.0) * 2.0 - 1.0 + 1e-4);
+  face = dot(face, n) < 0.0 ? -face : face;
+  float resolved = clamp(cell * 1.5 / max(foot, 1e-5), 0.0, 1.0);
+  float near = 1.0 - smoothstep(30.0, 60.0, dist);
+  return spot * resolved * near;
+}
+// How sharply a crystal's `face` mirrors light from `l` into the eye at `v`.
+float glitter_mirror(vec3 face, vec3 l, vec3 v) { return pow(max(dot(reflect(-l, face), v), 0.0), 40.0); }
+float glitter_at(vec3 pos, vec3 n, float amount) {
+  float foot = length(fwidth(pos)); // before any branch: the pixel's size on the ground
+  vec3 l = -lightDir;
+  if (amount <= 0.0 || dot(n, l) <= 0.0)
+    return 0.0;
+  vec3 face, v;
+  float c = glitter_crystal(pos, n, foot, face, v);
+  if (c <= 0.0)
+    return 0.0;
+  return c * glitter_mirror(face, l, v) * amount * sun_share(pos, n, l);
+}
+// The glints of the point and spot lights at `pos`, coloured by each light
+// (their linear copies when `lin`).
+vec3 glitter_lamps(vec3 pos, vec3 n, float amount, bool lin) {
+  float foot = length(fwidth(pos)); // before any branch
+  if (amount <= 0.0)
+    return vec3(0.0);
+  vec3 face, v;
+  float c = glitter_crystal(pos, n, foot, face, v) * amount;
+  if (c <= 0.0)
+    return vec3(0.0);
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < lightCount; i++) {
+    vec3 li;
+    float att = lamp_share(i, pos, n, li);
+    if (att > 0.0 && dot(n, li) > 0.0)
+      sum += (lin ? lightColorsLinear[i].rgb : lightColors[i].rgb) * att * glitter_mirror(face, li, v);
+  }
+  int first, count;
+  lamp_range(pos, first, count);
+  for (int j = 0; j < count; j++) {
+    lamp a = lamp_at(lamp_index(first, j));
+    vec3 li;
+    float att = lamp_share_ext(a, pos, n, li);
+    if (att > 0.0 && dot(n, li) > 0.0)
+      sum += (lin ? a.linear.rgb : a.color.rgb) * att * glitter_mirror(face, li, v);
+  }
+  return sum * c;
+}
+
+// `color` from shade() with a glint added: past white where the output is
+// linear, so the bloom takes it.
+vec3 glitter_add(vec3 color, float glint) {
+  if (glint <= 0.0)
+    return color;
+  if (hdrOut == 1)
+    return color + lightColorLinear * glint * 6.0 * (toneMap > 0 ? exposure : 1.0);
+  return min(color + lightColor * glint, vec3(1.0));
+}
+// glitter_add() for glitter_lamps(), whose glints carry their own colour.
+vec3 glitter_add_lamps(vec3 color, vec3 glint) {
+  if (hdrOut == 1)
+    return color + glint * 6.0 * (toneMap > 0 ? exposure : 1.0);
+  return min(color + glint, vec3(1.0));
+}
 )";
 
 const char *const lit_fs_main = R"(
@@ -1179,6 +1334,8 @@ uniform mat4 sceneVP;
 uniform int oitPass;
 uniform float alphaCutoff;     // material3d::alpha_cutoff, 0 off
 uniform vec4 snowCover;        // material3d::snow: rgb its colour, a the amount (0 off)
+uniform float glitterAmount;   // material3d::glitter, 0 off
+uniform int glitterFlags;      // 1 material3d::glitter_lamps, 2 material3d::glitter_metal
 
 // Smooth value noise in 3D, 0..1.
 float snow_noise(vec3 p) {
@@ -1202,7 +1359,7 @@ float snow_amount(vec3 n, vec2 uv) {
   float fine = snow_noise(fragPos * 6.1 + 13.0);
   // Buried leaves, about one leaf across each, more of them with more snow and
   // where the broad noise drifts them; between them bare ones.
-  float patch = smoothstep(0.6, 0.8, leaf * 0.6 + broad * 0.25 + fine * 0.15 + (amount - 0.5) * 0.45) * 0.88;
+  float snow_patch = smoothstep(0.6, 0.8, leaf * 0.6 + broad * 0.25 + fine * 0.15 + (amount - 0.5) * 0.45) * 0.88;
   float rim = 0.0;
   if (worldUv <= 0.0) {
     // The image's direction of world up: the height's gradient carried into uv
@@ -1222,7 +1379,7 @@ float snow_amount(vec3 n, vec2 uv) {
     rim *= 1.0 - smoothstep(0.012, 0.025, max(length(dux), length(duy)));
   }
   rim *= smoothstep(0.2, 0.6, fine * 0.6 + broad * 0.4 + amount * 0.4) * 0.95;
-  return clamp(face * max(patch, rim) * min(amount * 2.0, 1.0), 0.0, 1.0);
+  return clamp(face * max(snow_patch, rim) * min(amount * 2.0, 1.0), 0.0, 1.0);
 }
 
 // Normal mapping without tangents: the frame comes from screen derivatives
@@ -1388,8 +1545,13 @@ void main() {
     albedo = texture(texture0, uv);
   }
   vec4 base = albedo * colDiffuse * fragColor;
-  if (alphaCutoff > 0.0 && base.a < alphaCutoff)
-    discard;
+  if (alphaCutoff > 0.0) {
+    if (base.a < alphaCutoff)
+      discard;
+    // A cut-out is solid: the half alpha of a mipmapped edge is a leaf seen
+    // whole, not a leaf half seen. Only the draw's own alpha still shows through.
+    base.a = colDiffuse.a * fragColor.a;
+  }
   // The under layer where the top one has worn off: patches from a slow
   // noise, more of them near the ground, a dark rim at their edge. Its
   // offsets snap to eighths of the tile, so a pattern on that grid (brick
@@ -1451,9 +1613,18 @@ void main() {
     vec3 lm = texture(lightMap, lightmapParams.w > 0.5 ? fragTexCoord2 : uv).rgb;
     surfAmbient = (lightmapParams.z > 0.5 ? srgb_to_linear(lm) : lm) * lightmapParams.y;
   }
+  float snowy = snowCover.a > 0.0 ? snow_amount(n, uv) : 1.0;
   if (snowCover.a > 0.0)
-    base.rgb = mix(base.rgb, snowCover.rgb, snow_amount(n, uv));
+    base.rgb = mix(base.rgb, snowCover.rgb, snowy);
   vec4 color = vec4(shade(base.rgb, n, fragPos, cut, glow), base.a);
+  if (glitterAmount > 0.0) { // with material3d::snow, only the snow glitters
+    float amount = glitterAmount * snowy;
+    if ((glitterFlags & 2) != 0)
+      amount *= clamp(surfMetal >= 0.0 ? surfMetal : pbrParams.y, 0.0, 1.0);
+    color.rgb = glitter_add(color.rgb, glitter_at(fragPos, n, amount));
+    if ((glitterFlags & 1) != 0)
+      color.rgb = glitter_add_lamps(color.rgb, glitter_lamps(fragPos, n, amount, hdrOut == 1));
+  }
 #ifdef NJIN_EXT
   if (transmit.x > 0.0 && sceneOn == 1) {
     // Into the HDR image the scene is linear and exposed as `color`; into a
@@ -1682,6 +1853,42 @@ vec3 instance_scale() {
   axes = mix(axes, vec3(1.0), vec3(equal(axes, vec3(0.0))));
   return axes * k;
 }
+uniform float swayAmount; // model_material::sway, 0: still
+uniform vec2 swayWind;    // wind3d_get()
+uniform float swayTime;   // the grass's clock, so both bend in the same gusts
+uniform float flutterAmount; // model_material::flutter, 0: still
+// model_material::sway: `world` leaned with the wind as a grass blade is
+// (world3d_draw.cpp's blade()), by the square of `local.y`, the vertex's
+// height in the model after its scale and before its turn.
+vec3 instance_sway(vec3 world, vec3 local) {
+  if (swayAmount <= 0.0)
+    return world;
+  float speed = length(swayWind);
+  vec2 dir = speed > 1e-3 ? swayWind / speed : vec2(1.0, 0.0);
+  float phase = fract(sin(dot(instance0.xz, vec2(12.9898, 78.233))) * 43758.5453) * 6.2832;
+  float gust = sin(swayTime * 1.6 + phase + dot(instance0.xz, dir) * 0.3) * 0.5 + 0.5;
+  float flutter = sin(swayTime * 4.7 + phase * 3.0) * 0.12;
+  float bend = (clamp(speed / 8.0, 0.0, 1.3) * (0.35 + 0.65 * gust) + flutter * clamp(speed / 3.0, 0.0, 1.0)) *
+               swayAmount;
+  float y2 = max(local.y, 0.0) * max(local.y, 0.0);
+  return world + vec3(dir.x * bend * y2, -0.5 * bend * bend * y2 * max(local.y, 0.0), dir.y * bend * y2);
+}
+// model_material::flutter: a leaf turned about its stalk, `leaf.x` metres
+// off, in its own beat `leaf.y`, by gust and wind (a little in still air):
+// blown downwind and lifted, and tossed to and fro across the wind.
+vec3 instance_flutter(vec3 world, vec2 leaf) {
+  if (flutterAmount <= 0.0 || leaf.x <= 0.0)
+    return world;
+  float speed = length(swayWind);
+  vec2 dir = speed > 1e-3 ? swayWind / speed : vec2(1.0, 0.0);
+  float beat = leaf.y * 6.2832;
+  float gust = sin(swayTime * 1.6 + dot(world.xz, dir) * 0.3) * 0.5 + 0.5;
+  float strength = (0.15 + clamp(speed / 8.0, 0.0, 1.3) * (0.4 + 0.6 * gust)) * flutterAmount * leaf.x;
+  float toss = sin(swayTime * (6.0 + 3.0 * leaf.y) + beat + dot(world.xz, dir) * 0.9);
+  float lift = sin(swayTime * (9.0 + 4.0 * leaf.y) + beat * 3.0);
+  vec3 down = vec3(dir.x, 0.0, dir.y), across = vec3(-dir.y, 0.0, dir.x);
+  return world + (down * (0.35 + 0.35 * toss) + across * (0.5 * lift) + vec3(0.0, 0.4 * toss, 0.0)) * strength;
+}
 )";
 
 const char *const lit_instanced_vs_main = R"(
@@ -1696,10 +1903,12 @@ out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
+invariant gl_Position;
 void main() {
   mat3 r = instance_rotation();
   vec3 k = instance_scale();
-  vec3 world = r * (vertexPosition * k) + instance0.xyz;
+  vec2 leaf = vec2(vertexTexCoord2.x * k.y, vertexTexCoord2.y);
+  vec3 world = instance_sway(instance_flutter(r * (vertexPosition * k) + instance0.xyz, leaf), vertexPosition * k);
   fragTexCoord = vertexTexCoord;
   fragTexCoord2 = vertexTexCoord2;
   fragColor = vertexColor * (instanceFloats >= 8 ? instance1 : vec4(1.0));
@@ -1712,11 +1921,20 @@ void main() {
 const char *const depth_instanced_vs_main = R"(
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec2 vertexTexCoord2;
+in vec4 vertexColor;
 uniform mat4 mvp;
 out vec2 fragTexCoord;
+out vec4 fragColor;
+out vec3 fragWorld;
+invariant gl_Position;
 void main() {
   fragTexCoord = vertexTexCoord;
-  vec3 world = instance_rotation() * (vertexPosition * instance_scale()) + instance0.xyz;
+  fragColor = vertexColor * (instanceFloats >= 8 ? instance1 : vec4(1.0));
+  vec3 local = vertexPosition * instance_scale();
+  vec3 world = instance_sway(instance_flutter(instance_rotation() * local + instance0.xyz,
+                                              vec2(vertexTexCoord2.x * instance_scale().y, vertexTexCoord2.y)), local);
+  fragWorld = world;
   gl_Position = mvp * vec4(world, 1.0);
 }
 )";
@@ -1752,6 +1970,7 @@ out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
+invariant gl_Position;
 void main() {
   mat4 k = skin_matrix();
   vec4 p = k * vec4(vertexPosition, 1.0);
@@ -1767,11 +1986,19 @@ void main() {
 const char *const depth_skinned_vs_main = R"(
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec4 vertexColor;
 uniform mat4 mvp;
+uniform mat4 matModel;
 out vec2 fragTexCoord;
+out vec4 fragColor;
+out vec3 fragWorld;
+invariant gl_Position;
 void main() {
   fragTexCoord = vertexTexCoord;
-  gl_Position = mvp * (skin_matrix() * vec4(vertexPosition, 1.0));
+  fragColor = vertexColor;
+  vec4 p = skin_matrix() * vec4(vertexPosition, 1.0);
+  fragWorld = (matModel * p).xyz;
+  gl_Position = mvp * p;
 }
 )";
 
@@ -1792,6 +2019,7 @@ out vec2 fragTexCoord2;
 out vec4 fragColor;
 out vec3 fragNormal;
 out vec3 fragPos;
+invariant gl_Position;
 void main() {
   vec4 world = instanceTransform * vec4(vertexPosition, 1.0);
   fragTexCoord = vertexTexCoord;
@@ -1811,34 +2039,81 @@ const char *const depth_batched_vs = R"(#version 330
 layout(location = 12) in mat4 instanceTransform;
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec4 vertexColor;
 uniform mat4 mvp;
 out vec2 fragTexCoord;
+out vec4 fragColor;
+out vec3 fragWorld;
+invariant gl_Position;
 void main() {
   fragTexCoord = vertexTexCoord;
-  gl_Position = mvp * (instanceTransform * vec4(vertexPosition, 1.0));
+  fragColor = vertexColor;
+  vec4 world = instanceTransform * vec4(vertexPosition, 1.0);
+  fragWorld = world.xyz;
+  gl_Position = mvp * world;
 }
 )";
 
 const char *const depth_vs = R"(#version 330
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec4 vertexColor;
 uniform mat4 mvp;
+uniform mat4 matModel;
 out vec2 fragTexCoord;
+out vec4 fragColor;
+out vec3 fragWorld;
+invariant gl_Position;
 void main() {
   fragTexCoord = vertexTexCoord;
+  fragColor = vertexColor;
+  fragWorld = (matModel * vec4(vertexPosition, 1.0)).xyz;
   gl_Position = mvp * vec4(vertexPosition, 1.0);
 }
 )";
 
 // material3d::alpha_cutoff: no depth where the albedo's alpha falls short.
+// fx3d's dissolve (set only for the camera's depth prepass, depth_dissolve()):
+// no depth where the draw has dissolved, the same cut as dissolve_cut() in
+// the lit shaders.
 const char *const depth_fs = R"(#version 330
 in vec2 fragTexCoord;
+in vec4 fragColor;
+in vec3 fragWorld;
 uniform sampler2D texture0;
 uniform float alphaCutoff;
+uniform vec4 colDiffuse;
+// The camera's exact depth prepass (render3d_state::exact_depth): the cut
+// takes the draw's colour and the vertex colour too, the lit shaders' product
+// in their order, so it keeps the same texels. 0 in the shadow maps, as before.
+uniform int cutColor;
+uniform vec4 dissolve;     // amount, edge width, grain, seed
+uniform vec4 dissolveFrom; // fx3d::dissolve_from xyz, dissolve_sweep (0 off)
+uniform vec3 dissolveTo;   // fx3d::dissolve_to
 out vec4 finalColor;
+float hash(vec3 p) {
+  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
 void main() {
-  if (alphaCutoff > 0.0 && texture(texture0, fragTexCoord).a < alphaCutoff)
-    discard;
+  if (alphaCutoff > 0.0) {
+    float a = texture(texture0, fragTexCoord).a;
+    if (cutColor == 1)
+      a = (a * colDiffuse.a) * fragColor.a;
+    if (a < alphaCutoff)
+      discard;
+  }
+  if (dissolve.x > 0.0) {
+    float cut = hash(floor(fragWorld / dissolve.z) + dissolve.w * 17.31);
+    if (dissolveFrom.w > 0.0) {
+      vec3 axis = dissolveTo - dissolveFrom.xyz;
+      float along = clamp(dot(fragWorld - dissolveFrom.xyz, axis) / max(dot(axis, axis), 1e-6), 0.0, 1.0);
+      cut = mix(cut, along, dissolveFrom.w);
+    }
+    if (cut < dissolve.x)
+      discard;
+  }
   finalColor = vec4(1.0);
 }
 )";
@@ -1990,11 +2265,162 @@ Vector3 rl3(vec3 v) {
 vec3 rgb(rgba c) { return vec3{c.r, c.g, c.b}; }
 vec4 v4(rgba c) { return {c.r, c.g, c.b, c.a}; }
 
-void set_i32(Shader s, i32 loc, i32 v) { SetShaderValue(s, loc, &v, SHADER_UNIFORM_INT); }
-void set_f32(Shader s, i32 loc, f32 v) { SetShaderValue(s, loc, &v, SHADER_UNIFORM_FLOAT); }
-void set_vec2(Shader s, i32 loc, vec2 v) { SetShaderValue(s, loc, &v, SHADER_UNIFORM_VEC2); }
-void set_vec3(Shader s, i32 loc, vec3 v) { SetShaderValue(s, loc, &v, SHADER_UNIFORM_VEC3); }
-void set_vec4(Shader s, i32 loc, vec4 v) { SetShaderValue(s, loc, &v, SHADER_UNIFORM_VEC4); }
+// The values the setters below sent this pass, per program and location, so a
+// value a program already holds is not sent again: set_draw_uniforms() repeats
+// most of a material's values for every mesh of a pass, and each send is three
+// GL calls (SetShaderValue binds the program round it). Only these setters
+// write the locations they cover, so what they remember is what the program
+// holds. Cleared where a pass begins (uniform_cache_clear()).
+struct uniform_slot {
+  bool set = false;
+  f32 v[16]{}; // up to a matrix
+};
+struct uniform_cache {
+  u32 program = 0;
+  std::vector<uniform_slot> slots; // by location
+};
+thread_local std::vector<uniform_cache> uniform_caches;
+
+void uniform_cache_clear() {
+  for (uniform_cache &c : uniform_caches)
+    c.slots.clear();
+}
+
+// Whether `loc` of `program` already holds the `count` floats (or ints, as
+// bits) at `v`; remembers them either way.
+bool uniform_held(u32 program, i32 loc, const void *v, usize count) {
+  uniform_cache *c = nullptr;
+  for (uniform_cache &u : uniform_caches)
+    if (u.program == program) {
+      c = &u;
+      break;
+    }
+  if (c == nullptr) {
+    uniform_caches.push_back({program, {}});
+    c = &uniform_caches.back();
+  }
+  if ((usize)loc >= c->slots.size())
+    c->slots.resize((usize)loc + 1);
+  uniform_slot &slot = c->slots[(usize)loc];
+  const usize bytes = count * sizeof(f32);
+  if (slot.set && std::memcmp(slot.v, v, bytes) == 0)
+    return true;
+  slot.set = true;
+  std::memcpy(slot.v, v, bytes);
+  return false;
+}
+
+void set_i32(Shader s, i32 loc, i32 v) {
+  if (loc >= 0 && !uniform_held(s.id, loc, &v, 1))
+    SetShaderValue(s, loc, &v, SHADER_UNIFORM_INT);
+}
+void set_f32(Shader s, i32 loc, f32 v) {
+  if (loc >= 0 && !uniform_held(s.id, loc, &v, 1))
+    SetShaderValue(s, loc, &v, SHADER_UNIFORM_FLOAT);
+}
+void set_vec2(Shader s, i32 loc, vec2 v) {
+  if (loc >= 0 && !uniform_held(s.id, loc, &v, 2))
+    SetShaderValue(s, loc, &v, SHADER_UNIFORM_VEC2);
+}
+void set_vec3(Shader s, i32 loc, vec3 v) {
+  if (loc >= 0 && !uniform_held(s.id, loc, &v, 3))
+    SetShaderValue(s, loc, &v, SHADER_UNIFORM_VEC3);
+}
+void set_vec4(Shader s, i32 loc, vec4 v) {
+  if (loc >= 0 && !uniform_held(s.id, loc, &v, 4))
+    SetShaderValue(s, loc, &v, SHADER_UNIFORM_VEC4);
+}
+
+// Forgets what is remembered of `program`: something else wrote its uniforms
+// (raylib's DrawMesh and DrawMeshInstanced set the colours, matrices and
+// sampler units themselves).
+void uniform_forget(u32 program) {
+  for (uniform_cache &c : uniform_caches)
+    if (c.program == program) {
+      c.slots.clear();
+      return;
+    }
+}
+
+// DrawMesh for a draw outside the hot paths, keeping the setters' memory right.
+void draw_mesh(const Mesh &mesh, const Material &material, const Matrix &transform) {
+  DrawMesh(mesh, material, transform);
+  uniform_forget(material.shader.id);
+}
+
+vec4 color_floats(Color c) {
+  return {(f32)c.r / 255.0f, (f32)c.g / 255.0f, (f32)c.b / 255.0f, (f32)c.a / 255.0f};
+}
+
+// raylib's DrawMesh for a mesh of the built-in lit or depth program, sending
+// only what the program does not hold yet: the sampler units, the view and
+// projection matrices and the specular colour are the same for every mesh of
+// a pass, and DrawMesh sends them all every time, with two buffer unbinds the
+// vertex array's own makes moot. The maps are bound and unbound exactly as
+// DrawMesh does, so nothing drawn after sees a difference. Anything else (a
+// skinned or instanced program, a game's shader, cube maps, stereo) goes to
+// DrawMesh, after which the program's uniforms are forgotten.
+void draw_mesh(const render3d_state &s, const Mesh &mesh, const Material &material, const Matrix &transform) {
+  const Shader sh = material.shader;
+  const bool lean = (sh.id == s.lit.id || sh.id == s.lit_alt.id || sh.id == s.depth.id) && sh.locs != nullptr &&
+                    mesh.vaoId != 0 && !rlIsStereoRenderEnabled() &&
+                    material.maps[MATERIAL_MAP_IRRADIANCE].texture.id == 0 &&
+                    material.maps[MATERIAL_MAP_PREFILTER].texture.id == 0 &&
+                    material.maps[MATERIAL_MAP_CUBEMAP].texture.id == 0;
+  if (!lean) {
+    DrawMesh(mesh, material, transform);
+    uniform_forget(sh.id);
+    return;
+  }
+  rlEnableShader(sh.id);
+  const i32 *locs = sh.locs;
+  if (locs[SHADER_LOC_COLOR_DIFFUSE] != -1) {
+    const vec4 v = color_floats(material.maps[MATERIAL_MAP_DIFFUSE].color);
+    if (!uniform_held(sh.id, locs[SHADER_LOC_COLOR_DIFFUSE], &v, 4))
+      rlSetUniform(locs[SHADER_LOC_COLOR_DIFFUSE], &v, SHADER_UNIFORM_VEC4, 1);
+  }
+  if (locs[SHADER_LOC_COLOR_SPECULAR] != -1) {
+    const vec4 v = color_floats(material.maps[MATERIAL_MAP_SPECULAR].color);
+    if (!uniform_held(sh.id, locs[SHADER_LOC_COLOR_SPECULAR], &v, 4))
+      rlSetUniform(locs[SHADER_LOC_COLOR_SPECULAR], &v, SHADER_UNIFORM_VEC4, 1);
+  }
+  const Matrix view = rlGetMatrixModelview();
+  const Matrix projection = rlGetMatrixProjection();
+  if (locs[SHADER_LOC_MATRIX_VIEW] != -1 && !uniform_held(sh.id, locs[SHADER_LOC_MATRIX_VIEW], &view, 16))
+    rlSetUniformMatrix(locs[SHADER_LOC_MATRIX_VIEW], view);
+  if (locs[SHADER_LOC_MATRIX_PROJECTION] != -1 &&
+      !uniform_held(sh.id, locs[SHADER_LOC_MATRIX_PROJECTION], &projection, 16))
+    rlSetUniformMatrix(locs[SHADER_LOC_MATRIX_PROJECTION], projection);
+  const Matrix model = MatrixMultiply(transform, rlGetMatrixTransform());
+  if (locs[SHADER_LOC_MATRIX_MODEL] != -1)
+    rlSetUniformMatrix(locs[SHADER_LOC_MATRIX_MODEL], model);
+  if (locs[SHADER_LOC_MATRIX_NORMAL] != -1)
+    rlSetUniformMatrix(locs[SHADER_LOC_MATRIX_NORMAL], MatrixTranspose(MatrixInvert(model)));
+  constexpr i32 material_maps = 12; // raylib's MAX_MATERIAL_MAPS
+  for (i32 i = 0; i < material_maps; i++) {
+    if (material.maps[i].texture.id == 0)
+      continue;
+    rlActiveTextureSlot(i);
+    rlEnableTexture(material.maps[i].texture.id);
+    const i32 unit = locs[SHADER_LOC_MAP_DIFFUSE + i];
+    if (unit != -1 && !uniform_held(sh.id, unit, &i, 1))
+      rlSetUniform(unit, &i, SHADER_UNIFORM_INT, 1);
+  }
+  rlEnableVertexArray(mesh.vaoId);
+  rlSetUniformMatrix(locs[SHADER_LOC_MATRIX_MVP], MatrixMultiply(MatrixMultiply(model, view), projection));
+  if (mesh.indices != nullptr)
+    rlDrawVertexArrayElements(0, mesh.triangleCount * 3, nullptr);
+  else
+    rlDrawVertexArray(0, mesh.vertexCount);
+  for (i32 i = 0; i < material_maps; i++) {
+    if (material.maps[i].texture.id == 0)
+      continue;
+    rlActiveTextureSlot(i);
+    rlDisableTexture();
+  }
+  rlDisableVertexArray();
+  rlDisableShader();
+}
 
 Texture2D default_texture() {
   return Texture2D{.id = rlGetTextureIdDefault(), .width = 1, .height = 1, .mipmaps = 1,
@@ -2017,11 +2443,15 @@ render3d_locations find_locations(Shader shader) {
   l.surface = loc("surface");
   l.emission = loc("emission");
   l.rim = loc("rim");
+  l.toon = loc("toonParams");
   l.emission_color = loc("emissionColor");
   l.unlit = loc("unlit");
+  l.no_shadow_recv = loc("noShadowRecv");
   l.use_normal_map = loc("useNormalMap");
   l.alpha_cutoff = loc("alphaCutoff");
   l.snow_cover = loc("snowCover");
+  l.glitter = loc("glitterAmount");
+  l.glitter_flags = loc("glitterFlags");
   l.use_emission_map = loc("useEmissionMap");
   l.world_uv = loc("worldUv");
   l.under_amount = loc("underAmount");
@@ -2032,6 +2462,8 @@ render3d_locations find_locations(Shader shader) {
   l.shadow_params = loc("shadowParams");
   l.flash = loc("flash");
   l.dissolve = loc("dissolve");
+  l.dissolve_from = loc("dissolveFrom");
+  l.dissolve_to = loc("dissolveTo");
   l.view_mask = loc("viewMask");
   l.edge_color = loc("edgeColor");
   l.clay_surface = loc("claySurface");
@@ -2463,6 +2895,8 @@ void load_camera(const context &ctx, const camera3d &camera) {
 
 } // namespace
 
+camera3d render3d_shaken_camera(const context &ctx,camera3d camera) { return shaken(ctx,camera); }
+
 vec2 render3d_depth_planes(const camera3d &camera) {
   const bool ortho = camera.projection == camera3d_orthographic;
   return {ortho ? -camera.near_plane : camera.near_plane, camera.far_plane};
@@ -2514,6 +2948,7 @@ void place_box(draw3d_cmd &c, const Matrix &t, vec3 mid, vec3 half) {
 
 // Pass state for a draw call: only inside begin_3d/end_3d.
 const render3d_state *open_pass(const context &ctx) {
+  require_opengl_backend(ctx,"legacy 3D primitive");
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
   return s.active ? &s : nullptr;
 }
@@ -2626,6 +3061,9 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
   set_vec4(sh, l.flash, v4(fx.flash));
   set_vec4(sh, l.dissolve,
            {clamp(fx.dissolve, 0.0f, 1.0f), fx.edge_width, fx.grain > 0.0f ? fx.grain : 0.1f, fx.seed});
+  set_vec4(sh, l.dissolve_from,
+           {fx.dissolve_from.x, fx.dissolve_from.y, fx.dissolve_from.z, clamp(fx.dissolve_sweep, 0.0f, 1.0f)});
+  set_vec3(sh, l.dissolve_to, {fx.dissolve_to.x, fx.dissolve_to.y, fx.dissolve_to.z});
   set_vec4(sh, l.edge_color, v4(fx.edge_color));
   set_vec4(sh, l.view_mask, {fx.mask_center.x, fx.mask_center.y, fx.mask_center.z, std::max(fx.mask_radius, 0.0f)});
   set_vec2(sh, l.surface, {m.specular, std::max(m.shininess, 1.0f)});
@@ -2634,9 +3072,12 @@ void set_draw_uniforms(Shader sh, const render3d_locations &l, const fx3d &fx, c
   set_vec4(sh, l.rim, v4(m.rim));
   set_vec4(sh, l.emission_color, v4(emission_color));
   set_i32(sh, l.unlit, m.unlit ? 1 : 0);
+  set_i32(sh, l.no_shadow_recv, m.receive_shadows ? 0 : 1);
   set_i32(sh, l.use_normal_map, normal_map ? 1 : 0);
   set_f32(sh, l.alpha_cutoff, std::max(m.alpha_cutoff, 0.0f));
   set_vec4(sh, l.snow_cover, {m.snow_color.r, m.snow_color.g, m.snow_color.b, clamp(m.snow, 0.0f, 1.0f)});
+  set_f32(sh, l.glitter, std::isfinite(m.glitter) ? clamp(m.glitter, 0.0f, 4.0f) : 0.0f);
+  set_i32(sh, l.glitter_flags, (m.glitter_lamps ? 1 : 0) | (m.glitter_metal ? 2 : 0));
   set_i32(sh, l.use_emission_map, emission_map ? 1 : 0);
   set_f32(sh, l.world_uv, std::max(m.world_uv, 0.0f));
   set_f32(sh, l.under_amount, under_map && m.world_uv > 0.0f ? std::clamp(m.under_amount, 0.0f, 1.0f) : 0.0f);
@@ -2802,11 +3243,16 @@ template <typename Fn> void for_each_model_mesh(const context &ctx, const draw3d
     const bool posed = c.bone_count > 0 && ctx_ref<render3d_state>(ctx)->skin_ok &&
                        (lod != nullptr ? lod->bone_vbo != 0
                                        : (usize)i < slot->bone_vbo.size() && slot->bone_vbo[(usize)i] != 0);
+    const bool mirrored = !mm.double_sided && MatrixDeterminant(transform) < 0.0f;
     if (mm.double_sided)
       rlDisableBackfaceCulling();
+    else if (mirrored)
+      rlSetCullFace(RL_CULL_FACE_FRONT);
     fn(lod != nullptr ? lod->mesh : model.meshes[i], maps, mm, transform, posed);
     if (mm.double_sided)
       rlEnableBackfaceCulling();
+    else if (mirrored)
+      rlSetCullFace(RL_CULL_FACE_BACK);
   }
 }
 
@@ -2824,6 +3270,26 @@ bool primitive_box(const render3d_state &s, const Mesh *mesh, vec3 &mid, vec3 &h
 void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, bool cover = false,
                   bool every_opaque = false);
 
+// fx3d's dissolve in a depth program (depth_fs): `fx` for a dissolving draw, {}
+// for none.
+void depth_dissolve(Shader sh, const fx3d &fx) {
+  if (sh.id == 0)
+    return;
+  struct dissolve_locs {
+    i32 amount = -1, from = -1, to = -1;
+  };
+  thread_local std::unordered_map<u32, dissolve_locs> locations;
+  const auto [at, added] = locations.try_emplace(sh.id);
+  if (added)
+    at->second = {GetShaderLocation(sh, "dissolve"), GetShaderLocation(sh, "dissolveFrom"),
+                  GetShaderLocation(sh, "dissolveTo")};
+  const dissolve_locs &l = at->second;
+  set_vec4(sh, l.amount,
+           {clamp(fx.dissolve, 0.0f, 1.0f), fx.edge_width, fx.grain > 0.0f ? fx.grain : 0.1f, fx.seed});
+  set_vec4(sh, l.from, {fx.dissolve_from.x, fx.dissolve_from.y, fx.dissolve_from.z, clamp(fx.dissolve_sweep, 0.0f, 1.0f)});
+  set_vec3(sh, l.to, {fx.dissolve_to.x, fx.dissolve_to.y, fx.dissolve_to.z});
+}
+
 // material3d::alpha_cutoff in a depth program: the albedo on unit 0 (through
 // `depth`'s maps, which the draw owns) and the cutoff, or no cut at all.
 void depth_cut(Shader sh, Material &depth, f32 cutoff, Texture2D albedo) {
@@ -2834,6 +3300,29 @@ void depth_cut(Shader sh, Material &depth, f32 cutoff, Texture2D albedo) {
   const f32 k = albedo.id > 0 ? std::max(cutoff, 0.0f) : 0.0f;
   set_f32(sh, at->second, k);
   depth.maps[MATERIAL_MAP_DIFFUSE].texture = k > 0.0f ? albedo : default_texture();
+}
+
+// render3d_state::exact_depth in a depth program (depth_fs's cutColor): the cut
+// takes the draw's colour and the vertex colour too, as the lit shaders' does.
+void depth_cut_color(Shader sh, bool on) {
+  if (sh.id == 0)
+    return;
+  thread_local std::unordered_map<u32, i32> locations;
+  const auto [at, added] = locations.try_emplace(sh.id, -1);
+  if (added)
+    at->second = GetShaderLocation(sh, "cutColor");
+  set_i32(sh, at->second, on ? 1 : 0);
+}
+
+// Whether an exact depth prepass can cut `m` as the lit shader will: the lit
+// shader samples the albedo elsewhere with world_uv (untiled) and a height map
+// (parallax), so those cuts fall on other texels.
+bool exact_cut(const material3d &m, bool height_map) {
+  return m.alpha_cutoff <= 0.0f || (m.world_uv <= 0.0f && !height_map);
+}
+bool exact_cut(const context &ctx, const material3d &m) {
+  Texture2D height{};
+  return exact_cut(m, mesh_texture(ctx, m.height, height));
 }
 
 // Depth of every opaque shadow caster into the bound target, seen through the
@@ -2864,10 +3353,28 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
   usize batch_count = 0;
   batch_index.clear();
   const bool batching = s.options.batch && ensure_batched(ctx_ref<render3d_state>(ctx));
+  // The camera's prepass takes the opaque draws that are dissolving too, cut as
+  // they are drawn (depth_dissolve()); without them the ray traced shadows on
+  // such a draw would be those of whatever is behind it. Never batched: the cut
+  // is set per draw.
+  const Shader cut_shaders[] = {s.depth, s.depth_skinned, s.depth_instanced};
+  bool cut_on = false;
   for (const draw3d_cmd &c : s.cmds) {
-    if (!casts(c) || (c.boxed && box_outside(planes, c.box_center, c.box_extent)))
+    const bool dissolving = every_opaque && c.fx.dissolve > 0.0f && c.color.a >= 1.0f && c.world == world3d_none &&
+                            !c.is_shape && !(c.mesh != nullptr && transmits(c.material));
+    if ((!casts(c) && !dissolving) || (c.boxed && box_outside(planes, c.box_center, c.box_extent)))
       continue;
-    if (batching && c.world == world3d_none && !c.is_shape && c.buffer.id == 0 && c.bone_count == 0 &&
+    // The camera's exact prepass takes only what lands on the lit draw's depth:
+    // no dissolve (its cut is another program's noise), no SDF shape (its
+    // depth comes from a march).
+    if (s.exact_depth && (dissolving || c.is_shape || c.culled || c.occluded))
+      continue;
+    if (dissolving || cut_on) {
+      for (const Shader &sh : cut_shaders)
+        depth_dissolve(sh, dissolving ? c.fx : fx3d{});
+      cut_on = dissolving;
+    }
+    if (batching && !dissolving && c.world == world3d_none && !c.is_shape && c.buffer.id == 0 && c.bone_count == 0 &&
         c.morph_count == 0 && (c.mesh == nullptr || c.mesh->vertexCount <= batch_max_vertices) &&
         (c.mesh == nullptr || every_opaque || (c.material.cast_shadows && !c.material.unlit))) {
       const u64 key = c.mesh != nullptr ? mix_key(5, (u64)(uintptr_t)c.mesh) : mix_key(6, ((u64)c.model.id << 8) | c.lod);
@@ -2895,16 +3402,21 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
       continue;
     }
     if (c.buffer.id != 0) {
+      // The exact prepass keeps the instances the camera's pass will keep (its
+      // occlusion test, its levels of detail), or the depth of one it skips
+      // would hide what is behind it.
       if (shadowed)
-        draw_instanced_cmd(ctx, c, true, &planes);
+        draw_instanced_cmd(ctx, c, true, &planes, s.exact_depth);
       continue;
     }
     if (c.mesh != nullptr) {
-      if (shadowed) {
+      if (shadowed && (!s.exact_depth || exact_cut(ctx, c.material))) {
         Texture2D albedo{};
         mesh_texture(ctx, c.material.texture, albedo);
         depth_cut(s.depth, depth, c.material.alpha_cutoff, albedo);
-        DrawMesh(*c.mesh, depth, c.transform);
+        if (s.exact_depth)
+          to_raylib(c.color, depth.maps[MATERIAL_MAP_DIFFUSE].color);
+        draw_mesh(s, *c.mesh, depth, c.transform);
       }
       continue;
     }
@@ -2914,25 +3426,36 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
                             bool posed) {
                           if (!mm.surface.cast_shadows && !every_opaque)
                             return;
+                          if (s.exact_depth && !exact_cut(mm.surface, own[MATERIAL_MAP_BRDF].texture.id > 0))
+                            return;
                           if (posed && !bones_set) {
                             set_bones(s, s.depth_skinned, s.depth_skinned_bones, c);
                             bones_set = true;
                           }
                           Material &m = posed ? skinned : depth;
                           depth_cut(m.shader, m, mm.surface.alpha_cutoff, own[MATERIAL_MAP_DIFFUSE].texture);
-                          DrawMesh(mesh, m, transform);
+                          if (s.exact_depth)
+                            m.maps[MATERIAL_MAP_DIFFUSE].color = own[MATERIAL_MAP_DIFFUSE].color;
+                          draw_mesh(s, mesh, m, transform);
                         });
   }
+  if (cut_on)
+    for (const Shader &sh : cut_shaders)
+      depth_dissolve(sh, {});
   Material batched = depth;
   batched.shader = s.depth_batched;
   for (usize b = 0; b < batch_count; b++) {
     const caster_batch &cb = batches[b];
     if (cb.first->mesh != nullptr) {
+      if (s.exact_depth && !exact_cut(ctx, cb.first->material))
+        continue;
       Texture2D albedo{};
       mesh_texture(ctx, cb.first->material.texture, albedo);
+      if (s.exact_depth)
+        to_raylib(cb.first->color, depth.maps[MATERIAL_MAP_DIFFUSE].color);
       if (cb.transforms.size() == 1) {
         depth_cut(depth.shader, depth, cb.first->material.alpha_cutoff, albedo);
-        DrawMesh(*cb.first->mesh, depth, cb.transforms[0]);
+        draw_mesh(s, *cb.first->mesh, depth, cb.transforms[0]);
       } else {
         depth_cut(batched.shader, batched, cb.first->material.alpha_cutoff, albedo);
         draw_batched(ctx_ref<render3d_state>(ctx), *cb.first->mesh, batched, cb.transforms);
@@ -2950,11 +3473,16 @@ void draw_casters(context &ctx, const Matrix &view_proj, bool ortho, vec3 dir, b
                         [&](const Mesh &mesh, map_set &own, const model_material &mm, const Matrix &, bool) {
                           if (!mm.surface.cast_shadows && !every_opaque)
                             return;
+                          if (s.exact_depth) {
+                            if (!exact_cut(mm.surface, own[MATERIAL_MAP_BRDF].texture.id > 0))
+                              return;
+                            depth.maps[MATERIAL_MAP_DIFFUSE].color = own[MATERIAL_MAP_DIFFUSE].color;
+                          }
                           const Texture2D albedo = own[MATERIAL_MAP_DIFFUSE].texture;
                           if (placed.size() == 1 || mesh.vertexCount > batch_max_vertices) {
                             depth_cut(depth.shader, depth, mm.surface.alpha_cutoff, albedo);
                             for (const Matrix &t : placed)
-                              DrawMesh(mesh, depth, t);
+                              draw_mesh(s, mesh, depth, t);
                           } else {
                             depth_cut(batched.shader, batched, mm.surface.alpha_cutoff, albedo);
                             draw_batched(ctx_ref<render3d_state>(ctx), mesh, batched, placed);
@@ -3044,13 +3572,25 @@ void render_cascades(context &ctx) {
   rlSetFramebufferHeight(s.shadow.height);
   rlViewport(0, 0, s.shadow.size, s.shadow.height);
   rlClearColor(255, 255, 255, 255);
-  rlClearScreenBuffers();
   rlEnableDepthTest();
   const vec4 key{(f32)n, far_d, lambda, aspect};
-  if (key.x != s.cascade_key.x || key.y != s.cascade_key.y || key.z != s.cascade_key.z || key.w != s.cascade_key.w) {
+  if (key.x != s.cascade_key.x || key.y != s.cascade_key.y || key.z != s.cascade_key.z || key.w != s.cascade_key.w ||
+      s.cascade_atlas != s.shadow.fbo) {
     s.cascade_radius = {};
     s.cascade_key = key;
+    s.cascade_age = {-1, -1, -1, -1};
+    s.cascade_atlas = s.shadow.fbo;
   }
+  // The far cascades hold still while the camera moves within a texel of
+  // theirs (they are snapped), so a tile drawn through the same matrix as now
+  // is kept (cached cascades: CryEngine, Cyberpunk 2077). What moves out there
+  // lags: one kept tile a pass, the one kept longest past a few frames, is
+  // drawn again anyway. The first cascade, round the camera, is always drawn.
+  constexpr i32 stale = 12;
+  i32 refresh = -1;
+  for (i32 i = 1; i < n; i++)
+    if (s.cascade_age[(usize)i] >= stale && (refresh < 0 || s.cascade_age[(usize)i] > s.cascade_age[(usize)refresh]))
+      refresh = i;
   f32 from = near_d;
   f32 split[4]{}, texel[4]{}, span[4]{};
   for (i32 i = 0; i < n; i++) {
@@ -3099,7 +3639,19 @@ void render_cascades(context &ctx) {
     split[i] = to;
     texel[i] = step;
     span[i] = depth_far - 0.1f;
-    draw_casters(ctx, vp, true, dir);
+    const bool keep = i > 0 && i != refresh && s.cascade_age[(usize)i] >= 0 &&
+                      std::memcmp(&vp, &s.cascade_drawn_vp[(usize)i], sizeof vp) == 0;
+    if (keep) {
+      s.cascade_age[(usize)i]++;
+    } else {
+      rlEnableScissorTest();
+      rlScissor(i * size, 0, size, size);
+      rlClearScreenBuffers();
+      rlDisableScissorTest();
+      draw_casters(ctx, vp, true, dir);
+      s.cascade_drawn_vp[(usize)i] = vp;
+      s.cascade_age[(usize)i] = 0;
+    }
     from = to;
   }
   rlDisableFramebuffer();
@@ -3256,6 +3808,8 @@ void set_pass_uniforms(const render3d_state &s, Shader sh, const render3d_locati
   const rgb_linear sc = linear_of(sun.color), ac = linear_of(sun.ambient);
   set_vec3(sh, l.light_color_linear, {sc.r, sc.g, sc.b});
   set_vec3(sh, l.ambient_linear, {ac.r, ac.g, ac.b});
+  const f32 bands = sun.toon_bands >= 2 ? (f32)std::min(sun.toon_bands, 8) : 0.0f;
+  set_vec4(sh, l.toon, {bands, clamp(sun.toon_softness, 0.0f, 1.0f), clamp(sun.toon_threshold, 0.0f, 0.99f), 0.0f});
   env_set_uniforms(s.env, sun, sh, l.env_on, l.env_sh, l.env_map, l.env_params);
 
   vec4 pos[light3d_max]{};
@@ -3425,7 +3979,7 @@ void draw_shape(const render3d_state &s, const draw3d_cmd &c, const Matrix &view
   material.shader = s.sdf;
   material.maps = maps.data();
   rlSetCullFace(RL_CULL_FACE_FRONT);
-  DrawMesh(s.cube, material, box);
+  draw_mesh(s.cube, material, box);
   rlSetCullFace(RL_CULL_FACE_BACK);
 }
 
@@ -3468,6 +4022,7 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
   Shader call_shader = depth_only ? s.depth_instanced : s.lit_instanced;
   const bool own = !depth_only && game_shader(ctx, c.shader, call_shader);
   const bool call_built_in = !depth_only && !own;
+  const bool shadow_pass = depth_only && planes != nullptr && !camera;
 
   // The meshes to draw, each with its albedo texture and colour, and the
   // normal map the game set (a file's own normal map is not used here).
@@ -3482,6 +4037,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
     shader_handle shader{}; // the part's own (model_material::shader)
     Texture2D metal_rough{}, occlusion{}; // PBR maps, for a PBR material
     i32 uv2 = 0;                          // usePbrMaps bits of those on the second texture coordinates
+    f32 sway = 0.0f;                      // model_material::sway
+    f32 flutter = 0.0f;                   // model_material::flutter
   };
   // Kept between calls: no allocation per instanced draw once it has grown.
   thread_local std::vector<part> parts;
@@ -3506,6 +4063,11 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
       const model_material &mm = m->materials[(usize)index];
       if ((mm.color.a < 1.0f || transmits(mm.surface)) != (s.translucent_pass && !depth_only))
         continue;
+      // The sun's shadow pass (not the camera's depth prepass, not a reflection
+      // mask) keeps only the parts that cast shadows; a shadow_only part is in
+      // that pass alone.
+      if (shadow_pass ? !mm.surface.cast_shadows : mm.shadow_only)
+        continue;
       Texture2D t = m->model.materials[index].maps[MATERIAL_MAP_DIFFUSE].texture;
       if (!mesh_texture(ctx, mm.albedo, t) && t.id == 0)
         t = default_texture();
@@ -3522,6 +4084,8 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
         model_morph_upload(*m, i, weights);
       parts.push_back({lod != nullptr ? &lod->mesh : &m->model.meshes[i], t, mm.color, &mm.surface, mm.double_sided});
       parts.back().shader = mm.shader;
+      parts.back().sway = std::max(mm.sway, 0.0f);
+      parts.back().flutter = std::max(mm.flutter, 0.0f);
       mesh_texture(ctx, mm.normal, parts.back().normal);
       if (mm.surface.pbr) {
         if (!mesh_texture(ctx, mm.metal_rough, parts.back().metal_rough)) {
@@ -3597,6 +4161,16 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
     rlEnableShader(shader.id);
     rlSetUniformMatrix(rlGetLocationUniform(shader.id, "mvp"), mvp);
     rlSetUniform(rlGetLocationUniform(shader.id, "instanceFloats"), &floats, RL_SHADER_UNIFORM_INT, 1);
+    // model_material::sway, with the wind and clock the grass bends by; set
+    // for every part, 0 for a still one, as the shader keeps the last value.
+    if (const i32 sway_loc = rlGetLocationUniform(shader.id, "swayAmount"); sway_loc >= 0) {
+      const world3d_store &w = ctx_ref<world3d_store>(ctx);
+      const vec2 wind = w.wind;
+      rlSetUniform(sway_loc, &p.sway, RL_SHADER_UNIFORM_FLOAT, 1);
+      rlSetUniform(rlGetLocationUniform(shader.id, "swayWind"), &wind, RL_SHADER_UNIFORM_VEC2, 1);
+      rlSetUniform(rlGetLocationUniform(shader.id, "swayTime"), &w.time, RL_SHADER_UNIFORM_FLOAT, 1);
+      rlSetUniform(rlGetLocationUniform(shader.id, "flutterAmount"), &p.flutter, RL_SHADER_UNIFORM_FLOAT, 1);
+    }
     if (depth_only) {
       // Only the reflector mask (render3d_draw_reflectors) has it.
       const i32 mask_loc = rlGetLocationUniform(shader.id, "maskValue");
@@ -3608,6 +4182,18 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
       if (cut_loc >= 0) {
         const f32 cut = std::max(p.surface->alpha_cutoff, 0.0f);
         const i32 unit = 0;
+        // The exact prepass cuts with the draw's colour too (depth_fs's cutColor).
+        // The exact prepass cuts with the draw's colour too (depth_fs's cutColor).
+        // Instances at a simpler level of detail stay out: drawn here and then
+        // lit, their depths were measured to differ by a little, the lit pass
+        // losing most of their pixels (the cause is not found; the full level
+        // matches to the bit), so they are only lit, as without the prepass.
+        if (s.exact_depth) {
+          if (!exact_cut(*p.surface, height.id > 0) || g.lod > 0)
+            continue;
+          const vec4 color = v4(p.color);
+          rlSetUniform(rlGetLocationUniform(shader.id, "colDiffuse"), &color, RL_SHADER_UNIFORM_VEC4, 1);
+        }
         rlSetUniform(cut_loc, &cut, RL_SHADER_UNIFORM_FLOAT, 1);
         rlActiveTextureSlot(0);
         rlEnableTexture(cut > 0.0f ? p.texture.id : default_texture().id);
@@ -3617,6 +4203,10 @@ void draw_instanced_cmd(context &ctx, const draw3d_cmd &c, bool depth_only, cons
     if (!depth_only) {
       const vec4 color = v4(p.color);
       rlSetUniform(rlGetLocationUniform(shader.id, "colDiffuse"), &color, RL_SHADER_UNIFORM_VEC4, 1);
+      if (const i32 recv_loc = rlGetLocationUniform(shader.id, "noShadowRecv"); recv_loc >= 0) {
+        const i32 no_recv = p.surface->receive_shadows ? 0 : 1;
+        rlSetUniform(recv_loc, &no_recv, RL_SHADER_UNIFORM_INT, 1);
+      }
       const i32 unit = 0;
       rlActiveTextureSlot(0);
       rlEnableTexture(p.texture.id);
@@ -3760,7 +4350,7 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj, const
     if (batch != nullptr)
       draw_batched(ctx_ref<render3d_state>(ctx), *c.mesh, material, *batch);
     else
-      DrawMesh(*c.mesh, material, c.transform);
+      draw_mesh(s, *c.mesh, material, c.transform);
     return;
   }
   // A batch's transforms with the model's own in front, as for_each_model_mesh places one draw.
@@ -3810,9 +4400,9 @@ void draw_main(context &ctx, const draw3d_cmd &c, const Matrix &view_proj, const
     else if (batch != nullptr)
       // A part with a game shader of its own (model_material::shader), or a heavy one: one draw each.
       for (const Matrix &t : placed)
-        DrawMesh(mesh, material, t);
+        draw_mesh(s, mesh, material, t);
     else
-      DrawMesh(mesh, material, transform);
+      draw_mesh(s, mesh, material, transform);
   });
 }
 } // namespace
@@ -4091,6 +4681,7 @@ render3d_state::~render3d_state() {
     if (IsShaderValid(*sh))
       UnloadShader(*sh);
   cull3d_free(cull);
+  gpu_timer_free();
   if (prev_bones_tex != 0)
     rlUnloadTexture(prev_bones_tex);
   if (!ready)
@@ -4155,6 +4746,7 @@ void start_pass(context &ctx, const camera3d &camera) {
 } // namespace
 
 void begin_3d(context &ctx, const camera3d &camera) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_begin_3d(ctx,camera); return; }
   if (!can_begin(ctx))
     return;
   rlDrawRenderBatchActive();
@@ -4164,6 +4756,13 @@ void begin_3d(context &ctx, const camera3d &camera) {
 }
 
 void begin_3d(context &ctx, const camera3d &camera, render_texture_handle target, rgba clear) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(!portable_render_texture_begin(ctx,target,&clear)) return;
+    try {portable_begin_3d(ctx,camera);ctx_ref<model_store>(ctx)->portable_auto_end_target=true;}
+    catch(...) {portable_render_texture_end(ctx);throw;}
+    return;
+  }
+  require_opengl_backend(ctx,"legacy 3D render textures");
   const render_texture_slot *slot = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), target);
   if (slot == nullptr) {
     NJIN_WARN_LIMITED("3d: begin_3d into an invalid render texture, ignored");
@@ -4599,10 +5198,25 @@ void plan_opaque(const render3d_state &s, std::vector<u32> &order, std::vector<i
 } // namespace
 
 void end_3d(context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_end_3d(ctx); return; }
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
     return;
   rlDrawRenderBatchActive();
+  // What the setters remember of the programs' uniforms is this pass's.
+  uniform_cache_clear();
+  // render_stats::ms3d_*: the CPU time of each stage below, and gpu3d the
+  // GPU's (render3d_gpu_timer.h), a timestamp after each.
+  render_stats &timing = ctx_ref<render_stats>(ctx);
+  double stage_at = GetTime();
+  i32 stage_index = 0;
+  gpu_timer_begin();
+  const auto stage = [&stage_at, &stage_index](f32 &into) {
+    const double now = GetTime();
+    into += (f32)((now - stage_at) * 1000.0);
+    stage_at = now;
+    gpu_timer_stage(stage_index++);
+  };
   const bool offscreen = s.target_fbo != 0;
   if (s.entities)
     record_entities(ctx);
@@ -4638,6 +5252,7 @@ void end_3d(context &ctx) {
     s.rt.wanted = rt = false;
   }
   world3d_use_ext(ctx, ext);
+  stage(timing.ms3d_setup);
 
   bool shadows = false;
   Matrix light_vp = MatrixIdentity();
@@ -4683,6 +5298,7 @@ void end_3d(context &ctx) {
   } else if (!offscreen) {
     s.cover_age = -1;
   }
+  stage(timing.ms3d_shadows);
   // The extended lights' textures and clusters (the probes capture with them).
   if (s.lext.on)
     lights_ext_update(s, pass_pixels(ctx));
@@ -4695,6 +5311,29 @@ void end_3d(context &ctx) {
     bind_pass_target(ctx);
     load_camera(ctx, s.camera);
   }
+  // render3d_options::depth_prepass: the opaque draws' depth first, colour
+  // writes off, so the lit pass (raylib tests LEQUAL) shades each pixel once.
+  // Only what lands on the lit draw's depth to the bit goes in (the vertex
+  // programs are invariant, draw_casters with exact_depth); the rest shades
+  // as before.
+  if (s.options.depth_prepass && !s.capturing) {
+    rlDrawRenderBatchActive();
+    bind_pass_target(ctx);
+    load_camera(ctx, s.camera);
+    rlEnableDepthTest();
+    const Matrix pre_vp = MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection());
+    s.exact_depth = true;
+    for (const Shader &sh : {s.depth, s.depth_skinned, s.depth_instanced, s.depth_batched})
+      depth_cut_color(sh, true);
+    rlColorMask(false, false, false, false);
+    draw_casters(ctx, pre_vp, s.camera.projection == camera3d_orthographic,
+                 normalize(s.camera.target - s.camera.position), false, true);
+    rlColorMask(true, true, true, true);
+    for (const Shader &sh : {s.depth, s.depth_skinned, s.depth_instanced, s.depth_batched})
+      depth_cut_color(sh, false);
+    s.exact_depth = false;
+  }
+  stage(timing.ms3d_prepass);
 
   rlEnableDepthTest();
   // Only the world target's depth feeds post_fx (depth of field).
@@ -4743,6 +5382,7 @@ void end_3d(context &ctx) {
       stats.batched3d += (u32)batches[(usize)b].transforms.size();
     }
   }
+  stage(timing.ms3d_opaque);
   // The opaque depth, reduced and read back for the next passes' occlusion.
   if (s.cull.view != nullptr) {
     hiz_capture(ctx, s, view_proj);
@@ -4765,6 +5405,7 @@ void end_3d(context &ctx) {
     rlEnableDepthTest();
     bind_pass_maps(s, shadows, lamps);
   }
+  stage(timing.ms3d_screen);
   // The mask holds the opaque surfaces' shadows: glass and water take the maps.
   if (s.rt.live || s.rt.refl_live)
     all_pass_uniforms(ctx, shadows, light_vp, lamps);
@@ -4791,6 +5432,7 @@ void end_3d(context &ctx) {
   s.oit_done = false;
   unbind_pass_maps(s);
   particles3d_draw(ctx, s.camera);
+  stage(timing.ms3d_translucent);
   if (post3d) {
     post3d_after_pass(ctx);
     // Gizmos go over the resolved image, unshifted.
@@ -4818,6 +5460,8 @@ void end_3d(context &ctx) {
     s.transmission_seen = s.transmission_now;
   if (!offscreen)
     gizmo_draw_3d(ctx, s.camera);
+  stage(timing.ms3d_post);
+  gpu_timer_collect(timing.gpu3d);
 
   instances_pass_end(s.cull);
   s.cmds.clear();
@@ -5028,7 +5672,7 @@ bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
         Texture2D albedo{};
         mesh_texture(ctx, c.material.texture, albedo);
         depth_cut(s.mask, mesh_mat, c.material.alpha_cutoff, albedo);
-        DrawMesh(*c.mesh, mesh_mat, c.transform);
+        draw_mesh(*c.mesh, mesh_mat, c.transform);
       }
       continue;
     }
@@ -5047,7 +5691,7 @@ bool render3d_draw_reflectors(context &ctx, u32 depth, vec2 size, vec2 planes) {
       set_mask_value(sh, mm.surface.reflect);
       Material &m = skin ? skinned_mat : mesh_mat;
       depth_cut(sh, m, mm.surface.alpha_cutoff, own[MATERIAL_MAP_DIFFUSE].texture);
-      DrawMesh(mesh, m, transform);
+      draw_mesh(mesh, m, transform);
     });
   }
   rlDrawRenderBatchActive();
@@ -5149,7 +5793,7 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
       Texture2D albedo{};
       mesh_texture(ctx, c.material.texture, albedo);
       depth_cut(s.velocity, mesh_mat, c.material.alpha_cutoff, albedo);
-      DrawMesh(*c.mesh, mesh_mat, c.transform);
+      draw_mesh(*c.mesh, mesh_mat, c.transform);
       continue;
     }
     const model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), c.model);
@@ -5169,7 +5813,7 @@ bool render3d_draw_velocity(context &ctx, u32 depth, vec2 size, vec2 planes, con
       SetShaderValueMatrix(sh, skin ? skin_prev : mesh_prev, prev_mesh);
       Material &m = skin ? skinned_mat : mesh_mat;
       depth_cut(sh, m, mm.surface.alpha_cutoff, own[MATERIAL_MAP_DIFFUSE].texture);
-      DrawMesh(mesh, m, transform);
+      draw_mesh(mesh, m, transform);
     });
   }
   rlDrawRenderBatchActive();
@@ -5196,6 +5840,10 @@ void render3d_motion_commit(context &ctx) {
 }
 
 void draw3d_motion_id(const context &ctx, u64 id) {
+  if(ctx_ref<model_store>(ctx)->portable_context) {
+    auto &state=ctx_ref<model_store>(const_cast<context&>(ctx))->portable_temporal;
+    state.next_id=id;state.next_namespace=0;return;
+  }
   const render3d_state *s = open_pass(ctx);
   if (s != nullptr)
     s->next_motion_id = id;
@@ -5208,11 +5856,55 @@ void render3d_close(context &ctx) {
   end_3d(ctx);
 }
 
-void light3d_set(context &ctx, const light3d &light) { ctx_ref<render3d_state>(ctx)->light = light; }
+void light3d_set(context &ctx, const light3d &light) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(light.tonemap<tonemap3d_none||light.tonemap>tonemap3d_neutral)
+      throw std::invalid_argument("njin bgfx 3D: invalid tone map");
+    // Ray traced shadows and reflections run as compute ray tracing
+    // (njin_raytrace_portable.cpp); without compute the shadow maps and the
+    // environment are used.
+    if(light.ray_traced_reflections&&(!std::isfinite(light.reflection_roughness)||light.reflection_roughness<0))
+      throw std::invalid_argument("njin bgfx 3D: invalid reflection_roughness");
+    if(light.ray_traced_shadows&&(!std::isfinite(light.sun_angle)||light.sun_angle<0||light.shadow_rays<1||light.shadow_rays>16||
+                                  light.shadow_denoise<0||light.shadow_denoise>8))
+      throw std::invalid_argument("njin bgfx 3D: invalid ray traced shadow settings");
+    for(float x:{light.volume_density,light.volume_falloff,light.volume_noise,light.volume_noise_size,light.volume_distance,light.volume_sun,light.volume_ambient,light.volume_step_max,light.volume_color.r,light.volume_color.g,light.volume_color.b})
+      if(!std::isfinite(x)||x<0) throw std::invalid_argument("njin volume: invalid finite/nonnegative setting");
+    if(!std::isfinite(light.volume_base)||!std::isfinite(light.volume_wind.x)||!std::isfinite(light.volume_wind.y)||!std::isfinite(light.volume_wind.z)||
+       !std::isfinite(light.volume_anisotropy)||std::abs(light.volume_anisotropy)>=1||light.volume_steps<8||light.volume_steps>128||
+       light.volume_noise>1||light.volume_noise_size<=0||light.volume_distance<=0)
+      throw std::invalid_argument("njin volume: invalid wind, anisotropy, steps, noise size or distance");
+    if(!std::isfinite(light.fog_density)||light.fog_density<0||light.toon_bands<0||light.toon_bands>8||light.toon_bands==1||
+       !std::isfinite(light.toon_threshold)||light.toon_threshold<0||light.toon_threshold>=1||
+       !std::isfinite(light.toon_softness)||light.toon_softness<0||light.toon_softness>1)
+      throw std::invalid_argument("njin lighting: invalid fog or toon settings");
+    for(float c:{light.fog_color.r,light.fog_color.g,light.fog_color.b})
+      if(!std::isfinite(c)||c<0||c>1) throw std::invalid_argument("njin lighting: invalid fog color");
+    if(!std::isfinite(light.auto_exposure_speed)||light.auto_exposure_speed<0||!std::isfinite(light.auto_exposure_min)||light.auto_exposure_min<=0||!std::isfinite(light.auto_exposure_max)||light.auto_exposure_max<light.auto_exposure_min||light.auto_exposure_max>65504||!std::isfinite(light.auto_exposure_key)||light.auto_exposure_key<=0)
+      throw std::invalid_argument("njin auto exposure: invalid speed, key or half-float exposure bounds");
+    for(float v:{light.direction.x,light.direction.y,light.direction.z,light.color.r,light.color.g,light.color.b,light.color.a,light.ambient.r,light.ambient.g,light.ambient.b})
+      if(!std::isfinite(v)) throw std::invalid_argument("njin bgfx 3D: non-finite light");
+    if(length(light.direction)<=0||light.color.r<0||light.color.g<0||light.color.b<0||light.color.a<0||light.ambient.r<0||light.ambient.g<0||light.ambient.b<0)
+      throw std::invalid_argument("njin bgfx 3D: invalid directional light");
+    if(light.lights_max<0||light.lights_max>light3d_limit) throw std::invalid_argument("njin bgfx 3D: supports 0..1024 local lights");
+    if(light.hdr && light.tonemap==tonemap3d_none) throw std::invalid_argument("njin bgfx 3D: HDR requires tone mapping");
+    if(!std::isfinite(light.exposure)||light.exposure<0) throw std::invalid_argument("njin bgfx 3D: invalid exposure");
+    if(light.shadow_cascades<1||light.shadow_cascades>4||light.source_shadows<0||light.source_shadows>4)
+      throw std::invalid_argument("njin shadows: supports 1..4 sun cascades and 0..4 shadowed local sources");
+    if(light.shadow_size<16||light.shadow_size>8192||light.source_shadow_size<16||light.source_shadow_size>8192||
+       !std::isfinite(light.shadow_range)||light.shadow_range<=0||!std::isfinite(light.shadow_softness)||light.shadow_softness<0||light.shadow_softness>8||
+       !std::isfinite(light.shadow_cascade_split)||light.shadow_cascade_split<0||light.shadow_cascade_split>1)
+      throw std::invalid_argument("njin shadows: invalid shadow range, size, softness or cascade split");
+    ctx_ref<model_store>(ctx)->portable_light=light; return;
+  }
+  ctx_ref<render3d_state>(ctx)->light = light; }
 
-light3d light3d_get(const context &ctx) { return ctx_ref<render3d_state>(ctx)->light; }
+light3d light3d_get(const context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return ctx_ref<model_store>(ctx)->portable_light;
+  return ctx_ref<render3d_state>(ctx)->light; }
 
 void light3d_add(context &ctx, const light3d_source &light) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_light_add(ctx,light); return; }
   render3d_state &s = ctx_ref<render3d_state>(ctx);
   if (!s.active)
     return;
@@ -5224,21 +5916,29 @@ void light3d_add(context &ctx, const light3d_source &light) {
   s.lights.push_back(light);
 }
 
-void material3d_set(context &ctx, const material3d &material) { ctx_ref<render3d_state>(ctx)->material = material; }
+void material3d_set(context &ctx, const material3d &material) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_surface_validate(material); ctx_ref<model_store>(ctx)->portable_material=material; return; } ctx_ref<render3d_state>(ctx)->material = material; }
 
-void fx3d_set(context &ctx, const fx3d &fx) { ctx_ref<render3d_state>(ctx)->fx = fx; }
+void fx3d_set(context &ctx, const fx3d &fx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    portable_fx_validate(fx);ctx_ref<model_store>(ctx)->portable_fx=fx;return;
+  }
+  ctx_ref<render3d_state>(ctx)->fx = fx; }
 
 void draw_cube3d(const context &ctx, vec3 center, vec3 size, rgba color) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_draw_primitive(ctx,0,{center,{},size},color,ctx_ref<model_store>(ctx)->portable_material); return; }
   if (const render3d_state *s = open_pass(ctx))
     record(ctx, &s->cube, {}, scale_then_move(size, center), color);
 }
 
 void draw_sphere3d(const context &ctx, vec3 center, f32 radius, rgba color) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_draw_primitive(ctx,1,{center,{},{radius,radius,radius}},color,ctx_ref<model_store>(ctx)->portable_material); return; }
   if (const render3d_state *s = open_pass(ctx))
     record(ctx, &s->sphere, {}, scale_then_move({radius, radius, radius}, center), color);
 }
 
 void draw_plane3d(const context &ctx, vec3 center, vec2 size, rgba color) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_draw_primitive(ctx,2,{center,{},{size.x,1,size.y}},color,ctx_ref<model_store>(ctx)->portable_material); return; }
   if (const render3d_state *s = open_pass(ctx))
     record(ctx, &s->plane, {}, scale_then_move({size.x, 1.0f, size.y}, center), color);
 }
@@ -5282,6 +5982,10 @@ void record_instanced(const context &ctx, const Mesh *mesh, model_handle model, 
 
 void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(mesh<mesh3d_cube||mesh>mesh3d_plane) throw std::runtime_error("njin bgfx: this instanced primitive is not ported");
+    portable_draw_instances(ctx,{},int(mesh),buffer,first,count,shader);return;
+  }
   const render3d_state *s = open_pass(ctx);
   if (s == nullptr || buffer.id == 0)
     return;
@@ -5292,6 +5996,7 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_draw_instances(ctx,model,-1,buffer,first,count,shader);return;}
   if (open_pass(ctx) == nullptr || buffer.id == 0 || model_slot_of(ctx_ref<model_store>(ctx), model) == nullptr)
     return;
   record_instanced(ctx, nullptr, model, buffer, first, count, shader);
@@ -5299,6 +6004,7 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
 
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer, u32 first, u32 count,
                       const model_pose &pose, shader_handle shader) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_draw_instances(ctx,model,-1,buffer,first,count,shader,&pose);return;}
   const render3d_state *s = open_pass(ctx);
   const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), model);
   if (s == nullptr || buffer.id == 0 || m == nullptr)
@@ -5316,6 +6022,10 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
 
 void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_handle buffer,
                       const instanced3d_desc &desc) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    portable_draw_instances(ctx,model,-1,buffer,desc.first,desc.count,desc.shader,desc.pose,&desc);
+    return;
+  }
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
   const usize before = s.cmds.size();
   if (desc.pose != nullptr)
@@ -5332,6 +6042,10 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
 
 void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer,
                       const instanced3d_desc &desc) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(desc.pose) throw std::runtime_error("njin bgfx: instanced poses are not ported");
+    portable_draw_instances(ctx,{},int(mesh),buffer,desc.first,desc.count,desc.shader,nullptr,&desc);return;
+  }
   const render3d_state &s = ctx_ref<render3d_state>(ctx);
   const usize before = s.cmds.size();
   draw_instanced3d(ctx, mesh, buffer, desc.first, desc.count, desc.shader);
@@ -5343,14 +6057,24 @@ void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_hand
 }
 
 void render3d_options_set(context &ctx, const render3d_options &options) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {ctx_ref<model_store>(ctx)->portable_options=options;return;}
   ctx_ref<render3d_state>(ctx)->options = options;
 }
 
-render3d_options render3d_options_get(const context &ctx) { return ctx_ref<render3d_state>(ctx)->options; }
+render3d_options render3d_options_get(const context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return ctx_ref<model_store>(ctx)->portable_options;
+  return ctx_ref<render3d_state>(ctx)->options;
+}
 
 void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color) {
+  if (parts == nullptr || count == 0)
+    return;
+  if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL) {
+    portable_draw_sdf_blend(ctx,parts,std::min(count,sdf_blend_max),blend,color,ctx_ref<model_store>(ctx)->portable_material);
+    return;
+  }
   const render3d_state *s = open_pass(ctx);
-  if (s == nullptr || parts == nullptr || count == 0)
+  if (s == nullptr)
     return;
   if (count > sdf_blend_max) {
     NJIN_WARN_LIMITED("draw_sdf_blend: %u parts, at most %u: the rest are dropped", count, sdf_blend_max);
@@ -5379,6 +6103,7 @@ void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 bl
 }
 
 void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_draw_shape(ctx,shape,color,ctx_ref<model_store>(ctx)->portable_material); return; }
   const render3d_state *s = open_pass(ctx);
   if (s == nullptr)
     return;
@@ -5400,21 +6125,25 @@ void draw_shape3d(const context &ctx, const shape3d &shape, rgba color) {
 }
 
 void draw_model(const context &ctx, model_handle handle, const transform3d &transform, rgba tint) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { portable_draw_model(ctx,handle,transform,tint); return; }
   record_model(ctx, handle, transform, nullptr, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_draw_model(ctx,handle,transform,tint,&pose);return;}
   record_model(ctx, handle, transform, &pose, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor &recolor) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_draw_model(ctx,handle,transform,tint,&pose,{&recolor,1});return;}
   record_model(ctx, handle, transform, &pose, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active, &recolor, 1);
 }
 
 void draw_model_anim(const context &ctx, model_handle handle, const transform3d &transform, const model_pose &pose,
                      rgba tint, const model_recolor *recolors, u32 count) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_draw_model(ctx,handle,transform,tint,&pose,recolors?std::span<const model_recolor>{recolors,count}:std::span<const model_recolor>{});return;}
   record_model(ctx, handle, transform, &pose, tint, ctx_ref<render3d_state>(ctx)->fx, ctx_ref<shader_store>(ctx)->active, recolors, count);
 }
 
@@ -5435,6 +6164,7 @@ const char *model_anim_name(const context &ctx, model_handle handle, i32 index) 
   const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || index < 0 || index >= model_clip_count(*m))
     return "";
+  if(m->portable_animation) return m->portable_animation->clips_view()[index].name.c_str();
   return m->anim_kept > 0 ? m->anims[index].name : m->morph_clips[(usize)index].name.c_str();
 }
 
@@ -5442,6 +6172,7 @@ i32 model_anim_find(const context &ctx, model_handle handle, const char *name) {
   const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || name == nullptr)
     return -1;
+  if(m->portable_animation) {for(size_t i=0;i<m->portable_animation->clips_view().size();++i) if(m->portable_animation->clips_view()[i].name==name) return int(i);return -1;}
   if (m->anim_kept == 0) {
     for (usize i = 0; i < m->morph_clips.size(); i++)
       if (m->morph_clips[i].name == name)
@@ -5458,6 +6189,7 @@ f32 model_anim_duration(const context &ctx, model_handle handle, i32 index) {
   const model_slot *m = clips_of(ctx, handle);
   if (m == nullptr || index < 0 || index >= model_clip_count(*m))
     return 0.0f;
+  if(m->portable_animation) return m->portable_animation->clips_view()[index].duration;
   if (m->anim_kept == 0)
     return m->morph_clips[(usize)index].duration;
   return (f32)std::max(m->anims[index].keyframeCount - 1, 0) / anim_fps;
@@ -5632,6 +6364,11 @@ bone_pose3d model_bone_pose(const context &ctx, model_handle handle, const model
     return {};
   if (pose.bones != nullptr)
     return pose.bones[bone];
+  if(m->portable_animation) {
+    const auto matrices=portable_animation_bones(*m,pose);const auto &k=matrices[bone];
+    const auto axis=[](float x,float y,float z){const vec3 v{x,y,z};return length_sq(v)>1e-12f?normalize(v):v;};
+    return {.position={k.m12,k.m13,k.m14},.x_axis=axis(k.m0,k.m1,k.m2),.y_axis=axis(k.m4,k.m5,k.m6),.z_axis=axis(k.m8,k.m9,k.m10)};
+  }
   const Transform t = posed_bone(model_anim_owner(ctx_ref<model_store>(ctx), *m), pose, bone);
   // The model's own transform (a file's root), as the draw applies it.
   const Matrix k = MatrixMultiply(pose_matrix(t), m->model.transform);

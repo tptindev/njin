@@ -73,6 +73,7 @@ i32 scan(context &ctx, bool immediate) {
       changed = check(state, vs, immediate) == change::settled || changed;
     if (!fs_path.empty())
       changed = check(state, fs_path, immediate) == change::settled || changed;
+    for(const auto &file:slot.portable_files) if(file!=vs&&file!=fs_path) changed=check(state,file,immediate)==change::settled||changed;
     if (!changed)
       continue;
     const bool ok = shader_store_reload(ctx_ref<shader_store>(ctx), shader_handle{.id = (u32)(i + 1)});
@@ -126,6 +127,7 @@ void hot_reload_enable(context &ctx, bool on, f32 interval) {
         check(state, slot.vs_path, false);
       if (!slot.fs_path.empty())
         check(state, slot.fs_path, false);
+      for(const auto &file:slot.portable_files) check(state,file,false);
     }
     for (const std::string &path : script_files(ctx))
       check(state, asset_path(path.c_str()), false);

@@ -1,4 +1,6 @@
 #include "njin_ctx.h"
+#include "njin_stream_internal.h"
+#include "njin_virtual_texture_internal.h"
 #include "njin_3d.h"
 #include "njin_audio.h"
 #include "njin_camera.h"
@@ -16,6 +18,10 @@
 #include "njin_log.h"
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
+#include "njin_path.h"
+#include "njin_draw_portable.h"
+#include "njin_render_texture_portable.h"
 #include <entt/entity/registry.hpp>
 
 namespace njin {
@@ -256,14 +262,46 @@ void shader_set_texture(context &ctx, shader_handle handle, const char *name,
 }
 
 texture_handle texture_load(context &ctx, const char *path) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(!path) { NJIN_WARN("texture: path is null"); return {}; }
+    const auto resolved=asset_path(path);
+    if(!FileExists(resolved.c_str())) { NJIN_WARN("texture: file not found: %s",path); return {}; }
+    try {
+      const auto image=renderer_load_image(resolved.c_str());
+      auto handle=texture_from_pixels(ctx,image.pixels.data(),image.width,image.height);
+      try {auto &slot=ctx_ref<texture_store>(ctx)->slots.at(handle.id-1);slot.path=resolved;slot.version=1;}
+      catch(...) {texture_unload(ctx,handle);throw;}
+      return handle;
+    } catch(const std::runtime_error &error) { NJIN_WARN("texture: %s: %s",path,error.what()); return {}; }
+  }
   return texture_store_load(ctx_ref<texture_store>(ctx), path);
 }
 
 texture_handle texture_from_pixels(context &ctx, const u8 *rgba, u32 width, u32 height) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(!rgba || !width || !height) { NJIN_WARN("texture: no pixels (%ux%u)",width,height); return {}; }
+    if(width>16384 || height>16384) throw std::invalid_argument("njin bgfx: texture exceeds supported size");
+    auto &store=ctx_ref<texture_store>(ctx);
+    texture_slot slot;
+    slot.alive=true; slot.texture.width=(int)width; slot.texture.height=(int)height;
+    slot.portable=renderer_create_texture(ctx,{width,height,{rgba,size_t(width)*height*4}});
+    try { store->slots.push_back(slot); }
+    catch(...) { renderer_destroy_texture(ctx,slot.portable); throw; }
+    return {.id=(u32)store->slots.size()};
+  }
   return texture_store_from_pixels(ctx_ref<texture_store>(ctx), rgba, width, height);
 }
 
 void texture_unload(context &ctx, texture_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    auto *slot=texture_slot_of(ctx_ref<texture_store>(ctx),handle);
+    if(!slot) return; // legacy unload is idempotent, as on OpenGL
+    if(!slot->portable) throw std::invalid_argument("njin bgfx: texture has no backend resource");
+    if(!slot->packed) renderer_destroy_texture(ctx,slot->portable);
+  }
+  if(const auto *slot=texture_slot_of(ctx_ref<texture_store>(ctx),handle);slot&&slot->virtual_texture&&slot->virtual_close)
+    slot->virtual_close(ctx,*slot->virtual_texture);
+  stream_forget(ctx,false,handle.id);
   texture_store_unload(ctx_ref<texture_store>(ctx), handle);
 }
 
@@ -279,6 +317,11 @@ void texture_set_shader(context &ctx, texture_handle handle,
 void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
                   rgba tint) {
   const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), handle);
+  if(slot && slot->portable) {
+    portable_shader_scope scope(ctx,slot->shader);
+    draw_portable_slot_texture(ctx,*slot,{.pos=pos,.tint=tint},ctx_ref<view_state>(ctx)->world_depth>0);
+    return;
+  }
   // A material shader auto-binds only when nothing else is already bound: an
   // explicit shader_begin() (the game's own choice) always wins.
   const bool material = slot != nullptr && slot->shader.id != 0 && ctx_ref<shader_store>(ctx)->active.id == 0;
@@ -291,10 +334,13 @@ void texture_draw(const context &ctx, texture_handle handle, vec2 pos,
 
 render_texture_handle render_texture_load(context &ctx, u32 width,
                                           u32 height) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL)
+    return portable_render_texture_load(ctx,width,height);
   return render_texture_store_load(ctx_ref<render_texture_store>(ctx), width, height);
 }
 
 void render_texture_unload(context &ctx, render_texture_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_render_texture_unload(ctx,handle);return;}
   render_texture_store_unload(ctx_ref<render_texture_store>(ctx), handle);
 }
 
@@ -303,6 +349,7 @@ vec2 render_texture_size(const context &ctx, render_texture_handle handle) {
 }
 
 void render_texture_begin(const context &ctx, render_texture_handle handle) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_render_texture_begin(ctx,handle);return;}
   view_ui_suspend(ctx_ref<view_state>(ctx));
   if (render_texture_store_begin(ctx_ref<render_texture_store>(ctx), handle))
     ctx_ref<view_state>(ctx)->offscreen_depth++;
@@ -314,6 +361,7 @@ void render_texture_begin(const context &ctx, render_texture_handle handle) {
 
 void render_texture_begin(const context &ctx, render_texture_handle handle,
                           rgba clear) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_render_texture_begin(ctx,handle,&clear);return;}
   view_ui_suspend(ctx_ref<view_state>(ctx));
   if (render_texture_store_begin(ctx_ref<render_texture_store>(ctx), handle)) {
     ctx_ref<view_state>(ctx)->offscreen_depth++;
@@ -326,22 +374,29 @@ void render_texture_begin(const context &ctx, render_texture_handle handle,
 }
 
 void render_texture_end(const context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_render_texture_end(ctx);return;}
   render_texture_store_end();
   ctx_ref<view_state>(ctx)->offscreen_depth = std::max(0, ctx_ref<view_state>(ctx)->offscreen_depth - 1);
   view_rebind(ctx_ref<view_state>(ctx)); // back to the virtual screen, when drawing into one
 }
 
 bool render_texture_save(context &ctx, render_texture_handle handle, const char *path) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return portable_render_texture_save(ctx,handle,path);
   return render_texture_store_save(ctx_ref<render_texture_store>(ctx), handle, path);
 }
 
 void render_texture_set_filter(context &ctx, render_texture_handle handle,
                                texture_filter filter) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(filter<filter_nearest||filter>filter_mipmap) throw std::invalid_argument("njin render texture: invalid filter");
+    auto &store=ctx_ref<render_texture_store>(ctx);if(render_texture_slot_of(store,handle)) store->slots.at(handle.id-1).filter=filter;return;
+  }
   render_texture_store_set_filter(ctx_ref<render_texture_store>(ctx), handle, filter);
 }
 
 void render_texture_draw(const context &ctx, render_texture_handle handle,
                          vec2 pos, rgba tint) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_render_texture_draw(ctx,handle,pos,tint);return;}
   render_texture_store_draw(ctx_ref<render_texture_store>(ctx), handle, pos, tint);
 }
 

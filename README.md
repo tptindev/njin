@@ -6,9 +6,15 @@
 </p>
 
 njin is an open-source game engine written in C++20, for both **2D** and **3D**
-games. It uses EnTT for its ECS, raylib for windowing, graphics, audio and
-input, and Jolt Physics for 3D physics; a game only needs to include njin's
+games. It uses EnTT for its ECS, SDL3 + bgfx for the default window/input and
+graphics path, and Jolt Physics for 3D physics. Raylib remains the explicit
+legacy OpenGL renderer and supplies existing audio/asset utilities during
+migration; a game only needs to include njin's
 API through `njin.h`.
+
+See the [portable renderer integration](docs/renderer-completion-batch.md) and
+[feature parity ledger](docs/renderer-port-backlog.md) for implemented paths,
+runtime evidence and remaining limits.
 
 Current version: **0.7.0**. The API is still evolving and may change between
 minor versions before 1.0. See [CHANGELOG.md](CHANGELOG.md) for details.
@@ -62,6 +68,25 @@ to configure only the engine and tools. Serious games are managed in their own
 repository; new game folders are ignored by default.
 
 ## Requirements
+
+The SDL3 + bgfx renderer can be enabled with `NJIN_BGFX=ON` and
+`NJIN_BUILD_RHI_SLICE=ON`. SDL3/bgfx is the default (`config.graphics_backend = Auto`);
+Windows selects D3D12, Linux/Android Vulkan, Apple Metal and Web OpenGL ES/WebGL2.
+`NJIN_BGFX` defaults to ON. Explicit backend overrides remain available;
+`--renderer=legacy-opengl` opts into the retained raylib renderer.
+The earlier SDL3 GPU prototype is retired and excluded from builds.
+See [renderer migration status and build instructions](docs/renderer-migration.md)
+for the supported API, smoke scene and current feature limitations.
+The [Android regression APK](examples/android_renderer/README.md) runs the same
+Njin scene through SDL3/bgfx Vulkan or GLES and checks captures, lifecycle, touch
+and silent audio on a connected device.
+[Renderer reuse decisions](docs/renderer-reuse.md) track the O3DE/Bevy/Godot/threepp
+references and adopted components across the complete rendering pipeline.
+The portable [post-processing pipeline](docs/renderer-post.md) includes SSAO,
+SSR, depth outlines, screen-space sun shafts, lens flare, HDR bloom, FXAA/SMAA,
+TAA, camera/object motion blur, weighted transparency and GPU auto exposure.
+Core glTF material samplers also support mipmaps with role-aware filtering.
+Complete platform/legacy feature parity remains separate from these verified ports.
 
 - CMake **3.28 or later**
 - A compiler with **C++20** support

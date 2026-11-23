@@ -37,9 +37,10 @@ njin::post3d_set(ctx, fx);
 | Bloom HDR | `bloom`, `bloom_radius`, cùng `light3d::hdr` | Chỗ sáng của cả ảnh 3D |
 | Khử răng cưa trên ảnh | `aa` (aa3d_fxaa, aa3d_smaa) | Cả ảnh thế giới, sau lần vẽ 3D đầu tiên của mỗi frame |
 | Trong suốt không phụ thuộc thứ tự (OIT) | `oit` | Hình và phần model trong suốt vẽ bằng shader có sẵn |
+| Viền | `outline`, `outline_width`, `outline_crease` | Mép hình và nếp gấp của mọi hình đục |
 
 Hiệu ứng chỉ áp cho lần vẽ 3D vào thế giới, không cho lần vẽ vào render texture (begin_3d() có `target`).
-Chúng chạy trong end_3d() theo thứ tự: sau mọi hình đục là decal, SSAO, phản chiếu; rồi kính, nước và hạt 3D;
+Chúng chạy trong end_3d() theo thứ tự: sau mọi hình đục là decal, SSAO, phản chiếu, viền; rồi kính, nước và hạt 3D;
 rồi TAA, tia nắng, lóa ống kính và mờ chuyển động. post_fx_set() (@ref post_processing) và shader riêng của game
 chạy sau cùng, trên cả ảnh.
 
@@ -219,6 +220,26 @@ njin::draw_cube3d(ctx, {0, 1, -1}, {2, 2, 0.05f}, {0.2f, 0.4f, 1, 0.5f});   // k
 chúng vẽ bằng shader có sẵn. Shader riêng của game, nước, hạt 3D và vật xuyên sáng (material3d::transmission) vẫn vẽ
 lần lượt như cũ, sau lớp OIT. Màu chồng nhau là trung bình có trọng số, gần đúng chứ không chính xác như vẽ đúng thứ
 tự: hai lớp rất đậm cùng màu khác nhau ra màu pha giữa hai lớp.
+
+## Viền {#post3d_outline}
+
+`outline` vẽ nét viền như phim hoạt hình, thường cùng njin::light3d::toon_bands (@ref toon3d). Nét có ở mép hình,
+nơi một vật đứng trước vật khác ở xa hơn hay trước nền trời, và ở nếp gấp, nơi hai mặt gặp nhau thành góc lớn hơn
+`outline_crease` độ. Tính từ độ sâu sau các hình đục, nên mọi hình đục có nét, kể cả địa hình và model của game;
+kính, nước, hạt 3D và decal thì không.
+
+```cpp
+njin::post3d_set(ctx, {.outline = 0.85f,                          // độ đậm
+                       .outline_color = {0.16f, 0.1f, 0.14f, 1},  // tím than ấm hợp cảnh ấm hơn đen
+                       .outline_width = 1.0f,                     // pixel
+                       .outline_crease = 50.0f,                   // 180: chỉ viền mép hình
+                       .outline_fade = 150.0f});                  // xa hơn thì không còn nét
+```
+
+Nét mép hình nằm trên vật ở gần, không lấn sang nền, nên vật nhỏ ở xa không phình ra. Nếp gấp tìm từ pháp tuyến của
+độ sâu, tức hình thật của lưới: `outline_crease` nhỏ thì cạnh nào của lưới low-poly cũng có nét. `outline_fade` cho
+nét mờ dần từ một nửa khoảng đó, để núi và rừng ở xa không thành một đám nét. Bề dày tính theo pixel, không đổi theo
+độ phân giải. Một lượt toàn màn hình, rẻ hơn SSAO nửa độ phân giải.
 
 ## Ví dụ đầy đủ
 

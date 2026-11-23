@@ -284,23 +284,31 @@ bool particle3d_look_begin(context &ctx, particle3d_looks &looks, particle3d_sty
   const Shader &s = looks.shaders[i];
   if (s.id == 0)
     return false;
+  i32 *loc = looks.locations[i];
+  if (looks.located[i] != s.id) {
+    looks.located[i] = s.id;
+    const char *const names[5] = {"hdrOut", "time", "lightDir", "lightColor", "ambient"};
+    for (i32 k = 0; k < 5; k++)
+      loc[k] = GetShaderLocation(s, names[k]);
+  }
   BeginShaderMode(s);
-  set_hdr_out(ctx, s);
+  const i32 hdr_out = ctx_ref<render3d_state>(ctx)->hdr_out ? 1 : 0;
+  if (loc[0] >= 0)
+    SetShaderValue(s, loc[0], &hdr_out, SHADER_UNIFORM_INT);
   const light3d &sun = ctx_ref<render3d_state>(ctx)->light;
   const f32 time = elapsed(ctx);
   const vec3 toward = length_sq(sun.direction) > 0.0f ? normalize(sun.direction) * -1.0f : vec3{0.0f, 1.0f, 0.0f};
   const f32 light_dir[3] = {toward.x, toward.y, toward.z};
   const f32 light_color[3] = {sun.color.r, sun.color.g, sun.color.b};
   const f32 ambient[3] = {sun.ambient.r, sun.ambient.g, sun.ambient.b};
-  const auto set = [&](const char *name, const void *value, i32 type) {
-    const i32 loc = GetShaderLocation(s, name);
-    if (loc >= 0)
-      SetShaderValue(s, loc, value, type);
+  const auto set = [&](i32 k, const void *value, i32 type) {
+    if (loc[k] >= 0)
+      SetShaderValue(s, loc[k], value, type);
   };
-  set("time", &time, SHADER_UNIFORM_FLOAT);
-  set("lightDir", light_dir, SHADER_UNIFORM_VEC3);
-  set("lightColor", light_color, SHADER_UNIFORM_VEC3);
-  set("ambient", ambient, SHADER_UNIFORM_VEC3);
+  set(1, &time, SHADER_UNIFORM_FLOAT);
+  set(2, light_dir, SHADER_UNIFORM_VEC3);
+  set(3, light_color, SHADER_UNIFORM_VEC3);
+  set(4, ambient, SHADER_UNIFORM_VEC3);
   return true;
 }
 } // namespace njin

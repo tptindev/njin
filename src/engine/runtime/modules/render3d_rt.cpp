@@ -12,6 +12,7 @@
 // from the pass's bone matrices, at full detail), draw_instanced3d and the
 // terrain. SDF shapes and grass receive the shadows but do not cast them.
 #include "render3d.h"
+#include "njin_cfg.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
 #include "njin_instance.h"
@@ -20,6 +21,7 @@
 #include "njin_quality_impl.h"
 #include "njin_texture.h"
 #include "njin_world3d_impl.h"
+#include "njin_raytrace.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -187,6 +189,12 @@ struct surface_in {
   vec3 emission{};
   bool two_sided = false; // material drawn from both sides (model_material::double_sided)
 };
+
+bool same_surface(const surface_in &a, const surface_in &b) {
+  return a.albedo.x == b.albedo.x && a.albedo.y == b.albedo.y && a.albedo.z == b.albedo.z &&
+         a.emission.x == b.emission.x && a.emission.y == b.emission.y && a.emission.z == b.emission.z &&
+         a.two_sided == b.two_sided;
+}
 
 f32 to_linear(f32 c) { return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); }
 
@@ -367,24 +375,61 @@ void add_instanced(context &ctx, const draw3d_cmd &c, gather &g) {
                        surface_of(colors::white, texture_of(ctx, c.material.texture),
                                                        c.material.emission)});
   } else if (const model_slot *m = model_slot_of(ctx_ref<model_store>(ctx), c.model)) {
+    // light3d::shadow_lod: a simpler level casts the traced shadow.
+    const u32 level = (u32)std::clamp(ctx_ref<render3d_state>(ctx)->light.shadow_lod, 0, 4);
     for (i32 i = 0; i < m->model.meshCount; i++) {
       const model_material &mm = m->materials[(usize)m->model.meshMaterial[i]];
+      const model_lod_mesh *lod = model_lod_of(*m, level, i);
       if (mm.color.a >= 1.0f && !transmits(mm.surface) && mm.surface.cast_shadows)
-        parts.push_back({part_blas(ctx, *m, i, m->model.meshes[i]), part_surface(ctx, *m, i, colors::white)});
+        parts.push_back({part_blas(ctx, *m, i, lod != nullptr ? lod->mesh : m->model.meshes[i]),
+                         part_surface(ctx, *m, i, colors::white)});
     }
   }
   const u32 count = std::min(c.count, slot->count - c.first);
-  for (u32 k = 0; k < count; k++) {
-    const f32 *d = &slot->cpu[(usize)(c.first + k) * floats];
-    const Matrix t = instance_matrix(d, slot->floats);
-    // instance1: the instance's colour (sRGB), times each part's.
-    for (const auto &[b, sf] : parts) {
-      surface_in one = sf;
-      if (slot->floats >= 8)
-        one.albedo = {sf.albedo.x * to_linear(d[4]), sf.albedo.y * to_linear(d[5]), sf.albedo.z * to_linear(d[6])};
-      add(g, b, t, one);
+  // A buffer that has not changed since its instances were worked out (a
+  // forest, a town uploaded once) gives the same list again: kept, keyed by
+  // the buffer, its uploads, the range and the parts drawn.
+  struct kept_list {
+    u32 uploads = 0, first = 0, count = 0;
+    std::vector<std::pair<u64, surface_in>> parts;
+    std::vector<rtvk::instance_in> inst;
+    u32 used = 0;
+  };
+  static std::unordered_map<u64, kept_list> kept;
+  static u32 calls = 0;
+  calls++;
+  const u64 id = ((u64)c.buffer.id << 32) ^ ((u64)c.model.id << 8) ^ (u64)(c.mesh != nullptr ? 1 : 0);
+  kept_list &k = kept[id];
+  const auto same_parts = [&]() {
+    if (k.parts.size() != parts.size())
+      return false;
+    for (usize i = 0; i < parts.size(); i++)
+      if (k.parts[i].first != parts[i].first || !same_surface(k.parts[i].second, parts[i].second))
+        return false;
+    return true;
+  };
+  if (k.uploads != slot->uploads || k.first != c.first || k.count != count || !same_parts() || k.inst.empty()) {
+    const usize before = g.inst.size();
+    for (u32 i = 0; i < count; i++) {
+      const f32 *d = &slot->cpu[(usize)(c.first + i) * floats];
+      const Matrix t = instance_matrix(d, slot->floats);
+      // instance1: the instance's colour (sRGB), times each part's.
+      for (const auto &[b, sf] : parts) {
+        surface_in one = sf;
+        if (slot->floats >= 8)
+          one.albedo = {sf.albedo.x * to_linear(d[4]), sf.albedo.y * to_linear(d[5]), sf.albedo.z * to_linear(d[6])};
+        add(g, b, t, one);
+      }
     }
+    k.uploads = slot->uploads, k.first = c.first, k.count = count, k.parts = parts;
+    k.inst.assign(g.inst.begin() + (std::ptrdiff_t)before, g.inst.end());
+  } else {
+    g.inst.insert(g.inst.end(), k.inst.begin(), k.inst.end());
   }
+  k.used = calls;
+  // Lists of buffers no longer drawn go after a while.
+  if ((calls & 1023u) == 0)
+    std::erase_if(kept, [&](const auto &e) { return calls - e.second.used > 4096; });
 }
 
 void add_model(context &ctx, const render3d_state &s, const draw3d_cmd &c, usize index, gather &g) {
@@ -403,7 +448,7 @@ void add_model(context &ctx, const render3d_state &s, const draw3d_cmd &c, usize
       add(g, skinned_blas(s, c, model.meshes[i], key_mix(index + 1, (u64)i), g), transform, sf);
       continue;
     }
-    const model_lod_mesh *lod = model_lod_of(*slot, c.lod, i);
+    const model_lod_mesh *lod = model_lod_of(*slot, c.lod + (u32)std::clamp(s.light.shadow_lod, 0, 4), i);
     add(g, part_blas(ctx, *slot, i, lod != nullptr ? lod->mesh : model.meshes[i]), transform, sf);
   }
 }
@@ -572,6 +617,7 @@ void rt_trace(context &ctx, const Matrix &view_proj) {
   t.sun_shadows = r.sun;
   t.rays = std::clamp(s.light.shadow_rays, 1, 16);
   t.blur = std::clamp(s.light.shadow_denoise, 0, 8);
+  t.gap = s.light.shadow_lod > 0 && std::isfinite(s.light.shadow_lod_gap) ? std::clamp(s.light.shadow_lod_gap, 0.0f, 2.0f) : 0.0f;
   t.lamp_count = r.lamp_count;
   for (i32 k = 0; k < r.lamp_count; k++) {
     const light3d_source &l = s.lights[(usize)r.lamp_light[(usize)k]];
@@ -722,6 +768,9 @@ void rt_free(rt_state &r) {
 }
 
 bool raytracing_available(context &ctx) {
+  // bgfx: compute-shader ray tracing (njin_raytrace_portable.cpp) when the backend has compute.
+  if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL)
+    return renderer_compute_available(ctx);
   rt_state &r = ctx_ref<render3d_state>(ctx)->rt;
   if (!r.tried) {
     r.tried = true;
@@ -731,6 +780,12 @@ bool raytracing_available(context &ctx) {
     r.ok = r.ok && IsShaderValid(r.copy);
   }
   return r.ok && rtvk::ready();
+}
+
+bool raytracing_hardware(context &ctx) {
+  if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL)
+    return renderer_ray_query_available(ctx);
+  return raytracing_available(ctx);
 }
 
 #else // NJIN_RAYTRACING
@@ -753,6 +808,11 @@ bool rt_prepass_begin(context &, i32, i32) { return false; }
 void rt_trace(context &, const Matrix &) {}
 void rt_bind(const rt_state &) {}
 void rt_free(rt_state &) {}
-bool raytracing_available(context &) { return false; }
+bool raytracing_available(context &ctx) {
+  return ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL && renderer_compute_available(ctx);
+}
+bool raytracing_hardware(context &ctx) {
+  return ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL && renderer_ray_query_available(ctx);
+}
 #endif
 } // namespace njin

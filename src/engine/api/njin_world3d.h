@@ -30,8 +30,40 @@ inline constexpr i32 terrain3d_layer_max = 4;
 struct terrain3d_layer {
   texture_handle albedo{}; ///< Ảnh màu. Không hợp lệ là chỉ dùng `color`.
   texture_handle normal{}; ///< Normal map (xanh lá hướng lên như glTF). Không hợp lệ là không dùng.
+  /// Ảnh độ nhám, đọc kênh đỏ: trắng là nhám mờ, đen là nhẵn bóng, xám giữa (0.5)
+  /// là đúng `terrain3d_desc::specular` và `shininess`; nhẵn hơn thì bóng gắt và
+  /// sáng hơn, nhám hơn thì nhạt dần tới tắt. Ánh sáng PBR dùng thẳng làm độ nhám.
+  /// Chiếu như `normal` (engine gộp hai ảnh làm một, không tốn thêm chỗ gắn
+  /// texture). Không hợp lệ là cả lớp theo `specular` và `shininess`.
+  texture_handle roughness{};
   rgba color{1.0f, 1.0f, 1.0f, 1.0f}; ///< Màu nhân vào ảnh (hoặc màu trơn khi không có ảnh).
   f32 tile = 4.0f; ///< Cạnh một ô ảnh, mét.
+  /// Phá lặp, 0..1 (0 là tắt): ảnh nhìn từ trên xuống được lấy hai bản dời đi những
+  /// khoảng đổi dần theo mặt đất rồi trộn vào nhau, nên các ô không còn thẳng hàng
+  /// thành lưới khi nhìn xa. Hợp ảnh mềm không có nét rõ (cỏ, cát, đất); ảnh có
+  /// đường nét (đá xếp, gạch) chỗ trộn sẽ lộ hai lớp nét. Đọc ảnh gấp đôi.
+  f32 detile = 0.0f;
+  /// Khi phá lặp, mỗi vùng còn lấy ảnh ở cỡ riêng, to nhỏ ngẫu nhiên tới tỉ lệ này
+  /// (0..0.9, 0 là cùng cỡ): chi tiết của ảnh lúc to lúc nhỏ trên mặt đất thay vì
+  /// đều tăm tắp. Chỉ có tác dụng khi `detile` > 0.
+  f32 detile_scale = 0.0f;
+  /// Lấp lánh dưới nắng, 0..4 (0 là tắt): những tinh thể nhỏ cỡ vài cm lóe sáng khi
+  /// mặt nghiêng của chúng phản chiếu mặt trời vào mắt, chỉ nơi có nắng (không trong
+  /// bóng), và nhấp nháy khi camera di chuyển. Cho tuyết, cát, băng. Mờ dần tới 60 m.
+  f32 glitter = 0.0f;
+  /// Ảnh độ cao cho hình nổi thật (`relief`), đọc kênh đỏ: trắng là nhô ra, đen là
+  /// lõm vào, xám giữa (0.5) là đúng mặt đất. Dán y như `albedo` (cùng `tile`, chiếu
+  /// từ ba phía ở vách dốc), nên vẽ nó từ chính ảnh màu: vết nứt trong ảnh màu là
+  /// rãnh tối, mỗi phiến đá một mức. Không hợp lệ là không có hình nổi.
+  texture_handle height{};
+  /// Hình nổi thật, mét (0 là tắt): độ chênh giữa chỗ đen và chỗ trắng của `height`.
+  /// Mặt đất gần camera (njin::terrain3d_desc::relief_distance) được chia lưới mịn
+  /// hơn (njin::terrain3d_desc::relief_detail) và đẩy ra, vào theo pháp tuyến bấy nhiêu, nhân trọng số của lớp, nên
+  /// vách đá có khe nứt và gờ phiến thật (bóng đổ, viền) đúng chỗ ảnh màu vẽ chúng,
+  /// và mờ dần về mặt trơn ở mép lớp và ở xa. Chỉ đổi hình vẽ ra: terrain3d_height(),
+  /// va chạm và cỏ vẫn theo mặt đất trơn. Không hợp với `detile` (ảnh màu bị dời đi,
+  /// hình nổi thì không).
+  f32 relief = 0.0f;
   /// @name Quy tắc tự phủ (njin::terrain3d_desc::auto_splat)
   /// Lớp phủ chỗ có độ cao trong `[min_height, max_height]` và độ dốc trong
   /// `[min_slope, max_slope]`, mép mờ dần trong `blend`. Lớp sau đè lên lớp trước,
@@ -87,6 +119,21 @@ struct terrain3d_desc {
   i32 lod_levels = 4;        ///< Số mức chi tiết, 1 đến 6.
   f32 specular = 0.05f;      ///< Độ bóng của mặt đất (ướt thì tăng thêm, xem njin::weather3d).
   f32 shininess = 16.0f;     ///< Độ nhọn điểm sáng bóng.
+  /// Tuyết phủ, 0..1 (0 là không): một lớp trắng trên chỗ bằng và thoải, theo những
+  /// mảng to nhỏ (nhiễu trong thế giới) khép dần lại khi tuyết dày, 1 là kín mặt đất
+  /// bằng; chỗ dốc (vách đá) và vết lún (terrain3d_imprint_stamp()) lộ đất. Lấp lánh
+  /// dưới nắng, không ướt. Chỉ đổi màu, không thêm hình. Đổi lúc chạy bằng
+  /// terrain3d_snow_set().
+  f32 snow = 0.0f;
+  rgba snow_color{0.95f, 0.96f, 1.0f, 1.0f}; ///< Màu tuyết của `snow`.
+  /// Tầm của hình nổi (njin::terrain3d_layer::relief), mét: các mảnh gần camera
+  /// hơn khoảng này mà có lớp có hình nổi thì vẽ bằng lưới mịn, hình nổi mờ dần từ
+  /// 70% tầm. Xa hơn là mặt trơn như cũ. Lớn thì tốn thêm đỉnh (mỗi mảnh 8 x 8 ô của
+  /// lưới độ cao là khoảng 16 nghìn đỉnh).
+  f32 relief_distance = 40.0f;
+  /// Số đỉnh mỗi cạnh ô của lưới độ cao ở chỗ vẽ nổi, 1 đến 8: ít là mặt to, mềm,
+  /// kiểu low-poly; nhiều là theo sát nét nhỏ của ảnh độ cao (và tốn đỉnh hơn).
+  i32 relief_detail = 4;
   bool cast_shadows = true;  ///< Đổ bóng (đồi che nắng). Luôn nhận bóng.
   bool collision = true;     ///< Tạo body va chạm (height field của Jolt) cho nhân vật, xe và vật.
   f32 friction = 0.8f;       ///< Ma sát của body va chạm.
@@ -160,6 +207,19 @@ enum terrain3d_brush_kind {
   terrain3d_lower,   ///< Hạ xuống `strength` mét ở tâm.
   terrain3d_flatten, ///< Kéo về độ cao `height`, một phần `strength` (0..1) mỗi lần.
   terrain3d_smooth,  ///< Làm mượt, một phần `strength` (0..1) mỗi lần.
+  /// Đào lòng chảo, chỉ hạ, không bao giờ nâng: đáy phẳng ở độ cao `height` trong
+  /// phần trong của bán kính (bỏ phần `falloff`), thành dốc đều lên `strength` mét
+  /// mỗi mét từ đó ra tới mép; chỗ nào đã thấp hơn thì giữ nguyên. Nhiều nét chồng
+  /// nhau (theo một đường, hay rải trong một vùng) thành lòng sông, lòng hồ có bờ
+  /// dốc đều bất kể đào sâu bao nhiêu. Bán kính phải đủ để thành dốc lên tới mặt
+  /// đất, không thì mép nét thành vách.
+  terrain3d_carve,
+  /// Đắp nền, chỉ nâng, không bao giờ hạ: ngược với `terrain3d_carve`. Mặt phẳng ở
+  /// độ cao `height` trong phần trong của bán kính (bỏ phần `falloff`), sườn dốc đều
+  /// xuống `strength` mét mỗi mét từ đó ra tới mép; chỗ nào đã cao hơn thì giữ
+  /// nguyên. Cho nền đắp, mô đất, bờ đê có mặt bằng và sườn đều. Bán kính phải đủ để
+  /// sườn xuống tới mặt đất, không thì mép nét thành vách.
+  terrain3d_fill,
 };
 
 /// Một nét sửa địa hình hình tròn, mạnh nhất ở tâm và nhạt dần ra mép.
@@ -167,8 +227,10 @@ struct terrain3d_brush {
   terrain3d_brush_kind kind = terrain3d_raise; ///< Kiểu sửa.
   vec3 center{0.0f, 0.0f, 0.0f}; ///< Tâm (dùng `x` và `z`).
   f32 radius = 4.0f;             ///< Bán kính, mét.
-  f32 strength = 0.5f;           ///< Mét (nâng, hạ) hoặc tỉ lệ 0..1 (san phẳng, làm mượt).
-  f32 height = 0.0f;             ///< Độ cao đích của `terrain3d_flatten`, mét.
+  /// Mét (nâng, hạ), tỉ lệ 0..1 (san phẳng, làm mượt), hoặc độ dốc của thành, mét
+  /// mỗi mét (đào, đắp nền).
+  f32 strength = 0.5f;
+  f32 height = 0.0f;             ///< Độ cao đích của `terrain3d_flatten`, đáy của `terrain3d_carve`, mặt của `terrain3d_fill`, mét.
   /// Phần ngoài của bán kính mờ dần, 0 (cứng) đến 1 (mờ từ tâm).
   f32 falloff = 0.6f;
 };
@@ -190,6 +252,75 @@ void terrain3d_edit(context &ctx, terrain3d_handle handle, const terrain3d_brush
 /// @param strength Mỗi lần thêm bao nhiêu ở tâm, 0..1.
 void terrain3d_paint(context &ctx, terrain3d_handle handle, vec3 center, f32 radius, i32 layer, f32 strength);
 
+/// Đổi tuyết phủ địa hình (njin::terrain3d_desc::snow): tuyết rơi dày dần, tan theo
+/// mùa. Có hiệu lực ở lần vẽ sau, không tốn gì: đổi được mỗi frame.
+/// @param ctx Context của engine.
+/// @param handle Địa hình. Handle không hợp lệ bị bỏ qua.
+/// @param snow Tuyết phủ, 0..1.
+/// @param color Màu tuyết.
+void terrain3d_snow_set(context &ctx, terrain3d_handle handle, f32 snow, rgba color = {0.95f, 0.96f, 1.0f, 1.0f});
+
+/// Vết lún tạm trên địa hình: dấu chân, vệt bánh xe, rãnh xe trượt trong tuyết
+/// hay cát, mờ dần rồi mất. Giữ trong một ô vuông quanh một điểm (thường là
+/// camera, xem terrain3d_imprint_follow()), mỗi texel một độ lún và một gờ đất
+/// đùn lên bên cạnh. Mặt đất không đổi hình: shader của địa hình nghiêng pháp
+/// tuyến theo độ lún và gờ, và nhuộm chỗ lún, nên vết có bóng và mép sáng như
+/// có chiều sâu mà không tốn lưới hay va chạm.
+struct terrain3d_imprint_desc {
+  f32 texel = 0.05f;   ///< Mét mỗi texel.
+  i32 size = 1024;     ///< Số texel mỗi cạnh của ô giữ vết (64..4096). 0 là tắt.
+  f32 depth = 0.1f;    ///< Một vết lún hết trông sâu bao nhiêu, mét.
+  f32 rim = 0.04f;     ///< Một gờ đầy trông cao bao nhiêu, mét.
+  f32 lifetime = 5.0f; ///< Một vết còn bao lâu, giây (thời gian của game).
+  f32 fade = 2.0f;     ///< Mờ dần trong bấy nhiêu giây cuối của `lifetime`.
+  /// Màu nhân vào chỗ lún hết (tuyết nén ánh xanh, cát ướt sẫm); `a` là độ đậm.
+  rgba tint{1.0f, 1.0f, 1.0f, 0.0f};
+};
+
+/// Bật, đổi hay tắt (`size` = 0) vết lún của địa hình. Bật lại thì xóa vết cũ.
+/// @param ctx Context của engine.
+/// @param handle Địa hình.
+/// @param desc Cách giữ và vẽ vết.
+void terrain3d_imprint_set(context &ctx, terrain3d_handle handle, const terrain3d_imprint_desc &desc);
+
+/// Dời ô giữ vết cho tâm của nó ở `center` (dùng `x` và `z`); gọi mỗi frame với
+/// vị trí camera. Phần ra khỏi ô bị quên; vết hết hạn được xóa ở đây.
+/// @param ctx Context của engine.
+/// @param handle Địa hình.
+/// @param center Tâm mới.
+void terrain3d_imprint_follow(context &ctx, terrain3d_handle handle, vec3 center);
+
+/// Một hình vết cho terrain3d_imprint_stamp(): `width * height` cặp byte, hàng
+/// đầu là mũi của vết (hướng `yaw`), mỗi cặp là độ lún rồi độ gờ, 0..255.
+/// @param ctx Context của engine.
+/// @param handle Địa hình.
+/// @param pressed_rim Các cặp byte.
+/// @param width Số cột.
+/// @param height Số hàng.
+/// @return Số của hình, hoặc -1 nếu dữ liệu sai.
+i32 terrain3d_imprint_shape(context &ctx, terrain3d_handle handle, const u8 *pressed_rim, i32 width, i32 height);
+
+/// Một vết in xuống.
+struct terrain3d_stamp {
+  vec3 position{0.0f, 0.0f, 0.0f}; ///< Tâm (dùng `x` và `z`).
+  f32 yaw = 0.0f;                  ///< Mũi của hình chỉ theo hướng này, độ (0 là +z, 90 là +x).
+  vec2 half_size{0.1f, 0.1f};      ///< Nửa bề ngang và nửa bề dài của hình, mét.
+  i32 shape = -1;                  ///< Từ terrain3d_imprint_shape(); -1 là vết tròn mềm mép.
+  f32 strength = 1.0f;             ///< Nhân vào độ lún và gờ của hình, 0..1.
+};
+
+/// In một vết: mỗi texel giữ chỗ lún và gờ sâu hơn trong hai vết cũ và mới, và
+/// tính tuổi lại từ bây giờ. Vết ngoài ô giữ vết bị bỏ.
+/// @param ctx Context của engine.
+/// @param handle Địa hình.
+/// @param stamp Vết.
+void terrain3d_imprint_stamp(context &ctx, terrain3d_handle handle, const terrain3d_stamp &stamp);
+
+/// Xóa mọi vết (bắt đầu lại một màn).
+/// @param ctx Context của engine.
+/// @param handle Địa hình.
+void terrain3d_imprint_clear(context &ctx, terrain3d_handle handle);
+
 // ---------------------------------------------------------------------------
 // Cỏ và vật rải
 // ---------------------------------------------------------------------------
@@ -206,6 +337,9 @@ struct grass3d_desc {
   f32 height = 0.45f;         ///< Chiều cao ngọn, mét.
   f32 height_jitter = 0.4f;   ///< Ngọn cao thấp khác nhau tới tỉ lệ này của `height`.
   f32 width = 0.05f;          ///< Bề rộng gốc ngọn, mét.
+  /// Ngọn rộng theo chiều cao của nó: `width` là bề rộng của ngọn cao đúng `height`,
+  /// ngọn thấp hơn (lệch, vùng thấp, mép thảm) hẹp đi theo cùng tỉ lệ.
+  bool width_by_height = false;
   rgba base_color{0.12f, 0.30f, 0.07f, 1.0f}; ///< Màu ở gốc.
   rgba tip_color{0.52f, 0.70f, 0.28f, 1.0f};  ///< Màu ở ngọn.
   f32 color_jitter = 0.15f;   ///< Mỗi ngọn sáng tối khác nhau tới tỉ lệ này.
@@ -213,12 +347,40 @@ struct grass3d_desc {
   /// (terrain3d_layer_weight()). -1 là mọc mọi nơi.
   i32 layer = 0;
   f32 max_slope = 35.0f;      ///< Không mọc chỗ dốc hơn, độ.
+  /// Không mọc chỗ thấp hơn mức này, mét (vd. ngay trên mặt nước); thưa và thấp dần
+  /// trong 0.4 m trên nó.
+  f32 min_height = -1.0e9f;
+  /// Mép thảm cỏ (lớp nhạt dần, gần `max_slope`, gần `min_height`), 0..1 (0 là tắt):
+  /// ngọn thấp dần về phía mép, ở mép thấp còn `1 - edge_shrink` lần, và mọc dày hơn
+  /// trọng số ở đó, nên mép là một viền cỏ thấp mềm thay vì vài ngọn cao lẻ tẻ.
+  f32 edge_shrink = 0.0f;
   /// Nhiễu chia cỏ thành đám (tính theo mét), dùng khi `patchiness` > 0.
   noise_desc patches{.seed = 3, .frequency = 0.06f, .octaves = 2};
   f32 patchiness = 0.4f;      ///< 0 là mọc đều; 1 là thành đám rõ, giữa các đám trống.
+  /// Nhiễu chia cỏ thành vùng cao thấp (tính theo mét), dùng khi `height_variation` > 0.
+  noise_desc height_patches{.seed = 7, .frequency = 0.08f, .octaves = 2};
+  /// Mỗi vùng cao thấp hơn `height` tới tỉ lệ này: 0.5 là vùng thấp nhất cao nửa `height`,
+  /// cao nhất gấp rưỡi. `height_jitter` vẫn làm từng ngọn trong vùng khác nhau.
+  f32 height_variation = 0.0f;
+  rgba tint_color{0.62f, 0.70f, 0.24f, 1.0f}; ///< Màu pha vào từng mảng cỏ theo `tint_patches`.
+  noise_desc tint_patches{.seed = 9, .frequency = 0.05f, .octaves = 2}; ///< Nhiễu chia mảng màu (tính theo mét).
+  f32 tint = 0.0f;            ///< Pha `tint_color` nhiều nhất bấy nhiêu, 0..1. 0 là một màu.
+  /// Ngọn cong sẵn sang một bên (không cần gió), 0..1: cỏ mềm, tròn, kiểu vẽ tay.
+  f32 curve = 0.0f;
+  /// Ngọn lấy màu đất nơi nó mọc, 0..1 (0 là tắt): gốc ngọn mang màu địa hình tại gốc
+  /// (ảnh và màu các lớp, theo trọng số lớp) thay cho `base_color`, lên ngọn chuyển dần
+  /// sang `tip_color`. Thảm cỏ liền với mặt đất, không thành gai tối trên nền.
+  f32 ground_color = 0.0f;
+  /// Gốc ngọn tối còn bấy nhiêu lần màu của nó, 0..1 (1 là không tối): cỏ tự che gốc mình.
+  f32 root_shade = 0.6f;
   f32 draw_distance = 60.0f;  ///< Xa hơn khoảng này không có cỏ, mét.
   f32 fade = 20.0f;           ///< Cỏ thấp dần trong khoảng này trước `draw_distance`, mét.
-  f32 sway = 1.0f;            ///< Đung đưa theo gió nhiều hay ít. 0 là đứng yên.
+  /// Xa hơn tầm vẽ, mặt đất chỗ cỏ mọc giả làm thảm cỏ, 0..1 (0 là tắt): địa hình lấy
+  /// màu của thảm nhìn từ xa (`tip_color` pha `tint_color`) với những đốm bụi cỏ, đổi dần
+  /// trong khoảng `fade` khi ngọn thấp đi. Gần như không tốn (vài phép tính trong shader
+  /// địa hình), nên nhìn từ thật xa thảm cỏ không thành đất trọc.
+  f32 far_cover = 0.0f;
+  f32 sway = 1.0f;           ///< Đung đưa theo gió nhiều hay ít. 0 là đứng yên.
   u32 seed = 1;               ///< Hạt giống: cùng hạt giống thì cỏ mọc y như nhau.
   bool cast_shadows = false;  ///< Ngọn cỏ đổ bóng (tốn: mọi ngọn vẽ thêm vào ảnh bóng). Luôn nhận bóng.
 };
@@ -238,6 +400,26 @@ void grass3d_destroy(context &ctx, grass3d_handle handle);
 /// @param ctx Context của engine.
 /// @param handle Thảm cỏ.
 void draw_grass3d(const context &ctx, grass3d_handle handle);
+
+/// Đổi cách mọc của thảm cỏ (cỏ theo mùa: xanh non, vàng úa, phủ tuyết). Màu
+/// (`base_color`, `tip_color`, `tint_color`), độ mạnh của `ground_color`,
+/// `root_shade`, `curve`, `sway`, `far_cover`, tầm vẽ và bóng đổ đổi ngay ở lần vẽ
+/// sau, không tốn gì: đổi được mỗi frame. Đổi những gì định ngọn mọc ở đâu và
+/// cao, rộng ra sao (`density`, `height`, `layer`, nhiễu, `tint`, `color_jitter`,
+/// `seed`..., hay bật tắt `ground_color` qua 0) thì cỏ mọc lại hết: tốn như lúc
+/// mới tạo, đừng làm mỗi frame. Địa hình giữ như cũ (`terrain` mới bị bỏ qua).
+/// Màu đất ở gốc ngọn (`ground_color`) lấy lúc ngọn mọc, nên không theo màu lớp
+/// địa hình đổi sau đó.
+/// @param ctx Context của engine.
+/// @param handle Thảm cỏ. Handle không hợp lệ bị bỏ qua.
+/// @param desc Cách mọc mới.
+void grass3d_set(context &ctx, grass3d_handle handle, const grass3d_desc &desc);
+
+/// Cách mọc hiện tại của thảm cỏ.
+/// @param ctx Context của engine.
+/// @param handle Thảm cỏ.
+/// @return Cách mọc, hoặc mặc định nếu handle không hợp lệ.
+grass3d_desc grass3d_get(const context &ctx, grass3d_handle handle);
 
 /// Số ngọn cỏ vẽ ở lần vẽ 3D gần nhất, để đo.
 /// @param ctx Context của engine.
@@ -390,6 +572,37 @@ struct water3d_desc {
   /// cũng trong hơn. Độ mạnh, khoảng 0..1; 0 (mặc định) là tắt. Bật nó làm lần vẽ
   /// 3D chép ảnh màu và độ sâu của cảnh một lần mỗi frame, như post3d.
   f32 refract = 0.0f;
+  /// Vân sáng dưới đáy (caustics): sóng và gợn khúc xạ nắng, gom lại thành lưới vệt
+  /// sáng chạy trên đáy chỗ nước nông, mép vệt tách màu nhẹ. Chỉ nơi đáy có nắng,
+  /// nhạt dần theo độ sâu (`depth_fade`) và ở xa. Độ mạnh, khoảng 0..1; 0 (mặc định)
+  /// là tắt. Đẹp nhất cùng `refract`: vân nằm trên chính đáy nhìn qua nước.
+  f32 caustics = 0.0f;
+  f32 caustic_size = 1.0f; ///< Cỡ một ô của lưới vân sáng, mét.
+  /// Phản chiếu cảnh: bờ, đồi, cây in ngược trên mặt nước, méo theo sóng và gợn,
+  /// lấy theo cảnh đã vẽ trên màn hình; chỗ ấy không có trên màn hình thì phản chiếu
+  /// bầu trời như khi tắt. Độ mạnh, 0..1: nhỏ là đúng như nước thật (nhìn gần thẳng
+  /// xuống thì thấy ít), 1 là đậm như tranh vẽ. 0 (mặc định) là tắt. Bật nó, như
+  /// `refract`, làm lần vẽ 3D chép ảnh màu và độ sâu của cảnh một lần mỗi frame.
+  f32 reflect = 0.0f;
+  /// Với `refract`: phần ánh sáng mỗi màu còn lại sau khi đi qua một mét nước. Đáy
+  /// và vật chìm nhìn qua nước sẫm và ngả màu dần theo quãng ánh sáng đi xuống rồi
+  /// lên (nước ao xanh rêu, nước suối ngả lục, nước biển ngả lam). Trắng (mặc định)
+  /// là không nhuộm.
+  rgba absorb{1.0f, 1.0f, 1.0f, 1.0f};
+  /// Mưa rơi trên mặt nước, 0..1 (0 là tắt, mặc định): khi trời mưa (weather3d::rain
+  /// của draw_sky3d()), giọt mưa rơi khắp mặt nước, mỗi giọt một vòng gợn lan ra rồi
+  /// tắt trong chưa tới một giây, dày theo mưa; ở xa, nơi vòng nhỏ hơn điểm ảnh, mặt
+  /// nước chỉ lăn tăn. Số này nhân với độ mưa. Chỉ là hình vẽ, như `pour`.
+  f32 rain_rings = 0.0f;
+  /// Băng, 0..1 (0 là không, mặc định): mặt nước đóng băng từ bờ ra, chỗ nông trước
+  /// (theo `terrain` hay `bed`; nước sâu đều thì đóng từ khoảng 0.8), 1 là kín mặt.
+  /// Băng phẳng, đục, có vân sương, phản chiếu trời nhạt; sóng lặng dần theo băng
+  /// (cả water3d_height() và water3d_normal()). Mưa, gợn, bọt không có trên băng.
+  f32 ice = 0.0f;
+  rgba ice_color{0.78f, 0.86f, 0.92f, 1.0f}; ///< Màu băng.
+  /// Tuyết nằm trên băng, 0..1: những mảng trắng khép dần lại khi dày, như
+  /// njin::terrain3d_desc::snow. Chỉ chỗ đã đóng băng.
+  f32 ice_snow = 0.0f;
 };
 
 /// Tạo mặt nước.

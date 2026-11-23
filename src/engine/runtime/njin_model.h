@@ -3,6 +3,14 @@
 
 #include "_types.h"
 #include "njin_3d.h"
+#include "njin_renderer.h"
+#include "njin_lightmap_internal.h"
+#include "njin_post3d.h"
+#include "njin_animation_portable.h"
+#include "njin_temporal_portable.h"
+#include "njin_light_clusters.h"
+#include "njin_atmosphere_portable.h"
+#include "modules/debug3d.h"
 #include <raylib.h>
 #include <algorithm>
 #include <array>
@@ -52,7 +60,16 @@ struct morph_clip {
   std::vector<morph_channel> channels;
 };
 
+struct PortableAnimation;
 struct model_slot {
+  bool streaming_lods=false;
+  std::shared_ptr<PortableAnimation> portable_animation;
+  bool portable=false;
+  std::vector<RenderMeshHandle> portable_meshes;
+  std::vector<std::vector<RenderMeshHandle>> portable_lods;
+  struct portable_material_data { RenderTextureMap albedo; RenderMaterialMaps maps; bool blend=false,mask=false; };
+  std::vector<portable_material_data> portable_materials;
+  std::vector<RenderTextureHandle> portable_owned_textures;
   Model model{};
   bool alive = false;
   // What the game sees and sets (model_material_set), one per material of
@@ -73,6 +90,8 @@ struct model_slot {
   i32 anim_kept = 0;  // usable: anims[0..anim_kept) match the skeleton
   std::vector<u32> bone_vbo;
   std::vector<u32> weight_vbo;
+  bool merged = false;  // loaded with model_load_desc::merge: model_lod_load merges its levels alike
+  bool borrows_textures = false; // model_combine: its materials use its sources' textures
   bool skinned = false; // at least one mesh has bone buffers and the skeleton fits
   std::vector<Matrix> inv_bind; // per bone, the inverse of its rest pose (model space)
   // model_create_skinned: the model whose skeleton this one copies and whose
@@ -122,6 +141,7 @@ bool model_file_pbr_map_uv2(const model_slot &slot, i32 index, bool occlusion);
 // Clips the game sees (model_anim_count): the skin's, or the weight-only
 // clips of a model without a skin.
 inline i32 model_clip_count(const model_slot &m) {
+  if(m.portable_animation) return int(m.portable_animation->clips_view().size());
   return m.anim_kept > 0 ? m.anim_kept : (i32)m.morph_clips.size();
 }
 
@@ -145,11 +165,81 @@ inline constexpr i32 skin_weight_loc = 11;
 // Bones the skinning shader takes (its boneMatrices array).
 inline constexpr i32 skin_max_bones = 128;
 
-// Owns every loaded model with its meshes and material textures. The
-// destructor frees them, so it must run while the GL context is still alive.
+// Legacy models own raylib GPU resources. Portable models retain CPU geometry
+// and renderer-owned handles; explicit unload releases them outside a frame.
+// Window/device ownership outlives this store on both paths.
 struct model_store {
   std::vector<model_slot> slots;
+  std::unordered_map<std::uint64_t,LightmapResource> lightmap_assets;
 
+  context *portable_context=nullptr;
+  bool portable_pass=false;
+  bool portable_auto_end_target=false;
+  camera3d portable_camera;
+  render3d_options portable_options{};
+  light3d portable_light;
+  light3d portable_frame_light;
+  std::vector<MeshDraw> portable_queue;
+  debug3d_frame portable_debug;
+  PortableTemporalState portable_temporal;
+  std::vector<light3d_source> portable_lights;
+  LightClusters portable_cluster_grid;
+  RenderTextureHandle portable_cluster_texture;
+  std::shared_ptr<const RenderClusterData> portable_clusters;
+  std::shared_ptr<const RenderShadowData> portable_shadows;
+  RenderTargetHandle portable_target;
+  RenderTargetHandle portable_destination;
+  RenderTargetHandle portable_hdr;
+  post3d portable_post{},portable_frame_post{};
+  std::vector<RenderTargetHandle> portable_bloom;
+  RenderTargetHandle portable_aa;
+  std::array<RenderTargetHandle,2> portable_smaa{};
+  std::array<RenderTextureHandle,2> portable_smaa_lookup{};
+  std::vector<RenderTargetHandle> portable_luminance;
+  std::array<RenderTargetHandle,2> portable_exposure{};
+  unsigned portable_exposure_index=0;
+  bool portable_exposure_valid=false;
+  double portable_exposure_at=0;
+  std::array<RenderTargetHandle,2> portable_ao{};
+  RenderTargetHandle portable_ao_scene;
+  RenderTargetHandle portable_ssr_mask,portable_ssr_scene;
+  std::array<RenderTargetHandle,2> portable_effect_scene{},portable_shafts{};
+  RenderTargetHandle portable_flare_visibility;
+  std::array<RenderTargetHandle,2> portable_oit{};
+  bool portable_ao_half=true;
+  unsigned portable_post_width=0,portable_post_height=0;
+  RenderTargetHandle portable_shadow;
+  std::shared_ptr<RenderEnvironmentData> portable_environment;
+  std::shared_ptr<AtmosphereState> portable_atmosphere;
+  std::vector<RenderTargetHandle> portable_hdr_retired;
+  bool portable_atmosphere_drawn=false;
+  std::vector<std::shared_ptr<RenderEnvironmentData>> portable_environment_retired;
+  u32 portable_environment_source=0,portable_environment_version=0;
+  unsigned portable_shadow_width=0,portable_shadow_height=0;
+  // Ray traced shadows (njin_raytrace_portable.cpp): the camera's packed depth.
+  RenderTargetHandle portable_rt_depth;
+  RenderTargetHandle portable_occlusion_depth;
+  unsigned portable_occlusion_width=0,portable_occlusion_height=0;
+  struct OcclusionTarget {RenderTargetHandle target;unsigned width,height;std::uint64_t frame;};
+  std::vector<OcclusionTarget> portable_occlusion_targets;
+  unsigned portable_rt_width=0,portable_rt_height=0;
+  std::uint64_t portable_rt_frame=0;
+  // light3d::shadow_lod: queue index -> the coarser level its rays meet instead.
+  std::vector<std::pair<size_t,RenderMeshHandle>> portable_rt_lod;
+  // The last BVH and the triangles it was built from: an unchanged scene reuses it.
+  std::vector<std::array<float,4>> portable_rt_corners;
+  std::shared_ptr<const std::vector<std::array<float,4>>> portable_rt_nodes,portable_rt_triangles;
+  std::uint64_t portable_rt_grid_generation=0; // irradiance3d_set starts the traced grid over
+  irradiance3d_desc portable_grid{}; // irradiance3d_set on the bgfx renderer
+  bool portable_grid_set=false;
+  unsigned portable_hdr_width=0,portable_hdr_height=0;
+  bool portable_hdr_active=false;
+  Matrix portable_view_projection{},portable_projection{},portable_view{};
+  material3d portable_material;
+  fx3d portable_fx;
+  mutable RenderTextureHandle portable_white;
+  mutable std::array<RenderMeshHandle,3> portable_primitives{}; // box, sphere, plane
+  std::vector<std::pair<std::vector<float>,std::shared_ptr<const RenderGeometryData>>> portable_sdf_meshes;
   model_store() = default;
   ~model_store();
   // Copying would free the same GPU buffers twice.

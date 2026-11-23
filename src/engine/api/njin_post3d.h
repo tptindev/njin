@@ -129,6 +129,24 @@ struct post3d {
   /// @{
   bool oit = false; ///< Bật OIT.
   /// @}
+
+  /// @name Viền (outline)
+  /// Nét viền quanh vật, như phim hoạt hình (đi cùng light3d::toon_bands): ở mép
+  /// hình, nơi vật đứng trước vật khác hay trước nền trời, và ở nếp gấp, nơi hai mặt
+  /// gặp nhau thành góc. Tính từ độ sâu sau các hình đục, nên mọi hình đục đều có
+  /// (kể cả địa hình, model của game); kính, nước, hạt 3D và decal không có viền.
+  /// Nét nằm trên vật ở gần, không lấn sang nền.
+  /// @{
+  f32 outline = 0.0f;       ///< Độ đậm, 0..1. 0 là tắt.
+  rgba outline_color{0.1f, 0.07f, 0.09f, 1.0f}; ///< Màu nét; `a` nhân với `outline`.
+  f32 outline_width = 1.0f; ///< Bề dày nét, pixel, 0.5..4.
+  /// Góc giữa hai mặt (độ) từ đó nếp gấp có nét. Nhỏ thì nhiều nét (cả cạnh của lưới
+  /// low-poly), 180 là chỉ viền mép hình.
+  f32 outline_crease = 50.0f;
+  /// Xa camera hơn bấy nhiêu đơn vị 3D thì nét mờ hết (bắt đầu mờ từ một nửa khoảng
+  /// đó), để núi và rừng ở xa không thành một đám nét. 0 là không mờ.
+  f32 outline_fade = 0.0f;
+  /// @}
 };
 
 /// Đặt hiệu ứng màn hình 3D, cho mọi lần vẽ 3D từ frame này. `post3d{}` là tắt hết.

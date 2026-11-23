@@ -5,6 +5,7 @@
 #include "njin_path.h"
 #include <rlgl.h>
 #include <string>
+#include <stdexcept>
 
 namespace njin {
 namespace {
@@ -77,6 +78,7 @@ void shader_slot_set_optional_i32(const shader_slot &slot, const char *name, i32
 
 shader_handle shader_store_load(shader_store &store, const char *vspath,
                                 const char *fspath) {
+  if(store.portable_context) return portable_shader_load(store,vspath,fspath);
   if (vspath == nullptr && fspath == nullptr) {
     NJIN_WARN("shader: nothing to load, both paths are null");
     return shader_handle{};
@@ -102,6 +104,7 @@ shader_handle shader_store_load(shader_store &store, const char *vspath,
 }
 
 bool shader_store_reload(shader_store &store, shader_handle handle) {
+  if(store.portable_context) return portable_shader_reload(store,handle);
   shader_slot *slot = shader_slot_of(store, handle);
   if (slot == nullptr || (slot->vs_path.empty() && slot->fs_path.empty()))
     return false;
@@ -122,6 +125,7 @@ bool shader_store_reload(shader_store &store, shader_handle handle) {
 }
 
 void shader_store_unload(shader_store &store, shader_handle handle) {
+  if(store.portable_context) {portable_shader_unload(store,handle);return;}
   shader_slot *slot = shader_slot_of(store, handle);
   if (slot == nullptr)
     return;
@@ -130,6 +134,7 @@ void shader_store_unload(shader_store &store, shader_handle handle) {
 }
 
 shader_store::~shader_store() {
+  if(portable_context) return; // Device owns native programs until its teardown.
   for (usize i = 0; i < slots.size(); i++)
     shader_store_unload(*this, shader_handle{.id = (u32)(i + 1)});
 }
@@ -138,37 +143,45 @@ void shader_store_begin(const shader_store &store, shader_handle handle) {
   const shader_slot *slot = shader_slot_of(store, handle);
   if (slot == nullptr)
     return;
-  BeginShaderMode(slot->shader);
+  if(!store.portable_context) BeginShaderMode(slot->shader);
   store.active = handle;
 }
 
 void shader_store_end(const shader_store &store) {
-  EndShaderMode();
+  if(!store.portable_context) EndShaderMode();
   store.active = shader_handle{};
 }
 
 void shader_store_set_i32(shader_store &store, shader_handle handle,
                           const char *name, i32 value) {
+  if(store.portable_context) {
+    const auto bits=static_cast<u32>(value);const std::array<float,4> packed{float(bits&65535u),float(bits>>16),0,0};
+    portable_shader_set(store,handle,name,"int",{&packed,1});return;
+  }
   set_uniform(store, handle, name, &value, SHADER_UNIFORM_INT);
 }
 
 void shader_store_set_f32(shader_store &store, shader_handle handle,
                           const char *name, f32 value) {
+  if(store.portable_context) {const std::array<float,4> v{value,0,0,0};portable_shader_set(store,handle,name,"float",{&v,1});return;}
   set_uniform(store, handle, name, &value, SHADER_UNIFORM_FLOAT);
 }
 
 void shader_store_set_vec2(shader_store &store, shader_handle handle,
                            const char *name, vec2 value) {
+  if(store.portable_context) {const std::array<float,4> v{value.x,value.y,0,0};portable_shader_set(store,handle,name,"vec2",{&v,1});return;}
   const f32 data[2] = {value.x, value.y};
   set_uniform(store, handle, name, data, SHADER_UNIFORM_VEC2);
 }
 
 void shader_store_set_vec3(shader_store &store, shader_handle handle, const char *name, vec3 value) {
+  if(store.portable_context) {const std::array<float,4> v{value.x,value.y,value.z,0};portable_shader_set(store,handle,name,"vec3",{&v,1});return;}
   const f32 data[3] = {value.x, value.y, value.z};
   set_uniform(store, handle, name, data, SHADER_UNIFORM_VEC3);
 }
 
 void shader_store_set_rgba(shader_store &store, shader_handle handle, const char *name, vec4 value) {
+  if(store.portable_context) {const std::array<float,4> v{value.x,value.y,value.z,value.w};portable_shader_set(store,handle,name,"vec4",{&v,1});return;}
   const f32 data[4] = {value.x, value.y, value.z, value.w};
   set_uniform(store, handle, name, data, SHADER_UNIFORM_VEC4);
 }
@@ -180,6 +193,13 @@ void shader_store_set_vec4_array(shader_store &store, shader_handle handle, cons
   static_assert(sizeof(vec4) == 4 * sizeof(f32), "a vec4 array is uploaded as it lies in memory");
   if (name == nullptr || values == nullptr || count == 0)
     return;
+  if(store.portable_context) {
+    if(!shader_slot_of(store,handle)) return;
+    if(count>256) throw std::invalid_argument("njin shader: uniform array exceeds package limit");
+    std::vector<std::array<float,4>> data;data.reserve(count);
+    for(u32 i=0;i<count;++i) data.push_back({values[i].x,values[i].y,values[i].z,values[i].w});
+    portable_shader_set(store,handle,name,"vec4",data);return;
+  }
   shader_slot *slot = shader_slot_of(store, handle);
   if (slot == nullptr)
     return;
@@ -195,6 +215,10 @@ void shader_store_set_texture(shader_store &store, shader_handle handle, const c
   shader_slot *slot = shader_slot_of(store, handle);
   if (slot == nullptr)
     return;
+  if(store.portable_context) {
+    bool declared=false;for(const auto &s:slot->portable_samplers) declared|=s.alias==name;
+    if(!declared) {if(slot->uniforms.emplace(name,-1).second) NJIN_WARN("shader: sampler '%s' is not declared in package",name);return;}
+  }
   for (shader_texture_binding &b : slot->textures) {
     if (b.name == name) {
       b.is_render = is_render;
@@ -202,7 +226,7 @@ void shader_store_set_texture(shader_store &store, shader_handle handle, const c
       return;
     }
   }
-  if (slot->textures.size() >= shader_max_textures) {
+  if (slot->textures.size() >= (store.portable_context?shader_max_textures+1:shader_max_textures)) {
     NJIN_WARN("shader: [ID %u] '%s' ignored, a shader takes at most %zu extra textures", slot->shader.id,
               name, shader_max_textures);
     return;
@@ -211,6 +235,7 @@ void shader_store_set_texture(shader_store &store, shader_handle handle, const c
 }
 
 void shader_bind_textures(const context &ctx, const shader_slot &slot) {
+  if(slot.portable) return;
   for (const shader_texture_binding &b : slot.textures) {
     const u32 gl = gl_id_of(ctx, b);
     const i32 loc = uniform_loc(slot, b.name.c_str());

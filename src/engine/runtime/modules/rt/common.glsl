@@ -14,7 +14,7 @@ layout(set = 0, binding = 256) uniform Params {
   vec4 lightPos[8];   // lamps lighting what rays hit: position, reach
   vec4 lightColor[8]; // linear colour times intensity, cos of the inner cone
   vec4 lightSpot[8];  // direction, cos of the outer cone (-2 for a point light)
-  vec4 lightInfo;     // lamp count, 1 when the grid lights what rays hit, -, 1 when the shadows have a history
+  vec4 lightInfo;     // lamp count, 1 when the grid lights what rays hit, metres a shadow ray skips from its start, 1 when the shadows have a history
   vec4 gridMin;       // the irradiance grid's corner, the share kept from last frame
   vec4 gridSize;      // its size, intensity
   vec4 gridCount;     // points along x, y, z, rays per point
@@ -73,10 +73,10 @@ vec3 normal_at(ivec2 px, vec3 c) {
 #endif
 
 #ifdef RT_SCENE
-// Whether anything lies on the ray within `tmax`.
-bool blocked(vec3 o, vec3 d, float tmax) {
+// Whether anything lies on the ray between `tmin` and `tmax`.
+bool blocked(vec3 o, vec3 d, float tmin, float tmax) {
   rayQueryEXT q;
-  rayQueryInitializeEXT(q, scene, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT, 0xFF, o, 0.0, d, tmax);
+  rayQueryInitializeEXT(q, scene, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT, 0xFF, o, tmin, d, tmax);
   while (rayQueryProceedEXT(q)) {
   }
   return rayQueryGetIntersectionTypeEXT(q, true) != gl_RayQueryCommittedIntersectionNoneEXT;
@@ -275,7 +275,7 @@ vec3 shade_hit(hit_t h) {
   if (p.sunColor.w > 0.5) {
     vec3 l = normalize(p.sun.xyz);
     float nl = dot(n, l);
-    if (nl > 0.0 && !blocked(o, l, 10000.0))
+    if (nl > 0.0 && !blocked(o, l, 0.0, 10000.0))
       light += p.sunColor.rgb * nl;
   }
   for (int i = 0; i < 8; i++) {

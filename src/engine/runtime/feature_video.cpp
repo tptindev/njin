@@ -1,5 +1,6 @@
 // The video feature (njin_features.h): MPEG-1 playback on pl_mpeg.
 #include "njin_ctx_get.h"
+#include "njin_cfg.h"
 #include "njin_video_impl.h"
 
 namespace njin {

@@ -2,6 +2,8 @@
 #include "njin_internal_only.h"
 
 #include "_math.h"
+#include "njin_renderer.h"
+#include "njin_window.h"
 #include "_types.h"
 #include <raylib.h>
 #include <string>
@@ -20,6 +22,7 @@ struct queued_text {
   rect bounds;      // where its glyphs can land, virtual pixels
   rect clip;        // clip_begin() area when it was queued; size 0 for none
   usize occluders;  // how many occluders existed then: later ones cover it
+  bool portable_fallback=false; // resolved default at submission, independent of later font_set_default
 };
 
 // Something drawn into the virtual image after some text was queued, which
@@ -39,6 +42,13 @@ struct view_state {
   bool integer_scale = true;
   rgba bars{0.0f, 0.0f, 0.0f, 1.0f};
   RenderTexture2D target{};
+  context *portable_context=nullptr;
+  RenderTargetHandle portable_target;
+  std::array<RenderTargetHandle,4> portable_post_targets{};
+  RenderTextureHandle portable_depth;
+  std::array<float,16> portable_depth_inverse{};
+  std::array<float,2> portable_depth_planes{};
+  unsigned portable_width=0,portable_height=0;
   bool drawing = false;     // this frame is being drawn into `target`
   f32 scale = 1.0f;         // window pixels per virtual pixel
   vec2 offset{};            // top-left of the image in the window
@@ -100,6 +110,10 @@ struct view_state {
   view_state &operator=(const view_state &) = delete;
 };
 
+void portable_view_draw_begin(context &);
+void portable_view_draw_end(context &);
+void portable_view_ui_begin(context &);
+
 // Inside ui_canvas_begin()/ui_canvas_end() with the canvas scaling.
 inline bool view_in_canvas(const view_state &view) {
   return view.canvas_depth > 0 && view.canvas_scale != 1.0f;
@@ -124,6 +138,7 @@ inline bool view_active(const view_state &view) {
 inline vec2 view_logical_size(const view_state &view) {
   if (view_has_virtual_size(view))
     return view.size;
+  if(view.portable_context) return window_size(*view.portable_context);
   return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};
 }
 
@@ -162,6 +177,7 @@ void bind_view_target(const RenderTexture2D &target, vec2 logical);
 // Works out scale and offset for this frame's window size. Called at the top
 // of the frame, before input is read.
 void view_frame_begin(view_state &view);
+void view_frame_begin(view_state &view, vec2 window);
 // Maps the mouse position and motion just polled into virtual pixels.
 void view_map_mouse(const view_state &view, vec2 &pos, vec2 &motion);
 // Right after BeginDrawing: starts drawing into the virtual target.

@@ -12,6 +12,7 @@
 #include "njin_ecs.h"
 #include "njin_shader.h"
 #include "njin_cfg.h"
+#include "njin_log.h"
 #include "njin_view.h"
 #include "rl2njin.h"
 #include <algorithm>
@@ -54,6 +55,62 @@ RenderTexture2D load_target(i32 w, i32 h) {
   t = LoadRenderTexture(w, h);
   t.depth.id = 0;
   return t;
+}
+
+// graphics_quality::world_sharp: the world drawn at world_scale put on the
+// screen through a Catmull-Rom filter (five bilinear taps, as TAA reads its
+// history) and contrast-adaptive sharpening (AMD's CAS: the four neighbours a
+// source pixel away, weighted by how far the local contrast is from clipping),
+// instead of the plain bilinear scale. Alpha is the filtered image's: the
+// world replaces what is under it (finish_world_post).
+const char *const upscale_fs = R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+uniform vec2 texel;    // one source pixel
+uniform float sharpen; // 0..1
+out vec4 finalColor;
+vec4 catmull_rom(vec2 uv) {
+  vec2 size = 1.0 / texel;
+  vec2 pos = uv * size;
+  vec2 c = floor(pos - 0.5) + 0.5;
+  vec2 f = pos - c;
+  vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+  vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+  vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+  vec2 w3 = f * f * (-0.5 + 0.5 * f);
+  vec2 w12 = w1 + w2;
+  vec2 t0 = (c - 1.0) * texel, t3 = (c + 2.0) * texel, t12 = (c + w2 / w12) * texel;
+  vec4 r = texture(texture0, vec2(t12.x, t0.y)) * w12.x * w0.y + texture(texture0, vec2(t0.x, t12.y)) * w0.x * w12.y +
+           texture(texture0, t12) * w12.x * w12.y + texture(texture0, vec2(t3.x, t12.y)) * w3.x * w12.y +
+           texture(texture0, vec2(t12.x, t3.y)) * w12.x * w3.y;
+  float wsum = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+  return max(r / wsum, vec4(0.0));
+}
+void main() {
+  vec4 c = catmull_rom(fragTexCoord);
+  vec3 n = texture(texture0, fragTexCoord + vec2(0.0, -texel.y)).rgb;
+  vec3 s = texture(texture0, fragTexCoord + vec2(0.0, texel.y)).rgb;
+  vec3 e = texture(texture0, fragTexCoord + vec2(texel.x, 0.0)).rgb;
+  vec3 w = texture(texture0, fragTexCoord + vec2(-texel.x, 0.0)).rgb;
+  vec3 mn = min(min(min(n, s), min(e, w)), c.rgb);
+  vec3 mx = max(max(max(n, s), max(e, w)), c.rgb);
+  vec3 amp = sqrt(clamp(min(mn, 1.0 - mx) / max(mx, 1e-4), 0.0, 1.0));
+  vec3 k = amp * (-1.0 / mix(8.0, 5.0, sharpen));
+  vec3 col = (c.rgb + (n + s + e + w) * k) / (1.0 + 4.0 * k);
+  finalColor = vec4(max(col, vec3(0.0)), c.a) * colDiffuse * fragColor;
+}
+)";
+
+bool ensure_upscale(camera_post &post) {
+  if (!post.upscale_tried) {
+    post.upscale_tried = true;
+    post.upscale = LoadShaderFromMemory(nullptr, upscale_fs);
+    if (!IsShaderValid(post.upscale))
+      NJIN_WARN("camera: the sharp upscale shader failed to compile; the world is scaled bilinear");
+  }
+  return IsShaderValid(post.upscale);
 }
 
 // (Re)creates the post target when the window size changed. Sized by
@@ -144,9 +201,19 @@ void finish_world_post(context &ctx) {
   const Rectangle source{0.0f, 0.0f, (f32)texture.width, -(f32)texture.height};
   const Rectangle dest{0.0f, 0.0f, screen.x, screen.y};
   const shader_slot *slot = shader_slot_of(ctx_ref<shader_store>(ctx), post.shader);
+  // graphics_quality::world_sharp, where the world is smaller than the screen
+  // and no game shader puts it there.
+  const bool sharp = slot == nullptr && quality_world_scale(ctx) < 1.0f && ctx_ref<quality_state>(ctx)->q.world_sharp &&
+                     ensure_upscale(post);
   if (slot != nullptr) {
     BeginShaderMode(slot->shader);
     shader_bind_textures(ctx, *slot);
+  } else if (sharp) {
+    const vec2 texel{1.0f / (f32)texture.width, 1.0f / (f32)texture.height};
+    const f32 sharpen = 0.5f;
+    SetShaderValue(post.upscale, GetShaderLocation(post.upscale, "texel"), &texel, SHADER_UNIFORM_VEC2);
+    SetShaderValue(post.upscale, GetShaderLocation(post.upscale, "sharpen"), &sharpen, SHADER_UNIFORM_FLOAT);
+    BeginShaderMode(post.upscale);
   }
   // The finished world replaces what is under it: copied, not blended by its
   // alpha, which half-transparent shapes leave below 1 (see view_draw_end).
@@ -154,7 +221,7 @@ void finish_world_post(context &ctx) {
   BeginBlendMode(BLEND_CUSTOM);
   DrawTexturePro(texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
   EndBlendMode();
-  if (slot != nullptr)
+  if (slot != nullptr || sharp)
     EndShaderMode();
 }
 
@@ -194,6 +261,8 @@ mod_desc camera_module() {
 camera_post::~camera_post() {
   if (IsRenderTextureValid(target))
     UnloadRenderTexture(target);
+  if (IsShaderValid(upscale))
+    UnloadShader(upscale);
 }
 
 void camera_set_post_shader(context &ctx, shader_handle shader) {

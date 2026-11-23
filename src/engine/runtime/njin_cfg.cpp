@@ -9,7 +9,7 @@ f32 fps(const context &ctx) { return ctx_ref<config>(ctx).target_fps; }
 
 void set_fps(context &ctx, f32 target) {
   ctx_ref<config>(ctx).target_fps = target < 1.0f ? 1.0f : target;
-  if (!ctx_ref<config>(ctx).low_power) // low_power: run() paces the frames itself
+  if (ctx_ref<config>(ctx).graphics_backend==GraphicsBackend::OpenGL && !ctx_ref<config>(ctx).low_power)
     SetTargetFPS((int)ctx_ref<config>(ctx).target_fps);
 }
 

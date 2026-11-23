@@ -63,7 +63,14 @@ bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds) {
   r.fps = std::clamp(fps, 1.0f, 50.0f);
   r.scale = std::clamp(scale, 0.1f, 1.0f);
   r.max_seconds = std::clamp(max_seconds, 1.0f, 600.0f);
-  const i32 sw = GetRenderWidth(), sh = GetRenderHeight();
+  if(!std::isfinite(fps)||!std::isfinite(scale)||!std::isfinite(max_seconds)) {r.error="invalid recording settings";return false;}
+  unsigned pw=0,ph=0;const auto &window=ctx_ref<window_guard>(ctx);
+#if NJIN_BGFX
+  if(window.platform) window.platform->drawable_size(pw,ph);
+  else
+#endif
+  {pw=unsigned(GetRenderWidth());ph=unsigned(GetRenderHeight());}
+  const i32 sw=int(pw),sh=int(ph);
   if (sw < 1 || sh < 1) {
     r.error = "no window to record";
     return false;
@@ -74,7 +81,9 @@ bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds) {
   const std::time_t now = std::time(nullptr);
   char stamp[32];
   std::strftime(stamp, sizeof stamp, "%Y%m%d_%H%M%S", std::localtime(&now));
-  r.path = save_path(ctx, (std::string("recordings/rec_") + stamp + ".gif").c_str());
+  const auto &directory=ctx_ref<debug_state>(ctx)->desc.recording_directory;
+  if(directory.empty()) r.path=save_path(ctx,(std::string("recordings/rec_")+stamp+".gif").c_str());
+  else r.path=(std::filesystem::path(directory)/(std::string("rec_")+stamp+".gif")).string();
   std::error_code ec;
   const std::filesystem::path p(reinterpret_cast<const char8_t *>(r.path.c_str()));
   if (p.has_parent_path())
@@ -95,27 +104,28 @@ bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds) {
 
 void debug_record_stop(context &ctx) { finish(ctx, "stopped"); }
 
+bool debug_record_capture_due(context &ctx) {
+  auto &r=ctx_ref<debug_state>(ctx)->rec;if(!r.active) return false;
+  r.since_last+=ctx_ref<time_state>(ctx).dt_real;
+  return r.since_last>=1.f/r.fps-.0005f;
+}
 void debug_record_frame(context &ctx) {
-  debug_recorder &r = ctx_ref<debug_state>(ctx)->rec;
-  if (!r.active)
-    return;
-  const f32 dt = ctx_ref<time_state>(ctx).dt_real;
-  r.since_last += dt;
-  if (r.since_last < 1.0f / r.fps - 0.0005f)
-    return;
-  // The window may have been resized: a GIF has one size, so scale the new frame to it.
-  rlDrawRenderBatchActive(); // draw calls are batched: flush them, or the frame misses the last ones
-  Image image = LoadImageFromScreen();
-  if (image.data == nullptr) {
-    r.error = "cannot read the screen";
-    finish(ctx, "error");
-    return;
-  }
-  if (image.format != PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
-    ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-  r.shrunk.resize((usize)r.width * (usize)r.height * 4);
-  shrink(static_cast<const u8 *>(image.data), image.width, image.height, r.shrunk.data(), r.width, r.height);
+  if(!debug_record_capture_due(ctx)) return;
+  rlDrawRenderBatchActive();
+  Image image=LoadImageFromScreen();
+  if(!image.data) {ctx_ref<debug_state>(ctx)->rec.error="cannot read the screen";finish(ctx,"error");return;}
+  if(image.format!=PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) ImageFormat(&image,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+  try {debug_record_capture(ctx,{unsigned(image.width),unsigned(image.height),{static_cast<const unsigned char*>(image.data),size_t(image.width)*image.height*4}});}
+  catch(...) {UnloadImage(image);throw;}
   UnloadImage(image);
+}
+void debug_record_capture(context &ctx,const RenderImage &image) {
+  auto &r=ctx_ref<debug_state>(ctx)->rec;if(!r.active) return;
+  if(image.format!=RenderImageFormat::RGBA8||!image.width||!image.height||image.rgba.size()!=size_t(image.width)*image.height*4) {
+    r.error="cannot read the screen";finish(ctx,"error");return;
+  }
+  r.shrunk.resize(size_t(r.width)*r.height*4);
+  shrink(image.rgba.data(),int(image.width),int(image.height),r.shrunk.data(),r.width,r.height);
 
   // The time since the previous frame, in hundredths of a second, carrying the rounding so the animation
   // lasts as long as the recording did.

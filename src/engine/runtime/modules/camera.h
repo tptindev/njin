@@ -22,6 +22,10 @@ struct camera_post {
   bool drawing = false;
   // The camera this frame's world pass used (shake included), for the light map.
   Camera2D world_camera{};
+  // graphics_quality::world_sharp: the world scaled up onto the screen with a
+  // Catmull-Rom filter and contrast-adaptive sharpening (camera.cpp).
+  Shader upscale{};
+  bool upscale_tried = false;
 
   camera_post() = default;
   ~camera_post();

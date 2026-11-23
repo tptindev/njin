@@ -1,0 +1,42 @@
+name: Renderer build matrix (experimental)
+
+# Prepared compile matrix, opt-in until each host has been validated.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            profiles: "glsl;spirv;dx11"
+          - os: ubuntu-latest
+            profiles: "glsl;spirv"
+          - os: macos-latest
+            profiles: "metal"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev libwayland-dev libxkbcommon-dev libudev-dev libxss-dev libxtst-dev libdrm-dev libgbm-dev libegl-dev wayland-protocols libdecor-0-dev libvulkan-dev
+      - name: Configure
+        shell: pwsh
+        run: >-
+          cmake -S . -B build-renderer -DNJIN_BGFX=ON -DNJIN_SDL_GPU=OFF
+          -DNJIN_BGFX_SHADER_PROFILES="${{ matrix.profiles }}"
+          -DNJIN_PCH=OFF -DNJIN_CCACHE=OFF -DCMAKE_BUILD_TYPE=Release
+          -DNJIN_BUILD_RHI_SLICE=ON -DNJIN_EXAMPLES=sandbox
+          -DNJIN_BUILD_INSPECTOR=OFF -DNJIN_BUILD_UI_EDITOR=OFF -DNJIN_BUILD_ANIM_EDITOR=OFF
+      - name: Compile renderer fixtures and original sandbox
+        run: cmake --build build-renderer --config Release --target njin_rhi_slice njin_sandbox njin_model_test njin_shadow_test njin_material_test njin_environment_test njin_instancing_test njin_animation_test njin_post_test njin_ssao_test njin_ssr_test njin_effects_test njin_smaa_test njin_exposure_test njin_oit_test njin_mipmaps_test njin_temporal_test --parallel 3
+      # Hosted CI machines do not prove native GPU rendering works.
+      - name: Backend parser failure test
+        run: ctest --test-dir build-renderer -C Release -R rhi_invalid_backend --output-on-failure

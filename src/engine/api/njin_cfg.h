@@ -1,5 +1,6 @@
 #pragma once
 #include "_types.h"
+#include "njin_graphics_backend.h"
 
 namespace njin {
 struct context;
@@ -43,7 +44,8 @@ struct config {
   /// cỡ cửa sổ (mặc định bật). Với độ phân giải ảo (`virtual_size`), cảnh được
   /// vẽ nhỏ rồi phóng lên và chữ vẽ trong đó sẽ bị mờ; bật thì chữ trên màn hình
   /// (UI, HUD) được vẽ sau khi phóng, từ font dựng đúng cỡ trên màn hình. Xem
-  /// trang Vẽ và chữ. Máy chỉ có renderer phần mềm luôn vẽ chữ trong ảnh ảo.
+  /// trang Vẽ và chữ. Renderer raylib tự tắt trên máy render phần mềm; SDL3/bgfx
+  /// áp dụng giá trị cấu hình này cả với driver phần mềm.
   bool crisp_text = true;
   /// Vẽ giao diện ở độ phân giải thật của cửa sổ, cho UI mịn. Với độ phân giải ảo
   /// (`virtual_size`) mặc định cả frame vẽ vào ảnh nhỏ rồi phóng lên bằng lọc
@@ -106,6 +108,15 @@ struct config {
   /// bị từ chối, game dừng kèm lời giải thích thay vì ăn hết RAM của máy. Nên đặt
   /// cao hơn `mem_budget_mb`. Xem mem_set_limit().
   usize mem_limit_mb = 0;
+  /// SDL3/bgfx by default: Auto selects the platform's preferred driver.
+  /// OpenGL explicitly selects legacy raylib; NJIN_BGFX=OFF requires that choice.
+  GraphicsBackend graphics_backend = GraphicsBackend::Auto;
+  /// Enable bgfx device validation/debug layers where installed. Optional.
+  bool graphics_validation = false;
+  /// Renderer bgfx Vulkan: khi GPU có phần cứng ray tracing (ray query), các tia của
+  /// light3d::ray_traced_* và irradiance3d_desc::ray_traced đi qua phần cứng đó; tắt thì
+  /// luôn dùng compute shader. Xem raytracing_hardware().
+  bool graphics_ray_query = true;
 };
 
 /// Trả về FPS mục tiêu đã cấu hình (`target_fps`).

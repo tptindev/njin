@@ -16,6 +16,10 @@ inline constexpr i32 ribbon3d_look_count = (i32)ribbon3d_glow + 1;
 struct particle3d_looks {
   Shader shaders[particle3d_look_count]{};
   bool tried[particle3d_look_count]{};
+  // Each look's uniform locations (hdrOut, time, lightDir, lightColor,
+  // ambient), read once for the shader `located` holds, not by name each draw.
+  i32 locations[particle3d_look_count][5]{};
+  u32 located[particle3d_look_count]{};
   Shader ribbons[ribbon3d_look_count]{}; // ribbon3d_desc::style
   bool ribbon_tried[ribbon3d_look_count]{};
 

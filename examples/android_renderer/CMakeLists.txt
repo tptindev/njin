@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.28)
+project(njin_android_renderer LANGUAGES C CXX)
+if(NOT ANDROID)
+  message(FATAL_ERROR "Use an Android NDK toolchain and a matching NJIN_PREBUILT engine build")
+endif()
+get_filename_component(NJIN_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+include("${NJIN_ROOT}/cmake/njin_game.cmake")
+# SDLActivity owns this application. Assets are extracted into its private
+# filesystem, so raylib's NativeActivity fopen wrapper must not dereference a
+# NativeActivity that does not exist. Other engine consumers retain that wrapper.
+get_target_property(_raylib_options njin_prebuilt::raylib INTERFACE_LINK_OPTIONS)
+list(REMOVE_ITEM _raylib_options "-Wl,--wrap=fopen")
+set_property(TARGET njin_prebuilt::raylib PROPERTY INTERFACE_LINK_OPTIONS "${_raylib_options}")
+add_library(main SHARED main.cpp shadows.cpp animation.cpp environment.cpp materials.cpp post.cpp ssao.cpp ssr.cpp effects.cpp smaa.cpp exposure.cpp oit.cpp mipmaps.cpp temporal.cpp person.cpp render_textures.cpp atlas.cpp virtual_screen.cpp video.cpp dynamic_mesh.cpp lod.cpp custom_shader.cpp sprite_fx.cpp gizmos.cpp crisp_text.cpp world_fx.cpp renderer_batch.cpp world3d.cpp advanced_material.cpp backdrop.cpp light2d.cpp gpu_particles.cpp clustered.cpp raytrace.cpp terrain_relief.cpp ocean.cpp occlusion.cpp instancing.cpp)
+# The APK includes engine-internal split/LOD regression fixtures.
+target_sources(main PRIVATE atmosphere.cpp)
+target_sources(main PRIVATE atmosphere_full.cpp)
+target_sources(main PRIVATE lightmap.cpp)
+target_sources(main PRIVATE lightmap_model.cpp)
+target_sources(main PRIVATE streaming.cpp)
+target_sources(main PRIVATE residency.cpp)
+set_target_properties(main PROPERTIES NJIN_ENGINE_INTERNAL ON)
+target_compile_definitions(main PRIVATE $<$<NOT:$<CONFIG:Debug>>:NJIN_CTX_INLINE>)
+target_include_directories(main PRIVATE "${NJIN_ROOT}/src/engine/runtime" "${NJIN_ROOT}/src/engine/mem")
+target_link_libraries(main PRIVATE njin_prebuilt::raylib)
+target_compile_features(main PRIVATE cxx_std_20)
+target_link_libraries(main PRIVATE njin::rt SDL3::SDL3 log)
+target_link_options(main PRIVATE "-Wl,--exclude-libs,ALL")

@@ -1,0 +1,25 @@
+{
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_meshopt_compression", "KHR_mesh_quantization"],
+  "extensionsRequired": ["EXT_meshopt_compression", "KHR_mesh_quantization"],
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [{"mesh": 0}],
+  "buffers": [
+    {"byteLength": 108, "extensions": {"EXT_meshopt_compression": {"fallback": true}}},
+    {"uri": "data:application/octet-stream;base64,oAAAAAEzAAAA//8AAAABDAAAAP8AAAAAAAABMwAAAP//ATMAAAB+fQAAAQwAAAD/AQwAAAB9AAAAAAAAAAAAAAAAzcxMv83MTL8AAAAAAAAAAAAAgD8AAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADYAfwAAAADh8AAAdodWZ3iphmWJaJgBaQAAAA==", "byteLength": 148}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteOffset": 0, "byteLength": 80, "byteStride": 20, "extensions": {"EXT_meshopt_compression": {"buffer": 1, "byteOffset": 0, "byteLength": 86, "byteStride": 20, "count": 4, "mode": "ATTRIBUTES"}}},
+    {"buffer": 0, "byteOffset": 80, "byteLength": 16, "byteStride": 4, "extensions": {"EXT_meshopt_compression": {"buffer": 1, "byteOffset": 88, "byteLength": 37, "byteStride": 4, "count": 4, "mode": "ATTRIBUTES", "filter": "OCTAHEDRAL"}}},
+    {"buffer": 0, "byteOffset": 96, "byteLength": 12, "extensions": {"EXT_meshopt_compression": {"buffer": 1, "byteOffset": 128, "byteLength": 19, "byteStride": 2, "count": 6, "mode": "TRIANGLES"}}}
+  ],
+  "accessors": [
+    {"bufferView": 0, "byteOffset": 0, "componentType": 5126, "count": 4, "type": "VEC3", "min": [-0.8, -0.8, 0], "max": [0.8, 0.8, 0]},
+    {"bufferView": 0, "byteOffset": 12, "componentType": 5126, "count": 4, "type": "VEC2"},
+    {"bufferView": 1, "componentType": 5120, "normalized": true, "count": 4, "type": "VEC3"},
+    {"bufferView": 2, "componentType": 5123, "count": 6, "type": "SCALAR"}
+  ],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1, "NORMAL": 2}, "indices": 3, "material": 0}]}],
+  "materials": [{"name": "orange", "pbrMetallicRoughness": {"baseColorFactor": [0.9, 0.35, 0.05, 1], "metallicFactor": 0, "roughnessFactor": 1}}]
+}

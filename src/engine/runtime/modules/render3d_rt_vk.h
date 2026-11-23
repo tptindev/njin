@@ -48,6 +48,7 @@ struct trace_in {
   float lamps[3][4]{};     // position, size (the light's radius)
   int lamp_count = 0;
   int blur = 3;            // denoise radius, pixels
+  float gap = 0.0f;        // metres a shadow ray skips from its start (light3d::shadow_lod_gap)
   uint32_t frame = 0;
   // What to trace: the shadows into the mask, the reflections, the grid.
   bool shadows = true, sun_shadows = true, reflect = false, gi = false;

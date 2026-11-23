@@ -1,5 +1,6 @@
 #include "particles_gpu.h"
 #include "njin_ctx.h"
+#include "njin_cfg.h"
 #include "njin_ctx_get.h"
 #include "njin_draw_shapes.h"
 #include "render_stats.h"
@@ -7,6 +8,7 @@
 #include "njin_texture.h"
 #include "njin_gpu_caps.h"
 #include "njin_log.h"
+#include "njin_frame_impl.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -232,7 +234,7 @@ particle_gpu_buffer::~particle_gpu_buffer() {
 particle_gpu_buffer::particle_gpu_buffer(particle_gpu_buffer &&other) noexcept
     : clock(other.clock), next_compact(other.next_compact),
       vao(std::exchange(other.vao, 0)), vbo(std::exchange(other.vbo, 0)),
-      capacity(std::exchange(other.capacity, 0)), uploaded(std::exchange(other.uploaded, 0)) {}
+      capacity(std::exchange(other.capacity, 0)), uploaded(std::exchange(other.uploaded, 0)),portable_instances(std::move(other.portable_instances)) {}
 
 particle_gpu_buffer &particle_gpu_buffer::operator=(particle_gpu_buffer &&other) noexcept {
   if (this != &other) {
@@ -307,6 +309,8 @@ Texture2D particle_soft_texture(context &ctx) {
 particle_backend particles_backend(const context &ctx) { return ctx_ref<particle_gpu_state>(ctx)->backend; }
 
 bool particles_gpu_available(context &ctx) {
+  // Both paths evaluate the analytic particle trajectory in a vertex shader.
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return ctx_ref<window_guard>(ctx).graphics->instancing_available();
   probe(ctx_ref<particle_gpu_state>(ctx));
   return ctx_ref<particle_gpu_state>(ctx)->available;
 }
@@ -317,6 +321,7 @@ bool particles_gpu_wanted(context &ctx) {
 
 void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
                         const particle_emitter &em) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_particles_gpu_draw(ctx,entity,tr,em);return;}
   particle_gpu_state &gpu = ctx_ref<particle_gpu_state>(ctx);
   particle_gpu_buffer *buffer = ctx_ref<ecs_store>(ctx)->registry.try_get<particle_gpu_buffer>(entity);
   if (!gpu.available || buffer == nullptr || em.particles.empty())

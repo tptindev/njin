@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <raylib.h>
 #include <rlgl.h>
+#include <stdexcept>
 
 namespace njin {
 void quit(context &ctx) { ctx_ref<frame_state>(ctx).quit = true; }
@@ -57,18 +58,43 @@ void take_pending_screenshots(context &ctx) {
   UnloadImage(image);
   ctx_ref<frame_state>(ctx).screenshots.clear();
 }
+void save_pending_capture(context &ctx,const RenderImageAsset &capture) {
+  if(capture.pixels.empty()) return;
+  Image image{const_cast<unsigned char*>(capture.pixels.data()),(int)capture.width,(int)capture.height,1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+  for(const auto &path:ctx_ref<frame_state>(ctx).screenshots) {
+    const std::filesystem::path output(reinterpret_cast<const char8_t*>(path.c_str()));
+    std::error_code error;
+    if(output.has_parent_path()) std::filesystem::create_directories(output.parent_path(),error);
+    if(error || !ExportImage(image,path.c_str())) throw std::runtime_error("njin capture: cannot export "+path);
+  }
+  ctx_ref<frame_state>(ctx).screenshots.clear();
+}
 
-void window_set_size(context &, vec2 size) {
+void window_set_size([[maybe_unused]] context &ctx, vec2 size) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) {
+    if(size.x>=1 && size.y>=1) gpu->set_size((int)size.x,(int)size.y);
+    return;
+  }
+#endif
   if (size.x >= 1.0f && size.y >= 1.0f && !IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE))
     SetWindowSize((int)size.x, (int)size.y);
 }
 
-vec2 monitor_size(const context &) {
+vec2 monitor_size([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->monitor_bounds().size; }
+#endif
+
   const int m = GetCurrentMonitor();
   return {(f32)GetMonitorWidth(m), (f32)GetMonitorHeight(m)};
 }
 
-void window_center(context &) {
+void window_center([[maybe_unused]] context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->center(); return; }
+#endif
+
   if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) || IsWindowFullscreen())
     return;
   const int m = GetCurrentMonitor();
@@ -78,30 +104,54 @@ void window_center(context &) {
   SetWindowPosition(x, y);
 }
 
-void window_set_position(context &, vec2 pos) {
+void window_set_position([[maybe_unused]] context &ctx, vec2 pos) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->set_position(pos); return; }
+#endif
+
   if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) || IsWindowFullscreen())
     return;
   SetWindowPosition((int)pos.x, (int)pos.y);
 }
 
-vec2 window_position(const context &) {
+vec2 window_position([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->position(); }
+#endif
+
   const Vector2 at = GetWindowPosition();
   return {at.x, at.y};
 }
 
-vec2 monitor_position(const context &) {
+vec2 monitor_position([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->monitor_bounds().pos; }
+#endif
+
   const Vector2 at = GetMonitorPosition(GetCurrentMonitor());
   return {at.x, at.y};
 }
 
-void *window_native_handle(const context &) { return GetWindowHandle(); }
+void *window_native_handle([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->native_handle(); }
+#endif
+ return GetWindowHandle(); }
 
-void window_set_title(context &, const char *title) {
+void window_set_title([[maybe_unused]] context &ctx, const char *title) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->set_title(title); return; }
+#endif
+
   if (title != nullptr)
     SetWindowTitle(title);
 }
 
 void window_set_fullscreen(context &ctx, bool fullscreen) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->set_fullscreen(fullscreen); return; }
+#endif
+
   if (fullscreen == window_fullscreen(ctx))
     return;
   ToggleBorderlessWindowed();
@@ -110,29 +160,53 @@ void window_set_fullscreen(context &ctx, bool fullscreen) {
     SetWindowState(FLAG_WINDOW_UNDECORATED);
 }
 
-bool window_fullscreen(const context &) {
+bool window_fullscreen(const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->fullscreen(); }
+#endif
+
   return IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
 }
 
-void window_set_vsync(context &, bool vsync) {
+void window_set_vsync([[maybe_unused]] context &ctx, bool vsync) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->set_vsync(vsync); return; }
+#endif
+
   if (vsync)
     SetWindowState(FLAG_VSYNC_HINT);
   else
     ClearWindowState(FLAG_VSYNC_HINT);
 }
 
-bool window_vsync(const context &) { return IsWindowState(FLAG_VSYNC_HINT); }
+bool window_vsync([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->vsync(); }
+#endif
+ return IsWindowState(FLAG_VSYNC_HINT); }
 
-bool window_resized(const context &) { return IsWindowResized(); }
+bool window_resized([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { return gpu->resized(); }
+#endif
+ return IsWindowResized(); }
 
-void cursor_set_visible(context &, bool visible) {
+void cursor_set_visible([[maybe_unused]] context &ctx, bool visible) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->show_cursor(visible); return; }
+#endif
+
   if (visible)
     ShowCursor();
   else
     HideCursor();
 }
 
-void cursor_set_locked(context &, bool locked) {
+void cursor_set_locked([[maybe_unused]] context &ctx, bool locked) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { gpu->lock_cursor(locked); return; }
+#endif
+
   if (locked)
     DisableCursor();
   else

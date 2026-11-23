@@ -90,8 +90,8 @@ struct light_2d {
 ///
 /// Vật chắn đặc không tự che chính nó: điểm nằm trong hình không bị chính hình
 /// đó đổ bóng, và đèn nằm trong hình (đuốc trên người nhân vật) không bị hình
-/// đó chặn. Đa giác đóng viết theo chiều nào cũng được. Mỗi đèn chỉ xét tối đa 64 cạnh gần
-/// nhất trong vùng của nó, nên đừng dùng quá nhiều cạnh cho vật nhỏ.
+/// đó chặn. Đa giác đóng viết theo chiều nào cũng được. Renderer bgfx chia cạnh theo
+/// hướng tia tới đèn. Hạn chế số cạnh của vật nhỏ để giảm chi phí dựng bóng.
 struct light_occluder {
   std::vector<vec2> points; ///< Các điểm theo thứ tự. Đóng vòng lại khi `closed`. Ít nhất 2.
   /// Đa giác đóng (đặc, chắn từ phía ngoài vào) hay đường mở (mỏng, chắn cả hai phía).

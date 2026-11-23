@@ -23,7 +23,9 @@ struct context;
 //        multiplied into the image,
 //     4. SSR: the reflecting surfaces drawn again into a mask (render3d), the
 //        colour copied again, then each masked pixel marches its reflected ray
-//        over the depth and takes the colour where it hits.
+//        over the depth and takes the colour where it hits,
+//     4a. outline: lines blended over where the depth steps back or the normal
+//        from the depth folds.
 //   post3d_after_pass (after particles, before gizmos):
 //     4b. motion vectors (first world pass of the frame, while TAA or motion
 //        blur is on): the opaque meshes and models drawn again into a half
@@ -62,7 +64,7 @@ struct post3d_state {
   bool loaded = false;
   bool failed = false;
   Shader ssao{}, ssao_blur{}, ssao_apply{}, ssr{}, decal{}, shafts_sky{}, shafts_blur{}, add{}, flare_vis{}, flare{},
-      blur{};
+      blur{}, outline{};
   // The copy of the target: colour and depth, the target's size.
   u32 copy_fbo = 0, copy_color = 0, copy_depth = 0;
   i32 w = 0, h = 0;

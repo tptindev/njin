@@ -29,6 +29,19 @@ struct render_stats {
   u32 instances3d_culled = 0;
   u32 batches3d = 0;       // instanced draws render3d_options::batch made
   u32 batched3d = 0;       // the draws merged into them
+  // CPU milliseconds end_3d spent in each stage this frame, summed over its
+  // passes (a world pass and any offscreen ones): what the single thread does
+  // to issue the frame, not what the GPU takes.
+  f32 ms3d_setup = 0.0f;       // culling, occlusion views, environment, lights
+  f32 ms3d_shadows = 0.0f;     // the sun's maps, the lamps', the cover map
+  f32 ms3d_prepass = 0.0f;     // ray tracing: the depth prepass, the trace
+  f32 ms3d_opaque = 0.0f;      // the sky and the opaque draws
+  f32 ms3d_screen = 0.0f;      // occlusion depth, decals, SSAO, SSR, volumetric fog
+  f32 ms3d_translucent = 0.0f; // glass, water, particles
+  f32 ms3d_post = 0.0f;        // TAA/FXAA, HDR resolve, gizmos
+  // The GPU's milliseconds in the same stages (render3d_gpu_timer.h), of the
+  // passes whose timestamps came back this frame: a few frames behind.
+  f32 gpu3d[7]{};
 
   // Texture id and blend mode of the batch being filled; 0 and -1 when none.
   u32 batch_texture = 0;

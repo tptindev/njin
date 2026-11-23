@@ -11,7 +11,7 @@ struct context;
 // winsock, which clashes with raylib. ENet is not thread-safe and never
 // blocks when serviced with a zero timeout, so it runs on the game thread;
 // a host with net_host_opts::service_thread is also pumped on a thread of the
-// service, every call taking its mutex.
+// service, every call taking a guard of its owning mutex<mp_state>.
 
 class mp_service; // njin_multiplayer_enet.cpp
 

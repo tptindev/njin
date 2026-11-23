@@ -28,11 +28,24 @@ const njin::terrain3d_handle ground = njin::terrain3d_create(ctx, {.origin = {-2
 ```
 
 **Lớp bề mặt.** Tối đa 4 lớp (njin::terrain3d_layer): mỗi lớp một ảnh lặp lại theo vị trí thế giới (mỗi ô
-`tile` mét) hoặc một màu trơn, có normal map nếu muốn. Bật `auto_splat` (mặc định) thì engine tự tính lớp
+`tile` mét) hoặc một màu trơn, có normal map và ảnh độ nhám (`roughness`: đá nhẵn bóng lên, đất cỏ mờ
+đi) nếu muốn; ảnh mềm (cỏ, cát) đặt `detile` để nhìn xa không lộ lưới ô lặp, thêm `detile_scale` để mỗi mảng lấy ảnh ở cỡ riêng. Bật `auto_splat` (mặc định) thì engine tự tính lớp
 nào phủ chỗ nào theo quy tắc của lớp: khoảng độ cao (`min_height`, `max_height`) và khoảng độ dốc
 (`min_slope`, `max_slope`), mép mờ trong `blend`. Lớp sau đè lên lớp trước, nên lớp 0 là lớp phủ rộng nhất
 (cỏ), rồi đá ở chỗ dốc, tuyết trên cao. Tắt `auto_splat` thì dùng ảnh `splatmap` (kênh đỏ, lục, lam, alpha là
-lớp 0 đến 3). Chỗ dốc đứng ảnh được chiếu từ ba phía nên vách đá không bị kéo dài.
+lớp 0 đến 3). Chỗ dốc đứng ảnh được chiếu từ ba phía nên vách đá không bị kéo dài. Lớp tuyết, cát hay băng
+có thể lấp lánh dưới nắng (`glitter`): tinh thể nhỏ lóe sáng khi phản chiếu mặt trời vào mắt, chỉ chỗ có nắng,
+và nhấp nháy khi camera di chuyển.
+
+Lớp có `height` (ảnh độ cao, chiếu y như ảnh màu) và `relief` (mét) thì có hình nổi thật: mặt đất gần
+camera (`relief_distance` của địa hình) được chia lưới mịn hơn (`relief_detail` đỉnh mỗi cạnh ô, ít là mặt
+to mềm kiểu low-poly) và đẩy ra, vào theo ảnh, nhân trọng số lớp. Vẽ ảnh độ cao từ chính ảnh màu thì vết nứt
+trong ảnh thành nếp gãy thật ở đúng chỗ. Chỉ đổi hình vẽ ra; `terrain3d_height()`, va chạm và cỏ vẫn theo
+mặt trơn.
+
+Tuyết phủ theo thời tiết hay theo mùa là `snow` (0..1) của cả địa hình, không cần lớp riêng: một lớp
+`snow_color` trên chỗ bằng và thoải, theo những mảng to nhỏ khép dần lại khi tuyết dày, chỗ dốc và vết lún lộ
+đất, lấp lánh dưới nắng. terrain3d_snow_set() đổi nó mỗi frame không tốn gì (tuyết rơi dày dần, tan dần).
 
 **Mức chi tiết.** Lưới được chia thành các mảnh `chunk_quads` x `chunk_quads` ô. Mảnh ngoài tầm nhìn bị bỏ;
 mảnh xa hơn `lod_distance` vẽ với một nửa số ô mỗi cạnh, xa gấp đôi nữa thì một nửa nữa, tới `lod_levels`
@@ -46,7 +59,7 @@ pháp tuyến, terrain3d_layer_weight() cho biết đang đứng trên lớp gì
 **Va chạm.** Với `collision` (mặc định) địa hình có một body tĩnh là height field của Jolt: nhân vật, xe,
 vật động đứng trên nó, raycast chạm nó. terrain3d_body() trả body đó để nhận ra trong kết quả raycast.
 
-**Sửa lúc chạy.** terrain3d_edit() nâng, hạ, san phẳng hay làm mượt một vùng tròn (njin::terrain3d_brush),
+**Sửa lúc chạy.** terrain3d_edit() nâng, hạ, san phẳng, làm mượt hay đào lòng chảo một vùng tròn (njin::terrain3d_brush),
 terrain3d_paint() vẽ thêm một lớp. Mọi thứ theo ngay: lưới vẽ, body va chạm, lớp tự phủ (đồi đắp cao thành
 dốc thì lộ đá), cỏ mọc lại, đá và cây rải trên vùng đó đổi độ cao theo mặt đất. Vật đang nằm trên chỗ đất
 được nâng lên cũng được nâng theo, không bị đất mới nuốt mất.
@@ -56,13 +69,44 @@ dốc thì lộ đá), cỏ mọc lại, đá và cây rải trên vùng đó đ
 njin::terrain3d_edit(ctx, ground, {.kind = njin::terrain3d_lower, .center = blast, .radius = 4.0f, .strength = 2.0f});
 ```
 
+`terrain3d_carve` chỉ hạ, không nâng: đáy phẳng ở `height`, thành dốc đều `strength` mét mỗi mét. Rải nhiều nét
+theo một đường là có lòng sông bờ thoải đều, dù đoạn đào nông hay sâu (chồng nhiều nét san phẳng thì dồn thành vách).
+
+```cpp
+// Lòng sông: đáy rộng 2.5 m mỗi bên, bờ dốc 1:4, mỗi mét một nét.
+for (const njin::vec3 &p : river)
+  njin::terrain3d_edit(ctx, ground, {.kind = njin::terrain3d_carve, .center = p, .radius = 12.0f,
+                                     .strength = 0.25f, .height = p.y - 0.5f, .falloff = 1.0f - 2.5f / 12.0f});
+```
+
+`terrain3d_fill` là chiều ngược lại: chỉ nâng, không hạ, mặt phẳng ở `height`, sườn dốc đều `strength` mét mỗi
+mét xuống tới mặt đất. Giữ một nét tại chỗ và nâng dần `height` là có mô đất mặt bằng phẳng (thay vì đỉnh nhọn
+của `terrain3d_raise`).
+
+```cpp
+// Nền đắp cao 2 m: mặt phẳng bán kính 3 m, sườn dốc 1:1.
+njin::terrain3d_edit(ctx, ground, {.kind = njin::terrain3d_fill, .center = p, .radius = 6.0f,
+                                   .strength = 1.0f, .height = p.y + 2.0f, .falloff = 0.5f});
+```
+
 ## Cỏ và vật rải {#grass3d}
 
 grass3d_create() trồng cỏ trên một lớp của địa hình (`layer`, -1 là mọi nơi), không mọc chỗ dốc hơn
 `max_slope`, thành đám theo `patchiness`. Mỗi ngọn là vài tam giác vẽ bằng instancing; cỏ chỉ được tạo cho vùng
 quanh camera (`draw_distance`), thưa và thấp dần về xa, nên địa hình rộng mấy cũng chỉ tốn cho phần gần.
 Cỏ đung đưa theo gió: wind3d_set(), hoặc gió của thời tiết khi vẽ trời bằng draw_sky3d(). Cỏ nhận bóng đổ;
-đổ bóng thì bật `cast_shadows` (tốn).
+đổ bóng thì bật `cast_shadows` (tốn). Cho cỏ kiểu vẽ tay: `height_variation` chia thảm thành vùng cao thấp
+theo nhiễu `height_patches` (trong vùng từng ngọn vẫn lệch theo `height_jitter`), `tint` pha `tint_color` vào
+ngọn theo mảng lớn (`tint_patches`), `curve` cho ngọn cong sẵn sang một bên. `ground_color` cho gốc ngọn
+lấy màu địa hình nơi nó mọc thay cho `base_color` (lên ngọn chuyển dần sang `tip_color`), nên thảm cỏ dày
+liền với mặt đất; `root_shade` là gốc tối đến đâu. `min_height` giữ cỏ trên mặt nước, `edge_shrink` cho mép
+thảm (mép đường, mép cát, chỗ quá dốc) là một viền cỏ thấp mềm, `width_by_height` cho ngọn thấp hẹp theo. Ô cỏ ở xa
+vẽ ngọn ít đoạn hơn (1-2 thay vì 5), thưa đi nhưng rộng ra bù lại; bật `render3d_options::depth_prepass` thì
+thảm cỏ dày chỉ tô sáng mỗi điểm ảnh một lần. `far_cover` cho mặt đất xa hơn tầm vẽ, chỗ cỏ mọc, giả làm thảm
+cỏ (màu thảm nhìn từ xa, đốm bụi cỏ): camera kéo thật xa vẫn thấy cỏ mà không tốn thêm ngọn nào.
+grass3d_set() đổi cỏ khi đang chạy, như cỏ theo mùa: màu, độ mạnh `ground_color`, `curve`, `sway`, tầm vẽ
+đổi ngay và đổi được mỗi frame; đổi những gì định ngọn mọc (mật độ, chiều cao, nhiễu, `tint`, `seed`) thì
+cỏ mọc lại hết, tốn như lúc tạo. grass3d_get() trả cách mọc hiện tại để sửa vài trường.
 
 scatter3d_create() rải một model (đá, cây, bụi) lên địa hình theo luật: mật độ, khoảng cách tối thiểu
 `spacing`, khoảng độ cao, độ dốc, lớp, cụm theo nhiễu. Vật nghiêng theo mặt đất theo `align`, lún xuống
@@ -120,6 +164,19 @@ const njin::water3d_handle basin = njin::water3d_create(
 nhìn chiếc đũa cắm trong cốc; độ sâu tới đáy và tới vật dưới nước lấy theo cảnh đã vẽ nên nước quanh một vật chìm
 cũng trong hơn. Bật nó thì mỗi frame lần vẽ 3D chép ảnh màu và độ sâu của cảnh một lần (như khi bật post3d).
 
+`caustics` vẽ vân sáng dưới đáy: sóng khúc xạ nắng gom thành lưới vệt sáng chạy trên đáy chỗ nước nông, chỉ nơi
+đáy có nắng, nhạt dần theo độ sâu và ở xa (`caustic_size` là cỡ một ô lưới). `reflect` cho mặt nước phản chiếu
+cảnh: bờ, đồi, cây in ngược và méo theo sóng, lấy theo cảnh trên màn hình, chỗ không có thì là bầu trời; nhỏ là
+như nước thật, 1 là đậm như tranh vẽ. `absorb` (cùng `refract`) là phần ánh sáng mỗi màu còn lại sau một mét
+nước: đáy sẫm và ngả màu nước dần theo độ sâu, như ao xanh rêu hay biển xanh lam. Ao trong và lặng nhìn từ trên
+xuống thường bật cả bốn:
+
+```cpp
+njin::water3d_create(ctx, {.level = 0.0f, .clarity = 1.8f, .foam_width = 0.0f, .terrain = ground,
+                           .refract = 0.7f, .caustics = 0.4f, .caustic_size = 1.2f, .reflect = 1.0f,
+                           .absorb = {0.72f, 0.88f, 0.82f, 1.0f}});
+```
+
 water3d_splash() là một vật rơi xuống nước: bọt sủi chỗ rơi rồi một chuỗi vòng sóng lan ra, tắt dần trong vài
 giây, to và nhanh theo cỡ vật và sức rơi. Game tự lo phần còn lại của cú rơi (giọt bắn, tiếng, vật chìm hay nổi).
 
@@ -139,6 +196,9 @@ trôi theo gió, sao và trăng ban đêm. njin::sky3d đặt giờ (`hour`), v�
 đặt luôn ánh sáng của lần vẽ: hướng và màu nắng (vàng cam lúc sớm và chiều, trăng xanh nhạt ban đêm), ánh sáng
 nền theo màu trời, màu sương bằng màu chân trời; cài đặt bóng đổ của ánh sáng hiện tại được giữ. Muốn tự lo
 thì tắt nó và gọi sky3d_light().
+Gọi draw_sky3d() ngay sau begin_3d(), trước các lần vẽ khác: ánh sáng nó đặt áp cho những gì vẽ sau nó trong
+frame đó. Với renderer bgfx, bầu trời, mây, sao, ánh sáng, mưa, tuyết, chỗ có mái, đất ướt và gợn mưa trên nước giống
+renderer OpenGL; vị trí từng gợn mưa trên nước có thể lệch đôi chút giữa các GPU.
 
 Thời tiết (njin::weather3d) đặt trong `sky3d::weather`: mây che (`clouds`) và độ tối của mây, sương, mưa, tuyết,
 gió, độ ướt của mặt đất. Có sẵn năm kiểu (weather3d_preset()): trời quang, u ám, mưa, tuyết, sương mù.
@@ -151,6 +211,10 @@ sky.weather = njin::weather3d_lerp(njin::weather3d_preset(njin::weather3d_clear)
                                    njin::weather3d_preset(njin::weather3d_rain), storm);
 njin::draw_sky3d(ctx, sky);
 ```
+
+Mặt nước theo thời tiết: `water3d_desc::rain_rings` cho giọt mưa rơi khắp mặt nước khi trời mưa (theo
+`weather3d::rain` của draw_sky3d()), mỗi giọt một vòng gợn; `ice` cho nước đóng băng từ bờ ra (chỗ nông trước),
+sóng lặng dần, `ice_snow` cho tuyết nằm trên băng. Đổi bằng water3d_set() mỗi frame được, không tốn thêm.
 
 @image html world_3d_rain.png "Mưa: trời u ám, mặt đất ướt tối và bóng hơn, hạt mưa xiên theo gió"
 

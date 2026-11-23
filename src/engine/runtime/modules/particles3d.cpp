@@ -1,6 +1,8 @@
 #include "particles3d.h"
 #include "particles_gpu.h"
 #include "render3d.h"
+#include "njin_model.h"
+#include "njin_cfg.h"
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
@@ -8,8 +10,10 @@
 #include "njin_quality_impl.h"
 #include "njin_draw_shapes.h"
 #include "njin_render.h"
+#include <vector>
 #include "njin_texture.h"
 #include <algorithm>
+#include <tuple>
 #include <array>
 #include <cmath>
 #include <raymath.h>
@@ -212,7 +216,7 @@ void particles3d_clear(context &ctx) { ctx_ref<particles3d_state>(ctx)->bursts.c
 i32 particles3d_count(const context &ctx) { return (i32)live_count(ctx_ref<particles3d_state>(ctx)); }
 
 void draw_ribbon3d(context &ctx, const ribbon3d_point *points, u32 count, const ribbon3d_desc &desc) {
-  if (points == nullptr || count < 2 || !ctx_ref<render3d_state>(ctx)->active)
+  if (points == nullptr || count < 2 || !(ctx_ref<config>(ctx).graphics_backend==GraphicsBackend::OpenGL?ctx_ref<render3d_state>(ctx)->active:ctx_ref<model_store>(ctx)->portable_pass))
     return;
   particles3d_state &s = ctx_ref<particles3d_state>(ctx);
   s.ribbons.push_back({.first = (u32)s.ribbon_points.size(), .count = count, .desc = desc});
@@ -301,7 +305,38 @@ void particles3d_draw(context &ctx, const camera3d &view) {
   rlDrawRenderBatchActive();
   rlDisableDepthMask();
   render_stats &stats = ctx_ref<render_stats>(ctx);
-  for (const particle3d_burst &b : s.bursts) {
+  // The bursts with particles, grouped by how they are drawn (shader, look,
+  // blend, streaks): the state changes once a group, not once a burst. They
+  // do not write depth, so the order between bursts does not matter.
+  thread_local std::vector<const particle3d_burst *> order;
+  order.clear();
+  for (const particle3d_burst &b : s.bursts)
+    if (!b.particles.empty())
+      order.push_back(&b);
+  const auto key = [](const particle3d_burst *b) {
+    return std::make_tuple(b->shader.id, (i32)b->style, (i32)b->look.blend, b->stretch > 0.0f);
+  };
+  std::stable_sort(order.begin(), order.end(), [&](const particle3d_burst *x, const particle3d_burst *y) {
+    return key(x) < key(y);
+  });
+  const particle3d_burst *open = nullptr; // the burst whose state is set
+  bool look = false;
+  const auto close = [&]() {
+    if (open == nullptr)
+      return;
+    rlDrawRenderBatchActive();
+    if (open->stretch > 0.0f)
+      rlEnableBackfaceCulling();
+    if (open->shader.id != 0)
+      shader_end(ctx);
+    else if (look)
+      EndShaderMode();
+    blend_end(ctx);
+    open = nullptr;
+    look = false;
+  };
+  for (const particle3d_burst *burst : order) {
+    const particle3d_burst &b = *burst;
     const particle_emitter &em = b.look;
     const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), em.texture);
     Texture2D texture = em.shape == particle_square ? white
@@ -319,25 +354,27 @@ void particles3d_draw(context &ctx, const camera3d &view) {
     const f32 longest = std::max(source.width, source.height);
     const f32 u0 = source.x / (f32)texture.width, u1 = (source.x + source.width) / (f32)texture.width;
     const f32 v0 = source.y / (f32)texture.height, v1 = (source.y + source.height) / (f32)texture.height;
-    blend_begin(ctx, em.blend);
-    // The game's shader, or the look of the burst's style.
-    bool look = false;
-    if (b.shader.id != 0) {
-      rlDrawRenderBatchActive();
-      shader_begin(ctx, b.shader);
-    } else if (b.style != particle3d_flat || ctx_ref<render3d_state>(ctx)->hdr_out) {
-      // Into the HDR image even the plain look has a shader (linear light).
-      rlDrawRenderBatchActive();
-      look = particle3d_look_begin(ctx, s.looks, b.style);
+    if (open == nullptr || key(open) != key(&b)) {
+      close();
+      open = &b;
+      blend_begin(ctx, em.blend);
+      // The game's shader, or the look of the burst's style.
+      if (b.shader.id != 0) {
+        rlDrawRenderBatchActive();
+        shader_begin(ctx, b.shader);
+      } else if (b.style != particle3d_flat || ctx_ref<render3d_state>(ctx)->hdr_out) {
+        // Into the HDR image even the plain look has a shader (linear light).
+        rlDrawRenderBatchActive();
+        look = particle3d_look_begin(ctx, s.looks, b.style);
+      }
+      // Streaks are seen from either side (which way round their corners go
+      // depends on the flight): culling is off for the whole group.
+      if (b.stretch > 0.0f) {
+        rlDrawRenderBatchActive();
+        rlDisableBackfaceCulling();
+      }
     }
     stats.emitters++;
-    // Streaks are seen from either side (which way round their corners go
-    // depends on the flight): culling is off for the whole burst, not toggled
-    // round each one, which flushed the batch once per particle.
-    if (b.stretch > 0.0f) {
-      rlDrawRenderBatchActive();
-      rlDisableBackfaceCulling();
-    }
     const std::array<vec4, 6> &frustum = ctx_ref<render3d_state>(ctx)->frustum;
     for (const particle3d &p : b.particles) {
       const f32 t = p.age / p.life;
@@ -391,19 +428,8 @@ void particles3d_draw(context &ctx, const camera3d &view) {
       DrawBillboardPro(camera, texture, source, pos, camera.up, extent,
                        Vector2{extent.x * 0.5f, extent.y * 0.5f}, p.rotation, color);
     }
-    if (b.stretch > 0.0f) {
-      rlDrawRenderBatchActive();
-      rlEnableBackfaceCulling();
-    }
-    if (b.shader.id != 0) {
-      rlDrawRenderBatchActive();
-      shader_end(ctx);
-    } else if (look) {
-      rlDrawRenderBatchActive();
-      EndShaderMode();
-    }
-    blend_end(ctx);
   }
+  close();
   if (!s.ribbons.empty())
     draw_ribbons(ctx, s, view);
   rlDrawRenderBatchActive();

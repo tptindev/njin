@@ -2,6 +2,7 @@
 #include "../njin_internal_only.h"
 #include "njin_fx.h"
 #include <raylib.h>
+#include "njin_renderer.h"
 
 namespace njin {
 // Screen and time effects (njin_fx.h). All timers run on real time, so they
@@ -72,6 +73,9 @@ bool fx_dissolve_hidden(const dissolve_fx &dissolve);
 // Begins drawing with the dissolve shader; `flash` (may be null) is mixed in the
 // same pass. Returns false (and begins nothing) when the shader is unavailable.
 bool fx_dissolve_begin(context &ctx, const dissolve_fx &dissolve, const flash_fx *flash);
+
+// Evaluate the existing CPU timers for the portable draw packet.
+RenderSpriteEffects portable_sprite_effects(const flash_fx *,const dissolve_fx *);
 
 // Ends whichever sprite shader fx_flash_begin() or fx_dissolve_begin() began.
 void fx_sprite_shader_end();

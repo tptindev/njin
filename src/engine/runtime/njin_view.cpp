@@ -1,11 +1,16 @@
 #include "njin_view.h"
+#include "modules/post_fx.h"
+#include "modules/lighting.h"
 #include "njin2rl.h"
 #include "njin_cfg.h"
 #include "njin_ctx_get.h"
 #include "njin_window.h"
+#include "njin_frame_impl.h"
 #include <algorithm>
 #include <cmath>
 #include <rlgl.h>
+#include "njin_draw_portable.h"
+#include <stdexcept>
 
 namespace njin {
 namespace {
@@ -57,13 +62,17 @@ view_state::~view_state() {
 }
 
 void view_frame_begin(view_state &view) {
+  view_frame_begin(view,{(float)GetScreenWidth(),(float)GetScreenHeight()});
+}
+
+void view_frame_begin(view_state &view, vec2 window) {
   // The UI canvas's scale: the window's height over the design height, less
   // when the window is too narrow for the canvas's least width.
   view.canvas_scale = 1.0f;
   view.canvas_depth = 0;
   view.canvas_on = false;
   if (view.canvas_height > 0.0f && !view_active(view)) {
-    const f32 w = (f32)GetScreenWidth(), h = (f32)GetScreenHeight();
+    const f32 w = window.x, h = window.y;
     f32 k = h / view.canvas_height;
     if (view.canvas_min_width > 0.0f)
       k = std::min(k, w / view.canvas_min_width);
@@ -75,8 +84,8 @@ void view_frame_begin(view_state &view) {
     view.offset = {};
     return;
   }
-  const f32 w = (f32)GetScreenWidth();
-  const f32 h = (f32)GetScreenHeight();
+  const f32 w = window.x;
+  const f32 h = window.y;
   f32 s = std::min(w / view.size.x, h / view.size.y);
   // Whole multiples keep every virtual pixel the same size on screen. A window
   // smaller than the virtual size still gets the fractional fit.
@@ -232,15 +241,23 @@ void view_draw_end(view_state &view) {
 // Public API (njin_window.h / njin_cfg.h).
 
 void window_set_virtual_size(context &ctx, vec2 size, bool integer_scale) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL&&
+     (!std::isfinite(size.x)||!std::isfinite(size.y)||size.x>ctx_ref<window_guard>(ctx).graphics->max_texture_size()||size.y>ctx_ref<window_guard>(ctx).graphics->max_texture_size()))
+    throw std::invalid_argument("njin virtual screen: dimensions exceed device limits");
   ctx_ref<view_state>(ctx)->size = size.x >= 1.0f && size.y >= 1.0f ? vec2{std::floor(size.x), std::floor(size.y)}
                                                    : vec2{};
   ctx_ref<view_state>(ctx)->integer_scale = integer_scale;
-  view_frame_begin(ctx_ref<view_state>(ctx));
+  view_frame_begin(ctx_ref<view_state>(ctx),window_size(ctx));
 }
 
 void window_set_bar_color(context &ctx, rgba color) { ctx_ref<view_state>(ctx)->bars = color; }
 
-vec2 window_size(const context &) { return {(f32)GetScreenWidth(), (f32)GetScreenHeight()}; }
+vec2 window_size([[maybe_unused]] const context &ctx) {
+#if NJIN_BGFX
+  if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) { vec2 size; gpu->size(size.x,size.y); return size; }
+#endif
+  return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};
+}
 
 rect window_viewport(const context &ctx) {
   if (!view_active(ctx_ref<view_state>(ctx)))
@@ -249,10 +266,49 @@ rect window_viewport(const context &ctx) {
 }
 
 vec2 screen_size(const context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL)
+    return view_logical_size(ctx_ref<view_state>(ctx)) * (view_in_canvas(ctx_ref<view_state>(ctx)) ? 1.0f/ctx_ref<view_state>(ctx)->canvas_scale : 1.0f);
   if (view_in_canvas(ctx_ref<view_state>(ctx)))
     return vec2{(f32)GetScreenWidth(), (f32)GetScreenHeight()} * (1.0f / ctx_ref<view_state>(ctx)->canvas_scale);
   if (view_active(ctx_ref<view_state>(ctx)))
     return view_logical_size(ctx_ref<view_state>(ctx));
   return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};
+}
+// The portable virtual image uses renderer-owned resources. The window/device
+// outlive view_state and release cached targets at context destruction.
+void portable_view_draw_begin(context &ctx) {
+  auto &v=ctx_ref<view_state>(ctx);v->drawing=false;v->ui_window=false;
+  v->world_depth=v->offscreen_depth=0;v->text_layer.clear();v->occluders.clear();v->clip={};
+  v->portable_depth={};
+  if(!view_active(v)&&!post_chain_active(ctx_ref<post_chain>(ctx))&&!lighting_active(ctx_ref<lighting_state>(ctx))) return;
+  const auto logical=view_logical_size(v);
+  const unsigned w=unsigned(logical.x)*v->render_scale,h=unsigned(logical.y)*v->render_scale;
+  if(!v->portable_target||v->portable_width!=w||v->portable_height!=h) {
+    auto target=renderer_create_target(ctx,w,h);
+    try {if(v->portable_target) renderer_destroy_target(ctx,v->portable_target);}
+    catch(...) {renderer_destroy_target(ctx,target);throw;}
+    v->portable_target=target;v->portable_width=w;v->portable_height=h;
+  }
+  const auto c=ctx_ref<config>(ctx).clear_bg_color;
+  renderer_begin_target(ctx,v->portable_target,{c.r,c.g,c.b,c.a});v->drawing=true;
+}
+void portable_view_draw_end(context &ctx) {
+  auto &v=ctx_ref<view_state>(ctx);if(!v->drawing) return;
+  auto &r=ctx_ref<window_guard>(ctx).renderer_resources;
+  if(r.active_target.id!=v->portable_target.id||v->offscreen_depth)
+    throw std::logic_error("njin virtual screen: an explicit render target was not closed");
+  renderer_end_target(ctx);v->drawing=false;
+  const auto saved=r.draw_2d;r.draw_2d={};
+  try {
+    const texture_draw_desc copy{.pos=v->offset,.scale={v->scale/v->render_scale,v->scale/v->render_scale}};
+    draw_portable_textures(ctx,renderer_target_texture(ctx,v->portable_target),{float(v->portable_width),float(v->portable_height)},
+      {&copy,1},v->render_scale>1,false,RenderBlend::Opaque);
+  } catch(...) {r.draw_2d=saved;throw;}
+  r.draw_2d=saved;
+}
+void portable_view_ui_begin(context &ctx) {
+  auto &v=ctx_ref<view_state>(ctx);
+  if(!v->smooth_ui||!v->drawing||v->scale==1) return;
+  portable_view_draw_end(ctx);v->ui_window=true;
 }
 } // namespace njin

@@ -10,6 +10,7 @@
 #endif
 #endif
 #include "njin_multiplayer_impl.h"
+#include "njin_mutex.h"
 #include "njin_ctx.h"
 #include "njin_log.h"
 #include "njin_multiplayer.h"
@@ -24,7 +25,6 @@
 #include <chrono>
 #include <deque>
 #include <memory>
-#include <mutex>
 #include <random>
 #include <thread>
 #include <unordered_map>
@@ -110,22 +110,13 @@ struct mp_peer {
   bool connected = false;
 };
 
-class mp_service {
+class mp_state {
 public:
   std::unordered_map<u32, std::unique_ptr<mp_host>> hosts;
   std::unordered_map<u32, mp_peer> peers;
   u32 next_id = 1;
   bool enet_ok = enet_start();
-  // ENet is not thread-safe: every touch of a host, a peer or these maps holds
-  // this, once the service thread (net_host_opts::service_thread) runs.
-  mutable std::mutex mutex;
-  std::thread worker;
-  std::atomic<bool> stopping{false};
-
-  ~mp_service() {
-    stopping = true;
-    if (worker.joinable())
-      worker.join();
+  ~mp_state() {
     for (auto &[id, h] : hosts)
       close_host(*h);
     hosts.clear();
@@ -139,13 +130,13 @@ public:
     const auto it = hosts.find(id);
     return it == hosts.end() ? nullptr : it->second.get();
   }
-  const mp_host *host(u32 id) const { return const_cast<mp_service *>(this)->host(id); }
+  const mp_host *host(u32 id) const { return const_cast<mp_state *>(this)->host(id); }
 
   mp_peer *peer(u32 id) {
     const auto it = peers.find(id);
     return it == peers.end() ? nullptr : &it->second;
   }
-  const mp_peer *peer(u32 id) const { return const_cast<mp_service *>(this)->peer(id); }
+  const mp_peer *peer(u32 id) const { return const_cast<mp_state *>(this)->peer(id); }
 
   void close_host(mp_host &h) {
     for (auto it = peers.begin(); it != peers.end();) {
@@ -277,6 +268,36 @@ public:
     take_counters(h);
   }
 
+  bool take_ready(mp_host &h, net_host_event &out) {
+    if (h.inbox.empty())
+      return false;
+    const f64 t = now();
+    // Without simulation every event is ready and the front is taken; with
+    // it, an unordered packet may be ready before older ones.
+    for (auto it = h.inbox.begin(); it != h.inbox.end(); ++it)
+      if (it->first <= t) {
+        out = std::move(it->second);
+        h.inbox.erase(it);
+        return true;
+      }
+    return false;
+  }
+};
+
+// Every ENet operation goes through the owning state guard. Worker lifetime
+// stays outside the lock, so shutdown joins before destroying the state.
+class mp_service {
+public:
+  detail::mutex<mp_state> state;
+  std::thread worker;
+  std::atomic<bool> stopping{false};
+
+  ~mp_service() {
+    stopping = true;
+    if (worker.joinable())
+      worker.join();
+  }
+
   // The hosts with service_thread pumped as soon as a packet comes (and at
   // least every millisecond), so packets and their acks are answered at once,
   // not at the next frame of each side.
@@ -295,10 +316,10 @@ public:
       ENetSocket last = 0;
       bool any = false;
       {
-        const std::lock_guard lock(mutex);
-        for (auto &[id, h] : hosts)
+        auto locked = state.lock();
+        for (auto &[id, h] : locked->hosts)
           if (h->opts.service_thread) {
-            pump(*h);
+            locked->pump(*h);
             ENET_SOCKETSET_ADD(sockets, h->enet->socket);
             last = std::max(last, h->enet->socket);
             any = true;
@@ -313,21 +334,6 @@ public:
     timeEndPeriod(1);
 #endif
   }
-
-  bool take_ready(mp_host &h, net_host_event &out) {
-    if (h.inbox.empty())
-      return false;
-    const f64 t = now();
-    // Without simulation every event is ready and the front is taken; with
-    // it, an unordered packet may be ready before older ones.
-    for (auto it = h.inbox.begin(); it != h.inbox.end(); ++it)
-      if (it->first <= t) {
-        out = std::move(it->second);
-        h.inbox.erase(it);
-        return true;
-      }
-    return false;
-  }
 };
 
 mp_service *mp_service_create() { return new mp_service(); }
@@ -336,16 +342,16 @@ void mp_service_destroy(mp_service *service) { delete service; }
 namespace {
 void pump_hosts(context &ctx) {
   if (mp_service *s = mp_service_of(ctx, false)) {
-    const std::lock_guard lock(s->mutex);
-    for (auto &[id, h] : s->hosts)
-      s->pump(*h);
+    auto locked = s->state.lock();
+    for (auto &[id, h] : locked->hosts)
+      locked->pump(*h);
   }
 }
 
 void flush_hosts(context &ctx) {
   if (mp_service *s = mp_service_of(ctx, false)) {
-    const std::lock_guard lock(s->mutex);
-    for (auto &[id, h] : s->hosts)
+    auto locked = s->state.lock();
+    for (auto &[id, h] : locked->hosts)
       enet_host_flush(h->enet);
   }
 }
@@ -360,8 +366,8 @@ mod_desc multiplayer_module() { return mod_desc{.name = "njin.multiplayer", .set
 
 net_host net_host_create(context &ctx, const net_host_opts &opts) {
   mp_service &s = *mp_service_of(ctx, true);
-  const std::lock_guard lock(s.mutex);
-  if (!s.enet_ok) {
+  auto locked = s.state.lock();
+  if (!locked->enet_ok) {
     NJIN_WARN("net_host_create: ENet could not start");
     return {};
   }
@@ -389,16 +395,16 @@ net_host net_host_create(context &ctx, const net_host_opts &opts) {
   enet->maximumWaitingData = std::max<size_t>(max_packet * 4, enet->maximumWaitingData);
 
   auto h = std::make_unique<mp_host>();
-  h->id = s.next_id++;
+  h->id = locked->next_id++;
   h->enet = enet;
   h->opts = opts;
   h->opts.host = nullptr;
   h->opts.channels = channels;
   h->opts.max_queued = std::max(opts.max_queued, 1u);
   h->opts.sim.loss = std::clamp(opts.sim.loss, 0.0f, 1.0f);
-  h->window_start = s.now();
+  h->window_start = locked->now();
   const u32 id = h->id;
-  s.hosts.emplace(id, std::move(h));
+  locked->hosts.emplace(id, std::move(h));
   if (opts.service_thread)
     s.start_worker();
   return {id};
@@ -408,12 +414,12 @@ void net_host_destroy(context &ctx, net_host host) {
   mp_service *s = mp_service_of(ctx, false);
   if (!s)
     return;
-  const std::lock_guard lock(s->mutex);
-  mp_host *h = s->host(host.id);
+  auto locked = s->state.lock();
+  mp_host *h = locked->host(host.id);
   if (!h)
     return;
-  s->close_host(*h);
-  s->hosts.erase(host.id);
+  locked->close_host(*h);
+  locked->hosts.erase(host.id);
 }
 
 net_peer net_host_connect(context &ctx, net_host host, const char *address, u16 port, u32 code) {
@@ -426,8 +432,8 @@ net_peer net_host_connect(context &ctx, net_host host, const char *address, u16 
     NJIN_WARN("net_host_connect: cannot resolve %s", address ? address : "(null)");
     return {};
   }
-  const std::lock_guard lock(s->mutex);
-  mp_host *h = s->host(host.id);
+  auto locked = s->state.lock();
+  mp_host *h = locked->host(host.id);
   if (!h)
     return {};
   ENetPeer *peer = enet_host_connect(h->enet, &where, h->opts.channels, code);
@@ -435,10 +441,10 @@ net_peer net_host_connect(context &ctx, net_host host, const char *address, u16 
     NJIN_WARN("net_host_connect: no free peer slot (net_host_opts::max_peers)");
     return {};
   }
-  const u32 id = s->next_id++;
+  const u32 id = locked->next_id++;
   set_id(peer, id);
   set_timeout(peer, h->opts.timeout); // also bounds the wait for an answer
-  s->peers[id] = mp_peer{h->id, peer, false};
+  locked->peers[id] = mp_peer{h->id, peer, false};
   return {id};
 }
 
@@ -446,23 +452,23 @@ bool net_host_poll(context &ctx, net_host host, net_host_event &out) {
   mp_service *s = mp_service_of(ctx, false);
   if (!s)
     return false;
-  const std::lock_guard lock(s->mutex);
-  mp_host *h = s->host(host.id);
+  auto locked = s->state.lock();
+  mp_host *h = locked->host(host.id);
   if (!h)
     return false;
-  if (s->take_ready(*h, out))
+  if (locked->take_ready(*h, out))
     return true;
-  s->pump(*h);
-  return s->take_ready(*h, out);
+  locked->pump(*h);
+  return locked->take_ready(*h, out);
 }
 
 bool net_peer_send(context &ctx, net_peer peer, std::string_view data, net_delivery delivery, u8 channel) {
   mp_service *s = mp_service_of(ctx, false);
   if (!s)
     return false;
-  const std::lock_guard lock(s->mutex);
-  mp_peer *p = s->peer(peer.id);
-  const mp_host *h = p ? s->host(p->host) : nullptr;
+  auto locked = s->state.lock();
+  mp_peer *p = locked->peer(peer.id);
+  const mp_host *h = p ? locked->host(p->host) : nullptr;
   if (!h || channel >= h->opts.channels || data.size() > h->opts.max_packet)
     return false;
   ENetPacket *packet = enet_packet_create(data.data(), data.size(), flags_of(delivery));
@@ -479,8 +485,8 @@ bool net_host_broadcast(context &ctx, net_host host, std::string_view data, net_
   mp_service *s = mp_service_of(ctx, false);
   if (!s)
     return false;
-  const std::lock_guard lock(s->mutex);
-  mp_host *h = s->host(host.id);
+  auto locked = s->state.lock();
+  mp_host *h = locked->host(host.id);
   if (!h || channel >= h->opts.channels || data.size() > h->opts.max_packet)
     return false;
   ENetPacket *packet = enet_packet_create(data.data(), data.size(), flags_of(delivery));
@@ -494,8 +500,8 @@ void net_host_flush(context &ctx, net_host host) {
   mp_service *s = mp_service_of(ctx, false);
   if (!s)
     return;
-  const std::lock_guard lock(s->mutex);
-  if (mp_host *h = s->host(host.id))
+  auto locked = s->state.lock();
+  if (mp_host *h = locked->host(host.id))
     enet_host_flush(h->enet);
 }
 
@@ -503,21 +509,21 @@ void net_peer_disconnect(context &ctx, net_peer peer, u32 code) {
   mp_service *s = mp_service_of(ctx, false);
   if (!s)
     return;
-  const std::lock_guard lock(s->mutex);
-  mp_peer *p = s->peer(peer.id);
+  auto locked = s->state.lock();
+  mp_peer *p = locked->peer(peer.id);
   if (!p)
     return;
   set_id(p->peer, 0);
   enet_peer_disconnect_later(p->peer, code);
-  s->peers.erase(peer.id);
+  locked->peers.erase(peer.id);
 }
 
 bool net_peer_connected(const context &ctx, net_peer peer) {
   const mp_service *s = mp_service_of(ctx);
   if (!s)
     return false;
-  const std::lock_guard lock(s->mutex);
-  const mp_peer *p = s->peer(peer.id);
+  auto locked = s->state.lock();
+  const mp_peer *p = locked->peer(peer.id);
   return p && p->connected && p->peer->state == ENET_PEER_STATE_CONNECTED;
 }
 
@@ -525,8 +531,8 @@ net_peer_stats net_peer_info(const context &ctx, net_peer peer) {
   const mp_service *s = mp_service_of(ctx);
   if (!s)
     return {};
-  const std::lock_guard lock(s->mutex);
-  const mp_peer *p = s->peer(peer.id);
+  auto locked = s->state.lock();
+  const mp_peer *p = locked->peer(peer.id);
   if (!p)
     return {};
   net_peer_stats out;
@@ -541,8 +547,8 @@ net_host_stats net_host_info(const context &ctx, net_host host) {
   const mp_service *s = mp_service_of(ctx);
   if (!s)
     return {};
-  const std::lock_guard lock(s->mutex);
-  const mp_host *h = s->host(host.id);
+  auto locked = s->state.lock();
+  const mp_host *h = locked->host(host.id);
   if (!h)
     return {};
   net_host_stats out;
@@ -558,8 +564,8 @@ u16 net_host_port(const context &ctx, net_host host) {
   const mp_service *s = mp_service_of(ctx);
   if (!s)
     return 0;
-  const std::lock_guard lock(s->mutex);
-  const mp_host *h = s->host(host.id);
+  auto locked = s->state.lock();
+  const mp_host *h = locked->host(host.id);
   return h ? h->enet->address.port : 0;
 }
 

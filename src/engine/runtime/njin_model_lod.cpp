@@ -2,6 +2,8 @@
 #include "njin_ctx_get.h"
 #include "njin_log.h"
 #include "njin_model.h"
+#include "njin_model_portable.h"
+#include <stdexcept>
 #include <meshoptimizer.h>
 #include <rlgl.h>
 #include <algorithm>
@@ -214,6 +216,7 @@ void model_lod_free(model_slot &slot) {
 }
 
 i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &desc) {
+  if(ctx_ref<model_store>(ctx)->portable_context) return portable_model_lod_build(ctx,handle,desc);
   model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr)
     return 0;
@@ -287,6 +290,7 @@ i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &des
 }
 
 i32 model_lod_load(context &ctx, model_handle handle, const char *const *paths, i32 count, f32 screen) {
+  if(ctx_ref<model_store>(ctx)->portable_context) return portable_model_lod_load(ctx,handle,paths,count,screen);
   model_store &store = ctx_ref<model_store>(ctx);
   model_slot *slot = model_slot_of(store, handle);
   if (slot == nullptr || paths == nullptr || count < 1 || count > 4)
@@ -298,7 +302,8 @@ i32 model_lod_load(context &ctx, model_handle handle, const char *const *paths, 
   }
   std::vector<std::vector<model_lod_mesh>> lods;
   for (i32 k = 0; k < count; k++) {
-    const model_handle level = model_store_load(store, model_load_desc{.path = paths[k]});
+    // Merged by material like the model, so its meshes line up with the model's.
+    const model_handle level = model_store_load(store, model_load_desc{.path = paths[k], .merge = slot->merged});
     // Loading may grow the store: find the slots again.
     slot = model_slot_of(store, handle);
     model_slot *from = model_slot_of(store, level);

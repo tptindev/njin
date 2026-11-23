@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 
 // The engine is split into a core and optional features, each its own library
 // (src/engine/runtime/CMakeLists.txt): 3d, physics3d, nav3d, video, net,
@@ -54,14 +55,17 @@ template <class T> struct feature_ref {
     free = nullptr;
   }
   explicit operator bool() const { return ptr != nullptr; }
-  T *operator->() { return ptr; }
-  const T *operator->() const { return ptr; }
-  T &operator*() { return *ptr; }
-  const T &operator*() const { return *ptr; }
-  operator T &() { return *ptr; }
-  operator const T &() const { return *ptr; }
+  T *operator->() { require(); return ptr; }
+  const T *operator->() const { require(); return ptr; }
+  T &operator*() { require(); return *ptr; }
+  const T &operator*() const { require(); return *ptr; }
+  operator T &() { require(); return *ptr; }
+  operator const T &() const { require(); return *ptr; }
 
 private:
+  void require() const {
+    if(!ptr) throw std::logic_error("njin: feature/resource state is unavailable (not installed or unsupported by this backend)");
+  }
   T *ptr = nullptr;
   void (*free)(void *) = nullptr;
 };

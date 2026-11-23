@@ -5,6 +5,8 @@
 #include <chrono>
 
 namespace njin {
+// CPU loader jobs report errors in completion records; never invoke game sinks on workers.
+void log_worker_quiet(bool);
 // Routes raylib's TraceLog output through the njin logger. Call before
 // InitWindow so window/GL startup messages are captured too.
 void log_capture_raylib();

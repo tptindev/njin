@@ -1,0 +1,14 @@
+{
+  "uniforms": {
+    "gain": {"name":"u_testGain","type":"float"},
+    "integer": {"name":"u_testInteger","type":"int"},
+    "pair": {"name":"u_testPair","type":"vec2"},
+    "triplet": {"name":"u_testTriplet","type":"vec3"},
+    "color": {"name":"u_testColor","type":"vec4"},
+    "array": {"name":"u_testArray","type":"vec4","count":2}
+  },
+  "samplers": {
+    "texture0":{"name":"s_testBase","stage":0},
+    "extra":{"name":"s_testExtra","stage":1}
+  }
+}

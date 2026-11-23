@@ -5,6 +5,7 @@
 #define _WIN32_WINNT 0x0A00 // Windows 10; asio asks for a target version
 #endif
 #include "njin_network_impl.h"
+#include "njin_mutex.h"
 
 #include <asio/co_spawn.hpp>
 #include <asio/connect.hpp>
@@ -25,7 +26,6 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
-#include <mutex>
 #include <thread>
 #include <unordered_map>
 
@@ -141,12 +141,11 @@ public:
   std::thread thread;
   std::atomic<u32> next_id{1};
 
-  // Guards the three tables and `events`, which both threads use.
-  mutable std::mutex mu;
-  std::unordered_map<u32, std::shared_ptr<tcp_link>> links;
-  std::unordered_map<u32, std::shared_ptr<tcp_server_state>> servers;
-  std::unordered_map<u32, std::shared_ptr<udp_state>> udps;
-  std::vector<net_event> events;
+  template <class T> using table = std::unordered_map<u32, std::shared_ptr<T>>;
+  detail::mutex<table<tcp_link>> links;
+  detail::mutex<table<tcp_server_state>> servers;
+  detail::mutex<table<udp_state>> udps;
+  detail::mutex<std::vector<net_event>> events;
 
   // Started last, once every member exists.
   net_service() { thread = std::thread([this] { io.run(); }); }
@@ -157,32 +156,30 @@ public:
     thread.join();
     // Sockets that only these tables hold die here, while the io_context
     // still exists; the ones held by unfinished coroutines die with it.
-    std::lock_guard lock(mu);
-    links.clear();
-    servers.clear();
-    udps.clear();
+    links.lock()->clear();
+    servers.lock()->clear();
+    udps.lock()->clear();
   }
 
   void push(net_event event) {
-    std::lock_guard lock(mu);
-    events.push_back(std::move(event));
+    events.lock()->push_back(std::move(event));
   }
 
-  template <class T> std::shared_ptr<T> find(const std::unordered_map<u32, std::shared_ptr<T>> &table, u32 id) const {
+  template <class T> std::shared_ptr<T> find(const detail::mutex<table<T>> &entries, u32 id) const {
     if (id == 0)
       return nullptr;
-    std::lock_guard lock(mu);
-    const auto it = table.find(id);
-    return it == table.end() ? nullptr : it->second;
+    auto table = entries.lock();
+    const auto it = table->find(id);
+    return it == table->end() ? nullptr : it->second;
   }
 
-  template <class T> std::shared_ptr<T> take(std::unordered_map<u32, std::shared_ptr<T>> &table, u32 id) {
-    std::lock_guard lock(mu);
-    const auto it = table.find(id);
-    if (it == table.end())
+  template <class T> std::shared_ptr<T> take(detail::mutex<table<T>> &entries, u32 id) {
+    auto table = entries.lock();
+    const auto it = table->find(id);
+    if (it == table->end())
       return nullptr;
     std::shared_ptr<T> found = std::move(it->second);
-    table.erase(it);
+    table->erase(it);
     return found;
   }
 
@@ -322,8 +319,7 @@ public:
       auto l = std::make_shared<tcp_link>(next_id++, srv->opts, std::move(sock));
       l->server = srv->id;
       {
-        std::lock_guard lock(mu);
-        links.emplace(l->id, l);
+        links.lock()->emplace(l->id, l);
       }
       start(l);
     }
@@ -375,8 +371,7 @@ void net_service_destroy(net_service *service) { delete service; }
 net_conn net_service_connect(net_service &s, const char *host, u16 port, const tcp_opts &opts) {
   auto l = std::make_shared<tcp_link>(s.next_id++, opts, tcp::socket(s.io));
   {
-    std::lock_guard lock(s.mu);
-    s.links.emplace(l->id, l);
+    s.links.lock()->emplace(l->id, l);
   }
   asio::co_spawn(s.io, s.connect(l, host, port), asio::detached);
   return {l->id};
@@ -446,8 +441,7 @@ net_server net_service_listen(net_service &s, u16 port, const char *host, const 
   }
   srv->id = s.next_id++;
   {
-    std::lock_guard lock(s.mu);
-    s.servers.emplace(srv->id, srv);
+    s.servers.lock()->emplace(srv->id, srv);
   }
   asio::co_spawn(s.io, s.accept(srv), asio::detached);
   return {srv->id};
@@ -487,8 +481,7 @@ net_udp net_service_udp_open(net_service &s, u16 port, const char *host, std::st
   }
   u->id = s.next_id++;
   {
-    std::lock_guard lock(s.mu);
-    s.udps.emplace(u->id, u);
+    s.udps.lock()->emplace(u->id, u);
   }
   asio::co_spawn(s.io, s.receive(u), asio::detached);
   return {u->id};
@@ -531,9 +524,9 @@ void net_service_udp_close(net_service &s, net_udp socket) {
 }
 
 void net_service_drain(net_service &s, std::vector<net_event> &out) {
-  std::lock_guard lock(s.mu);
-  out.swap(s.events);
-  s.events.clear();
+  auto events = s.events.lock();
+  out.swap(*events);
+  events->clear();
 }
 std::vector<std::string> net_local_addresses() {
   // The addresses this machine's own name resolves to: every adapter's.

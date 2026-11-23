@@ -1,4 +1,8 @@
 #pragma once
+#include "njin_stream.h"
+#include "njin_virtual_texture.h"
+#include "njin_renderer.h"
+#include "njin_lightmap.h"
 #include "_collide.h"
 #include "_comps.h"
 #include "_math.h"
@@ -9,6 +13,7 @@
 #include "njin_collision.h"
 #include "njin_anim.h"
 #include "njin_atlas.h"
+#include "njin_atmosphere.h"
 #include "njin_bits.h"
 #include "njin_audio.h"
 #include "njin_bindings.h"

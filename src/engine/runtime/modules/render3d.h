@@ -40,10 +40,11 @@ struct render3d_locations {
   i32 fog_color = -1, fog_density = -1;
   i32 light_count = -1, light_pos = -1, light_colors = -1, light_spot = -1;
   i32 surface = -1, emission = -1, rim = -1, emission_color = -1, unlit = -1;
+  i32 toon = -1, no_shadow_recv = -1;
   i32 use_normal_map = -1, use_emission_map = -1, world_uv = -1, under_amount = -1, use_under_normal = -1;
-  i32 alpha_cutoff = -1, snow_cover = -1;
+  i32 alpha_cutoff = -1, snow_cover = -1, glitter = -1, glitter_flags = -1;
   i32 shadow_on = -1, shadow_map = -1, light_vp = -1, shadow_params = -1;
-  i32 flash = -1, dissolve = -1, edge_color = -1, view_mask = -1;
+  i32 flash = -1, dissolve = -1, dissolve_from = -1, dissolve_to = -1, edge_color = -1, view_mask = -1;
   // The SDF shader only.
   i32 clay_surface = -1;
   i32 shape_kind = -1, shape_dims = -1, shape_bounds = -1, shape_to_local = -1, shape_to_world = -1;
@@ -179,6 +180,10 @@ struct render3d_state {
   // end_3d's second pass: only the model parts whose material is see-through
   // (alpha below 1: glTF transmission), after every opaque one, depth not written.
   bool translucent_pass = false;
+  // render3d_options::depth_prepass: draw_casters is drawing the camera's depth
+  // that the lit pass will test against, so only what lands on the same depth
+  // goes in, cut as the lit shaders cut (depth_fs's cutColor).
+  bool exact_depth = false;
   Shader lit{};
   Shader sdf{};        // draw_shape3d, both passes
   Shader depth{};      // shadow pass, meshes
@@ -286,6 +291,12 @@ struct render3d_state {
   // eases back with speed leaves the texels as they were.
   std::array<f32, 4> cascade_radius{};
   vec4 cascade_key{};
+  // Cascades past the first are kept from an earlier pass while their matrix
+  // is the same (render_cascades): the matrix each tile was drawn with, how
+  // many passes ago (-1: never), and the atlas they are in.
+  std::array<Matrix, 4> cascade_drawn_vp{};
+  std::array<i32, 4> cascade_age{-1, -1, -1, -1};
+  u32 cascade_atlas = 0;
   // The opt-in parts (render3d_ext.h).
   hdr_state hdr;
   lights_ext lext;

@@ -13,6 +13,7 @@
 #include "njin_i18n.h"
 #include "njin_log.h"
 #include "ui.h"
+#include "njin_render_capabilities.h"
 #include <algorithm>
 #include <cmath>
 

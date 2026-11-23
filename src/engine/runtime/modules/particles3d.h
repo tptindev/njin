@@ -65,4 +65,5 @@ struct particles3d_state {
 // Draws every live particle (and the pass's ribbons) facing `camera`. Called by end_3d while its pass
 // (projection, view, depth test) is still set.
 void particles3d_draw(context &ctx, const camera3d &camera);
+void portable_particles3d_draw(context &ctx);
 } // namespace njin

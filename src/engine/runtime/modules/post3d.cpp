@@ -1,5 +1,8 @@
 #include "post3d.h"
+#include "njin_post_portable.h"
+#include "njin_model.h"
 #include "render3d.h"
+#include "render3d_env.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
@@ -159,6 +162,48 @@ void main() {
   }
   float ao = sum / weight;
   finalColor = vec4(vec3(mix(1.0, ao, strength)), 1.0);
+}
+)";
+
+// post3d::outline: a line where a neighbour `width` pixels away lies behind
+// this pixel's plane (by a share of the distance: a surface further back, or the
+// sky), so silhouettes are drawn on the nearer side only; and where the normal
+// turns by more than the crease angle towards the right or upper neighbour.
+constexpr const char *outline_main = R"(
+uniform vec4 lineColor;  // rgb, strength
+uniform float width;
+uniform float crease;    // cos of the crease angle; below -1 is none
+uniform vec2 fade;       // distance where the lines start and finish fading (0 none)
+void main() {
+  vec2 uv = fragTexCoord;
+  float d = texture(depthTex, uv).r;
+  if (d >= 1.0) {
+    finalColor = vec4(0.0);
+    return;
+  }
+  vec3 p = world_at(uv, d);
+  vec3 n = normal_at(uv, p);
+  float dist = length(eyePos - p);
+  float gap = 0.02 + 0.004 * dist * width;
+  float edge = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec2 o = uv + texel * width * (i == 0 ? vec2(1.0, 0.0) : i == 1 ? vec2(0.0, 1.0) : i == 2 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0));
+    float sd = texture(depthTex, o).r;
+    if (sd >= 1.0) {
+      edge = 1.0;
+      break;
+    }
+    vec3 q = world_at(o, sd);
+    if (dot(p - q, n) > gap) {
+      edge = 1.0;
+      break;
+    }
+    if (i < 2 && crease >= -1.0 && dot(n, normal_at(o, q)) < crease)
+      edge = 1.0;
+  }
+  if (fade.y > 0.0)
+    edge *= 1.0 - smoothstep(fade.x, fade.y, dist);
+  finalColor = vec4(lineColor.rgb, edge * lineColor.a);
 }
 )";
 
@@ -615,6 +660,7 @@ bool load(post3d_state &st) {
   st.ssao_blur = load_fullscreen(ssao_blur_main);
   st.ssao_apply = load_fullscreen(ssao_apply_main);
   st.ssr = load_fullscreen(ssr_main);
+  st.outline = load_fullscreen(outline_main);
   st.shafts_sky = load_fullscreen(shafts_sky_main);
   st.shafts_blur = load_fullscreen(shafts_blur_main);
   st.flare_vis = load_fullscreen(flare_vis_main);
@@ -625,7 +671,7 @@ bool load(post3d_state &st) {
   st.taa = load_fullscreen(taa_main);
   st.taa_out = LoadShaderFromMemory(nullptr, taa_out_fs);
   for (const Shader *s : {&st.ssao, &st.ssao_blur, &st.ssao_apply, &st.ssr, &st.shafts_sky, &st.shafts_blur,
-                          &st.flare_vis, &st.blur, &st.add, &st.flare, &st.decal, &st.taa, &st.taa_out})
+                          &st.flare_vis, &st.blur, &st.add, &st.flare, &st.decal, &st.taa, &st.taa_out, &st.outline})
     if (!IsShaderValid(*s)) {
       NJIN_WARN("post3d: built-in shaders failed to compile; 3D screen effects and decals are off");
       st.failed = true;
@@ -932,6 +978,28 @@ void run_ssao(context &ctx, post3d_state &st, const pass_view &v) {
   ctx_ref<render_stats>(ctx)->post_passes += 4;
 }
 
+void run_outline(context &ctx, post3d_state &st, const pass_view &v) {
+  const post3d &p = st.settings;
+  rgba c = p.outline_color;
+  // Into the HDR image the colour goes in linear light, as unlit colours do.
+  if (ctx_ref<render3d_state>(ctx)->hdr.active) {
+    const rgb_linear l = linear_of(c);
+    c = {l.r, l.g, l.b, c.a};
+  }
+  Shader sh = st.outline;
+  set_view(sh, v);
+  set_v4(sh, "lineColor", {c.r, c.g, c.b, clamp(p.outline * c.a, 0.0f, 1.0f)});
+  set_f(sh, "width", clamp(p.outline_width, 0.5f, 4.0f));
+  set_f(sh, "crease", p.outline_crease >= 180.0f ? -2.0f : std::cos(std::max(p.outline_crease, 1.0f) * DEG2RAD));
+  set_v2(sh, "fade", p.outline_fade > 0.0f ? vec2{p.outline_fade * 0.5f, p.outline_fade} : vec2{0.0f, 0.0f});
+  bind_2d(v.target, v.w, v.h);
+  BeginBlendMode(BLEND_ALPHA);
+  const Texture2D depth = texture_of(st.copy_depth, v.w, v.h);
+  quad(sh, depth, v.w, v.h, [&] { sampler(sh, "depthTex", st.copy_depth); });
+  EndBlendMode();
+  ctx_ref<render_stats>(ctx)->post_passes += 1;
+}
+
 void run_ssr(context &ctx, post3d_state &st, const pass_view &v) {
   const post3d &p = st.settings;
   if (!ensure_target(st.mask, v.w, v.h))
@@ -1229,7 +1297,8 @@ void run_taa(context &ctx, post3d_state &st, const pass_view &v, bool vel) {
 }
 
 bool effects_on(const post3d &p) {
-  return p.ssao > 0.0f || p.ssr > 0.0f || p.motion_blur > 0.0f || p.shafts > 0.0f || p.flare > 0.0f || p.taa;
+  return p.ssao > 0.0f || p.ssr > 0.0f || p.motion_blur > 0.0f || p.shafts > 0.0f || p.flare > 0.0f || p.taa ||
+         p.outline > 0.0f;
 }
 
 bool usable(const context &ctx) {
@@ -1271,7 +1340,7 @@ post3d_state::~post3d_state() {
       UnloadRenderTexture(*t);
   if (loaded)
     for (Shader *s : {&ssao, &ssao_blur, &ssao_apply, &ssr, &decal, &shafts_sky, &shafts_blur, &add, &flare_vis, &flare,
-                      &blur, &taa, &taa_out})
+                      &blur, &taa, &taa_out, &outline})
       UnloadShader(*s);
 }
 
@@ -1340,10 +1409,12 @@ void post3d_after_opaque(context &ctx) {
     run_ssao(ctx, st, v);
   if (st.settings.ssr > 0.0f)
     run_ssr(ctx, st, v);
+  if (st.settings.outline > 0.0f)
+    run_outline(ctx, st, v);
   // Water that refracts, and materials that let light through
   // (material3d::transmission), see the scene as it is now, shaded and decaled.
   if (world3d_wants_scene(ctx) || ctx_ref<render3d_state>(ctx)->transmission_now) {
-    if (st.live > 0 || st.settings.ssao > 0.0f || st.settings.ssr > 0.0f)
+    if (st.live > 0 || st.settings.ssao > 0.0f || st.settings.ssr > 0.0f || st.settings.outline > 0.0f)
       blit(v.target, st.copy_fbo, v.w, v.h, color_bit);
     st.scene_ready = true;
   }
@@ -1441,11 +1512,14 @@ void post3d_apply_quality(context &ctx) {
 }
 
 void post3d_set(context &ctx, const post3d &fx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    portable_post_validate(fx);ctx_ref<model_store>(ctx)->portable_post=fx;return;
+  }
   ctx_ref<post3d_state>(ctx)->requested = fx;
   post3d_apply_quality(ctx);
 }
 
-post3d post3d_get(const context &ctx) { return ctx_ref<post3d_state>(ctx)->requested; }
+post3d post3d_get(const context &ctx) { if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return ctx_ref<model_store>(ctx)->portable_post; return ctx_ref<post3d_state>(ctx)->requested; }
 
 // The box turns z, then x, then y (decal_matrix): x by acos(n.y) takes its y
 // axis to (0, n.y, sin), and y by atan2(n.x, n.z) swings that onto n.

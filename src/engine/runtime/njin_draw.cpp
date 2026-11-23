@@ -8,6 +8,7 @@
 #include "njin_font.h"
 #include "njin_shader.h"
 #include "njin_texture.h"
+#include "njin_draw_portable.h"
 #include "njin_view.h"
 #include "njin_log.h"
 #include "njin_render.h"
@@ -16,11 +17,16 @@
 #include <cmath>
 #include <vector>
 #include <utility>
+#include <stdexcept>
 #include <raylib.h>
 #include <rlgl.h>
 
 namespace njin {
 namespace {
+void require_legacy_draw(const context &ctx,const char *api) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL)
+    throw std::runtime_error(std::string("njin bgfx: legacy ")+api+" is unavailable on this backend");
+}
 Color color_of(rgba c) {
   Color out{};
   to_raylib(c, out);
@@ -104,12 +110,68 @@ std::vector<text_piece> visible_pieces(const view_state &view, const queued_text
 
 // Shapes
 
+namespace {
+bool portable_draw(const context &ctx) { return ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL; }
+void portable_text_occlude(const context &ctx,rect r,rgba color) {
+  const auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+  rect cover{state.offset+r.pos*state.scale,r.size*state.scale};
+  if(state.clipped) cover=intersect(cover,ctx_ref<view_state>(ctx)->clip);
+  color.a*=state.alpha;view_text_occlude(ctx_ref<view_state>(ctx),cover,color);
+}
+void portable_rect(const context &ctx,rect r,rgba color) {
+  const vec2 a=r.pos,b=r.pos+vec2{r.size.x,0},c=r.pos+r.size,d=r.pos+vec2{0,r.size.y};
+  const vec2 triangles[]{a,b,c,a,c,d}; draw_portable_solid(ctx,triangles,color);
+}
+void portable_rounded(const context &ctx,rect r,float radius,float thickness,rgba color,bool lines) {
+  if(r.size.x<=0 || r.size.y<=0 || (lines && thickness<=0)) return;
+  radius=std::clamp(radius,0.0f,std::min(r.size.x,r.size.y)*0.5f);
+  const float t=lines ? std::clamp(thickness,0.0f,std::min(r.size.x,r.size.y)*0.5f):0;
+  const auto contour=[](rect box,float rad) {
+    std::vector<vec2> result;
+    const vec2 centers[]{box.pos+vec2{box.size.x-rad,rad},box.pos+box.size-vec2{rad,rad},
+      box.pos+vec2{rad,box.size.y-rad},box.pos+vec2{rad,rad}};
+    for(int corner=0;corner<4;++corner) for(int i=0;i<=8;++i) {
+      const float a=(-90+90*corner+i*90.0f/8)*3.14159265359f/180;
+      result.push_back(centers[corner]+vec2{std::cos(a)*rad,std::sin(a)*rad});
+    }
+    return result;
+  };
+  const auto outer=contour(r,radius);
+  std::vector<vec2> triangles;
+  if(!lines || t*2>=std::min(r.size.x,r.size.y)) {
+    const auto center=r.pos+r.size*0.5f;
+    for(size_t i=0;i<outer.size();++i) { triangles.push_back(center); triangles.push_back(outer[i]); triangles.push_back(outer[(i+1)%outer.size()]); }
+  } else {
+    const auto inner=contour({r.pos+vec2{t,t},r.size-vec2{2*t,2*t}},std::max(0.0f,radius-t));
+    for(size_t i=0;i<outer.size();++i) {
+      const auto j=(i+1)%outer.size();
+      triangles.insert(triangles.end(),{outer[i],outer[j],inner[j],outer[i],inner[j],inner[i]});
+    }
+  }
+  draw_portable_solid(ctx,triangles,color);
+}
+void portable_circle(const context &ctx,vec2 center,float radius,float thickness,rgba color,bool lines) {
+  if(radius<=0 || (lines && thickness<=0)) return;
+  const float inner=lines ? std::max(0.0f,radius-thickness):0;
+  std::vector<vec2> vertices;
+  for(int i=0;i<36;++i) {
+    const float a=i*6.28318530718f/36,b=(i+1)*6.28318530718f/36;
+    const vec2 u{std::cos(a),std::sin(a)},v{std::cos(b),std::sin(b)};
+    vertices.insert(vertices.end(),{center+u*inner,center+u*radius,center+v*radius});
+    if(inner>0) vertices.insert(vertices.end(),{center+u*inner,center+v*radius,center+v*inner});
+  }
+  draw_portable_solid(ctx,vertices,color);
+}
+}
+
 void draw_rect(const context &ctx, rect r, rgba color) {
+  if(portable_draw(ctx)) {portable_rect(ctx,r,color);portable_text_occlude(ctx,r,color);return;}
   DrawRectangleRec(rect_of(r), color_of(color));
   view_text_occlude(ctx_ref<view_state>(ctx), r, color);
 }
 
-void draw_rect_lines(const context &, rect r, f32 thickness, rgba color) {
+void draw_rect_lines(const context &ctx, rect r, f32 thickness, rgba color) {
+  if(portable_draw(ctx)) { portable_rounded(ctx,r,0,thickness,color,true); return; }
   DrawRectangleLinesEx(rect_of(r), thickness, color_of(color));
 }
 
@@ -122,6 +184,7 @@ f32 roundness_of(rect r, f32 radius) {
 } // namespace
 
 void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color) {
+  if(portable_draw(ctx)) {portable_rounded(ctx,r,radius,0,color,false);portable_text_occlude(ctx,r,color);return;}
   if (!sdf2d_rounded_rect(ctx, r, radius, 0.0f, color)) {
     if (radius <= 0.0f)
       DrawRectangleRec(rect_of(r), color_of(color));
@@ -132,6 +195,7 @@ void draw_rect_rounded(const context &ctx, rect r, f32 radius, rgba color) {
 }
 
 void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickness, rgba color) {
+  if(portable_draw(ctx)) { portable_rounded(ctx,r,radius,thickness,color,true); return; }
   if (sdf2d_rounded_rect(ctx, r, radius, thickness, color))
     return;
   // raylib draws the line outside the rectangle it is given: give it the one
@@ -141,8 +205,15 @@ void draw_rect_rounded_lines(const context &ctx, rect r, f32 radius, f32 thickne
   DrawRectangleRoundedLinesEx(rect_of(in), roundness_of(in, std::max(0.0f, radius - t)), 0, t, color_of(color));
 }
 
-void draw_rect_rotated(const context &, vec2 center, vec2 size, f32 rotation,
+void draw_rect_rotated(const context &ctx, vec2 center, vec2 size, f32 rotation,
                        rgba color) {
+  if(portable_draw(ctx)) {
+    const float a=rotation*3.14159265359f/180,c=std::cos(a),si=std::sin(a);
+    vec2 corners[]{size*-0.5f,{size.x*0.5f,-size.y*0.5f},size*0.5f,{-size.x*0.5f,size.y*0.5f}};
+    for(auto &p:corners) p=center+vec2{p.x*c-p.y*si,p.x*si+p.y*c};
+    const vec2 points[]{corners[0],corners[1],corners[2],corners[0],corners[2],corners[3]};
+    draw_portable_solid(ctx,points,color); return;
+  }
   // DrawRectanglePro places the rectangle's origin point at (x, y) and turns
   // it around that point; an origin of half the size makes (x, y) the centre.
   DrawRectanglePro(Rectangle{center.x, center.y, size.x, size.y},
@@ -151,6 +222,7 @@ void draw_rect_rotated(const context &, vec2 center, vec2 size, f32 rotation,
 }
 
 void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color) {
+  if(portable_draw(ctx)) { portable_circle(ctx,center,radius,0,color,false); return; }
   // As many sides as keep the outline within half a pixel of the true circle,
   // at the size it reaches the screen (camera zoom and supersampling), up to
   // raylib's 36: a circle a few pixels wide takes 6, not 36 (a city of trees
@@ -166,14 +238,22 @@ void draw_circle(const context &ctx, vec2 center, f32 radius, rgba color) {
   DrawCircleSector(vec_of(center), radius, 0.0f, 360.0f, sides, color_of(color));
 }
 
-void draw_circle_lines(const context &, vec2 center, f32 radius,
+void draw_circle_lines(const context &ctx, vec2 center, f32 radius,
                        f32 thickness, rgba color) {
+  if(portable_draw(ctx)) { portable_circle(ctx,center,radius,thickness,color,true); return; }
   const f32 inner = radius - thickness > 0.0f ? radius - thickness : 0.0f;
   // 0 segments lets raylib pick enough for the radius.
   DrawRing(vec_of(center), inner, radius, 0.0f, 360.0f, 0, color_of(color));
 }
 
-void draw_line(const context &, vec2 a, vec2 b, f32 thickness, rgba color) {
+void draw_line(const context &ctx, vec2 a, vec2 b, f32 thickness, rgba color) {
+  if(portable_draw(ctx)) {
+    const auto delta=b-a; const float len=length(delta);
+    if(len<=0 || thickness<=0) return;
+    const vec2 normal{-delta.y/len*thickness*0.5f,delta.x/len*thickness*0.5f};
+    const vec2 points[]{a+normal,b+normal,b-normal,a+normal,b-normal,a-normal};
+    draw_portable_solid(ctx,points,color); return;
+  }
   DrawLineEx(vec_of(a), vec_of(b), thickness, color_of(color));
 }
 
@@ -181,12 +261,22 @@ namespace {
 std::vector<f32> alpha_layers; // draw_alpha_push(): each layer's alpha
 } // namespace
 
-void draw_alpha_push(const context &, f32 alpha) {
+void draw_alpha_push(const context &ctx, f32 alpha) {
+  if(portable_draw(ctx)) {
+    auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+    if(!std::isfinite(alpha)) throw std::invalid_argument("njin: non-finite draw alpha");
+    state.alphas.push_back(std::clamp(alpha,0.0f,1.0f)); state.alpha*=state.alphas.back(); return;
+  }
   alpha_layers.push_back(std::clamp(alpha, 0.0f, 1.0f));
   draw_alpha_now *= alpha_layers.back();
 }
 
-void draw_alpha_pop(const context &) {
+void draw_alpha_pop(const context &ctx) {
+  if(portable_draw(ctx)) {
+    auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+    if(state.alphas.empty()) { NJIN_WARN("draw_alpha_pop without draw_alpha_push"); return; }
+    state.alphas.pop_back(); state.alpha=1; for(float a:state.alphas) state.alpha*=a; return;
+  }
   if (alpha_layers.empty()) {
     NJIN_WARN("draw_alpha_pop without draw_alpha_push");
     return;
@@ -197,15 +287,30 @@ void draw_alpha_pop(const context &) {
     draw_alpha_now *= a;
 }
 
-void draw_offset_push(const context &, vec2 offset, f32 scale) {
+void draw_offset_push(const context &ctx, vec2 offset, f32 scale) {
+  if(portable_draw(ctx)) {
+    if(!std::isfinite(offset.x) || !std::isfinite(offset.y) || !std::isfinite(scale))
+      throw std::invalid_argument("njin: non-finite draw offset/scale");
+    auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+    state.offsets.push_back({state.offset,state.scale});
+    state.offset+=offset*state.scale; state.scale*=scale; return;
+  }
   rlPushMatrix();
   rlTranslatef(offset.x, offset.y, 0.0f);
   rlScalef(scale, scale, 1.0f);
 }
 
-void draw_offset_pop(const context &) { rlPopMatrix(); }
+void draw_offset_pop(const context &ctx) {
+  if(portable_draw(ctx)) {
+    auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+    if(state.offsets.empty()) { NJIN_WARN("draw_offset_pop without draw_offset_push"); return; }
+    state.offset=state.offsets.back().first; state.scale=state.offsets.back().second;
+    state.offsets.pop_back(); return;
+  }
+  rlPopMatrix(); }
 
-void draw_triangle(const context &, vec2 a, vec2 b, vec2 c, rgba color) {
+void draw_triangle(const context &ctx, vec2 a, vec2 b, vec2 c, rgba color) {
+  if(portable_draw(ctx)) { const vec2 points[]{a,b,c}; draw_portable_solid(ctx,points,color); return; }
   // raylib culls triangles whose vertices are not counter-clockwise on screen
   // (y down), which is cross < 0 there. Swap two vertices for the other order
   // so callers never have to think about winding.
@@ -241,6 +346,14 @@ void textured_triangle(u32 id, vec2 a, vec2 b, vec2 c, vec2 uv_a, vec2 uv_b, vec
 void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, vec2 b, vec2 c, vec2 uv_a,
                             vec2 uv_b, vec2 uv_c, rgba tint) {
   const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), texture);
+  if(slot&&slot->portable) {
+    const auto area=texture_area(*slot);const float w=float(slot->texture.width),h=float(slot->texture.height);
+    const auto map=[&](vec2 uv){return vec2{(area.x+uv.x*area.width)/w,(area.y+uv.y*area.height)/h};};
+    uv_a=map(uv_a);uv_b=map(uv_b);uv_c=map(uv_c);
+    const RenderVertex vertices[]{{a.x,a.y,0,uv_a.x,uv_a.y},{b.x,b.y,0,uv_b.x,uv_b.y},{c.x,c.y,0,uv_c.x,uv_c.y}};
+    draw_portable_vertices(ctx,slot->portable,vertices,tint,slot->filter!=filter_nearest,ctx_ref<view_state>(ctx)->world_depth>0);return;
+  }
+  require_legacy_draw(ctx,"draw_triangle_textured");
   if (slot == nullptr || slot->texture.width <= 0 || slot->texture.height <= 0)
     return;
   // The image's own 0..1 into the texture's (a packed image is a part of its page).
@@ -253,6 +366,13 @@ void draw_triangle_textured(const context &ctx, texture_handle texture, vec2 a, 
 
 void draw_triangle_textured(const context &ctx, render_texture_handle texture, vec2 a, vec2 b, vec2 c,
                             vec2 uv_a, vec2 uv_b, vec2 uv_c, rgba tint) {
+  const auto *portable_slot=render_texture_slot_of(ctx_ref<render_texture_store>(ctx),texture);
+  if(portable_slot&&portable_slot->portable) {
+    const RenderVertex vertices[]{{a.x,a.y,0,uv_a.x,uv_a.y},{b.x,b.y,0,uv_b.x,uv_b.y},{c.x,c.y,0,uv_c.x,uv_c.y}};
+    draw_portable_vertices(ctx,renderer_target_texture(const_cast<context&>(ctx),portable_slot->portable),vertices,tint,
+      portable_slot->filter!=filter_nearest,ctx_ref<view_state>(ctx)->world_depth>0);return;
+  }
+  require_legacy_draw(ctx,"draw_triangle_textured");
   const render_texture_slot *slot = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), texture);
   if (slot == nullptr)
     return;
@@ -264,15 +384,15 @@ void draw_triangle_textured(const context &ctx, render_texture_handle texture, v
 // Text
 
 font_handle font_load(context &ctx, const char *path, i32 size, font_style style) {
-  return font_store_load(ctx_mut<font_store>(ctx), path, size, style == font_pixel);
+  return font_store_load(ctx_mut<font_store>(ctx), path, size, style == font_pixel,portable_draw(ctx) ? &ctx:nullptr);
 }
 
 void font_set_style(context &ctx, font_handle font, font_style style) {
-  font_store_set_pixel(ctx_mut<font_store>(ctx), font, style == font_pixel);
+  font_store_set_pixel(ctx_mut<font_store>(ctx), font, style == font_pixel,portable_draw(ctx) ? &ctx:nullptr);
 }
 
 void font_unload(context &ctx, font_handle font) {
-  font_store_unload(ctx_mut<font_store>(ctx), font);
+  font_store_unload(ctx_mut<font_store>(ctx), font,portable_draw(ctx) ? &ctx:nullptr);
 }
 
 void font_set_default(context &ctx, font_handle font) {
@@ -280,7 +400,7 @@ void font_set_default(context &ctx, font_handle font) {
 }
 
 void font_add_chars(context &ctx, font_handle font, const char *text) {
-  font_store_add_chars(ctx_mut<font_store>(ctx), font, text);
+  font_store_add_chars(ctx_mut<font_store>(ctx), font, text,portable_draw(ctx) ? &ctx:nullptr);
 }
 
 namespace {
@@ -294,6 +414,7 @@ namespace {
 // the UI canvas's), baked at its size on the window and drawn without it.
 void draw_text_window(const context &ctx, const char *text, vec2 pos, f32 size, rgba color,
                       font_handle font, vec2 offset, f32 scale) {
+  require_legacy_draw(ctx,"draw_text_window");
   const Font *atlas = font_store_atlas(ctx_mut<font_store>(ctx), font, font_px(size * scale));
   const Font *layout = font_store_atlas(ctx_mut<font_store>(ctx), font, font_px(size));
   if (atlas == nullptr || layout == nullptr)
@@ -321,6 +442,41 @@ void draw_text_window(const context &ctx, const char *text, vec2 pos, f32 size, 
 
 void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
                rgba color, font_handle font) {
+  if(portable_draw(ctx)) {
+    if(!text || !*text || size<1) return;
+    if(!std::isfinite(size)) throw std::invalid_argument("njin font: non-finite size");
+    const auto &view=ctx_ref<view_state>(ctx);const auto &resources=ctx_ref<window_guard>(ctx).renderer_resources;
+    const auto &state=resources.draw_2d;const bool pixel=font_store_is_pixel(ctx_mut<font_store>(ctx),font);
+    if(view_text_deferred(view)&&!pixel&&!ctx_ref<shader_store>(ctx)->active.id&&state.blend==RenderBlend::Alpha&&
+       !state.sprite_effects.dissolving&&state.sprite_effects.flash[3]<=0&&state.scale>0) {
+      const auto m=text_measure(ctx,text,size,font)*state.scale;const float margin=size*state.scale*.3f;
+      const auto at=state.offset+pos*state.scale;color.a*=state.alpha;
+      const auto &fonts=ctx_mut<font_store>(ctx);
+      const auto valid=[&](font_handle h){return h.id&&h.id<=fonts->slots.size()&&fonts->slots[h.id-1].alive;};
+      const auto resolved=valid(font)?font:valid(fonts->chosen)?fonts->chosen:font_handle{};
+      view->text_layer.push_back({text,at,size*state.scale,color,resolved,{at-vec2{margin,margin},m+vec2{2*margin,2*margin}},view->clip,view->occluders.size(),!resolved.id});return;
+    }
+    const float density=!pixel&&view->ui_window&&!resources.active_target&&state.scale!=0?view->scale*std::abs(state.scale):1.f;
+    const auto *atlas=font_store_portable_atlas(const_cast<context&>(ctx),ctx_mut<font_store>(ctx),font,font_px(size*density));
+    if(!atlas) throw std::runtime_error("njin font: CPU atlas generation failed");
+    const auto &metrics=atlas->metrics;
+    std::vector<texture_draw_desc> glyphs;
+    float x=std::round(pos.x),y=std::round(pos.y);
+    for(const char *p=text;*p;) {
+      int bytes=0; const int cp=GetCodepointNext(p,&bytes); p+=std::max(bytes,1);
+      if(cp=='\n') { x=std::round(pos.x); y+=(metrics.baseSize+2)/density; continue; }
+      const int index=GetGlyphIndex(metrics,cp);
+      const auto &glyph=metrics.glyphs[index]; const auto &rec=metrics.recs[index];
+      const float padding=(float)metrics.glyphPadding;
+      if(cp!=' ' && cp!='\t') glyphs.push_back({
+        .pos={x+(glyph.offsetX-padding)/density,y+(glyph.offsetY-padding)/density},
+        .source={{rec.x-padding,rec.y-padding},{rec.width+2*padding,rec.height+2*padding}},.scale={1/density,1/density},.tint=color});
+      x+=(glyph.advanceX>0 ? glyph.advanceX : rec.width+glyph.offsetX)/density;
+    }
+    draw_portable_textures(ctx,atlas->texture,{(float)metrics.texture.width,(float)metrics.texture.height},glyphs,
+      !font_store_is_pixel(ctx_mut<font_store>(ctx),font),ctx_ref<view_state>(ctx)->world_depth>0);
+    return;
+  }
   if (text == nullptr || text[0] == '\0' || size < 1.0f)
     return;
   // The pixel style is meant to be scaled with the rest of the pixels, by the
@@ -354,6 +510,13 @@ void draw_text(const context &ctx, const char *text, vec2 pos, f32 size,
 
 vec2 text_measure(const context &ctx, const char *text, f32 size,
                   font_handle font) {
+  if(portable_draw(ctx)) {
+    if(!text || !*text) return {};
+    if(!std::isfinite(size)) throw std::invalid_argument("njin font: non-finite size");
+    const auto *atlas=font_store_portable_atlas(const_cast<context&>(ctx),ctx_mut<font_store>(ctx),font,font_px(size));
+    if(!atlas) throw std::runtime_error("njin font: CPU atlas generation failed");
+    return font_measure_portable(atlas->metrics,text);
+  }
   if (text == nullptr)
     return vec2{0.0f, 0.0f};
   // Through the atlas draw_text will use, or a centred line would be centred
@@ -374,6 +537,40 @@ void text_layer_flush(context &ctx) {
   if (queue.empty() || !view_active(view)) {
     view.occluders.clear();
     return;
+  }
+  if(portable_draw(ctx)) {
+    const auto screen=window_size(ctx);
+    for(const auto &q:queue) {
+      const auto *atlas=font_store_portable_atlas(ctx,ctx_mut<font_store>(ctx),q.font,font_px(q.size*view.scale),q.portable_fallback);
+      if(!atlas) throw std::runtime_error("njin font: deferred atlas generation failed");
+      const auto &metrics=atlas->metrics;
+      float spacing=0;const int count=q.text.find('\n')==std::string::npos?GetCodepointCount(q.text.c_str()):0;
+      if(count>1) spacing=((q.bounds.size.x-2*q.size*.3f)*view.scale-font_measure_portable(metrics,q.text.c_str()).x)/float(count-1);
+      const vec2 origin{std::round(view.offset.x+q.pos.x*view.scale),std::round(view.offset.y+q.pos.y*view.scale)};
+      vec2 cursor=origin;std::vector<RenderVertex> vertices;vertices.reserve(q.text.size()*6);
+      for(const char *p=q.text.c_str();*p;) {
+        int bytes=0;const int cp=GetCodepointNext(p,&bytes);p+=std::max(bytes,1);
+        if(cp=='\n') {cursor.x=origin.x;cursor.y+=metrics.baseSize+2;continue;}
+        const auto &glyph=metrics.glyphs[GetGlyphIndex(metrics,cp)];const auto &r=metrics.recs[GetGlyphIndex(metrics,cp)];const float pad=float(metrics.glyphPadding);
+        if(cp!=' '&&cp!='\t') {
+          const float x=cursor.x+glyph.offsetX-pad,y=cursor.y+glyph.offsetY-pad,w=r.width+2*pad,h=r.height+2*pad;
+          const float u=(r.x-pad)/metrics.texture.width,v=(r.y-pad)/metrics.texture.height,du=w/metrics.texture.width,dv=h/metrics.texture.height;
+          vertices.insert(vertices.end(),{{x,y,0,u,v},{x+w,y,0,u+du,v},{x+w,y+h,0,u+du,v+dv},{x,y,0,u,v},{x+w,y+h,0,u+du,v+dv},{x,y+h,0,u,v+dv}});
+        }
+        cursor.x+=(glyph.advanceX>0?glyph.advanceX:r.width+glyph.offsetX)+spacing;
+      }
+      if(vertices.empty()) continue;
+      for(const auto &piece:visible_pieces(view,q)) {
+        const auto a=view.offset+piece.area.pos*view.scale,b=a+piece.area.size*view.scale;
+        MeshDraw draw;draw.vertices=vertices;draw.texture=atlas->texture;draw.depth_test=false;draw.linear_sampling=true;
+        draw.tint={piece.color.r,piece.color.g,piece.color.b,piece.color.a};draw.scissor_enabled=true;
+        const int x=int(std::floor(a.x)),y=int(std::floor(a.y));
+        draw.scissor={x,y,unsigned(std::max(0,int(std::ceil(b.x))-x)),unsigned(std::max(0,int(std::ceil(b.y))-y))};
+        draw.transform={2/screen.x,0,0,0,0,-2/screen.y,0,0,0,0,1,0,-1,1,0,1};
+        renderer_draw_mesh(ctx,draw);
+      }
+    }
+    view.occluders.clear();return;
   }
   for (const queued_text &q : queue) {
     const Font *atlas = font_store_atlas(ctx_mut<font_store>(ctx), q.font, font_px(q.size * view.scale));
@@ -484,6 +681,7 @@ std::vector<std::string> text_wrap(const context &ctx, const char *text, f32 siz
 
 vec2 draw_text_wrapped(const context &ctx, const char *text, vec2 pos, f32 size,
                        f32 max_width, rgba color, font_handle font, f32 line_spacing) {
+
   vec2 extent{};
   f32 y = pos.y;
   const std::vector<std::string> lines = text_wrap(ctx, text, size, max_width, font);
@@ -507,6 +705,11 @@ void texture_set_filter(context &ctx, texture_handle handle,
 void texture_draw_ex(const context &ctx, texture_handle handle,
                      const texture_draw_desc &desc) {
   const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), handle);
+  if(slot && slot->portable) {
+    portable_shader_scope scope(ctx,slot->shader);
+    draw_portable_slot_texture(ctx,*slot,desc,ctx_ref<view_state>(ctx)->world_depth>0);
+    return;
+  }
   // A material shader (texture_set_shader) auto-binds only when nothing else
   // is already bound: an explicit shader_begin() (the game's own choice) wins.
   const bool material = slot != nullptr && slot->shader.id != 0 && ctx_ref<shader_store>(ctx)->active.id == 0;
@@ -519,7 +722,11 @@ void texture_draw_ex(const context &ctx, texture_handle handle,
 
 // Blend and clip
 
-void blend_begin(const context &, blend_mode mode) {
+void blend_begin(const context &ctx, blend_mode mode) {
+  if(portable_draw(ctx)) {
+    ctx_ref<window_guard>(ctx).renderer_resources.draw_2d.blend=mode==blend_additive ? RenderBlend::Additive:
+      mode==blend_multiply ? RenderBlend::Multiply:RenderBlend::Alpha; return;
+  }
   switch (mode) {
   case blend_additive:
     BeginBlendMode(BLEND_ADDITIVE);
@@ -534,10 +741,39 @@ void blend_begin(const context &, blend_mode mode) {
   }
 }
 
-void blend_end(const context &) { EndBlendMode(); }
+void blend_end(const context &ctx) {
+  if(portable_draw(ctx)) { ctx_ref<window_guard>(ctx).renderer_resources.draw_2d.blend=RenderBlend::Alpha; return; }
+  EndBlendMode(); }
 
 void clip_begin(const context &ctx, rect area) {
+  if(portable_draw(ctx)) {
+    const auto &view=ctx_ref<view_state>(ctx);
+    if(view->canvas_on && (!ctx_ref<window_guard>(ctx).renderer_resources.active_target||ctx_ref<window_guard>(ctx).renderer_resources.active_target.id==view->portable_target.id)) {
+      area.pos=area.pos*view->canvas_scale; area.size=area.size*view->canvas_scale;
+    }
+    const auto logical_area=area;
+    const auto target=ctx_ref<window_guard>(ctx).renderer_resources.active_target;
+    if(view->drawing&&target.id==view->portable_target.id) {
+      area.pos=area.pos*float(view->render_scale);area.size=area.size*float(view->render_scale);
+    } else if(view->ui_window&&!target) {
+      const auto logical=view_logical_size(view);area=intersect(area,rect{{},logical});
+      area.pos=view->offset+area.pos*view->scale;area.size=area.size*view->scale;
+    }
+    if(!std::isfinite(area.pos.x) || !std::isfinite(area.pos.y) || !std::isfinite(area.size.x) || !std::isfinite(area.size.y) ||
+       std::abs(area.pos.x)>65535 || std::abs(area.pos.y)>65535 || area.size.x>65535 || area.size.y>65535)
+      throw std::invalid_argument("njin: invalid clip rectangle");
+    auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+    state.clipped=true;
+    state.clip={(int)std::floor(area.pos.x),(int)std::floor(area.pos.y),
+      (unsigned)std::ceil(std::max(0.0f,area.size.x)),(unsigned)std::ceil(std::max(0.0f,area.size.y))};
+    ctx_ref<view_state>(ctx)->clip=logical_area; return;
+  }
   ctx_ref<view_state>(ctx)->clip = area;
+  const auto &resources=ctx_ref<window_guard>(ctx).renderer_resources;
+  if(resources.active_target) {
+    const auto h=resources.targets.at(resources.active_target.id).height;
+    BeginScissorMode((int)area.pos.x,(int)(h-area.pos.y-area.size.y),(int)area.size.x,(int)area.size.y); return;
+  }
   if (ctx_ref<view_state>(ctx)->canvas_on) {
     // Scissor works in window pixels: the canvas's area times its scale.
     const f32 k = ctx_ref<view_state>(ctx)->canvas_scale;
@@ -560,6 +796,7 @@ void clip_begin(const context &ctx, rect area) {
 }
 
 void clip_end(const context &ctx) {
+  if(portable_draw(ctx)) { ctx_ref<window_guard>(ctx).renderer_resources.draw_2d.clipped=false; ctx_ref<view_state>(ctx)->clip={}; return; }
   ctx_ref<view_state>(ctx)->clip = {};
   EndScissorMode();
   // The UI pass stays inside the image.

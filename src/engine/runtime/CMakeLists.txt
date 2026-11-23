@@ -12,16 +12,32 @@ set(NJIN_FEATURE_3D_SOURCES
     njin_audio3d.cpp
     njin_instance.cpp
     njin_model.cpp
+    njin_model_portable.cpp njin_model_obj.cpp njin_raytrace_portable.cpp njin_particles3d_portable.cpp
+    njin_shadow_portable.cpp
+    njin_lightmap.cpp
+    njin_lightmap_uv.cpp
+    njin_lightmap_model.cpp
+    njin_occlusion_portable.cpp
+    njin_light_clusters.cpp
+    njin_environment_portable.cpp
+    njin_atmosphere_portable.cpp
+    njin_atmosphere_cpu.cpp
+    njin_post_portable.cpp njin_temporal_portable.cpp
+    njin_animation_portable.cpp
     njin_model_lod.cpp
+    njin_model_lod_portable.cpp
+    njin_model_combine.cpp
     njin_orbit3d.cpp
     njin_ray3d.cpp
-    njin_world3d.cpp
+    njin_world3d.cpp njin_world3d_portable.cpp
+    njin_world3d_imprint.cpp
     modules/particles3d.cpp
     modules/particles3d_looks.cpp
     modules/post3d.cpp
     modules/render3d.cpp
     modules/render3d_cull.cpp
     modules/render3d_env.cpp
+    modules/render3d_gpu_timer.cpp
     modules/render3d_hdr.cpp
     modules/render3d_lights.cpp
     modules/render3d_probe.cpp
@@ -52,7 +68,7 @@ if(NJIN_RAYTRACING)
 endif()
 
 file(GLOB_RECURSE NJIN_CORE_SOURCES CONFIGURE_DEPENDS RELATIVE "${_njin_rt_dir}" "${_njin_rt_dir}/*.cpp")
-list(REMOVE_ITEM NJIN_CORE_SOURCES ${_njin_rt_vk_source})
+list(REMOVE_ITEM NJIN_CORE_SOURCES ${_njin_rt_vk_source} njin_sdl_gpu.cpp)
 foreach(feature IN LISTS NJIN_FEATURES_ORDER)
   string(TOUPPER "${feature}" upper)
   if(NOT NJIN_FEATURE_${upper}_SOURCES)
@@ -119,8 +135,35 @@ endfunction()
 
 add_library(njin_core STATIC ${NJIN_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/font_default_data.cpp")
 add_library(njin::core ALIAS njin_core)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bgfx/njin_surface.sh")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bgfx/njin_surface.sh" NJIN_SURFACE_GLSL)
+# The raylib adapter uses the shared core surface functions; portable-only
+# post/volume stages are compiled by shaderc, not a GLSL runtime include loader.
+foreach(_njin_portable_header njin_legacy_post.sh njin_light2d.sh njin_volume.sh)
+  string(REPLACE "#include \"${_njin_portable_header}\"" "" NJIN_SURFACE_GLSL "${NJIN_SURFACE_GLSL}")
+endforeach()
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/njin_surface_generated.h"
+  CONTENT "#pragma once\ninline constexpr const char njin_surface_glsl[] = R\"NJIN(${NJIN_SURFACE_GLSL})NJIN\";\n" @ONLY)
+target_include_directories(njin_core PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 _njin_runtime_library(njin_core)
 target_link_libraries(njin_core PUBLIC njin::api)
+target_compile_definitions(njin_core PRIVATE NJIN_BGFX=$<BOOL:${NJIN_BGFX}>)
+if(NJIN_BGFX)
+  if(MINGW)
+    # raylib exports CloseWindow/ShowCursor, also present in Win32 import
+    # archives. Its definitions must precede SDL3's static user32 dependency.
+    # Express that ordering in the target graph for every feature combination;
+    # LINK_ONLY keeps SDL/bgfx headers out of raylib's public interface.
+    target_link_libraries(raylib INTERFACE "$<BUILD_INTERFACE:$<LINK_ONLY:SDL3::SDL3>>" "$<BUILD_INTERFACE:$<LINK_ONLY:bgfx>>")
+  endif()
+  # bimg/bx: CPU decoding of block-compressed images (njin_image_decode.h).
+  target_link_libraries(njin_core PRIVATE SDL3::SDL3 bgfx bimg bx)
+  include("${PROJECT_SOURCE_DIR}/cmake/njin_bgfx_shaders.cmake")
+  # Vulkan ray queries: bgfx's own Vulkan headers, seen by this file only.
+  get_property(_njin_bgfx_src GLOBAL PROPERTY NJIN_SHADER_BGFX_SOURCE_DIR)
+  set_source_files_properties(njin_raytrace_vk.cpp PROPERTIES
+    INCLUDE_DIRECTORIES "${_njin_bgfx_src}/3rdparty/khronos" SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
+endif()
 
 # njin_pace.cpp: timeBeginPeriod/timeEndPeriod (config::low_power).
 if(WIN32)
@@ -161,7 +204,18 @@ function(_njin_feature name)
   target_compile_definitions(njin_${name} INTERFACE NJIN_FEATURE_${upper})
 endfunction()
 
-_njin_feature(3d LIBS meshoptimizer njin_smaa)
+_njin_feature(3d LIBS meshoptimizer njin_smaa njin_xatlas)
+# OBJ/MTL on the bgfx path: fast_obj ships with the pinned meshoptimizer
+# checkout. Only this file sees that folder (it also holds a second cgltf.h),
+# and it compiles fast_obj's implementation, so it stays out of unity builds.
+# tinybvh for the bgfx compute ray tracing: only this file sees it (and compiles it).
+set_source_files_properties(njin_raytrace_portable.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${tinybvh_SOURCE_DIR}" SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
+set_source_files_properties(njin_lightmap.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${tinybvh_SOURCE_DIR}" SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
+set_source_files_properties(njin_model_obj.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${meshoptimizer_SOURCE_DIR}/extern" SKIP_UNITY_BUILD_INCLUSION ON
+  SKIP_PRECOMPILE_HEADERS ON)
 if(NJIN_RAYTRACING)
   target_link_libraries(njin_3d PRIVATE njin_nvrhi)
   target_compile_definitions(njin_3d PRIVATE NJIN_RAYTRACING=1)

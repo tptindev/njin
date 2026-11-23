@@ -34,6 +34,8 @@ compile_commands.json
 !/examples/sokoban/
 !/examples/platformer3d/
 !/examples/skylight/
+!/examples/rhi_slice/
+!/examples/android_renderer/
 **/build/
 **/build-*/
 

@@ -79,7 +79,12 @@ njin::material3d và njin::fx3d như hình khác.
 
 ## Model và vật liệu
 
-model_load() nạp `.glb`, `.gltf` hoặc `.obj`, giữ màu và texture của từng vật liệu trong file.
+model_load() nạp `.glb`, `.gltf` hoặc `.obj`, giữ màu và texture của từng vật liệu trong file. Với `.obj`,
+vật liệu là các vật liệu trong file `.mtl` theo thứ tự, bắt đầu từ chỉ số 0: màu `Kd` (trắng khi có ảnh
+`map_Kd`), ảnh `map_Kd` và normal map `map_bump`; `Ke` được giữ trong `emission_color` và chỉ nhuộm ảnh
+phát sáng. Bộ lọc node và `merge` không áp cho `.obj`. Với renderer bgfx, file glTF nén bằng
+`EXT_meshopt_compression` (như `gltfpack -c` xuất ra) cũng nạp được. Ảnh nén DDS, KTX, PVR, ASTC (trong model hay qua
+texture_load()) được giải nén ra RGBA8 khi nạp, nên tốn bộ nhớ như ảnh thường.
 model_material_get() và model_material_set() đọc và đổi vật liệu của từng phần:
 
 @code
@@ -96,6 +101,30 @@ Normal map không cần tangent trong file: shader tự dựng hệ trục từ 
 
 Vật liệu đánh dấu `doubleSided` trong glTF (lá cây, giấy, vải một lớp) được vẽ cả hai mặt:
 `model_material::double_sided`, đổi được bằng model_material_set().
+
+Hoa, bụi cỏ, cây non thân mềm vẽ bằng draw_instanced3d() (hay rải bằng scatter3d) đung đưa
+theo gió cùng thảm cỏ khi đặt `model_material::sway`: ngọn ngả theo chiều gió (wind3d_set())
+theo bình phương độ cao trong model, gốc đứng yên, trong cùng những cơn gió lướt qua grass3d.
+
+@code
+njin::model_material m = njin::model_material_get(ctx, flower, 0);
+m.sway = 0.8f; // như grass3d_desc::sway của thảm cỏ quanh nó
+njin::model_material_set(ctx, flower, 0, m);
+@endcode
+
+Tán lá dựng lúc chạy còn rung được từng chiếc lá quanh cuống của nó với
+`model_material::flutter`: mỗi đỉnh ghi khoảng cách tới cuống lá và nhịp của lá vào
+mesh3d_data::texcoords2 (`x` mét, 0 ở cuống; `y` 0..1, mỗi lá một số).
+
+@code
+// Hai đỉnh ở cuống đứng yên, hai đỉnh ở ngọn lá dài 0.2 m rung theo nhịp 0.37.
+const njin::vec2 stalk[] = {{0.0f, 0.37f}, {0.0f, 0.37f}, {0.2f, 0.37f}, {0.2f, 0.37f}};
+njin::model_handle leaves = njin::model_create(ctx, {.positions = p, .texcoords = uv, .texcoords2 = stalk,
+                                                     .vertex_count = 4, .indices = ix, .index_count = 6});
+njin::model_material m = njin::model_material_get(ctx, leaves, 0);
+m.flutter = 0.3f; // lá lệch khoảng 0.3 radian khi gió 8 m/s
+njin::model_material_set(ctx, leaves, 0, m);
+@endcode
 
 ### Cắt bỏ ngoài tầm nhìn và mức chi tiết {#model_lod}
 
@@ -398,6 +427,12 @@ Cần ba thứ:
   OpenGL chạy trên GPU tích hợp và log ghi rõ lý do ray tracing tắt.
 
 raytracing_available() cho biết các điều kiện trên có đủ không, chẳng hạn để hiện tuỳ chọn trong menu đồ hoạ.
+
+Renderer bgfx (mặc định) không cần build riêng: tia chạy trong compute shader trên mọi backend có compute
+(Vulkan, Direct3D 12, OpenGL; không có trên GLES 3.0 của Android). Trên Vulkan, nếu GPU có ray query
+(`VK_KHR_ray_query`: NVIDIA RTX, AMD RX 6000 trở lên, Intel Arc) và máy build có `glslc` của Vulkan SDK, tia đi
+qua phần cứng ray tracing của GPU, kết quả như bản compute. raytracing_hardware() cho biết điều đó;
+`config::graphics_ray_query = false` buộc dùng compute.
 Khi thiếu, njin dùng ảnh bóng như cũ (`shadows`, `source_shadows`), và `graphics_quality` tắt bóng thì bóng
 bằng tia cũng tắt.
 
@@ -522,6 +557,27 @@ Sương khối chỉ áp cho lần vẽ vào thế giới và đẹp nhất vớ
 ảnh. Nó khác `fog_density` (sương phẳng theo khoảng cách, vẫn dùng được cùng lúc). Mỗi bước dò tốn như một lần
 tính ánh sáng: 32 bước ở nửa độ phân giải là một hiệu ứng nặng vừa, nên giảm `volume_steps` trên máy yếu.
 
+### Tô kiểu hoạt hình (toon shading) {#toon3d}
+
+`toon_bands` của njin::light3d bỏ phần chuyển mượt của ánh sáng: phần nắng (và ánh đèn) mà mỗi mặt nhận, đã nhân bóng
+đổ, nhảy thành vài nấc phẳng, và điểm sáng bóng thành một đốm sắc mép. Ánh sáng nền giữ nguyên, nên nấc tối là màu
+vật dưới `ambient`. Đi cùng viền của njin::post3d::outline (@ref post3d_outline) là kiểu phim hoạt hình.
+
+```cpp
+njin::light3d light = njin::light3d_get(ctx);
+light.toon_bands = 2;         // sáng và tối; 3 thêm một nấc nửa sáng
+light.toon_threshold = 0.05f; // dưới phần nắng này là nấc tối
+light.toon_softness = 0.08f;  // mép giữa hai nấc mềm một chút, không răng cưa
+njin::light3d_set(ctx, light);
+njin::post3d_set(ctx, {.outline = 0.85f, .outline_fade = 150.0f});
+```
+
+Các nấc sáng chia đều từ `toon_threshold` tới 1. Mặt trời thấp chỉ cho mặt đất phẳng khoảng 0.2 phần nắng: với
+ba nấc, mép giữa hai nấc sáng rơi đúng vào các chỗ đất hơi dốc và thành từng mảng loang, nên cảnh ngoài trời nắng thấp
+thường hợp với hai nấc. Áp cho mọi hình vẽ bằng shader có sẵn (hình khối, model, hình SDF, instanced, địa hình, cỏ);
+vật liệu `pbr` cũng theo nấc, cả phần bóng. Nước, hạt 3D và shader của game không đổi. `toon_bands = 0` (mặc định)
+là ánh sáng mượt như trước.
+
 ## Tone mapping và vật liệu PBR {#pbr3d}
 
 Mặc định njin tô theo Blinn-Phong và ghi thẳng màu tính ra: chỗ sáng quá 1 thì cháy trắng. Ba phần
@@ -604,7 +660,13 @@ thực, nên tốn thêm bộ nhớ cỡ hai ảnh màn hình 8 bit.
 
 Các trường sau chỉ có tác dụng khi `material3d::pbr`, như các phần mở rộng vật liệu của glTF và
 StandardMaterial của Bevy. Model nạp bằng `model_load_desc::pbr` lấy chúng từ file
-(`KHR_materials_clearcoat`, `_anisotropy`, `_ior`, `_transmission`, `_volume`; chỉ các hệ số, không đọc ảnh).
+(`KHR_materials_clearcoat`, `_anisotropy`, `_ior`, `_transmission`, `_volume`). Với renderer bgfx (mặc
+định), model còn đọc ảnh của transmission, thickness và clearcoat: kênh R của ảnh clearcoat nhân với
+`clearcoat`, kênh G của ảnh độ nhám nhân với `clearcoat_roughness`, và ảnh pháp tuyến riêng của lớp sơn
+nghiêng lớp sơn mà không đổi lớp dưới. Mỗi ảnh giữ UV, `KHR_texture_transform` và sampler của nó. Ảnh
+clearcoat dùng chung chỗ với transmission, nên một vật liệu có ảnh clearcoat không được có `transmission`
+(model_load() từ chối file bắt buộc phần mở rộng này, còn model_material_set() báo lỗi), và ba ảnh đó chỉ
+được là tối đa hai ảnh khác nhau. Đường OpenGL cũ chỉ đọc các hệ số.
 
 | Trường | Cho |
 |---|---|
@@ -711,6 +773,13 @@ const float t = age / 0.4f;
 njin::fx3d_set(ctx, {.flash = {1, 1, 1, 1 - t * 3}, .dissolve = t});
 njin::draw_sphere3d(ctx, pos, 0.6f, njin::colors::red);
 njin::fx3d_set(ctx, {});
+@endcode
+
+Muốn vết tan quét theo một hướng (từ đầu xuống chân) thì đặt `dissolve_from`, `dissolve_to` và
+`dissolve_sweep` (0 là mảng ngẫu nhiên như trên, 1 là vết cắt thẳng):
+
+@code
+njin::fx3d_set(ctx, {.dissolve = t, .dissolve_from = head, .dissolve_to = feet, .dissolve_sweep = 0.7f});
 @endcode
 
 Hạt 3D quay mặt về camera, dừng trong hitstop, và `particles3d_desc::scale` đổi đơn vị pixel của các

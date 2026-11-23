@@ -9,6 +9,7 @@
 #include "njin_frame_impl.h"
 
 namespace njin {
+struct StreamStore;
 // The core's stores, each held in a store_ref: a source sees complete only
 // the ones it includes the header of, so editing one module's header
 // rebuilds the sources that use it instead of the whole runtime.
@@ -71,6 +72,7 @@ struct context {
   // Makes every store, in the order they are declared (njin_ctx.cpp).
   explicit context(const config &config);
   ~context();
+  std::shared_ptr<StreamStore> streaming;
 
   // The features' hooks and modules (njin_features.h).
   feature_hooks hooks;

@@ -2,10 +2,14 @@
 #include "njin2rl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
+#include "njin_render_capabilities.h"
 #include "njin_view.h"
 #include "njin_draw_shapes.h"
 #include "njin_gpu_caps.h"
 #include "njin_log.h"
+#include "njin_cfg.h"
+#include "njin_frame_impl.h"
+#include <stdexcept>
 #include <algorithm>
 #include <cmath>
 #include <raymath.h>
@@ -13,6 +17,64 @@
 
 namespace njin {
 namespace {
+#if NJIN_BGFX
+void portable_backdrop(const context &ctx,rect r,float blur,float radius,rgba tint) {
+  for(float f:{r.pos.x,r.pos.y,r.size.x,r.size.y,blur,radius,tint.r,tint.g,tint.b,tint.a})
+    if(!std::isfinite(f)) throw std::invalid_argument("njin backdrop: non-finite parameter");
+  if(blur<=0||r.size.x<=0||r.size.y<=0||tint.a<=0) return;
+  if(radius<0||tint.a>1||tint.r<0||tint.g<0||tint.b<0) throw std::invalid_argument("njin backdrop: invalid radius/tint");
+  auto &mutable_ctx=const_cast<context&>(ctx);auto &window=ctx_ref<window_guard>(mutable_ctx);
+  auto &resources=window.renderer_resources;const auto &view=ctx_ref<view_state>(ctx);
+  if(resources.world3d_open||view->world_depth) throw std::logic_error("njin backdrop: draw in the screen/UI pass after end_3d");
+  const auto previous=resources.active_target;
+  const bool virtual_target=view->drawing&&previous.id==view->portable_target.id;
+  vec2 logical=virtual_target?view_logical_size(view):window_size(ctx);unsigned w=0,h=0;
+  if(previous) {const auto &t=resources.targets.at(previous.id);w=t.width;h=t.height;if(!virtual_target) logical={float(w),float(h)};}
+  else window.platform->drawable_size(w,h);
+  if(!w||!h||logical.x<=0||logical.y<=0) return;
+  backdrop_state &s=ctx_mut<backdrop_state>(ctx);
+  if(s.portable_width!=w||s.portable_height!=h) {
+    for(auto target:s.portable_targets) if(target&&window.graphics->target_in_use(target)) throw std::logic_error("njin backdrop: cannot resize scratch targets already used this frame");
+    std::array<RenderTargetHandle,3> made{};
+    try {made[0]=renderer_create_target(mutable_ctx,w,h);for(unsigned i=1;i<3;++i) made[i]=renderer_create_target(mutable_ctx,std::max(1u,w/2),std::max(1u,h/2));}
+    catch(...) {for(auto target:made) if(target) renderer_destroy_target(mutable_ctx,target);throw;}
+    for(auto target:s.portable_targets) if(target) renderer_destroy_target(mutable_ctx,target);
+    s.portable_targets=made;s.portable_width=w;s.portable_height=h;
+  }
+  window.graphics->copy_frame(s.portable_targets[0]);resources.targets.at(s.portable_targets[0].id).initialized=true;
+  const auto image=[&](unsigned i){return renderer_target_texture(mutable_ctx,s.portable_targets[i]);};
+  const RenderVertex full[]{{-1,1,0,0,0},{1,1,0,1,0},{1,-1,0,1,1},{-1,1,0,0,0},{1,-1,0,1,1},{-1,-1,0,0,1}};
+  const auto pass=[&](unsigned i,RenderTextureHandle source,float x,float y,unsigned sw,unsigned sh) {
+    MeshDraw draw{};draw.vertices=full;draw.texture=source;draw.depth_test=false;draw.depth_write=false;draw.blend=RenderBlend::Opaque;
+    draw.linear_sampling=true;draw.wrap_s=draw.wrap_t=RenderWrap::Clamp;draw.post.mode=RenderPostMode::LegacyBlur;
+    draw.post.texel={1.f/sw,1.f/sh};draw.post.legacy[9]={x,y,0,0};
+    renderer_begin_target(mutable_ctx,s.portable_targets[i]);
+    try {renderer_draw_mesh(mutable_ctx,draw);renderer_end_target(mutable_ctx);}
+    catch(...) {try {renderer_end_target(mutable_ctx);} catch(...) {}throw;}
+  };
+  if(previous) renderer_end_target(mutable_ctx);
+  try {
+    const float pixel_scale=float(w)/logical.x;
+    pass(1,image(0),blur*pixel_scale/3.23f,0,w,h);
+    pass(2,image(1),0,blur*pixel_scale*.5f/3.23f,std::max(1u,w/2),std::max(1u,h/2));
+    if(previous) renderer_resume_target(mutable_ctx,previous);
+  } catch(...) {if(previous&&!resources.active_target) try {renderer_resume_target(mutable_ctx,previous);} catch(...) {}throw;}
+  const auto &state=resources.draw_2d;
+  const float canvas=view->canvas_on&&(!previous||virtual_target)?view->canvas_scale:1.f;
+  vec2 pos=(state.offset+r.pos*state.scale)*canvas,size=r.size*(state.scale*canvas);
+  if(view->ui_window&&!previous) {pos=view->offset+pos*view->scale;size=size*view->scale;}
+  if(size.x<=0||size.y<=0) return;
+  const vec2 a{pos.x/logical.x,pos.y/logical.y},b{(pos.x+size.x)/logical.x,(pos.y+size.y)/logical.y};
+  const RenderVertex vertices[]{{pos.x,pos.y,0,a.x,a.y},{pos.x+size.x,pos.y,0,b.x,a.y},{pos.x+size.x,pos.y+size.y,0,b.x,b.y},
+    {pos.x,pos.y,0,a.x,a.y},{pos.x+size.x,pos.y+size.y,0,b.x,b.y},{pos.x,pos.y+size.y,0,a.x,b.y}};
+  MeshDraw draw{};draw.vertices=vertices;draw.texture=image(2);draw.depth_test=false;draw.depth_write=false;draw.linear_sampling=true;
+  draw.wrap_s=draw.wrap_t=RenderWrap::Clamp;draw.tint={tint.r,tint.g,tint.b,tint.a*state.alpha};draw.scissor_enabled=state.clipped;draw.scissor=state.clip;
+  draw.transform={2/logical.x,0,0,0,0,-2/logical.y,0,0,0,0,1,0,-1,1,0,1};
+  draw.post.mode=RenderPostMode::BackdropMask;draw.post.legacy[0]={size.x*.5f,size.y*.5f,std::min({radius*state.scale*canvas,size.x*.5f,size.y*.5f}),0};
+  draw.post.legacy[1]={a.x,a.y,b.x,b.y};renderer_draw_mesh(mutable_ctx,draw);
+  view_text_occlude(view,r,{1,1,1,1},true);
+}
+#endif
 
 constexpr i32 color_bits = 0x00004000; // GL_COLOR_BUFFER_BIT
 
@@ -135,6 +197,14 @@ backdrop_state::~backdrop_state() {
 }
 
 void draw_backdrop_blur(const context &ctx, rect r, f32 blur, f32 radius, rgba tint) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+#if NJIN_BGFX
+    portable_backdrop(ctx,r,blur,radius,tint);return;
+#else
+    throw std::runtime_error("njin backdrop: bgfx was not built");
+#endif
+  }
+  require_opengl_backend(ctx,"backdrop blur");
   const view_state &view = ctx_ref<view_state>(ctx);
   if (blur <= 0.0f || r.size.x <= 0.0f || r.size.y <= 0.0f || tint.a <= 0.0f)
     return;

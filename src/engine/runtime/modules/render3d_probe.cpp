@@ -18,6 +18,8 @@
 #include "njin_ctx_get.h"
 #include "njin_log.h"
 #include "njin_log_impl.h"
+#include "njin_model.h"
+#include "njin_frame_impl.h"
 #include <algorithm>
 #include <cmath>
 #include <raymath.h>
@@ -370,7 +372,17 @@ void probe3d_remove(context &ctx, probe3d_handle handle) {
   }
 }
 
+// The bgfx renderer keeps the grid in its model store (njin_raytrace_portable.cpp).
+static bool portable_grid(context &ctx) { return ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL; }
+
 void irradiance3d_set(context &ctx, const irradiance3d_desc &desc) {
+  if (portable_grid(ctx)) {
+    model_store &store = *ctx_ref<model_store>(ctx);
+    store.portable_grid = desc;
+    store.portable_grid_set = true;
+    ++store.portable_rt_grid_generation;
+    return;
+  }
   probe_state &p = ctx_ref<render3d_state>(ctx)->probes;
   p.grid = desc;
   p.grid_set = true;
@@ -382,6 +394,13 @@ void irradiance3d_set(context &ctx, const irradiance3d_desc &desc) {
 }
 
 void irradiance3d_refresh(context &ctx) {
+  if (portable_grid(ctx)) {
+    // A traced grid is redone every frame; it starts over from the scene as it is.
+    model_store &store = *ctx_ref<model_store>(ctx);
+    if (store.portable_grid_set)
+      ++store.portable_rt_grid_generation;
+    return;
+  }
   probe_state &p = ctx_ref<render3d_state>(ctx)->probes;
   if (!p.grid_set)
     return;
@@ -391,6 +410,10 @@ void irradiance3d_refresh(context &ctx) {
 }
 
 void irradiance3d_clear(context &ctx) {
+  if (portable_grid(ctx)) {
+    ctx_ref<model_store>(ctx)->portable_grid_set = false;
+    return;
+  }
   probe_state &p = ctx_ref<render3d_state>(ctx)->probes;
   p.grid_set = false;
   p.grid_ready = false;

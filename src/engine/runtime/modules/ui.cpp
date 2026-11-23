@@ -19,6 +19,8 @@
 #include "njin_bindings.h"
 #include "njin_log.h"
 #include "njin_sdf2d.h"
+#include "njin_render_capabilities.h"
+#include "njin_draw_portable.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -126,6 +128,55 @@ void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
                           : c.look.roundness;
     draw_backdrop_blur(ctx, c.area, c.look.blur * scale, round * shorter * 0.5f);
   }
+  if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL) {
+    const auto *shader=shader_slot_of(ctx_ref<shader_store>(ctx),c.shader);
+    if(shader) {
+      const auto offer=[&](const char *name,const char *type,std::array<float,4> value) {
+        for(const auto &u:shader->portable_uniforms) if(u.alias==name&&u.type==type) {
+          portable_shader_set(ctx_ref<shader_store>(ctx),c.shader,name,type,{&value,1});break;
+        }
+      };
+      auto area=c.area;
+      const auto &view=ctx_ref<view_state>(ctx);
+      if(view->ui_window) {area.pos=view->offset+area.pos*view->scale;area.size*=view->scale;}
+      else if(view->canvas_on) {area.pos*=view->canvas_scale;area.size*=view->canvas_scale;}
+      offer("uiState","float",{c.state,0,0,0});offer("uiTime","float",{ctx_ref<time_state>(ctx).elapsed,0,0,0});
+      offer("uiRect","vec4",{area.pos.x,area.pos.y,area.size.x,area.size.y});offer("uiValue","float",{c.value,0,0,0});
+    }
+    portable_shader_scope shader_scope(ctx,c.shader,true);
+    const auto &skin = c.look;
+    if (const auto *tex = texture_slot_of(ctx_ref<texture_store>(ctx), skin.texture)) {
+      const auto image = texture_area(*tex);
+      const rect source = skin.source.size.x > 0 && skin.source.size.y > 0
+                            ? skin.source : rect{{0,0},{image.width,image.height}};
+      const auto quad = [&](rect from, rect to) {
+        if (from.size.x <= 0 || from.size.y <= 0 || to.size.x <= 0 || to.size.y <= 0) return;
+        texture_draw_ex(ctx, skin.texture, {.pos=to.pos,.source=from,
+          .scale={to.size.x/from.size.x,to.size.y/from.size.y},.tint=skin.color});
+      };
+      if (skin.border > 0 && source.size.y > 0) {
+        const float b = std::min(skin.border, 0.5f*std::min(source.size.x,source.size.y));
+        const float k = skin.border_fit ? c.area.size.y/source.size.y : 1.0f;
+        const float d = std::min({b*k,0.5f*c.area.size.x,0.5f*c.area.size.y});
+        const float sx[]{source.pos.x,source.pos.x+b,source.pos.x+source.size.x-b,source.pos.x+source.size.x};
+        const float sy[]{source.pos.y,source.pos.y+b,source.pos.y+source.size.y-b,source.pos.y+source.size.y};
+        const float dx[]{c.area.pos.x,c.area.pos.x+d,c.area.pos.x+c.area.size.x-d,c.area.pos.x+c.area.size.x};
+        const float dy[]{c.area.pos.y,c.area.pos.y+d,c.area.pos.y+c.area.size.y-d,c.area.pos.y+c.area.size.y};
+        for (int y=0;y<3;++y) for (int x=0;x<3;++x)
+          quad({{sx[x],sy[y]},{sx[x+1]-sx[x],sy[y+1]-sy[y]}},{{dx[x],dy[y]},{dx[x+1]-dx[x],dy[y+1]-dy[y]}});
+      } else quad(source,c.area);
+    } else {
+      const float shorter=std::min(c.area.size.x,c.area.size.y);
+      const float radius=skin.radius>0 ? skin.radius*scale : skin.roundness*shorter*0.5f;
+      if (skin.color.a>0) draw_rect_rounded(ctx,c.area,radius,skin.color);
+      if (skin.outline.a>0 && skin.outline_width>0) {
+        const float w=skin.outline_width;
+        draw_rect_rounded_lines(ctx,{c.area.pos-vec2{w,w},c.area.size+vec2{2*w,2*w}},
+          radius>0 ? radius+w : 0,w,skin.outline);
+      }
+    }
+    return;
+  }
   shader_slot *sh = shader_slot_of(ctx_ref<shader_store>(ctx), c.shader);
   if (sh != nullptr) {
     BeginShaderMode(sh->shader);
@@ -218,18 +269,29 @@ void draw_skin(context &ctx, const ui_cmd &c, f32 scale) {
 
 // A ring (circular progress bar). Our angles start at 12 o'clock and run
 // clockwise; raylib's start at 3 o'clock, also clockwise on screen (y is down).
-void draw_ring(const ui_cmd &c) {
+void draw_ring(context &ctx, const ui_cmd &c) {
   const vec2 center = rect_center(c.area);
   const f32 outer = std::min(c.area.size.x, c.area.size.y) * 0.5f;
+  if (outer < 1.0f) return;
   const f32 band = std::clamp(c.thickness, 1.0f, outer);
   const f32 inner = outer - band;
-  if (outer < 1.0f)
-    return;
   const Vector2 mid{center.x, center.y};
   const i32 full_segments = std::clamp((i32)(outer * 0.8f), 32, 160);
   const auto arc = [&](f32 from, f32 to, Color color) {
     const i32 segments = std::max(2, (i32)std::ceil((f32)full_segments * (to - from) / 360.0f));
-    DrawRing(mid, inner, outer, from, to, segments, color);
+    if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL) {
+      std::vector<vec2> vertices;
+      const auto point=[&](float angle,float radius) {
+        const float a=angle*3.14159265359f/180;
+        return center+vec2{std::cos(a)*radius,std::sin(a)*radius};
+      };
+      for (int i=0;i<segments;++i) {
+        const float a=from+(to-from)*i/segments,b=from+(to-from)*(i+1)/segments;
+        const vec2 p=point(a,outer),q=point(b,outer),r=point(b,inner),t=point(a,inner);
+        vertices.insert(vertices.end(),{p,q,r,p,r,t});
+      }
+      draw_portable_solid(ctx,vertices,{color.r/255.0f,color.g/255.0f,color.b/255.0f,color.a/255.0f});
+    } else DrawRing(mid, inner, outer, from, to, segments, color);
   };
   Color track{}, fill{};
   to_raylib(c.track, track);
@@ -248,7 +310,9 @@ void draw_ring(const ui_cmd &c) {
     const f32 path = inner + radius;
     for (const f32 degrees : {start, c.clockwise ? start + sweep : start - sweep}) {
       const f32 a = degrees * (3.14159265f / 180.0f);
-      DrawCircleV(Vector2{center.x + std::cos(a) * path, center.y + std::sin(a) * path}, radius, fill);
+      const vec2 p{center.x + std::cos(a)*path,center.y + std::sin(a)*path};
+      if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL) draw_circle(ctx,p,radius,c.color);
+      else DrawCircleV(Vector2{p.x,p.y}, radius, fill);
     }
   }
 }
@@ -271,7 +335,7 @@ void flush(context &ctx, const ui_state &ui, const std::vector<ui_cmd> &cmds) {
       draw_skin(ctx, c, ui.style.scale * ui.fit);
       break;
     case ui_cmd::ring:
-      draw_ring(c);
+      draw_ring(ctx,c);
       break;
     case ui_cmd::clip_begin:
       clip_begin(ctx, c.area);
@@ -805,14 +869,19 @@ void ui_canvas_set(context &ctx, const ui_canvas_desc &desc) {
 }
 
 void ui_canvas_begin(const context &ctx) {
-  ctx_ref<view_state>(ctx)->canvas_depth++;
-  view_canvas_sync(ctx_ref<view_state>(ctx));
+  auto &view=ctx_ref<view_state>(ctx);
+  view->canvas_depth++;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) { view->canvas_on=view->canvas_depth>0; return; }
+  view_canvas_sync(view);
 }
 
 void ui_canvas_end(const context &ctx) {
   if (ctx_ref<view_state>(ctx)->canvas_depth <= 0)
     return;
   ctx_ref<view_state>(ctx)->canvas_depth--;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    ctx_ref<view_state>(ctx)->canvas_on=ctx_ref<view_state>(ctx)->canvas_depth>0; return;
+  }
   view_canvas_sync(ctx_ref<view_state>(ctx));
 }
 
@@ -1645,7 +1714,7 @@ bool ui_input(context &ctx, const char *label, std::string &text, const ui_input
     // The end of the text, with the caret, as much as fits: whole characters
     // dropped from the front.
     std::string view = text;
-    const bool caret = on && std::fmod(GetTime(), 1.0) < 0.55; // real time: it blinks when paused
+    const bool caret = on && std::fmod((double)ctx_ref<time_state>(ctx).elapsed, 1.0) < 0.55; // real time: it blinks when paused
     while (!view.empty() && measure(ctx, ui, view + "|").x > room) {
       usize n = 1;
       while (n < view.size() && ((u8)view[n] & 0xC0) == 0x80)

@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <stdexcept>
 
 namespace njin {
 namespace {
@@ -879,7 +880,24 @@ render_info render_info_get(const context &ctx) {
                      .instances3d = s.instances3d,
                      .instances3d_culled = s.instances3d_culled,
                      .batches3d = s.batches3d,
-                     .batched3d = s.batched3d};
+                     .batched3d = s.batched3d,
+                     .cpu_update_ms = ctx_ref<frame_state>(ctx).cpu_update_ms,
+                     .cpu_render_ms = ctx_ref<frame_state>(ctx).cpu_render_ms,
+                     .cpu_present_ms = ctx_ref<frame_state>(ctx).cpu_present_ms,
+                     .cpu3d_setup_ms = s.ms3d_setup,
+                     .cpu3d_shadows_ms = s.ms3d_shadows,
+                     .cpu3d_prepass_ms = s.ms3d_prepass,
+                     .cpu3d_opaque_ms = s.ms3d_opaque,
+                     .cpu3d_screen_ms = s.ms3d_screen,
+                     .cpu3d_translucent_ms = s.ms3d_translucent,
+                     .cpu3d_post_ms = s.ms3d_post,
+                     .gpu3d_setup_ms = s.gpu3d[0],
+                     .gpu3d_shadows_ms = s.gpu3d[1],
+                     .gpu3d_prepass_ms = s.gpu3d[2],
+                     .gpu3d_opaque_ms = s.gpu3d[3],
+                     .gpu3d_screen_ms = s.gpu3d[4],
+                     .gpu3d_translucent_ms = s.gpu3d[5],
+                     .gpu3d_post_ms = s.gpu3d[6]};
 }
 
 mod_desc debug_module() { return mod_desc{.name = "njin.debug", .setup = setup}; }

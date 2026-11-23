@@ -11,6 +11,7 @@
 #include "njin_path.h"
 #include "njin_render.h"
 #include <algorithm>
+#include <stdexcept>
 #include <cmath>
 #include <cstring>
 #include <cstdio> // pl_mpeg.h uses FILE without including it
@@ -90,8 +91,10 @@ void upload(context &ctx, video_slot &v) {
   if (!v.fresh)
     return;
   const texture_slot *t = texture_slot_of(ctx_ref<texture_store>(ctx), v.texture);
-  if (t != nullptr)
-    UpdateTexture(t->texture, v.pixels.data());
+  if (t != nullptr) {
+    if(t->portable) renderer_update_texture(ctx,t->portable,{unsigned(v.width),unsigned(v.height),v.pixels});
+    else UpdateTexture(t->texture, v.pixels.data());
+  }
   v.fresh = false;
 }
 
@@ -154,14 +157,19 @@ video_handle video_open(context &ctx, const video_desc &desc) {
   v.bus = desc.bus;
   v.volume = std::isfinite(desc.volume) ? clamp(desc.volume, 0.0f, 1.0f) : 1.0f;
 
-  Image blank = GenImageColor(v.width, v.height, BLACK);
-  ImageFormat(&blank, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-  texture_slot tex{};
-  tex.texture = LoadTextureFromImage(blank);
-  UnloadImage(blank);
-  tex.alive = tex.texture.id != 0;
-  SetTextureFilter(tex.texture, TEXTURE_FILTER_BILINEAR);
-  ctx_ref<texture_store>(ctx)->slots.push_back(tex);
+  texture_slot tex{};tex.filter=filter_linear;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    tex.portable=renderer_create_texture(ctx,{unsigned(v.width),unsigned(v.height),v.pixels});
+    tex.texture.width=v.width;tex.texture.height=v.height;tex.alive=true;
+    try {ctx_ref<texture_store>(ctx)->slots.push_back(tex);}
+    catch(...) {renderer_destroy_texture(ctx,tex.portable);throw;}
+  } else {
+    Image blank = GenImageColor(v.width, v.height, BLACK);
+    ImageFormat(&blank, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    tex.texture = LoadTextureFromImage(blank);UnloadImage(blank);
+    tex.alive = tex.texture.id != 0;SetTextureFilter(tex.texture, TEXTURE_FILTER_BILINEAR);
+    ctx_ref<texture_store>(ctx)->slots.push_back(tex);
+  }
   v.texture = texture_handle{(u32)ctx_ref<texture_store>(ctx)->slots.size()};
 
   const i32 rate = plm_get_samplerate(plm);
@@ -192,8 +200,8 @@ void video_close(context &ctx, video_handle handle) {
   video_slot *v = video_of(ctx_ref<video_store>(ctx), handle);
   if (v == nullptr)
     return;
+  texture_unload(ctx,v->texture);
   free_video(*v);
-  texture_store_unload(ctx_ref<texture_store>(ctx), v->texture);
   v->alive = false;
   v->pixels = {};
   v->ring = {};

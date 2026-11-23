@@ -1,3 +1,4 @@
+#include "njin_render_capabilities.h"
 #include "fx.h"
 #include "_comps.h"
 #include "njin_cfg.h"
@@ -6,6 +7,8 @@
 #include "njin_frame_impl.h"
 #include "njin_draw_shapes.h"
 #include "njin_log.h"
+#include "njin_shader.h"
+#include <stdexcept>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -48,6 +51,11 @@ float hash12(vec2 p) {
 
 void main() {
   vec4 c = texture(texture0, fragTexCoord) * colDiffuse * fragColor;
+  // Exact endpoints also cover edge_width=0 and a hash that is exactly zero.
+  if (dissolveParams.x <= 0.0) {
+    finalColor = vec4(mix(c.rgb, flashColor.rgb, flashColor.a), c.a); return;
+  }
+  if (dissolveParams.x >= 1.0) { finalColor = vec4(0.0); return; }
   vec2 cell = floor(fragTexCoord * vec2(textureSize(texture0, 0)) / max(dissolveParams.y, 1.0));
   float n = hash12(cell + dissolveParams.z);
   float w = dissolveParams.w;
@@ -205,7 +213,24 @@ void fx_update_sprite_dissolves(context &ctx) {
       registry.destroy(entity);
 }
 
+RenderSpriteEffects portable_sprite_effects(const flash_fx *flash,const dissolve_fx *dissolve) {
+  RenderSpriteEffects effects;
+  if(flash) {
+    for(float v:{flash->color.r,flash->color.g,flash->color.b,flash->color.a,flash->duration,flash->time})
+      if(!std::isfinite(v)) throw std::invalid_argument("njin sprite FX: non-finite flash parameter");
+    effects.flash={flash->color.r,flash->color.g,flash->color.b,flash_amount(*flash)};
+  }
+  if(dissolve) {
+    for(float v:{dissolve->edge_color.r,dissolve->edge_color.g,dissolve->edge_color.b,dissolve->edge_color.a,
+                 dissolve->edge_width,dissolve->grain,dissolve->seed,dissolve->duration,dissolve->time})
+      if(!std::isfinite(v)) throw std::invalid_argument("njin sprite FX: non-finite dissolve parameter");
+    effects.dissolving=true;effects.edge={dissolve->edge_color.r,dissolve->edge_color.g,dissolve->edge_color.b,dissolve->edge_color.a};
+    effects.dissolve={dissolve_progress(*dissolve),dissolve->grain,dissolve->seed,std::max(0.0f,dissolve->edge_width)};
+  }
+  return effects;
+}
 void fx_warmup(context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return;
   fx_state &fx = ctx_ref<fx_state>(ctx);
   if (fx.flash_loaded)
     return;
@@ -263,12 +288,25 @@ bool fx_dissolve_begin(context &ctx, const dissolve_fx &dissolve, const flash_fx
 void fx_sprite_shader_end() { EndShaderMode(); }
 
 void draw_dissolve_begin(context &ctx, f32 progress, const dissolve_look &look) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    auto &fx=ctx_ref<fx_state>(ctx);
+    if(fx->screen_dissolve||ctx_ref<shader_store>(ctx)->active.id) throw std::logic_error("njin sprite FX: dissolve scopes cannot nest or overlap custom shaders");
+    if(!std::isfinite(progress)) throw std::invalid_argument("njin sprite FX: non-finite dissolve progress");
+    const dissolve_fx d{.edge_color=look.edge_color,.edge_width=look.edge_width,.grain=look.grain,.seed=look.seed,.duration=1,.time=std::clamp(progress,0.0f,1.0f)};
+    const auto effects=portable_sprite_effects(nullptr,&d);
+    ctx_ref<window_guard>(ctx).renderer_resources.draw_2d.sprite_effects=effects;fx->screen_dissolve=true;return;
+  }
+  require_opengl_backend(ctx,"draw_dissolve_begin");
   const dissolve_fx d{.edge_color = look.edge_color, .edge_width = look.edge_width, .grain = look.grain,
                       .seed = look.seed, .duration = 1.0f, .time = std::clamp(progress, 0.0f, 1.0f)};
   ctx_ref<fx_state>(ctx)->screen_dissolve = fx_dissolve_begin(ctx, d, nullptr);
 }
 
 void draw_dissolve_end(context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    ctx_ref<window_guard>(ctx).renderer_resources.draw_2d.sprite_effects={};ctx_ref<fx_state>(ctx)->screen_dissolve=false;return;
+  }
+  require_opengl_backend(ctx,"draw_dissolve_end");
   if (ctx_ref<fx_state>(ctx)->screen_dissolve)
     EndShaderMode();
   ctx_ref<fx_state>(ctx)->screen_dissolve = false;

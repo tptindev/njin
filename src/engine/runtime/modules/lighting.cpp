@@ -1,3 +1,4 @@
+#include "njin_render_capabilities.h"
 #include "lighting.h"
 #include "lighting_internal.h"
 #include "_comps.h"
@@ -824,7 +825,10 @@ const Texture2D &lighting_apply(context &ctx, const Camera2D &camera, const Text
   return s.lit.texture;
 }
 
-void lighting_set(context &ctx, const lighting_desc &desc) { ctx_ref<lighting_state>(ctx)->desc = desc; }
+void lighting_set(context &ctx, const lighting_desc &desc) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) portable_lighting_validate(desc);
+  ctx_ref<lighting_state>(ctx)->desc = desc;
+}
 
 lighting_desc lighting_get(const context &ctx) { return ctx_ref<lighting_state>(ctx)->desc; }
 

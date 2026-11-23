@@ -1,0 +1,4 @@
+# Scoped to correctness child processes by run.py; no machine settings changed.
+khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG
+khronos_validation.log_filename = stdout
+khronos_validation.report_flags = error,warn,info

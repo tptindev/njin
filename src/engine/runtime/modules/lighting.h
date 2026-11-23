@@ -1,6 +1,7 @@
 #pragma once
 #include "../njin_internal_only.h"
 #include "njin_light.h"
+#include "njin_renderer.h"
 #include <raylib.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -65,6 +66,11 @@ struct silhouette_loop {
 
 struct lighting_state {
   lighting_desc desc{};
+  RenderTargetHandle portable_hdr;
+  std::array<RenderTargetHandle,4> portable_gbuffers{};
+  RenderTextureHandle portable_white;
+  std::vector<RenderTextureHandle> portable_edge_tables;
+  unsigned portable_width=0,portable_height=0;
   light_locations loc{};
 
   // The textures of pixel occluders already set to clamp: with the default repeat, the bottom row of a
@@ -80,7 +86,7 @@ struct lighting_state {
     Image image{};
     u32 version = 0;
   };
-  std::unordered_map<u32, cpu_image> images;
+  std::unordered_map<u64, cpu_image> images;
 
   Shader light{};
   Shader ambient{};
@@ -107,6 +113,8 @@ struct lighting_state {
 
 // True when lighting is on, so the world must be drawn into an offscreen target.
 bool lighting_active(const lighting_state &state);
+void portable_lighting_world(context &);
+void portable_lighting_validate(const lighting_desc &);
 
 // Lights `scene` (the world image, a render texture's colour buffer) as seen
 // through `camera`, the one the world was drawn with. Returns the texture with

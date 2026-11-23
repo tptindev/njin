@@ -11,6 +11,10 @@ struct context;
 /// Nạp và biên dịch một shader.
 ///
 /// Một trong hai đường dẫn có thể là nullptr để giữ stage mặc định của raylib.
+/// SDL3/bgfx: dùng shader_load(ctx, nullptr, "effect.njshader"). Gói được biên dịch
+/// bằng njin_shader_asset() cho các profile của build; không nhận GLSL raylib trực tiếp.
+/// Hiện hỗ trợ fragment shader với vertex stage của engine. Uniform float/int/vec2/vec3
+/// đóng vào vec4 theo metadata; int dùng hai lane 16 bit. Xem docs/renderer-shaders.md.
 /// Handle không hợp lệ hoặc đã unload bị mọi hàm shader bỏ qua.
 /// @param ctx Context của engine.
 /// @param vspath Đường dẫn vertex shader, hoặc nullptr.

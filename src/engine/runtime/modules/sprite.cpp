@@ -14,11 +14,15 @@
 #include "njin_texture.h"
 #include "fx.h"
 #include "particles.h"
+#include "particles_gpu.h"
 #include "_collide.h"
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
 #include <vector>
+#include <stdexcept>
+#include "njin_window.h"
+#include "njin_draw_portable.h"
 
 namespace njin {
 namespace {
@@ -496,7 +500,169 @@ void draw(context &ctx) {
   }
 }
 
+void draw_portable_tilemap(context &ctx,const transform &tr,const tilemap &map) {
+  const auto *slot=texture_slot_of(ctx_ref<texture_store>(ctx),map.tileset);
+  if(!slot) return;
+  if(!slot->portable) throw std::runtime_error("njin bgfx: tilemap has no backend texture");
+  const vec2 step=map.tile_size+vec2{map.spacing,map.spacing};
+  if(!std::isfinite(step.x) || !std::isfinite(step.y) || step.x<=0 || step.y<=0 ||
+     map.tile_size.x<=0 || map.tile_size.y<=0 || !std::isfinite(map.margin) ||
+     !std::isfinite(map.cell_size.x) || !std::isfinite(map.cell_size.y) ||
+     !std::isfinite(map.hex_side) || map.hex_side<0 || map.orientation>tile_hexagonal)
+    throw std::invalid_argument("njin bgfx: invalid tilemap dimensions");
+  const double column_count=(double(texture_area(*slot).width)-2.0*map.margin+map.spacing)/step.x;
+  if(!std::isfinite(column_count) || column_count>INT32_MAX)
+    throw std::invalid_argument("njin bgfx: invalid tilemap source layout");
+  const i32 columns=column_count>0 ? (i32)column_count:0;
+  if(columns<=0) return;
+  const auto view=camera_bounds(ctx);
+  if(!std::isfinite(view.pos.x) || !std::isfinite(view.pos.y) ||
+     !std::isfinite(view.size.x) || !std::isfinite(view.size.y))
+    throw std::invalid_argument("njin bgfx: non-finite tilemap camera bounds");
+  const vec2 cell_size=map.cell_size.x>0 && map.cell_size.y>0 ? map.cell_size:map.tile_size;
+  const float rise=std::max(0.0f,map.tile_size.y-cell_size.y);
+  const float wide=std::max(0.0f,map.tile_size.x-cell_size.x);
+  const rect area{{view.pos.x-wide,view.pos.y},{view.size.x+wide,view.size.y+rise}};
+  cell lo{INT32_MAX,INT32_MAX},hi{INT32_MIN,INT32_MIN};
+  for(const auto point:{area.pos,area.pos+vec2{area.size.x,0},area.pos+vec2{0,area.size.y},area.pos+area.size}) {
+    const auto c=tilemap_cell_at(map,tr.pos,point);
+    lo={std::min(lo.x,c.x),std::min(lo.y,c.y)}; hi={std::max(hi.x,c.x),std::max(hi.y,c.y)};
+  }
+  // Bound CPU work explicitly when an extreme camera exposes enormous grids.
+  const i64 count_x=i64(hi.x)-lo.x+3,count_y=i64(hi.y)-lo.y+3;
+  if(lo.x==INT32_MIN || lo.y==INT32_MIN || hi.x==INT32_MAX || hi.y==INT32_MAX ||
+     count_x<=0 || count_y<=0 || count_x>2000000 || count_y>2000000/count_x)
+    throw std::runtime_error("njin bgfx: tilemap visible cell budget exceeded");
+  --lo.x; --lo.y; ++hi.x; ++hi.y;
+  thread_local std::vector<texture_draw_desc> tiles;
+  tiles.clear();
+  const float time=ctx_ref<sprite_cache>(ctx)->tile_time;
+  const auto append=[&](i32 x,i32 y) {
+    const i32 value=tilemap_get(map,x,y);
+    if(value<0) return;
+    i32 id=tile_id(value);
+    if(const auto anim=map.anims.find(id);anim!=map.anims.end()) {
+      const auto frame=tile_anim_frame(anim->second,time); if(frame>=0) id=frame;
+    }
+    const auto box=tilemap_cell_rect(map,tr.pos,x,y);
+    const rect target{{box.pos.x,box.pos.y+box.size.y-map.tile_size.y},map.tile_size};
+    if(!rects_overlap(target,view)) return;
+    tiles.push_back({.pos=target.pos,
+      .source={{map.margin+(id%columns)*step.x,map.margin+(id/columns)*step.y},map.tile_size},
+      .flip_x=(value&tile_flip_x)!=0,.flip_y=(value&tile_flip_y)!=0,.tint=map.tint});
+  };
+  // Match the existing Tiled painter order, including tall overlapping tiles.
+  if(map.orientation==tile_isometric) {
+    for(i64 diagonal=i64(lo.x)+lo.y;diagonal<=i64(hi.x)+hi.y;++diagonal)
+      for(i64 x=std::max(i64(lo.x),diagonal-hi.y);x<=std::min(i64(hi.x),diagonal-lo.y);++x)
+        append((i32)x,(i32)(diagonal-x));
+  } else if(map.orientation!=tile_orthogonal && map.stagger_x) {
+    for(i64 y=lo.y;y<=hi.y;++y) for(bool lowered:{false,true})
+      for(i64 x=lo.x;x<=hi.x;++x)
+        if((((x&1)!=0)!=map.stagger_even)==lowered) append((i32)x,(i32)y);
+  } else {
+    for(i64 y=lo.y;y<=hi.y;++y) for(i64 x=lo.x;x<=hi.x;++x) append((i32)x,(i32)y);
+  }
+  draw_portable_slot_textures(ctx,*slot,tiles,true);
+}
+
+void draw_portable_particles(context &ctx,const transform &tr,const particle_emitter &em) {
+  if(em.gpu) throw std::logic_error("njin bgfx: GPU emitter drawing requires its entity snapshot");
+  if(em.blend!=blend_alpha && em.blend!=blend_additive && em.blend!=blend_multiply)
+    throw std::invalid_argument("njin bgfx: invalid particle blend mode");
+  const auto blend=em.blend==blend_additive ? RenderBlend::Additive:
+    em.blend==blend_multiply ? RenderBlend::Multiply:RenderBlend::Alpha;
+  const auto *slot=texture_slot_of(ctx_ref<texture_store>(ctx),em.texture);
+  RenderTextureHandle texture{};
+  vec2 image_size{},source_size{};
+  if(slot) {
+    texture=slot->portable; image_size={(float)slot->texture.width,(float)slot->texture.height};
+    source_size=em.source.size.x==0 || em.source.size.y==0 ? vec2{texture_area(*slot).width,texture_area(*slot).height}:em.source.size;
+    if(!texture) throw std::runtime_error("njin bgfx: particle has no backend texture");
+  } else {
+    const auto shape=static_cast<unsigned>(em.shape);
+    auto &cache=ctx_ref<sprite_cache>(ctx)->particle_textures;
+    if(shape>=cache.size()) throw std::invalid_argument("njin bgfx: invalid particle shape");
+    auto &handle=cache[shape];
+    const unsigned side=em.shape==particle_square ? 1:64;
+    if(!handle) {
+      std::vector<unsigned char> pixels(side*side*4,255);
+      if(side>1) for(unsigned y=0;y<side;++y) for(unsigned x=0;x<side;++x) {
+        const float dx=(x+0.5f)/side*2-1,dy=(y+0.5f)/side*2-1;
+        const float fall=std::max(0.0f,1-dx*dx-dy*dy);
+        pixels[(y*side+x)*4+3]=em.shape==particle_soft ? (unsigned char)(255*fall*fall):(fall>0 ? 255:0);
+      }
+      handle=renderer_create_texture(ctx,{side,side,pixels});
+    }
+    texture=handle; image_size=source_size={(float)side,(float)side};
+  }
+  const float longest=std::max(source_size.x,source_size.y);
+  if(longest<=0) return;
+  thread_local std::vector<texture_draw_desc> descriptions;
+  descriptions.clear();
+  for(const auto &p:em.particles) {
+    const float t=p.age/p.life;
+    const float size=lerp(em.size_start,em.size_end,t)*p.size;
+    const auto tint=lerp(em.color_start,em.color_end,t);
+    if(size<=0 || tint.a<=0) continue;
+    const auto pos=em.local_space ? transform_combine(tr,{.pos=p.pos}).pos:p.pos;
+    const float scale=size/longest;
+    descriptions.push_back({.pos=pos,.source=slot ? em.source:rect{},.scale={scale,scale},
+      .origin={0.5f,0.5f},.rotation=p.rot,.tint=tint});
+  }
+  if(slot) draw_portable_slot_textures(ctx,*slot,descriptions,true,blend);
+  else draw_portable_textures(ctx,texture,image_size,descriptions,em.shape==particle_soft,true,blend);
+}
+
+void draw_portable(context &ctx) {
+  auto &registry=ctx_ref<ecs_store>(ctx)->registry;
+  std::vector<draw_item> entities;
+  for(auto [entity,tr,map]:registry.view<const transform,const tilemap>().each())
+    if(map.visible) entities.push_back({map.layer,0,entity,tr.pos.y});
+  for(auto [entity,tr,spr]:registry.view<const transform,const sprite>().each())
+    if(spr.visible) entities.push_back({spr.layer,1,entity,tr.pos.y+spr.sort_offset});
+  for(auto [entity,tr,em]:registry.view<const transform,const particle_emitter>().each())
+    if(em.visible && !em.particles.empty()) entities.push_back({em.layer,2,entity,tr.pos.y});
+  const auto &by_y=ctx_ref<sprite_cache>(ctx)->y_sorted;
+  std::stable_sort(entities.begin(),entities.end(),[&](const auto &a,const auto &b) {
+    if(a.layer!=b.layer) return a.layer<b.layer;
+    if(by_y.contains(a.layer) && a.kind!=0 && b.kind!=0 && a.y!=b.y) return a.y<b.y;
+    if(a.kind!=b.kind) return a.kind<b.kind;
+    return entt::to_integral(a.entity)<entt::to_integral(b.entity);
+  });
+  for(const auto &item:entities) {
+    const auto entity=item.entity;
+    if(item.kind==0) { draw_portable_tilemap(ctx,registry.get<transform>(entity),registry.get<tilemap>(entity)); continue; }
+    if(item.kind==2) {
+      const auto &em=registry.get<particle_emitter>(entity);
+      if(em.gpu) particles_gpu_draw(ctx,entity,registry.get<transform>(entity),em);
+      else draw_portable_particles(ctx,registry.get<transform>(entity),em);
+      continue;
+    }
+    const auto &spr=registry.get<sprite>(entity);
+    const auto &tr=registry.get<transform>(entity);
+    const auto *slot=texture_slot_of(ctx_ref<texture_store>(ctx),spr.texture);
+    if(!slot) continue;
+    if(!slot->portable) throw std::runtime_error("njin bgfx: sprite has no backend texture");
+    const auto *flash=registry.try_get<flash_fx>(entity);const auto *dissolve=registry.try_get<dissolve_fx>(entity);
+    const auto effects=portable_sprite_effects(flash,dissolve);
+    if(effects.dissolving&&effects.dissolve[0]>=1) continue;
+    auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
+    struct Restore {RenderSpriteEffects &value,previous;~Restore(){value=previous;}} restore{state.sprite_effects,state.sprite_effects};
+    if(flash||dissolve) state.sprite_effects=effects;
+    draw_portable_slot_texture(ctx,*slot,
+      {.pos=tr.pos,.source=spr.source,.scale={tr.scale,tr.scale},.origin=spr.origin,.rotation=tr.rot,
+       .flip_x=spr.flip_x,.flip_y=spr.flip_y,.tint=spr.tint},true);
+  }
+}
 void setup(context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    ecs_register(ctx,phase_post_update,animate,"animate");
+    ecs_register(ctx,phase_post_update,fx_update_sprite_flashes,"fx_update_sprite_flashes");
+    ecs_register(ctx,phase_post_update,fx_update_sprite_dissolves,"fx_update_sprite_dissolves");
+    ecs_register(ctx,phase_render,draw_portable,"draw_portable");
+    return;
+  }
   ecs_register(ctx, phase_post_update, animate, "animate");
   ecs_register(ctx, phase_post_update, fx_update_sprite_flashes, "fx_update_sprite_flashes");
   ecs_register(ctx, phase_post_update, fx_update_sprite_dissolves, "fx_update_sprite_dissolves");

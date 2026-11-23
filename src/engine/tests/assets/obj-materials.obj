@@ -1,0 +1,28 @@
+# Fixture for the OBJ loader: quads (fan-triangulated) facing +Z.
+mtllib obj-materials.mtl
+v -1.8 -0.8 0
+v -0.2 -0.8 0
+v -0.2 0.8 0
+v -1.8 0.8 0
+v 0.2 -0.8 0
+v 1.8 -0.8 0
+v 1.8 0.8 0
+v 0.2 0.8 0
+v -0.3 1.1 0
+v 0.3 1.1 0
+v 0.3 1.7 0
+v -0.3 1.7 0
+vt 0 0
+vt 1 0
+vt 1 1
+vt 0 1
+vn 0 0 1
+o red_quad
+usemtl red
+f 1/1/1 2/2/1 3/3/1 4/4/1
+o textured_quad
+usemtl textured
+f 5/1/1 6/2/1 7/3/1 8/4/1
+o unknown_material
+usemtl not_in_mtllib
+f 9/1/1 10/2/1 11/3/1 12/4/1

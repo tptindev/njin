@@ -255,9 +255,13 @@ struct light3d {
   /// Bóng của mặt trời và của tối đa ba đèn có `light3d_source::shadows` được tính
   /// bằng tia (ray tracing trên Vulkan, bên cạnh OpenGL) thay cho ảnh bóng: sắc chỗ
   /// vật chạm đất, mềm dần ra xa theo cỡ của nguồn sáng, không răng cưa, không lệch
-  /// bóng, không giới hạn bởi `shadow_range`. Cần njin được build với
-  /// `-DNJIN_RAYTRACING=ON` (Windows) và một GPU có ray tracing (raytracing_available()).
-  /// Khi không có, njin dùng ảnh bóng như cũ (`shadows`, `source_shadows`).
+  /// bóng, không giới hạn bởi `shadow_range`. Với renderer OpenGL cần njin được build
+  /// với `-DNJIN_RAYTRACING=ON` (Windows) và một GPU có ray tracing. Với renderer bgfx,
+  /// tia được tính bằng compute shader trên mọi GPU có compute (D3D, Vulkan, OpenGL;
+  /// Android qua Vulkan), cho mặt trời và ba đèn đổ bóng đầu tiên (trong
+  /// `source_shadows`; kính và nước vẫn nhận bóng đèn từ ảnh bóng). raytracing_available()
+  /// cho biết có dùng được không. Khi không có, njin dùng ảnh bóng như cũ (`shadows`,
+  /// `source_shadows`).
   ///
   /// Chỉ cho lần vẽ vào thế giới; hình SDF (draw_shape3d) và cỏ chưa đổ bóng bằng
   /// tia, kính và nước vẫn nhận bóng từ ảnh bóng nếu `shadows` bật.
@@ -274,13 +278,44 @@ struct light3d {
   i32 shadow_rays = 2;
   /// Bán kính bộ lọc khử nhiễu, pixel, 0..8. 0 là không lọc.
   i32 shadow_denoise = 3;
+  /// Vật đổ bóng bằng tia dùng mức chi tiết (model_lod_build(), model_lod_load())
+  /// đơn giản hơn mức đang vẽ bấy nhiêu bậc, 0..4: bóng không cần từng viên đá,
+  /// và tia đi qua ít tam giác hơn. 0 là đúng hình đang vẽ.
+  i32 shadow_lod = 0;
+  /// Với `shadow_lod`, tia bóng bỏ qua những gì nó gặp gần bề mặt hơn bấy nhiêu
+  /// mét: hình đơn giản hơn nằm lệch khỏi hình đang vẽ một chút, và không được
+  /// che nắng của chính nó. Đổi lại, bóng sát chân vật ngắn hơn khoảng này mất đi.
+  f32 shadow_lod_gap = 0.15f;
   /// Phản chiếu bằng tia: vật liệu PBR nhẵn (`material3d::pbr`, `roughness` dưới
   /// `reflection_roughness`) phản chiếu đúng những vật quanh nó, cả vật ngoài màn hình,
   /// thay cho ảnh môi trường hay probe. Vật được phản chiếu tô đơn giản (màu nền, nắng
   /// qua bóng của nó, đèn, ánh sáng nền); chỗ tia không gặp gì vẫn lấy môi trường.
+  /// Renderer bgfx: chạy bằng compute shader như bóng bằng tia; vật được phản chiếu là
+  /// các vật đổ bóng (không có `cast_shadows` tắt), và vật liệu không có môi trường vẫn
+  /// nhận phần phản chiếu.
   bool ray_traced_reflections = false;
   /// Độ nhám lớn nhất còn phản chiếu bằng tia; nhám hơn thì dần về môi trường/probe.
   f32 reflection_roughness = 0.5f;
+  /// @}
+
+  /// @name Tô kiểu hoạt hình (toon shading)
+  /// Ánh sáng của mặt trời và từng đèn (đã nhân bóng đổ) không còn chuyển mượt mà
+  /// nhảy thành vài nấc phẳng, và điểm sáng bóng thành một đốm sắc mép, như phim hoạt
+  /// hình. Ánh sáng nền (`ambient`) giữ nguyên. Áp cho mọi hình được chiếu sáng bằng
+  /// shader có sẵn (hình khối, model, hình SDF, instanced, địa hình, cỏ); vật liệu
+  /// `pbr` thì nấc áp lên cả phần khuếch tán lẫn phần bóng. Viền đen quanh vật là
+  /// njin::post3d::outline.
+  /// @{
+
+  /// Số nấc sáng, kể cả nấc tối (chỉ có `ambient`): 2 là sáng/tối, 3 thêm một nấc
+  /// nửa sáng, tới 8. 0 (mặc định) là tắt, ánh sáng mượt như trước.
+  i32 toon_bands = 0;
+  /// Phần ánh sáng (0..1, như cos của góc giữa mặt và hướng tới đèn) mà dưới đó mặt
+  /// thuộc nấc tối. Các nấc sáng chia đều từ đây tới 1. Nắng thấp (mặt đất nhận
+  /// khoảng 0.2) cần số nhỏ, không thì cả mặt đất rơi vào nấc tối.
+  f32 toon_threshold = 0.05f;
+  /// Độ mềm của mép giữa hai nấc, theo phần của một nấc, 0..1. 0 là sắc (có răng cưa).
+  f32 toon_softness = 0.08f;
   /// @}
 };
 
@@ -294,13 +329,24 @@ void light3d_set(context &ctx, const light3d &light);
 /// @return Giá trị đặt bởi light3d_set(), hoặc mặc định của njin::light3d.
 light3d light3d_get(const context &ctx);
 
-/// Bóng bằng tia (light3d::ray_traced_shadows) có dùng được không: njin được build
-/// với `NJIN_RAYTRACING`, GPU và driver có ray tracing và chia ảnh với OpenGL. Lần
+/// Bóng bằng tia (light3d::ray_traced_shadows) có dùng được không. Renderer bgfx: backend
+/// có compute shader (không có trên context GLES 3.0 của Android). Renderer OpenGL: njin
+/// được build với `NJIN_RAYTRACING`, GPU và driver có ray tracing và chia ảnh với OpenGL. Lần
 /// gọi đầu khởi động Vulkan (vài trăm mili giây), nên gọi lúc tải game, sau khi mở
 /// cửa sổ, chẳng hạn để hiện hay ẩn tuỳ chọn trong menu đồ hoạ.
 /// @param ctx Context của engine.
 /// @return true khi bóng bằng tia sẽ được dùng.
 bool raytracing_available(context &ctx);
+
+/// Các tia có chạy trên phần cứng ray tracing của GPU không. Renderer bgfx Vulkan: GPU có
+/// ray query (VK_KHR_ray_query), njin được build có glslc (Vulkan SDK) và
+/// `config::graphics_ray_query` đang bật; khi đó bóng, phản chiếu và lưới irradiance bằng
+/// tia dùng acceleration structure của GPU thay cho duyệt BVH trong compute shader, kết
+/// quả như nhau. Các backend và GPU khác trả false và vẫn chạy bằng compute
+/// (raytracing_available()). Renderer OpenGL: true khi raytracing_available() là true.
+/// @param ctx Context của engine.
+/// @return true khi tia đi qua phần cứng ray tracing.
+bool raytracing_hardware(context &ctx);
 
 /// Loại đèn của njin::light3d_source.
 enum light3d_kind {
@@ -420,7 +466,8 @@ struct irradiance3d_desc {
   /// Tính lưới bằng tia mỗi frame thay vì chụp một lần (cần raytracing_available()):
   /// ánh sáng gián tiếp theo kịp đèn, nắng và vật di chuyển, và dội nhiều lần (tường đỏ
   /// hắt sáng đỏ lên sàn, phòng sáng dần qua cửa sổ). Không có ray tracing thì lưới
-  /// được chụp như cũ.
+  /// được chụp như cũ. Renderer bgfx: lưới bằng tia chạy bằng compute shader và chiếu
+  /// sáng các hình đục (kính, nước giữ `ambient`); lưới chụp một lần chưa có ở đó.
   bool ray_traced = false;
   /// Số tia mỗi điểm mỗi frame (khi `ray_traced`), 16..256.
   i32 rays = 128;
@@ -463,6 +510,11 @@ struct material3d {
   /// Không hợp lệ là không dán ảnh. Ảnh đã xếp vào atlas bị bỏ qua.
   texture_handle texture{};
   bool cast_shadows = true;  ///< Đổ bóng khi njin::light3d bật `shadows`.
+  /// Nhận bóng của mặt trời. Tắt thì vật luôn ở trong nắng (vẫn tối theo hướng
+  /// nắng và đèn như thường): cho lá cây, nơi game tự pha tối theo độ sâu vào màu
+  /// đỉnh thay cho bóng. Chỉ bóng của mặt trời; bóng của đèn điểm và đèn nón vẫn
+  /// rơi lên vật.
+  bool receive_shadows = true;
   /// Cắt theo alpha (lá cây, hàng rào, tóc thẻ): chỗ alpha của ảnh màu (nhân màu
   /// vẽ và màu đỉnh) thấp hơn số này thì không có mặt, cả khi vẽ lẫn khi đổ bóng
   /// (bóng chỉ xét alpha của ảnh). 0 là tắt. Vật vẫn là vật đặc, vẽ cùng lượt với
@@ -478,6 +530,17 @@ struct material3d {
   /// thêm hình; lớn thì nhiều mảng kín hơn.
   f32 snow = 0.0f;
   rgba snow_color{0.95f, 0.96f, 1.0f, 1.0f}; ///< Màu tuyết của `snow`.
+  /// Lấp lánh dưới nắng, 0..4 (0 là tắt), như njin::terrain3d_layer::glitter: tinh thể
+  /// nhỏ cỡ vài cm lóe sáng khi phản chiếu mặt trời vào mắt, chỉ chỗ có nắng. Có `snow`
+  /// thì chỉ phần tuyết lấp lánh; không có thì cả bề mặt (một vật liệu tuyết, băng).
+  f32 glitter = 0.0f;
+  /// `glitter` lóe cả dưới đèn điểm và đèn nón (light3d_add()), mỗi đèn theo màu của
+  /// nó, không chỉ dưới nắng: đồ trang trí, kim tuyến trong phòng có đèn.
+  bool glitter_lamps = false;
+  /// Chỉ phần kim loại lấp lánh: `glitter` nhân với độ kim loại (`metallic`, và ảnh
+  /// `metal_rough` hay ảnh của vật liệu model), như quả châu, viền mạ trên một model
+  /// nướng chung một vật liệu.
+  bool glitter_metal = false;
   /// Opt-in hand-shaped clay normal/albedo variation for SDF draws only.
   /// 0 keeps the original smooth surface. Does not change hit depth or silhouette.
   f32 clay = 0.0f;
@@ -780,6 +843,9 @@ struct mesh3d_data {
   /// một mảnh cắt từ lưới đã có UV giữ nguyên ảnh của nó. nullptr là (0, 0)
   /// mọi đỉnh, tức chỉ có màu.
   const vec2 *texcoords = nullptr;
+  /// Toạ độ thứ hai từng đỉnh: UV của lightmap (material3d::lightmap), hay số
+  /// liệu cho model_material::flutter. nullptr là không có.
+  const vec2 *texcoords2 = nullptr;
   u32 vertex_count = 0;         ///< Số đỉnh.
   /// Ba chỉ số một tam giác, ngược chiều kim đồng hồ khi nhìn từ mặt trước.
   /// nullptr thì mỗi ba đỉnh liên tiếp là một tam giác. Có chỉ số thì tối đa
@@ -899,7 +965,9 @@ i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &des
 /// model_lod_build() (mức 1 khi model cao chưa tới `screen` chiều cao màn hình,
 /// mỗi mức sau ở một nửa mức trước). Mỗi file phải có cùng số mesh, mesh thứ i
 /// dùng cùng material với mesh thứ i của model: chỉ lưới được lấy, material và
-/// texture của file bị bỏ. Không dùng cho model có xương hay morph.
+/// texture của file bị bỏ. Model nạp với njin::model_load_desc::merge thì các
+/// file cũng được gộp mesh theo material như thế trước khi so. Không dùng cho
+/// model có xương hay morph.
 ///
 /// Gọi lại thì thay các mức cũ (cả mức của model_lod_build()). model_unload()
 /// giải phóng cả các mức.
@@ -918,6 +986,7 @@ i32 model_lod_build(context &ctx, model_handle handle, const model_lod_desc &des
 /// (cảnh báo nói vì sao; model khi đó không có mức nào).
 i32 model_lod_load(context &ctx, model_handle handle, const char *const *paths, i32 count, f32 screen = 0.25f);
 
+
 /// Vị trí, hướng và tỉ lệ của một vật 3D.
 ///
 /// Thứ tự áp dụng: phóng theo `scale`, xoay quanh `z` (roll), rồi quanh `x`
@@ -928,6 +997,42 @@ struct transform3d {
   vec3 rotation{0.0f, 0.0f, 0.0f}; ///< Góc xoay quanh x, y, z, tính bằng độ.
   vec3 scale{1.0f, 1.0f, 1.0f};    ///< Tỉ lệ theo x, y, z.
 };
+
+/// Một model đặt ở một chỗ, cho model_combine().
+struct model_place {
+  model_handle model{};     ///< Model từ model_load() hay model_create().
+  transform3d transform{};  ///< Chỗ đặt, như draw_model().
+};
+
+/// Ghép nhiều model đặt sẵn thành **một** model tĩnh mới: lưới của chúng được
+/// đặt vào chỗ của mình rồi gộp theo tên material (material không tên chỉ gộp
+/// trong model của nó), mỗi lưới gộp tối đa 65535 đỉnh. Các mức chi tiết
+/// (model_lod_build(), model_lod_load()) được ghép theo cùng cách: mức k của
+/// model mới gồm mức k của từng model (mức gần nhất nó có). Material của model
+/// mới chép từ model đầu tiên có tên đó, kể cả những gì game đã đặt bằng
+/// model_material_set(), và dùng chung ảnh với nó: các model nguồn phải còn
+/// đến khi model mới được giải phóng. Model có xương hay morph bị bỏ ra.
+///
+/// Cho cảnh tĩnh dựng từ nhiều mảnh (một khu phố từ bộ kit): vài lệnh vẽ mỗi
+/// lượt thay vì một lệnh cho mỗi loại mảnh và mỗi material, và với bóng ray
+/// tracing vài instance thay vì hàng nghìn. Đổi lại, mỗi model mới giữ lưới
+/// riêng của nó trong bộ nhớ, và bị cắt khỏi tầm nhìn theo cả khối.
+///
+/// @code
+/// const njin::model_place parts[] = {{wall, {.position = {0, 0, 0}}}, {wall, {.position = {2, 0, 0}}}};
+/// const njin::model_handle row = njin::model_combine(ctx, parts, 2);
+/// @endcode
+/// @param ctx Context của engine.
+/// @param places Các model và chỗ đặt.
+/// @param count Số chỗ.
+/// @param screen Như njin::model_lod_desc::screen, cho các mức của model mới.
+/// @param from_level Mức chi tiết của các mảnh mà mức đầy đủ của model mới lấy
+///   từ đó (0 là lưới gốc của chúng); các mức sau lấy từ mức thô hơn nữa. Cho
+///   một bản thu nhỏ (cả thung lũng trên bàn) chỉ cần mức đơn giản nhất của
+///   hàng nghìn cây, không phải lưới đầy đủ của chúng.
+/// @return Handle của model mới, hoặc không hợp lệ nếu không có lưới nào để ghép.
+model_handle model_combine(context &ctx, const model_place *places, u32 count, f32 screen = 0.25f,
+                           u32 from_level = 0);
 
 /// Vật liệu của một phần model: mỗi file glTF/OBJ có một hay nhiều vật liệu, mỗi
 /// mesh dùng một. Đọc bằng model_material_get(), sửa rồi đặt lại bằng
@@ -959,6 +1064,27 @@ struct model_material {
   /// Vẽ cả hai mặt của mỗi tam giác (không bỏ mặt sau), cho lá cây, giấy, vải
   /// mỏng một lớp. Mặc định theo `doubleSided` của vật liệu trong file glTF.
   bool double_sided = false;
+  /// Đung đưa theo gió (wind3d_set(), hay gió của njin::weather3d) như ngọn cỏ
+  /// của grass3d, trong cùng những cơn gió lướt qua thảm cỏ: mỗi đỉnh ngả theo
+  /// chiều gió theo bình phương độ cao của nó trong model (mét, sau tỉ lệ của
+  /// instance), nên gốc đứng yên và ngọn ngả nhiều nhất; ở độ cao 1 m nó ngả như
+  /// ngọn cỏ cao 1 m có `grass3d_desc::sway` bằng số này. Cho hoa, bụi cỏ, cây non
+  /// thân mềm vẽ bằng draw_instanced3d() (và scatter3d). 0 là đứng yên. Chỉ shader
+  /// có sẵn của draw_instanced3d() dùng; bóng ray traced vẫn theo hình đứng yên.
+  f32 sway = 0.0f;
+  /// Từng chiếc lá rung trong gió, xoay quanh cuống của nó, mỗi lá một nhịp, trong
+  /// cùng những cơn gió với `sway`. Lấy từ toạ độ thứ hai của đỉnh
+  /// (mesh3d_data::texcoords2): `x` là khoảng cách tới cuống lá (mét, 0 ở cuống
+  /// thì đứng yên), `y` là nhịp của lá (0..1, mỗi lá một số). Số này là độ lệch,
+  /// tính theo radian, của lá khi gió 8 m/s; lặng gió lá vẫn khẽ rung. 0 là
+  /// không rung. Chỉ shader có sẵn của draw_instanced3d() dùng.
+  f32 flutter = 0.0f;
+  /// Chỉ đổ bóng, không thấy được: phần này vắng mặt trong mọi lượt vẽ khác (vẽ
+  /// chính, depth prepass, phản chiếu) và chỉ có trong ảnh bóng. Cho một bản
+  /// thô, ít chi tiết của vật đứng thay nó trong bóng (lá cây: bóng cả tán thay
+  /// cho bóng từng lá), cùng `surface.cast_shadows` bật. Chỉ có tác dụng khi vẽ
+  /// bằng draw_instanced3d(); bóng ray traced bỏ qua.
+  bool shadow_only = false;
 };
 
 /// Số vật liệu của model.
@@ -1587,8 +1713,27 @@ struct render3d_options {
   /// Độ sâu trễ một đến vài frame: vật vừa ló ra sau tường có thể hiện trễ một
   /// frame. Khi camera nhảy chỗ hay quay gấp (hơn `occlusion_max_move` mét,
   /// hơn khoảng 18 độ) engine không bỏ gì cho đến khi có độ sâu mới.
+  /// Trên SDL3/bgfx: lọc model thường đục và nhóm instance dùng shader tích hợp,
+  /// descriptor có `cull=true`; depth lấy từ model đục không instanced trong
+  /// chính lượt vẽ hiện tại, hỗ trợ nhiều camera/render texture và resize.
+  /// Compute compact và ghi indirect draw hoàn toàn trên GPU. Nhóm descriptor
+  /// đục không OIT/SSR chọn frustum/LOD trên GPU, giữ orientation và shared pose.
+  /// Caster được lọc riêng theo frustum đèn, giữ vật ngoài camera đổ bóng.
+  /// Không dùng lịch sử hay `occlusion_max_move`; normal/velocity giữ snapshot.
+  /// Thiếu compute/indirect/R32F thì báo lỗi khi có ứng viên cần lọc.
   bool occlusion = false;
   f32 occlusion_max_move = 1.0f; ///< Mét camera được đi từ lúc lấy độ sâu mà vẫn dùng nó.
+  /// Vẽ độ sâu của mọi vật đục trước (không ghi màu), rồi mới vẽ chúng có ánh
+  /// sáng: mỗi điểm ảnh chỉ tô bóng một lần, thay vì tô rồi bị vật gần hơn đè
+  /// lên. Lợi khi shader chiếu sáng đắt và cảnh có nhiều lớp che nhau (rừng,
+  /// làng trên đồi); tốn thêm một lần vẽ hình học (rẻ, như một tầng bóng).
+  /// Hình ảnh không đổi: chỉ những vật mà hai lần vẽ cho đúng cùng độ sâu mới
+  /// vào lần vẽ trước (model, hình khối, instanced ở mức chi tiết đầy đủ, địa
+  /// hình, cỏ); vật đang dissolve, hình SDF, instance ở mức chi tiết đơn giản
+  /// hơn và vật liệu cắt alpha có `world_uv` hay ảnh độ cao vẫn vẽ như cũ.
+  /// Chỉ cho lần vẽ của camera, không cho lần chụp probe. Đo trước khi bật:
+  /// một cảnh ít lớp che nhau trả thêm một lần vẽ hình học mà không bớt được gì.
+  bool depth_prepass = false;
 };
 
 /// Đặt các cách bớt việc vẽ cho những lần vẽ 3D sau.
@@ -1618,6 +1763,18 @@ struct fx3d {
   f32 edge_width = 0.08f; ///< Độ dày viền, theo thang ngẫu nhiên 0..1.
   f32 grain = 0.1f;       ///< Cỡ mỗi mảng, đơn vị thế giới.
   f32 seed = 0.0f;        ///< Đổi hình mẫu tan, để hai vật không tan giống hệt nhau.
+  /// Tan theo hướng: chỗ gần `dissolve_from` tan trước, chỗ gần `dissolve_to`
+  /// tan sau cùng, nên vết tan quét qua hình (tan từ đầu xuống chân, từ phía
+  /// trúng đòn ra sau). `dissolve_sweep` 0 là tan từng mảng ngẫu nhiên như cũ, 1
+  /// là vết tan thẳng như dao cắt; ở giữa thì vết tan lởm chởm theo các mảng.
+  /// Hai điểm tính bằng đơn vị thế giới, như hình đang vẽ.
+  /// @code
+  /// // Tan từ đỉnh đầu xuống chân, mép lởm chởm.
+  /// njin::fx3d_set(ctx, {.dissolve = t, .dissolve_from = head, .dissolve_to = feet, .dissolve_sweep = 0.7f});
+  /// @endcode
+  vec3 dissolve_from{0.0f, 0.0f, 0.0f};
+  vec3 dissolve_to{0.0f, 0.0f, 0.0f};  ///< Chỗ tan sau cùng; xem `dissolve_from`.
+  f32 dissolve_sweep = 0.0f;           ///< 0..1, xem `dissolve_from`.
   /// Khoét chỗ che (sphere masking), cho camera góc thứ ba: phần hình nằm giữa
   /// camera và `mask_center` (đơn vị thế giới 3D), trong một hình nón loe dần
   /// tới bán kính `mask_radius` ở `mask_center`, bị bỏ đi theo mẫu chấm, mép

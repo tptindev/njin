@@ -1,3 +1,4 @@
+#include "njin_render_capabilities.h"
 #include "njin_scene.h"
 #include "_comps.h"
 #include "njin_ctx.h"

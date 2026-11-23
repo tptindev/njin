@@ -1,6 +1,7 @@
 // The 3d feature (njin_features.h): models and materials, the 3D pass, 3D
 // particles, post3d, world3d (sky, terrain, water, grass) and 3D animation.
 #include "_comps.h"
+#include "njin_stream_internal.h"
 #include "modules/debug.h"
 #include "modules/debug3d.h"
 #include "modules/particles3d.h"
@@ -8,19 +9,40 @@
 #include "modules/post_fx.h"
 #include "modules/render3d.h"
 #include "njin_3d.h"
+#include "njin_cfg.h"
 #include "njin_anim3d_impl.h"
 #include "njin_audio_impl.h"
 #include "njin_ctx_get.h"
+#include "njin_ctx.h"
 #include "njin_instance.h"
 #include "njin_json.h"
 #include "njin_log.h"
 #include "njin_model.h"
+#include "njin_model_portable.h"
 #include "njin_world3d_impl.h"
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
 
 namespace njin {
 namespace {
+void validate_portable_scene(context &ctx) {
+  const auto &registry=world(ctx);
+  for(auto [entity,shape]:registry.view<const shape3d_render>().each())
+    if(shape.visible) portable_surface_validate(shape.material);
+  for(auto [entity,transform,source]:registry.view<const transform3d,const light3d_source>().each()) {
+    auto light=source; light.position=transform.position; portable_light_validate(light);
+  }
+}
+void setup_portable_scene_guard(context &ctx) {
+  ecs_register(ctx,phase_pre_render,validate_portable_scene,"validate bgfx scene capabilities");
+  ecs_register(ctx,phase_update,[](context &ctx) {
+    const float dt=delta(ctx);
+    for(auto [entity,model]:world(ctx).view<model3d>().each()) {
+      model.pose.time+=dt*model.speed; model.pose.blend_time+=dt*model.speed;
+    }
+  },"model3d_anim_clock");
+}
 // The depth the last pass left in the world target, for the depth of field.
 void world_depth(context &ctx, u32 depth_texture, post_depth &out) {
   render3d_state &r = ctx_ref<render3d_state>(ctx);
@@ -76,6 +98,22 @@ void debug_views(context &ctx) {
 } // namespace
 
 void feature_install_3d(context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    ctx_ref<world3d_store>(ctx).emplace();
+    ctx_ref<feature_hooks>(ctx).modules_mid.push_back(world3d_module());
+    ctx_ref<particles3d_state>(ctx).emplace();
+    ctx_ref<feature_hooks>(ctx).modules_mid.push_back(particles3d_module());
+    ctx_ref<instance_store>(ctx).emplace();
+    ctx_ref<anim3d_store>(ctx).emplace();
+    ctx_ref<model_store>(ctx).emplace();
+    ctx_ref<model_store>(ctx)->portable_context=&ctx;
+    ctx_ref<feature_hooks>(ctx).world_end=portable_close_3d;
+    ctx_ref<feature_hooks>(ctx).debug_views.push_back(debug_views);
+    ctx_ref<feature_hooks>(ctx).debug_frame3d=[](const context &ctx)->const debug3d_frame* {return &ctx_ref<model_store>(ctx)->portable_debug;};
+    ctx_ref<feature_hooks>(ctx).audio_update=audio3d_update;
+    ctx_ref<feature_hooks>(ctx).modules_mid.push_back({.name="njin.render3d.capabilities",.setup=setup_portable_scene_guard});
+    return; // legacy GL renderer stores/modules are unavailable on this backend
+  }
   ctx_ref<instance_store>(ctx).emplace();
   ctx_ref<model_store>(ctx).emplace();
   ctx_ref<render3d_state>(ctx).emplace();
@@ -104,6 +142,7 @@ model_handle model_load(context &ctx, const model_load_desc &desc) { return mode
 
 void model_unload(context &ctx, model_handle handle) {
   model_store_unload(ctx_ref<model_store>(ctx), handle);
+  stream_forget(ctx,true,handle.id);
 }
 
 model_handle model_create(context &ctx, const mesh3d_data &mesh) { return model_store_create(ctx_ref<model_store>(ctx), mesh); }
@@ -139,6 +178,18 @@ void model_material_set(context &ctx, model_handle handle, i32 index, const mode
   model_slot *slot = model_slot_of(ctx_ref<model_store>(ctx), handle);
   if (slot == nullptr)
     return;
+  if(ctx_ref<model_store>(ctx)->portable_context) {
+    portable_material_validate(material);
+    // bgfx binds glTF clearcoat maps on the samplers transmission needs.
+    if(material.surface.transmission>0) {
+      for(usize i=0;i<slot->portable_materials.size();++i) {
+        if(index>=0&&i!=(usize)index) continue;
+        const auto &maps=slot->portable_materials[i].maps;
+        if(maps.clearcoat.texture||maps.clearcoat_roughness.texture||maps.clearcoat_normal.texture)
+          throw std::invalid_argument("njin bgfx 3D: a material with glTF clearcoat maps cannot use transmission");
+      }
+    }
+  }
   if (index < 0) {
     for (model_material &m : slot->materials)
       m = material;

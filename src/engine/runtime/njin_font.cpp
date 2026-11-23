@@ -1,10 +1,14 @@
 #include "njin_font.h"
 #include "njin_log.h"
 #include "njin_path.h"
+#include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
+#include "njin_view.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <stdexcept>
 
 // stb_truetype for the fonts' own metrics (round_advances); raylib's copy is
 // static to it, so this one is too.
@@ -168,12 +172,63 @@ const Font *atlas_of(font_slot &slot, i32 px) {
   }
   return bake(slot, px);
 }
+void free_portable_metrics(PortableFontAtlas &atlas) {
+  UnloadFontData(atlas.metrics.glyphs,atlas.metrics.glyphCount);
+  MemFree(atlas.metrics.recs); atlas.metrics={};
+}
+void release_portable(context *ctx,font_slot &slot) {
+  if(!ctx) return;
+  auto &store=ctx_mut<font_store>(*ctx);
+  for(const auto &q:ctx_ref<view_state>(*ctx)->text_layer) {
+    auto *pending=q.portable_fallback?&store->fallback:slot_of(store,q.font);
+    if(pending==&slot) throw std::logic_error("njin font: font is referenced by deferred text");
+  }
+  const auto &window=ctx_ref<window_guard>(*ctx);
+  for(const auto &[px,atlas]:slot.portable_atlases)
+    if(window.graphics->texture_in_use(atlas.texture)||window.renderer_resources.pending_3d_textures.contains(atlas.texture.id))
+      throw std::logic_error("njin font: atlas is referenced by submitted draws");
+  while(!slot.portable_atlases.empty()) {
+    auto it=slot.portable_atlases.begin();
+    renderer_destroy_texture(*ctx,it->second.texture);
+    free_portable_metrics(it->second); slot.portable_atlases.erase(it);
+  }
+}
+const PortableFontAtlas *portable_atlas_of(context &ctx,font_slot &slot,i32 px) {
+  if(auto found=slot.portable_atlases.find(px);found!=slot.portable_atlases.end()) return &found->second;
+  if(slot.portable_atlases.size()>=max_atlases) {
+    auto nearest=slot.portable_atlases.begin();
+    for(auto it=slot.portable_atlases.begin();it!=slot.portable_atlases.end();++it)
+      if(std::abs(it->first-px)<std::abs(nearest->first-px)) nearest=it;
+    return &nearest->second;
+  }
+  std::vector<int> cps=font_codepoints(); cps.insert(cps.end(),slot.extra.begin(),slot.extra.end());
+  PortableFontAtlas atlas;
+  auto &font=atlas.metrics;
+  font.baseSize=px; font.glyphPadding=4;
+  font.glyphs=LoadFontData(slot.bytes,slot.length,px,cps.data(),(int)cps.size(),slot.pixel ? FONT_BITMAP:FONT_DEFAULT,&font.glyphCount);
+  if(!font.glyphs || font.glyphCount<=0) { free_portable_metrics(atlas); return nullptr; }
+  Image image=GenImageFontAtlas(font.glyphs,&font.recs,font.glyphCount,px,font.glyphPadding,0);
+  try {
+    if(!image.data || !font.recs) { if(image.data) UnloadImage(image); free_portable_metrics(atlas); return nullptr; }
+    ImageFormat(&image,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    if(!image.data) throw std::runtime_error("njin font: CPU atlas conversion failed");
+    font.texture.width=image.width; font.texture.height=image.height; // metadata only; id remains zero
+    round_advances(slot,font,px);
+    atlas.texture=renderer_create_texture(ctx,{(unsigned)image.width,(unsigned)image.height,
+      {static_cast<const unsigned char*>(image.data),size_t(image.width)*image.height*4}});
+    UnloadImage(image); image={};
+    try { return &slot.portable_atlases.emplace(px,atlas).first->second; }
+    catch(...) { renderer_destroy_texture(ctx,atlas.texture); throw; }
+  } catch(...) { if(image.data) UnloadImage(image); free_portable_metrics(atlas); throw; }
+}
 } // namespace
 
 void font_slot::unload_atlases() {
   for (auto &[px, font] : atlases)
     UnloadFont(font);
   atlases.clear();
+  for(auto &[px,atlas]:portable_atlases) free_portable_metrics(atlas);
+  portable_atlases.clear();
 }
 
 font_store::font_store() {
@@ -190,7 +245,7 @@ font_store::~font_store() {
 
 i32 font_px(f32 size) { return std::clamp((i32)std::lround(size), min_px, max_px); }
 
-font_handle font_store_load(font_store &store, const char *path, i32 size, bool pixel) {
+font_handle font_store_load(font_store &store, const char *path, i32 size, bool pixel,context *portable_ctx) {
   if (path == nullptr) {
     NJIN_WARN("font: path is null");
     return font_handle{};
@@ -220,7 +275,7 @@ font_handle font_store_load(font_store &store, const char *path, i32 size, bool 
   // The vector's buffer does not move when the slot does, so `bytes` stays.
   store.slots.push_back(std::move(slot));
   font_slot &kept = store.slots.back();
-  if (atlas_of(kept, size > 0 ? font_px((f32)size) : probe_px) == nullptr) {
+  if (portable_ctx ? portable_atlas_of(*portable_ctx,kept,size>0 ? font_px((f32)size):probe_px)==nullptr : atlas_of(kept,size>0 ? font_px((f32)size):probe_px)==nullptr) {
     NJIN_WARN("font: failed to load: %s", path);
     store.slots.pop_back();
     return font_handle{};
@@ -228,18 +283,20 @@ font_handle font_store_load(font_store &store, const char *path, i32 size, bool 
   return font_handle{.id = (u32)store.slots.size()};
 }
 
-void font_store_unload(font_store &store, font_handle handle) {
+void font_store_unload(font_store &store, font_handle handle,context *portable_ctx) {
   font_slot *slot = slot_of(store, handle);
   if (slot == nullptr)
     return;
+  release_portable(portable_ctx,*slot);
   slot->unload_atlases();
   *slot = font_slot{};
 }
 
-void font_store_set_pixel(font_store &store, font_handle handle, bool pixel) {
+void font_store_set_pixel(font_store &store, font_handle handle, bool pixel,context *portable_ctx) {
   font_slot *slot = handle.id == 0 ? &store.fallback : slot_of(store, handle);
   if (slot == nullptr || slot->pixel == pixel)
     return;
+  release_portable(portable_ctx,*slot);
   slot->pixel = pixel;
   slot->unload_atlases();
 }
@@ -254,7 +311,7 @@ bool font_store_is_pixel(const font_store &store, font_handle handle) {
 
 void font_store_set_default(font_store &store, font_handle handle) { store.chosen = handle; }
 
-void font_store_add_chars(font_store &store, font_handle handle, const char *text) {
+void font_store_add_chars(font_store &store, font_handle handle, const char *text,context *portable_ctx) {
   font_slot *slot = handle.id == 0 ? &store.fallback : slot_of(store, handle);
   if (slot == nullptr || text == nullptr)
     return;
@@ -272,6 +329,7 @@ void font_store_add_chars(font_store &store, font_handle handle, const char *tex
   UnloadCodepoints(cps);
   if (added.empty())
     return;
+  release_portable(portable_ctx,*slot);
   slot->extra.insert(slot->extra.end(), added.begin(), added.end());
   std::sort(slot->extra.begin(), slot->extra.end());
   slot->extra.erase(std::unique(slot->extra.begin(), slot->extra.end()), slot->extra.end());
@@ -291,5 +349,26 @@ const Font *font_store_atlas(font_store &store, font_handle handle, i32 px) {
   if (font == nullptr && slot != &store.fallback)
     font = atlas_of(store.fallback, px);
   return font;
+}
+const PortableFontAtlas *font_store_portable_atlas(context &ctx,font_store &store,font_handle handle,i32 px,bool fallback_only) {
+  auto *slot=fallback_only?&store.fallback:slot_of(store,handle);
+  if(!slot) slot=slot_of(store,store.chosen);
+  if(!slot) slot=&store.fallback;
+  auto *atlas=portable_atlas_of(ctx,*slot,px);
+  if(!atlas && slot!=&store.fallback) atlas=portable_atlas_of(ctx,store.fallback,px);
+  return atlas;
+}
+vec2 font_measure_portable(const Font &font,const char *text) {
+  if(!text || !*text) return {};
+  float width=0,max_width=0,height=(float)font.baseSize;
+  for(const char *p=text;*p;) {
+    int bytes=0; const int cp=GetCodepointNext(p,&bytes); p+=std::max(bytes,1);
+    if(cp=='\n') { max_width=std::max(max_width,width); width=0; height+=font.baseSize+2; }
+    else {
+      const int index=GetGlyphIndex(font,cp);
+      width+=font.glyphs[index].advanceX>0 ? font.glyphs[index].advanceX : font.recs[index].width+font.glyphs[index].offsetX;
+    }
+  }
+  return {std::max(width,max_width),height};
 }
 } // namespace njin

@@ -32,6 +32,12 @@ struct graphics_quality {
   /// phần tư số pixel GPU phải tô. Không áp khi có độ phân giải ảo
   /// (window_set_virtual_size()): pixel art đã vẽ ở ảnh nhỏ.
   f32 world_scale = 1.0f;
+  /// Phóng thế giới vẽ ở `world_scale` lên màn hình bằng lọc Catmull-Rom rồi
+  /// làm nét theo độ tương phản quanh mỗi điểm (như FSR 1 / CAS), thay cho lọc
+  /// song tuyến: cạnh vẫn rõ ở 0.75..0.85, không có bóng mờ theo thời gian.
+  /// Tốn một pass toàn màn hình ở độ phân giải thật. Mặc định tắt: song tuyến
+  /// như trước. Không đổi gì khi `world_scale` là 1.
+  bool world_sharp = false;
   /// Bóng của mặt trời 3D (`light3d::shadows`). `false` thì tắt.
   bool shadows = true;
   /// Cạnh lớn nhất của bản đồ bóng mặt trời, pixel (`light3d::shadow_size`).

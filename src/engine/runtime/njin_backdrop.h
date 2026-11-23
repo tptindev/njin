@@ -2,6 +2,7 @@
 #include "njin_internal_only.h"
 
 #include "_types.h"
+#include "njin_renderer.h"
 #include <raylib.h>
 
 // draw_backdrop_blur(): what is drawn under a rectangle, copied out of the
@@ -18,6 +19,8 @@ struct backdrop_state {
   // `grab` as big as the framebuffer copied from (a multisampled one is only
   // resolved into a rectangle of the same place and size), `half_*` half it.
   RenderTexture2D grab{}, half_a{}, half_b{};
+  std::array<RenderTargetHandle,3> portable_targets{};
+  unsigned portable_width=0,portable_height=0;
 
   backdrop_state() = default;
   ~backdrop_state();

@@ -4,6 +4,9 @@
 #include "_tilemap.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
+#include "njin_cfg.h"
+#include "njin_view.h"
+#include <stdexcept>
 #include "njin_ecs.h"
 #include "njin_draw_shapes.h"
 #include "njin_body.h"
@@ -220,6 +223,10 @@ void detect(context &ctx) {
 void draw_debug(context &ctx) {
   if (!ctx_ref<collision_state>(ctx)->debug)
     return;
+  struct RestoreWorld {i32 *depth=nullptr;i32 previous=0;~RestoreWorld(){if(depth) *depth=previous;}} scope;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    scope.depth=&ctx_ref<view_state>(ctx)->world_depth;scope.previous=*scope.depth;*scope.depth=1;
+  }
   const rgba solid{0.2f, 1.0f, 0.3f, 0.9f};
   const rgba trig{1.0f, 0.85f, 0.1f, 0.9f};
   for (auto [entity, tr, col] : world(ctx).view<const transform, const collider>().each()) {
@@ -237,7 +244,7 @@ void draw_debug(context &ctx) {
 
 void setup(context &ctx) {
   ecs_register(ctx, phase_post_update, detect, "detect");
-  ecs_register(ctx, phase_render, draw_debug, "draw_debug");
+  ecs_register(ctx,ctx_ref<config>(ctx).graphics_backend==GraphicsBackend::OpenGL?phase_render:phase_post_render,draw_debug,"draw_debug");
 }
 
 // --- raycast helpers ---

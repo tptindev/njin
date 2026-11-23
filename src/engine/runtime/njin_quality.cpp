@@ -147,6 +147,7 @@ constexpr i32_field i32_fields[] = {
     {"ssr_steps_max", &graphics_quality::ssr_steps_max},
 };
 constexpr bool_field bool_fields[] = {
+    {"world_sharp", &graphics_quality::world_sharp},
     {"shadows", &graphics_quality::shadows},     {"lamp_shadows", &graphics_quality::lamp_shadows},
     {"ssao", &graphics_quality::ssao},           {"ssr", &graphics_quality::ssr},
     {"motion_blur", &graphics_quality::motion_blur}, {"taa", &graphics_quality::taa},

@@ -10,6 +10,232 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- Progressive mip/mesh LOD residency và software virtual albedo cho cả terrain/model:
+  giữ coarse fallback, GPU allocation giảm khi hạ chi tiết, NVT1 range reads qua
+  scheduler hiện có, page table/bordered cache và permanent mip tail. OBJ/MTL async
+  dùng cùng loader sync. Chi tiết API/giới hạn: `docs/renderer-residency.md`.
+
+- Asset streaming opt-in texture/glTF trên SDL3/bgfx: CPU loader worker riêng theo
+  context, upload thật có budget trước frame, placeholder qua handle Njin hiện có,
+  dedup/generation/cancel/retry, pin/LRU eviction và scene/context shutdown. Giữ API
+  load đồng bộ; fixture ảnh sync/stream trên Windows, Linux WSL và Android.
+  Phạm vi và số đo ban đầu: `docs/renderer-streaming.md`; phần mip/LOD và VT được
+  mở rộng ở mục trên.
+
+- Hi-Z GPU culling cho descriptor instance đục trên SDL3/bgfx: depth cùng frame,
+  max-depth pyramid, compute compaction và indirect draw; giữ caster ngoài camera.
+  Chưng cất thiết kế fl, không thay backend. Có capability query, GPU readback
+  chẩn đoán và fixture bật/tắt kiểm tra ảnh cùng số instance thực trên GPU.
+
+- Relief hình học cho terrain trên bgfx: lưới mịn gần camera, vertex texture
+  fetch, mip/triplanar, splat, fade và normal riêng; dùng cùng displacement cho
+  màu/depth/shadow và có shader velocity. Giữ mặt trơn cho height query/va chạm.
+  Thêm fixture `terrain_relief` và suite Android relief/ocean.
+- Vá buffer shader OpenGL/GLES của bgfx sang heap để tránh stack overflow trên
+  SDLThread khi shader lớn; đã tìm bằng native backtrace và kiểm tra lại trên Pixel 6a.
+
+- `.obj` models on the bgfx renderer: model_load() reads OBJ/MTL files there
+  too (they were refused), with the same materials as the OpenGL path: the
+  mtllib's materials from index 0, `Kd`, `map_Kd`, `map_bump` and `Ke`.
+- meshopt-compressed glTF on the bgfx renderer: `EXT_meshopt_compression` /
+  `KHR_meshopt_compression` buffers (gltfpack `-c`) are decoded on load.
+- Compressed images on the bgfx renderer: DDS (DXT1/3/5), KTX/PVR (ETC1/ETC2/
+  PVRTC) and ASTC files load as textures and as model images, decoded to RGBA8.
+- glTF `KHR_materials_anisotropy` strength and rotation on the bgfx renderer, as
+  the OpenGL path has (meshes with tangents).
+- draw_sky3d() on the bgfx renderer: the sky, clouds, stars and the light it
+  drives, rain and snow (with flake shapes and sparkle), roofs keeping them off
+  (cover_auto and weather3d_cover_set), wet terrain and water rain rings look as
+  on the OpenGL path. bgfx water now reflects the sky as the OpenGL water does.
+- Ray traced sun shadows on the bgfx renderer: light3d::ray_traced_shadows
+  traces in a compute shader on any GPU with compute (D3D, Vulkan, OpenGL,
+  Android Vulkan), with sun_angle, shadow_rays and shadow_denoise;
+  raytracing_available() tells whether it runs. The first three shadowed lamps
+  are traced too, shadow_lod/shadow_lod_gap trace a coarser LOD level, and an
+  unchanged scene reuses its BVH. light3d::ray_traced_reflections and the ray
+  traced irradiance grid (irradiance3d_desc::ray_traced) also run on bgfx; the
+  captured grid is not on bgfx yet. RendererResourceStats gains `ray_traces`
+  and `ray_bvh_builds`.
+- 3D: on bgfx Vulkan, when the GPU has ray queries (VK_KHR_ray_query) and the
+  build found glslc, ray traced shadows, reflections and the irradiance grid
+  run on the GPU's ray tracing hardware, with the same results as the compute
+  path. raytracing_hardware() tells whether they do, config::graphics_ray_query
+  (default on) turns it off, RendererResourceStats::ray_query_dispatches counts
+  the dispatches. The pinned bgfx is patched at configure time
+  (cmake/njin_bgfx_rayquery_fix.cmake).
+- glTF clearcoat maps on the bgfx renderer: models loaded with
+  `model_load_desc::pbr` read `KHR_materials_clearcoat`'s intensity (R),
+  roughness (G) and coat normal textures, each with its own UV set, texture
+  transform and sampler. A material with clearcoat maps cannot also use
+  transmission (they share samplers), and the three maps may use at most two
+  distinct textures; both cases are reported as errors. The legacy OpenGL
+  path keeps the scalar factors. `RenderMaterialMaps` gains `clearcoat`,
+  `clearcoat_roughness`, `clearcoat_normal` and `clearcoat_normal_scale`.
+- Real relief on terrain layers: `terrain3d_layer::height` and `relief` push
+  the ground near the camera out and in by the layer's height image, read
+  exactly as its colour image is (same tile, triplanar on steep ground) and
+  weighted as it is, so a crack drawn in the colour image is a fold in the
+  shape right there, fading out at the layer's edges and with distance.
+  `terrain3d_desc::relief_distance` sets the reach and `relief_detail` the
+  vertices per cell (few for broad soft faces). Shape only: heights,
+  collision and grass keep the smooth ground. Off by default. Needed by a
+  game whose cliffs should break into rock plates, not only look broken.
+- Leaves that shiver one by one: `model_material::flutter` turns each leaf of
+  a runtime mesh about its stalk in the wind and gusts `sway` follows, each in
+  its own beat, a little even in still air, read from the new
+  `mesh3d_data::texcoords2` (distance from the stalk, the leaf's beat), in
+  draw_instanced3d()'s own shader and its shadows. Off by default. Needed by
+  a game whose tree crowns should stir leaf by leaf, not only bend as one.
+- Water in the weather: `water3d_desc::rain_rings` lands raindrops all over
+  the water while the sky rains (weather3d::rain of draw_sky3d()), each a ring
+  running out and dying, a rough speckle where rings are finer than a pixel;
+  `ice` freezes it from the shallows out, flat and milky with frost and a
+  pale sky in it, calming the waves (water3d_height() and water3d_normal()
+  too); `ice_snow` lies in drifts on the ice. All off by default. Needed by
+  a game whose pond should ripple in the rain and freeze in winter.
+- Snow on a terrain (`terrain3d_desc::snow`, `snow_color`, terrain3d_snow_set()):
+  a white cover on the flat in broad and small drifts that close up as it
+  deepens, slopes and imprinted marks left bare, smoothing the layers'
+  bumps and glittering in the sun, never wet. Colour only, no geometry;
+  changing it costs nothing, so it can follow a snowfall or a thaw frame
+  by frame. Off by default. Needed by a game whose island turns white in
+  winter, with layer images no colour multiply can whiten.
+- grass3d_set() / grass3d_get(): change a meadow while the game runs.
+  Colours, the strength of `ground_color`, `root_shade`, `curve`, `sway`,
+  `far_cover` and the draw range apply at the next draw at no cost; a change
+  to what places or shapes the blades (density, height, noises, `tint`,
+  `seed`...) grows them all again. Needed by a game whose grass turns with
+  the seasons (fresh green, gold, under snow).
+- Wind sway for instanced models (`model_material::sway`): the built-in
+  draw_instanced3d() shader leans each vertex with the wind by the square of
+  its height in the model, in the same gusts that cross grass3d, so the root
+  stays put and the tip bends most. Works for scatter3d too. Off by default.
+  Needed by a game whose meadow flowers should move with the grass round them.
+- Terrain roughness (`terrain3d_layer::roughness`): an image per layer whose
+  red sets how rough the ground is pixel by pixel; mid grey keeps the
+  terrain's `specular` and `shininess`, smoother shines brighter and
+  sharper, rougher fades to matte (PBR lighting takes it as its roughness).
+  Merged into the layer's normal map, so the shader binds no more texture
+  units. Off by default. Needed by a game with stone that should catch the
+  light while soil and grass stay matte.
+
+- Terrain detiling (`terrain3d_layer::detile`): the image seen from above is
+  read twice, each copy shifted by an amount a smooth noise picks over the
+  ground, and the two blended, so the tiles stop lining up into a grid seen
+  from afar (Inigo Quilez's "texture repetition"). For soft images (grass,
+  sand, soil); off by default. Needed by a game whose meadow showed its
+  grass image repeating.
+
+- Stylized grass (`grass3d_desc`): `height_variation` gives each region of
+  the field its own height from the `height_patches` noise, blades within
+  it still apart by `height_jitter`; `tint` mixes `tint_color` into the
+  blade tips in broad patches (`tint_patches`); `curve` arches each blade
+  to one side without wind. All off by default. Needed by a game with a
+  soft, hand-painted meadow.
+
+- Grass grown from the ground's colour (`grass3d_desc::ground_color`):
+  each blade's root takes the terrain's own colour where it grows (layer
+  images and colours by their weights, from small copies of the images made
+  once on the CPU, so it costs nothing per vertex),
+  fading to `tip_color` up the blade, in place of `base_color`; off by
+  default. `root_shade` sets how dark the roots get (0.6 as before). Needed
+  by a game whose dense meadow showed every blade as a dark spike on the
+  lighter ground. Grass thinned out with distance now draws the blades it
+  keeps wider by as much, so a far field covers the ground as thickly as a
+  near one instead of going bald.
+
+- Soft grass edges (`grass3d_desc`): `min_height` keeps grass from growing
+  under it (just above water), thinning over the 0.4 m above; `edge_shrink`
+  makes blades shorter toward any edge of the field (its layer fading, the
+  slope limit, `min_height`), reaching about a metre past the layer's own
+  fade, and lets them grow thicker there, so an edge is a low soft fringe
+  rather than a few tall blades standing alone; off by default. The layer's
+  weight is now read between the terrain's samples, so edges no longer
+  follow its grid. `width_by_height` makes shorter blades narrower by as
+  much (off by default).
+
+- Cheaper grass: a cell whose blades stand only a few pixels tall on screen
+  draws them with two segments or a single triangle instead of five, and
+  grass now takes part in the camera's depth prepass
+  (`render3d_options::depth_prepass`), so a thick field is lit once per pixel.
+  Needed by a game whose dense meadow cost 1.5-3 ms of a laptop GPU's frame
+  (now about 0.5).
+
+- Grass seen from afar (`grass3d_desc::far_cover`): beyond the grass's
+  reach, where it would grow (its layer, slope limit, `min_height`), the
+  terrain takes on the field's colour (`tip_color` with some `tint_color`)
+  mottled in hand-sized tufts, changing over the same `fade` the blades
+  shrink in, so a meadow seen from far off reads as grass rather than bare
+  soil; off by default. No geometry, a few operations in the terrain shader.
+  Needed by a game whose island looked bald with the camera zoomed out.
+
+- Terrain images at varied sizes (`terrain3d_layer::detile_scale`): with
+  `detile` on, each patch also reads the image at its own size, larger or
+  smaller by up to this much, so its features stop looking evenly stamped;
+  off by default.
+
+- Clearer water (`water3d_desc`): `caustics` draws the web of light the
+  waves focus on the bed under shallow water, moving with them, only where
+  the bed is in sun, fading with depth and distance, its edges a little apart
+  in colour (`caustic_size` sets its cells). `reflect` shows the scene in the
+  water (shore, hills, trees upside down, bent by the waves) where the
+  reflected ray finds it on screen, the sky elsewhere; strong it is a painted
+  look beyond Fresnel. Both off by default; `reflect`, like `refract`, has the
+  3D pass copy the scene once a frame. `absorb` (with `refract`) is the
+  light of each colour left after a metre of water: the bed darkens and takes
+  the water's hue along the light's way down and back up, for green ponds and
+  blue seas. Needed by a game with calm, clear ponds seen from above.
+
+- Where a frame's time goes: `render_info` now carries the CPU time of the
+  update phases, the render phases and the swap (`cpu_update_ms`,
+  `cpu_render_ms`, `cpu_present_ms`), and for the 3D pass the CPU and the GPU
+  time of each stage (`cpu3d_*_ms`, `gpu3d_*_ms`: setup, shadows, prepass,
+  opaque, screen effects, translucent, post), the GPU's by timer queries read
+  back a few frames later without waiting. A game that logs them tells a CPU
+  bound frame from a GPU bound one, and which stage to work on.
+
+- `model_combine()` logs what it made: places, meshes, materials and levels,
+  since every mesh is a draw a pass. It takes `from_level`: the pieces' level
+  of detail the new model's full level is built from, for a miniature of a
+  whole scene that needs only the simplest level of its thousands of pieces.
+
+- `graphics_quality::world_sharp`: the world drawn at `world_scale` is put on
+  the screen through a Catmull-Rom filter and contrast-adaptive sharpening
+  (as FSR 1 / CAS) instead of the bilinear scale: at 0.8 the edges read almost
+  as at full size, for a full-screen pass of well under a millisecond, with no
+  temporal ghosting. Off by default (the bilinear scale as before).
+
+- `render3d_options::depth_prepass`: the opaque draws' depth first, colour
+  writes off, so the lit pass shades each pixel once. The picture is the
+  same: the vertex programs are `invariant`, the depth programs cut alpha
+  with the draw's and the vertex colour as the lit ones do, and what cannot
+  land on the same depth (a dissolve, an SDF shape, instances at a simpler
+  level of detail, a cut through `world_uv` or a height map) is only lit.
+  Off by default; worth it where the lit shader is dear and the scene is
+  deep in layers, measured.
+
+- Carving terrain: `terrain3d_carve` brushes only lower the ground, to a flat
+  bed at `height` with walls rising evenly at `strength` metres per metre, so
+  strokes laid along a path make a river bed or a lake with even banks however
+  deep they cut.
+
+- Filling terrain: `terrain3d_fill` brushes only raise the ground, to a flat
+  top at `height` with sides falling evenly at `strength` metres per metre: a
+  game needs raised ground with a level top instead of the peak that
+  `terrain3d_raise` builds up.
+
+- Dissolve with a direction: `fx3d::dissolve_from`, `dissolve_to` and
+  `dissolve_sweep` make the dissolve sweep across a shape (head to feet, away
+  from a hit) instead of only in random patches, ragged by the patches below
+  a sweep of 1. Off by default.
+
+- Toon shading: `light3d::toon_bands` turns the sun's and each lamp's light
+  (shadow included) into flat steps from `toon_threshold` up, with a sharp
+  highlight, on everything the built-in shaders light (PBR included);
+  `post3d::outline` draws lines on silhouettes and on creases sharper than
+  `outline_crease`, from the opaque depth, fading out by `outline_fade`.
+  Both off by default.
+
 - Ribbons in 3D: `draw_ribbon3d()` draws a soft strip through a list of
   points, facing the camera, with width and colour per point (missile
   trails, meteors, sword trails, spell streaks). `ribbon3d_glow` has a hot
@@ -26,6 +252,16 @@ To release: edit that header, add a section here, commit, then
   grid of white flakes (alpha is the shape); each falling flake picks a cell
   and turns slowly, and with `sparkle` the near flakes glint as a face turns
   to the light. Without it the snow is the soft dots as before.
+
+- Glitter: `terrain3d_layer::glitter` and `material3d::glitter` scatter ice
+  crystals a few centimetres apart that flare where they mirror the sun into
+  the eye, in sunlight only, twinkling as the camera moves. On a material with
+  `snow`, only the snow glitters. 0 (the default) is off.
+  `material3d::glitter_lamps` makes the crystals flare in the point and spot
+  lights as well, each in its light's colour (ornaments in a lamp-lit room),
+  and `material3d::glitter_metal` keeps the glitter to the metallic parts of
+  the surface, by `metallic` and the metal map (the baubles on a model baked
+  to one material). Both off by default.
 
 - Feet for four-legged animals: `foot3d_leg::knee_forward` bends each leg its
   own way when the animation has it straight (forelegs forward, hind legs
@@ -147,6 +383,40 @@ To release: edit that header, add a section here, commit, then
 - `water3d_splash()`: something falling into water churns it where it goes in
   and sends out a train of rings that dies away, sized by the thing and how
   hard it fell (up to `water3d_splash_max` at once).
+
+### Changed
+
+- The 3D pass issues fewer GL calls for the same picture, measured on a scene
+  of a few hundred combined meshes and a 513² terrain as 35% less CPU time in
+  the render phases: the built-in shaders' uniforms are sent only when their
+  value changed since the program last drew in the pass (most of a material's
+  values repeat from mesh to mesh, and each send bound the program round it);
+  meshes of the built-in lit and depth programs are drawn by a path that
+  sends the sampler units, the view and projection matrices and the specular
+  colour once a pass instead of every draw, binding and unbinding the maps as
+  raylib's `DrawMesh` does; and a terrain's chunks are drawn one instanced
+  call per level of detail, the chunk's origin and skirt depth per instance,
+  instead of a draw and two uniforms per chunk, in the camera pass and every
+  shadow pass alike.
+
+### Fixed
+
+- 3D (bgfx): the open sea (water3d_desc::size {0, 0}) reaches the horizon (rings
+  out to 8 km round the camera, as the OpenGL renderer) instead of a 160 m
+  patch; far waves fade instead of aliasing. Water ripples no longer stripe the
+  surface (filtered noise ripples as on OpenGL).
+
+- Ray traced shadows on a shape that is dissolving (`fx3d::dissolve`): the
+  camera's depth prepass left it out, so it showed the shadows of whatever
+  stood behind it (lines along a shelf's edges across a character). The
+  prepass now takes opaque dissolving draws, cut as they are drawn. They
+  still cast no shadow.
+
+- Clouds and rain jumped when the wind changed (`wind3d_set()`,
+  `weather3d::wind`, `weather3d_lerp()`): they were placed at wind times
+  the time since the start, so any change moved them as if it had always
+  blown that way. They now drift by the wind summed frame by frame. Found
+  by a game whose wind veers and gusts.
 
 ## 0.7.0
 

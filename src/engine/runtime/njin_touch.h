@@ -5,6 +5,7 @@
 #include "_types.h"
 #include "njin_input.h"
 #include <vector>
+#include <span>
 
 // Touch screens (touch_count, touch_get, gestures in njin_input.h).
 //
@@ -22,7 +23,7 @@ struct view_state;
 
 // One event from the window, in client pixels.
 struct touch_raw {
-  enum kind : u8 { down, move, up };
+  enum kind : u8 { down, move, up, cancel };
   i64 os_id = 0;
   f32 x = 0.0f, y = 0.0f;
   kind what = move;
@@ -56,4 +57,7 @@ struct touch_state {
 // Folds the window's events into `touch` and works out the gestures. `window`
 // is the native window handle, for the first call.
 void touch_poll(touch_state &touch, const view_state &view, void *window, f64 now);
+// Shared gesture processing for platform adapters. Null view preserves window
+// coordinates, used by the SDL path without virtual-screen scaling.
+void touch_feed(touch_state &, const view_state *, std::span<const touch_raw>, f64 now);
 } // namespace njin

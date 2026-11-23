@@ -2,6 +2,7 @@
 // complete, and ctx_ref() of each member (njin_ctx_get.h).
 #define NJIN_CTX_DEFINE
 #include "njin_ctx_impl.h"
+#include "njin_stream_internal.h"
 
 #include "modules/camera.h"
 #include "modules/collision.h"
@@ -67,7 +68,7 @@ context::context(const config &config) : cfg(config), window(config) {
   ecs.emplace();
 }
 
-context::~context() = default;
+context::~context() { streaming_shutdown(*this); }
 
 #if !defined(NJIN_CTX_INLINE)
 // Made here once for every source of a Debug build (njin_ctx_get.h).

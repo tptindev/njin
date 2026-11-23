@@ -6,6 +6,10 @@
 #include "njin_pace.h"
 #include <string>
 #include <vector>
+#include <memory>
+#include "njin_sdl_platform.h"
+#include "njin_graphics_device.h"
+#include "njin_renderer_resources.h"
 
 namespace njin {
 struct context;
@@ -17,6 +21,9 @@ struct window_guard {
   window_guard(const window_guard &) = delete;
   window_guard &operator=(const window_guard &) = delete;
   frame_pacer pacer; // config::low_power only
+  rhi::RendererResources renderer_resources;
+  std::unique_ptr<SdlPlatform> platform;
+  std::unique_ptr<rhi::GraphicsDevice> graphics;
 };
 
 // Frame timing. `dt` is what delta() returns outside phase_fixed_update:
@@ -45,11 +52,15 @@ struct frame_state {
   bool skip_draw = false;
   // Paths requested by screenshot() this frame, taken at its end.
   std::vector<std::string> screenshots;
+  // The last frame's CPU time by stage, for render_info: the update phases,
+  // the render phases, and EndDrawing (the swap, and any wait for the GPU).
+  f32 cpu_update_ms = 0.0f, cpu_render_ms = 0.0f, cpu_present_ms = 0.0f;
 };
 
 // Saves every screenshot requested this frame. Called after post_render and
 // before EndDrawing, while the back buffer still holds the finished frame.
 void take_pending_screenshots(context &ctx);
+void save_pending_capture(context &, const RenderImageAsset &);
 // Draws the text queued for window resolution (view_state::text_layer) onto the
 // window, over the scaled virtual image. Called right after view_draw_end.
 void text_layer_flush(context &ctx);

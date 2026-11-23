@@ -50,7 +50,7 @@ void main() {
       for (int k = 0; k < rays; k++) {
         vec2 s = disc(rnd(uvec3(px, frame * 16u + uint(k))), rnd(uvec3(px.yx, frame * 16u + uint(k) + 7u)));
         vec3 dir = normalize(l + (tx * s.x + ty * s.y) * p.sun.w);
-        sum += blocked(o, dir, 10000.0) ? 0.0 : 1.0;
+        sum += blocked(o, dir, p.lightInfo.z, 10000.0) ? 0.0 : 1.0;
       }
       sum /= float(rays);
     }
@@ -66,7 +66,7 @@ void main() {
       vec3 target = p.lamps[i].xyz + jitter * p.lamps[i].w;
       vec3 to = target - o;
       float len = length(to);
-      sum += len < 1e-4 || !blocked(o, to / len, len - p.lamps[i].w * 0.5) ? 1.0 : 0.0;
+      sum += len < 1e-4 || !blocked(o, to / len, min(p.lightInfo.z, len * 0.5), len - p.lamps[i].w * 0.5) ? 1.0 : 0.0;
     }
     lit[i + 1] = sum / float(rays);
   }

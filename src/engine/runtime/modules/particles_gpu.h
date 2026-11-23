@@ -2,6 +2,7 @@
 #include "../njin_internal_only.h"
 #include "_comps.h"
 #include "njin_particles.h"
+#include "njin_renderer.h"
 #include <entt/entity/fwd.hpp>
 #include <raylib.h>
 
@@ -44,6 +45,8 @@ struct particle_gpu_state {
   // The image of particle_soft where it is drawn as a texture (the CPU path, 3D
   // particles), made on first use by particle_soft_texture().
   Texture2D soft{};
+  RenderTextureHandle portable_white;
+  RenderMeshHandle portable_quad;
 
   particle_gpu_state() = default;
   ~particle_gpu_state();
@@ -66,6 +69,7 @@ struct particle_gpu_buffer {
   unsigned int vbo = 0;
   int capacity = 0;    // bytes in `vbo`
   usize uploaded = 0;  // particles at the front of the emitter's vector already in `vbo`
+  std::shared_ptr<const std::vector<RenderInstance>> portable_instances;
 
   particle_gpu_buffer() = default;
   ~particle_gpu_buffer();
@@ -98,4 +102,5 @@ Texture2D particle_soft_texture(context &ctx);
 // Draws the particles of one emitter with a single instanced draw call.
 void particles_gpu_draw(context &ctx, entt::entity entity, const transform &tr,
                         const particle_emitter &emitter);
+void portable_particles_gpu_draw(context &,entt::entity,const transform &,const particle_emitter &);
 } // namespace njin

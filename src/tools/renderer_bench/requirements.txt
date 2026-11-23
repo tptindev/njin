@@ -1,0 +1,2 @@
+# Analysis only; no dependency is added to Njin or the runtime executable.
+Pillow==12.2.0

@@ -171,7 +171,12 @@ endfunction()
 # compile time is spent parsing them. Only headers that do not change go in,
 # so editing an njin header rebuilds what it rebuilt before. Off with
 # -DNJIN_PCH=OFF, e.g. to check that each file includes what it uses.
-option(NJIN_PCH "Precompile the standard and EnTT headers of njin targets" ON)
+set(_njin_pch_default ON)
+if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  # GCC/Windows cannot reliably map large shared PCH files at a fixed address.
+  set(_njin_pch_default OFF)
+endif()
+option(NJIN_PCH "Precompile the standard and EnTT headers of njin targets" ${_njin_pch_default})
 set(NJIN_PCH_HEADERS
     <algorithm> <array> <cmath> <cstdint> <cstring> <functional> <memory> <span>
     <string> <string_view> <unordered_map> <utility> <vector>

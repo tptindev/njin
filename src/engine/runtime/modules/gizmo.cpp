@@ -7,6 +7,8 @@
 #include "njin_frame_impl.h"
 #include "njin_draw_shapes.h"
 #include "njin_draw_text.h"
+#include "njin_view.h"
+#include "njin_window.h"
 #include <algorithm>
 #include <cmath>
 #include <raylib.h>
@@ -64,6 +66,53 @@ void draw_mark(const context &ctx, vec2 p, const std::string &text, rgba color) 
   draw_text(ctx, text.c_str(), p + vec2{1.0f, 1.0f}, 16.0f, {0.0f, 0.0f, 0.0f, 0.7f * color.a});
   draw_text(ctx, text.c_str(), p, 16.0f, color);
 }
+void portable_gizmos(context &ctx,gizmo_state &g,const camera3d &camera) {
+  if(g.lines3d.empty()&&g.marks3d.empty()) return;
+  auto &r=ctx_ref<window_guard>(ctx).renderer_resources;const auto &view=ctx_ref<view_state>(ctx);
+  auto size=window_size(ctx);
+  if(r.active_target) {const auto &target=r.targets.at(r.active_target.id);size={float(target.width),float(target.height)};}
+  if(size.x<=0||size.y<=0) return;
+  const auto eye=camera.position,target=camera.target,up=camera.up;
+  const auto view_matrix=MatrixLookAt({eye.x,eye.y,eye.z},{target.x,target.y,target.z},{up.x,up.y,up.z});
+  const auto projection=camera.projection==camera3d_orthographic?
+    MatrixOrtho(-camera.ortho_height*.5f*size.x/size.y,camera.ortho_height*.5f*size.x/size.y,-camera.ortho_height*.5f,camera.ortho_height*.5f,camera.near_plane,camera.far_plane):
+    MatrixPerspective(camera.fovy*PI/180,size.x/size.y,camera.near_plane,camera.far_plane);
+  const auto matrix=MatrixMultiply(view_matrix,projection);
+  const auto clip=[&](vec3 p) {return std::array<float,4>{matrix.m0*p.x+matrix.m4*p.y+matrix.m8*p.z+matrix.m12,
+    matrix.m1*p.x+matrix.m5*p.y+matrix.m9*p.z+matrix.m13,matrix.m2*p.x+matrix.m6*p.y+matrix.m10*p.z+matrix.m14,
+    matrix.m3*p.x+matrix.m7*p.y+matrix.m11*p.z+matrix.m15};};
+  std::vector<RenderVertex> vertices;vertices.reserve(g.lines3d.size()*6);
+  for(const auto &line:g.lines3d) {
+    const auto a=clip(line.a),b=clip(line.b);float first=0,last=1;bool visible=true;
+    for(unsigned plane=0;plane<6;++plane) {
+      const unsigned axis=plane/2;const float sign=plane%2?1.f:-1.f;
+      const float da=a[3]+sign*a[axis],db=b[3]+sign*b[axis];
+      if(da<0&&db<0) {visible=false;break;}
+      if(da<0) first=std::max(first,da/(da-db));else if(db<0) last=std::min(last,da/(da-db));
+    }
+    if(!visible||first>last) continue;
+    const auto point=[&](float t) {const float w=a[3]+(b[3]-a[3])*t;return std::array<float,3>{a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,w};};
+    const auto p=point(first),q=point(last);if(p[2]<=1e-6f||q[2]<=1e-6f) continue;
+    const vec2 from{p[0]/p[2],p[1]/p[2]},to{q[0]/q[2],q[1]/q[2]};const auto delta=(to-from)*size;
+    const float distance=length(delta);if(distance<1e-6f) continue;
+    const vec2 offset{-delta.y/distance/size.x,delta.x/distance/size.y};
+    const vec2 points[]{from-offset,to-offset,to+offset,from-offset,to+offset,from+offset};
+    const auto c=line.color;for(auto v:points) vertices.push_back({v.x,v.y,0,.5f,.5f,1,{c.r,c.g,c.b,c.a}});
+  }
+  if(!vertices.empty()) {
+    auto &white=r.draw_2d.white;if(!white) {const unsigned char pixel[]{255,255,255,255};white=renderer_create_texture(ctx,{1,1,pixel});}
+    MeshDraw draw;draw.vertices=vertices;draw.texture=white;draw.depth_test=false;renderer_draw_mesh(ctx,draw);
+  }
+  const bool offscreen=r.active_target&&(!view->drawing||r.active_target.id!=view->portable_target.id);
+  const auto logical=offscreen?size:screen_size(ctx);
+  for(const auto &mark:g.marks3d) {
+    const auto p=clip(mark.pos);if(p[3]<=1e-6f||p[2]<-p[3]||p[2]>p[3]) continue;
+    const vec2 at{(p[0]/p[3]*.5f+.5f)*logical.x,(.5f-p[1]/p[3]*.5f)*logical.y};
+    if(offscreen) draw_mark(ctx,at,mark.text,mark.color);
+    else g.projected.push_back({at,mark.text,mark.color,0});
+  }
+}
+
 } // namespace
 
 void gizmo_frame_begin(context &ctx) {
@@ -80,6 +129,7 @@ void gizmo_draw_3d(context &ctx, const camera3d &view) {
   gizmo_state &g = ctx_ref<gizmo_state>(ctx);
   if (!g.visible)
     return;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {portable_gizmos(ctx,g,view);return;}
   if (!g.lines3d.empty()) {
     // On top of the pass: no depth test, and nothing written to depth.
     rlDrawRenderBatchActive();

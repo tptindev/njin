@@ -2,6 +2,7 @@
 #include "../njin_internal_only.h"
 #include "_mod.h"
 #include "_types.h"
+#include "njin_renderer.h"
 #include <entt/entity/entity.hpp>
 #include <raylib.h>
 #include <unordered_map>
@@ -32,6 +33,8 @@ struct chunk_image {
 // that stay off screen for a while are freed, and so are those of chunks or
 // tilemaps that no longer exist.
 struct sprite_cache {
+  // CPU-generated fallback shapes; context renderer owns their GPU lifetime.
+  std::array<RenderTextureHandle,3> particle_textures{};
   std::unordered_map<entt::entity, std::unordered_map<u64, chunk_image>> chunks;
   u32 frame = 0;
   // Game time for animated tiles: stops with the game, follows its speed.

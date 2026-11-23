@@ -20,6 +20,7 @@ struct debug_server_desc {
   u16 port = 7779;           ///< Cổng TCP, chỉ nghe trên 127.0.0.1.
   f32 snapshot_hz = 10.0f;   ///< Số lần mỗi giây gửi danh sách entity và giá trị theo dõi.
   i32 max_entities = 4000;   ///< Số entity tối đa trong mỗi lần gửi. Thừa thì cắt, inspector có báo.
+  std::string recording_directory; ///< Empty uses the game save folder; otherwise GIFs go to this directory.
 };
 
 /// Mở cổng debug để chương trình **njin_inspector** (một process riêng) kết
@@ -163,6 +164,43 @@ struct render_info {
   u32 instances3d_culled = 0; ///< Instance mà lệnh đó bỏ vì ngoài tầm nhìn hay bị che.
   u32 batches3d = 0;          ///< Lệnh instanced do render3d_options::batch gom (lần vẽ của camera).
   u32 batched3d = 0;          ///< Lệnh vẽ 3D đã gom vào các lệnh đó.
+  /// Thời gian CPU của frame trước, mili giây, chia ba đoạn: các phase cập nhật
+  /// (kể cả bước cố định), các phase vẽ (từ đầu đến hết hậu kỳ), và lúc đưa ảnh
+  /// ra màn hình (CPU đứng chờ GPU hay VSync ở đó). Tổng ba số là cả frame; đoạn
+  /// cuối lớn mà hai đoạn đầu nhỏ thì GPU là chỗ nghẽn, ngược lại là CPU.
+  /// @{
+  f32 cpu_update_ms = 0.0f;
+  f32 cpu_render_ms = 0.0f;
+  f32 cpu_present_ms = 0.0f;
+  /// @}
+  /// Trong `cpu_render_ms`, thời gian CPU của end_3d theo từng đoạn, mili giây,
+  /// cộng mọi lần vẽ 3D trong frame: chuẩn bị (cull, occlusion, môi trường, đèn),
+  /// các bản đồ bóng (mặt trời, đèn, lớp phủ), prepass của ray tracing, các hình
+  /// đục, hiệu ứng trên ảnh đục (occlusion, decal, SSAO, SSR, sương khối), hình
+  /// trong suốt và hạt, rồi hậu kỳ (khử răng cưa, HDR, gizmo). Là việc CPU làm
+  /// để nộp lệnh, không phải thời gian GPU vẽ chúng.
+  /// @{
+  f32 cpu3d_setup_ms = 0.0f;
+  f32 cpu3d_shadows_ms = 0.0f;
+  f32 cpu3d_prepass_ms = 0.0f;
+  f32 cpu3d_opaque_ms = 0.0f;
+  f32 cpu3d_screen_ms = 0.0f;
+  f32 cpu3d_translucent_ms = 0.0f;
+  f32 cpu3d_post_ms = 0.0f;
+  /// @}
+  /// Thời gian GPU vẽ cùng những đoạn đó, mili giây, đo bằng timer query của
+  /// GL (không chờ GPU, nên là số của vài frame trước). Đây mới là thời gian
+  /// vẽ thật: `cpu3d_*` chỉ là việc CPU nộp lệnh. 0 khi driver không có timer
+  /// query. Tổng bảy số so với `cpu_present_ms`: GPU chậm hơn CPU bao nhiêu.
+  /// @{
+  f32 gpu3d_setup_ms = 0.0f;
+  f32 gpu3d_shadows_ms = 0.0f;
+  f32 gpu3d_prepass_ms = 0.0f;
+  f32 gpu3d_opaque_ms = 0.0f;
+  f32 gpu3d_screen_ms = 0.0f;
+  f32 gpu3d_translucent_ms = 0.0f;
+  f32 gpu3d_post_ms = 0.0f;
+  /// @}
 };
 
 /// Số liệu vẽ của frame vừa rồi. Đọc trong `phase_post_render` (hoặc frame sau)

@@ -1,8 +1,11 @@
 #include "njin_texture.h"
+#include <stdexcept>
 #include "njin2rl.h"
 #include "njin_log.h"
 #include "njin_path.h"
 #include "njin_draw_texture.h"
+#include "njin_frame_impl.h"
+#include "njin_ctx_get.h"
 #include <filesystem>
 #include <rlgl.h>
 #include <string>
@@ -83,13 +86,22 @@ void texture_store_unload(texture_store &store, texture_handle handle) {
   if (slot == nullptr)
     return;
   // A packed image shares its page: the atlas frees that.
-  if (!slot->packed)
+  if (!slot->packed && !slot->portable)
     UnloadTexture(slot->texture);
   *slot = texture_slot{};
 }
 
 bool texture_store_reload(texture_store &store, texture_handle handle) {
   texture_slot *slot = texture_slot_of(store, handle);
+  if(slot&&slot->portable) {
+    if(slot->streaming_mips) {NJIN_WARN("texture: progressive mip source is owned by its stream; cancel/retry the request to reload");return false;}
+    if(slot->path.empty()||slot->packed) return false;
+    try {
+      auto image=renderer_load_image(slot->path.c_str());if(slot->filter==filter_mipmap) image.mips=RenderMipMode::SRGB;
+      renderer_update_texture(*store.portable_context,slot->portable,image.view());
+      slot->texture.width=int(image.width);slot->texture.height=int(image.height);++slot->version;return true;
+    } catch(const std::exception &error) {NJIN_WARN("texture: reload failed, keeping old image: %s",error.what());return false;}
+  }
   if (slot == nullptr || slot->path.empty() || slot->packed)
     return false;
   const Texture2D texture = LoadTexture(slot->path.c_str());
@@ -109,7 +121,7 @@ texture_store::~texture_store() {
     texture_store_unload(*this, texture_handle{.id = (u32)(i + 1)});
   for (atlas_slot &atlas : atlases) {
     for (atlas_page &page : atlas.pages)
-      UnloadTexture(page.texture);
+      if(!page.portable) UnloadTexture(page.texture);
   }
 }
 
@@ -132,6 +144,7 @@ void texture_store_set_shader(texture_store &store, texture_handle handle,
 void texture_store_draw(const texture_store &store, texture_handle handle,
                         vec2 pos, rgba tint) {
   const texture_slot *slot = texture_slot_of(store, handle);
+  if(slot && slot->portable) throw std::runtime_error("njin bgfx: use ECS sprite or renderer_draw_sprite for drawing");
   if (slot == nullptr)
     return;
   Vector2 position{};
@@ -152,6 +165,25 @@ void texture_store_set_filter(texture_store &store, texture_handle handle,
   texture_slot *slot = texture_slot_of(store, handle);
   if (slot == nullptr)
     return;
+  if(slot->virtual_texture) {
+    if(filter!=filter_linear&&filter!=filter_mipmap) throw std::invalid_argument("NVT: virtual albedo requires linear/trilinear filtering");
+    slot->filter=filter;return; // mip sampling is performed by virtual indirection, never over the table
+  }
+  if(slot->portable) {
+    if(filter<filter_nearest||filter>filter_mipmap) throw std::invalid_argument("njin texture: invalid filter");
+    if(slot->packed) {
+      const auto effective=filter==filter_mipmap?filter_linear:filter;
+      for(auto &atlas:store.atlases) for(auto &page:atlas.pages) if(page.portable.id==slot->portable.id) page.filter=effective;
+      for(auto &image:store.slots) if(image.alive&&image.packed&&image.portable.id==slot->portable.id) image.filter=effective;
+      return;
+    }
+    if(filter==filter_mipmap) {
+      auto &cpu=ctx_ref<window_guard>(*store.portable_context).renderer_resources.textures.at(slot->portable.id).cpu;
+      if(cpu.mips==RenderMipMode::None) {auto image=cpu.view();image.mips=RenderMipMode::SRGB;renderer_update_texture(*store.portable_context,slot->portable,image);}
+    }
+    slot->filter = filter;
+    return;
+  }
   slot->filter = filter;
   apply_filter(*slot);
 }
@@ -159,6 +191,7 @@ void texture_store_set_filter(texture_store &store, texture_handle handle,
 void texture_store_draw_ex(const texture_store &store, texture_handle handle,
                            const texture_draw_desc &desc) {
   const texture_slot *slot = texture_slot_of(store, handle);
+  if(slot && slot->portable) throw std::runtime_error("njin bgfx: legacy texture_draw_ex is not ported; use ECS sprite");
   if (slot == nullptr)
     return;
   const Texture2D &texture = slot->texture;
@@ -208,7 +241,7 @@ void render_texture_store_unload(render_texture_store &store,
   render_texture_slot *slot = render_texture_slot_of(store, handle);
   if (slot == nullptr)
     return;
-  UnloadRenderTexture(slot->target);
+  if(!slot->portable) UnloadRenderTexture(slot->target);
   *slot = render_texture_slot{};
 }
 

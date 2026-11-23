@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace njin {
+struct RenderImage;
 // Core module for the debug link (njin_debug.h). Does nothing until
 // debug_server_start. Then, in phase_pre_update, accepts the inspector and
 // applies its commands (time control, selection, edits) before any game
@@ -99,6 +100,8 @@ struct debug_state {
 bool debug_record_start(context &ctx, f32 fps, f32 scale, f32 max_seconds);
 void debug_record_stop(context &ctx);
 void debug_record_frame(context &ctx);
+bool debug_record_capture_due(context &ctx);
+void debug_record_capture(context &ctx,const RenderImage &image);
 // The `rec` message for the inspector.
 json_value debug_record_status(const context &ctx);
 } // namespace njin

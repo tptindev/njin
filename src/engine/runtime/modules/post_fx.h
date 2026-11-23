@@ -68,6 +68,8 @@ void post_chain_warmup(context &ctx);
 bool post_chain_active(const post_chain &chain);
 // Works `settings` out again from `requested` and graphics_quality.
 void post_fx_apply_quality(context &ctx);
+void portable_post_world(context &ctx);
+void portable_post_fx_validate(const post_fx &);
 
 // The depth buffer of the world image, for the depth of field: a depth
 // texture the size of the scene, and the near and far planes of the 3D camera

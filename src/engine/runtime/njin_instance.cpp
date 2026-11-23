@@ -5,6 +5,10 @@
 #include "njin_instance.h"
 
 #include "njin_ctx_get.h"
+#include "njin_frame_impl.h"
+#include <limits>
+#include <cmath>
+#include <stdexcept>
 #include "modules/debug.h"
 #include "modules/render_stats.h"
 #include "njin_shader.h"
@@ -65,6 +69,7 @@ instance_store::~instance_store() {
 }
 
 bool instancing_available(const context &ctx) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) return ctx_ref<window_guard>(ctx).graphics->instancing_available();
   // Probing only reads the GL version and makes the shared quad once.
   return probe(ctx_ref<instance_store>(const_cast<context &>(ctx)));
 }
@@ -75,6 +80,11 @@ instance_buffer_handle instance_buffer_create(context &ctx, u32 floats_per_insta
     NJIN_WARN("instance_buffer_create: floats_per_instance must be 4, 8, 12 or 16, not %u",
               floats_per_instance);
     return {};
+  }
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(!instancing_available(ctx)) throw std::runtime_error("njin bgfx: GPU instancing is unavailable");
+    instance_slot slot;slot.floats=floats_per_instance;slot.alive=true;slot.keep_cpu=true;
+    store.slots.push_back(std::move(slot));return {.id=static_cast<u32>(store.slots.size())};
   }
   if (!probe(store))
     return {};
@@ -107,6 +117,12 @@ void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f
   instance_slot *slot = instance_slot_of(ctx_ref<instance_store>(ctx), handle);
   if (slot == nullptr)
     return;
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(count>1000000) throw std::invalid_argument("njin bgfx: instance count exceeds one million");
+    std::vector<f32> snapshot;
+    if(data) {snapshot.assign(data,data+size_t(count)*slot->floats);for(float v:snapshot) if(!std::isfinite(v)) throw std::invalid_argument("njin bgfx: non-finite instance data");}
+    slot->cpu=std::move(snapshot);slot->count=data?count:0;++slot->uploads;return;
+  }
   slot->count = data != nullptr ? count : 0;
   if (slot->count == 0)
     return;

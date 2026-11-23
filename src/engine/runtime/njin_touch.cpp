@@ -15,9 +15,9 @@ constexpr f64 tap_time = 0.3;
 constexpr f64 long_press_time = 0.5;
 
 // Client pixels to screen units, as the mouse.
-vec2 mapped(const view_state &view, vec2 raw) {
+vec2 mapped(const view_state *view, vec2 raw) {
   vec2 motion{};
-  view_map_mouse(view, raw, motion);
+  if(view) view_map_mouse(*view, raw, motion);
   return raw;
 }
 
@@ -30,10 +30,11 @@ touch_track *find(touch_state &t, i64 os_id) {
 } // namespace
 
 void touch_poll(touch_state &t, const view_state &view, void *window, f64 now) {
-  if (!t.tried) {
-    t.tried = true;
-    touch_native_install(window);
-  }
+  if(!t.tried) { t.tried=true; touch_native_install(window); }
+  touch_native_take(t.events);
+  touch_feed(t,&view,t.events,now);
+}
+void touch_feed(touch_state &t,const view_state *view,std::span<const touch_raw> events,f64 now) {
   // Fingers lifted last frame are gone; the rest start the frame unflagged.
   std::erase_if(t.points, [](const touch_track &p) { return !p.down; });
   for (touch_track &p : t.points) {
@@ -41,10 +42,13 @@ void touch_poll(touch_state &t, const view_state &view, void *window, f64 now) {
     p.pub.pressed = false;
   }
 
-  touch_native_take(t.events);
-  for (const touch_raw &e : t.events) {
+  for (const touch_raw &e : events) {
     const vec2 raw{e.x, e.y};
     touch_track *p = find(t, e.os_id);
+    if(e.what==touch_raw::cancel) {
+      if(p) { p->down=false; p->moved=true; }
+      continue;
+    }
     if (e.what == touch_raw::down || p == nullptr) {
       // A move or lift of a finger never seen down (it touched before the
       // window listened) starts it here.

@@ -169,6 +169,7 @@ Cần bật feature trong CMake: `njin_use(<game> FEATURES 3d)`, thêm `physics3
 | Bóng sắc gần, vẫn có bóng ở xa | njin::light3d::shadow_cascades | @ref shadow3d_cascades |
 | Hàng trăm đèn, nhiều đèn đổ bóng | njin::light3d::lights_max, njin::light3d::source_shadows | @ref lights3d_many |
 | Luồng nắng trong sương, đèn pin trong sương | njin::light3d::volume_density | @ref fog3d_volume |
+| Tô kiểu hoạt hình: ánh sáng thành nấc, viền đen | njin::light3d::toon_bands, njin::post3d::outline | @ref toon3d, @ref post3d_outline |
 | Bóng mềm bằng ray tracing | njin::light3d::ray_traced_shadows, njin::raytracing_available() | @ref shadow3d_raytraced |
 | Phản chiếu bằng ray tracing | njin::light3d::ray_traced_reflections | @ref reflect3d_raytraced |
 | Ánh sáng gián tiếp bằng ray tracing (GI) | njin::irradiance3d_desc::ray_traced | @ref probe3d |

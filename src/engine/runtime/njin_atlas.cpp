@@ -3,6 +3,10 @@
 #include "njin_log.h"
 #include "njin_path.h"
 #include "njin_texture.h"
+#include "njin_render_capabilities.h"
+#include "njin_frame_impl.h"
+#include "njin_render.h"
+#include <stdexcept>
 #include <algorithm>
 #include <raylib.h>
 #include <string>
@@ -55,6 +59,46 @@ bool add_page(atlas_slot &atlas) {
   atlas.pages.push_back(std::move(page));
   return true;
 }
+texture_handle portable_load(context &ctx,texture_store &store,atlas_slot &atlas,const char *path) {
+  if(!path||!*path) return {};
+  const auto resolved=asset_path(path);
+  if(!FileExists(resolved.c_str())) return {};
+  auto image=renderer_load_image(resolved.c_str());
+  const int pad=atlas.padding,w=int(image.width),h=int(image.height);
+  if(w+2*pad>atlas.size||h+2*pad>atlas.size) return texture_load(ctx,path);
+  const int bw=w+2*pad,bh=h+2*pad;int x=0,y=0;size_t index=0;
+  atlas_page placement;bool found=false;
+  for(;index<atlas.pages.size();++index) {
+    placement.shelves=atlas.pages[index].shelves;placement.next_y=atlas.pages[index].next_y;
+    if(place(placement,atlas.size,bw,bh,x,y)) {found=true;break;}
+  }
+  store.slots.reserve(store.slots.size()+1);atlas.images.reserve(atlas.images.size()+1);
+  bool added=false;
+  if(!found) {
+    atlas_page page;page.filter=atlas.filter;page.texture.width=page.texture.height=atlas.size;
+    page.cpu={unsigned(atlas.size),unsigned(atlas.size),std::vector<std::uint8_t>(size_t(atlas.size)*atlas.size*4)};
+    page.portable=renderer_create_texture(ctx,page.cpu.view());
+    const auto resource=page.portable;
+    try {atlas.pages.push_back(std::move(page));} catch(...) {renderer_destroy_texture(ctx,resource);throw;}
+    index=atlas.pages.size()-1;placement.shelves.clear();placement.next_y=0;
+    place(placement,atlas.size,bw,bh,x,y);added=true;
+  }
+  auto &page=atlas.pages[index];
+  try {
+    auto next=page.cpu;
+    for(int row=0;row<bh;++row) for(int col=0;col<bw;++col) {
+      const auto src=(size_t(std::clamp(row-pad,0,h-1))*w+std::clamp(col-pad,0,w-1))*4;
+      const auto dst=(size_t(y+row)*atlas.size+x+col)*4;
+      std::copy_n(image.pixels.data()+src,4,next.pixels.data()+dst);
+    }
+    renderer_update_texture(ctx,page.portable,next.view());page.cpu=std::move(next);
+    page.shelves=std::move(placement.shelves);page.next_y=placement.next_y;
+    texture_slot slot;slot.alive=true;slot.packed=true;slot.portable=page.portable;
+    slot.texture=page.texture;slot.filter=page.filter;slot.area={float(x+pad),float(y+pad),float(w),float(h)};
+    store.slots.push_back(std::move(slot));atlas.images.push_back(u32(store.slots.size()));
+    return {u32(store.slots.size())};
+  } catch(...) {if(added) {renderer_destroy_texture(ctx,page.portable);atlas.pages.pop_back();}throw;}
+}
 } // namespace
 
 atlas_handle atlas_store_create(texture_store &store, const atlas_desc &desc) {
@@ -73,6 +117,7 @@ texture_handle atlas_store_load(texture_store &store, atlas_handle handle, const
     NJIN_WARN("atlas: invalid atlas handle");
     return texture_handle{};
   }
+  if(store.portable_context) return portable_load(*store.portable_context,store,*atlas,path);
   if (path == nullptr) {
     NJIN_WARN("atlas: path is null");
     return texture_handle{};
@@ -153,14 +198,28 @@ void atlas_store_destroy(texture_store &store, atlas_handle handle) {
   atlas_slot *atlas = atlas_slot_of(store, handle);
   if (atlas == nullptr)
     return;
+  if(store.portable_context) {
+    auto &window=ctx_ref<window_guard>(*store.portable_context);
+    for(const auto &page:atlas->pages) if(page.portable&&(window.graphics->texture_in_use(page.portable)||window.renderer_resources.pending_3d_textures.contains(page.portable.id)))
+      throw std::logic_error("njin atlas: page is referenced by the current frame");
+  }
   for (const u32 id : atlas->images)
     texture_store_unload(store, texture_handle{.id = id});
-  for (atlas_page &page : atlas->pages)
-    UnloadTexture(page.texture);
+  for (atlas_page &page : atlas->pages) {
+    if(page.portable) renderer_destroy_texture(*store.portable_context,page.portable);
+    else UnloadTexture(page.texture);
+  }
   *atlas = atlas_slot{};
 }
 
 atlas_handle atlas_create(context &ctx, const atlas_desc &desc) {
+  if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
+    if(desc.size>int(ctx_ref<window_guard>(ctx).graphics->max_texture_size())||desc.padding>std::max(desc.size,16)/2||desc.filter<filter_nearest||desc.filter>filter_mipmap)
+      throw std::invalid_argument("njin atlas: unsupported page size, padding or filter");
+    ctx_ref<texture_store>(ctx)->portable_context=&ctx;
+    auto settings=desc;if(settings.filter==filter_mipmap) settings.filter=filter_linear;
+    return atlas_store_create(ctx_ref<texture_store>(ctx),settings);
+  }
   return atlas_store_create(ctx_ref<texture_store>(ctx), desc);
 }
 

@@ -14,7 +14,7 @@
 
 // raylib does not wrap pixel buffers, fences or reading a buffer back, so
 // those few GL calls are loaded here, as njin_gpu_caps.cpp loads glGetString.
-extern "C" void (*glfwGetProcAddress(const char *name))(void);
+#include "njin_gl_proc.h"
 
 #if defined(_WIN32)
 #define NJIN_GLAPI __stdcall
@@ -58,7 +58,7 @@ struct gl_fns {
   bool readback = false; // pixel buffers and fences: Hi-Z
 };
 
-template <typename T> void load(T &fn, const char *name) { fn = reinterpret_cast<T>(glfwGetProcAddress(name)); }
+template <typename T> void load(T &fn, const char *name) { fn = reinterpret_cast<T>(::njin::detail::gl_proc_address(name)); }
 
 const gl_fns &gl() {
   static gl_fns g;

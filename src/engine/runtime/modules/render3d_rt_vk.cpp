@@ -72,6 +72,11 @@ struct mesh_entry {
   uint32_t kind = 0; // indices: 0 none, 1 16-bit, 2 32-bit
   uint32_t version = 0;
   uint32_t used = 0; // trace count when last used
+  // Posed afresh pass after pass (a skinned mesh): built to be refitted in
+  // place, its vertices written into the same buffer; `refits` since the last
+  // full build, which it gets now and then to stay good to trace.
+  bool moving = false;
+  uint32_t vertex_count = 0, index_count = 0, refits = 0;
 };
 
 // One image both sides use: the Vulkan texture, its memory as a GL texture.
@@ -630,7 +635,37 @@ uint64_t mesh(uint64_t key, uint32_t version, const mesh_in &m) {
     s.build_cmd->open();
     s.building = true;
   }
+  // A moving mesh of the same shape: new vertices into its buffer, the
+  // structure refitted (a full build in place every so often).
+  constexpr uint32_t refits_per_build = 60;
+  if (it != s.meshes.end() && it->second.moving && it->second.vertex_count == m.vertex_count &&
+      it->second.index_count == m.index_count) {
+    mesh_entry &e = it->second;
+    s.build_cmd->writeBuffer(e.vb, m.pos, (size_t)m.vertex_count * 12);
+    auto tri = nvrhi::rt::GeometryTriangles()
+                   .setVertexBuffer(e.vb)
+                   .setVertexFormat(nvrhi::Format::RGB32_FLOAT)
+                   .setVertexStride(12)
+                   .setVertexCount(m.vertex_count);
+    if (e.kind != 0)
+      tri.setIndexBuffer(e.ib).setIndexFormat(e.kind == 2 ? nvrhi::Format::R32_UINT : nvrhi::Format::R16_UINT)
+          .setIndexCount(m.index_count);
+    auto geo = nvrhi::rt::GeometryDesc().setTriangles(tri).setFlags(nvrhi::rt::GeometryFlags::Opaque);
+    const bool refit = e.refits < refits_per_build;
+    auto flags = nvrhi::rt::AccelStructBuildFlags::AllowUpdate | nvrhi::rt::AccelStructBuildFlags::PreferFastBuild;
+    if (refit)
+      flags = flags | nvrhi::rt::AccelStructBuildFlags::PerformUpdate;
+    s.build_cmd->buildBottomLevelAccelStruct(e.as, &geo, 1, flags);
+    e.refits = refit ? e.refits + 1 : 0;
+    e.version = version;
+    e.used = s.traces;
+    return (uint64_t)(uintptr_t)e.as.Get();
+  }
   mesh_entry e;
+  // Seen before with other vertices: it moves, so it is built to be refitted.
+  e.moving = it != s.meshes.end();
+  e.vertex_count = m.vertex_count;
+  e.index_count = m.index_count > 0 && (m.idx16 != nullptr || m.idx32 != nullptr) ? m.index_count : 0;
   e.version = version;
   e.used = s.traces;
   e.vb = upload(s, m.pos, (size_t)m.vertex_count * 12);
@@ -654,12 +689,12 @@ uint64_t mesh(uint64_t key, uint32_t version, const mesh_in &m) {
     tri.setIndexBuffer(e.ib).setIndexFormat(wide ? nvrhi::Format::R32_UINT : nvrhi::Format::R16_UINT).setIndexCount(m.index_count);
   }
   auto geo = nvrhi::rt::GeometryDesc().setTriangles(tri).setFlags(nvrhi::rt::GeometryFlags::Opaque);
-  e.as = s.nv->createAccelStruct(nvrhi::rt::AccelStructDesc()
-                                     .addBottomLevelGeometry(geo)
-                                     .setBuildFlags(nvrhi::rt::AccelStructBuildFlags::PreferFastTrace));
+  const auto build = e.moving ? nvrhi::rt::AccelStructBuildFlags::AllowUpdate | nvrhi::rt::AccelStructBuildFlags::PreferFastBuild
+                              : nvrhi::rt::AccelStructBuildFlags::PreferFastTrace;
+  e.as = s.nv->createAccelStruct(nvrhi::rt::AccelStructDesc().addBottomLevelGeometry(geo).setBuildFlags(build));
   if (!e.as)
     return 0;
-  s.build_cmd->buildBottomLevelAccelStruct(e.as, &geo, 1);
+  s.build_cmd->buildBottomLevelAccelStruct(e.as, &geo, 1, build);
   const uint64_t id = (uint64_t)(uintptr_t)e.as.Get();
   if (it != s.meshes.end()) {
     s.by_as.erase((uint64_t)(uintptr_t)it->second.as.Get());
@@ -864,6 +899,7 @@ bool trace(const instance_in *inst, uint32_t count, const trace_in &t) {
   std::memcpy(p.grid_count, t.grid_count, sizeof(p.grid_count));
   std::memcpy(p.prev_view_proj, t.prev_view_proj, sizeof(p.prev_view_proj));
   std::memcpy(p.prev_inv_view_proj, t.prev_inv_view_proj, sizeof(p.prev_inv_view_proj));
+  p.light_info[2] = t.gap;
   p.light_info[3] = t.history ? 1.0f : 0.0f;
   std::memcpy(p.changes, t.changes, sizeof(p.changes));
   p.change_info[0] = (float)std::clamp(t.change_count, 0, 8);

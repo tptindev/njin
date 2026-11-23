@@ -2,11 +2,14 @@
 #include "njin_internal_only.h"
 
 #include "_types.h"
+#include "njin_renderer.h"
 #include <map>
 #include <raylib.h>
 #include <vector>
 
 namespace njin {
+struct context;
+struct PortableFontAtlas { Font metrics{}; RenderTextureHandle texture{}; };
 // The default font, JetBrains Mono, compiled in (see cmake/embed_file.cmake).
 extern const unsigned char font_default_ttf[];
 extern const unsigned long long font_default_ttf_size;
@@ -21,6 +24,7 @@ struct font_slot {
   const unsigned char *bytes = nullptr;
   i32 length = 0;
   std::map<i32, Font> atlases;
+  std::map<i32, PortableFontAtlas> portable_atlases;
   bool alive = false;
   bool pixel = false; // font_pixel: no anti-aliasing, nearest filter
   std::vector<int> extra; // codepoints baked on top of the common set (font_add_chars), sorted
@@ -52,16 +56,18 @@ i32 font_px(f32 size);
 
 // Reads the file and bakes `size` (or 16 when `size` <= 0) once, so a font
 // that cannot be parsed fails here and not at the first draw.
-font_handle font_store_load(font_store &store, const char *path, i32 size, bool pixel);
+font_handle font_store_load(font_store &store, const char *path, i32 size, bool pixel,context *portable_ctx=nullptr);
 // Switches a font (id 0: the default one) between smooth and pixel; its atlases
 // are dropped and baked again in the new style on the next draw.
-void font_store_set_pixel(font_store &store, font_handle handle, bool pixel);
+void font_store_set_pixel(font_store &store, font_handle handle, bool pixel,context *portable_ctx=nullptr);
 // True when text in `handle` is drawn in the pixel style.
 bool font_store_is_pixel(const font_store &store, font_handle handle);
-void font_store_unload(font_store &store, font_handle handle);
+void font_store_unload(font_store &store, font_handle handle,context *portable_ctx=nullptr);
 // The font drawn when no font is given (font_set_default); {} the built-in one.
 void font_store_set_default(font_store &store, font_handle handle);
-void font_store_add_chars(font_store &store, font_handle handle, const char *text);
+void font_store_add_chars(font_store &store, font_handle handle, const char *text,context *portable_ctx=nullptr);
+const PortableFontAtlas *font_store_portable_atlas(context &,font_store &,font_handle,i32 px,bool fallback_only=false);
+vec2 font_measure_portable(const Font &,const char *);
 
 // The atlas to draw `handle` with at `px` pixels (see font_px). Never null once
 // the default font itself is fine. Past a cap on atlases per font (a size

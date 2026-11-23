@@ -3,6 +3,9 @@
 #include "njin_ctx_get.h"
 #include "njin_ecs.h"
 #include "njin_texture.h"
+#include "njin_frame_impl.h"
+#include <cstring>
+#include <stdexcept>
 #include <algorithm>
 #include <cmath>
 #include <unordered_set>
@@ -139,8 +142,9 @@ void simplify(std::vector<vec2> &p, bool closed, f32 tol, std::vector<vec2> &scr
 }
 
 // The pixels of a texture, read back from the graphics card once.
-const Image *pixels_of(lighting_state &s, const texture_slot &slot) {
-  const auto it = s.images.find(slot.texture.id);
+const Image *pixels_of(const context &ctx,lighting_state &s, const texture_slot &slot) {
+  const u64 id=slot.portable?(slot.portable.id|(1ULL<<63)):slot.texture.id;
+  const auto it = s.images.find(id);
   if (it != s.images.end()) {
     if (it->second.version == slot.version)
       return &it->second.image;
@@ -148,26 +152,33 @@ const Image *pixels_of(lighting_state &s, const texture_slot &slot) {
     s.images.erase(it);
     s.silhouettes.clear(); // traced from the old picture
   }
-  Image image = LoadImageFromTexture(slot.texture);
+  Image image{};
+  if(slot.portable) {
+    const auto &cpu=ctx_ref<window_guard>(ctx).renderer_resources.textures.at(slot.portable.id).cpu;
+    if(cpu.format!=RenderImageFormat::RGBA8||cpu.pixels.empty()) throw std::runtime_error("njin silhouette: an RGBA8 CPU image is required");
+    image={MemAlloc(unsigned(cpu.pixels.size())),int(cpu.width),int(cpu.height),1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    if(!image.data) throw std::bad_alloc();
+    std::memcpy(image.data,cpu.pixels.data(),cpu.pixels.size());
+  } else image=LoadImageFromTexture(slot.texture);
   if (image.data == nullptr)
     return nullptr;
   if (image.format != PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
     ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-  return &(s.images[slot.texture.id] = lighting_state::cpu_image{image, slot.version}).image;
+  return &(s.images[id] = lighting_state::cpu_image{image, slot.version}).image;
 }
 
 // The outline of the frame (x, y, w, h in texture pixels) of `slot`, traced on
 // first use and remembered.
-const std::vector<silhouette_loop> *silhouette_of(lighting_state &s, const texture_slot &slot, i32 x, i32 y, i32 w,
+const std::vector<silhouette_loop> *silhouette_of(const context &ctx,lighting_state &s, const texture_slot &slot, i32 x, i32 y, i32 w,
                                                   i32 h, f32 alpha, f32 simplify) {
-  u64 key = slot.texture.id;
+  u64 key = slot.portable?(slot.portable.id|(1ULL<<63)):slot.texture.id;
   const auto mix = [&key](u64 v) { key ^= v + 0x9e3779b97f4a7c15ULL + (key << 6) + (key >> 2); };
   mix(slot.version), mix((u64)(u32)x), mix((u64)(u32)y), mix((u64)(u32)w), mix((u64)(u32)h);
   mix((u64)(alpha * 255.0f)), mix((u64)(simplify * 16.0f));
   const auto found = s.silhouettes.find(key);
   if (found != s.silhouettes.end())
     return &found->second;
-  const Image *image = pixels_of(s, slot);
+  const Image *image = pixels_of(ctx,s, slot);
   if (image == nullptr)
     return nullptr;
   const Color *px = (const Color *)image->data;
@@ -260,7 +271,7 @@ void gather_edges(context &ctx, lighting_state &s, std::vector<occluder_edge> &e
       continue;
     if (!builder.relevant(tr.pos.x - span, tr.pos.y - span, tr.pos.x + span, tr.pos.y + span))
       continue;
-    const std::vector<silhouette_loop> *loops = silhouette_of(s, *slot, x, y, w, h, occ.alpha, occ.simplify);
+    const std::vector<silhouette_loop> *loops = silhouette_of(ctx,s, *slot, x, y, w, h, occ.alpha, occ.simplify);
     if (loops == nullptr)
       continue;
     const placement place(tr);

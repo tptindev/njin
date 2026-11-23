@@ -1,4 +1,5 @@
 #include "njin_model.h"
+#include "njin_model_portable.h"
 #include "njin_log.h"
 #include "njin_path.h"
 #include <external/cgltf.h> // compiled into raylib (rmodels.c)
@@ -929,6 +930,7 @@ void sample_morph_clip(const model_slot &m, i32 clip, f32 time, bool loop, std::
 } // namespace
 
 model_handle model_store_load(model_store &store, const model_load_desc &desc) {
+  if(store.portable_context) return portable_model_load(store,desc);
   const char *path = desc.path;
   if (path == nullptr) {
     NJIN_WARN("model: path is null");
@@ -986,6 +988,7 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
   filter_morphs(slot, desc, kept, merged, model);
   slot.model = model;
   slot.alive = true;
+  slot.merged = desc.merge;
   slot.bounds = GetModelBoundingBox(model);
   for (i32 i = 0; i < model.materialCount; i++) {
     const Color c = model.materials[i].maps[MATERIAL_MAP_DIFFUSE].color;
@@ -1040,6 +1043,7 @@ model_handle model_store_load(model_store &store, const model_load_desc &desc) {
 }
 
 void model_morph_eval(const model_store &store, const model_slot &m, const model_pose *pose, std::vector<f32> &out) {
+  if(m.portable_animation) {portable_animation_morphs(m,pose,out);return;}
   out.assign(m.morph_defaults.begin(), m.morph_defaults.end());
   if (out.empty() || pose == nullptr)
     return;
@@ -1167,6 +1171,7 @@ u8 color_byte(f32 v) { return (u8)(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); }
 } // namespace
 
 model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
+  if(store.portable_context) return portable_model_create(store,mesh);
   if (mesh.positions == nullptr || mesh.vertex_count == 0) {
     NJIN_WARN("model_create: no vertices");
     return model_handle{};
@@ -1199,6 +1204,13 @@ model_handle model_store_create(model_store &store, const mesh3d_data &mesh) {
   m.normals = (f32 *)MemAlloc((u32)(n * 3 * sizeof(f32)));
   m.texcoords = (f32 *)MemAlloc((u32)(n * 2 * sizeof(f32))); // zeros: the shader samples a white texture
   m.colors = (u8 *)MemAlloc((u32)(n * 4));
+  if (mesh.texcoords2 != nullptr) {
+    m.texcoords2 = (f32 *)MemAlloc((u32)(n * 2 * sizeof(f32)));
+    for (usize i = 0; i < n; i++) {
+      m.texcoords2[i * 2] = mesh.texcoords2[i].x;
+      m.texcoords2[i * 2 + 1] = mesh.texcoords2[i].y;
+    }
+  }
   for (usize i = 0; i < n; i++) {
     if (mesh.texcoords != nullptr) {
       m.texcoords[i * 2] = mesh.texcoords[i].x;
@@ -1250,6 +1262,8 @@ model_handle model_store_create_split(model_store &store, const vec3 *positions,
     NJIN_WARN("model_create_split: no triangles");
     return model_handle{};
   }
+  if(store.portable_context&&(count>10000000||index_count>10000000||index_count%3))
+    throw std::invalid_argument("njin split mesh: invalid/oversized triangle list");
   constexpr u32 max_vertices = 65535;
   std::vector<std::vector<u32>> source;   // per mesh: source vertex of each local one
   std::vector<std::vector<u16>> local_ix; // per mesh: its triangles
@@ -1280,6 +1294,7 @@ model_handle model_store_create_split(model_store &store, const vec3 *positions,
       local_ix.back().push_back((u16)local[s]);
     }
   }
+  if(store.portable_context) return portable_model_commit_split(store,positions,normals,count,std::move(source),std::move(local_ix));
   const i32 mesh_count = (i32)source.size();
   Model model{};
   model.transform = MatrixIdentity();
@@ -1332,6 +1347,7 @@ model_handle model_store_create_split(model_store &store, const vec3 *positions,
 
 void model_store_update_vertices(model_store &store, model_handle handle, const vec3 *positions, const vec3 *normals,
                                  u32 count) {
+  if(store.portable_context) {portable_model_update_vertices(store,handle,positions,normals,count);return;}
   model_slot *slot = model_slot_of(store, handle);
   if (slot == nullptr)
     return;
@@ -1384,6 +1400,7 @@ void model_store_update_vertices(model_store &store, model_handle handle, const 
 }
 
 model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d_data &mesh) {
+  if(store.portable_context) return portable_model_create_skinned(store,mesh);
   const model_slot *bones = model_slot_of(store, mesh.skeleton);
   if (bones == nullptr || !bones->skinned || bones->model.skeleton.boneCount <= 0) {
     NJIN_WARN("model_create_skinned: the skeleton model is not a loaded model with a skin");
@@ -1520,6 +1537,7 @@ model_handle model_store_create_skinned(model_store &store, const skinned_mesh3d
 }
 
 void model_store_unload(model_store &store, model_handle handle) {
+  if(store.portable_context) { portable_model_unload(store,handle); return; }
   model_slot *slot = model_slot_of(store, handle);
   if (slot == nullptr)
     return;
@@ -1527,7 +1545,7 @@ void model_store_unload(model_store &store, model_handle handle) {
   // textures to the caller. They are not shared outside the model; within it,
   // two maps may name the same texture, so free each id once.
   std::unordered_set<u32> freed;
-  for (i32 i = 0; i < slot->model.materialCount; i++) {
+  for (i32 i = 0; i < slot->model.materialCount && !slot->borrows_textures; i++) {
     const Material &material = slot->model.materials[i];
     for (i32 m = 0; m < material_map_count; m++) {
       const Texture2D &texture = material.maps[m].texture;
@@ -1585,6 +1603,9 @@ Texture2D model_file_pbr_map(const model_slot &slot, i32 index, bool occlusion) 
 }
 
 model_store::~model_store() {
+  // RendererResources owns portable GPU handles until explicit unload or window
+  // teardown. Destruction must also be safe while unwinding a failed frame.
+  if(portable_context) { for(auto &slot:slots) if(slot.portable) portable_model_free_cpu(slot); return; }
   for (usize i = 0; i < slots.size(); i++)
     model_store_unload(*this, model_handle{.id = (u32)(i + 1)});
 }
