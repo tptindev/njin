@@ -10,6 +10,11 @@
 namespace njin {
 struct context;
 struct PortableFontAtlas { Font metrics{}; RenderTextureHandle texture{}; };
+// The bgfx path's glyph atlas, baked without raylib as raylib's LoadFontData +
+// GenImageFontAtlas would (njin_font.cpp): `font.glyphs`/`font.recs` malloc'd (free with
+// std::free), `font.glyphPadding` read as the padding, `rgba` the atlas. False when the
+// bytes are not a font or have none of the codepoints.
+bool font_bake_atlas(const unsigned char *bytes,bool pixel,int px,const std::vector<int> &cps,Font &font,std::vector<unsigned char> &rgba);
 // The default font, JetBrains Mono, compiled in (see cmake/embed_file.cmake).
 extern const unsigned char font_default_ttf[];
 extern const unsigned long long font_default_ttf_size;

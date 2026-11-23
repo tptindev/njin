@@ -73,7 +73,10 @@ void shutdown(njin::context &ctx) {
   if(pixel(6,-.5f)[0]!=255||pixel(6,.5f)[2]!=255||pixel(7,-.5f)[0]!=0||pixel(7,.5f)[2]!=255) throw std::runtime_error("glTF OPAQUE/MASK alpha semantics regressed");
   for(int stage:{8,9}) {p=pixel(stage);if(std::abs(p[0]-167)>3||std::abs(p[2]-151)>3) throw std::runtime_error("instanced transparency failed");}
   p=pixel(16);if(p[0]<240||p[1]<240||p[2]<240) throw std::runtime_error("HDR transparency overflowed or failed to tone map");
-  if(!rejected||pixel(10)!=std::array<int,3>{0,0,0}||pixel(14)!=std::array<int,3>{0,255,0}||image(6).pixels!=image(15).pixels) throw std::runtime_error("OIT opt-in/disable/opaque control failed");
+  // Without post3d.oit a transparent draw is alpha blended (as on OpenGL), not refused.
+  p=pixel(10);
+  if(rejected||p[0]<40||p[1]||p[2]) throw std::runtime_error("transparency without OIT was not alpha blended: "+std::to_string(p[0])+","+std::to_string(p[1])+","+std::to_string(p[2]));
+  if(pixel(14)!=std::array<int,3>{0,255,0}||image(6).pixels!=image(15).pixels) throw std::runtime_error("OIT opt-in/disable/opaque control failed");
   if(!mobile) {auto im=image(12);if(im.width!=800||im.height!=600) throw std::runtime_error("OIT resize failed");}
   auto im=image(11);const auto ui=(size_t(8)*im.width+8)*4;if(im.pixels[ui]!=255||im.pixels[ui+1]) throw std::runtime_error("OIT filtered later UI");
   for(auto model:models) njin::model_unload(ctx,model);njin::model_unload(ctx,plane);njin::instance_buffer_destroy(ctx,instances);

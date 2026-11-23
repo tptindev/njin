@@ -7,6 +7,8 @@ namespace njin {
 
 f32 fps(const context &ctx) { return ctx_ref<config>(ctx).target_fps; }
 
+GraphicsBackend graphics_backend(const context &ctx) { return ctx_ref<config>(ctx).graphics_backend; }
+
 void set_fps(context &ctx, f32 target) {
   ctx_ref<config>(ctx).target_fps = target < 1.0f ? 1.0f : target;
   if (ctx_ref<config>(ctx).graphics_backend==GraphicsBackend::OpenGL && !ctx_ref<config>(ctx).low_power)

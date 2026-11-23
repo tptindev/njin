@@ -614,15 +614,28 @@ void draw_portable_particles(context &ctx,const transform &tr,const particle_emi
   else draw_portable_textures(ctx,texture,image_size,descriptions,em.shape==particle_soft,true,blend);
 }
 
+void reset_portable_stats(context &ctx) { ctx_ref<render_stats>(ctx)->reset(); }
 void draw_portable(context &ctx) {
   auto &registry=ctx_ref<ecs_store>(ctx)->registry;
-  std::vector<draw_item> entities;
+  render_stats &stats=ctx_ref<render_stats>(ctx);
+  // As the OpenGL renderer's draw: what is off screen is left out, and neighbours of one
+  // texture (one atlas page) go to the GPU as one batch.
+  const rect view=camera_bounds(ctx);
+  thread_local std::vector<draw_item> entities;
+  entities.clear();
   for(auto [entity,tr,map]:registry.view<const transform,const tilemap>().each())
     if(map.visible) entities.push_back({map.layer,0,entity,tr.pos.y});
-  for(auto [entity,tr,spr]:registry.view<const transform,const sprite>().each())
-    if(spr.visible) entities.push_back({spr.layer,1,entity,tr.pos.y+spr.sort_offset});
-  for(auto [entity,tr,em]:registry.view<const transform,const particle_emitter>().each())
-    if(em.visible && !em.particles.empty()) entities.push_back({em.layer,2,entity,tr.pos.y});
+  for(auto [entity,tr,spr]:registry.view<const transform,const sprite>().each()) {
+    if(!spr.visible) continue;
+    if(!sprite_on_screen(ctx,tr,spr,view)) {stats.sprites_culled++;continue;}
+    entities.push_back({spr.layer,1,entity,tr.pos.y+spr.sort_offset});
+  }
+  for(auto [entity,tr,em]:registry.view<const transform,const particle_emitter>().each()) {
+    if(!em.visible || em.particles.empty()) continue;
+    const particle_extent *extent=registry.try_get<particle_extent>(entity);
+    if(extent!=nullptr && !particles_on_screen(tr,em,*extent,view)) {stats.emitters_culled++;continue;}
+    entities.push_back({em.layer,2,entity,tr.pos.y});
+  }
   const auto &by_y=ctx_ref<sprite_cache>(ctx)->y_sorted;
   std::stable_sort(entities.begin(),entities.end(),[&](const auto &a,const auto &b) {
     if(a.layer!=b.layer) return a.layer<b.layer;
@@ -630,14 +643,33 @@ void draw_portable(context &ctx) {
     if(a.kind!=b.kind) return a.kind<b.kind;
     return entt::to_integral(a.entity)<entt::to_integral(b.entity);
   });
+  thread_local std::vector<texture_draw_desc> batch;
+  batch.clear();
+  const texture_slot *batch_slot=nullptr;
+  // A batch is one GPU texture and filter: the images of one atlas page share it, their
+  // sources moved into the page (as draw_portable_slot_textures does), so they batch too.
+  const auto flush=[&] {
+    if(batch_slot && !batch.empty()) {
+      const auto &s=*batch_slot;
+      const auto min_filter=s.filter==filter_mipmap?RenderMinFilter::LinearMipLinear:s.filter==filter_linear?RenderMinFilter::LinearMipNearest:RenderMinFilter::NearestMipNearest;
+      draw_portable_textures(ctx,s.portable,{float(s.texture.width),float(s.texture.height)},batch,s.filter!=filter_nearest,true,std::nullopt,min_filter);
+      stats.batches++;
+    }
+    batch.clear();batch_slot=nullptr;
+  };
   for(const auto &item:entities) {
     const auto entity=item.entity;
-    if(item.kind==0) { draw_portable_tilemap(ctx,registry.get<transform>(entity),registry.get<tilemap>(entity)); continue; }
+    if(item.kind==0) {
+      flush();draw_portable_tilemap(ctx,registry.get<transform>(entity),registry.get<tilemap>(entity));
+      stats.tile_chunks++;stats.batches++;continue;
+    }
     if(item.kind==2) {
+      flush();
       const auto &em=registry.get<particle_emitter>(entity);
       if(em.gpu) particles_gpu_draw(ctx,entity,registry.get<transform>(entity),em);
       else draw_portable_particles(ctx,registry.get<transform>(entity),em);
-      continue;
+      stats.emitters++;stats.particles+=u32(em.particles.size());if(em.gpu) stats.particles_gpu+=u32(em.particles.size());
+      stats.batches++;continue;
     }
     const auto &spr=registry.get<sprite>(entity);
     const auto &tr=registry.get<transform>(entity);
@@ -645,21 +677,35 @@ void draw_portable(context &ctx) {
     if(!slot) continue;
     if(!slot->portable) throw std::runtime_error("njin bgfx: sprite has no backend texture");
     const auto *flash=registry.try_get<flash_fx>(entity);const auto *dissolve=registry.try_get<dissolve_fx>(entity);
+    const texture_draw_desc desc{.pos=tr.pos,.source=spr.source,.scale={tr.scale,tr.scale},.origin=spr.origin,.rotation=tr.rot,
+      .flip_x=spr.flip_x,.flip_y=spr.flip_y,.tint=spr.tint};
+    stats.sprites++;
+    if(!flash && !dissolve) {
+      if(!batch_slot || slot->portable.id!=batch_slot->portable.id || slot->filter!=batch_slot->filter) {flush();batch_slot=slot;}
+      batch.push_back(desc);
+      if(slot->packed) {
+        auto &d=batch.back();
+        if(d.source.size.x==0||d.source.size.y==0) d.source={{0,0},{slot->area.width,slot->area.height}};
+        d.source.pos+=vec2{slot->area.x,slot->area.y};
+      }
+      continue;
+    }
+    flush();stats.batches++;
     const auto effects=portable_sprite_effects(flash,dissolve);
     if(effects.dissolving&&effects.dissolve[0]>=1) continue;
     auto &state=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d;
     struct Restore {RenderSpriteEffects &value,previous;~Restore(){value=previous;}} restore{state.sprite_effects,state.sprite_effects};
     if(flash||dissolve) state.sprite_effects=effects;
-    draw_portable_slot_texture(ctx,*slot,
-      {.pos=tr.pos,.source=spr.source,.scale={tr.scale,tr.scale},.origin=spr.origin,.rotation=tr.rot,
-       .flip_x=spr.flip_x,.flip_y=spr.flip_y,.tint=spr.tint},true);
+    draw_portable_slot_texture(ctx,*slot,desc,true);
   }
+  flush();
 }
 void setup(context &ctx) {
   if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
     ecs_register(ctx,phase_post_update,animate,"animate");
     ecs_register(ctx,phase_post_update,fx_update_sprite_flashes,"fx_update_sprite_flashes");
     ecs_register(ctx,phase_post_update,fx_update_sprite_dissolves,"fx_update_sprite_dissolves");
+    ecs_register(ctx,phase_pre_render,reset_portable_stats,"render_stats_reset");
     ecs_register(ctx,phase_render,draw_portable,"draw_portable");
     return;
   }

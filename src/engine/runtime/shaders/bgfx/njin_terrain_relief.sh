@@ -1,7 +1,13 @@
 // Relief Njin: lưới mịn thay tessellation; cùng displacement cho màu, depth và bóng.
-SAMPLER2D(s_njinReliefGround,13);
-SAMPLER2D(s_njinReliefSplat,14);
-SAMPLER2D(s_njinReliefLayers,15);
+// The fragment stage takes all 16 samplers, and a program's stages share them: the relief
+// fields use stages 13-15 under the names of the lightmap and under maps
+// (njin_advanced_material.sh), which a relief draw never has (njin_bgfx.cpp binds them).
+SAMPLER2D(s_njinLightmap,13);
+SAMPLER2D(s_njinUnderMap,14);
+SAMPLER2D(s_njinUnderNormal,15);
+#define s_njinReliefGround s_njinLightmap
+#define s_njinReliefSplat s_njinUnderMap
+#define s_njinReliefLayers s_njinUnderNormal
 uniform vec4 u_njinTerrainRelief[6];
 vec4 njinReliefField(sampler2D map,vec2 cell) {
   float size=u_njinTerrainRelief[0].w;

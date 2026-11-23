@@ -1,3 +1,4 @@
+#include "njin_image_io.h"
 #include "njin_renderer.h"
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
@@ -283,17 +284,7 @@ void renderer_trace_shadows(context &ctx,const rhi::RayShadowPass &pass) {
 }
 RenderImageAsset renderer_load_image(const char *path) {
   if(!path || !*path) throw std::invalid_argument("njin renderer: empty image path");
-  Image image=LoadImage(path);
-  if(!image.data) throw std::runtime_error("njin renderer: image decode failed");
-  struct FreeImage { Image &image; ~FreeImage() { UnloadImage(image); } } free{image};
-  image_decompress_rgba8(image);
-  ImageFormat(&image,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-  if(!image.data || image.format!=PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 || image.width<=0 || image.height<=0)
-    throw std::runtime_error("njin renderer: image conversion to RGBA8 failed");
-  RenderImageAsset result{(unsigned)image.width,(unsigned)image.height,{}};
-  const auto *pixels=(const unsigned char*)image.data;
-  result.pixels.assign(pixels,pixels+size_t(image.width)*image.height*4);
-  return result;
+  return image_io_load(path,RenderImageFormat::RGBA8);
 }
 void renderer_draw_mesh(context &ctx, const MeshDraw &submission) {
   MeshDraw draw=submission;

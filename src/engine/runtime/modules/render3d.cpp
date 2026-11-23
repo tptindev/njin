@@ -5944,6 +5944,12 @@ void draw_plane3d(const context &ctx, vec3 center, vec2 size, rgba color) {
 }
 
 void draw_cylinder3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba color) {
+  if (ctx_ref<config>(ctx).graphics_backend != GraphicsBackend::OpenGL) {
+    Matrix m{};
+    if (cylinder_transform(from, to, radius, m))
+      portable_draw_primitive_matrix(ctx, 3, m, color, ctx_ref<model_store>(ctx)->portable_material);
+    return;
+  }
   const render3d_state *s = open_pass(ctx);
   Matrix m{};
   if (s != nullptr && cylinder_transform(from, to, radius, m))
@@ -5951,7 +5957,7 @@ void draw_cylinder3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba co
 }
 
 void draw_capsule3d(const context &ctx, vec3 from, vec3 to, f32 radius, rgba color) {
-  if (open_pass(ctx) == nullptr)
+  if (ctx_ref<config>(ctx).graphics_backend == GraphicsBackend::OpenGL && open_pass(ctx) == nullptr)
     return;
   draw_cylinder3d(ctx, from, to, radius, color);
   draw_sphere3d(ctx, from, radius, color);
@@ -5983,7 +5989,7 @@ void record_instanced(const context &ctx, const Mesh *mesh, model_handle model, 
 void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer, u32 first, u32 count,
                       shader_handle shader) {
   if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
-    if(mesh<mesh3d_cube||mesh>mesh3d_plane) throw std::runtime_error("njin bgfx: this instanced primitive is not ported");
+    if(mesh<mesh3d_cube||mesh>mesh3d_cylinder_low) throw std::invalid_argument("njin: invalid instanced primitive");
     portable_draw_instances(ctx,{},int(mesh),buffer,first,count,shader);return;
   }
   const render3d_state *s = open_pass(ctx);
@@ -6043,7 +6049,7 @@ void draw_instanced3d(const context &ctx, model_handle model, instance_buffer_ha
 void draw_instanced3d(const context &ctx, mesh3d_kind mesh, instance_buffer_handle buffer,
                       const instanced3d_desc &desc) {
   if(ctx_ref<config>(ctx).graphics_backend!=GraphicsBackend::OpenGL) {
-    if(desc.pose) throw std::runtime_error("njin bgfx: instanced poses are not ported");
+    // A primitive has no skeleton or morph targets: desc.pose is ignored, as on OpenGL.
     portable_draw_instances(ctx,{},int(mesh),buffer,desc.first,desc.count,desc.shader,nullptr,&desc);return;
   }
   const render3d_state &s = ctx_ref<render3d_state>(ctx);

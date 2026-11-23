@@ -1,3 +1,4 @@
+#include "njin_image_io.h"
 #include "njin_window.h"
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
@@ -60,12 +61,11 @@ void take_pending_screenshots(context &ctx) {
 }
 void save_pending_capture(context &ctx,const RenderImageAsset &capture) {
   if(capture.pixels.empty()) return;
-  Image image{const_cast<unsigned char*>(capture.pixels.data()),(int)capture.width,(int)capture.height,1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
   for(const auto &path:ctx_ref<frame_state>(ctx).screenshots) {
     const std::filesystem::path output(reinterpret_cast<const char8_t*>(path.c_str()));
     std::error_code error;
     if(output.has_parent_path()) std::filesystem::create_directories(output.parent_path(),error);
-    if(error || !ExportImage(image,path.c_str())) throw std::runtime_error("njin capture: cannot export "+path);
+    if(error || !image_io_save(path.c_str(),capture.width,capture.height,capture.pixels)) throw std::runtime_error("njin capture: cannot export "+path);
   }
   ctx_ref<frame_state>(ctx).screenshots.clear();
 }

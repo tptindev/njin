@@ -3,6 +3,8 @@
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
 #include "njin_view.h"
+#include "njin_shader.h"
+#include "modules/camera.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -90,6 +92,44 @@ void portable_post_world(context &ctx) {
     p.mode=RenderPostMode::LegacyPost;
     pass(0,source,p);
     renderer_resume_target(ctx,view->portable_target);draw(ctx,texture(0),{});
+  } catch(...) {
+    if(!resources.active_target) try {renderer_resume_target(ctx,view->portable_target);} catch(...) {}
+    throw;
+  }
+}
+bool portable_camera_post_wanted(const context &ctx) {
+  return shader_slot_of(ctx_ref<shader_store>(ctx),ctx_ref<camera_post>(ctx)->shader)!=nullptr;
+}
+void portable_camera_post(context &ctx) {
+  auto &view=ctx_ref<view_state>(ctx);
+  const auto shader=ctx_ref<camera_post>(ctx)->shader;
+  if(!view->drawing||!portable_camera_post_wanted(ctx)) return;
+  auto &resources=ctx_ref<window_guard>(ctx).renderer_resources;
+  if(resources.active_target.id!=view->portable_target.id) throw std::logic_error("njin camera post shader: unclosed render target");
+  const unsigned w=view->portable_width,h=view->portable_height;
+  if(view->portable_camera_target) {
+    const auto &old=resources.targets.at(view->portable_camera_target.id);
+    if(old.width!=w||old.height!=h) {
+      if(ctx_ref<window_guard>(ctx).graphics->target_in_use(view->portable_camera_target))
+        throw std::logic_error("njin camera post shader: cannot resize a submitted target");
+      renderer_destroy_target(ctx,view->portable_camera_target);view->portable_camera_target={};
+    }
+  }
+  if(!view->portable_camera_target) view->portable_camera_target=renderer_create_target(ctx,w,h);
+  renderer_end_target(ctx);
+  try {
+    // The world through the game's shader (its texture0 is the frame), then copied back.
+    renderer_begin_target(ctx,view->portable_camera_target);
+    try {
+      MeshDraw packet{};packet.vertices=quad;packet.texture=renderer_target_texture(ctx,view->portable_target);
+      packet.depth_test=false;packet.opaque_alpha=true;packet.blend=RenderBlend::Opaque;
+      packet.linear_sampling=true;packet.wrap_s=packet.wrap_t=RenderWrap::Clamp;
+      packet.shader=portable_shader_bindings(ctx,shader);
+      renderer_draw_mesh(ctx,packet);
+      renderer_end_target(ctx);
+    } catch(...) {try {renderer_end_target(ctx);} catch(...) {}throw;}
+    renderer_resume_target(ctx,view->portable_target);
+    draw(ctx,renderer_target_texture(ctx,view->portable_camera_target),{});
   } catch(...) {
     if(!resources.active_target) try {renderer_resume_target(ctx,view->portable_target);} catch(...) {}
     throw;

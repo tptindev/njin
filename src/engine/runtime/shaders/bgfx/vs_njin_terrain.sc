@@ -1,5 +1,5 @@
 $input a_position, a_texcoord0, a_color0, a_normal, a_texcoord1, a_tangent
-$output v_texcoord0, v_color0, v_world, v_normal, v_texcoord1, v_tangent, v_instance_color
+$output v_texcoord0, v_color0, v_world, v_normal, v_texcoord1, v_tangent, v_instance_color, v_lightmap_uv
 #include <bgfx_shader.sh>
 #include "njin_terrain_relief.sh"
 uniform mat4 u_njinMVP;
@@ -22,4 +22,5 @@ void main() {
   gl_Position=clip;v_world=position;v_normal=normal;
   v_texcoord0=base.xz;v_texcoord1=vec2(base.y,0.0);
   v_tangent=vec4(reliefNormal,2.0);v_color0=splat;v_instance_color=vec4(1.0,1.0,1.0,1.0);
+  v_lightmap_uv=vec2(0.0,0.0); // relief draws carry no lightmap (njin_bgfx.cpp)
 }

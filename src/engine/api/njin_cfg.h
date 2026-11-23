@@ -127,6 +127,14 @@ struct config {
 /// @return FPS mục tiêu.
 f32 fps(const context &ctx);
 
+/// Backend đồ hoạ game đang chạy: `config::graphics_backend` như game chọn (Auto là
+/// SDL3/bgfx với driver mặc định của nền tảng). GraphicsBackend::OpenGL là renderer raylib
+/// cũ. Dùng khi game có tài nguyên riêng cho từng renderer, chẳng hạn shader GLSL cho
+/// OpenGL và gói `.njshader` cho bgfx (xem shader_load()).
+/// @param ctx Context của engine.
+/// @return Backend đồ hoạ đang dùng.
+GraphicsBackend graphics_backend(const context &ctx);
+
 /// Đổi FPS mục tiêu lúc đang chạy, ví dụ hạ xuống vài khung hình mỗi giây khi
 /// game rảnh để đỡ tốn CPU, rồi nâng lên lại khi có gì chuyển động. fps() trả
 /// về giá trị mới.

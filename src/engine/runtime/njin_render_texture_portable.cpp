@@ -1,3 +1,4 @@
+#include "njin_image_io.h"
 #include "njin_render_texture_portable.h"
 #include "njin_texture.h"
 #include "njin_ctx_get.h"
@@ -50,8 +51,7 @@ bool portable_render_texture_save(context &ctx,render_texture_handle handle,cons
   std::error_code ec;const auto file=std::filesystem::path(reinterpret_cast<const char8_t*>(path));
   if(file.has_parent_path()) std::filesystem::create_directories(file.parent_path(),ec);
   if(ec) return false;
-  Image view{image.pixels.data(),int(image.width),int(image.height),1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
-  return ExportImage(view,path);
+  return image_io_save(path,image.width,image.height,image.pixels);
 }
 void portable_render_texture_draw(const context &ctx,render_texture_handle handle,vec2 pos,rgba tint) {
   const auto *slot=render_texture_slot_of(ctx_ref<render_texture_store>(ctx),handle);if(!slot) return;

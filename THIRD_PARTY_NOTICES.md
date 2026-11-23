@@ -202,6 +202,23 @@ meshoptimizer's MIT license is in its fetched source tree (`LICENSE.md`).
 wrapper; no bimg source is copied. bimg is BSD-2-Clause; its license ships in
 the fetched source tree (`LICENSE`).
 
+## Image files and glyph atlases without raylib
+
+`src/engine/runtime/njin_image_io.cpp` reads image files with the standard
+library and decodes them with `bimg::imageParse` from the same pinned bimg
+(lodepng, stb_image, tinyexr inside bimg; BSD-2-Clause, public domain, BSD-3).
+PNG and TGA are written with bimg; the BMP (BITMAPV4HEADER) and QOI
+(qoiformat.org specification 1.0) encoders are Njin's own.
+
+`font_bake_atlas` (`src/engine/runtime/njin_font.cpp`) is translated from
+raylib's `LoadFontData` and `GenImageFontAtlas` (packMethod 0) in `src/rtext.c`
+of raylib as pinned by `CMakeLists.txt` (tag `6.0` of
+https://github.com/raysan5/raylib),
+so the bgfx path bakes the same atlases without calling raylib. raylib is under
+the zlib license, Copyright (c) 2013-2026 Ramon Santamaria (@raysan5); this
+translation is an altered version of that source, so marked here. The glyph
+bitmaps still come from stb_truetype v1.26 (public domain).
+
 ## xatlas lightmap unwrap
 
 The lightmap asset tool calls xatlas unmodified, pinned to

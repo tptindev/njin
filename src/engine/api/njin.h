@@ -13,7 +13,6 @@
 #include "njin_collision.h"
 #include "njin_anim.h"
 #include "njin_atlas.h"
-#include "njin_atmosphere.h"
 #include "njin_bits.h"
 #include "njin_audio.h"
 #include "njin_bindings.h"
@@ -56,6 +55,7 @@
 // game đã bật.
 #if defined(NJIN_FEATURE_3D) || defined(NJIN_ENGINE_INTERNAL)
 #include "njin_3d.h"
+#include "njin_atmosphere.h"
 #include "njin_anim3d.h"
 #include "njin_post3d.h"
 #include "njin_world3d.h"

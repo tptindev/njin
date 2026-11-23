@@ -1,0 +1,18 @@
+{
+  "uniforms": {
+    "time": {"name": "u_demoTime", "type": "float"},
+    "resolution": {"name": "u_demoResolution", "type": "vec2"},
+    "ambient": {"name": "u_demoAmbient", "type": "vec3"},
+    "night": {"name": "u_demoNight", "type": "float"},
+    "dusk": {"name": "u_demoDusk", "type": "float"},
+    "haze": {"name": "u_demoHaze", "type": "float"},
+    "light_count": {"name": "u_demoLightCount", "type": "int"},
+    "lights": {"name": "u_demoLights", "type": "vec4", "count": 8},
+    "light_colors": {"name": "u_demoLightColors", "type": "vec4", "count": 8}
+  },
+  "samplers": {
+    "texture0": {"name": "s_demoFrame", "stage": 0},
+    "ramp": {"name": "s_demoRamp", "stage": 1},
+    "noise": {"name": "s_demoNoise", "stage": 2}
+  }
+}

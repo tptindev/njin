@@ -10,6 +10,11 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- `graphics_backend()`: the backend the game runs on, for games that ship
+  different resources per renderer (GLSL for OpenGL, `.njshader` for bgfx).
+- Test suite: every sample runs whole on every renderer (`sample_*` tests,
+  driven by the `NJIN_SMOKE_*` environment variables, inert otherwise).
+
 - Progressive mip/mesh LOD residency và software virtual albedo cho cả terrain/model:
   giữ coarse fallback, GPU allocation giảm khi hạ chi tiết, NVT1 range reads qua
   scheduler hiện có, page table/bordered cache và permanent mip tail. OBJ/MTL async
@@ -400,6 +405,23 @@ To release: edit that header, add a section here, commit, then
   shadow pass alike.
 
 ### Fixed
+
+- The 2D samples (and any game without the 3d feature) failed to build:
+  `njin.h` included the atmosphere header outside the 3D feature.
+- bgfx: `draw_cylinder3d` and `draw_capsule3d` no longer throw; they draw as on
+  OpenGL. `draw_instanced3d` draws every `mesh3d_kind` (cylinders and the low
+  meshes threw) and ignores a pose given with a primitive, as on OpenGL.
+- bgfx: transparent 3D draws without `post3d.oit` (alpha tint, textures with
+  alpha) threw; they are alpha blended back to front as on OpenGL. Transmission
+  still needs `post3d.oit`.
+- bgfx: terrain relief failed to draw since the lightmap support (a missing
+  varying in the relief vertex stage).
+- bgfx: `camera_set_post_shader` runs the game's shader package over the
+  finished world, as on OpenGL (it was ignored).
+- bgfx: sprites off screen are left out and sprites of one texture or atlas
+  page are drawn in one batch, as on OpenGL (every sprite was a draw call:
+  a few thousand sprites took hundreds of milliseconds a frame). The 2D draw
+  statistics (render_info_get) are filled in on bgfx too.
 
 - 3D (bgfx): the open sea (water3d_desc::size {0, 0}) reaches the horizon (rings
   out to 8 km round the camera, as the OpenGL renderer) instead of a 160 m

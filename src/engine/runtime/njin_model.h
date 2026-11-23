@@ -238,7 +238,7 @@ struct model_store {
   material3d portable_material;
   fx3d portable_fx;
   mutable RenderTextureHandle portable_white;
-  mutable std::array<RenderMeshHandle,3> portable_primitives{}; // box, sphere, plane
+  mutable std::array<RenderMeshHandle,6> portable_primitives{}; // mesh3d_kind order: box, sphere, plane, cylinder, low sphere, low cylinder
   std::vector<std::pair<std::vector<float>,std::shared_ptr<const RenderGeometryData>>> portable_sdf_meshes;
   model_store() = default;
   ~model_store();

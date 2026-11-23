@@ -1,3 +1,4 @@
+#include "njin_image_io.h"
 #include "njin_model_portable.h"
 #include "njin_stream_internal.h"
 #include "njin_ctx_impl.h"
@@ -246,7 +247,9 @@ void submit(const context &ctx,RenderMeshHandle mesh,RenderTextureHandle texture
   const bool texture_alpha=texture&&textures.at(texture.id).alpha;
   alpha_mask=alpha_mask||surface.alpha_cutoff>0;
   const bool transparent=!force_opaque&&(surface.transmission>0||alpha_blend||(!alpha_mask&&(tint.a<1||texture_alpha)));
-  if(transparent&&!store.portable_frame_post.oit) unsupported("transparent 3D draws require post3d.oit");
+  // Without post3d.oit transparent draws are alpha blended back to front after the opaque
+  // ones (as on OpenGL); transmission needs OIT's scene copy.
+  if(transparent&&!store.portable_frame_post.oit&&surface.transmission>0) unsupported("transmission without post3d.oit");
   if(!shader.id&&!builtin) shader=ctx_ref<shader_store>(ctx)->active;
   auto custom=portable_shader_bindings(ctx,shader);
   if(custom&&transparent) unsupported("custom transparent material shaders require an OIT variant");
@@ -339,7 +342,7 @@ bool name_matches(const char *name,const char *const *list,u32 count) {
   for(u32 i=0;i<count;++i) if(list[i]&&name&&std::strstr(name,list[i])) return true;
   return false;
 }
-RenderTextureHandle upload_image(context *ctx,Image &image,const std::string &image_error,bool mask,const char *role,bool mipmapped,PreparedModel *prepared=nullptr);
+RenderTextureHandle upload_image(context *ctx,RenderImageAsset image,const std::string &image_error,bool mask,const char *role,bool mipmapped,PreparedModel *prepared=nullptr);
 // EXT/KHR_meshopt_compression: decodes each compressed buffer view into its
 // cgltf override. Translated from meshoptimizer v1.3
 // gltf/parsegltf.cpp decompressMeshopt (MIT), without the colour filter this
@@ -374,36 +377,38 @@ void decompress_meshopt(cgltf_data &data) {
 }
 RenderTextureHandle image_texture(context *ctx,const cgltf_image &source,const std::string &path,bool mask,const char *role="albedo",bool mipmapped=false,PreparedModel *prepared=nullptr) {
   const auto image_error=std::string("njin bgfx 3D: glTF ")+role+" image";
-  Image image{};
-  std::unique_ptr<unsigned char,void(*)(unsigned char*)> decoded(nullptr,UnloadFileData);
+  RenderImageAsset image;
+  // Decoded with bimg (njin_image_io.h), not raylib; an image that is not there or not
+  // an image is the same error as before.
+  const auto decode=[&](std::span<const std::uint8_t> bytes) {
+    try {image=image_io_decode(bytes,RenderImageFormat::RGBA8,image_error);}
+    catch(const std::runtime_error &) {image={};}
+  };
   if(source.buffer_view) {
-    const auto *bytes=cgltf_buffer_view_data(source.buffer_view);
-    const char *ext=source.mime_type&&std::strcmp(source.mime_type,"image/jpeg")==0?".jpg":".png";
-    if(bytes && source.buffer_view->size<=INT_MAX)
-      image=LoadImageFromMemory(ext,bytes,(int)source.buffer_view->size);
+    const auto *bytes=static_cast<const std::uint8_t*>(cgltf_buffer_view_data(source.buffer_view));
+    if(bytes && source.buffer_view->size<=INT_MAX) decode({bytes,source.buffer_view->size});
   } else if(source.uri && std::strncmp(source.uri,"data:",5)==0) {
     const char *comma=std::strchr(source.uri,',');
     if(!comma || std::string(source.uri,size_t(comma-source.uri)).find(";base64")==std::string::npos)
       unsupported("non-base64 glTF data URI");
+    std::unique_ptr<unsigned char,void(*)(unsigned char*)> decoded(nullptr,UnloadFileData);
     int length=0; decoded.reset(DecodeDataBase64(comma+1,&length));
-    if(decoded) image=LoadImageFromMemory(std::strncmp(source.uri,"data:image/jpeg",15)==0?".jpg":".png",decoded.get(),length);
+    if(decoded&&length>0) decode({decoded.get(),size_t(length)});
   } else if(source.uri) {
     std::string uri=source.uri; cgltf_decode_uri(uri.data());
-    image=LoadImage((std::filesystem::path(path).parent_path()/uri).string().c_str());
+    std::vector<std::uint8_t> bytes;
+    if(image_io_read_file((std::filesystem::path(path).parent_path()/uri).string().c_str(),bytes)) decode(bytes);
   }
-  return upload_image(ctx,image,image_error,mask,role,mipmapped,prepared);
+  return upload_image(ctx,std::move(image),image_error,mask,role,mipmapped,prepared);
 }
-// Takes ownership of image (unloaded on return).
-RenderTextureHandle upload_image(context *ctx,Image &image,const std::string &image_error,bool mask,const char *role,bool mipmapped,PreparedModel *prepared) {
-  struct Free { Image &image; ~Free(){ if(image.data) UnloadImage(image); } } free{image};
-  if(!image.data) throw std::runtime_error(image_error+" could not be decoded");
-  image_decompress_rgba8(image);
-  ImageFormat(&image,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-  if(!image.data || image.format!=PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
+// An RGBA8 image decoded by njin_image_io (empty when it could not be).
+RenderTextureHandle upload_image(context *ctx,RenderImageAsset image,const std::string &image_error,bool mask,const char *role,bool mipmapped,PreparedModel *prepared) {
+  if(image.pixels.empty()) throw std::runtime_error(image_error+" could not be decoded");
+  if(image.format!=RenderImageFormat::RGBA8||image.pixels.size()!=size_t(image.width)*image.height*4)
     throw std::runtime_error(image_error+" conversion to RGBA8 failed");
   if(image.width<=0 || image.height<=0 || image.width>16384 || image.height>16384)
     throw std::runtime_error(image_error+" dimensions must be in [1,16384]");
-  auto *pixels=static_cast<unsigned char*>(image.data);
+  auto *pixels=image.pixels.data();
   if(!mask) for(size_t i=0;i<size_t(image.width)*image.height;++i) pixels[i*4+3]=255;
   const auto mips=!mipmapped?RenderMipMode::None:std::strcmp(role,"normal")==0?RenderMipMode::Normal:(std::strcmp(role,"albedo")==0||std::strcmp(role,"emissive")==0)?RenderMipMode::SRGB:RenderMipMode::Linear;
   const RenderImage view{(unsigned)image.width,(unsigned)image.height,{pixels,size_t(image.width)*image.height*4},RenderImageFormat::RGBA8,mips};
@@ -727,8 +732,9 @@ static model_handle portable_obj_load(model_store &store,const std::string &path
     const auto file_texture=[&](const std::string &file,const char *role) {
       RenderTextureMap map;
       if(file.empty()) return map;
-      Image image=LoadImage(file.c_str());
-      map.texture=upload_image(store.portable_context,image,std::string("njin bgfx 3D: OBJ ")+role+" image "+file,false,role,false,prepared);
+      RenderImageAsset image;
+      try {image=image_io_load(file.c_str());} catch(const std::runtime_error &) {}
+      map.texture=upload_image(store.portable_context,std::move(image),std::string("njin bgfx 3D: OBJ ")+role+" image "+file,false,role,false,prepared);
       owned.push_back(map.texture);
       map.linear=false; // raylib's LoadTexture default: nearest filtering, repeat
       return map;
@@ -1349,9 +1355,12 @@ void draw_lightmapped_model(const context &ctx,model_handle model,const transfor
   draw_lightmapped_model(ctx,model,transform,lightmap_object_bindings(ctx,asset,object));
 }
 void portable_draw_primitive(const context &ctx,int kind,const transform3d &transform,rgba color,const material3d &surface) {
+  portable_draw_primitive_matrix(ctx,kind,transform_matrix(transform),color,surface);
+}
+void portable_draw_primitive_matrix(const context &ctx,int kind,const Matrix &world,rgba color,const material3d &surface) {
   const model_store &store=ctx_ref<model_store>(ctx); require_pass(store); portable_surface_validate(surface);
   if(surface.anisotropy!=0) unsupported("anisotropy on a primitive without tangents");
-  if(kind<0||kind>2) unsupported("this 3D primitive");
+  if(kind<0||kind>5) unsupported("this 3D primitive");
   auto &handle=store.portable_primitives[kind];
   if(!handle) {
     std::vector<RenderVertex> vertices;
@@ -1365,21 +1374,41 @@ void portable_draw_primitive(const context &ctx,int kind,const transform3d &tran
       }
     } else if(kind==2) vertices={{-.5f,0,-.5f,0,0},{.5f,0,-.5f,1,0},{.5f,0,.5f,1,1},
       {-.5f,0,-.5f,0,0},{.5f,0,.5f,1,1},{-.5f,0,.5f,0,1}};
+    else if(kind==3||kind==5) {
+      // Legacy GenMeshCylinder(1, 1, 48), or 8 sides for mesh3d_cylinder_low: radius 1,
+      // y 0..1, smooth sides, flat caps.
+      const int sides=kind==3?48:8;
+      const auto rim=[sides](int i,float y) {
+        const float a=float(i%sides)/sides*2*PI;
+        return RenderVertex{std::sin(a),y,std::cos(a),float(i)/sides,1-y};
+      };
+      for(int i=0;i<sides;++i) {
+        const RenderVertex a=rim(i,0),b=rim(i+1,0),c=rim(i+1,1),d=rim(i,1);
+        for(const auto &v:{a,b,c,a,c,d}) {auto w=v;w.normal={v.x,0,v.z};vertices.push_back(w);}
+        for(float y:{0.f,1.f}) {
+          RenderVertex centre{0,y,0,.5f,.5f},p=rim(i,y),q=rim(i+1,y);
+          for(auto *v:{&centre,&p,&q}) v->normal={0,y>0?1.f:-1.f,0};
+          if(y>0) vertices.insert(vertices.end(),{centre,p,q}); else vertices.insert(vertices.end(),{centre,q,p});
+        }
+      }
+    }
     else {
-      const auto point=[](int y,int x) {
-        const float v=y/16.0f,u=x/24.0f,lat=v*PI,lon=u*2*PI;
+      // 16 x 24 bands; mesh3d_sphere_low is legacy's GenMeshSphere(1, 6, 8).
+      const int rings=kind==4?6:16,slices=kind==4?8:24;
+      const auto point=[rings,slices](int y,int x) {
+        const float v=float(y)/rings,u=float(x)/slices,lat=v*PI,lon=u*2*PI;
         return RenderVertex{std::sin(lat)*std::cos(lon),std::cos(lat),std::sin(lat)*std::sin(lon),u,v};
       };
-      for(int y=0;y<16;++y) for(int x=0;x<24;++x) {
+      for(int y=0;y<rings;++y) for(int x=0;x<slices;++x) {
         for(auto [dy,dx]:{std::pair{0,0},std::pair{1,0},std::pair{1,1},std::pair{0,0},std::pair{1,1},std::pair{0,1}})
           vertices.push_back(point(y+dy,x+dx));
       }
     }
-    for(size_t i=0;i<vertices.size();i+=3) {
+    if(kind!=3&&kind!=5) for(size_t i=0;i<vertices.size();i+=3) {
       const auto point=[&](size_t j){auto &v=vertices[j];return vec3{v.x,v.y,v.z};};
       const auto n=cross(point(i+1)-point(i),point(i+2)-point(i));
       for(size_t j=i;j<i+3;++j) {
-        auto normal=kind==1?point(j):n*-1.0f;
+        auto normal=kind==1||kind==4?point(j):n*-1.0f;
         if(length(normal)>0) normal=normalize(normal);
         vertices[j].normal={normal.x,normal.y,normal.z};
       }
@@ -1400,8 +1429,12 @@ void portable_draw_primitive(const context &ctx,int kind,const transform3d &tran
     out.texture=t->portable; out.linear=t->filter!=filter_nearest;
   };
   map(surface.normal,maps.normal); map(surface.metal_rough,maps.metal_rough); map(surface.occlusion,maps.occlusion);
-  const auto world=transform_matrix(transform);
-  submit(ctx,handle,texture,linear,world,color,surface,RenderCull::None,false,maps);
+  // A see-through closed primitive shows only its near side, as on OpenGL (raylib culls
+  // back faces): its far side would otherwise blend over it in no particular order.
+  // The primitives' triangles turn clockwise seen from outside.
+  RenderCull cull=RenderCull::None;
+  if(kind!=2&&color.a<1) cull=MatrixDeterminant(world)<0?RenderCull::Clockwise:RenderCull::CounterClockwise;
+  submit(ctx,handle,texture,linear,world,color,surface,cull,false,maps);
   auto &mutable_store=const_cast<model_store&>(store);
   portable_temporal_record(mutable_store,mutable_store.portable_queue.back(),portable_temporal_key(mutable_store,0x100000000ULL+kind),world);
 }
@@ -1425,7 +1458,9 @@ void portable_draw_instances(const context &ctx,model_handle model,int primitive
   const bool gpu=cull&&render3d_options_get(ctx).occlusion&&!store.portable_frame_post.oit&&store.portable_frame_post.ssr==0;
   if(options&&(!std::isfinite(options->radius)||options->radius<0))
     throw std::invalid_argument("njin bgfx: invalid instance radius");
-  float radius=primitive==1?1.f:.8660254f;
+  // Bounding sphere round the origin: unit sphere 1, unit cube and plane sqrt(3)/2,
+  // cylinders (radius 1, y 0..1) sqrt(2).
+  float radius=primitive==1||primitive==4?1.f:primitive==3||primitive==5?1.4142136f:.8660254f;
   if(model_data) {
     const auto lo=model_data->bounds.min,hi=model_data->bounds.max;
     radius=length(vec3{std::max(std::abs(lo.x),std::abs(hi.x)),std::max(std::abs(lo.y),std::abs(hi.y)),std::max(std::abs(lo.z),std::abs(hi.z))});
@@ -1455,7 +1490,6 @@ void portable_draw_instances(const context &ctx,model_handle model,int primitive
     RenderInstance instance;const auto values=MatrixToFloatV(matrix);std::copy_n(values.v,16,instance.transform.begin());
     if(slot->floats>=8) std::copy_n(p+4,4,instance.color.begin());
     for(unsigned c=0;c<4;++c) if(instance.color[c]<0||(c==3&&instance.color[c]>1)) throw std::invalid_argument("njin bgfx: instance RGB must be nonnegative and alpha in [0,1]");
-    if(instance.color[3]<1&&!store.portable_frame_post.oit) unsupported("transparent 3D instances require post3d.oit");
     const float r=radius*std::max({std::abs(transform.scale.x),std::abs(transform.scale.y),std::abs(transform.scale.z)});
     const auto center=transform.position;
     const bool outside=cull&&!gpu&&std::any_of(planes.begin(),planes.end(),[&](vec4 p){return dot(vec3{p.x,p.y,p.z},center)+p.w < -r;});
@@ -1689,6 +1723,31 @@ void portable_end_3d(context &ctx) {
       if(weather&&packet.world_style[0][0]==1&&packet.world_style[0][3]>0) packet.cover=weather;
       if(ray_traced&&!packet.transparent) packet.ray_shadow=true;
       if(!packet.transparent) renderer_draw_mesh(ctx,packet);
+    }
+    if(!store.portable_frame_post.oit) {
+      // No post3d.oit: the transparent draws alpha blended, farthest first, over the opaque
+      // ones without writing depth, as the OpenGL renderer draws them. Water's refraction,
+      // reflection and caustics read OIT's scene copy, so they are left out here.
+      thread_local std::vector<std::pair<float,size_t>> order;
+      order.clear();
+      const auto eye=store.portable_camera.position;
+      for(size_t i=0;i<store.portable_queue.size();++i) {
+        const auto &p=store.portable_queue[i];
+        if(!p.transparent||p.shadow_only) continue;
+        const float dx=p.world[12]-eye.x,dy=p.world[13]-eye.y,dz=p.world[14]-eye.z;
+        order.push_back({dx*dx+dy*dy+dz*dz,i});
+      }
+      std::stable_sort(order.begin(),order.end(),[](const auto &a,const auto &b){return a.first>b.first;});
+      for(const auto &[distance,i]:order) {
+        auto draw=store.portable_queue[i];
+        draw.blend=RenderBlend::Alpha;draw.depth_write=false;draw.opaque_alpha=false;
+        if(draw.water) {
+          auto water=std::make_shared<RenderWaterEffects>(*draw.water);
+          water->parameters[0][2]=water->parameters[0][3]=water->parameters[1][3]=0;
+          draw.water=std::move(water);
+        }
+        renderer_draw_mesh(ctx,draw);
+      }
     }
     portable_precip_draw(ctx,store);
     portable_particles3d_draw(ctx);

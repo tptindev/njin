@@ -157,7 +157,8 @@ if(NJIN_BGFX)
     target_link_libraries(raylib INTERFACE "$<BUILD_INTERFACE:$<LINK_ONLY:SDL3::SDL3>>" "$<BUILD_INTERFACE:$<LINK_ONLY:bgfx>>")
   endif()
   # bimg/bx: CPU decoding of block-compressed images (njin_image_decode.h).
-  target_link_libraries(njin_core PRIVATE SDL3::SDL3 bgfx bimg bx)
+  # bimg_decode: image files without raylib (njin_image_io.cpp).
+  target_link_libraries(njin_core PRIVATE SDL3::SDL3 bgfx bimg_decode bimg bx)
   include("${PROJECT_SOURCE_DIR}/cmake/njin_bgfx_shaders.cmake")
   # Vulkan ray queries: bgfx's own Vulkan headers, seen by this file only.
   get_property(_njin_bgfx_src GLOBAL PROPERTY NJIN_SHADER_BGFX_SOURCE_DIR)

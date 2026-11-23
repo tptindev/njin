@@ -45,6 +45,7 @@ struct view_state {
   context *portable_context=nullptr;
   RenderTargetHandle portable_target;
   std::array<RenderTargetHandle,4> portable_post_targets{};
+  RenderTargetHandle portable_camera_target; // camera_set_post_shader's pass on bgfx
   RenderTextureHandle portable_depth;
   std::array<float,16> portable_depth_inverse{};
   std::array<float,2> portable_depth_planes{};

@@ -28,6 +28,9 @@ void portable_close_3d(context &);
 void portable_draw_model(const context &,model_handle,const transform3d &,rgba,const model_pose *pose=nullptr,
                          std::span<const model_recolor> recolors={},int level_override=-1,std::span<const LightmapBinding> lightmaps={});
 void portable_draw_primitive(const context &,int,const transform3d &,rgba,const material3d &);
+// The same with the world matrix given: kind 3 is a cylinder of radius 1 from y 0 to 1
+// (draw_cylinder3d/draw_capsule3d place it with the legacy cylinder_transform).
+void portable_draw_primitive_matrix(const context &,int,const Matrix &,rgba,const material3d &);
 void portable_draw_instances(const context &,model_handle,int,instance_buffer_handle,u32,u32,shader_handle,
                              const model_pose *pose=nullptr,const instanced3d_desc *options=nullptr);
 void portable_world_submit(const context &,MeshDraw,const material3d &,rgba,bool,std::uint64_t=0);

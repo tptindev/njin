@@ -25,7 +25,10 @@ void apply_post(context &ctx) {
 
 // The whole-frame shader and the two images it reads besides the frame.
 void load_frame_pass(context &ctx) {
-  demo.pass.shader = shader_load(ctx, nullptr, "assets/scene.fs");
+  // GLSL for the OpenGL renderer; the same pass as a compiled package for SDL3/bgfx
+  // (shaders/fs_scene.sc, built by njin_shader_asset in CMakeLists.txt).
+  const bool legacy = graphics_backend(ctx) == GraphicsBackend::OpenGL;
+  demo.pass.shader = shader_load(ctx, nullptr, legacy ? "assets/scene.fs" : "assets/shaders/scene.njshader");
   shader_set_texture(ctx, demo.pass.shader, "ramp", texture_load(ctx, "assets/ramp.png"));
   shader_set_texture(ctx, demo.pass.shader, "noise", texture_load(ctx, "assets/noise.png"));
 }

@@ -391,7 +391,7 @@ endforeach()
 set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_smaa njin_asio njin_enet EnTT)
 list(APPEND _njin_export_targets njin_xatlas)
 if(NJIN_BGFX)
-  list(APPEND _njin_export_targets bgfx bx bimg)
+  list(APPEND _njin_export_targets bgfx bx bimg bimg_decode)
   # SDL exports its headers/static targets under its own namespace. Import
   # that package before njinTargets when consuming this prebuilt engine.
   file(WRITE "${CMAKE_BINARY_DIR}/njinDependencies.cmake"
@@ -493,6 +493,22 @@ if(NJIN_BUILD_RHI_SLICE)
   target_link_libraries(njin_backdrop_test PRIVATE njin::rt njin::gpu)
   add_executable(njin_raytrace_test src/engine/tests/raytrace3d.cpp)
   add_executable(njin_ocean_test src/engine/tests/ocean3d.cpp)
+  # Image files without raylib (njin_image_io) give raylib's pixels.
+  add_executable(njin_image_io_test src/engine/tests/image_io.cpp)
+  set_target_properties(njin_image_io_test PROPERTIES NJIN_ENGINE_INTERNAL ON)
+  target_link_libraries(njin_image_io_test PRIVATE njin::rt raylib)
+  target_include_directories(njin_image_io_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime")
+  add_test(NAME image_io COMMAND njin_image_io_test "${PROJECT_SOURCE_DIR}/examples" "${PROJECT_SOURCE_DIR}/src/engine/tests")
+  # Glyph atlases baked without raylib (font_bake_atlas) match raylib's.
+  add_executable(njin_font_bake_test src/engine/tests/font_bake.cpp)
+  set_target_properties(njin_font_bake_test PROPERTIES NJIN_ENGINE_INTERNAL ON)
+  target_link_libraries(njin_font_bake_test PRIVATE njin::rt raylib)
+  target_include_directories(njin_font_bake_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime")
+  add_test(NAME font_bake COMMAND njin_font_bake_test "${PROJECT_SOURCE_DIR}/examples" "${PROJECT_SOURCE_DIR}/src/engine/tests")
+  add_executable(njin_transparent_test src/engine/tests/transparent3d.cpp)
+  add_executable(njin_primitives_test src/engine/tests/primitives3d.cpp)
+  target_link_libraries(njin_primitives_test PRIVATE njin::rt njin::gpu)
+  target_link_libraries(njin_transparent_test PRIVATE njin::rt njin::gpu)
   add_executable(njin_terrain_relief_test src/engine/tests/terrain_relief.cpp)
   target_link_libraries(njin_terrain_relief_test PRIVATE njin::rt njin::gpu)
   target_link_libraries(njin_ocean_test PRIVATE njin::rt njin::gpu)
@@ -660,6 +676,18 @@ if(NJIN_BUILD_RHI_SLICE)
         -P "${PROJECT_SOURCE_DIR}/cmake/check_rhi_smoke.cmake")
       set_tests_properties(terrain_relief_vulkan_validation PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
     endif()
+    # Every 3D primitive, instanced and immediate (legacy OpenGL and bgfx).
+    add_test(NAME primitives_${_renderer} COMMAND "${CMAKE_COMMAND}"
+      "-DEXE=$<TARGET_FILE:njin_primitives_test>" "-DRENDERER=${_renderer}" -DFRAMES=10
+      "-DLOG=${PROJECT_BINARY_DIR}/primitives-${_renderer}.log"
+      -P "${PROJECT_SOURCE_DIR}/cmake/check_rhi_smoke.cmake")
+    set_tests_properties(primitives_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
+    # Transparent 3D draws without post3d.oit are alpha blended (legacy OpenGL and bgfx).
+    add_test(NAME transparent_${_renderer} COMMAND "${CMAKE_COMMAND}"
+      "-DEXE=$<TARGET_FILE:njin_transparent_test>" "-DRENDERER=${_renderer}" -DFRAMES=10
+      "-DLOG=${PROJECT_BINARY_DIR}/transparent-${_renderer}.log"
+      -P "${PROJECT_SOURCE_DIR}/cmake/check_rhi_smoke.cmake")
+    set_tests_properties(transparent_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
     # The open sea reaches the horizon (legacy OpenGL and bgfx).
     add_test(NAME ocean_${_renderer} COMMAND "${CMAKE_COMMAND}"
       "-DEXE=$<TARGET_FILE:njin_ocean_test>" "-DRENDERER=${_renderer}" -DFRAMES=10
@@ -1204,6 +1232,32 @@ if(NJIN_BUILD_EXAMPLES)
     endif()
     add_subdirectory(examples/${example})
   endforeach()
+  # Every sample, whole, on every renderer: starts, runs NJIN_SMOKE_FRAMES frames from its
+  # own folder, exits cleanly and draws a non-blank frame (src/engine/runtime/njin_smoke.h).
+  # The bar for removing the legacy renderer: these pass on bgfx as on OpenGL.
+  if(NJIN_BUILD_RHI_SLICE)
+    set(_njin_smoke_renderers opengl)
+    if(NJIN_BGFX)
+      list(APPEND _njin_smoke_renderers vulkan bgfx-opengl)
+      if(WIN32)
+        list(APPEND _njin_smoke_renderers d3d12)
+      endif()
+    endif()
+    foreach(example IN LISTS NJIN_EXAMPLES)
+      if(NOT TARGET njin_${example})
+        continue()
+      endif()
+      foreach(_renderer IN LISTS _njin_smoke_renderers)
+        add_test(NAME sample_${example}_${_renderer} COMMAND "${CMAKE_COMMAND}"
+          "-DEXE=$<TARGET_FILE:njin_${example}>" "-DWORKDIR=$<TARGET_FILE_DIR:njin_${example}>"
+          "-DRENDERER=${_renderer}" -DFRAMES=240 "-DBLANK_OK=$<STREQUAL:${example},sandbox>"
+          "-DSHOT=${PROJECT_BINARY_DIR}/sample-${example}-${_renderer}.png"
+          "-DLOG=${PROJECT_BINARY_DIR}/sample-${example}-${_renderer}.log"
+          -P "${PROJECT_SOURCE_DIR}/cmake/check_example_smoke.cmake")
+        set_tests_properties(sample_${example}_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 180)
+      endforeach()
+    endforeach()
+  endif()
 endif()
 
 if(NJIN_BUILD_RHI_SLICE AND TARGET njin_sandbox)

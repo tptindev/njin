@@ -18,5 +18,15 @@ set_target_properties(njin_render_demo PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CM
 
 njin_add_assets(njin_render_demo assets)
 
+# The frame pass (assets/scene.fs) for the SDL3/bgfx renderer, compiled for every
+# shader profile into assets/shaders/scene.njshader next to the game.
+if(NJIN_BGFX)
+  include("${NJIN_ROOT}/cmake/njin_shader_assets.cmake")
+  njin_shader_asset(njin_render_demo NAME scene
+    FRAGMENT "${CMAKE_CURRENT_SOURCE_DIR}/shaders/fs_scene.sc"
+    METADATA "${CMAKE_CURRENT_SOURCE_DIR}/shaders/scene.json"
+    OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/render_demo/assets/shaders")
+endif()
+
 # The njin icon on the exe, its window and its taskbar button (Windows).
 njin_icon(njin_render_demo)

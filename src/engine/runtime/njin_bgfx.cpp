@@ -357,8 +357,6 @@ public:
       water_effects=checked(bgfx::createUniform("u_njinWater",bgfx::UniformType::Vec4,16),"water effects uniform failed");
       terrain_imprint=checked(bgfx::createUniform("u_njinTerrainImprint",bgfx::UniformType::Vec4,3),"terrain imprint uniform failed");
       terrain_relief=checked(bgfx::createUniform("u_njinTerrainRelief",bgfx::UniformType::Vec4,6),"terrain relief uniform failed");
-      const char *relief_names[]{"s_njinReliefGround","s_njinReliefSplat","s_njinReliefLayers"};
-      for(unsigned i=0;i<3;++i) terrain_relief_samplers[i]=checked(bgfx::createUniform(relief_names[i],bgfx::UniformType::Sampler),"terrain relief sampler failed");
       advanced_uv=checked(bgfx::createUniform("u_njinAdvancedUv",bgfx::UniformType::Vec4,12),"advanced map UV uniform failed");
       advanced_params=checked(bgfx::createUniform("u_njinAdvanced",bgfx::UniformType::Vec4,3),"advanced material uniform failed");
       transmit_params=checked(bgfx::createUniform("u_njinTransmit",bgfx::UniformType::Vec4,2),"transmission uniform failed");
@@ -1002,6 +1000,7 @@ public:
         const auto imprint=i==0&&draw.terrain_imprint?draw.terrain_imprint->texture:RenderTextureHandle{};
         const auto &bound=i==0&&thickness_map.texture?thickness_map:map;
         const auto handle=imprint?imprint:bound.texture;
+        if(i>0&&draw.terrain_relief) continue; // the relief fields take stages 13-15 below
         const auto flags=imprint?sampling(false,RenderWrap::Clamp,RenderWrap::Clamp,RenderMinFilter::Nearest):
           sampling(bound.linear,bound.wrap_s,bound.wrap_t,bound.min_filter);
         bgfx::setTexture(uint8_t(i+12),advanced_samplers[i],handle?textures.at(handle.id):texture,flags);
@@ -1096,6 +1095,9 @@ public:
       }
       if(draw.terrain_relief) {
         const auto &relief=*draw.terrain_relief;
+        // Stages 13-15 carry the relief fields in place of the lightmap and under maps.
+        if(advanced_settings[0][1]>0||advanced_settings[0][2]>0||advanced_settings[0][3]>0)
+          throw std::runtime_error("njin terrain: relief cannot be combined with a lightmap or under maps");
         for(unsigned i=0;i<3;++i) {
           const auto h=relief.textures[i];
           // OpenGL 3.3/GLES 3.0 luôn có vertex texture fetch; bgfx GL không gắn bit này.
@@ -1104,7 +1106,7 @@ public:
           if(type!=bgfx::RendererType::OpenGL&&type!=bgfx::RendererType::OpenGLES&&
              !(bgfx::getCaps()->formats[format]&BGFX_CAPS_FORMAT_TEXTURE_VERTEX))
             throw std::runtime_error("njin terrain: backend lacks vertex texture support for relief");
-          bgfx::setTexture(uint8_t(13+i),terrain_relief_samplers[i],textures.at(h.id),
+          bgfx::setTexture(uint8_t(13+i),advanced_samplers[1+i],textures.at(h.id),
             sampling(i==2,i==2?RenderWrap::Repeat:RenderWrap::Clamp,i==2?RenderWrap::Repeat:RenderWrap::Clamp));
           used_textures.insert(h.id);
         }

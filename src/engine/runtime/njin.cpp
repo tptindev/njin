@@ -37,6 +37,7 @@
 #include "modules/post_fx.h"
 #include "modules/lighting.h"
 #include "njin_ecs.h"
+#include "njin_smoke.h"
 #include "njin_input_impl.h"
 #include "njin_mem_impl.h"
 #include "njin_log_impl.h"
@@ -135,7 +136,8 @@ window_guard::~window_guard() {
   if(opengl) CloseWindow();
 }
 
-context *create(const config &cfg) {
+context *create(const config &game_cfg) {
+  const config cfg = smoke_config(game_cfg); // NJIN_SMOKE_BACKEND (test suite only)
   if(static_cast<unsigned>(cfg.graphics_backend)>static_cast<unsigned>(GraphicsBackend::WebGL2))
     throw std::invalid_argument("njin: invalid graphics backend");
 #if !NJIN_BGFX
@@ -166,6 +168,7 @@ context *create(const config &cfg) {
     for(const auto &module:ctx_ref<feature_hooks>(*ctx).modules_mid) mod_register(*ctx,module);
     mod_register(*ctx, {sprite_module(),collision_module(),body_module(),timer_module()});
     for(const auto &module:ctx_ref<feature_hooks>(*ctx).modules_last) mod_register(*ctx,module);
+    smoke_install(*ctx);
     return owned.release();
   }
   ctx_ref<time_state>(*ctx).fixed_dt = cfg.fixed_hz > 0.0f ? 1.0f / cfg.fixed_hz : 1.0f / 60.0f;
@@ -181,6 +184,7 @@ context *create(const config &cfg) {
   // before the core modules register theirs among them.
   features_install(*ctx);
   register_core_modules(*ctx);
+  smoke_install(*ctx);
   return owned.release();
 }
 
@@ -254,6 +258,7 @@ void run(context &ctx) {
       ctx_ref<view_state>(ctx)->world_depth=0;
       portable_lighting_world(ctx);
       portable_post_world(ctx);
+      portable_camera_post(ctx);
       portable_view_ui_begin(ctx);
       gizmo_draw_screen(ctx);
       ecs_run(ctx, phase_post_render);

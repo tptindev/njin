@@ -1,4 +1,5 @@
 #include "njin_font.h"
+#include "njin_image_io.h"
 #include "njin_log.h"
 #include "njin_path.h"
 #include "njin_ctx_get.h"
@@ -6,7 +7,9 @@
 #include "njin_view.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <stdexcept>
 
@@ -173,9 +176,84 @@ const Font *atlas_of(font_slot &slot, i32 px) {
   return bake(slot, px);
 }
 void free_portable_metrics(PortableFontAtlas &atlas) {
-  UnloadFontData(atlas.metrics.glyphs,atlas.metrics.glyphCount);
-  MemFree(atlas.metrics.recs); atlas.metrics={};
+  std::free(atlas.metrics.glyphs); std::free(atlas.metrics.recs); atlas.metrics={};
 }
+
+// The bgfx path's glyph atlas without raylib: raylib's LoadFontData (FONT_DEFAULT and
+// FONT_BITMAP) and GenImageFontAtlas (packMethod 0), raylib 5.x src/rtext.c (zlib,
+// THIRD_PARTY_NOTICES.md), translated step for step so the atlas and the metrics come
+// out the same: glyph bitmaps from stb_truetype at the pixel height, offsets lifted by
+// the ascent, spaces as blank cells their advance wide, rows `padding` apart, a white 3 x
+// 3 corner and grey+alpha as RGBA8 (white, coverage in alpha). The glyphs and recs are
+// malloc'd (free_portable_metrics); a glyph's image carries its size only.
+} // namespace
+bool font_bake_atlas(const unsigned char *bytes,bool pixel,i32 px,const std::vector<int> &cps,Font &font,std::vector<unsigned char> &rgba) {
+  stbtt_fontinfo info;
+  if(!bytes||!stbtt_InitFont(&info,bytes,0)) return false;
+  const float scale=stbtt_ScaleForPixelHeight(&info,(float)px);
+  int ascent=0,descent=0,line_gap=0; stbtt_GetFontVMetrics(&info,&ascent,&descent,&line_gap);
+  int count=0;
+  for(int cp:cps) if(stbtt_FindGlyphIndex(&info,cp)>0) ++count;
+  if(count<=0) return false;
+  font.glyphs=static_cast<GlyphInfo*>(std::calloc(size_t(count),sizeof(GlyphInfo)));
+  font.recs=static_cast<Rectangle*>(std::malloc(size_t(count)*sizeof(Rectangle)));
+  if(!font.glyphs||!font.recs) throw std::bad_alloc();
+  font.glyphCount=count;
+  std::vector<std::vector<unsigned char>> bitmaps(static_cast<size_t>(count));
+  int k=0;
+  for(int cp:cps) {
+    if(stbtt_FindGlyphIndex(&info,cp)<=0) continue;
+    GlyphInfo &g=font.glyphs[k];auto &bitmap=bitmaps[size_t(k)];
+    g.value=cp;
+    int w=0,h=0;
+    unsigned char *data=stbtt_GetCodepointBitmap(&info,scale,scale,cp,&w,&h,&g.offsetX,&g.offsetY);
+    if(data) {
+      stbtt_GetCodepointHMetrics(&info,cp,&g.advanceX,nullptr);
+      g.advanceX=(int)((float)g.advanceX*scale);
+      g.image.width=w;g.image.height=h;
+      bitmap.assign(data,data+size_t(w)*h);
+      stbtt_FreeBitmap(data,nullptr);
+      g.offsetY+=(int)((float)ascent*scale);
+    }
+    if(cp==0x20||cp==0x3000) {
+      stbtt_GetCodepointHMetrics(&info,cp,&g.advanceX,nullptr);
+      g.advanceX=(int)((float)g.advanceX*scale);
+      if(g.advanceX>0) {g.image.width=g.advanceX;g.image.height=px;bitmap.assign(size_t(g.advanceX)*px,0);}
+      else {g.advanceX=0;g.image.width=0;g.image.height=px;bitmap.clear();}
+    }
+    if(pixel) for(auto &v:bitmap) v=v<80?0:255; // FONT_BITMAP_ALPHA_THRESHOLD
+    g.image.data=nullptr;g.image.mipmaps=1;g.image.format=PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+    ++k;
+  }
+  const int padding=font.glyphPadding;
+  int total_width=0;
+  for(int i=0;i<count;++i) total_width+=font.glyphs[i].image.width+2*padding;
+  const int padded=px+2*padding;
+  const float area=total_width*padded*1.2f;
+  const int size=(int)powf(2,ceilf(logf(sqrtf(area))/logf(2)));
+  int aw=size,ah=area<((size*size)/2)?size/2:size;
+  std::vector<unsigned char> atlas(size_t(aw)*ah,0);
+  int ox=padding,oy=padding;
+  for(int i=0;i<count;++i) {
+    const auto &g=font.glyphs[i];const auto &bitmap=bitmaps[size_t(i)];
+    if(ox>=aw-g.image.width-2*padding) {
+      ox=padding;oy+=px+2*padding;
+      if(oy>ah-px-padding) {ah*=2;atlas.resize(size_t(aw)*ah,0);}
+    }
+    for(int y=0;y<g.image.height;++y) for(int x=0;x<g.image.width;++x) {
+      const int dx=ox+x,dy=oy+y;
+      if(dx>=0&&dx<aw&&dy>=0&&dy<ah&&!bitmap.empty()) atlas[size_t(dy)*aw+dx]=bitmap[size_t(y)*g.image.width+x];
+    }
+    font.recs[i]={(float)ox,(float)oy,(float)g.image.width,(float)g.image.height};
+    ox+=g.image.width+2*padding;
+  }
+  if(aw>=3&&ah>=3) for(int i=0,at=aw*ah-1;i<3;++i,at-=aw) atlas[size_t(at)]=atlas[size_t(at-1)]=atlas[size_t(at-2)]=255;
+  rgba.resize(atlas.size()*4);
+  for(size_t i=0;i<atlas.size();++i) {rgba[i*4]=rgba[i*4+1]=rgba[i*4+2]=255;rgba[i*4+3]=atlas[i];}
+  font.texture.width=aw;font.texture.height=ah; // metadata only; id remains zero
+  return true;
+}
+namespace {
 void release_portable(context *ctx,font_slot &slot) {
   if(!ctx) return;
   auto &store=ctx_mut<font_store>(*ctx);
@@ -205,21 +283,14 @@ const PortableFontAtlas *portable_atlas_of(context &ctx,font_slot &slot,i32 px) 
   PortableFontAtlas atlas;
   auto &font=atlas.metrics;
   font.baseSize=px; font.glyphPadding=4;
-  font.glyphs=LoadFontData(slot.bytes,slot.length,px,cps.data(),(int)cps.size(),slot.pixel ? FONT_BITMAP:FONT_DEFAULT,&font.glyphCount);
-  if(!font.glyphs || font.glyphCount<=0) { free_portable_metrics(atlas); return nullptr; }
-  Image image=GenImageFontAtlas(font.glyphs,&font.recs,font.glyphCount,px,font.glyphPadding,0);
+  std::vector<unsigned char> rgba;
   try {
-    if(!image.data || !font.recs) { if(image.data) UnloadImage(image); free_portable_metrics(atlas); return nullptr; }
-    ImageFormat(&image,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    if(!image.data) throw std::runtime_error("njin font: CPU atlas conversion failed");
-    font.texture.width=image.width; font.texture.height=image.height; // metadata only; id remains zero
+    if(!font_bake_atlas(slot.bytes,slot.pixel,px,cps,font,rgba)) { free_portable_metrics(atlas); return nullptr; }
     round_advances(slot,font,px);
-    atlas.texture=renderer_create_texture(ctx,{(unsigned)image.width,(unsigned)image.height,
-      {static_cast<const unsigned char*>(image.data),size_t(image.width)*image.height*4}});
-    UnloadImage(image); image={};
+    atlas.texture=renderer_create_texture(ctx,{(unsigned)font.texture.width,(unsigned)font.texture.height,rgba});
     try { return &slot.portable_atlases.emplace(px,atlas).first->second; }
     catch(...) { renderer_destroy_texture(ctx,atlas.texture); throw; }
-  } catch(...) { if(image.data) UnloadImage(image); free_portable_metrics(atlas); throw; }
+  } catch(...) { free_portable_metrics(atlas); throw; }
 }
 } // namespace
 
@@ -251,19 +322,17 @@ font_handle font_store_load(font_store &store, const char *path, i32 size, bool 
     return font_handle{};
   }
   const std::string resolved = asset_path(path);
-  if (!FileExists(resolved.c_str())) {
+  std::error_code missing;
+  if (!std::filesystem::is_regular_file(std::filesystem::path(reinterpret_cast<const char8_t *>(resolved.c_str())), missing)) {
     NJIN_WARN("font: file not found: %s", path);
     return font_handle{};
   }
-  int length = 0;
-  unsigned char *data = LoadFileData(resolved.c_str(), &length);
-  if (data == nullptr || length <= 0) {
+  font_slot slot;
+  if (!image_io_read_file(resolved.c_str(), slot.owned)) {
     NJIN_WARN("font: cannot read: %s", path);
     return font_handle{};
   }
-  font_slot slot;
-  slot.owned.assign(data, data + length);
-  UnloadFileData(data);
+  const i32 length = (i32)slot.owned.size();
   if (!first_of_collection(slot.owned)) {
     NJIN_WARN("font: cannot read the font collection: %s", path);
     return font_handle{};

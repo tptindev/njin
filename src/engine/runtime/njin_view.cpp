@@ -280,7 +280,8 @@ void portable_view_draw_begin(context &ctx) {
   auto &v=ctx_ref<view_state>(ctx);v->drawing=false;v->ui_window=false;
   v->world_depth=v->offscreen_depth=0;v->text_layer.clear();v->occluders.clear();v->clip={};
   v->portable_depth={};
-  if(!view_active(v)&&!post_chain_active(ctx_ref<post_chain>(ctx))&&!lighting_active(ctx_ref<lighting_state>(ctx))) return;
+  if(!view_active(v)&&!post_chain_active(ctx_ref<post_chain>(ctx))&&!lighting_active(ctx_ref<lighting_state>(ctx))&&
+     !portable_camera_post_wanted(ctx)) return;
   const auto logical=view_logical_size(v);
   const unsigned w=unsigned(logical.x)*v->render_scale,h=unsigned(logical.y)*v->render_scale;
   if(!v->portable_target||v->portable_width!=w||v->portable_height!=h) {

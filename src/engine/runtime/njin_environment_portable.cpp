@@ -1,3 +1,4 @@
+#include "njin_image_io.h"
 #include "njin_environment_portable.h"
 #include "njin_model.h"
 #include "njin_ctx_get.h"
@@ -56,16 +57,14 @@ RenderImageAsset pack(const Level &im) {
   return out;
 }
 std::vector<Level> source(context &ctx,const texture_slot &slot) {
-  Image image{};struct Free {Image &im;~Free(){if(im.data) UnloadImage(im);}} free{image};
   Level first{};
   if(!slot.path.empty()) {
-    image=LoadImage(slot.path.c_str());
-    if(!image.data) throw std::runtime_error("njin IBL: environment image could not be decoded");
-    const bool linear=image.format==PIXELFORMAT_UNCOMPRESSED_R32||image.format==PIXELFORMAT_UNCOMPRESSED_R32G32B32||image.format==PIXELFORMAT_UNCOMPRESSED_R32G32B32A32||image.format==PIXELFORMAT_UNCOMPRESSED_R16||image.format==PIXELFORMAT_UNCOMPRESSED_R16G16B16||image.format==PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
-    ImageFormat(&image,PIXELFORMAT_UNCOMPRESSED_R32G32B32A32);
-    if(image.format!=PIXELFORMAT_UNCOMPRESSED_R32G32B32A32) throw std::runtime_error("njin IBL: float image conversion failed");
-    first.w=unsigned(image.width);first.h=unsigned(image.height);first.data.resize(size_t(first.w)*first.h);
-    const auto *p=static_cast<float*>(image.data);
+    // Decoded with bimg (njin_image_io.h); HDR/EXR are linear, 8-bit images sRGB.
+    bool linear=false;RenderImageAsset image;
+    try {image=image_io_load(slot.path.c_str(),RenderImageFormat::RGBA32F,&linear);}
+    catch(const std::runtime_error &) {throw std::runtime_error("njin IBL: environment image could not be decoded");}
+    first.w=image.width;first.h=image.height;first.data.resize(size_t(first.w)*first.h);
+    const auto *p=reinterpret_cast<const float*>(image.pixels.data());
     const auto decode=[&](float c){return linear?c:c<=.04045f?c/12.92f:std::pow((c+.055f)/1.055f,2.4f);};
     for(size_t i=0;i<first.data.size();++i) first.data[i]={decode(p[i*4]),decode(p[i*4+1]),decode(p[i*4+2])};
   } else {
