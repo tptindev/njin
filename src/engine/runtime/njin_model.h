@@ -233,6 +233,9 @@ struct model_store {
   irradiance3d_desc portable_grid{}; // irradiance3d_set on the bgfx renderer
   bool portable_grid_set=false;
   unsigned portable_hdr_width=0,portable_hdr_height=0;
+  // What the target held before the HDR pass (2D drawn earlier), copied in as legacy does.
+  RenderTargetHandle portable_hdr_seed;
+  std::array<unsigned,2> portable_hdr_seed_size{};
   bool portable_hdr_active=false;
   Matrix portable_view_projection{},portable_projection{},portable_view{};
   material3d portable_material;

@@ -496,6 +496,29 @@ if(NJIN_BUILD_RHI_SLICE)
     target_link_libraries(njin_custom_shader_test PRIVATE njin::rt njin::gpu)
     njin_shader_asset(njin_custom_shader_test NAME custom FRAGMENT "${PROJECT_SOURCE_DIR}/src/engine/tests/assets/fs_custom.sc"
       METADATA "${PROJECT_SOURCE_DIR}/src/engine/tests/assets/custom-shader.json" OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin/shader-test-assets")
+    # draw_instanced (2D) on bgfx: a package with its own vertex stage.
+    add_executable(njin_instanced2d_test src/engine/tests/instanced2d.cpp)
+    target_link_libraries(njin_instanced2d_test PRIVATE njin::rt njin::gpu)
+    njin_shader_asset(njin_instanced2d_test NAME instanced2d
+      FRAGMENT "${PROJECT_SOURCE_DIR}/src/engine/tests/shaders/fs_instanced2d.sc"
+      VERTEX "${PROJECT_SOURCE_DIR}/src/engine/tests/shaders/vs_instanced2d.sc"
+      METADATA "${PROJECT_SOURCE_DIR}/src/engine/tests/shaders/instanced2d.json"
+      OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin/shader-test-assets")
+    set(_njin_inst2d_renderers vulkan bgfx-opengl)
+    if(WIN32)
+      list(APPEND _njin_inst2d_renderers d3d12)
+    endif()
+    add_executable(njin_hdr_keep2d_test src/engine/tests/hdr_keep2d.cpp)
+    target_link_libraries(njin_hdr_keep2d_test PRIVATE njin::rt njin::gpu)
+    foreach(_renderer IN LISTS _njin_inst2d_renderers)
+      add_test(NAME hdr_keep2d_${_renderer} COMMAND njin_hdr_keep2d_test ${_renderer})
+      set_tests_properties(hdr_keep2d_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
+    endforeach()
+    foreach(_renderer IN LISTS _njin_inst2d_renderers)
+      add_test(NAME instanced2d_${_renderer} COMMAND njin_instanced2d_test
+        "${PROJECT_BINARY_DIR}/bin/shader-test-assets/instanced2d.njshader" ${_renderer})
+      set_tests_properties(instanced2d_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
+    endforeach()
   endif()
   add_executable(njin_sprite_fx_test src/engine/tests/sprite_fx.cpp)
   target_link_libraries(njin_sprite_fx_test PRIVATE njin::rt njin::gpu)

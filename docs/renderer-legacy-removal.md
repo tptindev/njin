@@ -36,6 +36,28 @@ From [renderer-port-backlog.md](renderer-port-backlog.md) (rows) as of 2026-11-0
 | 20 | Inspector | desktop UI still on raylib; other platforms |
 | — | SDF | per-pixel ray marching (bgfx samples SDFs into meshes on the CPU) |
 
+### Audit 2026-11-24: what legacy actually has
+
+The table above mixes features legacy implements with ones neither renderer has. Checked
+against the code (legacy `modules/*.cpp` and the bgfx `*_portable.cpp` path), only these
+block deleting legacy:
+
+| Item | Legacy | bgfx today | Status |
+|---|---|---|---|
+| 2D `draw_instanced` with the game's vertex shader (row 1) | yes | drew nothing | **done 2026-11-24**: packages with a vertex stage (`njin_shader_asset VERTEX`, `njin_vertex.sh`), `instanced2d_*` tests |
+| Earlier 2D content kept through the 3D HDR pass (row 2) | yes (`render3d_hdr.cpp` copies the target in) | HDR target cleared, earlier 2D lost | **done 2026-11-24**: the target is copied (copy_frame) and drawn into the HDR image in linear light; `hdr_keep2d_*` tests (fails without the copy) |
+| More than four shadowed volumetric/local sources, up to 16 (row 9) | yes | refused above 4 | to port |
+| Captured (rasterised) irradiance grid (row 10) | yes (`render3d_probe.cpp`) | warns and skips | to port |
+| IQM, VOX, M3D models (row 13) | yes (raylib LoadModel) | refused | to port (own loaders) |
+| Clay and sway/flutter on ordinary model materials (row 8) | to confirm | refused | check, then port |
+| Per-pixel SDF ray marching (SDF row) | yes | tessellated meshes; refuses tiny surfaces and non-uniform scale | port, or keep meshes and lift the refusals |
+
+Not blocking: per-target TAA history, Draco and basisu/dds images, two-phase Hi-Z,
+compute 3D particles (neither renderer has them); half-resolution volume, BVH refit and
+per-light caster culling without occlusion (bgfx is correct, only slower); Hi-Z for
+ordinary models (already on bgfx); glTF sheen/specular/iridescence (neither renderer).
+`texture_draw_ex` is ported (the throw in `njin_texture.cpp` is legacy-only dead code).
+
 ## raylib still in use (audit 2026-11-08)
 
 `#include` of raylib.h/rlgl.h/raymath.h: 87 files under `src/engine/runtime`

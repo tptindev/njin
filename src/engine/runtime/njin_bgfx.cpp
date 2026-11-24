@@ -121,6 +121,7 @@ class BgfxDevice final : public GraphicsDevice {
     std::unordered_map<std::string,bgfx::UniformHandle> uniforms;
     std::vector<ShaderUniformInfo> info;
     std::vector<ShaderBinaryUniform> declarations;
+    bool vertex=false; // the game's own vertex stage (reads i_data0..3 when instanced)
   };
   std::unordered_map<std::uint64_t,CustomProgram> custom_programs;
   std::vector<ShaderBinaryUniform> engine_uniforms;
@@ -412,6 +413,7 @@ public:
   }
   bool shader_in_use(RenderShaderHandle handle) const override { return used_shaders.contains(handle.id); }
   ShaderProgramInfo create_shader(std::span<const std::uint8_t> vs,std::span<const std::uint8_t> fs) override {
+    const bool own_vertex=!vs.empty();
     if(vs.empty()) {
       vs=bgfx_shader_bytes(shader_format,true);
       if(fs.size()>=8&&vs.size()>=12&&std::memcmp(vs.data()+8,fs.data()+4,4)!=0)
@@ -444,7 +446,7 @@ public:
     if(!bgfx::isValid(fragment)) {bgfx::destroy(vertex);throw std::runtime_error("njin shader: custom fragment shader failed");}
     const auto program=bgfx::createProgram(vertex,fragment,false);
     // Keep shader references until reflection is copied. Program owns its own references.
-    CustomProgram result{program,{},{},std::move(declarations)};
+    CustomProgram result{program,{},{},std::move(declarations),own_vertex};
     try {
       if(!bgfx::isValid(program)) throw std::runtime_error("njin shader: custom program link failed");
       for(auto stage:{vertex,fragment}) {
@@ -1187,9 +1189,11 @@ public:
         bgfx::setUniform(virtual_uniform,draw.virtual_texture.data(),2);selected=pipeline;
       }
       if(draw.shader && !draw.shadow_pass && !draw.normal_pass && !draw.velocity_pass) {
-        if(draw.instances || draw.transparent || draw.post.mode!=RenderPostMode::None)
-          throw std::invalid_argument("njin shader: custom instancing, transparency and post variants require a dedicated pipeline");
-        const auto &custom=custom_programs.at(draw.shader->program.id);selected=custom.program;
+        const auto &custom=custom_programs.at(draw.shader->program.id);
+        // Instanced draws need the game's vertex stage: it places each instance from i_data0..3.
+        if((draw.instances && !custom.vertex) || draw.transparent || draw.post.mode!=RenderPostMode::None)
+          throw std::invalid_argument("njin shader: custom instancing needs the shader's own vertex stage; transparency and post variants require a dedicated pipeline");
+        selected=custom.program;
         for(const auto &u:draw.shader->uniforms) bgfx::setUniform(custom.uniforms.at(u.name),u.values.data(),uint16_t(u.values.size()));
         for(const auto &binding:draw.shader->textures) {
           const auto sampled=binding.texture?textures.at(binding.texture.id):texture;

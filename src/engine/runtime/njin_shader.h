@@ -34,6 +34,7 @@ struct shader_slot {
   std::vector<portable_shader_uniform> portable_uniforms;
   std::vector<portable_shader_sampler> portable_samplers;
   std::vector<std::string> portable_files;
+  bool portable_vertex = false; // the package brings its own vertex stage
   bool alive = false;
   // Uniform name -> location. Querying the driver every frame is slow, so
   // locations are looked up once and cached (-1 is cached too). Mutable so

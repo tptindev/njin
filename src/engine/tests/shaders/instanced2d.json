@@ -1,0 +1,6 @@
+{
+  "uniforms": {},
+  "samplers": {
+    "texture0": {"name": "s_testImage", "stage": 0}
+  }
+}

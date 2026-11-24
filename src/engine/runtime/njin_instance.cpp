@@ -15,6 +15,8 @@
 #include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_render.h"
+#include "njin_draw_portable.h"
+#include "njin_renderer.h"
 #include "njin_rl.h"
 #include <rlgl.h>
 
@@ -206,22 +208,69 @@ void draw_instanced_impl(context &ctx, instance_buffer_handle handle, shader_han
 }
 } // namespace
 
+namespace {
+// SDL3/bgfx: the shader's own vertex stage places each quad from i_data0..3 (the
+// instance's floats, 4 per attribute), drawn by the renderer in one instanced draw.
+// True when this path handled the call (whether or not it drew).
+bool portable_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first, u32 count,
+                        RenderTextureHandle texture, bool linear) {
+  if (ctx_ref<config>(ctx).graphics_backend == GraphicsBackend::OpenGL)
+    return false;
+  instance_store &store = ctx_ref<instance_store>(ctx);
+  const instance_slot *slot = instance_slot_of(store, handle);
+  const shader_slot *program = shader_slot_of(ctx_ref<shader_store>(ctx), shader);
+  if (slot == nullptr || program == nullptr || first >= slot->count)
+    return true;
+  if (!program->portable_vertex) {
+    NJIN_WARN("draw_instanced: the shader package has no vertex stage (njin_shader_asset VERTEX): nothing drawn");
+    return true;
+  }
+  count = std::min(count, slot->count - first);
+  if (count == 0)
+    return true;
+  auto instances = std::make_shared<std::vector<RenderInstance>>(count);
+  for (u32 i = 0; i < count; ++i) {
+    RenderInstance &r = (*instances)[i];
+    r.transform.fill(0.0f);
+    std::copy_n(slot->cpu.data() + (size_t)(first + i) * slot->floats, slot->floats, r.transform.begin());
+  }
+  render_stats &stats = ctx_ref<render_stats>(ctx);
+  stats.instanced_calls++;
+  stats.batches++;
+  draw_portable_instanced(ctx, portable_shader_bindings(ctx, shader), std::move(instances), texture, linear);
+  return true;
+}
+} // namespace
+
 void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count) {
+  if (portable_instanced(ctx, handle, shader, first, count, {}, false))
+    return;
   draw_instanced_impl(ctx, handle, shader, first, count, 0);
 }
 
 void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, texture_handle texture) {
   const texture_slot *slot = texture_slot_of(ctx_ref<texture_store>(ctx), texture);
-  if (slot != nullptr)
-    draw_instanced_impl(ctx, handle, shader, first, count, slot->texture.id);
+  if (slot == nullptr)
+    return;
+  if (slot->portable) {
+    portable_instanced(ctx, handle, shader, first, count, slot->portable, slot->filter != filter_nearest);
+    return;
+  }
+  draw_instanced_impl(ctx, handle, shader, first, count, slot->texture.id);
 }
 
 void draw_instanced(context &ctx, instance_buffer_handle handle, shader_handle shader, u32 first,
                     u32 count, render_texture_handle texture) {
   const render_texture_slot *slot = render_texture_slot_of(ctx_ref<render_texture_store>(ctx), texture);
-  if (slot != nullptr)
-    draw_instanced_impl(ctx, handle, shader, first, count, slot->target.texture.id);
+  if (slot == nullptr)
+    return;
+  if (slot->portable) {
+    portable_instanced(ctx, handle, shader, first, count, renderer_target_texture(ctx, slot->portable),
+                       slot->filter != filter_nearest);
+    return;
+  }
+  draw_instanced_impl(ctx, handle, shader, first, count, slot->target.texture.id);
 }
 } // namespace njin

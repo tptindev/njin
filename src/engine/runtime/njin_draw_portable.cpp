@@ -71,6 +71,62 @@ void draw_portable_vertices(const context &ctx,RenderTextureHandle texture,std::
   draw.transform={2/screen.x,0,0,0,0,-2/screen.y,0,0,0,0,1,0,-1,1,0,1};
   renderer_draw_mesh(const_cast<context&>(ctx),draw);
 }
+void draw_portable_instanced(const context &ctx,std::shared_ptr<const RenderShaderBindings> shader,
+                             std::shared_ptr<const std::vector<RenderInstance>> instances,RenderTextureHandle texture,bool linear) {
+  auto &resources=ctx_ref<window_guard>(ctx).renderer_resources;
+  const auto &state=resources.draw_2d;
+  const auto &view=ctx_ref<view_state>(ctx);
+  const bool virtual_target=view->drawing&&resources.active_target.id==view->portable_target.id;
+  bool world_space=view->world_depth>0;
+  auto screen=window_size(ctx);
+  if(virtual_target) screen=view_logical_size(view);
+  else if(resources.active_target) {
+    const auto &target=resources.targets.at(resources.active_target.id);
+    screen={(float)target.width,(float)target.height}; world_space=false;
+  }
+  if(screen.x<=0||screen.y<=0||!instances||instances->empty()) return;
+  const float canvas=view->canvas_on&&(!resources.active_target||virtual_target)?view->canvas_scale:1.0f;
+  if(view->canvas_on) world_space=false;
+  auto camera=camera_active(ctx);
+  if(world_space) {
+    vec2 offset{};float rotation=0;
+    if(fx_shake_sample(ctx,offset,rotation)) {camera.offset+=offset;camera.rotation+=rotation;}
+  }
+  // The same steps draw_portable_vertices applies to each vertex, as one 2D affine map
+  // p' = A p + t (column vectors), composed from the first step outwards.
+  float a=state.scale,b=0,c=0,d=state.scale,tx=state.offset.x,ty=state.offset.y;
+  const auto then=[&](float a2,float b2,float c2,float d2,float tx2,float ty2) {
+    const float na=a2*a+b2*c,nb=a2*b+b2*d,nc=c2*a+d2*c,nd=c2*b+d2*d;
+    const float ntx=a2*tx+b2*ty+tx2,nty=c2*tx+d2*ty+ty2;
+    a=na;b=nb;c=nc;d=nd;tx=ntx;ty=nty;
+  };
+  if(world_space) {
+    const float angle=camera.rotation*3.14159265359f/180,cc=std::cos(angle),ss=std::sin(angle),z=camera.zoom;
+    then(1,0,0,1,-camera.target.x,-camera.target.y);
+    then(z*cc,-z*ss,z*ss,z*cc,camera.offset.x,camera.offset.y);
+  }
+  then(canvas,0,0,canvas,0,0);
+  if(view->ui_window&&!resources.active_target) then(view->scale,0,0,view->scale,view->offset.x,view->offset.y);
+  // Then pixels to clip space: x' = 2x/w - 1, y' = 1 - 2y/h.
+  then(2/screen.x,0,0,-2/screen.y,-1,1);
+  // The unit quad, two triangles; its corners come to the shader as a_position.
+  static const RenderVertex quad[]{{0,0,0,0,0},{1,0,0,1,0},{1,1,0,1,1},{0,0,0,0,0},{1,1,0,1,1},{0,1,0,0,1}};
+  MeshDraw draw{};
+  draw.vertices=quad;
+  draw.transform={a,c,0,0, b,d,0,0, 0,0,1,0, tx,ty,0,1};
+  if(!texture&&!resources.draw_2d.white) {
+    const unsigned char rgba[]{255,255,255,255};
+    resources.draw_2d.white=renderer_create_texture(const_cast<context&>(ctx),{1,1,rgba});
+  }
+  draw.texture=texture?texture:resources.draw_2d.white;
+  draw.linear_sampling=linear;
+  draw.depth_test=false;
+  draw.blend=state.blend;
+  draw.scissor_enabled=state.clipped;draw.scissor=state.clip;
+  draw.shader=std::move(shader);
+  draw.instances=std::move(instances);
+  renderer_draw_mesh(const_cast<context&>(ctx),draw);
+}
 void draw_portable_solid(const context &ctx,std::span<const vec2> points,rgba color) {
   auto &white=ctx_ref<window_guard>(ctx).renderer_resources.draw_2d.white;
   if(!white) {

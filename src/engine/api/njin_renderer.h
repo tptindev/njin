@@ -220,6 +220,7 @@ struct RenderShaderBindings {
   RenderShaderHandle program;
   std::vector<RenderShaderUniform> uniforms;
   std::vector<RenderShaderTexture> textures;
+  bool custom_vertex=false; // the package has its own vertex stage (2D and instanced draws only)
 };
 struct RenderSpriteEffects {
   std::array<float,4> flash{}; // RGB, mix amount

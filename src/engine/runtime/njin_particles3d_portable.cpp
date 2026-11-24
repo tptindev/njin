@@ -39,6 +39,7 @@ void portable_particles3d_draw(context &ctx) {
     draw.particle_effects={float(style),ctx_ref<time_state>(ctx).elapsed,float(shape),intensity};draw.linear_output=store->portable_hdr_active;
     draw.lighting.direction={sun.direction.x,sun.direction.y,sun.direction.z};draw.lighting.color={sun.color.r,sun.color.g,sun.color.b};
     draw.lighting.ambient={sun.ambient.r,sun.ambient.g,sun.ambient.b};draw.shader=portable_shader_bindings(ctx,shader);
+    if(draw.shader&&draw.shader->custom_vertex) throw std::invalid_argument("njin 3D particles: a shader with its own vertex stage draws 2D and draw_instanced only");
     renderer_draw_mesh(ctx,draw);
   };
   std::vector<RenderVertex> vertices;

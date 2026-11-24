@@ -480,6 +480,8 @@ void renderer_draw_mesh(context &ctx, const MeshDraw &submission) {
     if(!validated) for(const auto &instance:*draw.instances) {
       for(float v:instance.transform) if(!std::isfinite(v)) throw std::invalid_argument("njin renderer: invalid instance transform");
       for(float v:instance.data) if(!std::isfinite(v)) throw std::invalid_argument("njin renderer: invalid instance data");
+      // The game's own vertex stage reads the instance as raw floats (draw_instanced).
+      if(draw.shader&&draw.shader->custom_vertex) continue;
     const auto &m=instance.transform;
       const float determinant=m[0]*(m[5]*m[10]-m[9]*m[6])-m[4]*(m[1]*m[10]-m[9]*m[2])+m[8]*(m[1]*m[6]-m[5]*m[2]);
       if(m[3]!=0||m[7]!=0||m[11]!=0||m[15]!=1||std::abs(determinant)<1e-12f) throw std::invalid_argument("njin renderer: instance requires a nonsingular affine transform");

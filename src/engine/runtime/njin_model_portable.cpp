@@ -254,6 +254,7 @@ void submit(const context &ctx,RenderMeshHandle mesh,RenderTextureHandle texture
   if(transparent&&!store.portable_frame_post.oit&&surface.transmission>0) unsupported("transmission without post3d.oit");
   if(!shader.id&&!builtin) shader=ctx_ref<shader_store>(ctx)->active;
   auto custom=portable_shader_bindings(ctx,shader);
+  if(custom&&custom->custom_vertex) unsupported("3D draws with a shader's own vertex stage (it would need shadow/normal/velocity variants)");
   if(custom&&transparent) unsupported("custom transparent material shaders require an OIT variant");
   MeshDraw draw{};draw.shader=std::move(custom); draw.mesh=mesh; draw.texture=texture?texture:white(store);
   const auto &f=store.portable_fx;portable_fx_validate(f);
@@ -1238,9 +1239,27 @@ void portable_begin_3d(context &ctx,const camera3d &camera) {
     }
     const auto c=ctx_ref<config>(ctx).clear_bg_color;
     const auto linear=[](float x){return x<=0.04045f?x/12.92f:std::pow((x+0.055f)/1.055f,2.4f);};
+    // As legacy's hdr_begin: the HDR image starts from what the target already holds
+    // (the 2D drawn before begin_3d), in linear light, not from the clear colour.
+    if(!store.portable_hdr_seed || store.portable_hdr_seed_size!=std::array<unsigned,2>{w,h}) {
+      if(store.portable_hdr_seed) {
+        if(device.target_in_use(store.portable_hdr_seed)) store.portable_hdr_retired.push_back(store.portable_hdr_seed);
+        else renderer_destroy_target(ctx,store.portable_hdr_seed);
+      }
+      store.portable_hdr_seed=renderer_create_target(ctx,w,h);store.portable_hdr_seed_size={w,h};
+    }
+    device.copy_frame(store.portable_hdr_seed);
+    ctx_ref<window_guard>(ctx).renderer_resources.targets.at(store.portable_hdr_seed.id).initialized=true;
     if(store.portable_destination) renderer_end_target(ctx);
     try {renderer_begin_target(ctx,store.portable_hdr,{linear(c.r),linear(c.g),linear(c.b),c.a});}
     catch(...) {if(store.portable_destination) renderer_resume_target(ctx,store.portable_destination);throw;}
+    {
+      // Clip-space quad, top of the image at the top of the target (+y up in clip space).
+      const RenderVertex seed[]{{-1,1,0,0,0},{1,1,0,1,0},{1,-1,0,1,1},{-1,1,0,0,0},{1,-1,0,1,1},{-1,-1,0,0,1}};
+      MeshDraw copy{};copy.vertices=seed;copy.texture=renderer_target_texture(ctx,store.portable_hdr_seed);
+      copy.depth_test=false;copy.blend=RenderBlend::Opaque;copy.linear_output=true;copy.wrap_s=copy.wrap_t=RenderWrap::Clamp;
+      renderer_draw_mesh(ctx,copy);
+    }
     store.portable_hdr_active=true;
   }
   store.portable_target=resources.active_target;

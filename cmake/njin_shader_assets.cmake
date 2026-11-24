@@ -1,7 +1,11 @@
-# Compile a relocatable bgfx fragment package; call after add_subdirectory(njin).
+# Compile a relocatable bgfx shader package; call after add_subdirectory(njin).
+# FRAGMENT is required. VERTEX (optional) is the shader's own vertex stage, for 2D draws
+# and draw_instanced (a_position: the unit quad; i_data0..3: the instance's floats;
+# gl_Position = njin_clip(mul(u_njinMVP, ...)) from <njin_vertex.sh>); 3D draws refuse a
+# package with one.
 # Uniform/sampler metadata is JSON supplied by the project. Runtime accepts no GLSL source.
 function(njin_shader_asset target)
-  cmake_parse_arguments(SH "" "NAME;FRAGMENT;METADATA;OUTPUT_DIRECTORY" "DEPENDS" ${ARGN})
+  cmake_parse_arguments(SH "" "NAME;FRAGMENT;VERTEX;METADATA;OUTPUT_DIRECTORY" "DEPENDS" ${ARGN})
   if(NOT NJIN_BGFX)
     message(FATAL_ERROR "njin_shader_asset requires NJIN_BGFX=ON")
   endif()
@@ -48,7 +52,7 @@ function(njin_shader_asset target)
     add_custom_command(OUTPUT "${binary}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${SH_OUTPUT_DIRECTORY}"
       COMMAND "${shaderc}" -f "${SH_FRAGMENT}" -o "${binary}.tmp" --type fragment
-        --platform ${platform} -p ${profile} -i "${bgfx_source}/src"
+        --platform ${platform} -p ${profile} -i "${bgfx_source}/src" -i "${engine_root}/src/engine/runtime/shaders/bgfx"
         --varyingdef "${varying}"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${binary}.tmp" "${binary}"
       COMMAND "${CMAKE_COMMAND}" -E rm -f "${binary}.tmp"
@@ -57,6 +61,21 @@ function(njin_shader_asset target)
     list(APPEND outputs "${binary}")
     string(JSON manifest SET "${manifest}" profiles ${format} "{}")
     string(JSON manifest SET "${manifest}" profiles ${format} fragment "\"${filename}\"")
+    if(SH_VERTEX)
+      set(vertex_filename "${SH_NAME}.vertex.${format}.bin")
+      set(vertex_binary "${SH_OUTPUT_DIRECTORY}/${vertex_filename}")
+      add_custom_command(OUTPUT "${vertex_binary}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SH_OUTPUT_DIRECTORY}"
+        COMMAND "${shaderc}" -f "${SH_VERTEX}" -o "${vertex_binary}.tmp" --type vertex
+          --platform ${platform} -p ${profile} -i "${bgfx_source}/src" -i "${engine_root}/src/engine/runtime/shaders/bgfx"
+          --varyingdef "${varying}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${vertex_binary}.tmp" "${vertex_binary}"
+        COMMAND "${CMAKE_COMMAND}" -E rm -f "${vertex_binary}.tmp"
+        DEPENDS "${SH_VERTEX}" "${varying}" "${bgfx_source}/src/bgfx_shader.sh"
+          ${shaderc_dependency} ${SH_DEPENDS} VERBATIM)
+      list(APPEND outputs "${vertex_binary}")
+      string(JSON manifest SET "${manifest}" profiles ${format} vertex "\"${vertex_filename}\"")
+    endif()
   endforeach()
   file(MAKE_DIRECTORY "${SH_OUTPUT_DIRECTORY}")
   file(CONFIGURE OUTPUT "${SH_OUTPUT_DIRECTORY}/${SH_NAME}.njshader" CONTENT "${manifest}\n" @ONLY)

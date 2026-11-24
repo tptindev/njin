@@ -13,7 +13,9 @@ struct context;
 /// Một trong hai đường dẫn có thể là nullptr để giữ stage mặc định của raylib.
 /// SDL3/bgfx: dùng shader_load(ctx, nullptr, "effect.njshader"). Gói được biên dịch
 /// bằng njin_shader_asset() cho các profile của build; không nhận GLSL raylib trực tiếp.
-/// Hiện hỗ trợ fragment shader với vertex stage của engine. Uniform float/int/vec2/vec3
+/// Gói có thể mang vertex stage riêng (njin_shader_asset(... VERTEX ...)): dùng cho vẽ 2D
+/// và draw_instanced(); vẽ 3D từ chối gói như vậy. Vertex stage đó include `njin_vertex.sh`
+/// và ghi `gl_Position = njin_clip(mul(u_njinMVP, ...))`. Uniform float/int/vec2/vec3
 /// đóng vào vec4 theo metadata; int dùng hai lane 16 bit. Xem docs/renderer-shaders.md.
 /// Handle không hợp lệ hoặc đã unload bị mọi hàm shader bỏ qua.
 /// @param ctx Context của engine.
@@ -184,6 +186,13 @@ void instance_buffer_upload(context &ctx, instance_buffer_handle handle, const f
 /// Phải gọi giữa lúc bắt đầu và kết thúc vẽ của frame, ngoài
 /// shader_begin()/shader_end(). Uniform khác của shader đặt bằng shader_set_*()
 /// như thường.
+///
+/// SDL3/bgfx: shader là gói `.njshader` có vertex stage riêng (njin_shader_asset() với
+/// `VERTEX`). Vertex stage nhận `a_position` (góc của hình vuông đơn vị), `i_data0` ...
+/// `i_data3` (dữ liệu instance, 4 số mỗi thuộc tính) và ghi
+/// `gl_Position = njin_clip(mul(u_njinMVP, vec4(p, 0.0, 1.0)))` (`#include <njin_vertex.sh>`).
+/// Gói không có vertex stage thì không vẽ gì (cảnh báo). Tên sampler không được kết thúc
+/// bằng `Texture` hay `Sampler` (shaderc của bgfx cắt các hậu tố đó trên Direct3D).
 /// @param ctx Context của engine.
 /// @param handle Bộ đệm đã ghi bằng instance_buffer_upload().
 /// @param shader Shader có vertex shader đọc các thuộc tính trên.

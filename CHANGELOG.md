@@ -16,6 +16,8 @@ To release: edit that header, add a section here, commit, then
   `rml_bind_event`), events by element id, the RmlUi debugger. Mouse and keys the UI
   uses do not reach the game. RmlUi 6.3 with FreeType; SDL3/bgfx renderer only.
 - `RenderBlend::Premultiplied` for colours already multiplied by their alpha.
+- bgfx: shader packages can bring their own vertex stage (`njin_shader_asset(... VERTEX
+  ...)`, `njin_vertex.sh`) for 2D draws and `draw_instanced`; 3D draws refuse them.
 - `graphics_backend()`: the backend the game runs on, for games that ship
   different resources per renderer (GLSL for OpenGL, `.njshader` for bgfx).
 - Test suite: every sample runs whole on every renderer (`sample_*` tests,
@@ -443,6 +445,10 @@ To release: edit that header, add a section here, commit, then
   page are drawn in one batch, as on OpenGL (every sprite was a draw call:
   a few thousand sprites took hundreds of milliseconds a frame). The 2D draw
   statistics (render_info_get) are filled in on bgfx too.
+- bgfx: with `light3d::hdr`, what was drawn before `begin_3d` (2D, the backdrop) was
+  covered by the clear colour; it is kept and tone mapped with the scene, as on OpenGL.
+- bgfx: `draw_instanced` (2D) drew nothing; it draws with the shader package's own
+  vertex stage, under the same camera and transform as the other 2D draws.
 - bgfx: `pad_rumble` makes the gamepad rumble (through SDL); it asked raylib,
   which has no gamepad open on the SDL window, and did nothing.
 

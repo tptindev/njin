@@ -44,10 +44,17 @@ shader_slot load(shader_store &store,const std::string &path) {
   shader_slot slot;slot.fs_path=path;slot.portable_files.push_back(path);
   const auto fragment_path=resolve(profile["fragment"]);
   slot.portable_files.push_back(fragment_path);
-  // Custom vertex deformation needs separate shadow/normal/velocity variants. Refuse it explicitly.
-  if(profile.has("vertex")) invalid("custom vertex stages require shadow/normal/velocity variants; only the engine vertex stage is supported currently");
+  // The game's own vertex stage: 2D draws and draw_instanced (instance data in i_data0..3).
+  // 3D draws refuse it: they would also need shadow/normal/velocity variants of it.
+  std::vector<std::uint8_t> vertex;
+  if(profile.has("vertex")) {
+    const auto vertex_path=resolve(profile["vertex"]);
+    slot.portable_files.push_back(vertex_path);
+    vertex=binary(vertex_path);
+    slot.portable_vertex=true;
+  }
   const auto fragment=binary(fragment_path);
-  const auto info=device.create_shader({},fragment);slot.portable=info.handle;
+  const auto info=device.create_shader(vertex,fragment);slot.portable=info.handle;
   try {
     std::unordered_set<std::string> aliases,names;std::unordered_set<unsigned> stages;
     const auto reflected=[&](const std::string &name,rhi::ShaderUniformInfo::Type type,unsigned count) {
@@ -123,7 +130,7 @@ void portable_shader_set(shader_store &store,shader_handle handle,const char *na
 }
 std::shared_ptr<const RenderShaderBindings> portable_shader_bindings(const context &ctx,shader_handle handle) {
   const auto *slot=shader_slot_of(ctx_ref<shader_store>(ctx),handle);if(!slot||!slot->portable) return {};
-  auto bindings=std::make_shared<RenderShaderBindings>();bindings->program=slot->portable;
+  auto bindings=std::make_shared<RenderShaderBindings>();bindings->program=slot->portable;bindings->custom_vertex=slot->portable_vertex;
   for(const auto &u:slot->portable_uniforms) bindings->uniforms.push_back({u.name,u.values});
   for(const auto &sampler:slot->portable_samplers) {
     RenderShaderTexture texture{sampler.name,sampler.stage,{},false};
