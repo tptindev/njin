@@ -250,7 +250,7 @@ void run(context &ctx) {
         continue;
       }
       ctx_ref<window_guard>(ctx).graphics->begin_frame(view_active(ctx_ref<view_state>(ctx))?ctx_ref<view_state>(ctx)->bars:ctx_ref<config>(ctx).clear_bg_color);
-      ctx_ref<window_guard>(ctx).renderer_resources.pass_dirty=false;
+      ctx_ref<window_guard>(ctx).renderer_resources.pass_dirty=ctx_ref<window_guard>(ctx).renderer_resources.frame_dirty=false;
       portable_view_draw_begin(ctx);
       ctx_ref<view_state>(ctx)->world_depth=1;
       ecs_run(ctx, phase_pre_render);

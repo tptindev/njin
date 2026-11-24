@@ -45,7 +45,7 @@ block deleting legacy:
 | Item | Legacy | bgfx today | Status |
 |---|---|---|---|
 | 2D `draw_instanced` with the game's vertex shader (row 1) | yes | drew nothing | **done 2026-11-24**: packages with a vertex stage (`njin_shader_asset VERTEX`, `njin_vertex.sh`), `instanced2d_*` tests |
-| Earlier 2D content kept through the 3D HDR pass (row 2) | yes (`render3d_hdr.cpp` copies the target in) | HDR target cleared, earlier 2D lost | **done 2026-11-24**: the target is copied (copy_frame) and drawn into the HDR image in linear light; `hdr_keep2d_*` tests (fails without the copy) |
+| Earlier 2D content kept through the 3D HDR pass (row 2) | yes (`render3d_hdr.cpp` copies the target in) | HDR target cleared, earlier 2D lost | **done 2026-11-24**: when something was drawn into the target before begin_3d (RendererResources::pass_dirty), it is copied (copy_frame) and drawn into the intermediate image (HDR or post effects) in linear light; otherwise the clear is the same image and nothing extra is made; `hdr_keep2d_*` tests (fails without the copy) |
 | More than four shadowed volumetric/local sources, up to 16 (row 9) | yes | refused above 4 | to port |
 | Captured (rasterised) irradiance grid (row 10) | yes (`render3d_probe.cpp`) | warns and skips | to port |
 | IQM, VOX, M3D models (row 13) | yes (raylib LoadModel) | refused | **done 2026-11-24**: `njin_model_formats.cpp` (raylib's loaders translated, vox_loader.h and m3d.h vendored), skeletons and clips as PortableAnimation; `model_formats_raylib` (raylib's example files and self-made ones equal raylib's LoadModel/LoadModelAnimations, poses through model_load within 3e-5) and `model_formats_assets_*` (self-made files, no raylib) |

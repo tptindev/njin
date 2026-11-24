@@ -187,7 +187,7 @@ void renderer_begin_target(context &ctx,RenderTargetHandle handle,std::array<flo
   if(resources.active_target) throw std::logic_error("njin renderer: nested render targets are unsupported");
   for(float c:clear) if(!std::isfinite(c) || c<0 || c>1) throw std::invalid_argument("njin renderer: invalid target clear color");
   window.graphics->begin_target(handle,{clear[0],clear[1],clear[2],clear[3]});
-  resources.active_target=handle;resources.pass_dirty=false;
+  resources.frame_dirty=resources.pass_dirty;resources.active_target=handle;resources.pass_dirty=false;
 }
 void renderer_resume_target(context &ctx,RenderTargetHandle handle) {
   auto &window=ctx_ref<window_guard>(ctx); auto &resources=window.renderer_resources;
@@ -195,14 +195,14 @@ void renderer_resume_target(context &ctx,RenderTargetHandle handle) {
   if(it==resources.targets.end()) throw std::invalid_argument("njin renderer: invalid or foreign target handle");
   if(resources.active_target) throw std::logic_error("njin renderer: nested render targets are unsupported");
   if(!it->second.initialized) throw std::logic_error("njin renderer: cannot resume an uninitialized target");
-  window.graphics->begin_target(handle,{},false); resources.active_target=handle;resources.pass_dirty=true;
+  window.graphics->begin_target(handle,{},false); resources.frame_dirty=resources.pass_dirty;resources.active_target=handle;resources.pass_dirty=true;
 }
 void renderer_end_target(context &ctx) {
   auto &window=ctx_ref<window_guard>(ctx);
   if(!window.renderer_resources.active_target) throw std::logic_error("njin renderer: no active render target");
   window.graphics->end_target();
   window.renderer_resources.targets.at(window.renderer_resources.active_target.id).initialized=true;
-  window.renderer_resources.active_target={};window.renderer_resources.pass_dirty=true;
+  window.renderer_resources.active_target={};window.renderer_resources.pass_dirty=window.renderer_resources.frame_dirty;
 }
 bool image_decompress_rgba8(Image &image) {
   if(!image.data||image.format<PIXELFORMAT_COMPRESSED_DXT1_RGB) return false;
