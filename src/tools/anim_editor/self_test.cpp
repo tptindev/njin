@@ -1,7 +1,7 @@
 #include "document.h"
 #include "roundtrip.h"
 #include "cgltf.h"
-#include "raymath.h"
+#include "njin_rlmath.h"
 #include <chrono>
 #include <cmath>
 #include <cstdio>

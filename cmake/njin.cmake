@@ -78,6 +78,7 @@ endfunction()
 #   video      MPEG-1 playback (pl_mpeg)
 #   net        sockets, multiplayer, netcode, lockstep (asio, ENet)
 #   script     Lua scripts (Lua, sol2)
+#   rmlui      HTML/CSS documents as game UI (RmlUi, FreeType); SDL3/bgfx only
 #
 # The core is the rest: window, input, ECS, 2D drawing and physics bodies,
 # tilemaps and levels, audio, UI, particles, lighting, debug link. A feature
@@ -89,10 +90,10 @@ endfunction()
 #   njin_use(my_fps FEATURES physics3d script) # + 3d, and Lua for both
 #
 # Use it instead of linking njin::rt, not with it.
-set(NJIN_FEATURES 3d physics3d nav3d video net script)
+set(NJIN_FEATURES 3d physics3d nav3d video net script rmlui)
 # The order the features install in (njin_features.h): their modules run in
 # it. The script glue comes after the features it joins.
-set(NJIN_FEATURES_ORDER 3d physics3d nav3d video net script script_3d script_physics3d script_nav3d)
+set(NJIN_FEATURES_ORDER 3d physics3d nav3d video net script script_3d script_physics3d script_nav3d rmlui)
 
 # Writes the source that defines features_install() for `features`, called by
 # create(): each feature's feature_install_<name>(), in NJIN_FEATURES_ORDER.

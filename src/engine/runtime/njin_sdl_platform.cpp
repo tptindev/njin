@@ -5,6 +5,7 @@
 #include "njin_input_impl.h"
 #include "njin_view.h"
 #include <stdexcept>
+#include <functional>
 #include <algorithm>
 #include <cstring>
 #include <cmath>
@@ -25,6 +26,10 @@ struct SdlPlatform::State {
   std::map<std::pair<SDL_TouchID,SDL_FingerID>,i64> fingers;
   i64 next_finger=1;
   std::array<SDL_Gamepad*,gamepad_max> gamepads{};
+  std::function<void(const SDL_Event &)> event_hook;
+  std::function<void(input_store &)> input_hook;
+  std::vector<std::pair<int,std::function<void(const SDL_Event &)>>> listeners;
+  int next_listener=1;
   ~State() {
     for(auto *pad:gamepads) if(pad) SDL_CloseGamepad(pad);
     if(metal) SDL_Metal_DestroyView(metal);
@@ -109,6 +114,15 @@ void *SdlPlatform::native_display() const {
 #endif
 }
 SDL_Window *SdlPlatform::window() const { return state->window; }
+int SdlPlatform::add_event_listener(std::function<void(const SDL_Event &)> listener) {
+  state->listeners.emplace_back(state->next_listener,std::move(listener));
+  return state->next_listener++;
+}
+void SdlPlatform::remove_event_listener(int id) {
+  std::erase_if(state->listeners,[id](const auto &l) { return l.first==id; });
+}
+void SdlPlatform::set_input_hook(std::function<void(input_store &)> hook) { state->input_hook=std::move(hook); }
+void SdlPlatform::set_event_hook(std::function<void(const SDL_Event &)> hook) { state->event_hook=std::move(hook); }
 bool SdlPlatform::rumble(int index,float low,float high,float seconds) {
   if(index<0 || index>=gamepad_max) return false;
   auto *pad=state->gamepads[index];
@@ -294,6 +308,7 @@ void SdlPlatform::poll_input(input_store &input,const view_state *view) {
   input.cur.mouse[mouse_extra]=(buttons&SDL_BUTTON_X2MASK)!=0;
   input.cur.mouse[mouse_forward]=(buttons&SDL_BUTTON_MASK(6))!=0;
   input.cur.mouse[mouse_back]=(buttons&SDL_BUTTON_MASK(7))!=0;
+  if(state->input_hook) state->input_hook(input);
 }
 bool SdlPlatform::poll_close() {
   SDL_Event event;
@@ -301,6 +316,8 @@ bool SdlPlatform::poll_close() {
   state->was_resized=false; state->wheel=0; state->text.clear(); state->backspaces=0; state->touch_events.clear();
   const auto window=SDL_GetWindowID(state->window);
   while(SDL_PollEvent(&event)) {
+    if(state->event_hook) state->event_hook(event);
+    for(auto &[id,listener]:state->listeners) listener(event);
     if((event.type==SDL_EVENT_FINGER_DOWN || event.type==SDL_EVENT_FINGER_MOTION || event.type==SDL_EVENT_FINGER_UP || event.type==SDL_EVENT_FINGER_CANCELED) && event.tfinger.windowID==window) {
       const auto key=std::pair{event.tfinger.touchID,event.tfinger.fingerID};
       const bool end=event.type==SDL_EVENT_FINGER_UP || event.type==SDL_EVENT_FINGER_CANCELED;

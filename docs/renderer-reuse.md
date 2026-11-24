@@ -320,3 +320,32 @@ fixture shadow sun/spot/point/cascade. (4) nhóm descriptor đục không OIT/SS
 chọn frustum/LOD trên GPU bằng quy ước Njin; kiểm tra shared pose, các LOD và
 nhiều target khác kích thước. Không có thêm dependency hoặc mã bên thứ ba.
 Kết quả runtime/benchmark của bản mở rộng ghi trong renderer-instancing.md.
+
+## Tool UI và giao diện game: ImGui, RmlUi trên renderer Njin (2026-11-24)
+
+Bước 3F của renderer-legacy-removal.md, theo cách chia của sdl3-proj: ImGui cho tool,
+RmlUi cho UI game.
+
+- **Njin trước:** dùng lại API renderer công khai (`renderer_draw_mesh`: vertex/index,
+  scissor theo pixel logic, blend, texture handle) thay vì thêm pass bgfx riêng; render
+  target và `begin_3d` vào render texture đã có cho viewport của tool. Thêm một chế độ
+  blend `RenderBlend::Premultiplied` (ONE, ONE_MINUS_SRC_ALPHA) cho RmlUi, cả bgfx lẫn
+  thiết bị GL cũ.
+- **ImGui (tool):** đã mở `backends/imgui_impl_sdlgpu3.cpp` của Dear ImGui tag
+  `v1.92.9-docking` (MIT) để theo cách xử lý ImTextureData (WantCreate/WantUpdates/
+  WantDestroy) và vòng vẽ (ClipRect trừ DisplayPos, VtxOffset/IdxOffset,
+  ImDrawCallback_ResetRenderState); viết lại bằng lệnh Njin trong
+  `src/tools/common/njin_imgui_host.cpp`. Platform là `imgui_impl_sdl3.cpp` biên dịch
+  nguyên. Vì Njin nhận index 16 bit, mỗi lệnh ImGui cắt thành các đoạn tam giác có
+  khoảng index < 65536.
+- **RmlUi (game):** đã mở `Backends/RmlUi_Renderer_GL3.cpp` của RmlUi tag `6.3` (MIT):
+  ortho (0,w,h,0), `transform = projection * SetTransform`, translation cộng vào vertex,
+  blend ONE/ONE_MINUS_SRC_ALPHA, scissor theo pixel của context. Theo đúng các quy ước
+  đó trong `src/engine/runtime/njin_rml.cpp`; chưa làm clip mask, layer, filter, shader
+  (RmlUi tự bỏ qua). Lớp platform SDL3 `Backends/RmlUi_Platform_SDL.cpp` biên dịch
+  nguyên; nó nhân toạ độ chuột với pixel density nên context RmlUi tính bằng pixel
+  framebuffer và scissor chia lại về pixel logic cho Njin.
+- **Kiểm chứng:** tool_inspector_*, tool_ui_editor_* (Vulkan, D3D12, bgfx-OpenGL),
+  tool_anim_editor_self_test/_roundtrip/_smoke; rml_vulkan, rml_d3d12, rml_bgfx-opengl
+  (vị trí/màu theo RCSS, `{{coins}}` đổi theo game, click qua event SDL tới
+  data-event-click, `data-if`, rml_wants_mouse).

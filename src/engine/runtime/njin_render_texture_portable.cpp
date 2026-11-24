@@ -16,6 +16,10 @@ render_texture_handle portable_render_texture_load(context &ctx,u32 width,u32 he
   try {store->slots.push_back(slot);} catch(...) {renderer_destroy_target(ctx,target);throw;}
   return {u32(store->slots.size())};
 }
+RenderTextureHandle portable_render_texture_color(context &ctx,render_texture_handle handle) {
+  const auto *slot=render_texture_slot_of(ctx_ref<render_texture_store>(ctx),handle);
+  return slot&&slot->portable ? renderer_target_texture(ctx,slot->portable) : RenderTextureHandle{};
+}
 bool portable_render_texture_begin(const context &constant,render_texture_handle handle,const rgba *clear) {
   auto &ctx=const_cast<context&>(constant);auto &store=ctx_ref<render_texture_store>(ctx);
   const auto *slot=render_texture_slot_of(store,handle);if(!slot) return false;

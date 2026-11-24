@@ -1,5 +1,4 @@
-// The World panel: the game's world drawn with raylib into a render texture,
-// shown as an image in the panel.
+// The World panel: the game's world drawn with ImGui's draw list into the panel.
 //
 //   2D  entities, colliders, tilemap areas and the game camera's rectangle,
 //       with a free 2D camera (pan, zoom about the mouse, click to select)
@@ -7,13 +6,12 @@
 //       every instance), the lights, the sun and the game camera's frustum,
 //       with an orbit camera (right drag: orbit, middle drag: pan, wheel: zoom)
 //
-// Auto picks 3D while the game draws in 3D.
+// Auto picks 3D while the game draws in 3D. The 3D view projects as raylib's
+// GetWorldToScreenEx did (perspective, vertical fovy), and lines are cut at the
+// near plane, so a line passing behind the eye still draws its visible part.
 #include "panels.h"
 #include "util.h"
 #include "imgui.h"
-#include "raylib.h"
-#include "raymath.h"
-#include "rlgl.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -30,32 +28,26 @@ enum item_kind {
   item_shape = 10, // + shape3d_kind: sphere, box, capsule, cylinder, torus
 };
 
-RenderTexture2D target{};
+constexpr float deg2rad = 3.14159265358979323846f / 180.0f;
+constexpr ImU32 background = IM_COL32(20, 22, 28, 255);
 
-// The render texture, sized to the canvas.
-bool ensure_target(int w, int h) {
-  if (IsRenderTextureValid(target) && target.texture.width == w && target.texture.height == h)
-    return true;
-  if (IsRenderTextureValid(target))
-    UnloadRenderTexture(target);
-  target = LoadRenderTexture(w, h);
-  return IsRenderTextureValid(target);
+ImU32 rgba_of(const float c[4], float alpha_scale = 1.0f) {
+  return IM_COL32((int)(std::clamp(c[0], 0.0f, 1.0f) * 255.0f), (int)(std::clamp(c[1], 0.0f, 1.0f) * 255.0f),
+                  (int)(std::clamp(c[2], 0.0f, 1.0f) * 255.0f),
+                  (int)(std::clamp(c[3] * alpha_scale, 0.0f, 1.0f) * 255.0f));
 }
 
-Color rgba_of(const float c[4], float alpha_scale = 1.0f) {
-  return Color{(unsigned char)(std::clamp(c[0], 0.0f, 1.0f) * 255.0f),
-               (unsigned char)(std::clamp(c[1], 0.0f, 1.0f) * 255.0f),
-               (unsigned char)(std::clamp(c[2], 0.0f, 1.0f) * 255.0f),
-               (unsigned char)(std::clamp(c[3] * alpha_scale, 0.0f, 1.0f) * 255.0f)};
+ImU32 opaque(ImU32 c) { return (c & ~IM_COL32_A_MASK) | IM_COL32(0, 0, 0, 255); }
+
+ImU32 darker(ImU32 c) {
+  const auto ch = [&](int shift) { return (int)(((c >> shift) & 0xFF) * 0.55f); };
+  return IM_COL32(ch(IM_COL32_R_SHIFT), ch(IM_COL32_G_SHIFT), ch(IM_COL32_B_SHIFT), 255);
 }
 
-Color darker(Color c) { return Color{(unsigned char)(c.r * 0.55f), (unsigned char)(c.g * 0.55f), (unsigned char)(c.b * 0.55f), 255}; }
-
-// A gizmo mark over the image: a cross for a point, else its label.
+// A gizmo mark over the view: a cross for a point, else its label.
 void draw_mark(ImDrawList *dl, ImVec2 s, const gizmo_mark_row &m) {
   const float c4[4] = {m.color[0], m.color[1], m.color[2], 1.0f};
-  const Color c = rgba_of(c4);
-  const ImU32 col = IM_COL32(c.r, c.g, c.b, 255);
+  const ImU32 col = rgba_of(c4);
   if (m.text.empty()) {
     dl->AddLine({s.x - 4, s.y - 4}, {s.x + 4, s.y + 4}, col, 1.5f);
     dl->AddLine({s.x - 4, s.y + 4}, {s.x + 4, s.y - 4}, col, 1.5f);
@@ -121,63 +113,59 @@ void world_2d(app &a, ImVec2 p0, ImVec2 size, bool hovered) {
       a.view_y = wy - (io.MousePos.y - center.y) / a.zoom;
     }
   }
+  const auto to_screen = [&](float x, float y) {
+    return ImVec2{center.x + (x - a.view_x) * a.zoom, center.y + (y - a.view_y) * a.zoom};
+  };
 
   // Line widths and dot sizes are in screen pixels, whatever the zoom.
-  const float px = 1.0f / a.zoom;
-  Camera2D cam{};
-  cam.offset = {size.x * 0.5f, size.y * 0.5f};
-  cam.target = {a.view_x, a.view_y};
-  cam.zoom = a.zoom;
-  BeginTextureMode(target);
-  ClearBackground(Color{20, 22, 28, 255});
-  BeginMode2D(cam);
+  ImDrawList *dl = ImGui::GetWindowDrawList();
+  const ImVec2 p1{p0.x + size.x, p0.y + size.y};
+  dl->PushClipRect(p0, p1, true);
+  dl->AddRectFilled(p0, p1, background);
   // Grid, every 64 world units (or coarser when zoomed out).
   float step = 64.0f;
   while (step * a.zoom < 24.0f)
     step *= 4.0f;
+  const float px = 1.0f / a.zoom;
   const float left = a.view_x - size.x * 0.5f * px, top = a.view_y - size.y * 0.5f * px;
   const float right = left + size.x * px, bottom = top + size.y * px;
+  const ImU32 grid = IM_COL32(40, 44, 54, 255);
   for (float x = std::floor(left / step) * step; x < right; x += step)
-    DrawLineEx({x, top}, {x, bottom}, px, Color{40, 44, 54, 255});
+    dl->AddLine(to_screen(x, top), to_screen(x, bottom), grid, 1.0f);
   for (float y = std::floor(top / step) * step; y < bottom; y += step)
-    DrawLineEx({left, y}, {right, y}, px, Color{40, 44, 54, 255});
+    dl->AddLine(to_screen(left, y), to_screen(right, y), grid, 1.0f);
 
   for (const tilemap_row &m : a.maps)
-    DrawRectangleLinesEx({m.x, m.y, m.w, m.h}, 1.5f * px,
-                         m.solid ? Color{200, 90, 90, 160} : Color{110, 110, 130, 140});
+    dl->AddRect(to_screen(m.x, m.y), to_screen(m.x + m.w, m.y + m.h),
+                m.solid ? IM_COL32(200, 90, 90, 160) : IM_COL32(110, 110, 130, 140), 0.0f, 0, 1.5f);
   if (a.has_cam)
-    DrawRectangleLinesEx({a.cam[0], a.cam[1], a.cam[2], a.cam[3]}, 2.0f * px, Color{80, 150, 255, 220});
+    dl->AddRect(to_screen(a.cam[0], a.cam[1]), to_screen(a.cam[0] + a.cam[2], a.cam[1] + a.cam[3]),
+                IM_COL32(80, 150, 255, 220), 0.0f, 0, 2.0f);
 
   for (const entity_row &r : a.ents) {
     const bool sel = (long long)r.id == a.selected;
     if (r.has_col) {
       const collider_row &c = r.col;
-      const Color col = sel ? WHITE
-                        : !c.enabled ? Color{130, 130, 130, 160}
-                        : c.trigger  ? Color{250, 210, 60, 220}
-                                     : Color{80, 230, 110, 220};
-      const float t = (sel ? 3.0f : 1.2f) * px;
+      const ImU32 col = sel ? IM_COL32(255, 255, 255, 255)
+                        : !c.enabled ? IM_COL32(130, 130, 130, 160)
+                        : c.trigger  ? IM_COL32(250, 210, 60, 220)
+                                     : IM_COL32(80, 230, 110, 220);
+      const float t = sel ? 3.0f : 1.2f;
       if (c.circle) {
         const float r0 = c.w * 0.5f;
-        DrawRing({c.x + r0, c.y + r0}, std::max(r0 - t, 0.0f), r0, 0.0f, 360.0f, 48, col);
+        dl->AddCircle(to_screen(c.x + r0, c.y + r0), std::max(r0 * a.zoom - t * 0.5f, 0.5f), col, 48, t);
       } else {
-        DrawRectangleLinesEx({c.x, c.y, c.w, c.h}, t, col);
+        dl->AddRect(to_screen(c.x, c.y), to_screen(c.x + c.w, c.y + c.h), col, 0.0f, 0, t);
       }
     }
     if (r.has_pos)
-      DrawCircleV({r.x, r.y}, (sel ? 4.0f : 2.5f) * px, sel ? WHITE : Color{200, 205, 220, 200});
+      dl->AddCircleFilled(to_screen(r.x, r.y), sel ? 4.0f : 2.5f,
+                          sel ? IM_COL32(255, 255, 255, 255) : IM_COL32(200, 205, 220, 200));
   }
   for (const gizmo_line_row &l : a.gizmo_lines)
-    DrawLineEx({l.a[0], l.a[1]}, {l.b[0], l.b[1]}, 1.2f * px, rgba_of(l.color));
-  EndMode2D();
-  EndTextureMode();
+    dl->AddLine(to_screen(l.a[0], l.a[1]), to_screen(l.b[0], l.b[1]), rgba_of(l.color), 1.2f);
 
-  // The image, then what ImGui draws over it: the hovered entity, coordinates.
-  ImDrawList *dl = ImGui::GetWindowDrawList();
-  dl->AddImage(ImTextureID(target.texture.id), p0, {p0.x + size.x, p0.y + size.y}, {0, 1}, {1, 0});
-  const auto to_screen = [&](float x, float y) {
-    return ImVec2{center.x + (x - a.view_x) * a.zoom, center.y + (y - a.view_y) * a.zoom};
-  };
+  // Over the world: gizmo marks, the hovered entity, coordinates.
   for (const gizmo_mark_row &m : a.gizmo_marks)
     draw_mark(dl, to_screen(m.pos[0], m.pos[1]), m);
   const entity_row *hover = nullptr;
@@ -207,11 +195,76 @@ void world_2d(app &a, ImVec2 p0, ImVec2 size, bool hovered) {
     std::snprintf(buf, sizeof buf, "%.0f, %.0f   zoom %.2f", wx, wy, a.zoom);
     dl->AddText({p0.x + 6, p0.y + size.y - 20}, IM_COL32(160, 165, 180, 255), buf);
   }
+  dl->PopClipRect();
 }
 
 // ---- 3D ----
 
-Vector3 v3(const float *f) { return Vector3{f[0], f[1], f[2]}; }
+struct v3 {
+  float x = 0, y = 0, z = 0;
+};
+v3 vec(const float *f) { return {f[0], f[1], f[2]}; }
+v3 operator+(v3 a, v3 b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+v3 operator-(v3 a, v3 b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
+v3 operator*(v3 a, float s) { return {a.x * s, a.y * s, a.z * s}; }
+float dot(v3 a, v3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+v3 cross(v3 a, v3 b) { return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x}; }
+float length(v3 a) { return std::sqrt(dot(a, a)); }
+v3 normalize(v3 a) {
+  const float l = length(a);
+  return l > 0.0f ? a * (1.0f / l) : a;
+}
+v3 vmin(v3 a, v3 b) { return {std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z)}; }
+v3 vmax(v3 a, v3 b) { return {std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z)}; }
+
+struct camera3 {
+  v3 position, target, up{0, 1, 0};
+  float fovy = 50.0f;
+};
+
+// Projects into the panel: the camera's basis, a vertical field of view and the panel's
+// aspect, as raylib's GetWorldToScreenEx (MatrixLookAt + MatrixPerspective) did.
+struct projector {
+  v3 eye, r, u, f;
+  float sy = 1, sx = 1, near_z = 0.05f;
+  ImVec2 p0, size;
+  projector(const camera3 &c, ImVec2 origin, ImVec2 extent) : eye(c.position), p0(origin), size(extent) {
+    f = normalize(c.target - c.position);
+    r = normalize(cross(f, c.up));
+    u = cross(r, f);
+    sy = 1.0f / std::tan(c.fovy * 0.5f * deg2rad);
+    sx = sy / (extent.x / extent.y);
+  }
+  // View space: x right, y up, z forward (depth).
+  v3 view(v3 p) const {
+    const v3 d = p - eye;
+    return {dot(d, r), dot(d, u), dot(d, f)};
+  }
+  ImVec2 screen(v3 v) const {
+    const float ndc_x = v.x * sx / v.z, ndc_y = v.y * sy / v.z;
+    return {p0.x + (ndc_x + 1.0f) * 0.5f * size.x, p0.y + (1.0f - ndc_y) * 0.5f * size.y};
+  }
+  bool point(const float *p, ImVec2 &out) const { return point(vec(p), out); }
+  bool point(v3 p, ImVec2 &out) const {
+    const v3 v = view(p);
+    if (v.z <= near_z)
+      return false; // behind the camera
+    out = screen(v);
+    return true;
+  }
+  // A line, cut where it crosses the near plane.
+  void line(ImDrawList *dl, v3 a, v3 b, ImU32 col, float thickness = 1.0f) const {
+    v3 va = view(a), vb = view(b);
+    if (va.z <= near_z && vb.z <= near_z)
+      return;
+    if (va.z <= near_z || vb.z <= near_z) {
+      const float t = (near_z - va.z) / (vb.z - va.z);
+      const v3 cut = va + (vb - va) * t;
+      (va.z <= near_z ? va : vb) = cut;
+    }
+    dl->AddLine(screen(va), screen(vb), col, thickness);
+  }
+};
 
 const char *kind_name(int kind) {
   switch (kind) {
@@ -233,53 +286,63 @@ const char *kind_name(int kind) {
 // enough to see them all.
 void fit_orbit(app &a) {
   const scene3d_state &s = a.scene3d;
-  Vector3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
-  const auto add = [&](Vector3 p) {
-    lo = Vector3Min(lo, p);
-    hi = Vector3Max(hi, p);
+  v3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+  const auto add = [&](v3 p) {
+    lo = vmin(lo, p);
+    hi = vmax(hi, p);
   };
   for (const item3d_row &it : s.items)
-    add(v3(it.pos));
-  add(v3(s.cam));
+    add(vec(it.pos));
+  add(vec(s.cam));
   if (hi.x < lo.x)
     return;
-  const Vector3 c = Vector3Scale(Vector3Add(lo, hi), 0.5f);
+  const v3 c = (lo + hi) * 0.5f;
   a.orbit_target[0] = c.x;
   a.orbit_target[1] = c.y;
   a.orbit_target[2] = c.z;
-  a.orbit_dist = std::max(Vector3Length(Vector3Subtract(hi, lo)) * 1.1f, 2.0f);
+  a.orbit_dist = std::max(length(hi - lo) * 1.1f, 2.0f);
 }
 
-Camera3D orbit_camera(const app &a) {
-  const float yaw = a.orbit_yaw * DEG2RAD, pitch = a.orbit_pitch * DEG2RAD;
-  const Vector3 t = v3(a.orbit_target);
-  const Vector3 offset{std::cos(pitch) * std::sin(yaw), std::sin(pitch), std::cos(pitch) * std::cos(yaw)};
-  Camera3D cam{};
+camera3 orbit_camera(const app &a) {
+  const float yaw = a.orbit_yaw * deg2rad, pitch = a.orbit_pitch * deg2rad;
+  const v3 t = vec(a.orbit_target);
+  const v3 offset{std::cos(pitch) * std::sin(yaw), std::sin(pitch), std::cos(pitch) * std::cos(yaw)};
+  camera3 cam;
   cam.target = t;
-  cam.position = Vector3Add(t, Vector3Scale(offset, a.orbit_dist));
-  cam.up = {0, 1, 0};
+  cam.position = t + offset * a.orbit_dist;
   cam.fovy = 50.0f;
-  cam.projection = CAMERA_PERSPECTIVE;
   return cam;
 }
 
 // The game camera: the lines of its view frustum out to `length`.
-void draw_frustum(const scene3d_state &s, float length) {
-  const Vector3 eye = v3(s.cam), target = v3(s.cam + 3), up0 = v3(s.cam + 6);
-  const Vector3 f = Vector3Normalize(Vector3Subtract(target, eye));
-  const Vector3 r = Vector3Normalize(Vector3CrossProduct(f, up0));
-  const Vector3 u = Vector3CrossProduct(r, f);
-  const float h = std::tan(s.cam[9] * 0.5f * DEG2RAD) * length;
+void draw_frustum(ImDrawList *dl, const projector &pr, const scene3d_state &s, float distance) {
+  const v3 eye = vec(s.cam), target = vec(s.cam + 3), up0 = vec(s.cam + 6);
+  const v3 f = normalize(target - eye);
+  const v3 r = normalize(cross(f, up0));
+  const v3 u = cross(r, f);
+  const float h = std::tan(s.cam[9] * 0.5f * deg2rad) * distance;
   const float w = h * s.aspect;
-  const Vector3 c = Vector3Add(eye, Vector3Scale(f, length));
-  Vector3 corners[4];
+  const v3 c = eye + f * distance;
+  v3 corners[4];
   const float sx[4] = {-1, 1, 1, -1}, sy[4] = {-1, -1, 1, 1};
   for (int i = 0; i < 4; i++)
-    corners[i] = Vector3Add(c, Vector3Add(Vector3Scale(r, w * sx[i]), Vector3Scale(u, h * sy[i])));
-  const Color col{80, 150, 255, 255};
+    corners[i] = c + r * (w * sx[i]) + u * (h * sy[i]);
+  const ImU32 col = IM_COL32(80, 150, 255, 255);
   for (int i = 0; i < 4; i++) {
-    DrawLine3D(eye, corners[i], col);
-    DrawLine3D(corners[i], corners[(i + 1) % 4], col);
+    pr.line(dl, eye, corners[i], col);
+    pr.line(dl, corners[i], corners[(i + 1) % 4], col);
+  }
+}
+
+// raylib's DrawGrid(slices, spacing) on the XZ plane: the first line of each direction
+// darker, as raylib drew it.
+void draw_grid(ImDrawList *dl, const projector &pr, int slices, float spacing) {
+  const float half = (float)(slices / 2) * spacing;
+  for (int i = -slices / 2; i <= slices / 2; i++) {
+    const ImU32 col = i == -slices / 2 ? IM_COL32(128, 128, 128, 255) : IM_COL32(191, 191, 191, 255);
+    const float t = (float)i * spacing;
+    pr.line(dl, {t, 0, -half}, {t, 0, half}, col);
+    pr.line(dl, {-half, 0, t}, {half, 0, t}, col);
   }
 }
 
@@ -295,16 +358,15 @@ void world_3d(app &a, ImVec2 p0, ImVec2 size, bool hovered) {
     a.orbit_yaw -= io.MouseDelta.x * 0.4f;
     a.orbit_pitch = std::clamp(a.orbit_pitch + io.MouseDelta.y * 0.4f, -89.0f, 89.0f);
   }
-  const Camera3D orbit = orbit_camera(a);
+  const camera3 orbit = orbit_camera(a);
   if (hovered && ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
     // Pan in the view plane, as far as the mouse moved at the target's depth.
     a.follow_game_camera_3d = false;
-    const Vector3 f = Vector3Normalize(Vector3Subtract(orbit.target, orbit.position));
-    const Vector3 r = Vector3Normalize(Vector3CrossProduct(f, orbit.up));
-    const Vector3 u = Vector3CrossProduct(r, f);
-    const float per_px = 2.0f * a.orbit_dist * std::tan(orbit.fovy * 0.5f * DEG2RAD) / size.y;
-    const Vector3 move =
-        Vector3Add(Vector3Scale(r, -io.MouseDelta.x * per_px), Vector3Scale(u, io.MouseDelta.y * per_px));
+    const v3 f = normalize(orbit.target - orbit.position);
+    const v3 r = normalize(cross(f, orbit.up));
+    const v3 u = cross(r, f);
+    const float per_px = 2.0f * a.orbit_dist * std::tan(orbit.fovy * 0.5f * deg2rad) / size.y;
+    const v3 move = r * (-io.MouseDelta.x * per_px) + u * (io.MouseDelta.y * per_px);
     a.orbit_target[0] += move.x;
     a.orbit_target[1] += move.y;
     a.orbit_target[2] += move.z;
@@ -313,83 +375,66 @@ void world_3d(app &a, ImVec2 p0, ImVec2 size, bool hovered) {
     a.orbit_dist = std::clamp(a.orbit_dist * std::pow(0.87f, io.MouseWheel), 0.2f, 1e5f);
 
   // "Follow game camera": look through the game's own eye.
-  Camera3D cam = orbit;
+  camera3 cam = orbit;
   const bool through_game = a.follow_game_camera_3d && s.on;
   if (through_game) {
-    cam.position = v3(s.cam);
-    cam.target = v3(s.cam + 3);
-    cam.up = v3(s.cam + 6);
+    cam.position = vec(s.cam);
+    cam.target = vec(s.cam + 3);
+    cam.up = vec(s.cam + 6);
     cam.fovy = s.cam[9];
   }
+  const projector pr(cam, p0, size);
 
-  const int w = (int)size.x, h = (int)size.y;
-  BeginTextureMode(target);
-  ClearBackground(Color{20, 22, 28, 255});
-  // Keep the far plane past the scene, whatever its units (the fps sample's
-  // floor is 2000 wide).
-  rlSetClipPlanes(0.05, std::max(2000.0, (double)a.orbit_dist * 20.0));
-  BeginMode3D(cam);
+  ImDrawList *dl = ImGui::GetWindowDrawList();
+  const ImVec2 p1{p0.x + size.x, p0.y + size.y};
+  dl->PushClipRect(p0, p1, true);
+  dl->AddRectFilled(p0, p1, background);
   // Grid scaled to the orbit distance: always a readable number of lines.
   float spacing = 1.0f;
   while (spacing * 40.0f < a.orbit_dist)
     spacing *= 10.0f;
-  rlPushMatrix();
-  rlScalef(spacing, 1.0f, spacing);
-  DrawGrid(40, 1.0f);
-  rlPopMatrix();
+  draw_grid(dl, pr, 40, spacing);
   if (!through_game) {
-    draw_frustum(s, std::max(a.orbit_dist * 0.15f, 0.5f));
+    draw_frustum(dl, pr, s, std::max(a.orbit_dist * 0.15f, 0.5f));
     // Sun: a line falling onto the orbit target.
-    const Vector3 t = v3(a.orbit_target);
-    DrawLine3D(Vector3Subtract(t, Vector3Scale(Vector3Normalize(v3(s.sun)), a.orbit_dist * 0.25f)), t, YELLOW);
+    const v3 t = vec(a.orbit_target);
+    pr.line(dl, t - normalize(vec(s.sun)) * (a.orbit_dist * 0.25f), t, IM_COL32(253, 249, 0, 255));
   }
   for (const gizmo_line_row &l : s.gizmo_lines)
-    DrawLine3D(v3(l.a), v3(l.b), rgba_of(l.color));
-  EndMode3D();
+    pr.line(dl, vec(l.a), vec(l.b), rgba_of(l.color));
 
   // Every draw and light as a point of a fixed size on screen, in its colour.
-  const auto on_screen = [&](const float *p, Vector2 &out) {
-    const Vector3 d = Vector3Subtract(v3(p), cam.position);
-    if (Vector3DotProduct(d, Vector3Subtract(cam.target, cam.position)) <= 0.0f)
-      return false; // behind the camera
-    out = GetWorldToScreenEx(v3(p), cam, w, h);
-    return true;
-  };
-  Vector2 sp{};
+  ImVec2 sp{};
   for (const item3d_row &it : s.items) {
-    if (!on_screen(it.pos, sp))
+    if (!pr.point(it.pos, sp))
       continue;
-    Color c = rgba_of(it.color);
-    c.a = 255;
-    DrawCircleV(sp, 3.5f, darker(c));
-    DrawCircleV(sp, 2.5f, c);
+    const ImU32 c = opaque(rgba_of(it.color));
+    dl->AddCircleFilled(sp, 3.5f, darker(c));
+    dl->AddCircleFilled(sp, 2.5f, c);
   }
   for (const light3d_row &l : s.lights) {
-    if (!on_screen(l.pos, sp))
+    if (!pr.point(l.pos, sp))
       continue;
     const float c4[4] = {l.color[0], l.color[1], l.color[2], 1.0f};
-    DrawCircleLinesV(sp, 6.0f, rgba_of(c4));
-    DrawCircleV(sp, 2.0f, rgba_of(c4));
+    dl->AddCircle(sp, 6.0f, rgba_of(c4));
+    dl->AddCircleFilled(sp, 2.0f, rgba_of(c4));
   }
-  if (!through_game && on_screen(s.cam, sp))
-    DrawCircleV(sp, 4.0f, Color{80, 150, 255, 255});
-  EndTextureMode();
+  if (!through_game && pr.point(s.cam, sp))
+    dl->AddCircleFilled(sp, 4.0f, IM_COL32(80, 150, 255, 255));
 
-  ImDrawList *dl = ImGui::GetWindowDrawList();
-  dl->AddImage(ImTextureID(target.texture.id), p0, {p0.x + size.x, p0.y + size.y}, {0, 1}, {1, 0});
   for (const gizmo_mark_row &m : s.gizmo_marks) {
-    if (on_screen(m.pos, sp))
-      draw_mark(dl, {p0.x + sp.x, p0.y + sp.y}, m);
+    if (pr.point(m.pos, sp))
+      draw_mark(dl, sp, m);
   }
   // The point under the mouse.
   if (hovered) {
     const item3d_row *hover = nullptr;
-    Vector2 hover_at{};
+    ImVec2 hover_at{};
     float best = 8.0f * 8.0f;
     for (const item3d_row &it : s.items) {
-      if (!on_screen(it.pos, sp))
+      if (!pr.point(it.pos, sp))
         continue;
-      const float dx = p0.x + sp.x - io.MousePos.x, dy = p0.y + sp.y - io.MousePos.y;
+      const float dx = sp.x - io.MousePos.x, dy = sp.y - io.MousePos.y;
       if (dx * dx + dy * dy < best) {
         best = dx * dx + dy * dy;
         hover = &it;
@@ -397,7 +442,7 @@ void world_3d(app &a, ImVec2 p0, ImVec2 size, bool hovered) {
       }
     }
     if (hover != nullptr) {
-      dl->AddCircle({p0.x + hover_at.x, p0.y + hover_at.y}, 7.0f, IM_COL32(255, 255, 255, 200), 0, 1.5f);
+      dl->AddCircle(hover_at, 7.0f, IM_COL32(255, 255, 255, 200), 0, 1.5f);
       ImGui::SetTooltip("%s\n%.2f, %.2f, %.2f", kind_name(hover->kind), hover->pos[0], hover->pos[1], hover->pos[2]);
     }
   }
@@ -405,6 +450,7 @@ void world_3d(app &a, ImVec2 p0, ImVec2 size, bool hovered) {
   std::snprintf(buf, sizeof buf, "%zu points (%lld instanced), %zu lights   distance %.1f", s.items.size(),
                 s.instanced, s.lights.size(), a.orbit_dist);
   dl->AddText({p0.x + 6, p0.y + size.y - 20}, IM_COL32(160, 165, 180, 255), buf);
+  dl->PopClipRect();
 }
 } // namespace
 
@@ -430,7 +476,7 @@ void world_window(app &a) {
 
   const ImVec2 p0 = ImGui::GetCursorScreenPos();
   const ImVec2 size = ImGui::GetContentRegionAvail();
-  if (size.x < 50 || size.y < 50 || !ensure_target((int)size.x, (int)size.y)) {
+  if (size.x < 50 || size.y < 50) {
     ImGui::End();
     return;
   }

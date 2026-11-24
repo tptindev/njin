@@ -1,16 +1,16 @@
 // njin_ui_editor: builds .ui.json layouts the way Godot builds a Control scene.
 // Nodes are dragged from the palette into the tree or the Viewport, the tree is
 // reordered by drag and drop, and the Viewport shows the layout drawn by the
-// engine's own UI code. The windows dock (Dear ImGui docking branch).
+// engine's own UI code. The windows dock (Dear ImGui docking branch). The window
+// is a Njin context on SDL3 + bgfx; ImGui draws through src/tools/common/njin_imgui_host.
 #include "app.h"
 #include "file_dialog.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "njin.h"
+#include "njin_imgui_host.h"
 #include "panels.h"
 #include "preview.h"
-#include "raylib.h"
-#include "rlImGui.h"
 #include <cstdio>
 #include <string>
 
@@ -208,12 +208,12 @@ void load_font() {
   const char *fonts[] = {"C:/Windows/Fonts/segoeui.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                          "/System/Library/Fonts/Supplemental/Arial.ttf"};
   for (const char *path : fonts) {
-    if (!FileExists(path))
+    if (!njin::file_exists(path))
       continue;
     if (ImFont *font = io.Fonts->AddFontFromFileTTF(path, 16.0f)) {
       io.FontDefault = font;
       // Symbols (▶ ■ ×) that Segoe UI lacks.
-      if (FileExists("C:/Windows/Fonts/seguisym.ttf")) {
+      if (njin::file_exists("C:/Windows/Fonts/seguisym.ttf")) {
         ImFontConfig merge;
         merge.MergeMode = true;
         io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/seguisym.ttf", 16.0f, &merge);
@@ -226,9 +226,49 @@ void load_font() {
 } // namespace
 } // namespace ui_editor
 
+namespace ui_editor {
+namespace {
+editor_app *g_app = nullptr;
+
+void ui(njin::context &ctx) {
+  editor_app &app = *g_app;
+  shortcuts(app);
+  menu_bar(app);
+  status_bar(app);
+  dockspace(app);
+  scene_window(app);
+  nodes_window(app);
+  viewport_window(app);
+  inspector_window(app);
+  theme_window(app);
+  codegen_window(app);
+  json_window(app);
+  output_window(app);
+  // A drag or a text edit in progress is one undo step, taken when it ends.
+  app.end_frame(ImGui::IsAnyItemActive() || ImGui::GetDragDropPayload() != nullptr);
+
+  static std::string title;
+  const std::string want = std::string("njin UI Editor - ") +
+                           (app.file_path.empty() ? "(chưa lưu)" : app.file_path) + (app.dirty() ? " *" : "");
+  if (want != title) {
+    title = want;
+    njin::window_set_title(ctx, title.c_str());
+  }
+}
+
+// The Viewport's engine side: after njin.ui's frame_begin, and while Njin renders.
+void setup_preview(njin::context &ctx) {
+  njin::ecs_register(ctx, njin::phase_pre_update, [](njin::context &) { preview_begin_frame(*g_app); },
+                     "preview_begin_frame");
+  njin::ecs_register(ctx, njin::phase_render, [](njin::context &) { preview_render(*g_app); }, "preview_render");
+}
+} // namespace
+} // namespace ui_editor
+
 int main(int argc, char **argv) {
   using namespace ui_editor;
   njin::config cfg{.title = "njin UI Editor", .width = 1600.0f, .height = 920.0f, .target_fps = 60.0f};
+  cfg.clear_bg_color = njin::rgba{20 / 255.0f, 21 / 255.0f, 26 / 255.0f, 1.0f};
   cfg.exit_key = njin::key_none;
   cfg.resizable = true;
   cfg.vsync = true;
@@ -236,54 +276,30 @@ int main(int argc, char **argv) {
 
   editor_app app;
   app.ctx = ctx;
+  g_app = &app;
   app.add_default_demo();
   if (argc > 1)
     app.open_file(argv[1]);
 
-  rlImGuiBeginInitImGui();
+  if (!njin_tools::imgui_init(*ctx)) {
+    std::fprintf(stderr, "njin_ui_editor: needs the SDL3/bgfx renderer\n");
+    njin::destroy(ctx);
+    return 1;
+  }
   theme();
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.ConfigWindowsMoveFromTitleBarOnly = true;
   load_font();
-  rlImGuiEndInitImGui();
   io.IniFilename = "njin_ui_editor.ini";
 
-  std::string title;
-  while (!WindowShouldClose()) {
-    preview_begin_frame(app);
-    BeginDrawing();
-    ClearBackground(Color{20, 21, 26, 255});
-    preview_render(app);
+  preview_install(app);
+  njin::mod_register(*ctx, njin::mod_desc{"ui_editor.preview", setup_preview});
+  njin_tools::imgui_systems(*ctx, ui);
+  njin::run(*ctx);
 
-    rlImGuiBegin();
-    shortcuts(app);
-    menu_bar(app);
-    status_bar(app);
-    dockspace(app);
-    scene_window(app);
-    nodes_window(app);
-    viewport_window(app);
-    inspector_window(app);
-    theme_window(app);
-    codegen_window(app);
-    json_window(app);
-    output_window(app);
-    // A drag or a text edit in progress is one undo step, taken when it ends.
-    app.end_frame(ImGui::IsAnyItemActive() || ImGui::GetDragDropPayload() != nullptr);
-    rlImGuiEnd();
-    EndDrawing();
-
-    const std::string want = std::string("njin UI Editor - ") +
-                             (app.file_path.empty() ? "(chưa lưu)" : app.file_path) + (app.dirty() ? " *" : "");
-    if (want != title) {
-      title = want;
-      SetWindowTitle(title.c_str());
-    }
-  }
-
-  preview_shutdown();
-  rlImGuiShutdown();
+  preview_shutdown(app);
+  njin_tools::imgui_shutdown(*ctx);
   njin::destroy(ctx);
   return 0;
 }

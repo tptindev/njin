@@ -146,6 +146,9 @@
 /// @defgroup grp_reload Hot reload
 /// Nạp lại texture và shader khi file đổi, lúc game đang chạy.
 
+/// @defgroup grp_rml RmlUi
+/// Giao diện bằng tài liệu RML/RCSS (HTML/CSS) với data model gắn vào trạng thái của game; feature rmlui.
+
 /// @defgroup grp_ui UI
 /// Panel, nút, công tắc, thanh trượt, lựa chọn, popup, toast; chuột, bàn phím, tay cầm; tùy biến ảnh và shader.
 

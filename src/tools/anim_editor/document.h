@@ -1,10 +1,15 @@
 #pragma once
 #include "njin_json.h"
-#include "raylib.h"
+#include "njin_rlmath.h"
 #include <string>
 #include <vector>
 
 namespace anim_editor {
+// The rig's extent (raylib's BoundingBox layout: min, then max).
+struct BoundingBox {
+  Vector3 min{};
+  Vector3 max{};
+};
 // One joint of the model's skin, in skin joint order (the order raylib and
 // njin give bones). Rest values are the joint node's own local TRS.
 struct Bone {

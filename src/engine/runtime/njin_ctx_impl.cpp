@@ -134,6 +134,8 @@ template ctx_slot_t<nav3d_store> &ctx_ref<nav3d_store>(context &);
 template const ctx_slot_t<nav3d_store> &ctx_ref<nav3d_store>(const context &);
 template ctx_slot_t<video_store> &ctx_ref<video_store>(context &);
 template const ctx_slot_t<video_store> &ctx_ref<video_store>(const context &);
+template ctx_slot_t<rml_store> &ctx_ref<rml_store>(context &);
+template const ctx_slot_t<rml_store> &ctx_ref<rml_store>(const context &);
 template ctx_slot_t<network_store> &ctx_ref<network_store>(context &);
 template const ctx_slot_t<network_store> &ctx_ref<network_store>(const context &);
 template ctx_slot_t<particle_gpu_state> &ctx_ref<particle_gpu_state>(context &);

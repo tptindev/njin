@@ -70,6 +70,8 @@ void save_pending_capture(context &ctx,const RenderImageAsset &capture) {
   ctx_ref<frame_state>(ctx).screenshots.clear();
 }
 
+SdlPlatform *sdl_platform(context &ctx) { return ctx_ref<window_guard>(ctx).platform.get(); }
+
 void window_set_size([[maybe_unused]] context &ctx, vec2 size) {
 #if NJIN_BGFX
   if(auto *gpu=ctx_ref<window_guard>(ctx).platform.get()) {

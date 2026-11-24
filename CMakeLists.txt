@@ -103,6 +103,7 @@ if(NJIN_BGFX)
     GIT_TAG release-3.4.18)
   FetchContent_MakeAvailable(SDL3)
   include(cmake/njin_bgfx.cmake)
+  include(cmake/njin_rmlui.cmake)
 endif()
 
 set(BUILD_EXAMPLES OFF)
@@ -409,7 +410,7 @@ endforeach()
 set(_njin_export_targets njin_rt njin_core njin_api njin_gpu njin_warnings raylib Jolt meshoptimizer njin_lua njin_sol2 njin_recast njin_plmpeg njin_smaa njin_asio njin_enet EnTT)
 list(APPEND _njin_export_targets njin_xatlas)
 if(NJIN_BGFX)
-  list(APPEND _njin_export_targets bgfx bx bimg bimg_decode)
+  list(APPEND _njin_export_targets bgfx bx bimg bimg_decode njin_rmlui_lib freetype)
   # SDL exports its headers/static targets under its own namespace. Import
   # that package before njinTargets when consuming this prebuilt engine.
   file(WRITE "${CMAKE_BINARY_DIR}/njinDependencies.cmake"
@@ -543,6 +544,22 @@ if(NJIN_BUILD_RHI_SLICE)
   target_include_directories(njin_level_inflate_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime"
     "${_njin_bimg_src}/3rdparty/tinyexr/deps/miniz")
   add_test(NAME level_inflate COMMAND njin_level_inflate_test)
+  # The rmlui feature: a document with a data model drawn by Njin, clicks and data-if.
+  # Engine side only to push SDL events as the window would send them.
+  if(NJIN_BGFX)
+    add_executable(njin_rml_test src/engine/tests/rml.cpp)
+    set_target_properties(njin_rml_test PROPERTIES NJIN_ENGINE_INTERNAL ON)
+    target_link_libraries(njin_rml_test PRIVATE njin::rt njin::gpu SDL3::SDL3)
+    set(_njin_rml_renderers vulkan bgfx-opengl)
+    if(WIN32)
+      list(APPEND _njin_rml_renderers d3d12)
+    endif()
+    foreach(_renderer IN LISTS _njin_rml_renderers)
+      add_test(NAME rml_${_renderer} COMMAND njin_rml_test
+        "${PROJECT_SOURCE_DIR}/examples/topdown/assets/fonts/BeVietnamPro-Bold.ttf" ${_renderer})
+      set_tests_properties(rml_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
+    endforeach()
+  endif()
   add_executable(njin_transparent_test src/engine/tests/transparent3d.cpp)
   add_executable(njin_primitives_test src/engine/tests/primitives3d.cpp)
   target_link_libraries(njin_primitives_test PRIVATE njin::rt njin::gpu)

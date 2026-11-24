@@ -56,6 +56,7 @@ struct particles3d_state;
 struct world3d_store;
 struct nav3d_store;
 struct video_store;
+struct rml_store;
 struct network_store;
 struct anim3d_store;
 
@@ -115,6 +116,8 @@ struct context {
   feature_ref<video_store> video;
   // Stops the network thread and closes every socket.
   feature_ref<network_store> network;
+  // RmlUi's documents, geometry and textures: freed while the renderer is alive.
+  feature_ref<rml_store> rml;
   store_ref<particle_gpu_state> particles_gpu;
   store_ref<render_stats> stats;
   store_ref<reload_state> reload;
@@ -226,6 +229,9 @@ template <> struct ctx_member<nav3d_store> {
 };
 template <> struct ctx_member<video_store> {
   static constexpr auto ptr = &context::video;
+};
+template <> struct ctx_member<rml_store> {
+  static constexpr auto ptr = &context::rml;
 };
 template <> struct ctx_member<network_store> {
   static constexpr auto ptr = &context::network;

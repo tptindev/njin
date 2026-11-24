@@ -10,4 +10,7 @@ void portable_render_texture_end(const context &);
 void portable_render_texture_unload(context &,render_texture_handle);
 bool portable_render_texture_save(context &,render_texture_handle,const char *);
 void portable_render_texture_draw(const context &,render_texture_handle,vec2,rgba);
+// Engine tools (ImGui shows it): the colour texture of a render texture, empty when
+// the handle is not a live render texture of the SDL3/bgfx renderer.
+RenderTextureHandle portable_render_texture_color(context &,render_texture_handle);
 }

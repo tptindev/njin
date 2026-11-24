@@ -4,17 +4,20 @@
 //   njin_inspector [--port 7779] [--layout overview|consumption|documents] [--size 1280x720]
 //
 // It retries until a game is listening, and again whenever the game restarts.
+// The window is a Njin context on SDL3 + bgfx; ImGui draws through
+// src/tools/common/njin_imgui_host.
 #include "app.h"
 #include "imgui.h"
-#include "implot.h"
+#include "njin.h"
+#include "njin_imgui_host.h"
 #include "panels.h"
-#include "raylib.h"
-#include "rlImGui.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 namespace {
+inspector::app *g_app = nullptr;
+
 // A system font with Vietnamese glyphs, so level names and log lines in the
 // game's language read correctly. Falls back to ImGui's built-in font.
 void load_font() {
@@ -22,20 +25,37 @@ void load_font() {
                               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                               "/System/Library/Fonts/Supplemental/Arial.ttf"};
   for (const char *path : candidates) {
-    if (FileExists(path)) {
+    if (njin::file_exists(path)) {
       ImGuiIO &io = ImGui::GetIO();
-      // rlImGui has already added ImGui's own font, which stays the default
-      // unless told otherwise.
       if (ImFont *font = io.Fonts->AddFontFromFileTTF(path, 17.0f))
         io.FontDefault = font;
       return;
     }
   }
 }
+
+void ui(njin::context &ctx) {
+  inspector::app &a = *g_app;
+  inspector::update_connection(a, njin::delta_real(ctx));
+  inspector::status_bar(a);
+  inspector::performance_window(a);
+  inspector::entities_window(a);
+  inspector::world_window(a);
+  inspector::inspector_window(a);
+  inspector::watches_window(a);
+  inspector::log_window(a);
+  inspector::monitor_window(a);
+  inspector::systems_window(a);
+  inspector::memory_window(a);
+  inspector::assets_window(a);
+  inspector::docs_window(a);
+  inspector::end_frame_layout(a);
+}
 } // namespace
 
 int main(int argc, char **argv) {
   inspector::app a;
+  g_app = &a;
   int want_w = 0, want_h = 0;
   for (int i = 1; i + 1 < argc; i++) {
     if (std::strcmp(argv[i], "--port") == 0)
@@ -45,54 +65,37 @@ int main(int argc, char **argv) {
     if (std::strcmp(argv[i], "--layout") == 0)
       a.layout = std::strcmp(argv[i + 1], "consumption") == 0 ? 1 : std::strcmp(argv[i + 1], "documents") == 0 ? 2 : 0;
   }
-  SetTraceLogLevel(LOG_WARNING);
-  SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-  InitWindow(1700, 960, "njin inspector");
+  njin::config cfg{.title = "njin inspector", .width = 1700.0f, .height = 960.0f, .target_fps = 60.0f};
+  cfg.clear_bg_color = njin::rgba{14 / 255.0f, 15 / 255.0f, 19 / 255.0f, 1.0f};
+  cfg.exit_key = njin::key_none;
+  cfg.resizable = true;
+  cfg.vsync = true;
+  cfg.audio = false;
+  njin::context *ctx = njin::create(cfg);
   {
     // A small screen gets a smaller window (the panels scale to fit), placed so its title bar is reachable.
-    const int monitor = GetCurrentMonitor();
-    const int mw = GetMonitorWidth(monitor), mh = GetMonitorHeight(monitor);
-    if (mw > 0 && mh > 0 && (mw < 1700 + 40 || mh < 960 + 80)) {
-      SetWindowSize(mw < 1740 ? mw - 40 : 1700, mh < 1040 ? mh - 100 : 960);
-      SetWindowPosition(20, 40);
+    const njin::vec2 monitor = njin::monitor_size(*ctx);
+    if (monitor.x > 0 && monitor.y > 0 && (monitor.x < 1700 + 40 || monitor.y < 960 + 80)) {
+      njin::window_set_size(*ctx, {monitor.x < 1740 ? monitor.x - 40 : 1700.0f, monitor.y < 1040 ? monitor.y - 100 : 960.0f});
+      njin::window_set_position(*ctx, {20, 40});
     }
     if (want_w >= 640 && want_h >= 400)
-      SetWindowSize(want_w, want_h);
+      njin::window_set_size(*ctx, {(float)want_w, (float)want_h});
   }
-  SetExitKey(KEY_NULL);
-  SetTargetFPS(60);
-  rlImGuiBeginInitImGui();
+  if (!njin_tools::imgui_init(*ctx, true)) {
+    std::fprintf(stderr, "njin_inspector: needs the SDL3/bgfx renderer\n");
+    njin::destroy(ctx);
+    return 1;
+  }
   ImGui::StyleColorsDark();
   load_font();
-  rlImGuiEndInitImGui();
-  ImPlot::CreateContext();
   ImGui::GetIO().IniFilename = "njin_inspector.ini"; // remembers the layout
+  njin_tools::imgui_systems(*ctx, ui);
+  njin::run(*ctx);
 
-  while (!WindowShouldClose()) {
-    inspector::update_connection(a, GetFrameTime());
-    BeginDrawing();
-    ClearBackground(Color{14, 15, 19, 255});
-    rlImGuiBegin();
-    inspector::status_bar(a);
-    inspector::performance_window(a);
-    inspector::entities_window(a);
-    inspector::world_window(a);
-    inspector::inspector_window(a);
-    inspector::watches_window(a);
-    inspector::log_window(a);
-    inspector::monitor_window(a);
-    inspector::systems_window(a);
-    inspector::memory_window(a);
-    inspector::assets_window(a);
-    inspector::docs_window(a);
-    inspector::end_frame_layout(a);
-    rlImGuiEnd();
-    EndDrawing();
-  }
   a.link.close();
   njin::net_close(a.connecting);
-  ImPlot::DestroyContext();
-  rlImGuiShutdown();
-  CloseWindow();
+  njin_tools::imgui_shutdown(*ctx);
+  njin::destroy(ctx);
   return 0;
 }

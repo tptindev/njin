@@ -1,5 +1,5 @@
 #include "document.h"
-#include "raymath.h"
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <cmath>
 

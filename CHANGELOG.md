@@ -10,6 +10,12 @@ To release: edit that header, add a section here, commit, then
 
 ### Added
 
+- RmlUi as game UI, the opt-in feature `rmlui` (`njin_rml.h`, wiki page "Giao diện
+  HTML/CSS với RmlUi"): documents written in RML/RCSS (HTML/CSS) drawn on top of the
+  frame, data models bound to the game's values (`rml_model`, `rml_bind_*`,
+  `rml_bind_event`), events by element id, the RmlUi debugger. Mouse and keys the UI
+  uses do not reach the game. RmlUi 6.3 with FreeType; SDL3/bgfx renderer only.
+- `RenderBlend::Premultiplied` for colours already multiplied by their alpha.
 - `graphics_backend()`: the backend the game runs on, for games that ship
   different resources per renderer (GLSL for OpenGL, `.njshader` for bgfx).
 - Test suite: every sample runs whole on every renderer (`sample_*` tests,
@@ -414,6 +420,10 @@ To release: edit that header, add a section here, commit, then
   can supply Njin's own copy of them (generated from raylib 6.0, the same
   results bit for bit), so they no longer tie it to raylib. Tiled's zlib and
   gzip layers are inflated with miniz instead of raylib's DecompressData.
+- The tools (njin_inspector, njin_ui_editor, njin_anim_editor) run on SDL3 +
+  bgfx: Dear ImGui with its SDL3 backend, drawn through Njin's renderer, instead of
+  raylib and rlImGui. The UI editor's Viewport and the animation editor's 3D view
+  are drawn by Njin into render targets; the inspector's World view by ImGui.
 
 ### Fixed
 

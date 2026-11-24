@@ -1,9 +1,8 @@
 // The Viewport shows the layout as the game draws it: the real njin UI code
-// (ui_begin, ui_button, ...) runs against the editor's context and draws with
-// raylib into a render texture, which the Viewport window shows. Only the
-// selection and drag gizmos on top are ImGui.
+// (ui_begin, ui_button, ...) runs against the editor's context and draws into a
+// Njin render target, which the Viewport window shows. Only the selection and
+// drag gizmos on top are ImGui.
 #include "preview.h"
-#include "njin2rl.h"
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
 #include "modules/ui.h"
@@ -16,12 +15,15 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <raylib.h>
+#include <filesystem>
+#include "njin_renderer.h"
+#include "njin_sdl_platform.h"
 
 namespace ui_editor {
 
 namespace {
-RenderTexture2D g_target{};
+njin::RenderTargetHandle g_target{};
+unsigned g_target_w = 0, g_target_h = 0;
 
 // The label as the engine shows it: everything before "##".
 std::string shown(const std::string &label) {
@@ -29,24 +31,25 @@ std::string shown(const std::string &label) {
   return hidden == std::string::npos ? label : label.substr(0, hidden);
 }
 
-void ensure_target(int w, int h) {
-  if (IsRenderTextureValid(g_target) && g_target.texture.width == w && g_target.texture.height == h)
+void ensure_target(njin::context &ctx, int w, int h) {
+  if (g_target && g_target_w == (unsigned)w && g_target_h == (unsigned)h)
     return;
-  if (IsRenderTextureValid(g_target))
-    UnloadRenderTexture(g_target);
-  g_target = LoadRenderTexture(w, h);
-  SetTextureFilter(g_target.texture, TEXTURE_FILTER_BILINEAR);
+  if (g_target)
+    njin::renderer_destroy_target(ctx, g_target);
+  g_target = njin::renderer_create_target(ctx, (unsigned)w, (unsigned)h);
+  g_target_w = (unsigned)w;
+  g_target_h = (unsigned)h;
 }
 
-// Feeds the ctx the input njin's UI reads, but only what the Viewport should
-// get: nothing while editing, and in play mode the mouse only while it is over
-// the image and the keys only while the Viewport has focus. The engine's own
-// input_key_poll is not used: it drains raylib's character queue, which ImGui
-// needs for text fields.
-void feed_input(editor_app &app, int k) {
-  njin::input_store &input = njin::ctx_ref<njin::input_store>(*app.ctx);
-  input.prev = input.cur;
+// Rewrites the input the window gave (SdlPlatform's input hook, before any system
+// runs) to what the Viewport should get: nothing while editing, and in play mode the
+// mouse only while it is over the image and the keys only while the Viewport has
+// focus. Typed text stays with ImGui's fields.
+void feed_input(editor_app &app, int k, njin::input_store &input) {
+  const njin::input_frame real = input.cur;
   input.cur = njin::input_frame{};
+  input.text_count = 0;
+  input.backspaces = 0;
   std::fill(std::begin(input.key_hidden), std::end(input.key_hidden), false);
   std::fill(std::begin(input.mouse_hidden), std::end(input.mouse_hidden), false);
   input.cur.mouse_pos = {-100000.0f, -100000.0f};
@@ -55,19 +58,16 @@ void feed_input(editor_app &app, int k) {
   if (app.view_focused) {
     for (const njin::key_code key : {njin::key_up, njin::key_down, njin::key_left, njin::key_right,
                                      njin::key_enter, njin::key_space, njin::key_escape,
-                                     njin::key_backspace}) {
-      int rl = KEY_NULL;
-      njin::to_raylib(key, rl);
-      input.cur.keys[key] = IsKeyDown(rl);
-    }
+                                     njin::key_backspace})
+      input.cur.keys[key] = real.keys[key];
   }
   if (app.view_hovered) {
-    const Vector2 m = GetMousePosition();
+    const vec2 m = real.mouse_pos;
     const vec2 design{(m.x - app.view_image_min.x) / app.zoom, (m.y - app.view_image_min.y) / app.zoom};
     input.cur.mouse_pos = design * (float)k;
     input.cur.mouse_delta = input.cur.mouse_pos - input.prev.mouse_pos;
     for (int b = 0; b < njin::mouse_button_count; b++)
-      input.cur.mouse[b] = IsMouseButtonDown(b);
+      input.cur.mouse[b] = real.mouse[b];
   }
 }
 
@@ -84,7 +84,7 @@ void bind_textures(editor_app &app, ui_layout &layout) {
         njin::texture_handle t = njin::texture_load(*app.ctx, w.texture_path.c_str());
         if (t.id == 0 && !app.file_path.empty()) {
           // Relative to the layout file, as a game would keep it next to its assets.
-          const std::string dir = GetDirectoryPath(app.file_path.c_str());
+          const std::string dir = std::filesystem::path(app.file_path).parent_path().string();
           t = njin::texture_load(*app.ctx, (dir + "/" + w.texture_path).c_str());
         }
         it = app.textures.emplace(w.texture_path, t).first;
@@ -208,17 +208,14 @@ void measure_boxes(editor_app &app, const ui_layout &layout, const njin::ui_styl
 }
 } // namespace
 
+void preview_install(editor_app &app) {
+  if (njin::SdlPlatform *platform = njin::sdl_platform(*app.ctx))
+    platform->set_input_hook([&app](njin::input_store &input) { feed_input(app, app.preview_k, input); });
+}
+
 void preview_begin_frame(editor_app &app) {
-  njin::context &ctx = *app.ctx;
-  njin::ctx_ref<njin::time_state>(ctx).dt_real = GetFrameTime();
-  njin::ctx_ref<njin::time_state>(ctx).dt = njin::ctx_ref<njin::time_state>(ctx).dt_real;
-  njin::ctx_ref<njin::time_state>(ctx).elapsed = (float)GetTime();
-  feed_input(app, app.preview_k);
-  // njin.ui's frame_begin (focus, navigation, mouse edges) and the other
-  // modules' pre-update systems, which have an empty world to look at.
-  njin::ecs_run(ctx, njin::phase_pre_update);
   if (!app.play_mode)
-    njin::ctx_ref<njin::ui_state>(ctx)->focus = 0; // no focus highlight while editing
+    njin::ctx_ref<njin::ui_state>(*app.ctx)->focus = 0; // no focus highlight while editing
 }
 
 void preview_render(editor_app &app) {
@@ -238,7 +235,7 @@ void preview_render(editor_app &app) {
     njin::ctx_ref<njin::ui_state>(ctx)->natural.clear();
   }
   app.preview_k = k;
-  ensure_target((int)(res.x * (float)k), (int)(res.y * (float)k));
+  ensure_target(ctx, (int)(res.x * (float)k), (int)(res.y * (float)k));
 
   // screen_size() answers the virtual size while one is set; view.drawing
   // stays off, so text is drawn at once into the texture and not queued.
@@ -259,8 +256,7 @@ void preview_render(editor_app &app) {
   layout.style.scale *= (float)k;
   bind_textures(app, layout);
 
-  BeginTextureMode(g_target);
-  ClearBackground(Color{0, 0, 0, 0});
+  njin::renderer_begin_target(ctx, g_target, {0, 0, 0, 0});
   njin::ui_draw_layout(ctx, layout, [&](const njin::ui_layout_event &ev) {
     if (!app.play_mode)
       return;
@@ -281,7 +277,7 @@ void preview_render(editor_app &app) {
     }
     app.log(msg);
   });
-  EndTextureMode();
+  njin::renderer_end_target(ctx);
 
   measure_boxes(app, layout, layout.style, k);
 
@@ -292,11 +288,15 @@ void preview_render(editor_app &app) {
   njin::ctx_ref<njin::view_state>(ctx)->size = {};
 }
 
-unsigned int preview_texture_id() { return g_target.texture.id; }
+njin::RenderTextureHandle preview_texture(editor_app &app) {
+  return g_target ? njin::renderer_target_texture(*app.ctx, g_target) : njin::RenderTextureHandle{};
+}
 
-void preview_shutdown() {
-  if (IsRenderTextureValid(g_target))
-    UnloadRenderTexture(g_target);
+void preview_shutdown(editor_app &app) {
+  if (njin::SdlPlatform *platform = njin::sdl_platform(*app.ctx))
+    platform->set_input_hook({});
+  if (g_target)
+    njin::renderer_destroy_target(*app.ctx, g_target);
   g_target = {};
 }
 

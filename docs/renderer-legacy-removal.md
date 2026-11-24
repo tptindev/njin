@@ -144,7 +144,26 @@ types and small utilities that do not log).
   are the legacy path (njin2rl, the raylib model loader, legacy input, window
   and loop, the OpenGL particle looks, the raylib log hook, SetTargetFPS, and
   files that include rlgl) and go with step 4.
-- Then: the tools' UI.
+- **Tools' UI (done, 2026-11-24).** njin_inspector, njin_ui_editor and
+  njin_anim_editor are Njin contexts on SDL3 + bgfx with Dear ImGui, as in
+  sdl3-proj: ImGui's own SDL3 backend (fed by an internal SdlPlatform event hook)
+  and `src/tools/common/njin_imgui_host`, which draws ImGui through the public
+  renderer API (renderer_draw_mesh, scissor, the font atlas as Njin textures;
+  draw loop after the pinned ImGui's imgui_impl_sdlgpu3). rlImGui is gone. The
+  inspector's World view draws with ImGui's draw list (3D projected as raylib's
+  GetWorldToScreenEx, lines cut at the near plane); the UI editor's Viewport draws
+  the engine's UI into a render target, its input filtered by an internal input
+  hook; the animation editor draws its posed model with begin_3d into a render
+  texture and draw_model_anim (model_pose::bones). Tests: tool_inspector_* and
+  tool_ui_editor_* on Vulkan, D3D12 and bgfx-OpenGL, tool_anim_editor_self_test,
+  _roundtrip and _smoke (a key moves 38,241 pixels of the Viewport). The tools
+  still read the runtime's private headers, which name raylib's types until step
+  4, so they keep raylib's include path (headers only).
+- **RmlUi game UI (added, 2026-11-24).** The opt-in feature `rmlui`
+  (`njin_rml.h`): RmlUi 6.3 with FreeType, documents drawn by Njin's renderer on
+  top of the frame, data models bound to the game's values, events, input taken
+  from the game while the UI has it. SDL3/bgfx only. Tests rml_vulkan, rml_d3d12,
+  rml_bgfx-opengl. sdl3-proj's split: RmlUi for the game, ImGui for the tools.
 
 ## Removal order
 

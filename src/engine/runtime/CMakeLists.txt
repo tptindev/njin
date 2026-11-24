@@ -48,6 +48,12 @@ set(NJIN_FEATURE_3D_SOURCES
 set(NJIN_FEATURE_PHYSICS3D_SOURCES feature_physics3d.cpp njin_physics3d.cpp)
 set(NJIN_FEATURE_NAV3D_SOURCES feature_nav3d.cpp njin_nav3d.cpp)
 set(NJIN_FEATURE_VIDEO_SOURCES feature_video.cpp njin_plmpeg.cpp njin_video.cpp)
+# RmlUi draws through the SDL3/bgfx renderer only; without it the calls report that.
+if(NJIN_BGFX)
+  set(NJIN_FEATURE_RMLUI_SOURCES njin_rml.cpp)
+else()
+  set(NJIN_FEATURE_RMLUI_SOURCES njin_rml_stub.cpp)
+endif()
 set(NJIN_FEATURE_NET_SOURCES
     feature_net.cpp
     njin_lockstep.cpp
@@ -235,6 +241,13 @@ endif()
 _njin_feature(physics3d NEEDS 3d LIBS Jolt)
 _njin_feature(nav3d NEEDS 3d physics3d LIBS njin_recast)
 _njin_feature(video LIBS njin_plmpeg)
+if(NJIN_BGFX)
+  _njin_feature(rmlui LIBS njin_rmlui_lib SDL3::SDL3)
+  # RmlUi's headers stay out of the shared precompiled header and unity batches.
+  set_source_files_properties(njin_rml.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
+else()
+  _njin_feature(rmlui)
+endif()
 _njin_feature(net LIBS njin_asio njin_enet)
 _njin_feature(script LIBS njin_sol2)
 _njin_feature(script_3d NEEDS script 3d LIBS njin_sol2)

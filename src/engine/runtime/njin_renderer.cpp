@@ -328,7 +328,7 @@ void renderer_draw_mesh(context &ctx, const MeshDraw &submission) {
   if(draw.scissor_enabled && (draw.scissor.width>65535 || draw.scissor.height>65535 ||
       draw.scissor.x<-65535 || draw.scissor.x>65535 || draw.scissor.y<-65535 || draw.scissor.y>65535))
     throw std::invalid_argument("njin renderer: scissor exceeds coordinate limits");
-  if(draw.blend!=RenderBlend::Alpha && draw.blend!=RenderBlend::Additive && draw.blend!=RenderBlend::Multiply && draw.blend!=RenderBlend::Opaque && draw.blend!=RenderBlend::WeightedAdd && draw.blend!=RenderBlend::Reveal)
+  if(draw.blend!=RenderBlend::Alpha && draw.blend!=RenderBlend::Additive && draw.blend!=RenderBlend::Multiply && draw.blend!=RenderBlend::Opaque && draw.blend!=RenderBlend::WeightedAdd && draw.blend!=RenderBlend::Reveal && draw.blend!=RenderBlend::Premultiplied)
     throw std::invalid_argument("njin renderer: invalid blend mode");
   if(draw.local_light_count>render_local_light_max) throw std::invalid_argument("njin renderer: local light count exceeds 16");
   for(unsigned i=0;i<draw.local_light_count;++i) {

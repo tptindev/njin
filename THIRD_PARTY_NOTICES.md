@@ -219,6 +219,34 @@ the zlib license, Copyright (c) 2013-2026 Ramon Santamaria (@raysan5); this
 translation is an altered version of that source, so marked here. The glyph
 bitmaps still come from stb_truetype v1.26 (public domain).
 
+## Dear ImGui for the tools
+
+njin_inspector, njin_ui_editor and njin_anim_editor use Dear ImGui (Omar Cornut,
+MIT), fetched at tag `v1.92.9-docking` of https://github.com/ocornut/imgui,
+compiled unmodified with its SDL3 platform backend (`backends/imgui_impl_sdl3.cpp`),
+and ImPlot (Evan Pezent, MIT) at tag `v1.0` of https://github.com/epezent/implot.
+Their licences ship in the fetched sources. `src/tools/common/njin_imgui_host.cpp`
+draws ImGui through Njin's renderer API; its texture requests and draw loop follow
+`backends/imgui_impl_sdlgpu3.cpp` of the same ImGui tag (MIT), rewritten for Njin's
+calls. rlImGui is no longer used.
+
+## RmlUi and FreeType (the rmlui feature)
+
+The rmlui feature compiles RmlUi (Michael R. P. Ragazzon and contributors, MIT),
+fetched at tag `6.3` of https://github.com/mikke89/RmlUi: its core, the FreeType font
+engine, the debugger and `Backends/RmlUi_Platform_SDL.cpp`, unmodified. Its render
+interface (`src/engine/runtime/njin_rml.cpp`) follows the conventions of
+`Backends/RmlUi_Renderer_GL3.cpp` of the same tag, written for Njin's renderer.
+
+Fonts are rasterized by FreeType, fetched at tag `VER-2-14-3` of
+https://github.com/freetype/freetype and built without zlib, bzip2, PNG, HarfBuzz or
+Brotli. FreeType is used under the FreeType License (FTL), which asks a product that
+ships it to credit it in its documentation, for example: "Portions of this software
+are copyright (c) 2026 The FreeType Project (www.freetype.org). All rights reserved."
+A game that links the rmlui feature carries that obligation. The licences ship in
+the fetched sources (`LICENSE.txt` of RmlUi, `LICENSE.TXT` and `docs/FTL.TXT` of
+FreeType).
+
 ## raylib types and raymath without raylib
 
 `src/engine/runtime/njin_rl_own.inl` holds the raylib structs and enums Njin's

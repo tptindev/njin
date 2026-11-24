@@ -4,9 +4,12 @@
 #include "mocap_net.h"
 #include "imgui_internal.h"
 #include "ImGuizmo.h"
-#include "raymath.h"
-#include "rlImGui.h"
-#include "rlgl.h"
+#include "njin.h"
+#include "njin_3d.h"
+#include "njin_imgui_host.h"
+#include "njin_render_texture_portable.h"
+#include "njin_renderer.h"
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -62,9 +65,10 @@ struct App {
   Rig rig;
   Document doc;
   bool has_rig = false;
-  Model model{};
+  njin::context *ctx = nullptr; // null in the window-less self tests: no GPU model
+  njin::model_handle model{};
   bool has_model = false;
-  std::vector<Transform> pose_buffer;
+  std::vector<njin::bone_pose3d> pose_buffer;
   std::string status = "Open a skinned .glb or .gltf model (File > Open model).";
   Snapshot committed;
   uint64_t saved = 0;
@@ -77,8 +81,14 @@ struct App {
   bool request_confirm = false;
   float yaw = 0.6f, pitch = 0.2f, zoom = 6.5f;
   Vector3 target{0, 1, 0};
-  Camera3D camera{};
-  RenderTexture2D viewport{};
+  njin::camera3d camera{};
+  // The Viewport's image: drawn by Njin while it renders (phase_render), at the size
+  // the Viewport window asked for this frame.
+  njin::render_texture_handle viewport{};
+  // The image before a resize: this frame's ImGui draw list still shows it, so it goes
+  // one frame later.
+  njin::render_texture_handle retired{};
+  int viewport_w = 0, viewport_h = 0, want_w = 0, want_h = 0;
   int active_clip = -1;
   bool playing = false;
   float playhead = 0, speed = 1;
@@ -187,17 +197,18 @@ struct App {
     doc.model = model_file;
     has_rig = true;
     if (has_model) {
-      UnloadModel(model);
+      njin::model_unload(*ctx, model);
+      model = {};
       has_model = false;
     }
-    if (IsWindowReady()) {
-      model = LoadModel(model_file.c_str());
-      has_model = model.meshCount > 0;
-      if (has_model && model.skeleton.boneCount != (int)rig.bones.size()) {
-        status = "Warning: raylib sees a different skeleton; the preview may not follow the bones.";
+    if (ctx != nullptr) {
+      model = njin::model_load(*ctx, model_file.c_str());
+      has_model = model.id != 0;
+      if (has_model && njin::model_bone_count(*ctx, model) != (int)rig.bones.size()) {
+        status = "Warning: Njin sees a different skeleton; the preview may not follow the bones.";
       }
     }
-    pose_buffer.assign(rig.bones.size(), Transform{});
+    pose_buffer.assign(rig.bones.size(), njin::bone_pose3d{});
     live = false;
     live_pose.clear();
     live_mask.clear();
@@ -321,40 +332,72 @@ struct App {
   }
 };
 
-void draw_preview(App &a, int w, int h) {
-  if (a.viewport.id == 0 || a.viewport.texture.width != w || a.viewport.texture.height != h) {
-    if (a.viewport.id)
-      UnloadRenderTexture(a.viewport);
-    a.viewport = LoadRenderTexture(w, h);
-    SetTextureFilter(a.viewport.texture, TEXTURE_FILTER_BILINEAR);
+// The orbit camera, near and far as Njin draws with them (the gizmo's projection
+// must match the image under it).
+void update_camera(App &a) {
+  a.camera = njin::camera3d{};
+  a.camera.position = {a.target.x + a.zoom * std::cos(a.pitch) * std::sin(a.yaw), a.target.y + a.zoom * std::sin(a.pitch),
+                       a.target.z + a.zoom * std::cos(a.pitch) * std::cos(a.yaw)};
+  a.camera.target = {a.target.x, a.target.y, a.target.z};
+  a.camera.up = {0, 1, 0};
+  a.camera.fovy = 45;
+  a.camera.near_plane = 0.01f;
+  a.camera.far_plane = std::max(1000.0f, a.zoom * 8.0f);
+  a.camera.entities = false;
+}
+Vector3 v3(njin::vec3 v) { return {v.x, v.y, v.z}; }
+Matrix view_matrix(const App &a) { return MatrixLookAt(v3(a.camera.position), v3(a.camera.target), v3(a.camera.up)); }
+Matrix projection_matrix(const App &a, float aspect) {
+  return MatrixPerspective(a.camera.fovy * DEG2RAD, aspect, a.camera.near_plane, a.camera.far_plane);
+}
+
+// raylib's DrawGrid(slices, spacing) on the XZ plane, as thin boxes so the model hides
+// it where it stands in front.
+void draw_grid(const App &a, int slices, float spacing) {
+  const float half = (float)(slices / 2) * spacing, t = spacing * 0.015f;
+  for (int i = -slices / 2; i <= slices / 2; i++) {
+    const njin::rgba col = i == 0 ? njin::rgba{0.5f, 0.5f, 0.5f, 1} : njin::rgba{0.3f, 0.32f, 0.36f, 1};
+    const float o = (float)i * spacing;
+    njin::draw_cube3d(*a.ctx, {o, 0, 0}, {t, t, half * 2}, col);
+    njin::draw_cube3d(*a.ctx, {0, 0, o}, {half * 2, t, t}, col);
   }
-  a.camera = {Vector3Add(a.target, {a.zoom * std::cos(a.pitch) * std::sin(a.yaw), a.zoom * std::sin(a.pitch),
-                                    a.zoom * std::cos(a.pitch) * std::cos(a.yaw)}),
-              a.target, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
+}
+
+// While Njin renders: the posed model (the editor's pose as model-space bones) and the
+// grid into the Viewport's render texture.
+void render_preview(App &a) {
+  if (a.ctx == nullptr || a.want_w < 1 || a.want_h < 1)
+    return;
+  njin::context &ctx = *a.ctx;
+  if (a.retired.id != 0) {
+    njin::render_texture_unload(ctx, a.retired);
+    a.retired = {};
+  }
+  if (a.viewport.id == 0 || a.viewport_w != a.want_w || a.viewport_h != a.want_h) {
+    a.retired = a.viewport;
+    a.viewport = njin::render_texture_load(ctx, (njin::u32)a.want_w, (njin::u32)a.want_h);
+    a.viewport_w = a.want_w;
+    a.viewport_h = a.want_h;
+  }
+  njin::model_pose pose_desc{};
   if (a.has_model) {
-    // raylib skins on the CPU from model-space bone transforms: hand it the
-    // editor's pose as a one-frame animation.
-    auto pose = a.pose();
-    auto world = bone_world(a.rig, &pose);
-    for (size_t b = 0; b < world.size(); ++b)
-      MatrixDecompose(world[b], &a.pose_buffer[b].translation, &a.pose_buffer[b].rotation, &a.pose_buffer[b].scale);
-    ModelAnimation frame{};
-    Transform *frames[1]{a.pose_buffer.data()};
-    frame.boneCount = (int)a.pose_buffer.size();
-    frame.keyframeCount = 1;
-    frame.keyframePoses = frames;
-    if (frame.boneCount == a.model.skeleton.boneCount)
-      UpdateModelAnimation(a.model, frame, 0);
+    const auto pose = a.pose();
+    const auto world = bone_world(a.rig, &pose);
+    for (size_t b = 0; b < world.size() && b < a.pose_buffer.size(); ++b) {
+      const Matrix &m = world[b];
+      const Vector3 x = Vector3Normalize({m.m0, m.m1, m.m2}), y = Vector3Normalize({m.m4, m.m5, m.m6}),
+                    z = Vector3Normalize({m.m8, m.m9, m.m10});
+      a.pose_buffer[b] = {{m.m12, m.m13, m.m14}, {x.x, x.y, x.z}, {y.x, y.y, y.z}, {z.x, z.y, z.z}};
+    }
+    if ((int)a.pose_buffer.size() == njin::model_bone_count(ctx, a.model))
+      pose_desc.bones = a.pose_buffer.data();
   }
-  BeginTextureMode(a.viewport);
-  ClearBackground({23, 29, 39, 255});
-  BeginMode3D(a.camera);
+  njin::begin_3d(ctx, a.camera, a.viewport, njin::rgba{23 / 255.0f, 29 / 255.0f, 39 / 255.0f, 1});
   if (a.grid)
-    DrawGrid(20, std::max(0.1f, a.zoom / 12.0f));
+    draw_grid(a, 20, std::max(0.1f, a.zoom / 12.0f));
   if (a.has_model)
-    DrawModel(a.model, {}, 1, WHITE);
-  EndMode3D();
-  EndTextureMode();
+    njin::draw_model_anim(ctx, a.model, njin::transform3d{}, pose_desc);
+  njin::end_3d(ctx);
 }
 void menu(App &a) {
   if (ImGui::BeginMainMenuBar()) {
@@ -519,9 +562,14 @@ void project(App &a) {
   ImGui::End();
 }
 
+// raylib's GetWorldToScreenEx: the point through the view and projection matrices, then
+// from normalized device coordinates to the image's pixels.
 ImVec2 screen(Vector3 p, const App &a, ImVec2 origin, ImVec2 size) {
-  Vector2 v = GetWorldToScreenEx(p, a.camera, (int)size.x, (int)size.y);
-  return {origin.x + v.x, origin.y + v.y};
+  const Matrix vp = MatrixMultiply(view_matrix(a), projection_matrix(a, size.x / size.y));
+  const float x = vp.m0 * p.x + vp.m4 * p.y + vp.m8 * p.z + vp.m12;
+  const float y = vp.m1 * p.x + vp.m5 * p.y + vp.m9 * p.z + vp.m13;
+  const float w = vp.m3 * p.x + vp.m7 * p.y + vp.m11 * p.z + vp.m15;
+  return {origin.x + (x / w + 1.0f) * 0.5f * size.x, origin.y + (1.0f - y / w) * 0.5f * size.y};
 }
 void viewport(App &a) {
   ImGui::Begin("Viewport");
@@ -554,8 +602,15 @@ void viewport(App &a) {
   ImVec2 origin = ImGui::GetCursorScreenPos(), size = ImGui::GetContentRegionAvail();
   size.x = std::max(1.0f, size.x);
   size.y = std::max(1.0f, size.y);
-  draw_preview(a, (int)size.x, (int)size.y);
-  ImGui::Image((ImTextureID)(uintptr_t)a.viewport.texture.id, size, {0, 1}, {1, 0});
+  a.want_w = (int)size.x;
+  a.want_h = (int)size.y;
+  update_camera(a);
+  const njin::RenderTextureHandle image =
+      a.ctx != nullptr && a.viewport.id != 0 ? njin::portable_render_texture_color(*a.ctx, a.viewport) : njin::RenderTextureHandle{};
+  if (image)
+    ImGui::Image(njin_tools::imgui_texture(image), size);
+  else
+    ImGui::Dummy(size);
   const bool hovered = ImGui::IsItemHovered();
   auto &io = ImGui::GetIO();
   if (hovered) {
@@ -564,7 +619,7 @@ void viewport(App &a) {
       a.pitch = std::clamp(a.pitch + io.MouseDelta.y * 0.008f, -1.55f, 1.55f);
     }
     if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
-      Vector3 forward = Vector3Normalize(Vector3Subtract(a.camera.target, a.camera.position));
+      Vector3 forward = Vector3Normalize(Vector3Subtract(v3(a.camera.target), v3(a.camera.position)));
       Vector3 right = Vector3Normalize(Vector3CrossProduct(forward, {0, 1, 0}));
       Vector3 up = Vector3CrossProduct(right, forward);
       a.target = Vector3Add(a.target, Vector3Scale(Vector3Add(Vector3Scale(right, -io.MouseDelta.x),
@@ -596,9 +651,8 @@ void viewport(App &a) {
   const bool clicked = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
   bool consumed = false;
   if (a.selected_bone >= 0 && a.clip_active()) {
-    auto transform = MatrixToFloatV(bones[a.selected_bone]), view = MatrixToFloatV(GetCameraMatrix(a.camera));
-    auto projection = MatrixToFloatV(MatrixPerspective(a.camera.fovy * DEG2RAD, size.x / size.y,
-                                                       rlGetCullDistanceNear(), rlGetCullDistanceFar()));
+    auto transform = MatrixToFloatV(bones[a.selected_bone]), view = MatrixToFloatV(view_matrix(a));
+    auto projection = MatrixToFloatV(projection_matrix(a, size.x / size.y));
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist(draw);
     ImGuizmo::SetRect(origin.x, origin.y, size.x, size.y);
@@ -618,7 +672,7 @@ void viewport(App &a) {
   if (a.bones_visible)
     for (int i = 0; i < (int)bones.size(); ++i) {
       const Vector3 p{bones[i].m12, bones[i].m13, bones[i].m14};
-      if (Vector3DotProduct(Vector3Subtract(p, a.camera.position), Vector3Subtract(a.camera.target, a.camera.position)) <= 0)
+      if (Vector3DotProduct(Vector3Subtract(p, v3(a.camera.position)), Vector3Subtract(v3(a.camera.target), v3(a.camera.position))) <= 0)
         continue;
       const ImVec2 at = screen(p, a, origin, size);
       const ImU32 color = i == a.selected_bone ? IM_COL32(255, 203, 85, 255) : IM_COL32(223, 235, 250, 200);
@@ -845,8 +899,10 @@ struct Mocap {
   bool heavy = false; // MediaPipe's heavy body model: more exact, about 5x slower
   bool view = true, cv_window = false; // Camera window in the editor / pose_stream.py's OpenCV window
   MocapLink view_link;
-  Texture2D view_texture{};
-  std::vector<unsigned char> view_rgb;
+  njin::context *ctx = nullptr;
+  njin::RenderTextureHandle view_texture{};
+  int view_w = 0, view_h = 0;
+  std::vector<unsigned char> view_rgb, view_rgba;
   int view_frames = 0;
   bool view_tracking = false, view_size_ok = false;
   double view_at = 0;
@@ -913,9 +969,10 @@ struct Mocap {
     launched = false;
     link.close();
     view_link.close();
-    if (view_texture.id)
-      UnloadTexture(view_texture);
+    if (view_texture && ctx != nullptr)
+      njin::renderer_destroy_texture(*ctx, view_texture);
     view_texture = {};
+    view_w = view_h = 0;
     view_frames = 0;
     a.live = false;
     have = false;
@@ -930,18 +987,28 @@ struct Mocap {
       int w = 0, h = 0;
       if (!parse_view_packet(it->data(), it->size(), v) || !decode_jpeg(v.jpeg, v.jpeg_size, view_rgb, w, h))
         continue;
-      Image image{view_rgb.data(), w, h, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8};
-      if (view_texture.id && (view_texture.width != w || view_texture.height != h)) {
-        UnloadTexture(view_texture);
+      if (ctx == nullptr)
+        continue;
+      view_rgba.resize((size_t)w * (size_t)h * 4);
+      for (size_t i = 0, n = (size_t)w * (size_t)h; i < n; ++i) {
+        view_rgba[i * 4 + 0] = view_rgb[i * 3 + 0];
+        view_rgba[i * 4 + 1] = view_rgb[i * 3 + 1];
+        view_rgba[i * 4 + 2] = view_rgb[i * 3 + 2];
+        view_rgba[i * 4 + 3] = 255;
+      }
+      const njin::RenderImage image{(unsigned)w, (unsigned)h, view_rgba};
+      if (view_texture && (view_w != w || view_h != h)) {
+        njin::renderer_destroy_texture(*ctx, view_texture);
         view_texture = {};
       }
-      if (!view_texture.id) {
-        view_texture = LoadTextureFromImage(image);
-        SetTextureFilter(view_texture, TEXTURE_FILTER_BILINEAR);
-      } else
-        UpdateTexture(view_texture, view_rgb.data());
+      if (!view_texture)
+        view_texture = njin::renderer_create_texture(*ctx, image);
+      else
+        njin::renderer_update_texture(*ctx, view_texture, image);
+      view_w = w;
+      view_h = h;
       ++view_frames;
-      view_size_ok = w == v.width && h == v.height && view_texture.width == w && view_texture.height == h;
+      view_size_ok = w == v.width && h == v.height;
       view_tracking = v.tracking;
       view_at = clock_seconds();
       break;
@@ -1173,14 +1240,14 @@ void camera_window(const Mocap &m) {
   ImGui::Begin("Camera");
   const char *state = !m.running()                       ? "Start the camera in Mocap."
                       : !m.view_link.open()              ? "Camera view in editor is off."
-                      : !m.view_texture.id               ? "Waiting for the camera..."
+                      : !m.view_texture                  ? "Waiting for the camera..."
                       : clock_seconds() - m.view_at > 1  ? "No image for a second."
                       : m.view_tracking                  ? "Tracking"
                                                          : "No body in view";
-  if (m.running() && m.view_texture.id) {
+  if (m.running() && m.view_texture) {
     const ImVec2 room = ImGui::GetContentRegionAvail();
     const float text = ImGui::GetTextLineHeightWithSpacing();
-    const float aspect = (float)m.view_texture.width / (float)m.view_texture.height;
+    const float aspect = (float)m.view_w / (float)m.view_h;
     float w = room.x, h = room.x / aspect;
     if (h > room.y - text) {
       h = std::max(1.0f, room.y - text);
@@ -1188,9 +1255,9 @@ void camera_window(const Mocap &m) {
     }
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0f, (room.x - w) * 0.5f));
     const ImVec2 uv0 = m.mirror ? ImVec2{1, 0} : ImVec2{0, 0}, uv1 = m.mirror ? ImVec2{0, 1} : ImVec2{1, 1};
-    ImGui::Image((ImTextureID)(uintptr_t)m.view_texture.id, {w, h}, uv0, uv1);
+    ImGui::Image(njin_tools::imgui_texture(m.view_texture), {w, h}, uv0, uv1);
   }
-  const bool good = m.view_texture.id && m.view_tracking && clock_seconds() - m.view_at <= 1;
+  const bool good = m.view_texture && m.view_tracking && clock_seconds() - m.view_at <= 1;
   ImGui::TextColored(good ? ImVec4{0.5f, 1, 0.6f, 1} : ImVec4{1, 0.7f, 0.4f, 1}, "%s", state);
   ImGui::End();
 }
@@ -1292,6 +1359,138 @@ int app_self_test() {
   std::printf("PASS: editor open model, keyframe history, save relative path/overwrite/reopen, unsaved guard, export\n");
   return 0;
 }
+// One editor frame (the ImGui part, phase_update): what the raylib loop did between
+// BeginDrawing and EndDrawing, and the smoke tests' checks.
+struct frame_state {
+  App *app = nullptr;
+  Mocap *mocap = nullptr;
+  bool smoke = false, mocap_smoke = false;
+  int frames = 0;
+  bool smoke_ok = false;
+  njin::RenderImageAsset rest;
+};
+frame_state *g_frame = nullptr;
+
+// The Viewport's current image, read back through a PNG (render_texture_save).
+njin::RenderImageAsset viewport_pixels(App &app, const char *tag) {
+  if (app.ctx == nullptr || app.viewport.id == 0)
+    return {};
+  const std::string path = temp_folder("viewport") + "/" + tag + ".png";
+  if (!njin::render_texture_save(*app.ctx, app.viewport, path.c_str()))
+    return {};
+  try {
+    return njin::renderer_load_image(path.c_str());
+  } catch (...) {
+    return {};
+  }
+}
+
+void editor_frame(njin::context &ctx) {
+  App &app = *g_frame->app;
+  Mocap &mocap = *g_frame->mocap;
+  const bool smoke = g_frame->smoke, mocap_smoke = g_frame->mocap_smoke;
+  int &frames = g_frame->frames;
+  bool &smoke_ok = g_frame->smoke_ok;
+  njin::RenderImageAsset &rest = g_frame->rest;
+  auto &io = ImGui::GetIO();
+  if (njin::window_close_requested(ctx))
+    app.request(4);
+  mocap.update(app);
+  if (app.clip_active() && mocap.state != Mocap::recording)
+    app.playhead = advance_animation(app.playhead, njin::delta_real(ctx) * app.speed, app.doc.clips[app.active_clip], app.playing);
+  ImGuizmo::BeginFrame();
+  menu(app);
+  dock_layout(app);
+  skeleton(app);
+  animation_panel(app);
+  inspector(app);
+  project(app);
+  viewport(app);
+  mocap_window(app, mocap);
+  camera_window(mocap);
+  if (!io.WantTextInput && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)) {
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+      app.save();
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_O))
+      app.request(3, app.path);
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_E))
+      app.export_model();
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Z))
+      app.history(false);
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Y))
+      app.history(true);
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && app.timeline_focused && app.clip_active() && !app.playing)
+      remove_key(app.doc.clips[app.active_clip], app.selected_bone, app.playhead);
+  }
+  if (!ImGui::IsAnyItemActive() && !ImGuizmo::IsUsing() && mocap.state != Mocap::recording)
+    app.commit(); // a whole recording is one undo step
+  ++frames;
+  if (mocap_smoke) {
+    static double started = clock_seconds(), live_at = 0;
+    static size_t undo_before = 0;
+    static int phase = 0;
+    const double now = clock_seconds();
+    if (phase == 0 && app.live) {
+      live_at = now;
+      undo_before = app.undo.size();
+      mocap.state = Mocap::counting;
+      mocap.record_wall = now;
+      phase = 1;
+    }
+    if (phase == 1 && now - live_at > 0.7) {
+      njin::screenshot(ctx, "build/anim_editor_mocap.png");
+      phase = 2;
+    }
+    if (phase == 2 && now - live_at > 1.1) {
+      mocap.end_recording(app);
+      phase = 3;
+    } else if (phase == 3) {
+      const size_t keys = app.doc.clips[app.active_clip].keys.size();
+      const bool one_step = app.undo.size() == undo_before + 1;
+      app.history(false);
+      const bool undone = app.doc.clips[app.active_clip].keys.empty();
+      app.history(true);
+      const bool redone = app.doc.clips[app.active_clip].keys.size() == keys;
+      const bool view_ok = mocap.view_frames > 0 && mocap.view_size_ok;
+      smoke_ok = keys > 0 && one_step && undone && redone && view_ok;
+      std::printf("%s: mocap smoke: live after %.1f s at %.0f fps, recorded %d keys over %.2f s (%s), "
+                  "one undo step %s, undo/redo %s, camera view %d frames %dx%d %s; "
+                  "screenshot build/anim_editor_mocap.png\n",
+                  smoke_ok ? "PASS" : "FAIL", live_at - started, mocap.fps, (int)keys,
+                  app.doc.clips[app.active_clip].duration, mocap.status.c_str(), one_step ? "yes" : "no",
+                  undone && redone ? "ok" : "broken", mocap.view_frames, mocap.view_w,
+                  mocap.view_h, view_ok ? "ok" : "MISSING");
+      app.exit = true;
+    }
+    if (phase == 0 && now - started > 30) {
+      std::printf("FAIL: mocap smoke: no live pose after 30 s (%s)\n", mocap.status.c_str());
+      app.exit = true;
+    }
+  }
+  if (smoke && !mocap_smoke && frames == 30) {
+    rest = viewport_pixels(app, "rest");
+    // Bend the selected bone 60 degrees at the playhead, as a gizmo drag would.
+    set_key(app.doc.clips[app.active_clip], {app.selected_bone, 0, {}, {0, 0, 60}});
+  }
+  if (smoke && !mocap_smoke && frames == 60) {
+    const njin::RenderImageAsset posed = viewport_pixels(app, "posed");
+    int changed = 0;
+    if (rest.width == posed.width && rest.height == posed.height && !posed.pixels.empty()) {
+      const unsigned char *before = rest.pixels.data(), *after = posed.pixels.data();
+      for (size_t i = 0, n = (size_t)posed.width * posed.height; i < n; ++i)
+        changed += std::abs((int)before[i * 4] - after[i * 4]) + std::abs((int)before[i * 4 + 1] - after[i * 4 + 1]) +
+                       std::abs((int)before[i * 4 + 2] - after[i * 4 + 2]) >
+                   30;
+    }
+    njin::screenshot(ctx, "build/anim_editor_smoke.png");
+    smoke_ok = changed > 100;
+    std::printf("%s: smoke, %d bones, keyed bone moved %d pixels, screenshot build/anim_editor_smoke.png\n",
+                smoke_ok ? "PASS" : "FAIL", (int)app.rig.bones.size(), changed);
+    app.exit = true;
+  }
+  if (app.exit)
+    njin::quit(ctx);
+}
 } // namespace
 } // namespace anim_editor
 
@@ -1308,17 +1507,23 @@ int main(int argc, char **argv) {
   // drives the model over UDP, records a second, checks undo, screenshots.
   const bool mocap_smoke = mode == "--mocap-smoke" && argc > 3;
   const bool smoke = mode == "--smoke-test" || mocap_smoke;
-  SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
-  InitWindow(1600, 960, "njin Animation Editor");
-  SetWindowMinSize(1000, 700);
-  SetExitKey(KEY_NULL);
-  SetTargetFPS(60);
-  rlImGuiBeginInitImGui();
+  njin::config cfg{.title = "njin Animation Editor", .width = 1600.0f, .height = 960.0f, .target_fps = 60.0f};
+  cfg.clear_bg_color = njin::rgba{20 / 255.0f, 24 / 255.0f, 31 / 255.0f, 1.0f};
+  cfg.exit_key = njin::key_none;
+  cfg.resizable = true;
+  cfg.vsync = true;
+  cfg.audio = false;
+  njin::context *ctx = njin::create(cfg);
+  if (!njin_tools::imgui_init(*ctx)) {
+    std::fprintf(stderr, "njin_anim_editor: needs the SDL3/bgfx renderer\n");
+    njin::destroy(ctx);
+    return 1;
+  }
+  njin::window_set_close_intercept(*ctx, true); // unsaved work is asked about first
   ImGui::StyleColorsDark();
-  if (FileExists("C:/Windows/Fonts/segoeui.ttf"))
+  if (njin::file_exists("C:/Windows/Fonts/segoeui.ttf"))
     if (auto *font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 17))
       ImGui::GetIO().FontDefault = font;
-  rlImGuiEndInitImGui();
   auto &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.ConfigWindowsMoveFromTitleBarOnly = true;
@@ -1326,7 +1531,9 @@ int main(int argc, char **argv) {
   ImGui::GetStyle().FrameRounding = 4;
   ImGui::GetStyle().GrabRounding = 4;
   App app;
+  app.ctx = ctx;
   Mocap mocap;
+  mocap.ctx = ctx;
   std::string smoke_folder;
   if (mocap_smoke) {
     if (!app.open_model(argv[2])) {
@@ -1371,126 +1578,26 @@ int main(int argc, char **argv) {
     } else
       app.open_model(file);
   }
-  int frames = 0;
-  bool smoke_ok = false;
-  Image rest{};
-  while (!app.exit) {
-    if (WindowShouldClose())
-      app.request(4);
-    mocap.update(app);
-    if (app.clip_active() && mocap.state != Mocap::recording)
-      app.playhead = advance_animation(app.playhead, GetFrameTime() * app.speed, app.doc.clips[app.active_clip], app.playing);
-    BeginDrawing();
-    ClearBackground({20, 24, 31, 255});
-    rlImGuiBegin();
-    ImGuizmo::BeginFrame();
-    menu(app);
-    dock_layout(app);
-    skeleton(app);
-    animation_panel(app);
-    inspector(app);
-    project(app);
-    viewport(app);
-    mocap_window(app, mocap);
-    camera_window(mocap);
-    if (!io.WantTextInput && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId)) {
-      if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
-        app.save();
-      if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_O))
-        app.request(3, app.path);
-      if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_E))
-        app.export_model();
-      if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Z))
-        app.history(false);
-      if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Y))
-        app.history(true);
-      if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && app.timeline_focused && app.clip_active() && !app.playing)
-        remove_key(app.doc.clips[app.active_clip], app.selected_bone, app.playhead);
-    }
-    if (!ImGui::IsAnyItemActive() && !ImGuizmo::IsUsing() && mocap.state != Mocap::recording)
-      app.commit(); // a whole recording is one undo step
-    rlImGuiEnd();
-    EndDrawing();
-    ++frames;
-    if (mocap_smoke) {
-      static double started = clock_seconds(), live_at = 0;
-      static size_t undo_before = 0;
-      static int phase = 0;
-      const double now = clock_seconds();
-      if (phase == 0 && app.live) {
-        live_at = now;
-        undo_before = app.undo.size();
-        mocap.state = Mocap::counting;
-        mocap.record_wall = now;
-        phase = 1;
-      }
-      if (phase == 1 && now - live_at > 0.7) {
-        Image shot = LoadImageFromScreen();
-        ExportImage(shot, "build/anim_editor_mocap.png");
-        UnloadImage(shot);
-        phase = 2;
-      }
-      if (phase == 2 && now - live_at > 1.1) {
-        mocap.end_recording(app);
-        phase = 3;
-      } else if (phase == 3) {
-        const size_t keys = app.doc.clips[app.active_clip].keys.size();
-        const bool one_step = app.undo.size() == undo_before + 1;
-        app.history(false);
-        const bool undone = app.doc.clips[app.active_clip].keys.empty();
-        app.history(true);
-        const bool redone = app.doc.clips[app.active_clip].keys.size() == keys;
-        const bool view_ok = mocap.view_frames > 0 && mocap.view_size_ok;
-        smoke_ok = keys > 0 && one_step && undone && redone && view_ok;
-        std::printf("%s: mocap smoke: live after %.1f s at %.0f fps, recorded %d keys over %.2f s (%s), "
-                    "one undo step %s, undo/redo %s, camera view %d frames %dx%d %s; "
-                    "screenshot build/anim_editor_mocap.png\n",
-                    smoke_ok ? "PASS" : "FAIL", live_at - started, mocap.fps, (int)keys,
-                    app.doc.clips[app.active_clip].duration, mocap.status.c_str(), one_step ? "yes" : "no",
-                    undone && redone ? "ok" : "broken", mocap.view_frames, mocap.view_texture.width,
-                    mocap.view_texture.height, view_ok ? "ok" : "MISSING");
-        app.exit = true;
-      }
-      if (phase == 0 && now - started > 30) {
-        std::printf("FAIL: mocap smoke: no live pose after 30 s (%s)\n", mocap.status.c_str());
-        app.exit = true;
-      }
-    }
-    if (smoke && !mocap_smoke && frames == 30) {
-      rest = LoadImageFromTexture(app.viewport.texture);
-      // Bend the selected bone 60 degrees at the playhead, as a gizmo drag would.
-      set_key(app.doc.clips[app.active_clip], {app.selected_bone, 0, {}, {0, 0, 60}});
-    }
-    if (smoke && !mocap_smoke && frames == 60) {
-      Image posed = LoadImageFromTexture(app.viewport.texture);
-      int changed = 0;
-      if (rest.width == posed.width && rest.height == posed.height) {
-        Color *before = LoadImageColors(rest), *after = LoadImageColors(posed);
-        for (int i = 0; i < posed.width * posed.height; ++i)
-          changed += std::abs((int)before[i].r - after[i].r) + std::abs((int)before[i].g - after[i].g) +
-                         std::abs((int)before[i].b - after[i].b) >
-                     30;
-        UnloadImageColors(before);
-        UnloadImageColors(after);
-      }
-      UnloadImage(posed);
-      Image shot = LoadImageFromScreen();
-      smoke_ok = ExportImage(shot, "build/anim_editor_smoke.png") && changed > 100;
-      UnloadImage(shot);
-      std::printf("%s: smoke, %d bones, keyed bone moved %d pixels, screenshot build/anim_editor_smoke.png\n",
-                  smoke_ok ? "PASS" : "FAIL", (int)app.rig.bones.size(), changed);
-      app.exit = true;
-    }
-  }
+  static frame_state state;
+  state = frame_state{&app, &mocap, smoke, mocap_smoke};
+  g_frame = &state;
+  njin::mod_register(*ctx, njin::mod_desc{"anim_editor.viewport", [](njin::context &c) {
+                                            njin::ecs_register(c, njin::phase_render, [](njin::context &) {
+                                              render_preview(*g_frame->app);
+                                            }, "render_preview");
+                                          }});
+  njin_tools::imgui_systems(*ctx, editor_frame);
+  njin::run(*ctx);
+
   mocap.stop(app);
-  if (rest.data)
-    UnloadImage(rest);
+  const bool smoke_ok = state.smoke_ok;
   if (app.has_model)
-    UnloadModel(app.model);
-  if (app.viewport.id)
-    UnloadRenderTexture(app.viewport);
-  rlImGuiShutdown();
-  CloseWindow();
+    njin::model_unload(*ctx, app.model);
+  for (const njin::render_texture_handle rt : {app.viewport, app.retired})
+    if (rt.id != 0)
+      njin::render_texture_unload(*ctx, rt);
+  njin_tools::imgui_shutdown(*ctx);
+  njin::destroy(ctx);
   if (!smoke_folder.empty()) {
     std::error_code ec;
     std::filesystem::remove_all(smoke_folder, ec);

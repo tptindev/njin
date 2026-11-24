@@ -1,7 +1,7 @@
 // glTF in and out through cgltf: the parser compiled into raylib, and the
 // vendored writer (third_party/cgltf/cgltf_write.h) of the same cgltf commit.
 #include "document.h"
-#include "raymath.h"
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <array>
 #include <cmath>

@@ -6,7 +6,7 @@
 //   rendered from the front; reports how far MediaPipe and the solver are from
 //   the clip's true limb directions.
 #include "mocap.h"
-#include "raymath.h"
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

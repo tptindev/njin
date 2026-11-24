@@ -85,7 +85,8 @@ std::string renderer_gpu_occlusion_diagnostics(context &);
 std::array<std::uint64_t,2> renderer_occlusion_readback(context &);
 /// Đọc đồng bộ tổng caster đầu vào/còn lại của các shadow view trên GPU.
 std::array<std::uint64_t,2> renderer_shadow_culling_readback(context &);
-enum class RenderBlend { Alpha, Additive, Multiply, Opaque, WeightedAdd, Reveal };
+// Premultiplied: colour already multiplied by alpha (src ONE, dst ONE_MINUS_SRC_ALPHA).
+enum class RenderBlend { Alpha, Additive, Multiply, Opaque, WeightedAdd, Reveal, Premultiplied };
 enum class RenderCull { None, Clockwise, CounterClockwise };
 // Logical pixels of the current target, with top-left origin.
 struct RenderScissor { int x=0,y=0; unsigned width=0,height=0; };

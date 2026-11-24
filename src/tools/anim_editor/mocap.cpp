@@ -1,6 +1,6 @@
 #include "mocap.h"
 #include "njin_anim3d.h"
-#include "raymath.h"
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>

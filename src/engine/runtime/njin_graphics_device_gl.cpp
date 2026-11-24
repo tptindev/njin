@@ -335,8 +335,8 @@ public:
     }
   } restore{saved_projection,saved_modelview,draw.blend!=RenderBlend::Alpha&&draw.blend!=RenderBlend::Opaque,draw.blend==RenderBlend::Opaque,draw.scissor_enabled,bool(active_target),sampling};
   if(draw.blend==RenderBlend::Opaque) rlDisableColorBlend();
-  else if(draw.blend==RenderBlend::WeightedAdd||draw.blend==RenderBlend::Reveal) {
-    rlSetBlendFactors(draw.blend==RenderBlend::WeightedAdd?RL_ONE:RL_ZERO,draw.blend==RenderBlend::WeightedAdd?RL_ONE:RL_ONE_MINUS_SRC_ALPHA,RL_FUNC_ADD);BeginBlendMode(BLEND_CUSTOM);
+  else if(draw.blend==RenderBlend::WeightedAdd||draw.blend==RenderBlend::Reveal||draw.blend==RenderBlend::Premultiplied) {
+    rlSetBlendFactors(draw.blend==RenderBlend::Reveal?RL_ZERO:RL_ONE,draw.blend==RenderBlend::WeightedAdd?RL_ONE:RL_ONE_MINUS_SRC_ALPHA,RL_FUNC_ADD);BeginBlendMode(BLEND_CUSTOM);
   }
   else if(draw.blend!=RenderBlend::Alpha)
     BeginBlendMode(draw.blend==RenderBlend::Additive ? BLEND_ADDITIVE:BLEND_MULTIPLIED);

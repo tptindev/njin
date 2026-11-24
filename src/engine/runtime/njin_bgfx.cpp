@@ -830,6 +830,7 @@ public:
         state&=~BGFX_STATE_BLEND_MASK;
         if(draw.blend==RenderBlend::WeightedAdd) state|=BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,BGFX_STATE_BLEND_ONE);
         else if(draw.blend==RenderBlend::Reveal) state|=BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ZERO,BGFX_STATE_BLEND_INV_SRC_ALPHA);
+        else if(draw.blend==RenderBlend::Premultiplied) state|=BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,BGFX_STATE_BLEND_INV_SRC_ALPHA);
         else if(draw.blend!=RenderBlend::Opaque) state|=draw.blend==RenderBlend::Additive ?
           BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,BGFX_STATE_BLEND_ONE):
           BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_DST_COLOR,BGFX_STATE_BLEND_INV_SRC_ALPHA);

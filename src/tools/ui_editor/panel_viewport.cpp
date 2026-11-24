@@ -1,5 +1,6 @@
 #include "panels.h"
 #include "preview.h"
+#include "njin_imgui_host.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include <algorithm>
@@ -286,8 +287,8 @@ void viewport_window(editor_app &app) {
         dl->AddRectFilled(xf.to_screen({x, y}), xf.to_screen({std::min(x + cell, res.x), std::min(y + cell, res.y)}),
                           IM_COL32(60, 64, 76, 255));
   }
-  if (const unsigned int tex = preview_texture_id())
-    dl->AddImage((ImTextureID)tex, img_min, img_max, ImVec2(0, 1), ImVec2(1, 0));
+  if (const njin::RenderTextureHandle tex = preview_texture(app))
+    dl->AddImage(njin_tools::imgui_texture(tex), img_min, img_max);
 
   if (app.show_grid && !app.play_mode) {
     float step = std::max(app.snap_size, 4.0f);
