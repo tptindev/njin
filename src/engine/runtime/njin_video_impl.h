@@ -5,7 +5,7 @@
 #include "_types.h"
 #include "njin_video.h"
 #include <memory>
-#include <raylib.h>
+#include "njin_rl.h"
 #include "njin_audio_backend.h"
 #include <vector>
 

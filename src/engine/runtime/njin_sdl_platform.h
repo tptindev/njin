@@ -30,6 +30,8 @@ public:
   bool resized() const;
   void show_cursor(bool);
   void lock_cursor(bool);
+  // Rumble on an open gamepad: motors 0..1, for `seconds`. False when `pad` is not open.
+  bool rumble(int pad,float low,float high,float seconds);
   void *native_handle() const;
   void *native_display() const;
   bool wayland() const;

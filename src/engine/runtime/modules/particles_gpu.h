@@ -4,7 +4,7 @@
 #include "njin_particles.h"
 #include "njin_renderer.h"
 #include <entt/entity/fwd.hpp>
-#include <raylib.h>
+#include "../njin_rl.h"
 
 namespace njin {
 // GPU particles. An emitter with `gpu` set keeps only the spawn state of each

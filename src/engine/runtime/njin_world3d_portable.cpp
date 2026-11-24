@@ -6,7 +6,7 @@
 #include "njin_texture.h"
 #include "njin_quality_impl.h"
 #include "njin_material_uniforms.h"
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>

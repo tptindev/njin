@@ -6,7 +6,7 @@
 #include "render3d_cull.h"
 #include "render3d_env.h"
 #include "render3d_ext.h"
-#include <raylib.h>
+#include "../njin_rl.h"
 #include <array>
 #include <unordered_map>
 #include <vector>

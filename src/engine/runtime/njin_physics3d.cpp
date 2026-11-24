@@ -67,7 +67,7 @@
 #include <Jolt/Physics/Vehicle/VehicleConstraint.h>
 #include <Jolt/Physics/Vehicle/WheeledVehicleController.h>
 #include <Jolt/RegisterTypes.h>
-#include <raymath.h>
+#include "njin_rlmath.h"
 
 #include "njin_gizmo.h"
 

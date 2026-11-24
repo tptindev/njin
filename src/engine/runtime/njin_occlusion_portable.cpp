@@ -2,7 +2,7 @@
 #include "njin_model.h"
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <stdexcept>
 namespace njin {

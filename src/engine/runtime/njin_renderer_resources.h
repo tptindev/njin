@@ -2,7 +2,7 @@
 #include "njin_internal_only.h"
 #include "njin_renderer.h"
 #include "_math.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <unordered_map>
 #include <unordered_set>
 namespace njin::rhi {
@@ -34,10 +34,6 @@ struct RendererResources {
   std::uint64_t mesh_uploads=0;
   std::uint64_t ray_traces=0,ray_bvh_builds=0;
   const void *ray_validated=nullptr; // scene data already checked by renderer_trace_shadows
-  ~RendererResources() {
-    for(auto &[id,mesh]:meshes) if(mesh.gl.vertices) UnloadMesh(mesh.gl);
-    for(auto &[id,texture]:textures) if(texture.gl.id && !texture.target) UnloadTexture(texture.gl);
-    for(auto &[id,target]:targets) if(target.gl.id) UnloadRenderTexture(target.gl);
-  }
+  ~RendererResources(); // frees the legacy OpenGL objects (njin_renderer.cpp)
 };
 }

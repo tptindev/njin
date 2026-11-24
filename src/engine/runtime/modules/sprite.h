@@ -4,7 +4,7 @@
 #include "_types.h"
 #include "njin_renderer.h"
 #include <entt/entity/entity.hpp>
-#include <raylib.h>
+#include "njin_rl.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

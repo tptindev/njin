@@ -2,7 +2,7 @@
 #include "njin_log_impl.h"
 #include <chrono>
 #include <cstdarg>
-#include <raylib.h>
+#include "njin_rl.h"
 #include <string>
 #include <vector>
 

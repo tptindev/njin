@@ -3,7 +3,7 @@
 #include "njin_lightmap_internal.h"
 #define TINYBVH_NO_SIMD
 #include <tiny_bvh.h>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <atomic>
 #include <bit>

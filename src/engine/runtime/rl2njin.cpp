@@ -1,5 +1,5 @@
 #include "rl2njin.h"
-#include <raylib.h>
+#include "njin_rl.h"
 
 namespace njin {
 

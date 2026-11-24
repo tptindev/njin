@@ -1,7 +1,7 @@
 #pragma once
 #include "../njin_internal_only.h"
 #include "njin_3d.h"
-#include <raylib.h>
+#include "../njin_rl.h"
 
 // light3d::environment, made ready to light PBR materials (render3d.cpp's
 // pbr_light). From the game's equirectangular image njin makes, once per image:

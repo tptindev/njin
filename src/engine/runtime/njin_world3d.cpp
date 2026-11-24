@@ -1,3 +1,4 @@
+#include "njin_image_io.h"
 #include "njin_world3d_impl.h"
 #include "njin_model.h"
 #include "njin_cfg.h"
@@ -17,7 +18,7 @@
 #include <cmath>
 #include <cstring>
 #include <iterator>
-#include <raylib.h>
+#include "njin_rl.h"
 #include <string>
 
 namespace njin {
@@ -107,61 +108,54 @@ bool load_heightmap(const char *path, i32 res, std::vector<f32> &out) {
   const std::string file = asset_path(path);
   const std::string ext = lower_ext(path);
   if (ext == ".r16" || ext == ".raw") {
-    i32 size = 0;
-    unsigned char *data = LoadFileData(file.c_str(), &size);
-    if (data == nullptr) {
+    std::vector<std::uint8_t> data;
+    if (!image_io_read_file(file.c_str(), data)) {
       NJIN_WARN("world3d: height map %s not found", path);
       return false;
     }
+    const i32 size = (i32)data.size();
     const i32 count = size / 2;
     const i32 side = (i32)std::lround(std::sqrt((f64)count));
     if (side < 2 || side * side != count) {
       NJIN_WARN("world3d: %s is not a square 16-bit height map (%d bytes)", path, size);
-      UnloadFileData(data);
       return false;
     }
     std::vector<f32> src((usize)count);
     for (i32 k = 0; k < count; k++)
       src[(usize)k] = (f32)((u32)data[2 * k] | ((u32)data[2 * k + 1] << 8)) / 65535.0f;
-    UnloadFileData(data);
     out = resample(src, side, side, res);
     return true;
   }
-  Image image = LoadImage(file.c_str());
-  if (!IsImageValid(image)) {
+  // Decoded with bimg (njin_image_io.h); a grey image is grey in red too, as before.
+  RenderImageAsset image;
+  try {image = image_io_load(file.c_str());}
+  catch (const std::exception &) {
     NJIN_WARN("world3d: height map %s not found or not an image", path);
     return false;
   }
-  Color *pixels = LoadImageColors(image);
   std::vector<f32> src((usize)image.width * (usize)image.height);
   for (usize k = 0; k < src.size(); k++)
-    src[k] = (f32)pixels[k].r / 255.0f;
-  out = resample(src, image.width, image.height, res);
-  UnloadImageColors(pixels);
-  UnloadImage(image);
+    src[k] = (f32)image.pixels[k * 4] / 255.0f;
+  out = resample(src, (i32)image.width, (i32)image.height, res);
   return true;
 }
 
 bool load_splatmap(const char *path, i32 res, std::vector<u8> &out) {
-  Image image = LoadImage(asset_path(path).c_str());
-  if (!IsImageValid(image)) {
+  RenderImageAsset image;
+  try {image = image_io_load(asset_path(path).c_str());}
+  catch (const std::exception &) {
     NJIN_WARN("world3d: splat map %s not found or not an image", path);
     return false;
   }
-  Color *pixels = LoadImageColors(image);
   out.assign((usize)res * (usize)res * 4, 0);
   std::vector<f32> channel((usize)image.width * (usize)image.height);
   for (i32 c = 0; c < 4; c++) {
-    for (usize k = 0; k < channel.size(); k++) {
-      const Color p = pixels[k];
-      channel[k] = (f32)(c == 0 ? p.r : c == 1 ? p.g : c == 2 ? p.b : p.a);
-    }
-    const std::vector<f32> r = resample(channel, image.width, image.height, res);
+    for (usize k = 0; k < channel.size(); k++)
+      channel[k] = (f32)image.pixels[k * 4 + (usize)c];
+    const std::vector<f32> r = resample(channel, (i32)image.width, (i32)image.height, res);
     for (usize k = 0; k < r.size(); k++)
       out[k * 4 + (usize)c] = (u8)clamp(std::round(r[k]), 0.0f, 255.0f);
   }
-  UnloadImageColors(pixels);
-  UnloadImage(image);
   return true;
 }
 

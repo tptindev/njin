@@ -2,8 +2,7 @@
 #include "njin_internal_only.h"
 #include "njin_renderer.h"
 #include "njin_3d.h"
-#include <raylib.h>
-#include <raymath.h>
+#include "njin_rl.h"
 #include <unordered_map>
 namespace njin {
 struct context;struct model_store;

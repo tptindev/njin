@@ -3,7 +3,7 @@
 #include "njin_log.h"
 #include "njin_path.h"
 #include <external/cgltf.h> // compiled into raylib (rmodels.c)
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <rlgl.h>
 #include <algorithm>
 #include <cmath>

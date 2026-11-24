@@ -10,7 +10,7 @@
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
 #include "render3d.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <rlgl.h>
 #include <string>
 

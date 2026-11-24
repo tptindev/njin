@@ -2,7 +2,7 @@
 #include "njin_internal_only.h"
 #include "njin_3d.h"
 #include "njin_renderer.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <memory>
 #include <string>
 #include <vector>

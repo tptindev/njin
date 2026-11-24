@@ -1,3 +1,5 @@
+#include "njin_file.h"
+#include "njin_fs.h"
 #include "njin_image_io.h"
 #include "njin_model_portable.h"
 #include "njin_stream_internal.h"
@@ -35,7 +37,7 @@
 #include "njin_audio_impl.h"
 #include <external/cgltf.h>
 #include <meshoptimizer.h>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <bit>
 #include <cfloat>
@@ -391,9 +393,8 @@ RenderTextureHandle image_texture(context *ctx,const cgltf_image &source,const s
     const char *comma=std::strchr(source.uri,',');
     if(!comma || std::string(source.uri,size_t(comma-source.uri)).find(";base64")==std::string::npos)
       unsupported("non-base64 glTF data URI");
-    std::unique_ptr<unsigned char,void(*)(unsigned char*)> decoded(nullptr,UnloadFileData);
-    int length=0; decoded.reset(DecodeDataBase64(comma+1,&length));
-    if(decoded&&length>0) decode({decoded.get(),size_t(length)});
+    const auto decoded=base64_decode(comma+1);
+    if(!decoded.empty()) decode(decoded);
   } else if(source.uri) {
     std::string uri=source.uri; cgltf_decode_uri(uri.data());
     std::vector<std::uint8_t> bytes;
@@ -775,7 +776,7 @@ static model_handle portable_obj_load(model_store &store,const std::string &path
 }
 
 static model_handle load_portable_model(model_store &store,const model_load_desc &desc,PreparedModel *prepared=nullptr) {
-  if(!desc.path || !FileExists(asset_path(desc.path).c_str())) { NJIN_WARN("model: file not found: %s",desc.path?desc.path:"(null)"); return {}; }
+  if(!desc.path || !file_exists(asset_path(desc.path).c_str())) { NJIN_WARN("model: file not found: %s",desc.path?desc.path:"(null)"); return {}; }
 
   if((desc.skip_count&&!desc.skip_nodes)||(desc.only_count&&!desc.only_nodes)) throw std::invalid_argument("njin bgfx 3D: null node filter");
   const std::string path=asset_path(desc.path);

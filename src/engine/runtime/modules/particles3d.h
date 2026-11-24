@@ -3,7 +3,7 @@
 #include "_mod.h"
 #include "njin_3d.h"
 #include "particles3d_looks.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <vector>
 
 namespace njin {

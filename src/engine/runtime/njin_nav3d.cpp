@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
-#include <raymath.h>
+#include "njin_rlmath.h"
 
 namespace njin {
 namespace {

@@ -10,7 +10,7 @@
 #include "njin_model.h"
 #include <algorithm>
 #include <cmath>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <vector>
 
 namespace njin {

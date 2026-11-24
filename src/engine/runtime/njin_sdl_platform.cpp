@@ -5,6 +5,7 @@
 #include "njin_input_impl.h"
 #include "njin_view.h"
 #include <stdexcept>
+#include <algorithm>
 #include <cstring>
 #include <cmath>
 #include <map>
@@ -108,6 +109,13 @@ void *SdlPlatform::native_display() const {
 #endif
 }
 SDL_Window *SdlPlatform::window() const { return state->window; }
+bool SdlPlatform::rumble(int index,float low,float high,float seconds) {
+  if(index<0 || index>=gamepad_max) return false;
+  auto *pad=state->gamepads[index];
+  if(!pad || !SDL_GamepadConnected(pad)) return false;
+  const auto motor=[](float v) { return (Uint16)(std::clamp(v,0.0f,1.0f)*65535.0f+0.5f); };
+  return SDL_RumbleGamepad(pad,motor(low),motor(high),(Uint32)(std::max(seconds,0.0f)*1000.0f+0.5f));
+}
 void SdlPlatform::drawable_size(unsigned &w,unsigned &h) const {
   int x=0,y=0; if(!SDL_GetWindowSizeInPixels(state->window,&x,&y)) fail("query drawable size");
   w=(unsigned)std::max(x,0); h=(unsigned)std::max(y,0);

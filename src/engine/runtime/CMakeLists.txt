@@ -160,8 +160,12 @@ if(NJIN_BGFX)
   # bimg_decode: image files without raylib (njin_image_io.cpp).
   target_link_libraries(njin_core PRIVATE SDL3::SDL3 bgfx bimg_decode bimg bx)
   include("${PROJECT_SOURCE_DIR}/cmake/njin_bgfx_shaders.cmake")
-  # Vulkan ray queries: bgfx's own Vulkan headers, seen by this file only.
   get_property(_njin_bgfx_src GLOBAL PROPERTY NJIN_SHADER_BGFX_SOURCE_DIR)
+  # Tiled's zlib/gzip layers: miniz's inflate, already inside bimg_decode (tinyexr's copy).
+  get_property(_njin_bimg_src GLOBAL PROPERTY NJIN_BIMG_SOURCE_DIR)
+  set_source_files_properties(njin_level.cpp PROPERTIES
+    INCLUDE_DIRECTORIES "${_njin_bimg_src}/3rdparty/tinyexr/deps/miniz" SKIP_UNITY_BUILD_INCLUSION ON)
+  # Vulkan ray queries: bgfx's own Vulkan headers, seen by this file only.
   set_source_files_properties(njin_raytrace_vk.cpp PROPERTIES
     INCLUDE_DIRECTORIES "${_njin_bgfx_src}/3rdparty/khronos" SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
 endif()

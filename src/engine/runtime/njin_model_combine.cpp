@@ -4,7 +4,7 @@
 #include "njin_model.h"
 #include "njin_model_portable.h"
 #include <stdexcept>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <rlgl.h>
 #include <algorithm>
 #include <atomic>

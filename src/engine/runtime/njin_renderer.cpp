@@ -9,7 +9,7 @@
 #include <bimg/bimg.h>
 #include <bx/allocator.h>
 #endif
-#include <raylib.h>
+#include "njin_rl.h"
 #include <stdexcept>
 #include <limits>
 #include <atomic>
@@ -228,7 +228,7 @@ bool image_decompress_rgba8(Image &image) {
   if(!pixels) throw std::bad_alloc();
   bx::DefaultAllocator allocator;
   bimg::imageDecodeToRgba8(&allocator,pixels,image.data,uint32_t(image.width),uint32_t(image.height),uint32_t(image.width)*4,format);
-  UnloadImage(image);
+  MemFree(image.data); // what raylib's UnloadImage does (RL_FREE)
   image={pixels,image.width,image.height,1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
   return true;
 #else
@@ -281,6 +281,14 @@ void renderer_trace_shadows(context &ctx,const rhi::RayShadowPass &pass) {
   }
   window.graphics->trace_shadows(pass);
   ++window.renderer_resources.ray_traces;
+}
+rhi::RendererResources::~RendererResources() {
+#if !defined(NJIN_RL_OWN)
+  // The legacy OpenGL renderer's objects; a build without raylib has none.
+  for(auto &[id,mesh]:meshes) if(mesh.gl.vertices) UnloadMesh(mesh.gl);
+  for(auto &[id,texture]:textures) if(texture.gl.id && !texture.target) UnloadTexture(texture.gl);
+  for(auto &[id,target]:targets) if(target.gl.id) UnloadRenderTexture(target.gl);
+#endif
 }
 RenderImageAsset renderer_load_image(const char *path) {
   if(!path || !*path) throw std::invalid_argument("njin renderer: empty image path");

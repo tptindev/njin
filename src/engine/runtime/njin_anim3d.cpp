@@ -3,7 +3,7 @@
 #include "njin_ctx_get.h"
 #include "njin_log.h"
 #include "physics3d_bridge.h"
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>

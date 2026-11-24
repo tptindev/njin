@@ -123,8 +123,28 @@ types and small utilities that do not log).
   callback and loops without a gap; video sound is a two-buffer stream.
   `audio_backend` test (offline mixer): pan/volume levels, pitch length,
   aliases, stream depth, music looping and the repository's sound files.
-- Then: utilities (UTF-8 codepoints, time, file helpers), raymath and raylib
-  types inside the runtime, the tools' UI.
+- **File helpers (done, 2026-11-24).** On the bgfx path FileExists,
+  GetApplicationDirectory, LoadFileData and DecodeDataBase64 gave way to the
+  public file_exists/file_read and `njin_fs` (executable folder, base64);
+  heightmaps and splat maps decode through njin_image_io. The rest of raylib's
+  utilities sit in the legacy loop and loader and go with step 4.
+- **raylib types and raymath (done for the shared runtime, 2026-11-24).** The
+  shared runtime includes `njin_rl.h` (or `njin_rlmath.h`, math only, for files
+  that also see `<windows.h>`): raylib's headers while raylib is built, and with
+  `NJIN_RL_OWN` Njin's own `njin_rl_own.inl`, generated from the pinned raylib
+  6.0 sources (zlib, THIRD_PARTY_NOTICES.md): the structs and enums with the
+  same layouts, the 39 raymath functions used, rmodels' bounding boxes and ray
+  collisions, rtextures' texture validity and pixel data sizes. `rl_own` test:
+  layouts and 410,004 results bit for bit equal to raylib's. Tiled's zlib/gzip
+  layers inflate with miniz (inside the pinned bimg_decode) instead of
+  DecompressData (`level_inflate` test: 252 layers, equal to raylib's output);
+  gamepad rumble on the SDL window goes through SDL_RumbleGamepad (it called
+  raylib, which has no gamepads open there, so it did nothing on bgfx).
+  Compiling with `NJIN_RL_OWN`, 22 of the 35 switched files build; the other 13
+  are the legacy path (njin2rl, the raylib model loader, legacy input, window
+  and loop, the OpenGL particle looks, the raylib log hook, SetTargetFPS, and
+  files that include rlgl) and go with step 4.
+- Then: the tools' UI.
 
 ## Removal order
 

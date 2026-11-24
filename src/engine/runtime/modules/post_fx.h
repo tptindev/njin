@@ -2,7 +2,7 @@
 #include "../njin_internal_only.h"
 #include "njin_post.h"
 #include <array>
-#include <raylib.h>
+#include "njin_rl.h"
 
 namespace njin {
 struct context;

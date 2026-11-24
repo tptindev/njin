@@ -3,7 +3,7 @@
 #include "njin_post3d.h"
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
-#include <raylib.h>
+#include "../njin_rl.h"
 #include <array>
 #include <vector>
 

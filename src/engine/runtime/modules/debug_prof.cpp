@@ -19,7 +19,7 @@
 #include "njin_particles.h"
 #include <algorithm>
 #include <cmath>
-#include <raylib.h>
+#include "njin_rl.h"
 #include <string>
 
 namespace njin {

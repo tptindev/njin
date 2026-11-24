@@ -3,10 +3,12 @@
 #include "njin_input.h"
 #include "njin_ctx_get.h"
 #include "njin_input_impl.h"
+#include "njin_frame_impl.h"
+#include "njin_sdl_platform.h"
 #include "njin_log.h"
 #include <algorithm>
 #include <cstring>
-#include <raylib.h>
+#include "njin_rl.h"
 #include <string>
 
 namespace njin {
@@ -298,10 +300,19 @@ bool input_bindings_load(context &ctx, const json_value &json) {
   return true;
 }
 
-void pad_rumble(context &, i32 pad, f32 low, f32 high, f32 seconds) {
-  if (pad < 0 || pad >= gamepad_max || !IsGamepadAvailable(pad) || seconds <= 0.0f)
+void pad_rumble(context &ctx, i32 pad, f32 low, f32 high, f32 seconds) {
+  if (pad < 0 || pad >= gamepad_max || seconds <= 0.0f)
+    return;
+  // SDL3 window (bgfx): its own gamepads, opened in SdlPlatform::poll_input.
+  if (auto *platform = ctx_ref<window_guard>(ctx).platform.get()) {
+    platform->rumble(pad, low, high, seconds);
+    return;
+  }
+#if !defined(NJIN_RL_OWN)
+  if (!IsGamepadAvailable(pad))
     return;
   const auto unit = [](f32 v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
   SetGamepadVibration(pad, unit(low), unit(high), seconds);
+#endif
 }
 } // namespace njin

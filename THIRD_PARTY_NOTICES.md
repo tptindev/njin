@@ -219,6 +219,24 @@ the zlib license, Copyright (c) 2013-2026 Ramon Santamaria (@raysan5); this
 translation is an altered version of that source, so marked here. The glyph
 bitmaps still come from stb_truetype v1.26 (public domain).
 
+## raylib types and raymath without raylib
+
+`src/engine/runtime/njin_rl_own.inl` holds the raylib structs and enums Njin's
+shared runtime uses, the raymath functions it calls, and `GetMeshBoundingBox`,
+`GetModelBoundingBox`, the `GetRayCollision*` functions (rmodels.c),
+`IsTextureValid`, `IsRenderTextureValid` and `GetPixelDataSize` (rtextures.c).
+They are copied from raylib as pinned by `CMakeLists.txt` (tag `6.0` of
+https://github.com/raysan5/raylib; `src/raylib.h`, `src/raymath.h`,
+`src/rmodels.c`, `src/rtextures.c`). raylib is under the zlib license,
+Copyright (c) 2013-2026 Ramon Santamaria (@raysan5). The copy is altered from
+the original, so marked here: `RMAPI` became `inline`, only what Njin uses is
+kept, and the struct comments are dropped.
+
+Tiled's zlib and gzip layers (`src/engine/runtime/njin_level.cpp`) are inflated
+with miniz (MIT, Rich Geldreich, RAD Game Tools and Valve Software), the copy
+bundled with tinyexr in the pinned bimg and compiled into `bimg_decode`; no
+miniz source is copied into Njin.
+
 ## miniaudio sound output
 
 Njin's sound (`src/engine/runtime/njin_audio_backend.cpp`) is miniaudio 0.11.24

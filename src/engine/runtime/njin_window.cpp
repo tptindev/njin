@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <ctime>
 #include <filesystem>
-#include <raylib.h>
+#include "njin_rl.h"
 #include <rlgl.h>
 #include <stdexcept>
 

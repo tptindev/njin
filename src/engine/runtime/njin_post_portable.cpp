@@ -4,7 +4,7 @@
 #include "njin_ctx_get.h"
 #include "njin_frame_impl.h"
 #include <algorithm>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <cmath>
 #include <stdexcept>
 #include <AreaTex.h>

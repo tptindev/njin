@@ -15,7 +15,7 @@
 #define TINYBVH_NO_SIMD
 #define TINYBVH_IMPLEMENTATION
 #include <tiny_bvh.h>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>

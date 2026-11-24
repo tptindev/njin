@@ -1,7 +1,7 @@
 #pragma once
 #include "../njin_internal_only.h"
 #include "_mod.h"
-#include <raylib.h>
+#include "njin_rl.h"
 
 namespace njin {
 // Core module. Draws phase_render through the active camera (camera_active):

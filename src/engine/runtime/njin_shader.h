@@ -3,7 +3,7 @@
 
 #include "_types.h"
 #include "njin_renderer.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <string>
 #include <unordered_map>
 #include <vector>

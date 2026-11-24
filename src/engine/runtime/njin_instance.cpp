@@ -15,8 +15,7 @@
 #include "njin_texture.h"
 #include "njin_log.h"
 #include "njin_render.h"
-#include <raylib.h>
-#include <raymath.h>
+#include "njin_rl.h"
 #include <rlgl.h>
 
 #include <algorithm>

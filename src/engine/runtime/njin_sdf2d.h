@@ -3,7 +3,7 @@
 
 #include "_math.h"
 #include "_types.h"
-#include <raylib.h>
+#include "njin_rl.h"
 
 // Rounded rectangles drawn by their signed distance field instead of
 // raylib's triangle fans: one quad, its pixels' coverage worked out in a

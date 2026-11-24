@@ -6,7 +6,7 @@
 #include "njin_raytrace.h"
 #include "njin_log_impl.h"
 #include "njin_occlusion_portable.h"
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <numeric>
 #include <cmath>

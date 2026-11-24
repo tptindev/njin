@@ -4,7 +4,7 @@
 #include "njin_ctx.h"
 #include "njin_frame_impl.h"
 #include "njin_texture.h"
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <cmath>
 #include <atomic>
 #include <stdexcept>

@@ -49,7 +49,7 @@
 #include <chrono>
 #include <string>
 #include <stdexcept>
-#include <raylib.h>
+#include "njin_rl.h"
 
 namespace njin {
 namespace {

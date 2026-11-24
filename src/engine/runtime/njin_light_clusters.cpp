@@ -6,7 +6,7 @@
 #include "njin_frame_impl.h"
 #include "njin_window.h"
 #include <cstring>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <stdexcept>
 namespace njin {
 void light_clusters_build(LightClusters &l,std::span<const light3d_source> lights,const camera3d &cam,vec2 size) {

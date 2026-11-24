@@ -1,3 +1,6 @@
+#if NJIN_BGFX
+#include <miniz.h>
+#endif
 #include "njin_level_impl.h"
 #include "njin_ctx.h"
 #include "njin_ctx_get.h"
@@ -12,7 +15,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
-#include <raylib.h>
+#include "njin_rl.h"
 
 namespace njin {
 namespace {
@@ -779,6 +782,39 @@ bool level_decompress(const std::vector<u8> &in, const char *method, std::vector
   }
   if (start >= in.size())
     return false;
+#if NJIN_BGFX
+  // Raw DEFLATE (negative window bits), as raylib's DecompressData (sinflate) took it:
+  // miniz's streaming inflate, compiled into the pinned bimg_decode (tinyexr's copy).
+  // Its tinfl_decompress_mem_to_heap returns null in that build, so the output grows here.
+  mz_stream zs{};
+  if (mz_inflateInit2(&zs, -MZ_DEFAULT_WINDOW_BITS) != MZ_OK)
+    return false;
+  zs.next_in = in.data() + start;
+  zs.avail_in = (unsigned int)(in.size() - start);
+  out.assign((in.size() - start) * 4 + 256, 0);
+  int status = MZ_OK;
+  for (;;) {
+    zs.next_out = out.data() + zs.total_out;
+    zs.avail_out = (unsigned int)(out.size() - zs.total_out);
+    status = mz_inflate(&zs, MZ_NO_FLUSH);
+    if (status != MZ_OK)
+      break;
+    if (zs.avail_out == 0)
+      out.resize(out.size() * 2);
+    else if (zs.avail_in == 0) {
+      status = MZ_DATA_ERROR; // input ended before the final block
+      break;
+    }
+  }
+  const usize size = (usize)zs.total_out;
+  mz_inflateEnd(&zs);
+  if (status != MZ_STREAM_END || size == 0) {
+    out.clear();
+    return false;
+  }
+  out.resize(size);
+  return true;
+#else
   i32 size = 0;
   unsigned char *data = DecompressData(in.data() + start, (i32)(in.size() - start), &size);
   if (data == nullptr || size <= 0) {
@@ -789,6 +825,7 @@ bool level_decompress(const std::vector<u8> &in, const char *method, std::vector
   out.assign(data, data + size);
   MemFree(data);
   return true;
+#endif
 }
 
 texture_handle level_builder::texture(const std::string &relative, const std::string &base) {

@@ -11,7 +11,7 @@
 #include "njin_light_clusters.h"
 #include "njin_atmosphere_portable.h"
 #include "modules/debug3d.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <algorithm>
 #include <array>
 #include <string>

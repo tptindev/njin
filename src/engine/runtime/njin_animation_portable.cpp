@@ -1,7 +1,7 @@
 #include "njin_animation_portable.h"
 #include "njin_model.h"
 #include <external/cgltf.h>
-#include <raymath.h>
+#include "njin_rlmath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

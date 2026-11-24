@@ -4,7 +4,7 @@
 #include <iterator>
 #include "njin2rl.h"
 #include "rl2njin.h"
-#include <raylib.h>
+#include "njin_rl.h"
 
 namespace njin {
 // mouse_button, gamepad_button and gamepad_axis mirror raylib's numbering, so

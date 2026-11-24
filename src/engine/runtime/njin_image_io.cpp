@@ -10,7 +10,7 @@
 #include <bx/allocator.h>
 #include <bx/file.h>
 #else
-#include <raylib.h>
+#include "njin_rl.h"
 #endif
 
 namespace njin {

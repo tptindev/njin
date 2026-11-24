@@ -410,6 +410,10 @@ To release: edit that header, add a section here, commit, then
   (the library raylib's raudio used), mixed the same way, on both renderers.
   Music decodes from memory as it plays instead of in buffers refilled each
   frame. raylib is built without its audio module.
+- The shared runtime takes raylib's types and raymath through `njin_rl.h`, which
+  can supply Njin's own copy of them (generated from raylib 6.0, the same
+  results bit for bit), so they no longer tie it to raylib. Tiled's zlib and
+  gzip layers are inflated with miniz instead of raylib's DecompressData.
 
 ### Fixed
 
@@ -429,6 +433,8 @@ To release: edit that header, add a section here, commit, then
   page are drawn in one batch, as on OpenGL (every sprite was a draw call:
   a few thousand sprites took hundreds of milliseconds a frame). The 2D draw
   statistics (render_info_get) are filled in on bgfx too.
+- bgfx: `pad_rumble` makes the gamepad rumble (through SDL); it asked raylib,
+  which has no gamepad open on the SDL window, and did nothing.
 
 - 3D (bgfx): the open sea (water3d_desc::size {0, 0}) reaches the horizon (rings
   out to 8 km round the camera, as the OpenGL renderer) instead of a 160 m

@@ -3,7 +3,7 @@
 #include "njin_3d.h"
 #include "../njin_light_clusters.h"
 #include "render3d_env.h"
-#include <raylib.h>
+#include "../njin_rl.h"
 #include <array>
 #include <initializer_list>
 #include <unordered_map>

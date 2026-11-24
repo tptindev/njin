@@ -3,7 +3,7 @@
 
 #include "_types.h"
 #include "njin_renderer.h"
-#include <raylib.h>
+#include "njin_rl.h"
 
 // draw_backdrop_blur(): what is drawn under a rectangle, copied out of the
 // framebuffer, blurred at half size and put back cut to the rectangle's

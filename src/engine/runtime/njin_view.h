@@ -5,7 +5,7 @@
 #include "njin_renderer.h"
 #include "njin_window.h"
 #include "_types.h"
-#include <raylib.h>
+#include "njin_rl.h"
 #include <string>
 #include <vector>
 
@@ -140,7 +140,11 @@ inline vec2 view_logical_size(const view_state &view) {
   if (view_has_virtual_size(view))
     return view.size;
   if(view.portable_context) return window_size(*view.portable_context);
-  return {(f32)GetScreenWidth(), (f32)GetScreenHeight()};
+#if defined(NJIN_RL_OWN)
+  return {}; // no legacy window without raylib: portable_context is always set
+#else
+  return {(f32)GetScreenWidth(), (f32)GetScreenHeight()}; // legacy raylib window
+#endif
 }
 
 // True when a screen-space draw_text right now goes to the window-resolution
