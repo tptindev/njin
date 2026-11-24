@@ -219,6 +219,18 @@ the zlib license, Copyright (c) 2013-2026 Ramon Santamaria (@raysan5); this
 translation is an altered version of that source, so marked here. The glyph
 bitmaps still come from stb_truetype v1.26 (public domain).
 
+## IQM, VOX and M3D models
+
+`src/engine/runtime/njin_model_formats.cpp` translates raylib 6.0's `LoadIQM`,
+`LoadModelAnimationsIQM`, `LoadVOX`, `LoadM3D` and `LoadModelAnimationsM3D`
+(`src/rmodels.c`, tag `6.0` of https://github.com/raysan5/raylib; zlib licence,
+Copyright (c) 2013-2026 Ramon Santamaria): altered from the original, so marked here
+(no GPU upload, Njin's own CPU structures). It compiles two single-header libraries
+vendored unmodified from raylib 6.0's `src/external/`: `third_party/vox_loader/vox_loader.h`
+(MIT, Copyright (c) 2021 Johann Nadalutti) and `third_party/m3d/m3d.h` (MIT, Copyright (C)
+2020 bzt, https://gitlab.com/bztsrc/model3d), their licence headers kept; their symbols
+are renamed with an `njin_` prefix where included.
+
 ## Dear ImGui for the tools
 
 njin_inspector, njin_ui_editor and njin_anim_editor use Dear ImGui (Omar Cornut,

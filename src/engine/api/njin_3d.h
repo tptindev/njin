@@ -781,10 +781,13 @@ inline constexpr u32 sdf_blend_max = 32;
 /// @param color Màu.
 void draw_sdf_blend(const context &ctx, const sdf_part *parts, u32 count, f32 blend, rgba color);
 
-/// Nạp model 3D từ file glTF (`.glb`, `.gltf`) hoặc OBJ.
+/// Nạp model 3D từ file glTF (`.glb`, `.gltf`), OBJ, IQM, M3D hay MagicaVoxel (`.vox`).
 ///
 /// Đường dẫn tính như texture_load(). Màu và texture của vật liệu trong file
-/// được giữ, và model được chiếu sáng theo light3d_set().
+/// được giữ, và model được chiếu sáng theo light3d_set(). IQM và M3D giữ xương và
+/// animation (model_anim_find()); keyframe của chúng phát 60 khung mỗi giây (M3D được
+/// lấy mẫu mỗi 17 ms khi nạp). VOX là các khối màu theo bảng màu của file. Bộ lọc node
+/// (model_load_desc) chỉ dùng được với glTF.
 /// @param ctx Context của engine.
 /// @param path Đường dẫn file.
 /// @return Handle của model, hoặc handle không hợp lệ nếu file thiếu hay lỗi.

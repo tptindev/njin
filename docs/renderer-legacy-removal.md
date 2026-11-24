@@ -48,7 +48,7 @@ block deleting legacy:
 | Earlier 2D content kept through the 3D HDR pass (row 2) | yes (`render3d_hdr.cpp` copies the target in) | HDR target cleared, earlier 2D lost | **done 2026-11-24**: the target is copied (copy_frame) and drawn into the HDR image in linear light; `hdr_keep2d_*` tests (fails without the copy) |
 | More than four shadowed volumetric/local sources, up to 16 (row 9) | yes | refused above 4 | to port |
 | Captured (rasterised) irradiance grid (row 10) | yes (`render3d_probe.cpp`) | warns and skips | to port |
-| IQM, VOX, M3D models (row 13) | yes (raylib LoadModel) | refused | to port (own loaders) |
+| IQM, VOX, M3D models (row 13) | yes (raylib LoadModel) | refused | **done 2026-11-24**: `njin_model_formats.cpp` (raylib's loaders translated, vox_loader.h and m3d.h vendored), skeletons and clips as PortableAnimation; `model_formats_raylib` (raylib's example files and self-made ones equal raylib's LoadModel/LoadModelAnimations, poses through model_load within 3e-5) and `model_formats_assets_*` (self-made files, no raylib) |
 | Clay and sway/flutter on ordinary model materials (row 8) | to confirm | refused | check, then port |
 | Per-pixel SDF ray marching (SDF row) | yes | tessellated meshes; refuses tiny surfaces and non-uniform scale | port, or keep meshes and lift the refusals |
 

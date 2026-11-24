@@ -7,6 +7,7 @@
 #include "njin_image_mips.h"
 #include "njin_lightmap.h"
 #include "njin_model_obj.h"
+#include "njin_model_formats.h"
 #include "njin_image_decode.h"
 #include "njin_world3d_impl.h"
 #include "njin_raytrace.h"
@@ -776,6 +777,166 @@ static model_handle portable_obj_load(model_store &store,const std::string &path
   }
 }
 
+
+// IQM, VOX and M3D (njin_model_formats.h): the CPU data raylib's LoadModel made, as a
+// portable model. A skeleton becomes a PortableAnimation: one node per bone, its rest
+// the local transform of raylib's model-space bind pose, and each clip one linear
+// channel per bone and component, keys 1/60 s apart, the rate the legacy renderer plays
+// every clip at (render3d.cpp anim_fps), with its last keyframe replaced by the one
+// before as legacy does (njin_model.cpp load_skin).
+static model_handle portable_imported_load(model_store &store,const imported_model &model,const char *name,PreparedModel *prepared) {
+  const auto pose_matrix=[](const imported_bone &b) {
+    return MatrixMultiply(MatrixMultiply(MatrixScale(b.scale[0],b.scale[1],b.scale[2]),
+      QuaternionToMatrix(Quaternion{b.rotation[0],b.rotation[1],b.rotation[2],b.rotation[3]})),
+      MatrixTranslate(b.translation[0],b.translation[1],b.translation[2]));
+  };
+  const auto local_of=[&](const std::vector<imported_bone> &pose,size_t i) {
+    Matrix world=pose_matrix(pose[i]);
+    const int parent=model.bones[i].parent;
+    if(parent>=0) world=MatrixMultiply(world,MatrixInvert(pose_matrix(pose[size_t(parent)])));
+    Transform t;MatrixDecompose(world,&t.translation,&t.rotation,&t.scale);
+    t.rotation=QuaternionNormalize(t.rotation);
+    return t;
+  };
+  std::shared_ptr<PortableAnimation> animation;
+  std::vector<Matrix> inverse_bind;
+  int root=-1;
+  if(!model.bones.empty()) {
+    if(model.bones.size()>128) {NJIN_WARN("model: %s has more than 128 bones",name);return {};}
+    animation=std::make_shared<PortableAnimation>();
+    for(size_t i=0;i<model.bones.size();++i) {
+      const auto &b=model.bones[i];
+      if(b.parent>=int(i)) {NJIN_WARN("model: %s: a bone comes before its parent",name);return {};}
+      PortableAnimation::Node node;node.parent=b.parent;node.rest=local_of(model.bones,i);
+      animation->nodes.push_back(node);animation->joints.push_back(int(i));
+      BoneInfo info{};std::snprintf(info.name,sizeof(info.name),"%s",b.name.c_str());info.parent=b.parent;animation->bones.push_back(info);
+      Transform bind{{b.translation[0],b.translation[1],b.translation[2]},{b.rotation[0],b.rotation[1],b.rotation[2],b.rotation[3]},{b.scale[0],b.scale[1],b.scale[2]}};
+      animation->bind_pose.push_back(bind);
+      const Matrix world=pose_matrix(b);
+      if(std::abs(MatrixDeterminant(world))<1e-12f) {NJIN_WARN("model: %s: singular bind pose",name);return {};}
+      inverse_bind.push_back(MatrixInvert(world));
+    }
+    root=int(animation->nodes.size());
+    PortableAnimation::Node node;node.matrix=true;node.fixed=MatrixIdentity();animation->nodes.push_back(node);
+    for(const auto &clip:model.clips) {
+      if(clip.frames.empty()) continue;
+      std::vector<std::vector<imported_bone>> frames=clip.frames;
+      for(const auto &f:frames) if(f.size()!=model.bones.size()) {NJIN_WARN("model: %s: animation '%s' does not match the skeleton, skipped",name,clip.name.c_str());goto next_clip;}
+      if(frames.size()>=2) frames.back()=frames[frames.size()-2];
+      {
+        PortableAnimation::Clip out;out.name=clip.name;
+        const size_t keys=frames.size();
+        out.duration=float(keys-1)/60.0f;
+        for(size_t b=0;b<model.bones.size();++b) {
+          PortableAnimation::Channel t,r,sc;
+          t.node=r.node=sc.node=int(b);
+          t.path=int(cgltf_animation_path_type_translation);r.path=int(cgltf_animation_path_type_rotation);sc.path=int(cgltf_animation_path_type_scale);
+          t.interpolation=r.interpolation=sc.interpolation=int(cgltf_interpolation_type_linear);
+          t.components=3;r.components=4;sc.components=3;
+          Quaternion previous{0,0,0,1};
+          for(size_t k=0;k<keys;++k) {
+            const float time=float(k)/60.0f;
+            t.times.push_back(time);r.times.push_back(time);sc.times.push_back(time);
+            const Transform l=local_of(frames[k],b);
+            Quaternion q=l.rotation;
+            // Shortest path between keys, as raylib's slerp takes it.
+            if(k&&q.x*previous.x+q.y*previous.y+q.z*previous.z+q.w*previous.w<0) q={-q.x,-q.y,-q.z,-q.w};
+            previous=q;
+            t.values.insert(t.values.end(),{l.translation.x,l.translation.y,l.translation.z});
+            r.values.insert(r.values.end(),{q.x,q.y,q.z,q.w});
+            sc.values.insert(sc.values.end(),{l.scale.x,l.scale.y,l.scale.z});
+          }
+          if(keys==1) {for(auto *c:{&t,&r,&sc}) c->times[0]=0;}
+          out.channels.push_back(std::move(t));out.channels.push_back(std::move(r));out.channels.push_back(std::move(sc));
+        }
+        animation->clips.push_back(std::move(out));
+      }
+      next_clip:;
+    }
+  }
+  // Materials: raylib's diffuse colour and texture (nearest filtering, as LoadTexture).
+  std::vector<model_material> materials;std::vector<std::string> names;
+  std::vector<model_slot::portable_material_data> data;std::vector<RenderTextureHandle> owned;
+  try {
+    for(const auto &src:model.materials) {
+      model_material m;m.color={src.color[0],src.color[1],src.color[2],src.color[3]};
+      model_slot::portable_material_data d;
+      RenderImageAsset image;
+      if(!src.albedo_rgba.empty()) image=RenderImageAsset{src.albedo_width,src.albedo_height,src.albedo_rgba};
+      else if(!src.albedo_path.empty()) {try {image=image_io_load(src.albedo_path.c_str());} catch(const std::runtime_error &) {}}
+      if(image.width&&image.height) {
+        d.albedo.texture=upload_image(store.portable_context,std::move(image),std::string("njin bgfx 3D: ")+name+" texture",false,"albedo",false,prepared);
+        d.albedo.linear=false;owned.push_back(d.albedo.texture);
+      }
+      materials.push_back(m);names.push_back("");data.push_back(std::move(d));
+    }
+    if(materials.empty()) {materials.push_back(model_material{});names.push_back("");data.emplace_back();}
+    // Meshes: indexed meshes over 65535 vertices and unindexed ones are cut into
+    // parts of whole triangles, each with at most 65535 vertices.
+    std::vector<CpuMesh> meshes;
+    for(const auto &src:model.meshes) {
+      const size_t count=src.positions.size()/3;
+      if(count==0) continue;
+      if(count>max_elements) throw std::runtime_error("njin bgfx 3D: oversized model mesh");
+      const size_t elements=src.indices.empty()?count:src.indices.size();
+      const auto index=[&](size_t e){return src.indices.empty()?std::uint32_t(e):src.indices[e];};
+      std::vector<int> remap(count,-1);
+      size_t start=0;
+      while(start+3<=elements) {
+        CpuMesh mesh;mesh.material=std::clamp(src.material,0,int(materials.size())-1);
+        PortableAnimation::Mesh skin;
+        std::vector<std::uint32_t> used;size_t end=start;
+        while(end+3<=elements) {
+          size_t fresh=0;for(size_t k=0;k<3;++k) if(remap[index(end+k)]<0) ++fresh;
+          if(used.size()+fresh>65535) break;
+          for(size_t k=0;k<3;++k) {
+            const auto i=index(end+k);
+            if(i>=count) throw std::runtime_error("njin bgfx 3D: model index out of range");
+            if(remap[i]<0) {
+              remap[i]=int(used.size());used.push_back(i);
+              RenderVertex v{src.positions[i*3],src.positions[i*3+1],src.positions[i*3+2],
+                             src.texcoords.empty()?0.0f:src.texcoords[i*2],src.texcoords.empty()?0.0f:src.texcoords[i*2+1]};
+              if(!src.colors.empty()) v.color={src.colors[i*4]/255.0f,src.colors[i*4+1]/255.0f,src.colors[i*4+2]/255.0f,src.colors[i*4+3]/255.0f};
+              mesh.vertices.push_back(v);
+              if(!src.normals.empty()) mesh.normals.push_back({src.normals[i*3],src.normals[i*3+1],src.normals[i*3+2]});
+              if(animation) {
+                std::array<unsigned char,4> ids{};std::array<float,4> weights{};float sum=0;
+                if(!src.bone_ids.empty()&&!src.bone_weights.empty()) for(unsigned c=0;c<4;++c) {
+                  ids[c]=src.bone_ids[i*4+c];weights[c]=std::max(src.bone_weights[i*4+c],0.0f);
+                  // Unused influences (weight 0) may carry any id (M3D fills them so).
+                  if(ids[c]>=model.bones.size()) {
+                    if(weights[c]>0) throw std::runtime_error("njin bgfx 3D: model bone index out of range");
+                    ids[c]=0;
+                  }
+                  sum+=weights[c];
+                }
+                if(sum<1e-8f) {ids={0,0,0,0};weights={1,0,0,0};sum=1;}
+                for(auto &w:weights) w/=sum;
+                skin.bone.push_back(ids);skin.weights.push_back(weights);
+              }
+            }
+            mesh.indices.push_back(std::uint16_t(remap[i]));
+          }
+          end+=3;
+        }
+        for(auto i:used) remap[i]=-1;
+        if(animation) {
+          skin.node=root;skin.inverse_node=MatrixIdentity();skin.inverse_bind=inverse_bind;
+          for(size_t j=0;j<model.bones.size();++j) skin.joints.push_back(int(j));
+          animation->meshes.push_back(std::move(skin));
+        }
+        meshes.push_back(std::move(mesh));
+        start=end;
+      }
+    }
+    if(meshes.empty()) {NJIN_WARN("model: %s has no triangles",name);for(auto t:owned) renderer_destroy_texture(*store.portable_context,t);return {};}
+    return commit(store,meshes,std::move(materials),std::move(names),std::move(data),std::move(owned),std::move(animation),prepared);
+  } catch(...) {
+    if(!prepared) for(auto t:owned) renderer_destroy_texture(*store.portable_context,t);
+    throw;
+  }
+}
+
 static model_handle load_portable_model(model_store &store,const model_load_desc &desc,PreparedModel *prepared=nullptr) {
   if(!desc.path || !file_exists(asset_path(desc.path).c_str())) { NJIN_WARN("model: file not found: %s",desc.path?desc.path:"(null)"); return {}; }
 
@@ -784,7 +945,15 @@ static model_handle load_portable_model(model_store &store,const model_load_desc
   auto ext=std::filesystem::path(path).extension().string();
   std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return char(std::tolower(c));});
   if(ext==".obj") return portable_obj_load(store,path,desc.path,prepared);
-  if(ext!=".gltf"&&ext!=".glb") unsupported("model formats other than glTF/GLB/OBJ");
+  if(ext==".iqm"||ext==".vox"||ext==".m3d") {
+    // As raylib's LoadModel read them on the legacy renderer (no node filter there either).
+    if(desc.skip_count||desc.only_count) unsupported("node filters on IQM/VOX/M3D models");
+    imported_model model;std::string error;
+    const bool ok=ext==".iqm"?import_iqm(path,model,error):ext==".vox"?import_vox(path,model,error):import_m3d(path,model,error);
+    if(!ok) {NJIN_WARN("model: invalid %s file: %s (%s)",ext.c_str()+1,desc.path,error.c_str());return {};}
+    return portable_imported_load(store,model,desc.path,prepared);
+  }
+  if(ext!=".gltf"&&ext!=".glb") unsupported("model formats other than glTF/GLB/OBJ/IQM/VOX/M3D");
   cgltf_options options{}; cgltf_data *raw=nullptr;
   if(cgltf_parse_file(&options,path.c_str(),&raw)!=cgltf_result_success) { NJIN_WARN("model: invalid glTF: %s",desc.path); return {}; }
   std::unique_ptr<cgltf_data,void(*)(cgltf_data*)> data(raw,cgltf_free);
@@ -1240,20 +1409,24 @@ void portable_begin_3d(context &ctx,const camera3d &camera) {
     const auto c=ctx_ref<config>(ctx).clear_bg_color;
     const auto linear=[](float x){return x<=0.04045f?x/12.92f:std::pow((x+0.055f)/1.055f,2.4f);};
     // As legacy's hdr_begin: the HDR image starts from what the target already holds
-    // (the 2D drawn before begin_3d), in linear light, not from the clear colour.
-    if(!store.portable_hdr_seed || store.portable_hdr_seed_size!=std::array<unsigned,2>{w,h}) {
+    // (the 2D drawn before begin_3d), in linear light, not from the clear colour. With
+    // nothing drawn into it yet, clearing to the clear colour is the same image.
+    const bool seed=ctx_ref<window_guard>(ctx).renderer_resources.pass_dirty;
+    if(seed && (!store.portable_hdr_seed || store.portable_hdr_seed_size!=std::array<unsigned,2>{w,h})) {
       if(store.portable_hdr_seed) {
         if(device.target_in_use(store.portable_hdr_seed)) store.portable_hdr_retired.push_back(store.portable_hdr_seed);
         else renderer_destroy_target(ctx,store.portable_hdr_seed);
       }
       store.portable_hdr_seed=renderer_create_target(ctx,w,h);store.portable_hdr_seed_size={w,h};
     }
-    device.copy_frame(store.portable_hdr_seed);
-    ctx_ref<window_guard>(ctx).renderer_resources.targets.at(store.portable_hdr_seed.id).initialized=true;
+    if(seed) {
+      device.copy_frame(store.portable_hdr_seed);
+      ctx_ref<window_guard>(ctx).renderer_resources.targets.at(store.portable_hdr_seed.id).initialized=true;
+    }
     if(store.portable_destination) renderer_end_target(ctx);
     try {renderer_begin_target(ctx,store.portable_hdr,{linear(c.r),linear(c.g),linear(c.b),c.a});}
     catch(...) {if(store.portable_destination) renderer_resume_target(ctx,store.portable_destination);throw;}
-    {
+    if(seed) {
       // Clip-space quad, top of the image at the top of the target (+y up in clip space).
       const RenderVertex seed[]{{-1,1,0,0,0},{1,1,0,1,0},{1,-1,0,1,1},{-1,1,0,0,0},{1,-1,0,1,1},{-1,-1,0,0,1}};
       MeshDraw copy{};copy.vertices=seed;copy.texture=renderer_target_texture(ctx,store.portable_hdr_seed);

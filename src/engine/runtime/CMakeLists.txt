@@ -12,7 +12,7 @@ set(NJIN_FEATURE_3D_SOURCES
     njin_audio3d.cpp
     njin_instance.cpp
     njin_model.cpp
-    njin_model_portable.cpp njin_model_obj.cpp njin_raytrace_portable.cpp njin_particles3d_portable.cpp
+    njin_model_portable.cpp njin_model_obj.cpp njin_model_formats.cpp njin_raytrace_portable.cpp njin_particles3d_portable.cpp
     njin_shadow_portable.cpp
     njin_lightmap.cpp
     njin_lightmap_uv.cpp
@@ -230,6 +230,11 @@ set_source_files_properties(njin_lightmap.cpp PROPERTIES
 set_source_files_properties(njin_model_obj.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${meshoptimizer_SOURCE_DIR}/extern" SKIP_UNITY_BUILD_INCLUSION ON
   SKIP_PRECOMPILE_HEADERS ON)
+# IQM, VOX and M3D on the bgfx path: vox_loader.h and m3d.h (vendored from raylib 6.0)
+# are seen and compiled only by this file.
+set_source_files_properties(njin_model_formats.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${PROJECT_SOURCE_DIR}/third_party/vox_loader;${PROJECT_SOURCE_DIR}/third_party/m3d"
+  SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
 if(NJIN_RAYTRACING)
   target_link_libraries(njin_3d PRIVATE njin_nvrhi)
   target_compile_definitions(njin_3d PRIVATE NJIN_RAYTRACING=1)

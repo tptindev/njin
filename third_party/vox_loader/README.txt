@@ -1,0 +1,1 @@
+Copied unmodified from raylib 6.0 (src/external/vox_loader.h), MIT licence (Copyright (c) 2021 Johann Nadalutti), the file header names no upstream URL: https://github.com/raysan5/raylib/blob/master/src/external/vox_loader.h.

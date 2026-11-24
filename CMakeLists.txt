@@ -508,6 +508,14 @@ if(NJIN_BUILD_RHI_SLICE)
     if(WIN32)
       list(APPEND _njin_inst2d_renderers d3d12)
     endif()
+    # IQM/M3D/VOX through model_load, from small self-made files (no raylib needed).
+    add_executable(njin_model_formats_assets_test src/engine/tests/model_formats_assets.cpp)
+    target_link_libraries(njin_model_formats_assets_test PRIVATE njin::rt njin::gpu)
+    foreach(_renderer IN LISTS _njin_inst2d_renderers)
+      add_test(NAME model_formats_assets_${_renderer} COMMAND njin_model_formats_assets_test
+        "${PROJECT_SOURCE_DIR}/src/engine/tests/assets" ${_renderer})
+      set_tests_properties(model_formats_assets_${_renderer} PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
+    endforeach()
     add_executable(njin_hdr_keep2d_test src/engine/tests/hdr_keep2d.cpp)
     target_link_libraries(njin_hdr_keep2d_test PRIVATE njin::rt njin::gpu)
     foreach(_renderer IN LISTS _njin_inst2d_renderers)
@@ -559,6 +567,19 @@ if(NJIN_BUILD_RHI_SLICE)
   target_link_libraries(njin_rl_own_test PRIVATE raylib)
   target_include_directories(njin_rl_own_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime")
   add_test(NAME rl_own COMMAND njin_rl_own_test)
+  # IQM/VOX/M3D through Njin's importers match raylib's LoadModel/LoadModelAnimations,
+  # on raylib's own example files (while raylib is in the build).
+  add_executable(njin_model_formats_test src/engine/tests/model_formats.cpp)
+  set_target_properties(njin_model_formats_test PROPERTIES NJIN_ENGINE_INTERNAL ON)
+  target_link_libraries(njin_model_formats_test PRIVATE njin::rt raylib)
+  target_include_directories(njin_model_formats_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime")
+  set(_njin_raylib_models "${raylib_SOURCE_DIR}/examples/models/resources/models")
+  add_test(NAME model_formats_raylib COMMAND njin_model_formats_test
+    "${_njin_raylib_models}/iqm/guy.iqm" "${_njin_raylib_models}/iqm/guyanim.iqm"
+    "${_njin_raylib_models}/vox/chr_knight.vox" "${_njin_raylib_models}/vox/chr_sword.vox"
+    "${_njin_raylib_models}/vox/monu9.vox" "${_njin_raylib_models}/m3d/cesium_man.m3d"
+    "${_njin_raylib_models}/m3d/seagull.m3d" "${_njin_raylib_models}/m3d/suzanne.m3d")
+  set_tests_properties(model_formats_raylib PROPERTIES RESOURCE_LOCK njin_graphics TIMEOUT 120)
   # Tiled's zlib/gzip layers inflated with miniz match raylib's DecompressData.
   add_executable(njin_level_inflate_test src/engine/tests/level_inflate.cpp)
   set_target_properties(njin_level_inflate_test PROPERTIES NJIN_ENGINE_INTERNAL ON)

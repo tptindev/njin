@@ -16,6 +16,8 @@ To release: edit that header, add a section here, commit, then
   `rml_bind_event`), events by element id, the RmlUi debugger. Mouse and keys the UI
   uses do not reach the game. RmlUi 6.3 with FreeType; SDL3/bgfx renderer only.
 - `RenderBlend::Premultiplied` for colours already multiplied by their alpha.
+- bgfx: `model_load` reads IQM, M3D and MagicaVoxel `.vox` files, with their skeletons
+  and animations, as the OpenGL renderer read them through raylib (it refused them).
 - bgfx: shader packages can bring their own vertex stage (`njin_shader_asset(... VERTEX
   ...)`, `njin_vertex.sh`) for 2D draws and `draw_instanced`; 3D draws refuse them.
 - `graphics_backend()`: the backend the game runs on, for games that ship

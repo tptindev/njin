@@ -26,6 +26,9 @@ struct RendererResources {
   struct Target { unsigned width=0,height=0; RenderTextureHandle color{}; RenderTexture2D gl{}; bool initialized=false; RenderTextureHandle depth{}; };
   std::unordered_map<std::uint64_t,Target> targets;
   RenderTargetHandle active_target{};
+  // Something was drawn into the current pass (the frame, or the active target since it
+  // was cleared). A resumed target or the frame after a target counts as drawn.
+  bool pass_dirty=false;
   bool world3d_open=false;
   std::unordered_set<std::uint64_t> pending_3d_textures,pending_3d_meshes;
   std::unordered_map<const void*,std::weak_ptr<const std::vector<RenderInstance>>> validated_instances;
