@@ -1,3 +1,4 @@
+#include "njin_audio_backend.h"
 #include "_math.h"
 #include "njin_cfg.h"
 #include "njin_ctx.h"
@@ -86,7 +87,7 @@ window_guard::window_guard(const config &cfg) {
     platform=std::make_unique<SdlPlatform>(cfg);
     graphics=rhi::make_bgfx_device(*platform,cfg);
     pacer_open(pacer);
-    if (cfg.audio) InitAudioDevice();
+    if (cfg.audio) audio_device_open();
     return;
   }
 #endif
@@ -108,7 +109,7 @@ window_guard::window_guard(const config &cfg) {
   // audio calls just fail to load and say so in the log. A game that plays no
   // sound opens none (config::audio).
   if (cfg.audio)
-    InitAudioDevice();
+    audio_device_open();
   // low_power: run() paces the frames itself, sleeping the whole wait.
   SetTargetFPS(cfg.low_power ? 0 : (i32)cfg.target_fps);
   if (cfg.low_power)
@@ -129,8 +130,7 @@ window_guard::~window_guard() {
   for(auto &[id,target]:renderer_resources.targets) if(target.gl.id) UnloadRenderTexture(target.gl);
   renderer_resources.targets.clear();
   pacer_close(pacer);
-  if (IsAudioDeviceReady())
-    CloseAudioDevice();
+  audio_device_close();
   const bool opengl=!platform;
   graphics.reset(); platform.reset();
   if(opengl) CloseWindow();

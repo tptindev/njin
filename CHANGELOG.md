@@ -404,6 +404,13 @@ To release: edit that header, add a section here, commit, then
   instead of a draw and two uniforms per chunk, in the camera pass and every
   shadow pass alike.
 
+### Changed
+
+- Sound no longer goes through raylib: Njin plays it with miniaudio itself
+  (the library raylib's raudio used), mixed the same way, on both renderers.
+  Music decodes from memory as it plays instead of in buffers refilled each
+  frame. raylib is built without its audio module.
+
 ### Fixed
 
 - The 2D samples (and any game without the 3d feature) failed to build:

@@ -4,7 +4,7 @@
 #include "_types.h"
 #include "njin_audio.h"
 #include <entt/entity/fwd.hpp>
-#include <raylib.h>
+#include "njin_audio_backend.h"
 #include <vector>
 
 namespace njin {
@@ -13,8 +13,8 @@ namespace njin {
 // never alias a newer resource.
 
 // Ceiling on how many copies of one sound may overlap, counting the slot's own
-// Sound as the first voice. Each extra voice is an alias costing an
-// AudioBuffer and a converter, so this bounds what one noisy sound can spend.
+// voice as the first. Each extra voice is an alias costing a converter, so this
+// bounds what one noisy sound can spend.
 inline constexpr usize sound_max_voices = 8;
 
 struct sound_slot {
@@ -24,20 +24,19 @@ struct sound_slot {
   f32 volume = 1.0f;
   audio_bus bus = bus_sfx;
   usize next_voice = 0; // round-robin cursor, only read once the pool is full
-  Sound sound{};        // owns the sample data; the voice a loop plays on
+  audio_voice sound{};  // owns the sample data; the voice a loop plays on
   // Aliases of `sound`, grown on demand by play_once. They share its sample
   // data and do not own it, so they must be unloaded before it is.
-  std::vector<Sound> voices;
+  std::vector<audio_voice> voices;
 };
 
-// Streamed rather than held in memory: it decodes a buffer at a time and needs
-// audio_store_update every frame. In exchange raylib loops it inside the
-// decoder, with none of the frame-sized gap a looping Sound leaves.
+// Decoded as it plays, from the file held in memory (njin_audio_backend.h), and
+// looped inside the decoder, with none of the gap a replayed sound leaves.
 struct music_slot {
   bool alive = false;
   bool muted = false;
   f32 volume = 1.0f;
-  Music music{};
+  audio_voice music{};
   // Fade: `fade` moves toward `fade_target` at `fade_speed` per second, and
   // the stream stops when it reaches 0 with `stop_at_end`.
   f32 fade = 1.0f;
@@ -56,7 +55,7 @@ struct voice3d_slot {
   bool alive = false;
   u32 gen = 0;
   sound_handle sound{};
-  Sound alias{}; // shares the sound's sample data; unloaded before the sound
+  audio_voice alias{}; // shares the sound's sample data; freed before the sound
   bool looping = false;
   u64 serial = 0; // start order, to cut the oldest one-shot when full
   sound3d_desc desc{};

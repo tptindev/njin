@@ -6,6 +6,7 @@
 #include "njin_video.h"
 #include <memory>
 #include <raylib.h>
+#include "njin_audio_backend.h"
 #include <vector>
 
 struct plm_t;
@@ -30,7 +31,7 @@ struct video_slot {
   // Sound: pl_mpeg pushes interleaved stereo samples into `ring`, and the
   // stream takes them a buffer at a time; an empty ring plays silence.
   bool has_audio = false;
-  AudioStream stream{};
+  audio_voice stream{};
   i32 stream_frames = 0; // frames per stream buffer
   std::vector<f32> ring;
   usize ring_read = 0, ring_count = 0; // in floats

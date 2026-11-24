@@ -74,8 +74,10 @@ were retrieved through the engine API. Android Vulkan validation layers were
 not enabled. Touch press/motion/release and silent audio passed on both backends,
 including two-context audio startup/shutdown. This exposed a real raylib teardown
 race: its mixer mutex was destroyed before the audio callback stopped.
-`cmake/njin_raylib_audio_fix.cmake` applies a guarded source fix to the pinned
-dependency, stopping/joining callbacks before releasing that lock. The first
+A guarded source fix to raylib stopped/joined callbacks before releasing that
+lock; sound now goes through Njin's own miniaudio backend
+(`njin_audio_backend.cpp`), which uninitialises the device before anything its
+callback reads, so that fix is gone with raudio. The first
 audio run crashed and is retained in `build/android-vulkan-input-audio.log`;
 subsequent fixed runs passed, not an uninterrupted first attempt.
 Gamepad, audible output quality, device loss, production packaging and other

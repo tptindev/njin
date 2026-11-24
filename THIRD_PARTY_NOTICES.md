@@ -219,6 +219,16 @@ the zlib license, Copyright (c) 2013-2026 Ramon Santamaria (@raysan5); this
 translation is an altered version of that source, so marked here. The glyph
 bitmaps still come from stb_truetype v1.26 (public domain).
 
+## miniaudio sound output
+
+Njin's sound (`src/engine/runtime/njin_audio_backend.cpp`) is miniaudio 0.11.24
+by David Reid, fetched at tag `0.11.24` of https://github.com/mackron/miniaudio
+and compiled unmodified in that file, with its bundled `extras/stb_vorbis.c`
+(Sean Barrett) for Ogg Vorbis. Both are public domain, with miniaudio also under
+MIT No Attribution; their notices ship in the fetched sources. raylib is built
+without its raudio module. The mixing follows raudio's (raylib 6.0, zlib): its
+pan law and per-voice converters are reimplemented, not copied.
+
 ## xatlas lightmap unwrap
 
 The lightmap asset tool calls xatlas unmodified, pinned to

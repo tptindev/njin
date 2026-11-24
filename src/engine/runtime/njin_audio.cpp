@@ -3,6 +3,7 @@
 #include "njin_log.h"
 #include "njin_path.h"
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <string>
 
@@ -27,29 +28,27 @@ f32 effective_volume(const audio_store &store, const music_slot &slot) {
 // sample data, so unloading `sound` first would leave them reading freed
 // memory.
 void release(sound_slot &slot) {
-  for (Sound &voice : slot.voices)
-    UnloadSoundAlias(voice);
-  if (IsSoundValid(slot.sound))
-    UnloadSound(slot.sound);
+  for (audio_voice &voice : slot.voices)
+    audio_voice_free(voice);
+  audio_voice_free(slot.sound);
   slot = sound_slot{};
 }
 
 void release(music_slot &slot) {
-  if (IsMusicValid(slot.music))
-    UnloadMusicStream(slot.music); // stops the stream itself when playing
+  audio_voice_free(slot.music); // stops it when playing
   slot = music_slot{};
 }
 
-// Each alias carries its own AudioBuffer with its own volume, so a live change
-// has to reach all of them or already-playing voices keep the old level.
+// Each alias has its own volume, so a live change has to reach all of them or
+// already-playing voices keep the old level.
 void apply_volume(const audio_store &store, sound_slot &slot) {
   const f32 volume = effective_volume(store, slot);
-  SetSoundVolume(slot.sound, volume);
-  for (Sound &voice : slot.voices)
-    SetSoundVolume(voice, volume);
+  audio_voice_set_volume(slot.sound, volume);
+  for (audio_voice &voice : slot.voices)
+    audio_voice_set_volume(voice, volume);
 }
 
-sound_handle add_sound(audio_store &store, const Sound &sound) {
+sound_handle add_sound(audio_store &store, audio_voice sound) {
   store.sounds.push_back(sound_slot{.alive = true, .sound = sound, .voices = {}});
   return sound_handle{.id = (u32)store.sounds.size()};
 }
@@ -58,41 +57,39 @@ sound_handle add_sound(audio_store &store, const Sound &sound) {
 // else a fresh alias while the pool has room. Once every voice is busy and the
 // pool is capped it steals round-robin, which lands on the one that started
 // longest ago. Never null: slot.sound is valid, so there is always a fallback.
-Sound *pick_voice(sound_slot &slot) {
-  if (!IsSoundPlaying(slot.sound))
+audio_voice *pick_voice(sound_slot &slot) {
+  if (!audio_voice_playing(slot.sound))
     return &slot.sound;
-  for (Sound &voice : slot.voices) {
-    if (!IsSoundPlaying(voice))
+  for (audio_voice &voice : slot.voices) {
+    if (!audio_voice_playing(voice))
       return &voice;
   }
   // slot.sound is the first voice, so the aliases stop one short of the cap.
   if (slot.voices.size() + 1 < sound_max_voices) {
-    // Safe only because slot.sound passed IsSoundValid: LoadSoundAlias reads
-    // the source buffer without checking it for null.
-    const Sound alias = LoadSoundAlias(slot.sound);
-    if (IsSoundValid(alias)) {
+    const audio_voice alias = audio_sound_alias(slot.sound);
+    if (alias) {
       slot.voices.push_back(alias);
       return &slot.voices.back();
     }
   }
   if (slot.voices.empty())
     return &slot.sound;
-  Sound *stolen = &slot.voices[slot.next_voice];
+  audio_voice *stolen = &slot.voices[slot.next_voice];
   slot.next_voice = (slot.next_voice + 1) % slot.voices.size();
   return stolen;
 }
 
-// raylib picks the decoder from the file extension, and a path without one
-// reaches a string comparison as null. Reject it here with a readable reason.
+// A path without an extension cannot say its format; reject it with a readable
+// reason, as before (the decoder itself goes by the content).
 bool has_extension(const char *path) {
-  if (GetFileExtension(path) != nullptr)
+  if (std::filesystem::path(reinterpret_cast<const char8_t *>(path)).has_extension())
     return true;
   NJIN_WARN("audio: file has no extension, cannot tell its format: %s", path);
   return false;
 }
 
 bool device_ready(const char *what) {
-  if (IsAudioDeviceReady())
+  if (audio_device_ready())
     return true;
   NJIN_WARN("audio: no audio device, cannot load %s", what);
   return false;
@@ -117,17 +114,17 @@ sound_handle sound_store_load(audio_store &store, const char *path) {
   }
   if (!device_ready(path))
     return sound_handle{};
-  // raylib only logs a missing file; fail loudly with the path instead.
+  // Fail loudly with the path when the file is missing.
   const std::string resolved = asset_path(path);
-  if (!FileExists(resolved.c_str())) {
+  std::error_code missing;
+  if (!std::filesystem::is_regular_file(std::filesystem::path(reinterpret_cast<const char8_t *>(resolved.c_str())), missing)) {
     NJIN_WARN("sound: file not found: %s", path);
     return sound_handle{};
   }
   if (!has_extension(resolved.c_str()))
     return sound_handle{};
-  const Sound sound = LoadSound(resolved.c_str());
-  if (!IsSoundValid(sound)) {
-    UnloadSound(sound);
+  const audio_voice sound = audio_sound_load(resolved.c_str());
+  if (!sound) {
     NJIN_WARN("sound: failed to load: %s", path);
     return sound_handle{};
   }
@@ -142,17 +139,9 @@ sound_handle sound_store_load_samples(audio_store &store, const f32 *samples,
   }
   if (!device_ready("samples"))
     return sound_handle{};
-  // sampleSize 32 is read as float by LoadSoundFromWave, which converts the
-  // frames into a buffer of its own and never touches wave.data again, so the
-  // caller keeps ownership and the const is only cast away for the API.
-  const Wave wave{.frameCount = (unsigned int)count,
-                  .sampleRate = (unsigned int)sample_rate,
-                  .sampleSize = 32,
-                  .channels = 1,
-                  .data = const_cast<void *>(static_cast<const void *>(samples))};
-  const Sound sound = LoadSoundFromWave(wave);
-  if (!IsSoundValid(sound)) {
-    UnloadSound(sound);
+  // Converted into a buffer of its own: the caller keeps the samples.
+  const audio_voice sound = audio_sound_samples(samples, count, sample_rate);
+  if (!sound) {
     NJIN_WARN("sound: failed to build from %d samples", count);
     return sound_handle{};
   }
@@ -195,12 +184,12 @@ void sound_store_play_once(audio_store &store, sound_handle handle, f32 pitch,
   if (slot == nullptr)
     return;
   slot->looping = false;
-  Sound *voice = pick_voice(*slot);
-  SetSoundVolume(*voice, effective_volume(store, *slot) * (gain < 0.0f ? 0.0f : gain));
-  SetSoundPitch(*voice, pitch > 1e-3f ? pitch : 1e-3f);
+  audio_voice *voice = pick_voice(*slot);
+  audio_voice_set_volume(*voice, effective_volume(store, *slot) * (gain < 0.0f ? 0.0f : gain));
+  audio_voice_set_pitch(*voice, pitch > 1e-3f ? pitch : 1e-3f);
   // Written on every start for the same reason as pitch.
-  SetSoundPan(*voice, pan < -1.0f ? -1.0f : (pan > 1.0f ? 1.0f : pan));
-  PlaySound(*voice);
+  audio_voice_set_pan(*voice, pan < -1.0f ? -1.0f : (pan > 1.0f ? 1.0f : pan));
+  audio_voice_play(*voice);
 }
 
 void sound_store_play_restart(audio_store &store, sound_handle handle) {
@@ -210,14 +199,14 @@ void sound_store_play_restart(audio_store &store, sound_handle handle) {
   slot->looping = false;
   // Cut the copies play_once may have spread across the pool, so this call
   // always leaves exactly one instance running.
-  for (Sound &voice : slot->voices)
-    StopSound(voice);
-  SetSoundVolume(slot->sound, effective_volume(store, *slot));
-  SetSoundPitch(slot->sound, 1.0f); // a pitched one-shot may have left it off 1
-  SetSoundPan(slot->sound, 0.0f);
-  // PlaySound rewinds the cursor whether or not the voice was playing, so no
-  // StopSound is needed on the base voice first.
-  PlaySound(slot->sound);
+  for (audio_voice &voice : slot->voices)
+    audio_voice_stop(voice);
+  audio_voice_set_volume(slot->sound, effective_volume(store, *slot));
+  audio_voice_set_pitch(slot->sound, 1.0f); // a pitched one-shot may have left it off 1
+  audio_voice_set_pan(slot->sound, 0.0f);
+  // Play rewinds whether or not the voice was playing, so no stop is needed on
+  // the base voice first.
+  audio_voice_play(slot->sound);
 }
 
 void sound_store_play_loop(audio_store &store, sound_handle handle) {
@@ -225,11 +214,11 @@ void sound_store_play_loop(audio_store &store, sound_handle handle) {
   if (slot == nullptr)
     return;
   slot->looping = true;
-  if (!IsSoundPlaying(slot->sound)) {
-    SetSoundVolume(slot->sound, effective_volume(store, *slot));
-    SetSoundPitch(slot->sound, 1.0f);
-    SetSoundPan(slot->sound, 0.0f);
-    PlaySound(slot->sound);
+  if (!audio_voice_playing(slot->sound)) {
+    audio_voice_set_volume(slot->sound, effective_volume(store, *slot));
+    audio_voice_set_pitch(slot->sound, 1.0f);
+    audio_voice_set_pan(slot->sound, 0.0f);
+    audio_voice_play(slot->sound);
   }
 }
 
@@ -238,9 +227,9 @@ void sound_store_stop(audio_store &store, sound_handle handle) {
   if (slot == nullptr)
     return;
   slot->looping = false;
-  StopSound(slot->sound);
-  for (Sound &voice : slot->voices)
-    StopSound(voice);
+  audio_voice_stop(slot->sound);
+  for (audio_voice &voice : slot->voices)
+    audio_voice_stop(voice);
   voice3d_store_release_sound(store, handle);
 }
 
@@ -270,10 +259,7 @@ const voice3d_slot *voice3d_slot_of(const audio_store &store, voice3d_handle han
 void voice3d_store_release(voice3d_slot &voice) {
   if (!voice.alive)
     return;
-  if (IsSoundValid(voice.alias)) {
-    StopSound(voice.alias);
-    UnloadSoundAlias(voice.alias);
-  }
+  audio_voice_free(voice.alias); // stops it first
   const u32 gen = voice.gen;
   voice = voice3d_slot{};
   voice.gen = gen; // the next use bumps it
@@ -356,9 +342,9 @@ void voice3d_store_apply(audio_store &store, voice3d_slot &voice) {
   voice.mix = voice3d_compute(store.listener, store.speed_of_sound, voice.desc, voice.position, voice.velocity,
                               sound_store_effective_volume(store, voice.sound), voice.occlusion);
   voice.mix.occluded = occluded;
-  SetSoundVolume(voice.alias, voice.mix.volume);
-  SetSoundPan(voice.alias, voice.mix.pan);
-  SetSoundPitch(voice.alias, voice.mix.pitch);
+  audio_voice_set_volume(voice.alias, voice.mix.volume);
+  audio_voice_set_pan(voice.alias, voice.mix.pan);
+  audio_voice_set_pitch(voice.alias, voice.mix.pitch);
 }
 
 voice3d_handle voice3d_store_start(audio_store &store, sound_handle sound, vec3 position, const sound3d_desc &desc,
@@ -391,9 +377,8 @@ voice3d_handle voice3d_store_start(audio_store &store, sound_handle sound, vec3 
     voice3d_store_release(*oldest);
     free_slot = oldest;
   }
-  // Safe only because the slot's sound passed IsSoundValid on load: see pick_voice.
-  const Sound alias = LoadSoundAlias(slot->sound);
-  if (!IsSoundValid(alias))
+  const audio_voice alias = audio_sound_alias(slot->sound);
+  if (!alias)
     return voice3d_handle{};
   if (free_slot == nullptr) {
     store.voices3d.emplace_back();
@@ -413,7 +398,7 @@ voice3d_handle voice3d_store_start(audio_store &store, sound_handle sound, vec3 
   v.last_position = position;
   v.has_last = true;
   voice3d_store_apply(store, v);
-  PlaySound(v.alias);
+  audio_voice_play(v.alias);
   return voice3d_handle{.id = (u32)(&v - store.voices3d.data()) + 1, .gen = gen};
 }
 
@@ -434,20 +419,20 @@ music_handle music_store_load(audio_store &store, const char *path) {
   if (!device_ready(path))
     return music_handle{};
   const std::string resolved = asset_path(path);
-  if (!FileExists(resolved.c_str())) {
+  std::error_code missing;
+  if (!std::filesystem::is_regular_file(std::filesystem::path(reinterpret_cast<const char8_t *>(resolved.c_str())), missing)) {
     NJIN_WARN("music: file not found: %s", path);
     return music_handle{};
   }
   if (!has_extension(resolved.c_str()))
     return music_handle{};
-  const Music music = LoadMusicStream(resolved.c_str());
-  if (!IsMusicValid(music)) {
-    UnloadMusicStream(music);
+  const audio_voice music = audio_music_load(resolved.c_str());
+  if (!music) {
     NJIN_WARN("music: failed to load: %s", path);
     return music_handle{};
   }
-  // raylib enables looping on load for every format it decodes, which is the
-  // right default for a soundtrack; music_set_looping turns it off.
+  // Looping from the start, the right default for a soundtrack (as raylib had
+  // it); music_set_looping turns it off.
   store.musics.push_back(music_slot{.alive = true, .music = music});
   return music_handle{.id = (u32)store.musics.size()};
 }
@@ -464,7 +449,7 @@ void music_store_set_volume(audio_store &store, music_handle handle,
   if (slot == nullptr)
     return;
   slot->volume = volume < 0.0f ? 0.0f : volume;
-  SetMusicVolume(slot->music, effective_volume(store, *slot));
+  audio_voice_set_volume(slot->music, effective_volume(store, *slot));
 }
 
 void music_store_set_muted(audio_store &store, music_handle handle,
@@ -473,7 +458,7 @@ void music_store_set_muted(audio_store &store, music_handle handle,
   if (slot == nullptr)
     return;
   slot->muted = muted;
-  SetMusicVolume(slot->music, effective_volume(store, *slot));
+  audio_voice_set_volume(slot->music, effective_volume(store, *slot));
 }
 
 void music_store_set_looping(audio_store &store, music_handle handle,
@@ -481,42 +466,38 @@ void music_store_set_looping(audio_store &store, music_handle handle,
   music_slot *slot = music_slot_of(store, handle);
   if (slot == nullptr)
     return;
-  // UpdateMusicStream reads this every refill, so it takes effect mid-track.
-  slot->music.looping = looping;
+  // Read at the end of the track, so it takes effect mid-track.
+  audio_voice_set_looping(slot->music, looping);
 }
 
 void music_store_play(audio_store &store, music_handle handle) {
   music_slot *slot = music_slot_of(store, handle);
   if (slot == nullptr)
     return;
-  // PlayMusicStream only rewinds the audio buffer. The decode position lives
-  // in the decoder and only StopMusicStream seeks that back, so without this a
-  // play after a pause would restart the buffer while the decoder carried on
-  // from where it stopped.
-  StopMusicStream(slot->music);
+  // Play rewinds the decoder, so a play after a pause starts the track over.
   slot->fade = slot->fade_target = 1.0f; // a plain play cancels any fade
   slot->fade_speed = 0.0f;
   slot->stop_at_end = false;
-  SetMusicVolume(slot->music, effective_volume(store, *slot));
-  PlayMusicStream(slot->music);
+  audio_voice_set_volume(slot->music, effective_volume(store, *slot));
+  audio_voice_play(slot->music);
 }
 
 void music_store_stop(audio_store &store, music_handle handle) {
   music_slot *slot = music_slot_of(store, handle);
   if (slot != nullptr)
-    StopMusicStream(slot->music);
+    audio_voice_stop(slot->music);
 }
 
 void music_store_pause(audio_store &store, music_handle handle) {
   music_slot *slot = music_slot_of(store, handle);
   if (slot != nullptr)
-    PauseMusicStream(slot->music);
+    audio_voice_pause(slot->music);
 }
 
 void music_store_resume(audio_store &store, music_handle handle) {
   music_slot *slot = music_slot_of(store, handle);
   if (slot != nullptr)
-    ResumeMusicStream(slot->music);
+    audio_voice_resume(slot->music);
 }
 
 void sound_store_set_bus(audio_store &store, sound_handle handle, audio_bus bus) {
@@ -535,7 +516,7 @@ void apply_all(audio_store &store) {
       apply_volume(store, slot);
   for (music_slot &slot : store.musics)
     if (slot.alive)
-      SetMusicVolume(slot.music, effective_volume(store, slot));
+      audio_voice_set_volume(slot.music, effective_volume(store, slot));
 }
 } // namespace
 
@@ -559,11 +540,10 @@ void music_store_fade(audio_store &store, music_handle handle, f32 target, f32 s
   if (slot == nullptr)
     return;
   target = target < 0.0f ? 0.0f : (target > 1.0f ? 1.0f : target);
-  if (play && !IsMusicStreamPlaying(slot->music)) {
-    StopMusicStream(slot->music);
+  if (play && !audio_voice_playing(slot->music)) {
     slot->fade = 0.0f;
-    SetMusicVolume(slot->music, effective_volume(store, *slot));
-    PlayMusicStream(slot->music);
+    audio_voice_set_volume(slot->music, effective_volume(store, *slot));
+    audio_voice_play(slot->music);
   }
   slot->fade_target = target;
   slot->stop_at_end = stop;
@@ -573,22 +553,22 @@ void music_store_fade(audio_store &store, music_handle handle, f32 target, f32 s
   } else {
     slot->fade_speed = 1.0f / seconds;
   }
-  SetMusicVolume(slot->music, effective_volume(store, *slot));
+  audio_voice_set_volume(slot->music, effective_volume(store, *slot));
   if (slot->stop_at_end && slot->fade <= 0.0f) {
-    StopMusicStream(slot->music);
+    audio_voice_stop(slot->music);
     slot->stop_at_end = false;
   }
 }
 
 bool music_store_playing(audio_store &store, music_handle handle) {
   music_slot *slot = music_slot_of(store, handle);
-  return slot != nullptr && IsMusicStreamPlaying(slot->music);
+  return slot != nullptr && audio_voice_playing(slot->music);
 }
 
 void audio_store_update(audio_store &store, f32 dt_real) {
   for (sound_slot &slot : store.sounds) {
-    if (slot.alive && slot.looping && !IsSoundPlaying(slot.sound))
-      PlaySound(slot.sound);
+    if (slot.alive && slot.looping && !audio_voice_playing(slot.sound))
+      audio_voice_play(slot.sound);
   }
   for (music_slot &slot : store.musics) {
     if (!slot.alive)
@@ -597,13 +577,12 @@ void audio_store_update(audio_store &store, f32 dt_real) {
       const f32 step = slot.fade_speed * dt_real;
       slot.fade = slot.fade < slot.fade_target ? std::min(slot.fade + step, slot.fade_target)
                                                : std::max(slot.fade - step, slot.fade_target);
-      SetMusicVolume(slot.music, effective_volume(store, slot));
+      audio_voice_set_volume(slot.music, effective_volume(store, slot));
       if (slot.fade <= 0.0f && slot.stop_at_end) {
-        StopMusicStream(slot.music);
+        audio_voice_stop(slot.music);
         slot.stop_at_end = false;
       }
     }
-    UpdateMusicStream(slot.music);
   }
 }
 } // namespace njin

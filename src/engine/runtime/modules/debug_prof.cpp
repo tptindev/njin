@@ -53,11 +53,6 @@ usize target_bytes(const RenderTexture2D &t) {
   return texture_bytes(t.texture) + (usize)t.texture.width * (usize)t.texture.height * 4;
 }
 
-// Decoded audio held in memory.
-usize audio_bytes(const AudioStream &s, usize frames) {
-  return frames * (usize)s.channels * (usize)(s.sampleSize / 8);
-}
-
 json_value item(const char *kind, const std::string &name, usize bytes, bool gpu, const std::string &info = {}) {
   return json_value::make_object()
       .set("k", kind)
@@ -227,14 +222,14 @@ json_value debug_build_res(const context &ctx) {
     const sound_slot &s = ctx_ref<audio_store>(ctx)->sounds[i];
     if (!s.alive)
       continue;
-    add(item("sound", "sound #" + std::to_string(i + 1), audio_bytes(s.sound.stream, s.sound.frameCount), false,
+    add(item("sound", "sound #" + std::to_string(i + 1), usize(audio_voice_bytes(s.sound)), false,
              std::to_string(s.voices.size() + 1) + " voices, bus " + std::to_string((i32)s.bus)));
   }
   for (usize i = 0; i < ctx_ref<audio_store>(ctx)->musics.size(); i++) {
     const music_slot &s = ctx_ref<audio_store>(ctx)->musics[i];
     if (s.alive)
       add(item("music", "music #" + std::to_string(i + 1), 0, false,
-               "streamed, " + std::to_string(s.music.frameCount) + " frames"));
+               "decoded as it plays, " + std::to_string(audio_voice_frames(s.music)) + " frames"));
   }
 
   // Engine-owned buffers.

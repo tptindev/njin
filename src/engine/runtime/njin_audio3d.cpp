@@ -114,7 +114,7 @@ void audio3d_update(context &ctx) {
   for (voice3d_slot &v : a.voices3d) {
     if (!v.alive)
       continue;
-    if (!v.looping && !IsSoundPlaying(v.alias)) {
+    if (!v.looping && !audio_voice_playing(v.alias)) {
       voice3d_store_release(v);
       continue;
     }
@@ -137,8 +137,8 @@ void audio3d_update(context &ctx) {
     }
     update_occlusion(ctx, a, v, dt);
     voice3d_store_apply(a, v); // keeps the occluded flag just set
-    if (v.looping && !IsSoundPlaying(v.alias))
-      PlaySound(v.alias);
+    if (v.looping && !audio_voice_playing(v.alias))
+      audio_voice_play(v.alias);
   }
 }
 
@@ -232,7 +232,7 @@ void voice3d_stop(context &ctx, voice3d_handle voice) {
 
 bool voice3d_playing(const context &ctx, voice3d_handle voice) {
   const voice3d_slot *v = voice3d_slot_of(ctx_ref<audio_store>(ctx), voice);
-  return v != nullptr && (v->looping || IsSoundPlaying(v->alias));
+  return v != nullptr && (v->looping || audio_voice_playing(v->alias));
 }
 
 voice3d_mix voice3d_state(const context &ctx, voice3d_handle voice) {

@@ -206,6 +206,9 @@ function(_njin_feature name)
 endfunction()
 
 _njin_feature(3d LIBS meshoptimizer njin_smaa njin_xatlas)
+# Sound on miniaudio: only this file sees its folder (and compiles it).
+set_source_files_properties(njin_audio_backend.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${miniaudio_SOURCE_DIR}" SKIP_UNITY_BUILD_INCLUSION ON SKIP_PRECOMPILE_HEADERS ON)
 # OBJ/MTL on the bgfx path: fast_obj ships with the pinned meshoptimizer
 # checkout. Only this file sees that folder (it also holds a second cgltf.h),
 # and it compiles fast_obj's implementation, so it stays out of unity builds.

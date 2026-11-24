@@ -116,7 +116,13 @@ types and small utilities that do not log).
   stb_truetype; font files are read with the standard library. `font_bake`
   test: 3 fonts x 6 sizes x smooth/pixel, glyphs, rectangles and atlas pixels
   identical to raylib's. raylib `FONT` lines: 82 -> 0.
-- **Audio (next):** raylib's raudio (device, sounds, music streams) on bgfx.
+- **Audio (done, 2026-11-23).** `njin_audio_backend` on miniaudio 0.11.24
+  (pinned) with stb_vorbis, for both renderers; raylib is built without raudio.
+  It mixes as raudio did (float stereo device, one converter per voice for
+  pitch, raudio's pan law, no clipping); music decodes from memory in the
+  callback and loops without a gap; video sound is a two-buffer stream.
+  `audio_backend` test (offline mixer): pan/volume levels, pitch length,
+  aliases, stream depth, music looping and the repository's sound files.
 - Then: utilities (UTF-8 codepoints, time, file helpers), raymath and raylib
   types inside the runtime, the tools' UI.
 

@@ -114,6 +114,18 @@ FetchContent_Declare(
   GIT_TAG 6.0
   SYSTEM)
 
+# miniaudio (public domain or MIT-0): the sound device, decoders (wav, mp3, flac and,
+# through its stb_vorbis, ogg) and resampling, as raudio used it. Header only: compiled
+# once in src/engine/runtime/njin_audio_backend.cpp.
+FetchContent_Declare(
+  miniaudio
+  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+  GIT_TAG 0.11.24
+  # Sources only: its own CMake project would compile a second implementation.
+  SOURCE_SUBDIR njin-sources-only
+  SYSTEM)
+FetchContent_MakeAvailable(miniaudio)
+
 FetchContent_Declare(
   entt
   GIT_REPOSITORY https://github.com/skypjack/entt.git
@@ -248,10 +260,16 @@ FetchContent_Declare(
   SYSTEM)
 
 FetchContent_MakeAvailable(raylib entt JoltPhysics meshoptimizer tinybvh xatlas lua sol2 recastnavigation pl_mpeg smaa asio enet)
+# Njin's sound is its own (njin_audio_backend.cpp on miniaudio): raudio.c, which would
+# define miniaudio's symbols a second time, is left out of raylib. Only its startup log
+# line mentions it. (raylib's CUSTOMIZE_BUILD route is not used: its config.h parser
+# turns every `#define SUPPORT_X 0` on, frame pacing control among them.)
+get_target_property(_njin_raylib_sources raylib SOURCES)
+list(FILTER _njin_raylib_sources EXCLUDE REGEX "raudio\.c$")
+set_property(TARGET raylib PROPERTY SOURCES ${_njin_raylib_sources})
 add_library(njin_xatlas STATIC EXCLUDE_FROM_ALL "${xatlas_SOURCE_DIR}/source/xatlas/xatlas.cpp")
 target_include_directories(njin_xatlas SYSTEM PUBLIC "${xatlas_SOURCE_DIR}/source/xatlas")
 set_target_properties(njin_xatlas PROPERTIES POSITION_INDEPENDENT_CODE ON)
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/njin_raylib_audio_fix.cmake")
 
 # Ray tracing (light3d::ray_traced_shadows) beside the OpenGL renderer: a
 # Vulkan device with ray queries through NVRHI (NVIDIA, MIT), sharing images and
@@ -505,6 +523,12 @@ if(NJIN_BUILD_RHI_SLICE)
   target_link_libraries(njin_font_bake_test PRIVATE njin::rt raylib)
   target_include_directories(njin_font_bake_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime")
   add_test(NAME font_bake COMMAND njin_font_bake_test "${PROJECT_SOURCE_DIR}/examples" "${PROJECT_SOURCE_DIR}/src/engine/tests")
+  # Njin's sound output (miniaudio, no raylib), mixed offline.
+  add_executable(njin_audio_backend_test src/engine/tests/audio_backend.cpp)
+  set_target_properties(njin_audio_backend_test PROPERTIES NJIN_ENGINE_INTERNAL ON)
+  target_link_libraries(njin_audio_backend_test PRIVATE njin::rt)
+  target_include_directories(njin_audio_backend_test PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/runtime")
+  add_test(NAME audio_backend COMMAND njin_audio_backend_test "${PROJECT_SOURCE_DIR}/examples")
   add_executable(njin_transparent_test src/engine/tests/transparent3d.cpp)
   add_executable(njin_primitives_test src/engine/tests/primitives3d.cpp)
   target_link_libraries(njin_primitives_test PRIVATE njin::rt njin::gpu)

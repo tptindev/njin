@@ -76,14 +76,14 @@ f32 bus_factor(const audio_store &a, audio_bus bus) {
 void feed_stream(video_slot &v, std::vector<f32> &chunk) {
   chunk.resize((usize)stream_buffer_frames * 2);
   const usize cap = v.ring.size();
-  while (IsAudioStreamProcessed(v.stream)) {
+  while (audio_stream_wants(v.stream)) {
     const usize take = std::min(chunk.size(), v.ring_count);
     for (usize i = 0; i < take; i++)
       chunk[i] = v.ring[(v.ring_read + i) % cap];
     std::fill(chunk.begin() + (std::ptrdiff_t)take, chunk.end(), 0.0f);
     v.ring_read = (v.ring_read + take) % cap;
     v.ring_count -= take;
-    UpdateAudioStream(v.stream, chunk.data(), stream_buffer_frames);
+    audio_stream_push(v.stream, chunk.data(), stream_buffer_frames);
   }
 }
 
@@ -99,8 +99,8 @@ void upload(context &ctx, video_slot &v) {
 }
 
 void free_video(video_slot &v) {
-  if (v.has_audio && IsAudioDeviceReady())
-    UnloadAudioStream(v.stream);
+  if (v.has_audio)
+    audio_voice_free(v.stream);
   if (v.plm != nullptr)
     plm_destroy(v.plm);
   v.plm = nullptr;
@@ -111,11 +111,11 @@ void set_stream_running(video_slot &v, bool run) {
   if (!v.has_audio)
     return;
   if (run) {
-    if (!IsAudioStreamPlaying(v.stream))
-      PlayAudioStream(v.stream);
-    ResumeAudioStream(v.stream);
+    if (!audio_voice_playing(v.stream))
+      audio_voice_play(v.stream);
+    audio_voice_resume(v.stream);
   } else {
-    PauseAudioStream(v.stream);
+    audio_voice_pause(v.stream);
   }
 }
 } // namespace
@@ -173,12 +173,12 @@ video_handle video_open(context &ctx, const video_desc &desc) {
   v.texture = texture_handle{(u32)ctx_ref<texture_store>(ctx)->slots.size()};
 
   const i32 rate = plm_get_samplerate(plm);
-  v.has_audio = desc.audio && IsAudioDeviceReady() && plm_get_num_audio_streams(plm) > 0 && rate > 0;
+  v.has_audio = desc.audio && audio_device_ready() && plm_get_num_audio_streams(plm) > 0 && rate > 0;
   plm_set_audio_enabled(plm, v.has_audio ? 1 : 0);
   if (v.has_audio) {
-    SetAudioStreamBufferSizeDefault(stream_buffer_frames);
-    v.stream = LoadAudioStream((unsigned int)rate, 32, 2);
-    SetAudioStreamBufferSizeDefault(0);
+    v.stream = audio_stream_open(rate, stream_buffer_frames);
+    v.has_audio = bool(v.stream);
+    plm_set_audio_enabled(plm, v.has_audio ? 1 : 0);
     v.stream_frames = stream_buffer_frames;
     v.ring.assign((usize)((f32)rate * ring_seconds) * 2, 0.0f);
     // Decode the sound this far ahead of the picture: what the stream's two
@@ -346,12 +346,12 @@ void update_videos(context &ctx) {
     }
     upload(ctx, v);
     if (v.has_audio) {
-      SetAudioStreamVolume(v.stream, v.volume * bus_factor(ctx_ref<audio_store>(ctx), v.bus));
+      audio_voice_set_volume(v.stream, v.volume * bus_factor(ctx_ref<audio_store>(ctx), v.bus));
       // A finished video still plays out the sound it decoded ahead.
       if (v.playing || v.finished)
         feed_stream(v, chunk);
       if (v.finished && v.ring_count == 0)
-        PauseAudioStream(v.stream);
+        audio_voice_pause(v.stream);
     }
   }
 }
