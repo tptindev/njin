@@ -107,6 +107,9 @@ class BgfxDevice final : public GraphicsDevice {
   Callbacks callback;
   bool initialized=false,vsync=false;
   std::uint32_t submitted_frame=UINT32_MAX;
+  // begin_readback: a staging copy each, read when the frame it names is done.
+  struct PendingRead {bgfx::TextureHandle staging=BGFX_INVALID_HANDLE;std::uint32_t ready=0;RenderImageAsset image;};
+  std::unordered_map<std::uint64_t,PendingRead> pending_reads;std::uint64_t next_read=1;
   unsigned width=0,height=0;
   static constexpr uint64_t screen_id=UINT64_MAX;
   bool presenting=false;
@@ -247,6 +250,8 @@ class BgfxDevice final : public GraphicsDevice {
     if(bgfx::isValid(advanced_params)) bgfx::destroy(advanced_params);
     if(bgfx::isValid(transmit_params)) bgfx::destroy(transmit_params);
     for(auto p:{rt_trace,rt_blur,rt_reflect,rt_gi,rt_gi_light}) if(bgfx::isValid(p)) bgfx::destroy(p);
+    for(auto &[id,read]:pending_reads) if(bgfx::isValid(read.staging)) bgfx::destroy(read.staging);
+    pending_reads.clear();
     for(auto t:rt_grid) if(bgfx::isValid(t)) bgfx::destroy(t);
     for(auto t:rt_grid_depth) if(bgfx::isValid(t)) bgfx::destroy(t);
     for(auto t:rt_mask) if(bgfx::isValid(t)) bgfx::destroy(t);
@@ -361,7 +366,7 @@ public:
       advanced_uv=checked(bgfx::createUniform("u_njinAdvancedUv",bgfx::UniformType::Vec4,12),"advanced map UV uniform failed");
       advanced_params=checked(bgfx::createUniform("u_njinAdvanced",bgfx::UniformType::Vec4,3),"advanced material uniform failed");
       transmit_params=checked(bgfx::createUniform("u_njinTransmit",bgfx::UniformType::Vec4,2),"transmission uniform failed");
-      rt_shadow_rows=checked(bgfx::createUniform("u_njinRtShadow",bgfx::UniformType::Vec4,6),"ray traced shadow uniform failed");
+      rt_shadow_rows=checked(bgfx::createUniform("u_njinRtShadow",bgfx::UniformType::Vec4,9),"ray traced shadow uniform failed");
       coat_params=checked(bgfx::createUniform("u_njinCoat",bgfx::UniformType::Vec4),"clearcoat map uniform failed");
       coat_uv=checked(bgfx::createUniform("u_njinCoatUv",bgfx::UniformType::Vec4,4),"clearcoat map UV uniform failed");
       sky_rows=checked(bgfx::createUniform("u_njinSky",bgfx::UniformType::Vec4,11),"sky uniform failed");
@@ -760,6 +765,33 @@ public:
       return result;
     } catch(...) {if(!released) bgfx::destroy(staging);if(frame_active) {view=0;configure_view(active_target,{},false);}throw;}
   }
+  std::uint64_t begin_readback(RenderTargetHandle handle) override {
+    require_frame();
+    const auto &target=targets.at(handle.id);
+    PendingRead read;
+    read.image={target.width,target.height,{},target.format==bgfx::TextureFormat::RGBA16F?RenderImageFormat::RGBA16F:RenderImageFormat::RGBA8};
+    read.image.pixels.resize(size_t(target.width)*target.height*(read.image.format==RenderImageFormat::RGBA16F?8:4));
+    const auto flags=BGFX_TEXTURE_BLIT_DST|BGFX_TEXTURE_READ_BACK;
+    if(!bgfx::isTextureValid(0,false,1,target.format,flags)) throw std::runtime_error("njin bgfx: target readback format is unsupported");
+    read.staging=checked(bgfx::createTexture2D(uint16_t(target.width),uint16_t(target.height),false,1,target.format,flags),"readback staging allocation failed");
+    const auto id=next_read++;
+    auto &stored=pending_reads.emplace(id,std::move(read)).first->second;
+    // After every render view of the frame (the last view), so the target is complete.
+    bgfx::TextureRegion destination,source;destination.init(stored.staging);source.init(textures.at(target.color.id));
+    bgfx::blit(bgfx::ViewId(bgfx::getCaps()->limits.maxViews-1),destination,source);
+    stored.ready=bgfx::read(destination,stored.image.pixels.data());
+    used_targets.insert(handle.id);
+    return id;
+  }
+  bool finish_readback(std::uint64_t id,RenderImageAsset &out) override {
+    const auto it=pending_reads.find(id);
+    if(it==pending_reads.end()) throw std::invalid_argument("njin bgfx: unknown readback");
+    if(submitted_frame==UINT32_MAX||int32_t(submitted_frame-it->second.ready)<0) return false;
+    out=std::move(it->second.image);
+    bgfx::destroy(it->second.staging);
+    pending_reads.erase(it);
+    return true;
+  }
   static uint32_t sampling(bool linear,RenderWrap s,RenderWrap t,RenderMinFilter min=RenderMinFilter::Inherit) {
     uint32_t flags=linear?0:BGFX_SAMPLER_MIN_POINT|BGFX_SAMPLER_MAG_POINT|BGFX_SAMPLER_MIP_POINT;
     if(min!=RenderMinFilter::Inherit) {
@@ -922,11 +954,22 @@ public:
       bgfx::setUniform(transparency,transparency_values);bgfx::setUniform(transparency_vp,draw.transparency_projection.data());
       // Opaque draws of a ray traced frame read the sun's mask on sampler 10 (validated free).
       const bool ray_shadow=draw.ray_shadow&&rt_latest>=0&&rt_frame_serial==frame_serial()&&bgfx::isValid(rt_mask[size_t(rt_latest)]);
+      // A captured irradiance grid takes sampler 10 when the traced mask and the post depth do not.
+      const bool captured_grid=!ray_shadow&&!post_depth&&draw.irradiance_grid&&draw.irradiance_grid->texture&&!draw.transparent;
       if(ray_shadow) bgfx::setTexture(10,opaque_depth,rt_mask[size_t(rt_latest)],BGFX_SAMPLER_POINT|BGFX_SAMPLER_UVW_CLAMP);
+      else if(captured_grid) {
+        bgfx::setTexture(10,opaque_depth,textures.at(draw.irradiance_grid->texture.id),BGFX_SAMPLER_POINT|BGFX_SAMPLER_UVW_CLAMP);
+        used_textures.insert(draw.irradiance_grid->texture.id);
+      }
       else bgfx::setTexture(10,opaque_depth,post_depth?textures.at(post_depth.id):texture,sampling(false,RenderWrap::Clamp,RenderWrap::Clamp));
       {
-        auto rows=rt_frame;if(!ray_shadow) rows[4][0]=rows[4][3]=rows[5][0]=0;
-        bgfx::setUniform(rt_shadow_rows,rows.data(),6);
+        std::array<std::array<float,4>,9> rows{};
+        std::copy(rt_frame.begin(),rt_frame.end(),rows.begin());
+        if(!ray_shadow) rows[4][0]=rows[4][3]=rows[5][0]=0;
+        // Row 5 x: 1 the traced grid's light in the ray traced image, 2 a captured grid on
+        // sampler 10, placed by rows 6..8.
+        if(captured_grid) {rows[5][0]=2;for(unsigned r=0;r<3;++r) rows[6+r]=draw.irradiance_grid->rows[r];}
+        bgfx::setUniform(rt_shadow_rows,rows.data(),9);
       }
       if(post_depth) used_textures.insert(post_depth.id);
       const float mask_values[]{draw.normal_pass?1.f:0.f,draw.reflectivity,0,0};

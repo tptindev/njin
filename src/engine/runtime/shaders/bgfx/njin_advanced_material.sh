@@ -11,7 +11,7 @@ uniform vec4 u_njinTransmit[2];
 uniform vec4 u_njinCoat;
 uniform vec4 u_njinCoatUv[4];
 // Ray traced sun shadow mask on sampler 10: view-projection rows; enabled, texel size.
-uniform vec4 u_njinRtShadow[6];
+uniform vec4 u_njinRtShadow[9];
 vec2 njinAdvancedUv(int map,vec2 uv0,vec2 uv1) {
   vec4 a=u_njinAdvancedUv[map*2],b=u_njinAdvancedUv[map*2+1];
   vec2 uv=b.z>0.5?uv1:uv0;

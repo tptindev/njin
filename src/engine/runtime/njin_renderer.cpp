@@ -688,6 +688,11 @@ void renderer_draw_mesh(context &ctx, const MeshDraw &submission) {
   if(!window.graphics->frame_open()) throw std::logic_error("njin renderer: draw/submission outside an active render frame");
   for(auto t:{draw.post.auxiliary,draw.post.secondary,draw.post.depth,draw.post.velocity}) if(t&&!window.renderer_resources.textures.at(t.id).target) window.graphics->ensure_texture(t,window.renderer_resources.textures.at(t.id).cpu.view());
   for(auto map:rhi::all_material_maps(draw)) if(map->texture) window.graphics->ensure_texture(map->texture,window.renderer_resources.textures.at(map->texture.id).cpu.view());
+  if(draw.irradiance_grid&&draw.irradiance_grid->texture) {
+    const auto it=window.renderer_resources.textures.find(draw.irradiance_grid->texture.id);
+    if(it==window.renderer_resources.textures.end()||it->second.target) throw std::invalid_argument("njin renderer: invalid irradiance grid texture");
+    window.graphics->ensure_texture(draw.irradiance_grid->texture,it->second.cpu.view());
+  }
   if(draw.environment) for(auto h:{draw.environment->base,draw.environment->atlas}) {
     const auto &texture=window.renderer_resources.textures.at(h.id);
     if(!texture.target) window.graphics->ensure_texture(h,texture.cpu.view());

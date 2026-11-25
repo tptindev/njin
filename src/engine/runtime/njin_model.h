@@ -232,6 +232,20 @@ struct model_store {
   std::uint64_t portable_rt_grid_generation=0; // irradiance3d_set starts the traced grid over
   irradiance3d_desc portable_grid{}; // irradiance3d_set on the bgfx renderer
   bool portable_grid_set=false;
+  // A grid captured from the scene (irradiance3d_set without ray tracing): a few points a
+  // pass rendered into `target`, read back without stalling (begin_readback), turned into
+  // ambient cubes (`data`, a column per point, a row per direction) and, once every point
+  // is in, uploaded as `grid`'s texture.
+  struct portable_grid_capture {
+    std::uint64_t generation=~0ull;
+    int total=0,next=0;
+    std::vector<float> data;
+    struct batch {std::uint64_t read=0;int first=0,count=0;};
+    std::vector<batch> pending;
+    RenderTargetHandle target;
+    std::shared_ptr<RenderIrradianceGrid> grid; // texture set once complete
+    std::vector<RenderTextureHandle> retired;   // textures a queued draw may still read
+  } portable_capture;
   unsigned portable_hdr_width=0,portable_hdr_height=0;
   // What the target held before the HDR pass (2D drawn earlier), copied in as legacy does.
   RenderTargetHandle portable_hdr_seed;

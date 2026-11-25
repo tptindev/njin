@@ -161,6 +161,14 @@ struct RenderClusterData {
   std::array<std::array<float,4>,4> parameters{};
   std::array<float,16> view{},view_projection{};
 };
+/// An irradiance grid captured once (irradiance3d_set): an ambient cube per point, a
+/// column per point and a row per direction (+x -x +y -y +z -z) of `texture` (RGBA32F,
+/// linear irradiance over pi). Rows: corner, edge blend; size, intensity; points along
+/// x, y, z.
+struct RenderIrradianceGrid {
+  RenderTextureHandle texture; ///< The ambient cubes.
+  std::array<std::array<float,4>,3> rows{}; ///< Placement, as above.
+};
 struct RenderInstance {
   std::array<float,16> transform{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
   std::array<float,4> color{1,1,1,1};
@@ -344,6 +352,9 @@ struct MeshDraw {
   std::array<float,4> instance_occlusion_bounds{};
   std::shared_ptr<const RenderGpuCull> gpu_cull; ///< Snapshot cấu hình culling GPU tùy chọn.
   std::array<float,8> virtual_texture{}; ///< Renderer-owned virtual albedo parameters; zero disables indirection.
+  /// A captured irradiance grid (irradiance3d_set without ray tracing): read by opaque lit
+  /// draws when the ray traced inputs do not use their sampler.
+  std::shared_ptr<const RenderIrradianceGrid> irradiance_grid;
 };
 // Textured triangle-list path with optional directional lighting. Transform is column-major,
 // with OpenGL clip coordinates (depth -1..1); the device adapter converts Z.

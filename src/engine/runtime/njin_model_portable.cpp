@@ -503,8 +503,8 @@ void portable_fx_validate(const fx3d &f) {
 void portable_material_validate(const model_material &m) {
   portable_surface_validate(m.surface); color_check(m.color);
   for(float c:{m.emission_color.r,m.emission_color.g,m.emission_color.b,m.emission_color.a}) if(!std::isfinite(c)||c<0) throw std::invalid_argument("njin bgfx 3D: invalid emission map tint");
-  if(m.sway!=0||m.flutter!=0 )
-    unsupported("advanced model material maps/shaders");
+  if(!std::isfinite(m.sway)||m.sway<0||!std::isfinite(m.flutter)||m.flutter<0)
+    throw std::invalid_argument("njin bgfx 3D: model_material sway/flutter must be finite and nonnegative");
 }
 model_handle portable_model_create(model_store &store,const mesh3d_data &source) {
   if(!source.positions || !source.vertex_count || source.vertex_count>max_elements ||
@@ -1528,6 +1528,12 @@ void portable_draw_model(const context &ctx,model_handle handle,const transform3
     for(const auto *binding:charts) {
     submit(ctx,mesh,data.albedo.texture,data.albedo.linear,world,color,material.surface,
       material.double_sided?RenderCull::None:(MatrixDeterminant(world)<0?RenderCull::CounterClockwise:RenderCull::Clockwise),material.shadow_only,data.maps,data.albedo,blend,data.mask,material.shader);
+    if(material.sway>0||material.flutter>0) {
+      // model_material::sway/flutter, read by draw_instanced3d's vertex stage (rows 2 and
+      // 3 of mode 0), with the wind and clock grass3d bends by, as on the legacy path.
+      const world3d_store &w=*ctx_ref<world3d_store>(ctx);auto &draw=const_cast<model_store&>(store).portable_queue.back();
+      draw.world_style[2]={material.sway,material.flutter,w.time,1};draw.world_style[3]={w.wind.x,w.wind.y,0,0};
+    }
     if(binding) {auto &draw=const_cast<model_store&>(store).portable_queue.back();draw.geometry=original;lightmap_bind(draw,*binding);
       const_cast<rhi::RendererResources&>(ctx_ref<window_guard>(ctx).renderer_resources).pending_3d_textures.insert(binding->map.texture.id);}
     if(animated) {auto &draw=const_cast<model_store&>(store).portable_queue.back();draw.mesh={};draw.geometry=animated;}
@@ -1848,6 +1854,148 @@ void portable_draw_sdf_blend(const context &ctx,const sdf_part *parts,u32 count,
   };
   submit_sdf(ctx,std::move(key),half,detail,radius,distance,{center},color,surface);
 }
+
+// irradiance3d_set without ray tracing (njin_model.h portable_grid_capture): captured from
+// the pass's opaque draws as legacy capture_probes / capture_faces / grid_store do
+// (render3d.cpp, render3d_probe.cpp): eight points a pass, six 90 degree faces of 16
+// pixels each, lit for a linear HDR image at exposure 1, and per point an ambient cube
+// (the light from +x -x +y -y +z -z, each the solid-angle and cosine weighted sum over
+// the faces, over pi). The faces go into one atlas (a row of six per point) through a
+// clip-space squeeze and scissor, and come back a frame or two later.
+namespace {
+constexpr int capture_face=16,capture_points=8;
+const vec3 capture_dirs[6]={{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+const vec3 capture_ups[6]={{0,1,0},{0,1,0},{0,0,1},{0,0,1},{0,1,0},{0,1,0}};
+bool portable_grid_captured(context &ctx,const model_store &store) {
+  return store.portable_grid_set&&!(store.portable_grid.ray_traced&&renderer_compute_available(ctx));
+}
+vec3 capture_point(const irradiance3d_desc &g,int at) {
+  const int nx=std::clamp(g.count_x,1,16),ny=std::clamp(g.count_y,1,16),nz=std::clamp(g.count_z,1,16);
+  const int ix=at%nx,iy=(at/nx)%ny,iz=at/(nx*ny);
+  const auto along=[](int i,int n) {return n>1?float(i)/float(n-1):0.5f;};
+  const vec3 lo=g.center-g.size*0.5f;
+  return {lo.x+g.size.x*along(ix,nx),lo.y+g.size.y*along(iy,ny),lo.z+g.size.z*along(iz,nz)};
+}
+float half_to_float(std::uint16_t h) {
+  const std::uint32_t sign=(h>>15)&1,exponent=(h>>10)&31,mantissa=h&1023;
+  float v;
+  if(exponent==0) v=std::ldexp(float(mantissa),-24);
+  else if(exponent==31) v=mantissa?NAN:INFINITY;
+  else v=std::ldexp(float(mantissa|1024),int(exponent)-25);
+  return sign?-v:v;
+}
+// legacy grid_store: the ambient cube of each point of a finished batch.
+void capture_store(model_store &store,const RenderImageAsset &image,int first,int count) {
+  auto &cap=store.portable_capture;
+  const int size=capture_face;
+  const auto pixel=[&](int x,int y,int c) {
+    const size_t at=(size_t(y)*image.width+size_t(x))*4+size_t(c);
+    if(image.format==RenderImageFormat::RGBA16F) {std::uint16_t h;std::memcpy(&h,image.pixels.data()+at*2,2);return half_to_float(h);}
+    if(image.format==RenderImageFormat::RGBA32F) {float f;std::memcpy(&f,image.pixels.data()+at*4,4);return f;}
+    return image.pixels[at]/255.0f;
+  };
+  for(int k=0;k<count;++k) {
+    vec3 sum[6]{};
+    for(int f=0;f<6;++f) {
+      // legacy face_frame: the face looks along +z' = -dir.
+      const vec3 fz=capture_dirs[f]*-1.0f,fx=normalize(cross(capture_ups[f],fz)),fy=cross(fz,fx);
+      for(int jt=0;jt<size;++jt) for(int i=0;i<size;++i) {
+        // Row jt counts from the top here; legacy's row j from the bottom.
+        const int j=size-1-jt;
+        const float x=(float(i)+0.5f)/float(size)*2-1,y=(float(j)+0.5f)/float(size)*2-1;
+        const vec3 d=normalize(fx*x+fy*y-fz);
+        const float solid=(4.0f/float(size*size))/std::pow(1.0f+x*x+y*y,1.5f);
+        const int px=f*size+i,py=k*size+jt;
+        const vec3 radiance{pixel(px,py,0),pixel(px,py,1),pixel(px,py,2)};
+        for(int a=0;a<6;++a) {const float w=dot(d,capture_dirs[a]);if(w>0) sum[a]=sum[a]+radiance*(w*solid);}
+      }
+    }
+    for(int a=0;a<6;++a) {
+      float *t=&cap.data[(size_t(a)*size_t(cap.total)+size_t(first+k))*4];
+      t[0]=sum[a].x/PI;t[1]=sum[a].y/PI;t[2]=sum[a].z/PI;t[3]=1;
+    }
+  }
+}
+}
+static void portable_grid_capture_step(context &ctx,model_store &store) {
+  auto &cap=store.portable_capture;
+  auto &device=*ctx_ref<window_guard>(ctx).graphics;
+  // Textures retired a frame ago are free now.
+  for(auto t:cap.retired) if(!device.texture_in_use(t)) renderer_destroy_texture(ctx,t);
+  std::erase_if(cap.retired,[&](RenderTextureHandle t){return !ctx_ref<window_guard>(ctx).renderer_resources.textures.contains(t.id);});
+  if(!portable_grid_captured(ctx,store)) return;
+  const auto &g=store.portable_grid;
+  const int total=std::clamp(g.count_x,1,16)*std::clamp(g.count_y,1,16)*std::clamp(g.count_z,1,16);
+  if(cap.generation!=store.portable_rt_grid_generation||cap.total!=total) {
+    // A new grid (or irradiance3d_refresh): the old one lights the scene until this is done.
+    for(const auto &b:cap.pending) {RenderImageAsset discard;while(!device.finish_readback(b.read,discard)) {break;}}
+    cap.generation=store.portable_rt_grid_generation;cap.total=total;cap.next=0;cap.pending.clear();
+    cap.data.assign(size_t(total)*6*4,0.0f);
+  }
+  // Batches read back since: their ambient cubes.
+  for(auto it=cap.pending.begin();it!=cap.pending.end();) {
+    RenderImageAsset image;
+    if(device.finish_readback(it->read,image)) {capture_store(store,image,it->first,it->count);it=cap.pending.erase(it);}
+    else ++it;
+  }
+  if(cap.next>=cap.total&&cap.pending.empty()&&!cap.data.empty()) {
+    // Complete: the grid's texture (RGBA32F, a column per point, a row per direction).
+    std::vector<std::uint8_t> bytes(cap.data.size()*4);std::memcpy(bytes.data(),cap.data.data(),bytes.size());
+    const auto texture=renderer_create_texture(ctx,RenderImage{unsigned(cap.total),6u,bytes,RenderImageFormat::RGBA32F});
+    auto grid=std::make_shared<RenderIrradianceGrid>();grid->texture=texture;
+    const vec3 size{std::max(std::fabs(g.size.x),1e-3f),std::max(std::fabs(g.size.y),1e-3f),std::max(std::fabs(g.size.z),1e-3f)};
+    const vec3 lo=g.center-size*0.5f;
+    grid->rows[0]={lo.x,lo.y,lo.z,std::max(g.blend,0.01f)};
+    grid->rows[1]={size.x,size.y,size.z,std::max(g.intensity,0.0f)};
+    grid->rows[2]={float(std::clamp(g.count_x,1,16)),float(std::clamp(g.count_y,1,16)),float(std::clamp(g.count_z,1,16)),0};
+    if(cap.grid&&cap.grid->texture) cap.retired.push_back(cap.grid->texture);
+    cap.grid=std::move(grid);cap.data.clear();
+  }
+  if(cap.next>=cap.total||cap.pending.size()>=2) return;
+  // The next batch, from this pass's opaque draws.
+  const int count=std::min(capture_points,cap.total-cap.next);
+  const unsigned w=6*capture_face,h=capture_points*capture_face;
+  if(!cap.target) cap.target=renderer_create_hdr_target(ctx,w,h);
+  auto &resources=ctx_ref<window_guard>(ctx).renderer_resources;
+  const auto previous=resources.active_target;
+  if(previous) renderer_end_target(ctx);
+  renderer_begin_target(ctx,cap.target,{0,0,0,1});
+  try {
+    const auto &camera=store.portable_camera;
+    const float near_plane=std::max(camera.near_plane,0.01f),far_plane=camera.far_plane;
+    const Matrix projection=MatrixPerspective(PI/2,1,near_plane,far_plane);
+    for(int k=0;k<count;++k) {
+      const vec3 eye=capture_point(g,cap.next+k);
+      for(int f=0;f<6;++f) {
+        const Matrix view=MatrixLookAt({eye.x,eye.y,eye.z},{eye.x+capture_dirs[f].x,eye.y+capture_dirs[f].y,eye.z+capture_dirs[f].z},
+                                       {capture_ups[f].x,capture_ups[f].y,capture_ups[f].z});
+        // Into its tile: x to [16f, 16f+16), y to row k (clip y up, the atlas top first).
+        const float sx=float(capture_face)/float(w),sy=float(capture_face)/float(h);
+        const float ox=(float(f*capture_face)+capture_face*0.5f)/float(w)*2-1,oy=1-(float(k*capture_face)+capture_face*0.5f)/float(h)*2;
+        const Matrix squeeze=MatrixMultiply(MatrixScale(sx,sy,1),MatrixTranslate(ox,oy,0));
+        const Matrix vp=MatrixMultiply(MatrixMultiply(view,projection),squeeze);
+        const auto view_values=MatrixToFloatV(view);
+        for(const auto &packet:store.portable_queue) {
+          if(packet.shadow_only||packet.transparent) continue;
+          MeshDraw draw=packet;
+          Matrix world;std::memcpy(&world,draw.world.data(),sizeof(world));
+          const auto mvp=MatrixToFloatV(MatrixMultiply(world,vp));std::copy_n(mvp.v,16,draw.transform.begin());
+          std::copy_n(view_values.v,16,draw.view.begin());
+          draw.lighting.camera={eye.x,eye.y,eye.z};
+          draw.linear_output=true;draw.resolve=false;draw.tonemap=RenderToneMap::None;draw.exposure=1;
+          draw.clusters=nullptr;draw.ray_shadow=false;draw.post=RenderPostProcess{};draw.gpu_cull=nullptr;
+          draw.instance_occlusion_bounds={};draw.velocity_pass=false;draw.motion_recorded=false;draw.irradiance_grid=nullptr;
+          draw.scissor_enabled=true;draw.scissor={f*capture_face,k*capture_face,unsigned(capture_face),unsigned(capture_face)};
+          renderer_draw_mesh(ctx,draw);
+        }
+      }
+    }
+  } catch(...) {renderer_end_target(ctx);if(previous) renderer_resume_target(ctx,previous);throw;}
+  renderer_end_target(ctx);
+  if(previous) renderer_resume_target(ctx,previous);
+  cap.pending.push_back({device.begin_readback(cap.target),cap.next,count});
+  cap.next+=count;
+}
 void portable_end_3d(context &ctx) {
   model_store &store=ctx_ref<model_store>(ctx); if(!store.portable_pass) return;
   try {
@@ -1915,6 +2063,7 @@ void portable_end_3d(context &ctx) {
       packet.local_lights=lights; packet.local_light_count=local_lights?unsigned(std::min(store.portable_lights.size(),size_t(render_local_light_max))):0;
       if(weather&&packet.world_style[0][0]==1&&packet.world_style[0][3]>0) packet.cover=weather;
       if(ray_traced&&!packet.transparent) packet.ray_shadow=true;
+      if(store.portable_capture.grid&&store.portable_capture.grid->texture&&portable_grid_captured(ctx,store)) packet.irradiance_grid=store.portable_capture.grid;
       if(!packet.transparent) renderer_draw_mesh(ctx,packet);
     }
     if(!store.portable_frame_post.oit) {
@@ -1944,6 +2093,7 @@ void portable_end_3d(context &ctx) {
     }
     portable_precip_draw(ctx,store);
     portable_particles3d_draw(ctx);
+    portable_grid_capture_step(ctx,store);
     if(store.portable_hdr_active) {
       renderer_end_target(ctx); store.portable_hdr_active=false;
       portable_post_resolve(ctx,store);

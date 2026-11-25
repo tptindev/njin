@@ -132,8 +132,37 @@ vec4 njinRtReflection(vec3 position) {
   vec4 h=njinRtFetch(position,1.0);
   return vec4(h.rgb,h.a>0.5?u_njinRtShadow[4].w:0.0);
 }
-// irradiance3d_desc::ray_traced: the grid's light here (linear) and its weight.
-vec4 njinRtGrid(vec3 position) {
+// A grid captured once (irradiance3d_set without ray tracing), on sampler 10: an ambient
+// cube per point (a column per point, a row per direction), trilinear between the eight
+// points round `position`, faded over the box's edge band, as legacy grid_irradiance
+// (render3d.cpp) samples its captured grid. Rows 6..8: corner, blend; size, intensity;
+// points along x, y, z.
+vec4 njinCapturedGrid(vec3 position,vec3 n) {
+  vec3 lo=u_njinRtShadow[6].xyz,size=max(u_njinRtShadow[7].xyz,vec3(1e-4,1e-4,1e-4)),cnt=u_njinRtShadow[8].xyz;
+  vec3 rel=(position-lo)/size;
+  vec3 inside=min(position-lo,lo+size-position);
+  float weight=clamp(min(inside.x,min(inside.y,inside.z))/max(u_njinRtShadow[6].w,1e-4),0.0,1.0);
+  if(weight<=0.0) return vec4(0.0,0.0,0.0,0.0);
+  vec3 g=clamp(rel,0.0,1.0)*max(cnt-1.0,vec3(0.0,0.0,0.0));
+  vec3 g0=floor(g),f=g-g0,n2=n*n;
+  float total=cnt.x*cnt.y*cnt.z;
+  float dx=n.x>=0.0?0.0:1.0,dy=n.y>=0.0?2.0:3.0,dz=n.z>=0.0?4.0:5.0;
+  vec3 sum=vec3(0.0,0.0,0.0);
+  for(int c=0;c<8;c++) {
+    vec3 o=vec3(float(c-(c/2)*2),float((c/2)-(c/4)*2),float(c/4));
+    vec3 p=min(g0+o,max(cnt-1.0,vec3(0.0,0.0,0.0)));
+    float w=(o.x>0.5?f.x:1.0-f.x)*(o.y>0.5?f.y:1.0-f.y)*(o.z>0.5?f.z:1.0-f.z);
+    float u=(p.x+cnt.x*(p.y+cnt.y*p.z)+0.5)/total;
+    sum+=w*(n2.x*texture2DLod(s_njinOpaqueDepth,vec2(u,(dx+0.5)/6.0),0.0).rgb+
+            n2.y*texture2DLod(s_njinOpaqueDepth,vec2(u,(dy+0.5)/6.0),0.0).rgb+
+            n2.z*texture2DLod(s_njinOpaqueDepth,vec2(u,(dz+0.5)/6.0),0.0).rgb);
+  }
+  return vec4(sum*u_njinRtShadow[7].w,weight);
+}
+// irradiance3d_desc::ray_traced: the grid's light here (linear) and its weight; or the
+// captured grid's.
+vec4 njinRtGrid(vec3 position,vec3 n) {
+  if(u_njinRtShadow[5].x>1.5) return njinCapturedGrid(position,n);
   if(u_njinRtShadow[5].x<0.5) return vec4(0.0,0.0,0.0,0.0);
   return njinRtFetch(position,2.0);
 }
@@ -463,7 +492,7 @@ vec3 njinSurface(vec3 base,vec3 linearBase,vec3 normal,vec3 position,vec2 uv0,ve
     // (a lightmap still wins, as on the legacy renderer).
     vec4 gridLight=vec4(0.0,0.0,0.0,0.0);
 #ifdef NJIN_ADVANCED_MATERIALS
-    gridLight=njinRtGrid(position);
+    gridLight=njinRtGrid(position,n);
     gridLight.rgb=linearLight?gridLight.rgb:njinDisplay(gridLight.rgb);
     if(gridLight.w>0.0) ambient=mix(ambient,gridLight.rgb,gridLight.w);
 #endif

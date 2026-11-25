@@ -6,9 +6,43 @@ uniform mat4 u_njinWorld;
 uniform mat4 u_njinNormal;
 uniform vec4 u_njinParams;
 uniform vec4 u_njinWorldStyle[6];
+// model_material::sway and ::flutter on draw_instanced3d (mode 0, row 2: sway, flutter,
+// the grass's clock, on; row 3: wind x, z), as the legacy instanced shader does
+// (render3d.cpp instance_sway / instance_flutter), in the same gusts as grass3d.
+vec3 njinSway(vec3 world, vec3 local, vec3 origin) {
+  float amount=u_njinWorldStyle[2].x;
+  if(amount<=0.0) return world;
+  vec2 wind=u_njinWorldStyle[3].xy;float time=u_njinWorldStyle[2].z,speed=length(wind);
+  vec2 dir=speed>1e-3?wind/speed:vec2(1.0,0.0);
+  float phase=fract(sin(dot(origin.xz,vec2(12.9898,78.233)))*43758.5453)*6.2832;
+  float gust=sin(time*1.6+phase+dot(origin.xz,dir)*0.3)*0.5+0.5;
+  float flutter=sin(time*4.7+phase*3.0)*0.12;
+  float bend=(clamp(speed/8.0,0.0,1.3)*(0.35+0.65*gust)+flutter*clamp(speed/3.0,0.0,1.0))*amount;
+  float y2=max(local.y,0.0)*max(local.y,0.0);
+  return world+vec3(dir.x*bend*y2,-0.5*bend*bend*y2*max(local.y,0.0),dir.y*bend*y2);
+}
+vec3 njinFlutter(vec3 world, vec2 leaf) {
+  float amount=u_njinWorldStyle[2].y;
+  if(amount<=0.0||leaf.x<=0.0) return world;
+  vec2 wind=u_njinWorldStyle[3].xy;float time=u_njinWorldStyle[2].z,speed=length(wind);
+  vec2 dir=speed>1e-3?wind/speed:vec2(1.0,0.0);
+  float beat=leaf.y*6.2832;
+  float gust=sin(time*1.6+dot(world.xz,dir)*0.3)*0.5+0.5;
+  float strength=(0.15+clamp(speed/8.0,0.0,1.3)*(0.4+0.6*gust))*amount*leaf.x;
+  float toss=sin(time*(6.0+3.0*leaf.y)+beat+dot(world.xz,dir)*0.9);
+  float lift=sin(time*(9.0+4.0*leaf.y)+beat*3.0);
+  vec3 down=vec3(dir.x,0.0,dir.y),across=vec3(-dir.y,0.0,dir.x);
+  return world+(down*(0.35+0.35*toss)+across*(0.5*lift)+vec3(0.0,0.4*toss,0.0))*strength;
+}
 void main() {
   mat4 instance=mtxFromCols(i_data0,i_data1,i_data2,i_data3);
   vec4 local=mul(instance,vec4(a_position,1.0));
+  if(u_njinWorldStyle[0].x<0.5&&u_njinWorldStyle[2].w>0.5) {
+    // Legacy's `local`: the vertex after the instance's scale, before its turn.
+    vec3 k=vec3(length(i_data0.xyz),length(i_data1.xyz),length(i_data2.xyz));
+    vec2 leaf=vec2(a_texcoord1.x*k.y,a_texcoord1.y);
+    local.xyz=njinSway(njinFlutter(local.xyz,leaf),a_position*k,i_data3.xyz);
+  }
   if(u_njinWorldStyle[0].x>1.5 && u_njinWorldStyle[0].x<2.5) {
     float t=a_position.y,phase=i_data5.y,h=length(i_data1.xyz);
     vec2 wind=u_njinWorldStyle[4].xy;float time=u_njinWorldStyle[4].z,speed=length(wind);

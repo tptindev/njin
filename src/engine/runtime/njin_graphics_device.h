@@ -45,6 +45,11 @@ public:
   }
   virtual void replace_texture(RenderTextureHandle,const RenderImage &) { throw std::runtime_error("njin renderer: texture replacement is unavailable"); }
   virtual RenderImageAsset read_target(RenderTargetHandle) { throw std::runtime_error("njin renderer: render-target readback is unavailable"); }
+  // Readback without stalling the frame: begin copies the target as it stands at the
+  // end of this frame; finish gives the pixels once the GPU has them (a frame or two
+  // later), false until then. Every begun readback must be finished or it leaks.
+  virtual std::uint64_t begin_readback(RenderTargetHandle) { throw std::runtime_error("njin renderer: asynchronous readback is unavailable"); }
+  virtual bool finish_readback(std::uint64_t, RenderImageAsset &) { return false; }
   // GPU snapshot of the current color surface, preserving its draw order.
   virtual void copy_frame(RenderTargetHandle) {throw std::runtime_error("njin renderer: frame snapshots are unavailable");}
   virtual void destroy_texture(RenderTextureHandle) = 0;

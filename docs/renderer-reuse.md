@@ -349,3 +349,16 @@ RmlUi cho UI game.
   tool_anim_editor_self_test/_roundtrip/_smoke; rml_vulkan, rml_d3d12, rml_bgfx-opengl
   (vị trí/màu theo RCSS, `{{coins}}` đổi theo game, click qua event SDL tới
   data-event-click, `data-if`, rml_wants_mouse).
+
+## Irradiance grid chụp một lần trên bgfx (2026-11-25)
+
+- **Njin trước:** dịch từ legacy `capture_probes`/`capture_faces` (render3d.cpp),
+  `grid_store` và `grid_irradiance` (render3d_probe.cpp, render3d.cpp): 8 điểm một pass,
+  6 mặt 16 px, ambient cube theo góc khối và cos, chia pi; shader nội suy 8 điểm và mờ ở
+  mép hộp. Tái dùng hàng đợi 3D của pass (như pass bóng gửi lại lệnh vẽ), đọc ngược
+  không chờ qua `bgfx::read` (thêm `GraphicsDevice::begin_readback/finish_readback`, không đổi
+  `read_target` cũ vốn ép `bgfx::frame`), và slot 10 vốn chở dữ liệu ray tracing.
+- **Không mở tham chiếu ngoài:** đây là bản port 1:1 của thuật toán legacy để giữ cùng
+  ảnh; không có mã bên thứ ba.
+- **Kiểm chứng:** `irradiance_capture_*` (Vulkan, D3D12, bgfx-OpenGL, legacy OpenGL) và
+  `irradiance_capture_legacy_vs_*` (mặt khuất nắng cách legacy dưới 7/255).

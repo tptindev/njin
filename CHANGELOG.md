@@ -449,6 +449,12 @@ To release: edit that header, add a section here, commit, then
   statistics (render_info_get) are filled in on bgfx too.
 - bgfx: with `light3d::hdr`, what was drawn before `begin_3d` (2D, the backdrop) was
   covered by the clear colour; it is kept and tone mapped with the scene, as on OpenGL.
+- bgfx: `irradiance3d_set` without `ray_traced` (the default) did nothing but warn; the
+  grid is captured from the scene as on OpenGL (a few points a frame, read back without
+  stalling) and lights the opaque shapes in its box.
+- bgfx: `model_material::sway` and `::flutter` (plants in the wind, drawn with
+  `draw_instanced3d`) were refused; they sway and flutter as on OpenGL, in the same gusts
+  as grass3d, shadows included.
 - bgfx: `draw_instanced` (2D) drew nothing; it draws with the shader package's own
   vertex stage, under the same camera and transform as the other 2D draws.
 - bgfx: `pad_rumble` makes the gamepad rumble (through SDL); it asked raylib,

@@ -467,7 +467,9 @@ struct irradiance3d_desc {
   /// ánh sáng gián tiếp theo kịp đèn, nắng và vật di chuyển, và dội nhiều lần (tường đỏ
   /// hắt sáng đỏ lên sàn, phòng sáng dần qua cửa sổ). Không có ray tracing thì lưới
   /// được chụp như cũ. Renderer bgfx: lưới bằng tia chạy bằng compute shader và chiếu
-  /// sáng các hình đục (kính, nước giữ `ambient`); lưới chụp một lần chưa có ở đó.
+  /// sáng các hình đục (kính, nước giữ `ambient`); lưới chụp một lần cũng chiếu sáng các
+  /// hình đục, trừ khi bóng hay phản chiếu bằng tia đang bật (khi đó lưới được tính bằng
+  /// tia như thể `ray_traced`).
   bool ray_traced = false;
   /// Số tia mỗi điểm mỗi frame (khi `ray_traced`), 16..256.
   i32 rays = 128;

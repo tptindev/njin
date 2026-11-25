@@ -102,7 +102,7 @@ void shade_inputs(const model_store &store,rhi::RayShadowPass &pass) {
 // rows for the device, or false without one.
 bool grid_inputs(context &ctx,model_store &store,rhi::RayShadowPass &pass) {
   if(!store.portable_grid_set) return false;
-  if(!store.portable_grid.ray_traced) {NJIN_WARN_LIMITED("bgfx 3D: a captured irradiance grid is not ported; irradiance3d_desc::ray_traced is");return false;}
+  if(!store.portable_grid.ray_traced) return false; // captured from the scene instead (portable_grid_capture_step)
   const auto &g=store.portable_grid;
   const float nx=float(std::clamp(g.count_x,1,16)),ny=float(std::clamp(g.count_y,1,16)),nz=float(std::clamp(g.count_z,1,16));
   const vec3 size{std::max(g.size.x,0.001f),std::max(g.size.y,0.001f),std::max(g.size.z,0.001f)};
